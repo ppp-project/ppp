@@ -1,7 +1,7 @@
 #
 # Dummy Makefile for OSF/1
 #
-# $Id: Makefile,v 1.4 1996/07/01 01:05:09 paulus Exp $
+# $Id: Makefile,v 1.5 1998/05/04 06:08:57 paulus Exp $
 #
 
 install: 
@@ -16,5 +16,5 @@ install:
 	cp ../modules/if_ppp.c /sys/streamsm
 	cp ppp_init.c /sys/streamsm
 	cp ../common/zlib.c ../common/zlib.h /sys/streamsm
-	cp ../net/ppp-comp.h ../net/ppp_defs.h \
-	../net/pppio.h ../net/vjcompress.h /sys/include/net
+	cp ../include/net/ppp-comp.h ../include/net/ppp_defs.h \
+	../include/net/pppio.h ../include/net/vjcompress.h /sys/include/net
