@@ -94,6 +94,7 @@ int set_kdebugflag (int requested_level)
 void establish_ppp (void)
 {
     int pppdisc = N_PPP;
+    int sig = SIGIO;
 
     if (ioctl(fd, TIOCEXCL, 0) < 0) {
 	syslog (LOG_WARNING, "ioctl(TIOCEXCL): %m");
@@ -115,6 +116,14 @@ void establish_ppp (void)
     }
 
     set_kdebugflag (kdebugflag);
+
+    /*
+     * Set the device to give us a SIGIO when data is available.
+     */
+    if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
+	die(1);
+    }
 }
 
 /*
