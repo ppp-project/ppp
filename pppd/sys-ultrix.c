@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.6 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.7 1994/11/22 02:42:09 paulus Exp $";
 #endif
 
 /*
@@ -28,6 +28,7 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.6 1994/09/21 06:47:37 paulus Exp $"
 
 #include <stdio.h>
 #include <syslog.h>
+#include <string.h>
 #include <termios.h>
 #include <utmp.h>
 #include <sys/types.h>
@@ -46,10 +47,10 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.6 1994/09/21 06:47:37 paulus Exp $"
 
 #include "pppd.h"
 
-static int initdisc = -1;		/* Initial TTY discipline */
+static int initdisc = -1;	/* Initial TTY discipline */
 
-static int restore_term;	/* 1 => we've munged the terminal */
-static struct termios inittermios;	/* Initial TTY termios */
+static int	restore_term;	/* 1 => we've munged the terminal */
+static struct termios inittermios; /* Initial TTY termios */
 
 /*
  * sys_init - System-dependent initialization.
@@ -58,8 +59,6 @@ void
 sys_init()
 {
     openlog("pppd", LOG_PID);
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
 }
 
 /*
@@ -68,10 +67,55 @@ sys_init()
 void
 note_debug_level()
 {
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-    }
 }
+
+
+/*
+ * daemon - Detach us from the terminal session.
+ */
+int
+daemon(nochdir, noclose)
+    int nochdir, noclose;
+{
+    int pid;
+
+    if ((pid = fork()) < 0)
+	return -1;
+    if (pid != 0)
+	exit(0);		/* parent dies */
+    setsid();
+    if (!nochdir)
+	chdir("/");
+    if (!noclose) {
+	fclose(stdin);		/* don't need stdin, stdout, stderr */
+	fclose(stdout);
+	fclose(stderr);
+    }
+    return 0;
+}
+
+
+/*
+ * ppp_available - check whether the system has any ppp interfaces
+ * (in fact we check whether we can do an ioctl on ppp0).
+ */
+
+int
+ppp_available()
+{
+    int s, ok;
+    struct ifreq ifr;
+
+    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	return 1;		/* can't tell - maybe we're not root */
+
+    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+    close(s);
+
+    return ok;
+}
+
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
@@ -284,12 +328,12 @@ set_up_tty(fd, local)
     if (!restore_term)
 	inittermios = tios;
 
-#ifdef CRTSCTS
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
-    if (crtscts == 1)
-	tios.c_cflag |= CRTSCTS;
-#else
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+#ifdef CRTSCTS
+    if (crtscts > 0)
+	tios.c_cflag |= CRTSCTS;
+    else if (crtscts < 0)
+	tios.c_cflag &= ~CRTSCTS;
 #endif	/* CRTSCTS */
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
@@ -313,6 +357,15 @@ set_up_tty(fd, local)
 	cfsetispeed(&tios, speed);
     } else {
 	speed = cfgetospeed(&tios);
+	/*
+	 * We can't proceed if the serial port speed is B0,
+	 * since that implies that the serial port is disabled.
+	 */
+	if (speed == B0) {
+	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
+		   devnam);
+	    die(1);
+	}
     }
 
     if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
@@ -409,8 +462,8 @@ read_packet(buf)
     int len;
 
     if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
-	if (errno == EWOULDBLOCK) {
-	    MAINDEBUG((LOG_DEBUG, "read(fd): EWOULDBLOCK"));
+	if (errno == EWOULDBLOCK || errno == EINTR) {
+	    MAINDEBUG((LOG_DEBUG, "read(fd): %m"));
 	    return -1;
 	}
 	syslog(LOG_ERR, "read(fd): %m");
@@ -503,6 +556,22 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 }
 
 /*
+ * ccp_test - ask kernel whether a given compression method
+ * is acceptable for use.
+ */
+ccp_test(unit, opt_ptr, opt_len, for_transmit)
+    int unit, opt_len, for_transmit;
+    u_char *opt_ptr;
+{
+    struct ppp_option_data data;
+
+    data.ptr = opt_ptr;
+    data.length = opt_len;
+    data.transmit = for_transmit;
+    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
+}
+
+/*
  * ccp_flags_set - inform kernel about the current state of CCP.
  */
 void
@@ -519,6 +588,24 @@ ccp_flags_set(unit, isopen, isup)
     x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
     if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+}
+
+/*
+ * ccp_fatal_error - returns 1 if decompression was disabled as a
+ * result of an error detected after decompression of a packet,
+ * 0 otherwise.  This is necessary because of patent nonsense.
+ */
+int
+ccp_fatal_error(unit)
+    int unit;
+{
+    int x;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
+	return 0;
+    }
+    return x & SC_DC_FERROR;
 }
 
 /*
@@ -550,11 +637,17 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 /*
  * sifup - Config the interface up and enable IP packets to pass.
  */
+#ifndef SC_ENABLE_IP
+#define SC_ENABLE_IP	0x100	/* compat for old versions of kernel code */
+#endif
+
 int
 sifup(u)
+    int u;
 {
     struct ifreq ifr;
     u_int x;
+    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -566,14 +659,23 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	return 0;
-    }
-    x |= SC_ENABLE_IP;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	return 0;
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_PASS;
+    if (ioctl(fd, PPPIOCSNPMODE, &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
+	    return 0;
+	}
+	/* for backwards compatibility */
+	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	    return 0;
+	}
+	x |= SC_ENABLE_IP;
+	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	    return 0;
+	}
     }
     return 1;
 }
@@ -583,22 +685,35 @@ sifup(u)
  */
 int
 sifdown(u)
+    int u;
 {
     struct ifreq ifr;
     u_int x;
     int rv;
+    struct npioctl npi;
 
     rv = 1;
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	rv = 0;
-    } else {
-	x &= ~SC_ENABLE_IP;
-	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_ERROR;
+    if (ioctl(fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
 	    rv = 0;
+	} else {
+	    /* backwards compatibility */
+	    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+		syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+		rv = 0;
+	    } else {
+		x &= ~SC_ENABLE_IP;
+		if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+		    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+		    rv = 0;
+		}
+	    }
 	}
     }
+
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
@@ -626,6 +741,8 @@ sifdown(u)
  */
 int
 sifaddr(u, o, h, m)
+    int u;
+    u_int32_t o, h, m;
 {
     int ret;
     struct ifreq ifr;
@@ -660,6 +777,8 @@ sifaddr(u, o, h, m)
  */
 int
 cifaddr(u, o, h)
+    int u;
+    u_int32_t o, h;
 {
     struct rtentry rt;
 
@@ -783,8 +902,8 @@ get_ether_addr(ipaddr, hwaddr)
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
     if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
-        return 0;
+	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
+	return 0;
     }
 
     /*
@@ -792,7 +911,8 @@ get_ether_addr(ipaddr, hwaddr)
      * address on the same subnet as `ipaddr'.
      */
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
+	    ((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
         if (ifr->ifr_addr.sa_family == AF_INET) {
             ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
             strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
@@ -817,13 +937,11 @@ get_ether_addr(ipaddr, hwaddr)
 
             break;
         }
-        ifr = (struct ifreq *) ((char *)&ifr->ifr_addr + sizeof(struct sockaddr)
-);
     }
 
     if (ifr >= ifend)
-        return 0;
-    syslog(LOG_DEBUG, "found interface %s for proxy arp", ifr->ifr_name);
+	return 0;
+    syslog(LOG_INFO, "found interface %s for proxy arp", ifr->ifr_name);
 
     /*
      * Now scan through again looking for a link-level address
@@ -847,28 +965,6 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     return 0;
-}
-
-
-/*
- * ppp_available - check whether the system has any ppp interfaces
- * (in fact we check whether we can do an ioctl on ppp0).
- */
-
-int
-ppp_available()
-{
-    int s, ok;
-    struct ifreq ifr;
-
-    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-	return 1;		/* can't tell - maybe we're not root */
-
-    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
-    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
-    close(s);
-
-    return ok;
 }
 
 
