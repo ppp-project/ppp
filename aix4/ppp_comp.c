@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.3 1995/04/26 04:15:48 paulus Exp $
+ * $Id: ppp_comp.c,v 1.4 1995/04/28 06:13:05 paulus Exp $
  */
 
 #include <net/net_globals.h>
@@ -428,7 +428,7 @@ ppp_comp_ccp(q, mp, rcvd)
 		if (cp->xstate != NULL
 		    && (*cp->xcomp->comp_init)
 		        (cp->xstate, dp + CCP_HDRLEN, clen - CCP_HDRLEN,
-			 0, /* XXX: should be unit */
+			 0, /* XXX: should be unit */ 0,
 			 cp->debug))
 		    cp->ccp_state |= CCP_COMP_RUN;
 	    } else {
