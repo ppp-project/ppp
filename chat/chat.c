@@ -21,6 +21,9 @@
  *      Added -r "report file" switch & REPORT keyword.
  *              Robert Geer <bgeer@xmission.com>
  *
+ *	Added -e "echo" switch & ECHO keyword
+ *		Dick Streefland <dicks@tasking.nl>
+ *
  *	The original author is:
  *
  *		Karl Fox <karl@MorningStar.Com>
@@ -31,7 +34,7 @@
  *
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.11 1996/05/28 00:57:08 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.12 1996/06/26 00:51:06 paulus Exp $";
 
 #include <stdio.h>
 #include <time.h>
@@ -92,6 +95,7 @@ char *program_name;
 #define	MAX_REPORTS		50
 #define	DEFAULT_CHAT_TIMEOUT	45
 
+int echo          = 0;
 int verbose       = 0;
 int Verbose       = 0;
 int quiet         = 0;
@@ -120,7 +124,7 @@ struct termios saved_tty_parameters;
 
 char *abort_string[MAX_ABORTS], *fail_reason = (char *)0,
 	fail_buffer[50];
-int n_aborts = 0, abort_next = 0, timeout_next = 0;
+int n_aborts = 0, abort_next = 0, timeout_next = 0, echo_next = 0;
 
 char *report_string[MAX_REPORTS] ;
 char  report_buffer[50] ;
@@ -140,6 +144,7 @@ SIGTYPE sighup __P((int signo));
 void unalarm __P((void));
 void init __P((void));
 void set_tty_parameters __P((void));
+void echo_stderr __P((int));
 void break_sequence __P((void));
 void terminate __P((int status));
 void do_file __P((char *chat_file));
@@ -196,6 +201,10 @@ char **argv;
         {
 	switch (option)
 	    {
+	    case 'e':
+		++echo;
+		break;
+
 	    case 'v':
 		++verbose;
 		break;
@@ -302,6 +311,25 @@ char **argv;
 	        }
 	    }
 	}
+/*
+ * Allow the last of the report string to be gathered before we terminate.
+ */
+    while (report_gathering)
+        {
+	int c;
+	c = get_char();
+	if (!iscntrl (c))
+	    {
+	    int rep_len = strlen (report_buffer);
+	    report_buffer[rep_len]     = c;
+	    report_buffer[rep_len + 1] = '\0';
+	    }
+	else
+	    {
+	    report_gathering = 0;
+	    fprintf (report_fp, "chat:  %s\n", report_buffer);
+	    }
+        }
 
     terminate(0);
     }
@@ -402,7 +430,7 @@ char *chat_file;
 void usage()
     {
     fprintf(stderr, "\
-Usage: %s [-v] [-t timeout] [-r report-file] {-f chat-file | chat-script}\n",
+Usage: %s [-e] [-v] [-t timeout] [-r report-file] {-f chat-file | chat-script}\n",
 	    program_name);
     exit(1);
     }
@@ -578,6 +606,7 @@ void break_sequence()
 void terminate(status)
 int status;
     {
+    echo_stderr(-1);
     if (report_file != (char *) 0 && report_fp != (FILE *) NULL)
         {
 	if (verbose)
@@ -764,50 +793,56 @@ int sending;
 char *expect_strtok (s, term)
 char *s, *term;
     {
-    static char *str        = "";
-    static int	escape_flag = 0;
+    static  char *str   = "";
+    int	    escape_flag = 0;
     char   *result;
 /*
  * If a string was specified then do initial processing.
  */
     if (s)
 	{
-	str	    = s;
-	escape_flag = 0;
+	str = s;
 	}
+/*
+ * If this is the escape flag then reset it and ignore the character.
+ */
+    if (*str)
+        {
+	result = str;
+        }
+    else
+        {
+	result = (char *) 0;
+        }
 
-    result = (char *) 0;
     while (*str)
 	{
-/*
- * Look for the terminator sequence.
- * If the escape flag is set then this character is not the terminator.
- * We assume that term does not contain the backslash character.
- */
-	if (escape_flag || strchr (term, *str) == (char *) 0)
+	if (escape_flag)
 	    {
-	    if (result == (char *) 0)
-		{
-		result = str;
-		}
+	    escape_flag = 0;
+	    ++str;
+	    continue;
+	    }
 
-	    if (escape_flag || *str == '\\')
-	        {
-		escape_flag = !escape_flag;
-		}
-
+	if (*str == '\\')
+	    {
+	    ++str;
+	    escape_flag = 1;
+	    continue;
+	    }
+/*
+ * If this is not in the termination string, continue.
+ */
+	if (strchr (term, *str) == (char *) 0)
+	    {
 	    ++str;
 	    continue;
 	    }
 /*
- * This is the terminator. If we have a string then this is the end of the
- * scan operation.
+ * This is the terminator. Mark the end of the string and stop.
  */
 	*str++ = '\0';
-	if (result)
-	    {
-	    break;
-	    }
+	break;
 	}
     return (result);
     }
@@ -837,6 +872,12 @@ char *s;
     if (strcmp(s, "TIMEOUT") == 0)
 	{
 	++timeout_next;
+	return;
+	}
+
+    if (strcmp(s, "ECHO") == 0)
+	{
+	++echo_next;
 	return;
 	}
 /*
@@ -924,6 +965,12 @@ int c;
 void chat_send (s)
 register char *s;
     {
+    if (echo_next)
+	{
+	echo_next = 0;
+	echo = (strcmp(s, "ON") == 0);
+	return;
+	}
     if (abort_next)
         {
 	char *s1;
@@ -1194,6 +1241,37 @@ register char *s;
     }
 
 /*
+ *	Echo a character to stderr.
+ *	When called with -1, a '\n' character is generated when
+ *	the cursor is not at the beginning of a line.
+ */
+void echo_stderr(n)
+int n;
+    {
+	static int need_lf;
+	char *s;
+
+	switch (n)
+	    {
+	case '\r':		/* ignore '\r' */
+	    break;
+	case -1:
+	    if (need_lf == 0)
+		break;
+	    /* fall through */
+	case '\n':
+	    write(2, "\n", 1);
+	    need_lf = 0;
+	    break;
+	default:
+	    s = character(n);
+	    write(2, s, strlen(s));
+	    need_lf = 1;
+	    break;
+	    }
+    }
+
+/*
  *	'Wait for' this string to appear on this file descriptor.
  */
 int get_string(string)
@@ -1246,6 +1324,10 @@ register char *string;
 	{
 	int n, abort_len, report_len;
 
+	if (echo)
+	    {
+	    echo_stderr(c);
+	    }
 	if (verbose)
 	    {
 	    if (c == '\n')

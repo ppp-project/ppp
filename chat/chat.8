@@ -1,6 +1,6 @@
 .\" -*- nroff -*-
 .\" manual page [] for chat 1.8
-.\" $Id: chat.8,v 1.3 1995/12/18 03:32:45 paulus Exp $
+.\" $Id: chat.8,v 1.4 1996/06/26 00:51:05 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -42,6 +42,12 @@ Set the file for output of the report strings. If you use the keyword
 \fIREPORT\fR, the resulting strings are written to this file. If this
 option is not used and you still use \fIREPORT\fR keywords, the
 \fIstderr\fR file is used for the report strings.
+.TP
+.B -e
+Start with the echo option turned on. Echoing may also be turned on
+or off at specific points in the chat script by using the \fIECHO\fR
+keyword. When echoing is enabled, all output from the modem is echoed
+to \fIstderr\fR.
 .TP
 .B -v
 Request that the \fIchat\fR script be executed in a verbose mode. The
@@ -164,6 +170,34 @@ ATDT5551212 to dial the telephone. The expected string is
 of the script is executed. In addition the program will write to the
 expect-file the string "CONNECT" plus any characters which follow it
 such as the connection rate.
+.SH ECHO
+The echo options controls whether the output from the modem is echoed
+to \fIstderr\fR. This option may be set with the \fI-e\fR option, but
+it can also be controlled by the \fIECHO\fR keyword. The "expect-send"
+pair \fIECHO\fR \fION\fR enables echoing, and \fIECHO\fR \fIOFF\fR
+disables it. With this keyword you can select which parts of the
+conversation should be visible. For instance, with the following
+script:
+.IP
+ABORT   'BUSY'
+.br
+ABORT   'NO CARIER'
+.br
+''      ATZ
+.br
+OK\\r\\n  ATD1234567
+.br
+\\r\\n    \\c
+.br
+ECHO    ON
+.br
+CONNECT \\c
+.br
+ogin:   account
+.LP
+all output resulting from modem configuration and dialing is not visible,
+but starting with the \fICONNECT\fR (or \fIBUSY\fR) message, everything
+will be echoed.
 .SH TIMEOUT
 The initial timeout value is 45 seconds. This may be changed using the \fB-t\fR
 parameter.
