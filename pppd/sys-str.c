@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <sys/stream.h>
 #include <sys/stropts.h>
+#include <sys/wait.h>
 
 #include <net/if.h>
 #include <net/route.h>
@@ -178,6 +179,8 @@ output(unit, p, len)
 
     if (unit != 0)
 	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
+    if (debug)
+	log_packet(p, len, "sent ");
 
     str.len = len;
     str.buf = (caddr_t) p;
@@ -292,7 +295,8 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
  * sifvjcomp - config tcp header compression
  */
 int
-sifvjcomp(u, vjcomp, cidcomp)
+sifvjcomp(u, vjcomp, cidcomp, maxcid)
+    int u, vjcomp, cidcomp, maxcid;
 {
     char x = vjcomp;
 
@@ -640,4 +644,61 @@ get_ether_addr(ipaddr, hwaddr)
 
     /* couldn't find one */
     return 0;
+}
+
+
+/*
+ * run-program - execute a program with given arguments,
+ * but don't wait for it.
+ * If the program can't be executed, logs an error unless
+ * must_exist is 0 and the program file doesn't exist.
+ */
+static int n_children;
+
+int
+run_program(prog, args, must_exist)
+    char *prog;
+    char **args;
+    int must_exist;
+{
+    int pid;
+
+    pid = fork();
+    if (pid == -1) {
+	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
+	return -1;
+    }
+    if (pid == 0) {
+	execv(prog, args);
+	if (must_exist || errno != ENOENT)
+	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
+	_exit(-1);
+    }
+    MAINDEBUG(("Script %s started; pid = %d", prog, pid));
+    ++n_children;
+    return 0;
+}
+
+
+/*
+ * reap_kids - get status from any dead child processes,
+ * and log a message for abnormal terminations.
+ */
+void
+reap_kids()
+{
+    int pid, status;
+
+    if (n_children == 0)
+	return;
+    if ((pid = waitpid(-1, &status, WNOHANG)) == -1) {
+	if (errno != ECHILD)
+	    syslog(LOG_ERR, "waitpid: %m");
+	return;
+    }
+    --n_children;
+    if (WIFSIGNALED(status)) {
+	syslog(LOG_WARNING, "child process %d terminated with signal %d",
+	       pid, WTERMSIG(status));
+    }
 }
