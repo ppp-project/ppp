@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.10 1995/06/06 01:52:23 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.11 1995/08/16 04:15:38 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -182,6 +182,14 @@ ccp_input(unit, p, len)
     fsm_input(f, p, len);
     if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED)
 	syslog(LOG_NOTICE, "Compression disabled by peer.");
+
+    /*
+     * If we get a terminate-ack and we're not asking for compression,
+     * close CCP.
+     */
+    if (oldstate == REQSENT && p[0] == TERMACK
+	&& !ANY_COMPRESS(ccp_gotoptions[unit]))
+	ccp_close(unit);
 }
 
 /*
