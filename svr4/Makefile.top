@@ -1,7 +1,7 @@
 #
 # ppp top level makefile for SVR4 and Solaris 2
 #
-# $Id: Makefile.top,v 1.6 1998/02/04 01:43:23 paulus Exp $
+# $Id: Makefile.top,v 1.7 1999/03/23 03:33:23 paulus Exp $
 #
 
 include svr4/Makedefs
@@ -10,6 +10,7 @@ all:
 	cd chat; $(MAKE) all
 	cd pppd; $(MAKE) all
 	cd pppstats; $(MAKE) all
+	cd pppdump; $(MAKE) all
 	cd svr4; $(MAKE) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
@@ -43,5 +44,6 @@ clean:
 	cd chat; $(MAKE) clean
 	cd pppd; $(MAKE) clean
 	cd pppstats; $(MAKE) clean
+	cd pppdump; $(MAKE) clean
 	cd svr4; $(MAKE) clean
 
