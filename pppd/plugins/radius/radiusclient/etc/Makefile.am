@@ -1,5 +1,5 @@
 #
-# $Id: Makefile.am,v 1.2 2002/04/02 13:17:13 dfs Exp $
+# $Id: Makefile.am,v 1.3 2002/10/05 04:35:24 fcusack Exp $
 #
 # Copyright (C) 1997,1998 Lars Fenneberg
 #
@@ -20,17 +20,20 @@ pkgsysconf_DATA = issue port-id-map radiusclient.conf \
 
 EXTRA_DIST = issue port-id-map dictionary dictionary.ascend \
 	dictionary.compat dictionary.merit dictionary.microsoft \
-	servers radiusclient.conf.in
+	realms servers radiusclient.conf.in
 
 radiusclient.conf: radiusclient.conf.in
 	sed -e 's|@sbin''dir@|$(sbindir)|g' \
 	    -e 's|@pkgsysconf''dir@|$(pkgsysconfdir)|g' \
 	    <$(srcdir)/radiusclient.conf.in >radiusclient.conf
 
-install-data-local: servers
+install-data-local: realms servers
 	$(mkinstalldirs) $(pkgsysconfdir); \
+        echo " $(INSTALL) -m600 $(srcdir)/realms $(pkgsysconfdir)/realms"; \
+        $(INSTALL) -m600 $(srcdir)/realms $(pkgsysconfdir)/realms
         echo " $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers"; \
         $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers
 
 uninstall-local:
+	rm -f $(pkgsysconfdir)/realms
 	rm -f $(pkgsysconfdir)/servers
