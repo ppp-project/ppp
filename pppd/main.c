@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.39 1996/10/08 06:43:49 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.40 1997/03/04 03:41:17 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -63,6 +63,9 @@ extern char *strerror();
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
 #endif /* IPX_CHANGE */
+#ifdef AT_CHANGE
+#include "atcp.h"
+#endif
 
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
@@ -102,7 +105,6 @@ char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 static void cleanup __P((void));
 static void close_tty __P((void));
 static void get_input __P((void));
-static void connect_time_expired __P((caddr_t));
 static void calltimeout __P((void));
 static struct timeval *timeleft __P((struct timeval *));
 static void hup __P((int));
@@ -144,6 +146,9 @@ struct protent *protocols[] = {
     &ccp_protent,
 #ifdef IPX_CHANGE
     &ipxcp_protent,
+#endif
+#ifdef AT_CHANGE
+    &atcp_protent,
 #endif
     NULL
 };
@@ -204,11 +209,6 @@ main(argc, argv)
 	|| !parse_args(argc-1, argv+1))
 	exit(1);
 
-    if (!ppp_available()) {
-	option_error(no_ppp_msg);
-	exit(1);
-    }
-
     /*
      * Check that we are running as root.
      */
@@ -216,6 +216,11 @@ main(argc, argv)
 	option_error("must be root to run %s, since it is not setuid-root",
 		     argv[0]);
 	die(1);
+    }
+
+    if (!ppp_available()) {
+	option_error(no_ppp_msg);
+	exit(1);
     }
 
     /*
@@ -417,9 +422,11 @@ main(argc, argv)
 	 * the non-blocking I/O bit.
 	 */
 	nonblock = (connector || !modem)? O_NONBLOCK: 0;
-	if ((ttyfd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
-	    syslog(LOG_ERR, "Failed to open %s: %m", devnam);
-	    goto fail;
+	while ((ttyfd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
+	    if (errno != EINTR)
+		syslog(LOG_ERR, "Failed to open %s: %m", devnam);
+	    if (!persist || errno != EINTR)
+		goto fail;
 	}
 	if (nonblock) {
 	    if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
@@ -494,13 +501,6 @@ main(argc, argv)
 	}
 
 	/*
-	 * Set a timeout to close the connection once the maximum
-	 * connect time has expired.
-	 */
-	if (maxconnect > 0)
-	    TIMEOUT(connect_time_expired, 0, maxconnect);
-
-	/*
 	 * Start opening the connection and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
@@ -549,7 +549,8 @@ main(argc, argv)
 	}
 
     fail:
-	close_tty();
+	if (ttyfd >= 0)
+	    close_tty();
 	if (locked) {
 	    unlock();
 	    locked = 0;
@@ -639,7 +640,19 @@ get_input()
      */
     if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
 	MAINDEBUG((LOG_INFO,
-		   "io(): Received non-LCP packet when LCP not open."));
+		   "get_input: Received non-LCP packet when LCP not open."));
+	return;
+    }
+
+    /*
+     * Until we get past the authentication phase, toss all packets
+     * except LCP, LQR and authentication packets.
+     */
+    if (phase <= PHASE_AUTHENTICATE
+	&& !(protocol == PPP_LCP || protocol == PPP_LQR
+	     || protocol == PPP_PAP || protocol == PPP_CHAP)) {
+	MAINDEBUG((LOG_INFO, "get_input: discarding proto 0x%x in phase %d",
+		   protocol, phase));
 	return;
     }
 
@@ -683,17 +696,6 @@ die(status)
     cleanup();
     syslog(LOG_INFO, "Exit.");
     exit(status);
-}
-
-/*
- * connect_time_expired - log a message and close the connection.
- */
-static void
-connect_time_expired(arg)
-    caddr_t arg;
-{
-    syslog(LOG_INFO, "Connect time expired");
-    lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
 /*
@@ -884,8 +886,8 @@ kill_my_pg(sig)
 
     act.sa_handler = SIG_IGN;
     act.sa_flags = 0;
+    kill(0, sig);
     sigaction(sig, &act, &oldact);
-    kill(-getpgrp(), sig);
     sigaction(sig, &oldact, NULL);
 }
 
