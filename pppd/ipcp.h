@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipcp.h,v 1.7 1996/01/01 22:56:54 paulus Exp $
+ * $Id: ipcp.h,v 1.8 1996/04/04 03:57:37 paulus Exp $
  */
 
 /*
@@ -53,9 +53,7 @@ typedef struct ipcp_options {
     u_short vj_protocol;	/* protocol value to use in VJ option */
     u_char maxslotindex, cflag;	/* values for RFC1332 VJ compression neg. */
     u_int32_t ouraddr, hisaddr;	/* Addresses in NETWORK BYTE ORDER */
-#ifdef USE_MS_DNS
-    u_int32_t dnsaddr[2];	/* Primary and secondary DNS entries */
-#endif
+    u_int32_t dnsaddr[2];	/* Primary and secondary MS DNS entries */
 } ipcp_options;
 
 extern fsm ipcp_fsm[];
@@ -74,5 +72,6 @@ void ipcp_protrej __P((int));
 int  ipcp_printpkt __P((u_char *, int, void (*)(), void *));
 void ip_check_options __P((void));
 int  ip_demand_conf __P((int));
+char *ip_ntoa __P((u_int32_t));
 
 extern struct protent ipcp_protent;
