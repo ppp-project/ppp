@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.3 2001/03/08 05:14:26 paulus Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.4 2001/03/12 22:59:00 paulus Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -875,10 +875,10 @@ any_compressions()
 }
 
 /*
- * establish_ppp - Turn the serial port into a ppp interface.
+ * tty_establish_ppp - Turn the serial port into a ppp interface.
  */
 int
-establish_ppp(fd)
+tty_establish_ppp(fd)
     int fd;
 {
     int i;
@@ -933,21 +933,12 @@ establish_ppp(fd)
 }
 
 /*
- * restore_loop - reattach the ppp unit to the loopback.
- * This doesn't need to do anything because disestablish_ppp does it.
- */
-void
-restore_loop()
-{
-}
-
-/*
- * disestablish_ppp - Restore the serial port to normal operation.
+ * tty_disestablish_ppp - Restore the serial port to normal operation.
  * It attempts to reconstruct the stream with the previously popped
  * modules.  This shouldn't call die() because it's called from die().
  */
 void
-disestablish_ppp(fd)
+tty_disestablish_ppp(fd)
     int fd;
 {
     int i;

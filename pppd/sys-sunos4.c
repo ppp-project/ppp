@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-sunos4.c,v 1.25 1999/12/23 01:38:19 paulus Exp $"
+#define RCSID	"$Id: sys-sunos4.c,v 1.26 2001/03/12 22:59:00 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -239,10 +239,10 @@ ppp_available()
 }
 
 /*
- * establish_ppp - Turn the serial port into a ppp interface.
+ * tty_establish_ppp - Turn the serial port into a ppp interface.
  */
 int
-establish_ppp(fd)
+tty_establish_ppp(fd)
     int fd;
 {
     int i;
@@ -268,21 +268,12 @@ establish_ppp(fd)
 }
 
 /*
- * restore_loop - reattach the ppp unit to the loopback.
- * This doesn't need to do anything because disestablish_ppp does it.
- */
-void
-restore_loop()
-{
-}
-
-/*
  * disestablish_ppp - Restore the serial port to normal operation.
  * It attempts to reconstruct the stream with the previously popped
  * modules.  This shouldn't call die() because it's called from die().
  */
 void
-disestablish_ppp(fd)
+tty_disestablish_ppp(fd)
     int fd;
 {
     int i;

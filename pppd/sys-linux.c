@@ -182,6 +182,7 @@ static void decode_version (char *buf, int *version, int *mod, int *patch);
 static int set_kdebugflag(int level);
 static int ppp_registered(void);
 static int make_ppp_unit(void);
+static void restore_loop(void);	/* Transfer ppp unit back to loopback */
 
 extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
@@ -353,10 +354,10 @@ static int set_kdebugflag (int requested_level)
 
 /********************************************************************
  *
- * establish_ppp - Turn the serial port into a ppp interface.
+ * tty_establish_ppp - Turn the serial port into a ppp interface.
  */
 
-int establish_ppp (int tty_fd)
+int tty_establish_ppp (int tty_fd)
 {
     int x;
     int fd = -1;
@@ -491,12 +492,15 @@ int establish_ppp (int tty_fd)
 
 /********************************************************************
  *
- * disestablish_ppp - Restore the serial port to normal operation.
+ * tty_disestablish_ppp - Restore the serial port to normal operation,
+ * and reconnect the ppp unit to the loopback if in demand mode.
  * This shouldn't call die() because it's called from die().
  */
 
-void disestablish_ppp(int tty_fd)
+void tty_disestablish_ppp(int tty_fd)
 {
+    if (demand)
+	restore_loop();
     if (!hungup) {
 /*
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
@@ -991,12 +995,16 @@ int read_packet (unsigned char *buf)
 	nr = read(ppp_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
 	    error("read: %m");
+	if (nr < 0 && errno == ENXIO)
+	    return 0;
     }
     if (nr < 0 && new_style_driver && ifunit >= 0) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
 	    error("read /dev/ppp: %m");
+	if (nr < 0 && errno == ENXIO)
+	    return 0;
     }
     return (new_style_driver && nr > 0)? nr+2: nr;
 }
@@ -1048,7 +1056,7 @@ netif_set_mtu(int unit, int mtu)
     ifr.ifr_mtu = mtu;
 	
     if (ifunit >= 0 && ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
-	fatal("ioctl(SIOCSIFMTU): %m(%d)", errno);
+	fatal("ioctl(SIOCSIFMTU): %m");
 }
 
 /********************************************************************
@@ -2552,7 +2560,7 @@ open_ppp_loopback(void)
  * Just to be sure, set the real serial port to the normal discipline.
  */
 
-void
+static void
 restore_loop(void)
 {
     looped = 1;

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.104 2001/03/09 00:55:14 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.105 2001/03/12 22:58:59 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -453,7 +453,7 @@ main(argc, argv)
 
 	/* set up the serial device as a ppp interface */
 	tdb_writelock(pppdb);
-	fd_ppp = establish_ppp(devfd);
+	fd_ppp = the_channel->establish_ppp(devfd);
 	if (fd_ppp < 0) {
 	    tdb_writeunlock(pppdb);
 	    status = EXIT_FATAL_ERROR;
@@ -499,7 +499,7 @@ main(argc, argv)
 	if (link_stats_valid) {
 	    int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
 	    info("Connect time %d.%d minutes.", t/10, t%10);
-	    info("Sent %d bytes, received %d bytes.",
+	    info("Sent %u bytes, received %u bytes.",
 		 link_stats.bytes_out, link_stats.bytes_in);
 	}
 
@@ -522,9 +522,7 @@ main(argc, argv)
 	 */
 	remove_fd(fd_ppp);
 	clean_check();
-	if (demand)
-	    restore_loop();
-	disestablish_ppp(devfd);	/* XXX */
+	the_channel->disestablish_ppp(devfd);
 	fd_ppp = -1;
 	if (!hungup)
 	    lcp_lowerdown(0);
@@ -1037,7 +1035,7 @@ cleanup()
     sys_cleanup();
 
     if (fd_ppp >= 0)
-	disestablish_ppp(devfd);
+	the_channel->disestablish_ppp(devfd);
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 

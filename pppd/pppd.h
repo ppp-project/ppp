@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.58 2001/03/08 05:11:16 paulus Exp $
+ * $Id: pppd.h,v 1.59 2001/03/12 22:58:59 paulus Exp $
  */
 
 /*
@@ -361,8 +361,12 @@ struct channel {
 	void (*check_options) __P((void));
 	/* get the channel ready to do PPP, return a file descriptor */
 	int  (*connect) __P((void));
-	/* we're finished doing PPP on the channel */
+	/* we're finished with the channel */
 	void (*disconnect) __P((void));
+	/* put the channel into PPP `mode' */
+	int  (*establish_ppp) __P((int));
+	/* take the channel out of PPP `mode', restore loopback if demand */
+	void (*disestablish_ppp) __P((int));
 	/* set the transmit-side PPP parameters of the channel */
 	void (*send_config) __P((int, u_int32_t, int, int));
 	/* set the receive-side PPP parameters of the channel */
@@ -490,9 +494,8 @@ void sys_close __P((void));	/* Clean up in a child before execing */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
 int  get_pty __P((int *, int *, char *, int));	/* Get pty master/slave */
 int  open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
-int  establish_ppp __P((int));	/* Turn serial port into a ppp interface */
-void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
-void disestablish_ppp __P((int)); /* Restore port to normal operation */
+int  tty_establish_ppp __P((int));  /* Turn serial port into a ppp interface */
+void tty_disestablish_ppp __P((int)); /* Restore port to normal operation */
 void make_new_bundle __P((int, int, int, int)); /* Create new bundle */
 int  bundle_attach __P((int));	/* Attach link to existing bundle */
 void cfg_bundle __P((int, int, int, int)); /* Configure existing bundle */

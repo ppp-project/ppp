@@ -20,7 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.5 2001/03/08 05:11:16 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.6 2001/03/12 22:59:01 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -197,6 +197,8 @@ struct channel tty_channel = {
 	&tty_check_options,
 	&connect_tty,
 	&disconnect_tty,
+	&tty_establish_ppp,
+	&tty_disestablish_ppp,
 	&tty_do_send_config,
 	&tty_recv_config,
 	&cleanup_tty,
