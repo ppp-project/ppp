@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.58 1999/03/12 06:07:18 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.59 1999/03/16 02:50:15 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -41,6 +41,7 @@ static char rcsid[] = "$Id: main.c,v 1.58 1999/03/12 06:07:18 paulus Exp $";
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -87,6 +88,10 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
+int log_to_stderr;		/* send log messages to stderr too */
+
+static int fd_ppp;		/* fd for talking PPP */
+static int fd_loop;		/* fd for getting demand-dial packets */
 
 int phase;			/* where the link is at */
 int kill_link;
@@ -129,6 +134,8 @@ static void holdoff_end __P((void *));
 static int device_script __P((char *, int, int));
 static void reap_kids __P((void));
 static void pr_log __P((void *, char *, ...));
+static void logit __P((int, char *, va_list));
+static void vslp_printer __P((void *, char *, ...));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -205,7 +212,7 @@ main(argc, argv)
 
     uid = getuid();
     privileged = uid == 0;
-    sprintf(numbuf, "%d", uid);
+    slprintf(numbuf, sizeof(numbuf), "%d", uid);
     script_setenv("ORIG_UID", numbuf);
 
     ngroups = getgroups(NGROUPS_MAX, groups);
@@ -257,7 +264,7 @@ main(argc, argv)
     }
 
     script_setenv("DEVICE", devnam);
-    sprintf(numbuf, "%d", baud_rate);
+    slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
     script_setenv("SPEED", numbuf);
 
     /*
@@ -268,6 +275,7 @@ main(argc, argv)
 	default_device = 1;
     if (default_device)
 	nodetach = 1;
+    log_to_stderr = !default_device;
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -378,10 +386,10 @@ main(argc, argv)
 	/*
 	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
-	open_ppp_loopback();
+	fd_loop = open_ppp_loopback();
 
 	syslog(LOG_INFO, "Using interface ppp%d", ifunit);
-	(void) sprintf(ifname, "ppp%d", ifunit);
+	slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
 	script_setenv("IFNAME", ifname);
 
 	create_pidfile();	/* write pid to file */
@@ -403,6 +411,7 @@ main(argc, argv)
 	    kill_link = 0;
 	    phase = PHASE_DORMANT;
 	    demand_unblock();
+	    add_fd(fd_loop);
 	    for (;;) {
 		if (sigsetjmp(sigjmp, 1) == 0) {
 		    sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -411,7 +420,7 @@ main(argc, argv)
 		    } else {
 			waiting = 1;
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-			wait_loop_output(timeleft(&timo));
+			wait_input(timeleft(&timo));
 		    }
 		}
 		waiting = 0;
@@ -425,6 +434,7 @@ main(argc, argv)
 		    break;
 		reap_kids();
 	    }
+	    remove_fd(fd_loop);
 	    if (kill_link && !persist)
 		break;
 
@@ -483,7 +493,7 @@ main(argc, argv)
 
 	/* run connection script */
 	if (connector && connector[0]) {
-	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
+	    MAINDEBUG(("Connecting with <%s>", connector));
 
 	    if (!default_device && modem) {
 		hangup_modem(ttyfd);	/* in case modem is off hook */
@@ -516,12 +526,7 @@ main(argc, argv)
 	/* reopen tty if necessary to wait for carrier */
 	if (connector == NULL && modem) {
 	    for (;;) {
-		if (!devnam_info.priv)
-		    seteuid(uid);
-		i = open(devnam, O_RDWR);
-		if (!devnam_info.priv)
-		    seteuid(0);
-		if (i >= 0)
+		if ((i = open(devnam, O_RDWR)) >= 0)
 		    break;
 		if (errno != EINTR)
 		    error("Failed to reopen %s: %m", devnam);
@@ -538,12 +543,12 @@ main(argc, argv)
 	}
 
 	/* set up the serial device as a ppp interface */
-	establish_ppp(ttyfd);
+	fd_ppp = establish_ppp(ttyfd);
 
 	if (!demand) {
 	    
 	    info("Using interface ppp%d", ifunit);
-	    (void) sprintf(ifname, "ppp%d", ifunit);
+	    slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
 	    script_setenv("IFNAME", ifname);
 
 	    create_pidfile();	/* write pid to file */
@@ -553,12 +558,11 @@ main(argc, argv)
 	 * Start opening the connection and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
-	if (kill_link)
-	    goto fail;
-	syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devnam);
+	notice("Connect: %s <--> %s", ifname, devnam);
 	lcp_lowerup(0);
 	lcp_open(0);		/* Start protocol */
 	open_ccp_flag = 0;
+	add_fd(fd_ppp);
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
 	    if (sigsetjmp(sigjmp, 1) == 0) {
 		sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -592,6 +596,7 @@ main(argc, argv)
 	 * the ppp unit back to the loopback.  Set the
 	 * real serial device back to its normal mode of operation.
 	 */
+	remove_fd(fd_ppp);
 	clean_check();
 	if (demand)
 	    restore_loop();
@@ -642,7 +647,7 @@ main(argc, argv)
 		    } else {
 			waiting = 1;
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-			wait_time(timeleft(&timo));
+			wait_input(timeleft(&timo));
 		    }
 		}
 		waiting = 0;
@@ -679,6 +684,7 @@ detach()
 	die(1);
     }
     detached = 1;
+    log_to_stderr = 0;
     pid = getpid();
     /* update pid file if it has been written already */
     if (pidfilename[0])
@@ -694,7 +700,8 @@ create_pidfile()
     FILE *pidfile;
     char numbuf[16];
 
-    (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
+    slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
+	     _PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", pid);
 	(void) fclose(pidfile);
@@ -702,7 +709,7 @@ create_pidfile()
 	error("Failed to create pid file %s: %m", pidfilename);
 	pidfilename[0] = 0;
     }
-    sprintf(numbuf, "%d", pid);
+    slprintf(numbuf, sizeof(numbuf), "%d", pid);
     script_setenv("PPPD_PID", numbuf);
 }
 
@@ -742,10 +749,10 @@ get_input()
     }
 
     if (debug /*&& (debugflags & DBG_INPACKET)*/)
-	log_packet(p, len, "rcvd ", LOG_DEBUG);
+	dbglog("rcvd %P", p, len);
 
     if (len < PPP_HDRLEN) {
-	MAINDEBUG((LOG_INFO, "io(): Received short packet."));
+	MAINDEBUG(("io(): Received short packet."));
 	return;
     }
 
@@ -757,8 +764,7 @@ get_input()
      * Toss all non-LCP packets unless LCP is OPEN.
      */
     if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
-	MAINDEBUG((LOG_INFO,
-		   "get_input: Received non-LCP packet when LCP not open."));
+	MAINDEBUG(("get_input: Received non-LCP packet when LCP not open."));
 	return;
     }
 
@@ -769,7 +775,7 @@ get_input()
     if (phase <= PHASE_AUTHENTICATE
 	&& !(protocol == PPP_LCP || protocol == PPP_LQR
 	     || protocol == PPP_PAP || protocol == PPP_CHAP)) {
-	MAINDEBUG((LOG_INFO, "get_input: discarding proto 0x%x in phase %d",
+	MAINDEBUG(("get_input: discarding proto 0x%x in phase %d",
 		   protocol, phase));
 	return;
     }
@@ -901,8 +907,7 @@ timeout(func, arg, time)
 {
     struct callout *newp, *p, **pp;
   
-    MAINDEBUG((LOG_DEBUG, "Timeout %lx:%lx in %d seconds.",
-	       (long) func, (long) arg, time));
+    MAINDEBUG(("Timeout %p:%p in %d seconds.", func, arg, time));
   
     /*
      * Allocate timeout.
@@ -938,7 +943,7 @@ untimeout(func, arg)
 {
     struct callout **copp, *freep;
   
-    MAINDEBUG((LOG_DEBUG, "Untimeout %lx:%lx.", (long) func, (long) arg));
+    MAINDEBUG(("Untimeout %p:%p.", func, arg));
   
     /*
      * Find first matching timeout and remove it from the list.
@@ -1180,12 +1185,12 @@ device_script(program, in, out)
 	}
 	setuid(uid);
 	if (getuid() != uid) {
-	    syslog(LOG_ERR, "setuid failed");
+	    error("setuid failed");
 	    exit(1);
 	}
 	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
-	syslog(LOG_ERR, "could not exec /bin/sh: %m");
+	error("could not exec /bin/sh: %m");
 	exit(99);
 	/* NOTREACHED */
     }
@@ -1286,7 +1291,7 @@ run_program(prog, args, must_exist, done, arg)
 #ifdef BSD
 	/* Force the priority back to zero if pppd is running higher. */
 	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
-	    syslog(LOG_WARNING, "can't reset priority to 0: %m"); 
+	    warn("can't reset priority to 0: %m"); 
 #endif
 
 	/* SysV recommends a second fork at this point. */
@@ -1294,7 +1299,7 @@ run_program(prog, args, must_exist, done, arg)
 	/* run the program */
 	execve(prog, args, script_env);
 	if (must_exist || errno != ENOENT)
-	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
+	    warn("Can't execute %s: %m", prog);
 	_exit(-1);
     }
 
@@ -1442,6 +1447,39 @@ pr_log __V((void *arg, char *fmt, ...))
 }
 
 /*
+ * vslp_printer - used in processing a %P format
+ */
+struct buffer_info {
+    char *ptr;
+    int len;
+};
+
+static void
+vslp_printer __V((void *arg, char *fmt, ...))
+{
+    int n;
+    va_list pvar;
+    struct buffer_info *bi;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    void *arg;
+    char *fmt;
+    va_start(pvar);
+    arg = va_arg(pvar, void *);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    bi = (struct buffer_info *) arg;
+    n = vslprintf(bi->ptr, bi->len, fmt, pvar);
+    va_end(pvar);
+
+    bi->ptr += n;
+    bi->len -= n;
+}
+
+/*
  * print_string - print a readable representation of a string using
  * printer.
  */
@@ -1540,7 +1578,9 @@ vslprintf(buf, buflen, fmt, args)
     unsigned char *p;
     char num[32];
     time_t t;
+    u_int32_t ip;
     static char hexchars[] = "0123456789abcdef";
+    struct buffer_info bufinfo;
 
     buf0 = buf;
     --buflen;
@@ -1605,6 +1645,7 @@ vslprintf(buf, buflen, fmt, args)
 	    base = 8;
 	    break;
 	case 'x':
+	case 'X':
 	    val = va_arg(args, unsigned int);
 	    base = 16;
 	    break;
@@ -1625,7 +1666,11 @@ vslprintf(buf, buflen, fmt, args)
 	    str = strerror(errno);
 	    break;
 	case 'I':
-	    str = ip_ntoa(va_arg(args, u_int32_t));
+	    ip = va_arg(args, u_int32_t);
+	    ip = ntohl(ip);
+	    slprintf(num, sizeof(num), "%d.%d.%d.%d", (ip >> 24) & 0xff,
+		     (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
+	    str = num;
 	    break;
 	case 'r':
 	    f = va_arg(args, char *);
@@ -1688,6 +1733,25 @@ vslprintf(buf, buflen, fmt, args)
 		    }
 		} else
 		    OUTCHAR(c);
+	    }
+	    continue;
+	case 'P':		/* print PPP packet */
+	    bufinfo.ptr = buf;
+	    bufinfo.len = buflen + 1;
+	    p = va_arg(args, unsigned char *);
+	    n = va_arg(args, int);
+	    format_packet(p, n, vslp_printer, &bufinfo);
+	    buf = bufinfo.ptr;
+	    buflen = bufinfo.len - 1;
+	    continue;
+	case 'B':
+	    p = va_arg(args, unsigned char *);
+	    for (n = prec; n > 0; --n) {
+		c = *p++;
+		if (fillch == ' ')
+		    OUTCHAR(' ');
+		OUTCHAR(hexchars[(c >> 4) & 0xf]);
+		OUTCHAR(hexchars[c & 0xf]);
 	    }
 	    continue;
 	default:
@@ -1847,6 +1911,28 @@ strlcat(char *dest, size_t len, const char *src)
 }
 
 /*
+ * logit - does the hard work for fatal et al.
+ */
+static void
+logit(level, fmt, args)
+    int level;
+    char *fmt;
+    va_list args;
+{
+    int n;
+    char buf[256];
+    static char nl = '\n';
+
+    n = vslprintf(buf, sizeof(buf), fmt, args);
+    syslog(level, "%s", buf);
+    if (log_to_stderr) {
+	if (write(2, buf, n) != n
+	    || (buf[n-1] != '\n' && write(2, &nl, 1) != 1))
+	    log_to_stderr = 0;
+    }
+}
+
+/*
  * fatal - log an error message and die horribly.
  */
 void
@@ -1862,10 +1948,8 @@ fatal __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_ERR, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_ERR, "%s", line);
 
     die(1);			/* as promised */
 }
@@ -1886,10 +1970,8 @@ error __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_ERR, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_ERR, "%s", line);
 }
 
 /*
@@ -1908,10 +1990,8 @@ warn __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_WARNING, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_WARNING, "%s", line);
 }
 
 /*
@@ -1930,10 +2010,8 @@ notice __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_NOTICE, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_NOTICE, "%s", line);
 }
 
 /*
@@ -1952,10 +2030,8 @@ info __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_INFO, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_INFO, "%s", line);
 }
 
 /*
@@ -1974,8 +2050,6 @@ dbglog __V((char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vslprintf(line, sizeof(line), fmt, pvar);
+    logit(LOG_DEBUG, fmt, pvar);
     va_end(pvar);
-
-    syslog(LOG_DEBUG, "%s", line);
 }
