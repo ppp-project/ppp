@@ -24,11 +24,20 @@
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
  *
- * $Id: vjcompress.c,v 1.4 1994/12/08 00:35:33 paulus Exp $
+ * $Id: vjcompress.c,v 1.5 1995/05/19 03:48:34 paulus Exp $
  */
 
 #include <sys/types.h>
 #include <sys/param.h>
+
+#ifdef __svr4__
+#ifndef __GNUC__
+#include <sys/byteorder.h>	/* for ntohl, etc. */
+#else
+/* make sure we don't get the gnu "fixed" one! */
+#include "/usr/include/sys/byteorder.h"
+#endif
+#endif
 
 #ifdef __osf__
 #include <net/net_globals.h>

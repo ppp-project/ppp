@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, and AIX 4.x.
  *
- * $Id: bsd-comp.c,v 1.11 1995/05/02 02:49:09 paulus Exp $
+ * $Id: bsd-comp.c,v 1.12 1995/05/19 03:48:34 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -56,8 +56,13 @@
 #include <net/ppp_str.h>
 
 #ifdef sun
+#ifdef __svr4__			/* SunOS 5.x */
+#include <sys/kmem.h>
+#define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
+#else				/* SunOS 4.x */
 #include <sys/kmem_alloc.h>
 #define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
+#endif
 #define FREE(p, n)	kmem_free((p), (n))
 #endif
 
