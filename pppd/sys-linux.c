@@ -25,6 +25,7 @@
 #include <sys/errno.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +38,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <termios.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -47,12 +49,11 @@
 #define MAX_ADDR_LEN 7
 #endif
 
-#include <linux/version.h>
-#include <net/if.h>
+#include <linux/if.h>
 #include <linux/ppp_defs.h>
-#include <net/if_arp.h>
+#include <linux/if_arp.h>
 #include <linux/if_ppp.h>
-#include <net/route.h>
+#include <linux/route.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
 
@@ -98,6 +99,8 @@ static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 static char *lock_file;
+
+static struct utsname utsname;	/* for the kernel version */
 
 #define MAX_IFS		100
 
@@ -218,6 +221,8 @@ void sys_init(void)
 	    die(1);
 	  }
       }
+
+    uname(&utsname);
   }
 
 /********************************************************************
@@ -1276,10 +1281,10 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
-#if LINUX_VERSION_CODE > 0x020100
-    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
-#endif
+    if (strcmp(utsname.release, "2.1.0") > 0) {
+      SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+      ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+    }
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
@@ -1312,10 +1317,10 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
-#if LINUX_VERSION_CODE > 0x020100
-    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
-#endif
+    if (strcmp(utsname.release, "2.1.0") > 0) {
+      SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+      ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+    }
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
@@ -1753,7 +1758,7 @@ int ppp_available(void)
 	  "This system lacks kernel support for PPP.  This could be because\n"
 	  "the PPP kernel module is not loaded, or because the kernel is\n"
 	  "not configured for PPP.  See the README.linux file in the\n"
-	  "ppp-2.3.1 distribution.\n";
+	  "ppp-2.3.2 distribution.\n";
       }
 /*
  *  This is the PPP device. Validate the version of the driver at this
@@ -2207,8 +2212,11 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 	return (0);
       } 
 /*
- *  Set the netmask
+ *  Set the netmask.
+ *  For recent kernels, force the netmask to 255.255.255.255.
  */
+    if (strcmp(utsname.release, "2.1.16") >= 0)
+      net_mask = ~0L;
     if (net_mask != 0)
       {
 	((struct sockaddr_in *) &ifr.ifr_netmask)->sin_addr.s_addr = net_mask;
@@ -2224,29 +2232,29 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Add the device route
  */
-#if LINUX_VERSION_CODE < 0x020100+16		/* 2.1.16 */
-    SET_SA_FAMILY (rt.rt_dst,     AF_INET);
-    SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    rt.rt_dev = ifname;
+    if (strcmp(utsname.release, "2.1.16") < 0) {
+      SET_SA_FAMILY (rt.rt_dst,     AF_INET);
+      SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+      rt.rt_dev = ifname;
 
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0L;
-    ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
-    rt.rt_flags = RTF_UP | RTF_HOST;
+      ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0L;
+      ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
+      rt.rt_flags = RTF_UP | RTF_HOST;
 
-#if LINUX_VERSION_CODE > 0x020100
-    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
-#endif
-
-    if (ioctl(sock_fd, SIOCADDRT, &rt) < 0)
-      {
-	if (! ok_error (errno))
-	  {
-	    syslog (LOG_ERR, "ioctl(SIOCADDRT) device route: %m(%d)", errno);
-	  }
-        return (0);
+      if (strcmp(utsname.release, "2.1.0") > 0) {
+	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
       }
-#endif
+
+      if (ioctl(sock_fd, SIOCADDRT, &rt) < 0)
+	{
+	  if (! ok_error (errno))
+	    {
+	      syslog (LOG_ERR, "ioctl(SIOCADDRT) device route: %m(%d)", errno);
+	    }
+	  return (0);
+	}
+    }
     return 1;
   }
 
@@ -2258,35 +2266,36 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 
 int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
   {
-#if LINUX_VERSION_CODE < 0x020100+16		/* 2.1.16 */
     struct rtentry rt;
+
+    if (strcmp(utsname.release, "2.1.16") < 0) {
 /*
  *  Delete the route through the device
  */
-    memset (&rt, '\0', sizeof (rt));
+      memset (&rt, '\0', sizeof (rt));
 
-    SET_SA_FAMILY (rt.rt_dst,     AF_INET);
-    SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    rt.rt_dev = ifname;
+      SET_SA_FAMILY (rt.rt_dst,     AF_INET);
+      SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+      rt.rt_dev = ifname;
 
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0;
-    ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
-    rt.rt_flags = RTF_UP | RTF_HOST;
+      ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0;
+      ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
+      rt.rt_flags = RTF_UP | RTF_HOST;
 
-#if LINUX_VERSION_CODE > 0x020100
-    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
-#endif
-
-    if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
-      {
-	if (still_ppp() && ! ok_error (errno))
-	  {
-	    syslog (LOG_ERR, "ioctl(SIOCDELRT) device route: %m(%d)", errno);
-	  }
-	return (0);
+      if (strcmp(utsname.release, "2.1.0") > 0) {
+	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
       }
-#endif
+
+      if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
+	{
+	  if (still_ppp() && ! ok_error (errno))
+	    {
+	      syslog (LOG_ERR, "ioctl(SIOCDELRT) device route: %m(%d)", errno);
+	    }
+	  return (0);
+	}
+    }
     return 1;
   }
 
