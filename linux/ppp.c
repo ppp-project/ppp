@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990412==
+ *  ==FILEVERSION 990510==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.25 1999/04/16 11:29:13 paulus Exp $ */
+/* $Id: ppp.c,v 1.26 1999/05/12 06:12:59 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -174,6 +174,10 @@ typedef size_t		rw_count_t;
 #define SUSER()		capable(CAP_NET_ADMIN)
 #endif
 
+#if LINUX_VERSION_CODE < VERSION(2,2,0)
+#define wmb()		mb()
+#endif
+
 /*
  * Local functions
  */
@@ -190,6 +194,7 @@ static int ppp_tty_push(struct ppp *ppp);
 static int ppp_async_encode(struct ppp *ppp);
 static int ppp_async_send(struct ppp *, struct sk_buff *);
 static int ppp_sync_send(struct ppp *, struct sk_buff *);
+static void ppp_tty_flush_output(struct ppp *);
 
 static int ppp_ioctl(struct ppp *, unsigned int, unsigned long);
 static int ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp);
@@ -338,6 +343,7 @@ __u16 ppp_crc16_table[256] =
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
+EXPORT_SYMBOL(ppp_crc16_table);
 
 #ifdef CHECK_CHARACTERS
 static __u32 paritytab[8] =
@@ -832,6 +838,21 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 		error = n_tty_ioctl (tty, file, param2, param3);
 		break;
 
+	case TCFLSH:
+		/*
+		 * Flush our buffers, then call the generic code to
+		 * flush the serial port's buffer.
+		 */
+		if (param3 == TCIFLUSH || param3 == TCIOFLUSH) {
+			struct sk_buff *skb;
+			while ((skb = skb_dequeue(&ppp->rcv_q)) != NULL)
+				KFREE_SKB(skb);
+		}
+		if (param3 == TCIOFLUSH || param3 == TCOFLUSH)
+			ppp_tty_flush_output(ppp);
+		error = n_tty_ioctl (tty, file, param2, param3);
+		break;
+
 	case FIONREAD:
 		/*
 		 * Returns how many bytes are available for a read().
@@ -1036,7 +1057,7 @@ ppp_tty_sync_push(struct ppp *ppp)
 	save_flags(flags);
 	cli();
 	if (ppp->tty_pushing) {
-		/* record wakeup attempt so we don't loose */
+		/* record wakeup attempt so we don't lose */
 		/* a wakeup call while doing push processing */
 		ppp->woke_up=1;
 		restore_flags(flags);
@@ -1119,16 +1140,20 @@ ppp_tty_push(struct ppp *ppp)
 	int avail, sent, done = 0;
 	struct tty_struct *tty = ppp2tty(ppp);
 	
-	if ( ppp->flags & SC_SYNC ) 
+	if (ppp->flags & SC_SYNC) 
 		return ppp_tty_sync_push(ppp);
 
 	CHECK_PPP(0);
-	if (ppp->tty_pushing)
+	if (ppp->tty_pushing) {
+		ppp->woke_up = 1;
 		return 0;
+	}
 	if (tty == NULL || tty->disc_data != (void *) ppp)
 		goto flush;
 	while (ppp->optr < ppp->olim || ppp->tpkt != 0) {
 		ppp->tty_pushing = 1;
+		mb();
+		ppp->woke_up = 0;
 		avail = ppp->olim - ppp->optr;
 		if (avail > 0) {
 			tty->flags |= (1 << TTY_DO_WRITE_WAKEUP);
@@ -1138,18 +1163,24 @@ ppp_tty_push(struct ppp *ppp)
 			ppp->stats.ppp_obytes += sent;
 			ppp->optr += sent;
 			if (sent < avail) {
+				wmb();
 				ppp->tty_pushing = 0;
+				mb();
+				if (ppp->woke_up)
+					continue;
 				return done;
 			}
 		}
 		if (ppp->tpkt != 0)
 			done = ppp_async_encode(ppp);
+		wmb();
 		ppp->tty_pushing = 0;
 	}
 	return done;
 
 flush:
 	ppp->tty_pushing = 1;
+	mb();
 	ppp->stats.ppp_oerrors++;
 	if (ppp->tpkt != 0) {
 		KFREE_SKB(ppp->tpkt);
@@ -1157,6 +1188,7 @@ flush:
 		done = 1;
 	}
 	ppp->optr = ppp->olim;
+	wmb();
 	ppp->tty_pushing = 0;
 	return done;
 }
@@ -1268,6 +1300,32 @@ ppp_async_encode(struct ppp *ppp)
 	ppp->tpkt_pos = i;
 	ppp->tfcs = fcs;
 	return 0;
+}
+
+/*
+ * Flush output from our internal buffers.
+ * Called for the TCFLSH ioctl.
+ */
+static void
+ppp_tty_flush_output(struct ppp *ppp)
+{
+	struct sk_buff *skb;
+	int done = 0;
+
+	while ((skb = skb_dequeue(&ppp->xmt_q)) != NULL)
+		KFREE_SKB(skb);
+	ppp->tty_pushing = 1;
+	mb();
+	ppp->optr = ppp->olim;
+	if (ppp->tpkt != NULL) {
+		KFREE_SKB(ppp->tpkt);
+		ppp->tpkt = 0;
+		done = 1;
+	}
+	wmb();
+	ppp->tty_pushing = 0;
+	if (done)
+		ppp_output_wakeup(ppp);
 }
 
 /*
