@@ -15,7 +15,7 @@ DOCONF=
 DOMAKE=
 
 # Work out whether to use config or config.old
-if grep -q timezone $CFILE; then
+if grep -q '^[ 	]*timezone' $CFILE; then
   CONFIG=config.old
 else
   CONFIG=config
@@ -25,7 +25,7 @@ fi
 
 for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
 	 $SRC/ppp-deflate.c $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
-	 $SRC/slcompress.c $SRC/slcompress.h; do
+	 $SRC/slcompress.c $SRC/slcompress.h common/zlib.c common/zlib.h; do
   dest=$SYS/net/$(basename $f)
   if [ -f $dest ]; then
     if ! cmp -s $f $dest; then
@@ -41,6 +41,30 @@ for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
     DOMAKE=yes
   fi
 done
+
+OLDFILES=files.oldconf
+NEWFILES=files
+OLDCONFIG=config.old
+NEWCONFIG=config
+
+if [ -f $SYS/conf/$OLDFILES ]; then
+  if ! grep -q ppp-deflate $SYS/conf/$OLDFILES; then
+    echo "Patching $SYS/conf/$OLDFILES"
+    patch -N $SYS/conf/$OLDFILES <$SRC/files.oldconf.patch
+    if [ $CONFIG = $OLDCONFIG ]; then
+      DOCONF=yes
+    fi
+  fi
+fi
+if [ -f $SYS/conf/$NEWFILES ]; then
+  if ! grep -q ppp-deflate $SYS/conf/$NEWFILES; then
+    echo "Patching $SYS/conf/$NEWFILES"
+    patch -N $SYS/conf/$NEWFILES <$SRC/files.patch
+    if [ $CONFIG = $NEWCONFIG ]; then
+      DOCONF=yes
+    fi
+  fi
+fi
 
 # Tell the user to add a pseudo-device line to the configuration file
 # and remake the kernel, if necessary.
@@ -60,7 +84,7 @@ fi
 if [ $DOCONF ]; then
   echo
   echo "You need to configure and build a new kernel."
-  echo "The procedure for doing this involves the following commands."
+  echo "The procedure for doing this involves the following commands:"
   echo "(\"$CONF\" may be replaced by the name of another config file.)"
   echo
   echo "	cd $ARCHDIR/conf"
@@ -69,8 +93,9 @@ if [ $DOCONF ]; then
   echo "	make depend"
   DOMAKE=yes
 elif [ $DOMAKE ]; then
+  echo
   echo "You need to build a new kernel."
-  echo "The procedure for doing this involves the following commands."
+  echo "The procedure for doing this involves the following commands:"
   echo
   echo "	cd $ARCHDIR/compile/$CONF"
 fi
