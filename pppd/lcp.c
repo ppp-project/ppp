@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.21 1995/08/10 06:51:06 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.22 1995/10/27 03:42:09 paulus Exp $";
 #endif
 
 /*
@@ -280,10 +280,18 @@ void
 lcp_lowerup(unit)
     int unit;
 {
+    lcp_options *wo = &lcp_wantoptions[unit];
+
     sifdown(unit);
+    /*
+     * Don't use A/C or protocol compression on transmission,
+     * but accept A/C and protocol compressed packets
+     * if we are going to ask for A/C and protocol compression.
+     */
     ppp_set_xaccm(unit, xmit_accm[unit]);
     ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0);
-    ppp_recv_config(unit, PPP_MRU, 0x00000000, 0, 0);
+    ppp_recv_config(unit, PPP_MRU, 0x00000000,
+		    wo->neg_pcompression, wo->neg_accompression);
     peer_mru[unit] = PPP_MRU;
     lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
 
@@ -311,23 +319,9 @@ lcp_input(unit, p, len)
     u_char *p;
     int len;
 {
-    int oldstate;
     fsm *f = &lcp_fsm[unit];
-    lcp_options *go = &lcp_gotoptions[f->unit];
 
-    oldstate = f->state;
     fsm_input(f, p, len);
-    if (oldstate == REQSENT && f->state == ACKSENT) {
-	/*
-	 * The peer will probably send us an ack soon and then
-	 * immediately start sending packets with the negotiated
-	 * options.  So as to be ready when that happens, we set
-	 * our receive side to accept packets as negotiated now.
-	 */
-	ppp_recv_config(f->unit, PPP_MRU,
-			go->neg_asyncmap? go->asyncmap: 0x00000000,
-			go->neg_pcompression, go->neg_accompression);
-    }
 }
 
 
@@ -454,8 +448,8 @@ lcp_sprotrej(unit, p, len)
  * lcp_resetci - Reset our CI.
  */
 static void
-  lcp_resetci(f)
-fsm *f;
+lcp_resetci(f)
+    fsm *f;
 {
     lcp_wantoptions[f->unit].magicnumber = magic();
     lcp_wantoptions[f->unit].numloops = 0;
@@ -473,17 +467,17 @@ lcp_cilen(f)
 {
     lcp_options *go = &lcp_gotoptions[f->unit];
 
-#define LENCIVOID(neg)	(neg ? CILEN_VOID : 0)
-#define LENCICHAP(neg)	(neg ? CILEN_CHAP : 0)
-#define LENCISHORT(neg)	(neg ? CILEN_SHORT : 0)
-#define LENCILONG(neg)	(neg ? CILEN_LONG : 0)
-#define LENCILQR(neg)	(neg ? CILEN_LQR: 0)
+#define LENCIVOID(neg)	((neg) ? CILEN_VOID : 0)
+#define LENCICHAP(neg)	((neg) ? CILEN_CHAP : 0)
+#define LENCISHORT(neg)	((neg) ? CILEN_SHORT : 0)
+#define LENCILONG(neg)	((neg) ? CILEN_LONG : 0)
+#define LENCILQR(neg)	((neg) ? CILEN_LQR: 0)
     /*
      * NB: we only ask for one of CHAP and UPAP, even if we will
      * accept either.
      */
-    return (LENCISHORT(go->neg_mru) +
-	    LENCILONG(go->neg_asyncmap) +
+    return (LENCISHORT(go->neg_mru && go->mru != DEFMRU) +
+	    LENCILONG(go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF) +
 	    LENCICHAP(go->neg_chap) +
 	    LENCISHORT(!go->neg_chap && go->neg_upap) +
 	    LENCILQR(go->neg_lqr) +
@@ -537,8 +531,9 @@ lcp_addci(f, ucp, lenp)
 	PUTLONG(val, ucp); \
     }
 
-    ADDCISHORT(CI_MRU, go->neg_mru, go->mru);
-    ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
+    ADDCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
+    ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
+	      go->asyncmap);
     ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
     ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
@@ -646,8 +641,9 @@ lcp_ackci(f, p, len)
 	  goto bad; \
     }
 
-    ACKCISHORT(CI_MRU, go->neg_mru, go->mru);
-    ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
+    ACKCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
+    ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
+	      go->asyncmap);
     ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
     ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
@@ -764,17 +760,21 @@ lcp_nakci(f, p, len)
      * If they send us a bigger MRU than what we asked, accept it, up to
      * the limit of the default MRU we'd get if we didn't negotiate.
      */
-    NAKCISHORT(CI_MRU, neg_mru,
-	       if (cishort <= wo->mru || cishort < DEFMRU)
-		   try.mru = cishort;
-	       );
+    if (go->neg_mru && go->mru != DEFMRU) {
+	NAKCISHORT(CI_MRU, neg_mru,
+		   if (cishort <= wo->mru || cishort < DEFMRU)
+		       try.mru = cishort;
+		   );
+    }
 
     /*
      * Add any characters they want to our (receive-side) asyncmap.
      */
-    NAKCILONG(CI_ASYNCMAP, neg_asyncmap,
-	      try.asyncmap = go->asyncmap | cilong;
-	      );
+    if (go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF) {
+	NAKCILONG(CI_ASYNCMAP, neg_asyncmap,
+		  try.asyncmap = go->asyncmap | cilong;
+		  );
+    }
 
     /*
      * If they've nak'd our authentication-protocol, check whether
@@ -890,11 +890,16 @@ lcp_nakci(f, p, len)
 
 	switch (citype) {
 	case CI_MRU:
-	    if (go->neg_mru || no.neg_mru || cilen != CILEN_SHORT)
+	    if (go->neg_mru && go->mru != DEFMRU
+		|| no.neg_mru || cilen != CILEN_SHORT)
 		goto bad;
+	    GETSHORT(cishort, p);
+	    if (cishort < DEFMRU)
+		try.mru = cishort;
 	    break;
 	case CI_ASYNCMAP:
-	    if (go->neg_asyncmap || no.neg_asyncmap || cilen != CILEN_LONG)
+	    if (go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF
+		|| no.neg_asyncmap || cilen != CILEN_LONG)
 		goto bad;
 	    break;
 	case CI_AUTHTYPE:
@@ -1469,6 +1474,8 @@ static void
 lcp_down(f)
     fsm *f;
 {
+    lcp_options *go = &lcp_gotoptions[f->unit];
+
     lcp_echo_lowerdown(f->unit);
     ccp_lowerdown(f->unit);
     ipcp_lowerdown(f->unit);
@@ -1477,7 +1484,9 @@ lcp_down(f)
 
     sifdown(f->unit);
     ppp_send_config(f->unit, PPP_MRU, 0xffffffff, 0, 0);
-    ppp_recv_config(f->unit, PPP_MRU, 0x00000000, 0, 0);
+    ppp_recv_config(f->unit, PPP_MRU,
+		    (go->neg_asyncmap? go->asyncmap: 0x00000000),
+		    go->neg_pcompression, go->neg_accompression);
     peer_mru[f->unit] = PPP_MRU;
 
     link_down(f->unit);
@@ -1762,9 +1771,7 @@ LcpSendEchoRequest (f)
  * Make and send the echo request frame.
  */
     if (f->state == OPENED) {
-        lcp_magic = lcp_gotoptions[f->unit].neg_magicnumber
-	            ? lcp_gotoptions[f->unit].magicnumber
-	            : 0L;
+        lcp_magic = lcp_gotoptions[f->unit].magicnumber;
 	pktp = pkt;
 	PUTLONG(lcp_magic, pktp);
       
