@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.121 2003/02/24 11:26:57 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.122 2003/02/24 12:46:37 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1455,16 +1455,19 @@ device_script(program, in, out, dont_wait)
     }
 
     /* dup in and out to fds > 2 */
-    fd = in;
-    in = dup(in);
-    close(fd);
-    fd = out;
-    out = dup(out);
-    close(fd);
-    if (log_to_fd >= 0) {
-	errfd = dup(log_to_fd);
-    } else {
-	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
+    {
+	int fd1 = in, fd2 = out, fd3 = log_to_fd;
+
+	in = dup(in);
+	out = dup(out);
+	if (log_to_fd >= 0) {
+	    errfd = dup(log_to_fd);
+	} else {
+	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
+	}
+	close(fd1);
+	close(fd2);
+	close(fd3);
     }
 
     /* close fds 0 - 2 and any others we can think of */
