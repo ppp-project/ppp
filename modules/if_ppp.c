@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.3 1996/09/14 05:11:13 paulus Exp $
+ * $Id: if_ppp.c,v 1.4 1997/03/04 03:31:21 paulus Exp $
  */
 
 /*
@@ -140,8 +140,10 @@ if_ppp_unload()
     for (i = 0; i < ppp_nalloc; ++i)
 	if (ifs[i] != 0)
 	    ppp_if_detach(ifs[i]);
-    FREE(ifs, ppp_nalloc * sizeof (struct ifnet *));
-    FREE(states, ppp_nalloc * sizeof (struct if_ppp_t *));
+    if (ifs) {
+	FREE(ifs, ppp_nalloc * sizeof (struct ifnet *));
+	FREE(states, ppp_nalloc * sizeof (struct if_ppp_t *));
+    }
     ppp_nalloc = 0;
     return 0;
 }
@@ -270,8 +272,10 @@ if_ppp_wput(q, mp)
 		bzero(newstates, newn * sizeof (struct if_ppp_t *));
 		bcopy(ifs, newifs, ppp_nalloc * sizeof(struct ifnet *));
 		bcopy(states, newstates, ppp_nalloc * sizeof(if_ppp_t *));
-		FREE(ifs, ppp_nalloc * sizeof(struct ifnet *));
-		FREE(states, ppp_nalloc * sizeof(if_ppp_t *));
+		if (ifs) {
+		    FREE(ifs, ppp_nalloc * sizeof(struct ifnet *));
+		    FREE(states, ppp_nalloc * sizeof(if_ppp_t *));
+		}
 		ifs = newifs;
 		states = newstates;
 		ppp_nalloc = newn;
