@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.14 1999/03/22 05:55:31 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.15 1999/04/01 07:08:47 paulus Exp $";
 #endif
 
 /*
@@ -101,7 +101,7 @@ static option_t ipxcp_option_list[] = {
       "Disable IPXCP (and IPX)" },
     { "-ipx", o_bool, &ipxcp_protent.enabled_flag,
       "Disable IPXCP (and IPX)" } ,
-    { "ipx-network", o_int, &ipxcp_wantoptions[0].our_network,
+    { "ipx-network", o_uint32, &ipxcp_wantoptions[0].our_network,
       "Set our IPX network number", 0, &ipxcp_wantoptions[0].neg_nn },
     { "ipxcp-accept-network", o_bool, &ipxcp_wantoptions[0].accept_network,
       "Accept peer IPX network number", 1,

@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.49 1999/03/31 05:39:42 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.50 1999/04/01 07:08:47 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -623,7 +623,7 @@ check_idle(arg)
     itime = MIN(idle.xmit_idle, idle.recv_idle);
     if (itime >= idle_time_limit) {
 	/* link is idle: shut it down. */
-	info("Terminating connection due to lack of activity.");
+	notice("Terminating connection due to lack of activity.");
 	lcp_close(0, "Link inactive");
     } else {
 	TIMEOUT(check_idle, NULL, idle_time_limit - itime);

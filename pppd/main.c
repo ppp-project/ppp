@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.71 1999/03/31 12:30:01 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.72 1999/04/01 07:08:48 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1536,8 +1536,8 @@ reap_kids(waitfor)
 	    warn("Child process %s (pid %d) terminated with signal %d",
 		 (chp? chp->prog: "??"), pid, WTERMSIG(status));
 	} else if (debug)
-	    dbglog("process %d (%s) finished, status = 0x%x",
-		   pid, (chp? chp->prog: "??"), status);
+	    dbglog("Script %s finished (pid %d), status = 0x%x",
+		   (chp? chp->prog: "??"), pid, status);
 	if (chp && chp->done)
 	    (*chp->done)(chp->arg);
     }
