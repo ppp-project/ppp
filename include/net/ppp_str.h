@@ -9,6 +9,9 @@
 
 #include	<sys/ioccom.h>
 
+/* Extended asyncmap - allows any character to be escaped. */
+typedef u_long	ext_accm[8];
+
 #ifdef	__STDC__
 #define	SIOCSIFCOMPAC	_IOW('p', 130, char)
 #define	SIOCSIFCOMPPROT	_IOW('p', 131, char)
