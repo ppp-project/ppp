@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.22 2004/01/11 08:01:30 paulus Exp $";
+"$Id: radius.c,v 1.23 2004/03/26 13:27:17 kad Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -52,10 +52,15 @@ static struct avpopt {
     char *vpstr;
     struct avpopt *next;
 } *avpopt = NULL;
+static bool portnummap = 0;
 
 static option_t Options[] = {
     { "radius-config-file", o_string, &config_file },
     { "avpair", o_special, add_avp },
+    { "map-to-ttyname", o_bool, &portnummap,
+	"Set Radius NAS-Port attribute value via libradiusclient library", OPT_PRIO | 1 },
+    { "map-to-ifname", o_bool, &portnummap,
+	"Set Radius NAS-Port attribute to number as in interface name (Default)", OPT_PRIOSUB | 0 },
     { NULL }
 };
 
@@ -264,7 +269,7 @@ radius_pap_auth(char *user,
 
     /* Hack... the "port" is the ppp interface number.  Should really be
        the tty */
-    rstate.client_port = get_client_port(ifname);
+    rstate.client_port = get_client_port(portnummap ? devnam : ifname);
 
     av_type = PW_FRAMED;
     rc_avpair_add(&send, PW_SERVICE_TYPE, &av_type, 0, VENDOR_NONE);
@@ -363,7 +368,7 @@ radius_chap_verify(char *user, char *ourname, int id,
     /* Put user with potentially realm added in rstate.user */
     if (!rstate.done_chap_once) {
 	make_username_realm(user);
-	rstate.client_port = get_client_port (ifname);
+	rstate.client_port = get_client_port (portnummap ? devnam : ifname);
 	if (radius_pre_auth_hook) {
 	    radius_pre_auth_hook(rstate.user,
 				 &rstate.authserver,
@@ -881,7 +886,7 @@ radius_acct_start(void)
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
 
-    av_type = PW_ASYNC;
+    av_type = using_pty ? PW_VIRTUAL : PW_ASYNC;
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
@@ -981,8 +986,55 @@ radius_acct_stop(void)
 		       remote_number, 0, VENDOR_NONE);
     }
 
-    av_type = PW_ASYNC;
+    av_type = using_pty ? PW_VIRTUAL : PW_ASYNC;
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
+
+    av_type = PW_NAS_ERROR;
+    switch( status ) {
+	case EXIT_OK:
+	case EXIT_USER_REQUEST:
+	    av_type = PW_USER_REQUEST;
+	    break;
+
+	case EXIT_HANGUP:
+	case EXIT_PEER_DEAD:
+	case EXIT_CONNECT_FAILED:
+	    av_type = PW_LOST_CARRIER;
+	    break;
+
+	case EXIT_INIT_FAILED:
+	case EXIT_OPEN_FAILED:
+	case EXIT_LOCK_FAILED:
+	case EXIT_PTYCMD_FAILED:
+	    av_type = PW_PORT_ERROR;
+	    break;
+
+	case EXIT_PEER_AUTH_FAILED:
+	case EXIT_AUTH_TOPEER_FAILED:
+	case EXIT_NEGOTIATION_FAILED:
+	case EXIT_CNID_AUTH_FAILED:
+	    av_type = PW_SERVICE_UNAVAILABLE;
+	    break;
+
+	case EXIT_IDLE_TIMEOUT:
+	    av_type = PW_ACCT_IDLE_TIMEOUT;
+	    break;
+
+	case EXIT_CONNECT_TIME:
+	    av_type = PW_ACCT_SESSION_TIMEOUT;
+	    break;
+	    
+#ifdef MAXOCTETS
+	case EXIT_TRAFFIC_LIMIT:
+	    av_type = PW_NAS_REQUEST;
+	    break;
+#endif
+
+	default:
+	    av_type = PW_NAS_ERROR;
+	    break;
+    }
+    rc_avpair_add(&send, PW_ACCT_TERMINATE_CAUSE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
     av_type = htonl(hisaddr);
@@ -1077,7 +1129,7 @@ radius_acct_interim(void *ignored)
 		       remote_number, 0, VENDOR_NONE);
     }
 
-    av_type = PW_ASYNC;
+    av_type = using_pty ? PW_VIRTUAL : PW_ASYNC;
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
