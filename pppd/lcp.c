@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.49 2000/04/04 07:06:50 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.50 2000/04/05 00:58:28 paulus Exp $";
 
 /*
  * TODO:
@@ -118,7 +118,7 @@ static option_t lcp_option_list[] = {
       0, &lcp_wantoptions[0].neg_mrru },
     { "mpshortseq", o_bool, &lcp_wantoptions[0].neg_ssnhf,
       "Use short sequence numbers in multilink headers",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_ssnhf },
+      OPT_A2COPY | 1, &lcp_allowoptions[0].neg_ssnhf },
     { "nompshortseq", o_bool, &lcp_wantoptions[0].neg_ssnhf,
       "Don't use short sequence numbers in multilink headers",
       OPT_A2COPY, &lcp_allowoptions[0].neg_ssnhf },
@@ -136,7 +136,7 @@ lcp_options lcp_wantoptions[NUM_PPP];	/* Options that we want to request */
 lcp_options lcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 lcp_options lcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 lcp_options lcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
-u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
+u_int32_t xmit_accm[NUM_PPP][8];	/* extended transmit ACCM */
 
 static int lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static int lcp_echo_number   = 0;	/* ID number of next echo frame */
