@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.91 2003/02/16 22:25:49 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.92 2003/02/16 22:29:50 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -606,7 +606,7 @@ link_established(unit)
 	    (*protp->lowerup)(unit);
 
     if (!auth_required && noauth_addrs != NULL)
-	set_allowed_addrs(unit, NULL, NULL)
+	set_allowed_addrs(unit, NULL, NULL);
 
     if (auth_required && !(go->neg_upap || go->neg_chap || go->neg_eap)) {
 	/*
