@@ -12,6 +12,9 @@
  */
 
 #include "arcfour.h"
+#if defined(__linux__)
+#include <linux/string.h>
+#endif
 
 #define swap(a, b)		\
 {				\
