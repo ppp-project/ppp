@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.2 1994/11/28 01:41:29 paulus Exp $
+ * $Id: bsd-comp.c,v 1.3 1994/12/08 00:33:31 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -53,6 +53,8 @@
 
 #define PACKETPTR	struct mbuf *
 #include "ppp-comp.h"
+
+#define BSD_LITTLE_ENDIAN	/* all Ultrix machines are little-endian */
 
 /*
  * PPP "BSD compress" compression
@@ -97,6 +99,7 @@ struct bsd_db {
     u_char  debug;
     u_char  unit;
     u_short seqno;			/* sequence # of next packet */
+    u_int   hdrlen;			/* header length to preallocate */
     u_int   mru;
     u_int   maxmaxcode;			/* largest valid code */
     u_int   max_ent;			/* largest code in use */
@@ -116,7 +119,7 @@ struct bsd_db {
 	union {				/* hash value */
 	    u_int32_t	fcode;
 	    struct {
-#if BYTE_ORDER == LITTLE_ENDIAN
+#ifdef BSD_LITTLE_ENDIAN
 		u_short prefix;		/* preceding code */
 		u_char	suffix;		/* last character of new code */
 		u_char	pad;
@@ -143,7 +146,7 @@ static void	bsd_free __P((void *state));
 static int	bsd_comp_init __P((void *state, u_char *options, int opt_len,
 				   int unit, int debug));
 static int	bsd_decomp_init __P((void *state, u_char *options, int opt_len,
-				     int unit, int mru, int debug));
+				     int unit, int hdrlen, int mru, int debug));
 static int	bsd_compress __P((void *state, struct mbuf **mret,
 				  struct mbuf *mp, int slen, int maxolen));
 static void	bsd_incomp __P((void *state, struct mbuf *dmsg));
@@ -414,10 +417,10 @@ bsd_decomp_alloc(options, opt_len)
  * Initialize the database.
  */
 static int
-bsd_init(db, options, opt_len, unit, mru, debug, decomp)
+bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
     struct bsd_db *db;
     u_char *options;
-    int opt_len, unit, mru, debug, decomp;
+    int opt_len, unit, hdrlen, mru, debug, decomp;
 {
     int i;
 
@@ -439,6 +442,7 @@ bsd_init(db, options, opt_len, unit, mru, debug, decomp)
     }
 
     db->unit = unit;
+    db->hdrlen = hdrlen;
     db->mru = mru;
 #ifndef DEBUG
     if (debug)
@@ -457,17 +461,17 @@ bsd_comp_init(state, options, opt_len, unit, debug)
     int opt_len, unit, debug;
 {
     return bsd_init((struct bsd_db *) state, options, opt_len,
-		    unit, 0, debug, 0);
+		    unit, 0, 0, debug, 0);
 }
 
 static int
-bsd_decomp_init(state, options, opt_len, unit, mru, debug)
+bsd_decomp_init(state, options, opt_len, unit, hdrlen, mru, debug)
     void *state;
     u_char *options;
-    int opt_len, unit, mru, debug;
+    int opt_len, unit, hdrlen, mru, debug;
 {
     return bsd_init((struct bsd_db *) state, options, opt_len,
-		    unit, mru, debug, 1);
+		    unit, hdrlen, mru, debug, 1);
 }
 
 
@@ -890,6 +894,7 @@ bsd_decompress(state, cmp, dmpp)
     dmp->m_next = NULL;
     MCLGET(dmp, clp);
     dmp->m_len = 0;
+    dmp->m_off += db->hdrlen;
     wptr = mtod(dmp, u_char *);
     space = M_TRAILINGSPACE(dmp) - PPP_HDRLEN + 1;
 
