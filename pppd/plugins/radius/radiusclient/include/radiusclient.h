@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.8 2002/07/25 16:29:16 dfs Exp $
+ * $Id: radiusclient.h,v 1.9 2002/11/13 18:19:26 fcusack Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -409,6 +409,7 @@ int rc_avpair_assign __P((VALUE_PAIR *, void *, int));
 VALUE_PAIR *rc_avpair_new __P((int, void *, int, int));
 VALUE_PAIR *rc_avpair_gen __P((AUTH_HDR *));
 VALUE_PAIR *rc_avpair_get __P((VALUE_PAIR *, UINT4));
+VALUE_PAIR *rc_avpair_copy __P((VALUE_PAIR *));
 void rc_avpair_insert __P((VALUE_PAIR **, VALUE_PAIR *, VALUE_PAIR *));
 void rc_avpair_free __P((VALUE_PAIR *));
 int rc_avpair_parse __P((char *, VALUE_PAIR **));

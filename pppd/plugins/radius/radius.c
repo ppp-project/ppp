@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.17 2002/10/01 09:27:50 fcusack Exp $";
+"$Id: radius.c,v 1.18 2002/11/13 18:19:26 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -276,7 +276,7 @@ radius_pap_auth(char *user,
 
     /* Add user specified vp's */
     if (rstate.avp)
-	rc_avpair_insert(&send, NULL, rstate.avp);
+	rc_avpair_insert(&send, NULL, rc_avpair_copy(rstate.avp));
 
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
@@ -437,7 +437,7 @@ radius_chap_auth(char *user,
 
     /* Add user specified vp's */
     if (rstate.avp)
-	rc_avpair_insert(&send, NULL, rstate.avp);
+	rc_avpair_insert(&send, NULL, rc_avpair_copy(rstate.avp));
 
     /*
      * make authentication with RADIUS server
@@ -844,7 +844,7 @@ radius_acct_start(void)
 
     /* Add user specified vp's */
     if (rstate.avp)
-	rc_avpair_insert(&send, NULL, rstate.avp);
+	rc_avpair_insert(&send, NULL, rc_avpair_copy(rstate.avp));
 
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,
@@ -944,7 +944,7 @@ radius_acct_stop(void)
 
     /* Add user specified vp's */
     if (rstate.avp)
-	rc_avpair_insert(&send, NULL, rstate.avp);
+	rc_avpair_insert(&send, NULL, rc_avpair_copy(rstate.avp));
 
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,
@@ -1040,7 +1040,7 @@ radius_acct_interim(void *ignored)
 
     /* Add user specified vp's */
     if (rstate.avp)
-	rc_avpair_insert(&send, NULL, rstate.avp);
+	rc_avpair_insert(&send, NULL, rc_avpair_copy(rstate.avp));
 
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,

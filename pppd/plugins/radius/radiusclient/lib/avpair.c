@@ -1,5 +1,5 @@
 /*
- * $Id: avpair.c,v 1.2 2002/10/01 08:35:21 fcusack Exp $
+ * $Id: avpair.c,v 1.3 2002/11/13 18:19:26 fcusack Exp $
  *
  * Copyright (C) 1995 Lars Fenneberg
  *
@@ -362,6 +362,34 @@ VALUE_PAIR *rc_avpair_get (VALUE_PAIR *vp, UINT4 attr)
 }
 
 /*
+ * Function: rc_avpair_copy
+ *
+ * Purpose: Return a copy of the existing list "p" ala strdup().
+ *
+ */
+VALUE_PAIR *rc_avpair_copy(VALUE_PAIR *p)
+{
+	VALUE_PAIR *vp, *fp = NULL, *lp = NULL;
+
+	while (p) {
+		vp = malloc(sizeof(VALUE_PAIR));
+		if (!vp) {
+		    rc_log(LOG_CRIT, "rc_avpair_copy: out of memory");
+		    return NULL; /* leaks a little but so what */
+		}
+		*vp = *p;
+		if (!fp)
+			fp = vp;
+		if (lp)
+			lp->next = vp;
+		lp = vp;
+		p = p->next;
+	}
+
+	return fp;
+}
+
+/*
  * Function: rc_avpair_insert
  *
  * Purpose: Given the address of an existing list "a" and a pointer
@@ -381,6 +409,9 @@ void rc_avpair_insert (VALUE_PAIR **a, VALUE_PAIR *p, VALUE_PAIR *b)
 		*a = b;
 		return;
 	}
+
+	if (!b)
+		return;
 
 	vp = *a;
 
