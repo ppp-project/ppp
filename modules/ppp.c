@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.6 1996/06/26 00:53:38 paulus Exp $
+ * $Id: ppp.c,v 1.7 1996/08/28 06:35:30 paulus Exp $
  */
 
 /*
@@ -1123,7 +1123,14 @@ send_data(mp, us)
     if ((q = ppa->lowerq) == 0) {
 	/* try to send it up the control stream */
 	if (canputnext(ppa->q)) {
-	    putnext(ppa->q, mp);
+	    /*
+	     * The message seems to get corrupted for some reason if
+	     * we just send the message up as it is, so we send a copy.
+	     */
+	    mblk_t *np = copymsg(mp);
+	    freemsg(mp);
+	    if (np != 0)
+		putnext(ppa->q, np);
 	    return 1;
 	}
     } else {
