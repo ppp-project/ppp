@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.6 1994/10/24 04:31:11 paulus Exp $
+ * $Id: pppd.h,v 1.7 1995/04/24 05:52:37 paulus Exp $
  */
 
 /*
@@ -49,7 +49,6 @@ extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name */
 extern int	fd;		/* Serial device file descriptor */
-extern int	s;		/* Socket descriptor */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	phase;		/* Current state of link - see values below */
@@ -84,6 +83,7 @@ extern char	our_name[];	/* Our name for authentication purposes */
 extern char	remote_name[];	/* Peer's name for authentication */
 extern int	usehostname;	/* Use hostname for our_name */
 extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
+extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 
 /*
  * Values for phase.
@@ -152,7 +152,9 @@ void die __P((int));
 #define INCPTR(n, cp)	((cp) += (n))
 #define DECPTR(n, cp)	((cp) -= (n))
 
+#undef  FALSE
 #define FALSE	0
+#undef  TRUE
 #define TRUE	1
 
 /*
