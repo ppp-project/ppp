@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.13 1998/03/25 02:19:23 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.14 1999/03/08 01:46:19 paulus Exp $";
 #endif
 
 /*
@@ -121,6 +121,17 @@ sys_cleanup()
 	cifdefaultroute(0, 0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
+}
+
+/*
+ * have_route_to - determine if the system has any route to
+ * a given IP address.
+ * For demand mode to work properly, we have to ignore routes
+ * through our own interface.
+ */
+int have_route_to(u_int32_t addr)
+{
+    return -1;
 }
 
 

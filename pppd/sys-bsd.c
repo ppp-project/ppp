@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.34 1998/11/07 06:59:30 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.35 1999/03/08 01:46:21 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -1408,6 +1408,17 @@ GetMask(addr)
     }
 
     return mask;
+}
+
+/*
+ * have_route_to - determine if the system has any route to
+ * a given IP address.
+ * For demand mode to work properly, we have to ignore routes
+ * through our own interface.
+ */
+int have_route_to(u_int32_t addr)
+{
+    return -1;
 }
 
 /*

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.10 1998/11/07 06:59:31 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.11 1999/03/08 01:46:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1216,6 +1216,17 @@ get_ether_addr(ipaddr, hwaddr)
     memcpy(hwaddr->sa_data, ifreq.ifr_addr.sa_data, 6);
     close(nit_fd);
     return 1;
+}
+
+/*
+ * have_route_to - determine if the system has any route to
+ * a given IP address.
+ * For demand mode to work properly, we have to ignore routes
+ * through our own interface.
+ */
+int have_route_to(u_int32_t addr)
+{
+    return -1;
 }
 
 #define	WTMPFILE	"/usr/adm/wtmp"

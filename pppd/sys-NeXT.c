@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.10 1998/11/07 06:59:30 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.11 1999/03/08 01:46:19 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1193,6 +1193,16 @@ GetMask(addr)
     return mask;
 }
 
+/*
+ * have_route_to - determine if the system has any route to
+ * a given IP address.
+ * For demand mode to work properly, we have to ignore routes
+ * through our own interface.
+ */
+int have_route_to(u_int32_t addr)
+{
+    return -1;
+}
 
 
 /*
