@@ -634,6 +634,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 /*
  * Set the MTU and other parameters for the ppp device
  */
+    memset (&ifr, '\0', sizeof (ifr));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
 
@@ -718,6 +719,7 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
   {
     struct ppp_option_data data;
 
+    memset (&data, '\0', sizeof (data));
     data.ptr      = opt_ptr;
     data.length   = opt_len;
     data.transmit = for_transmit;
@@ -785,6 +787,7 @@ int sifup (int u)
   {
     struct ifreq ifr;
 
+    memset (&ifr, '\0', sizeof (ifr));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0)
       {
@@ -809,6 +812,7 @@ int sifdown (int u)
   {
     struct ifreq ifr;
 
+    memset (&ifr, '\0', sizeof (ifr));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0)
       {
@@ -834,6 +838,9 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
   {
     struct ifreq   ifr; 
     struct rtentry rt;
+    
+    memset (&ifr, '\0', sizeof (ifr));
+    memset (&rt,  '\0', sizeof (rt));
     
     SET_SA_FAMILY (ifr.ifr_addr,    AF_INET); 
     SET_SA_FAMILY (ifr.ifr_dstaddr, AF_INET); 
@@ -880,13 +887,11 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
 /*
  *  Add the device route
  */
-    memset (&rt, '\0', sizeof (rt));
-
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
     rt.rt_dev = ifname;  /* MJC */
 
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0;
+    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0L;
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
 
@@ -978,6 +983,19 @@ static char *path_to_route (void)
   }
 
 /*
+ * close_route_table - close the interface to the route table
+ */
+
+static void close_route_table (void)
+  {
+    if (route_fd != (FILE *) 0)
+      {
+        fclose (route_fd);
+        route_fd = (FILE *) 0;
+      }
+  }
+
+/*
  * open_route_table - open the interface to the route table
  */
 
@@ -985,10 +1003,7 @@ static int open_route_table (void)
   {
     char *path;
 
-    if (route_fd != (FILE *) 0)
-      {
-        close_route_table();
-      }
+    close_route_table();
 
     path = path_to_route();
     if (path == NULL)
@@ -1010,19 +1025,6 @@ static int open_route_table (void)
 	return 0;
       }
     return 1;
-  }
-
-/*
- * close_route_table - close the interface to the route table
- */
-
-static void close_route_table (void)
-  {
-    if (route_fd != (FILE *) 0)
-      {
-        fclose (route_fd);
-        route_fd = (FILE *) 0;
-      }
   }
 
 /*
@@ -1074,7 +1076,7 @@ static int defaultroute_exists (void)
 
     while (read_route_table(&rt) != 0)
       {
-        if (rt.rt_flags & RTF_UP == 0)
+        if ((rt.rt_flags & RTF_UP) == 0)
 	  {
 	    continue;
 	  }
@@ -1136,6 +1138,7 @@ int cifdefaultroute (int unit, int gateway)
 
     if (has_default_route)
       {
+	memset (&rt, '\0', sizeof (rt));
 	SET_SA_FAMILY (rt.rt_dst,     AF_INET);
 	SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
@@ -1294,25 +1297,6 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 /*
  * Now get the hardware address.
  */
-#if 0  /* old code */
-    if (ioctl (sockfd, SIOCGIFHWADDR, &ifreq) < 0)
-      {
-        syslog(LOG_ERR, "SIOCGIFHWADDR(%s): %m", ifreq.ifr_name);
-        return 0;
-      }
-
-    hwaddr->sa_family = ARPHRD_ETHER;
-    memcpy (&hwaddr->sa_data, &ifreq.ifr_hwaddr.sa_data, ETH_ALEN);
-
-    MAINDEBUG ((LOG_DEBUG,
-		"proxy arp: found hwaddr %02x:%02x:%02x:%02x:%02x:%02x",
-		(int) ((unsigned char *) &hwaddr->sa_data)[0],
-		(int) ((unsigned char *) &hwaddr->sa_data)[1],
-		(int) ((unsigned char *) &hwaddr->sa_data)[2],
-		(int) ((unsigned char *) &hwaddr->sa_data)[3],
-		(int) ((unsigned char *) &hwaddr->sa_data)[4],
-		(int) ((unsigned char *) &hwaddr->sa_data)[5]));
-#else  /* the 'proper' code */
     memset (&ifreq.ifr_hwaddr, 0, sizeof (struct sockaddr));
     if (ioctl (sockfd, SIOCGIFHWADDR, &ifreq) < 0)
       {
@@ -1334,7 +1318,6 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 		(int) ((unsigned char *) &hwaddr->sa_data)[5],
 		(int) ((unsigned char *) &hwaddr->sa_data)[6],
 		(int) ((unsigned char *) &hwaddr->sa_data)[7]));
-#endif
     return 1;
   }
 
@@ -1558,7 +1541,7 @@ int ppp_available(void)
         ok = ioctl (s, SIOCGIFHWADDR, (caddr_t) &ifr) >= 0;
       }
 
-    if (ok && ifr.ifr_hwaddr.sa_family != ARPHRD_PPP)
+    if (ok && ((ifr.ifr_hwaddr.sa_family & ~0xFF) != ARPHRD_PPP))
       {
         ok = 0;
       }
@@ -1719,25 +1702,23 @@ int lock (char *dev)
 		break;
 	      }
 
-	    if (n == 0)
+	    /* See the process still exists. */
+	    if (n > 0)
 	      {
-		unlink (lock_file);
-		syslog (LOG_NOTICE, "Removed stale lock on %s", lock_file);
-		continue;
+		hdb_lock_buffer[n] = '\0';
+		sscanf (hdb_lock_buffer, " %d", &pid);
+		if (kill(pid, 0) == -1 && errno == ESRCH)
+		  {
+		    n = 0;
+		  }
 	      }
 
-	    hdb_lock_buffer[n] = '\0';
-	    sscanf (hdb_lock_buffer, " %d", &pid);
-
-	    if (kill(pid, 0) == -1 && errno == ESRCH)
+	    /* If the process does not exist then try to remove the lock */
+	    if (n == 0 && unlink (lock_file) == 0)
 	      {
-		/* pid no longer exists - remove the lock file */
-		if (unlink (lock_file) == 0)
-		  {
-		    syslog (LOG_NOTICE, "Removed stale lock on %s (pid %d)",
-			    dev, pid);
-		    continue;
-		  }
+		syslog (LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			dev, pid);
+		continue;
 	      }
 
 	    syslog (LOG_NOTICE, "Device %s is locked by pid %d", dev, pid);
