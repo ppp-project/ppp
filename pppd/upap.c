@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.12 1998/11/07 06:59:32 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.13 1999/03/02 05:29:39 paulus Exp $";
 #endif
 
 /*
@@ -34,16 +34,20 @@ static char rcsid[] = "$Id: upap.c,v 1.12 1998/11/07 06:59:32 paulus Exp $";
 #include "pppd.h"
 #include "upap.h"
 
+static bool hide_password;
+
 /*
  * Command-line options.
  */
 static option_t pap_option_list[] = {
+    { "hide-password", o_bool, &hide_password,
+      "Don't output passwords to log" },
     { "pap-restart", o_int, &upap[0].us_timeouttime,
       "Set retransmit timeout for PAP" },
     { "pap-max-authreq", o_int, &upap[0].us_maxtransmits,
-      "Set max #xmits for auth-reqs" },
+      "Set max number of transmissions for auth-reqs" },
     { "pap-timeout", o_int, &upap[0].us_reqtimeout,
-      "Set time limit for peer PAP auth." },
+      "Set time limit for peer PAP authentication" },
     { NULL }
 };
 
@@ -605,7 +609,10 @@ upap_printpkt(p, plen, printer, arg)
 	printer(arg, " user=");
 	print_string(user, ulen, printer, arg);
 	printer(arg, " password=");
-	print_string(pwd, wlen, printer, arg);
+	if (!hide_password)
+	    print_string(pwd, wlen, printer, arg);
+	else
+	    printer(arg, "<hidden>");
 	break;
     case UPAP_AUTHACK:
     case UPAP_AUTHNAK:
