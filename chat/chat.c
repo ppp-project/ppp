@@ -31,7 +31,7 @@
  *
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.10 1995/12/18 03:32:46 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.11 1996/05/28 00:57:08 paulus Exp $";
 
 #include <stdio.h>
 #include <time.h>
@@ -1265,38 +1265,6 @@ register char *string;
 
 	*s++ = c;
 
-	if (s - temp >= len &&
-	    c == string[len - 1] &&
-	    strncmp(s - len, string, len) == 0)
-	    {
-	    if (verbose)
-		{
-		logf(" -- got it\n");
-		}
-
-	    alarm(0);
-	    alarmed = 0;
-	    return (1);
-	    }
-
-	for (n = 0; n < n_aborts; ++n)
-	    {
-	    if (s - temp >= (abort_len = strlen(abort_string[n])) &&
-		strncmp(s - abort_len, abort_string[n], abort_len) == 0)
-	        {
-		if (verbose)
-		    {
-		    logf(" -- failed\n");
-		    }
-		
-		alarm(0);
-		alarmed = 0;
-		exit_code = n + 4;
-		strcpy(fail_reason = fail_buffer, abort_string[n]);
-		return (0);
-	        }
-	    }
-
 	if (!report_gathering)
 	    {
 	    for (n = 0; n < n_reports; ++n)
@@ -1329,6 +1297,38 @@ register char *string;
 	        {
 		report_gathering = 0;
 		fprintf (report_fp, "chat:  %s\n", report_buffer);
+	        }
+	    }
+
+	if (s - temp >= len &&
+	    c == string[len - 1] &&
+	    strncmp(s - len, string, len) == 0)
+	    {
+	    if (verbose)
+		{
+		logf(" -- got it\n");
+		}
+
+	    alarm(0);
+	    alarmed = 0;
+	    return (1);
+	    }
+
+	for (n = 0; n < n_aborts; ++n)
+	    {
+	    if (s - temp >= (abort_len = strlen(abort_string[n])) &&
+		strncmp(s - abort_len, abort_string[n], abort_len) == 0)
+	        {
+		if (verbose)
+		    {
+		    logf(" -- failed\n");
+		    }
+		
+		alarm(0);
+		alarmed = 0;
+		exit_code = n + 4;
+		strcpy(fail_reason = fail_buffer, abort_string[n]);
+		return (0);
 	        }
 	    }
 
