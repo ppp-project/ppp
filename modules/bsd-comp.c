@@ -40,7 +40,7 @@
 /*
  * This version is for use with STREAMS under SunOS 4.x.
  *
- * $Id: bsd-comp.c,v 1.5 1994/10/21 06:30:15 paulus Exp $
+ * $Id: bsd-comp.c,v 1.6 1994/10/24 04:28:14 paulus Exp $
  */
 
 #include <sys/param.h>
@@ -97,8 +97,8 @@ struct bsd_db {
     u_char  maxbits;
     u_char  debug;
     u_char  unit;
-    u_short mru;
     u_short seqno;			/* sequence number of next packet */
+    u_int   mru;
     u_int   maxmaxcode;			/* largest valid code */
     u_int   max_ent;			/* largest code in use */
     u_int   in_count;			/* uncompressed bytes, aged */
@@ -273,6 +273,7 @@ bsd_comp_stats(state, stats)
     struct compstat *stats;
 {
     struct bsd_db *db = (struct bsd_db *) state;
+    u_int out;
 
     stats->unc_bytes = db->uncomp_bytes;
     stats->unc_packets = db->uncomp_count;
@@ -280,9 +281,14 @@ bsd_comp_stats(state, stats)
     stats->comp_packets = db->comp_count;
     stats->inc_bytes = db->incomp_bytes;
     stats->inc_packets = db->incomp_count;
-    stats->ratio = (double) db->in_count;
-    if (db->bytes_out != 0)
-	stats->ratio /= db->bytes_out;
+    stats->ratio = db->in_count;
+    out = db->bytes_out;
+    if (stats->ratio <= 0x7fffff)
+	stats->ratio <<= 8;
+    else
+	out >>= 8;
+    if (out != 0)
+	stats->ratio /= out;
 }
 
 /*
@@ -427,11 +433,10 @@ bsd_init(db, options, opt_len, unit, mru, debug, decomp)
 
     db->unit = unit;
     db->mru = mru;
-    db->clear_count = -1;
     if (debug)
 	db->debug = 1;
 
-    bsd_clear(db);
+    bsd_reset(db);
 
     return 1;
 }
@@ -455,7 +460,6 @@ bsd_decomp_init(state, options, opt_len, unit, mru, debug)
     return bsd_init((struct bsd_db *) state, options, opt_len,
 		    unit, mru, debug, 1);
 }
-
 
 
 /*
@@ -611,7 +615,7 @@ bsd_compress(state, mretp, mp, slen, maxolen)
 	    if (dictp->codem1 >= max_ent)
 		goto nomatch;
 	} while (dictp->f.fcode != fcode);
-	ent = dictp->codem1+1;		/* finally found (prefix,suffix) */
+	ent = dictp->codem1 + 1;	/* finally found (prefix,suffix) */
 	continue;
 
     nomatch:
@@ -638,12 +642,15 @@ bsd_compress(state, mretp, mp, slen, maxolen)
 	}
 	ent = c;
     }
-    OUTPUT(ent);			/* output the last code */
 
+    OUTPUT(ent);		/* output the last code */
     db->bytes_out += olen;
     db->in_count += ilen;
+    if (bitno < 32)
+	++db->bytes_out;	/* count complete bytes */
+
     if (bsd_check(db))
-	OUTPUT(CLEAR);			/* do not count the CLEAR */
+	OUTPUT(CLEAR);		/* do not count the CLEAR */
 
     /*
      * Pad dribble bits of last code with ones.
@@ -789,10 +796,10 @@ bsd_incomp(state, dmsg)
     db->in_count += ilen;
     (void)bsd_check(db);
 
-    ++db->comp_count;
-    db->comp_bytes += bitno / 8;
     ++db->incomp_count;
     db->incomp_bytes += ilen;
+    ++db->uncomp_count;
+    db->uncomp_bytes += ilen;
 
     /* Increase code size if we would have without the packet
      * boundary and as the decompressor will.
@@ -804,6 +811,19 @@ bsd_incomp(state, dmsg)
 
 /*
  * Decompress "BSD Compress"
+ *
+ * Because of patent problems, we return DECOMP_ERROR for errors
+ * found by inspecting the input data and for system problems, but
+ * DECOMP_FATALERROR for any errors which could possibly be said to
+ * be being detected "after" decompression.  For DECOMP_ERROR,
+ * we can issue a CCP reset-request; for DECOMP_FATALERROR, we may be
+ * infringing a patent of Motorola's if we do, so we take CCP down
+ * instead.
+ *
+ * Given that the frame has the correct sequence number and a good FCS,
+ * errors such as invalid codes in the input most likely indicate a
+ * bug, so we return DECOMP_FATALERROR for them in order to turn off
+ * compression, even though they are detected by inspecting the input.
  */
 static int
 bsd_decompress(state, cmsg, dmpp)
@@ -883,6 +903,7 @@ bsd_decompress(state, cmsg, dmpp)
 		break;
 	    rptr = cmsg->b_rptr;
 	    len = cmsg->b_wptr - rptr;
+	    ilen += len;
 	    continue;		/* handle 0-length buffers */
 	}
 
@@ -917,11 +938,11 @@ bsd_decompress(state, cmsg, dmpp)
 		}
 	    }
 	    bsd_clear(db);
-	    explen = 0;
+	    explen = ilen = 0;
 	    break;
 	}
 
-	if (incode > max_ent+2 || incode > db->maxmaxcode
+	if (incode > max_ent + 2 || incode > db->maxmaxcode
 	    || incode > max_ent && oldcode == CLEAR) {
 	    freemsg(dmsg);
 	    if (db->debug) {
@@ -930,7 +951,7 @@ bsd_decompress(state, cmsg, dmpp)
 		printf("max_ent=0x%x dlen=%d seqno=%d\n",
 		       max_ent, dlen, db->seqno);
 	    }
-	    return DECOMP_FATALERROR;
+	    return DECOMP_FATALERROR;	/* probably a bug */
 	}
 
 	/* Special case for KwKwK string. */
