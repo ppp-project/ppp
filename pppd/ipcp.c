@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.44 1999/04/12 06:24:45 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.45 1999/05/04 06:57:27 paulus Exp $";
 #endif
 
 /*
@@ -48,7 +48,6 @@ ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 
 /* local vars */
-static int cis_received[NUM_PPP];	/* # Conf-Reqs received */
 static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
@@ -450,7 +449,6 @@ ipcp_resetci(f)
     wo->req_dns1 = usepeerdns;	/* Request DNS addresses from the peer */
     wo->req_dns2 = usepeerdns;
     ipcp_gotoptions[f->unit] = *wo;
-    cis_received[f->unit] = 0;
 }
 
 
@@ -481,16 +479,11 @@ ipcp_cilen(f)
     }
     if (wo->neg_vj && !go->neg_vj && !go->old_vj) {
 	/* try an older style of VJ negotiation */
-	if (cis_received[f->unit] == 0) {
-	    /* keep trying the new style until we see some CI from the peer */
+	/* use the old style only if the peer did */
+	if (ho->neg_vj && ho->old_vj) {
 	    go->neg_vj = 1;
-	} else {
-	    /* use the old style only if the peer did */
-	    if (ho->neg_vj && ho->old_vj) {
-		go->neg_vj = 1;
-		go->old_vj = 1;
-		go->vj_protocol = ho->vj_protocol;
-	    }
+	    go->old_vj = 1;
+	    go->vj_protocol = ho->vj_protocol;
 	}
     }
 
@@ -1018,8 +1011,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
     int l = *len;		/* Length left */
     u_char maxslotindex, cflag;
     int d;
-
-    cis_received[f->unit] = 1;
 
     /*
      * Reset all his options.
@@ -1763,7 +1754,8 @@ ipcp_printpkt(p, plen, printer, arg)
 	    case CI_MS_DNS2:
 	        p += 2;
 		GETLONG(cilong, p);
-		printer(arg, "ms-dns %I", htonl(cilong));
+		printer(arg, "ms-dns%d %I", code - CI_MS_DNS1 + 1,
+			htonl(cilong));
 		break;
 	    case CI_MS_WINS1:
 	    case CI_MS_WINS2:
