@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.22 1999/09/17 05:59:00 paulus Exp $
+ * $Id: ppp.c,v 1.23 1999/09/30 19:54:44 masputra Exp $
  */
 
 /*
@@ -54,6 +54,7 @@
 #include <sys/ksynch.h>
 #include <sys/kstat.h>
 #include <sys/sunddi.h>
+#include <sys/ethernet.h>
 #else
 #include <sys/socket.h>
 #include <sys/sockio.h>
@@ -87,6 +88,10 @@
 #ifndef ETHERTYPE_IP
 #define ETHERTYPE_IP	0x800
 #endif
+
+#if !defined(ETHERTYPE_IP6) && defined(SOL2)
+#define ETHERTYPE_IP6	0x86dd
+#endif /* !defined(ETHERTYPE_IP6) && defined(SOL2) */
 
 extern time_t time;
 
@@ -837,9 +842,12 @@ pppuwput(q, mp)
 		break;
 	    }
 	    sap = ((int *)mp->b_cont->b_rptr)[0];
-	    for (nps = us->next; nps != 0; nps = nps->next)
+	    for (nps = us->next; nps != 0; nps = nps->next) {
+		if (us->flags & US_DBGLOG)
+		    DPRINT2("us = 0x%x, us->next->sap = 0x%x\n", nps, nps->sap);
 		if (nps->sap == sap)
 		    break;
+	    }
 	    if (nps == 0) {
 		if (us->flags & US_DBGLOG)
 		    DPRINT2("ppp/%d: no stream for sap %x\n", us->mn, sap);
@@ -1049,6 +1057,10 @@ dlpi_request(q, mp, us)
     int sap, len;
     dl_info_ack_t *info;
     dl_bind_ack_t *ackp;
+#if DL_CURRENT_VERSION >= 2
+    dl_phys_addr_ack_t	*paddrack;
+    static struct ether_addr eaddr = {0};
+#endif
 
     if (us->flags & US_DBGLOG)
 	DPRINT3("ppp/%d: dlpi prim %x len=%d\n", us->mn,
@@ -1067,15 +1079,7 @@ dlpi_request(q, mp, us)
 	info->dl_max_sdu = us->ppa? us->ppa->mtu: PPP_MAXMTU;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(uint);
-#if 0
-#ifdef DL_OTHER
-	info->dl_mac_type = DL_OTHER;
-#else
-	info->dl_mac_type = DL_HDLC;	/* a lie */
-#endif
-#else
-	info->dl_mac_type = DL_ETHER;	/* a bigger lie */
-#endif
+	info->dl_mac_type = DL_OTHER;	/* a bigger lie */
 	info->dl_current_state = us->state;
 	info->dl_service_mode = DL_CLDLS;
 	info->dl_provider_style = DL_STYLE2;
@@ -1134,23 +1138,25 @@ dlpi_request(q, mp, us)
 	sap = d->bind_req.dl_sap;
 	us->req_sap = sap;
 
-#ifdef SOL2
-        /* 
-	 * ip will send a sap value of 0 (post-Solaris 7), or
-	 * ETHERTYPE_IP (0x800) (pre-Solaris 8) due to how the
-	 * ppp DLPI provider declares its characteristics.
-	 * <adi.masputra@sun.com>
-	 */
-	if (sap == 0)
-            sap = ETHERTYPE_IP;
-#endif /* SOL2 */
-
+#if defined(SOL2)
+	if (us->flags & US_DBGLOG)
+	    DPRINT2("DL_BIND_REQ: ip gives sap = 0x%x, us = 0x%x", sap, us);
+	if (sap == ETHERTYPE_IP)
+	    sap = PPP_IP;
+	else if (sap == ETHERTYPE_IP6)
+	    sap = PPP_IPV6;
+	else {
+	    dlpi_error(q, us, DL_BIND_REQ, DL_BADADDR, 0);
+	    break;
+	}
+#else
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
 	    dlpi_error(q, us, DL_BIND_REQ, DL_BADADDR, 0);
 	    break;
 	}
+#endif /* defined(SOL2) */
 
 	/* check that no other stream is bound to this sap already. */
 	for (os = us->ppa; os != 0; os = os->next)
@@ -1297,14 +1303,38 @@ dlpi_request(q, mp, us)
 	return;
 
 #if DL_CURRENT_VERSION >= 2
+    case DL_PHYS_ADDR_REQ:
+	if (size < sizeof(dl_phys_addr_req_t))
+	    goto badprim;
+
+	/*
+	 * Don't check state because ifconfig sends this one down too
+	 */
+
+	if ((reply = allocb(sizeof(dl_phys_addr_ack_t)+ETHERADDRL, 
+			BPRI_HI)) == 0)
+	    break;		/* should do bufcall */
+	reply->b_datap->db_type = M_PCPROTO;
+	paddrack = (dl_phys_addr_ack_t *) reply->b_wptr;
+	reply->b_wptr += sizeof(dl_phys_addr_ack_t);
+	bzero((caddr_t) paddrack, sizeof(dl_phys_addr_ack_t)+ETHERADDRL);
+	paddrack->dl_primitive = DL_PHYS_ADDR_ACK;
+	paddrack->dl_addr_length = ETHERADDRL;
+	paddrack->dl_addr_offset = sizeof(dl_phys_addr_ack_t);
+	bcopy(&eaddr, reply->b_wptr, ETHERADDRL);
+	reply->b_wptr += ETHERADDRL;
+	qreply(q, reply);
+	break;
+#endif
+
+#if DL_CURRENT_VERSION >= 2
+    case DL_SET_PHYS_ADDR_REQ:
     case DL_SUBS_BIND_REQ:
     case DL_SUBS_UNBIND_REQ:
     case DL_ENABMULTI_REQ:
     case DL_DISABMULTI_REQ:
     case DL_PROMISCON_REQ:
     case DL_PROMISCOFF_REQ:
-    case DL_PHYS_ADDR_REQ:
-    case DL_SET_PHYS_ADDR_REQ:
     case DL_XID_REQ:
     case DL_TEST_REQ:
     case DL_REPLY_UPDATE_REQ:
