@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.21 1997/04/30 05:59:38 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.22 1998/03/25 03:09:12 paulus Exp $";
 #endif
 
 /*
@@ -1214,6 +1214,16 @@ GetMask(addr)
     }
 
     return mask;
+}
+
+
+/*
+ * Use the hostid as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    return gethostid();
 }
 
 
