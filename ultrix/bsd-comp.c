@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.4 1995/05/01 01:41:29 paulus Exp $
+ * $Id: bsd-comp.c,v 1.5 1995/05/02 02:48:14 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -129,7 +129,7 @@ struct bsd_db {
 };
 
 #define BSD_OVHD	2		/* BSD compress overhead/packet */
-#define BSD_INIT_BITS	MIN_BSD_BITS
+#define BSD_INIT_BITS	BSD_MIN_BITS
 
 static void	*bsd_comp_alloc __P((u_char *options, int opt_len));
 static void	*bsd_decomp_alloc __P((u_char *options, int opt_len));

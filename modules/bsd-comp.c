@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, and AIX 4.x.
  *
- * $Id: bsd-comp.c,v 1.10 1995/05/01 01:43:16 paulus Exp $
+ * $Id: bsd-comp.c,v 1.11 1995/05/02 02:49:09 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -148,7 +148,7 @@ struct bsd_db {
 };
 
 #define BSD_OVHD	2		/* BSD compress overhead/packet */
-#define BSD_INIT_BITS	MIN_BSD_BITS
+#define BSD_INIT_BITS	BSD_MIN_BITS
 
 static void	*bsd_comp_alloc __P((u_char *options, int opt_len));
 static void	*bsd_decomp_alloc __P((u_char *options, int opt_len));
