@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.15 1994/10/23 11:45:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.16 1995/04/24 05:37:51 paulus Exp $";
 #endif
 
 /*
@@ -54,6 +54,8 @@ static int rtm_seq;
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
 
+int sockfd;			/* socket for doing interface ioctls */
+
 /*
  * sys_init - System-dependent initialization.
  */
@@ -64,6 +66,12 @@ sys_init()
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
+
+    /* Get an internet socket for doing socket ioctl's on. */
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	syslog(LOG_ERR, "Couldn't create IP socket: %m");
+	die(1);
+    }
 }
 
 /*
@@ -353,7 +361,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
-    if (ioctl(s, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
 	quit();
     }
@@ -515,12 +523,12 @@ sifup(u)
     struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
     ifr.ifr_flags |= IFF_UP;
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
@@ -580,12 +588,12 @@ sifdown(u)
     }
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
     } else {
 	ifr.ifr_flags &= ~IFF_UP;
-	if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	    rv = 0;
 	}
@@ -622,7 +630,7 @@ sifaddr(u, o, h, m)
 	((struct sockaddr_in *) &ifra.ifra_mask)->sin_addr.s_addr = m;
     } else
 	BZERO(&ifra.ifra_mask, sizeof(ifra.ifra_mask));
-    if (ioctl(s, SIOCAIFADDR, (caddr_t) &ifra) < 0) {
+    if (ioctl(sockfd, SIOCAIFADDR, (caddr_t) &ifra) < 0) {
 	if (errno != EEXIST) {
 	    syslog(LOG_ERR, "ioctl(SIOCAIFADDR): %m");
 	    return 0;
@@ -649,7 +657,7 @@ cifaddr(u, o, h)
     SET_SA_FAMILY(ifra.ifra_broadaddr, AF_INET);
     ((struct sockaddr_in *) &ifra.ifra_broadaddr)->sin_addr.s_addr = h;
     BZERO(&ifra.ifra_mask, sizeof(ifra.ifra_mask));
-    if (ioctl(s, SIOCDIFADDR, (caddr_t) &ifra) < 0) {
+    if (ioctl(sockfd, SIOCDIFADDR, (caddr_t) &ifra) < 0) {
 	syslog(LOG_WARNING, "ioctl(SIOCDIFADDR): %m");
 	return 0;
     }
@@ -850,7 +858,7 @@ sifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
-    if (ioctl(s, SIOCSARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
 	return 0;
     }
@@ -871,7 +879,7 @@ cifproxyarp(unit, hisaddr)
     BZERO(&arpreq, sizeof(arpreq));
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
-    if (ioctl(s, SIOCDARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
 	return 0;
     }
@@ -900,7 +908,7 @@ get_ether_addr(ipaddr, hwaddr)
 
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
-    if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
@@ -919,7 +927,7 @@ get_ether_addr(ipaddr, hwaddr)
 	     * Check that the interface is up, and not point-to-point
 	     * or loopback.
 	     */
-	    if (ioctl(s, SIOCGIFFLAGS, &ifreq) < 0)
+	    if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 		continue;
 	    if ((ifreq.ifr_flags &
 		 (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
@@ -928,7 +936,7 @@ get_ether_addr(ipaddr, hwaddr)
 	    /*
 	     * Get its netmask and check that it's on the right subnet.
 	     */
-	    if (ioctl(s, SIOCGIFNETMASK, &ifreq) < 0)
+	    if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
 		continue;
 	    mask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
 	    if ((ipaddr & mask) != (ina & mask))
