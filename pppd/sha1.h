@@ -8,6 +8,14 @@
 
 #ifndef __SHA1_INCLUDE_
 
+#ifndef SHA1_SIGNATURE_SIZE
+#ifdef SHA_DIGESTSIZE
+#define SHA1_SIGNATURE_SIZE SHA_DIGESTSIZE
+#else
+#define SHA1_SIGNATURE_SIZE 20
+#endif
+#endif
+
 typedef struct {
     unsigned long state[5];
     unsigned long count[2];
@@ -21,10 +29,3 @@ extern void SHA1_Final(unsigned char[SHA1_SIGNATURE_SIZE], SHA1_CTX *);
 #define __SHA1_INCLUDE_
 #endif /* __SHA1_INCLUDE_ */
 
-#ifndef SHA1_SIGNATURE_SIZE
-#ifdef SHA_DIGESTSIZE
-#define SHA1_SIGNATURE_SIZE SHA_DIGESTSIZE
-#else
-#define SHA1_SIGNATURE_SIZE 20
-#endif
-#endif
