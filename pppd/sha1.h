@@ -17,8 +17,8 @@
 #endif
 
 typedef struct {
-    unsigned long state[5];
-    unsigned long count[2];
+    u_int32_t state[5];
+    u_int32_t count[2];
     unsigned char buffer[64];
 } SHA1_CTX;
 

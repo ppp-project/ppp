@@ -21,7 +21,7 @@
 #include "sha1.h"
 
 static void
-SHA1_Transform(unsigned long[5], const unsigned char[64]);
+SHA1_Transform(u_int32_t[5], const unsigned char[64]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -42,12 +42,12 @@ SHA1_Transform(unsigned long[5], const unsigned char[64]);
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
 static void
-SHA1_Transform(unsigned long state[5], const unsigned char buffer[64])
+SHA1_Transform(u_int32_t state[5], const unsigned char buffer[64])
 {
-    unsigned long a, b, c, d, e;
+    u_int32_t a, b, c, d, e;
     typedef union {
 	unsigned char c[64];
-	unsigned long l[16];
+	u_int32_t l[16];
     } CHAR64LONG16;
     CHAR64LONG16 *block;
 
@@ -141,7 +141,7 @@ SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
 void
 SHA1_Final(unsigned char digest[20], SHA1_CTX *context)
 {
-    unsigned long i, j;
+    u_int32_t i, j;
     unsigned char finalcount[8];
 
     for (i = 0; i < 8; i++) {
