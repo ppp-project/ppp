@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.84 2002/09/24 11:35:22 fcusack Exp $"
+#define RCSID	"$Id: auth.c,v 1.85 2002/10/10 05:47:34 fcusack Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -105,6 +105,12 @@ static struct permitted_ip *addresses[NUM_PPP];
 /* Wordlist giving addresses which the peer may use
    without authenticating itself. */
 static struct wordlist *noauth_addrs;
+
+/* Remote telephone number, if available */
+char remote_number[MAXNAMELEN];
+
+/* Wordlist giving remote telephone numbers which may connect. */
+static struct wordlist *permitted_numbers;
 
 /* Extra options to apply, from the secrets file entry for the peer. */
 static struct wordlist *extra_options;
@@ -214,6 +220,7 @@ static int  some_ip_ok __P((struct wordlist *));
 static int  setupapfile __P((char **));
 static int  privgroup __P((char **));
 static int  set_noauth_addr __P((char **));
+static int  set_permitted_number __P((char **));
 static void check_access __P((FILE *, char *));
 static int  wordlist_count __P((struct wordlist *));
 
@@ -329,6 +336,14 @@ option_t auth_options[] = {
       "Set IP address(es) which can be used without authentication",
       OPT_PRIV | OPT_A2LIST },
 
+    { "remotenumber", o_string, remote_number,
+      "Set remote telephone number for authentication", OPT_PRIO | OPT_STATIC,
+      NULL, MAXNAMELEN },
+
+    { "allow-number", o_special, (void *)set_permitted_number,
+      "Set telephone number(s) which are allowed to connect",
+      OPT_PRIV | OPT_A2LIST },
+
     { NULL }
 };
 
@@ -429,6 +444,28 @@ set_noauth_addr(argv)
     wp->next = noauth_addrs;
     BCOPY(addr, wp->word, l);
     noauth_addrs = wp;
+    return 1;
+}
+
+
+/*
+ * set_permitted_number - set remote telephone number(s) that may connect.
+ */
+static int
+set_permitted_number(argv)
+    char **argv;
+{
+    char *number = *argv;
+    int l = strlen(number) + 1;
+    struct wordlist *wp;
+
+    wp = (struct wordlist *) malloc(sizeof(struct wordlist) + l);
+    if (wp == NULL)
+	novm("allow-number argument");
+    wp->word = (char *) (wp + 1);
+    wp->next = permitted_numbers;
+    BCOPY(number, wp->word, l);
+    permitted_numbers = wp;
     return 1;
 }
 
@@ -1889,6 +1926,35 @@ some_ip_ok(addrs)
 	if (addrs->word[0] != '!')
 	    return 1;		/* some IP address is allowed */
     }
+    return 0;
+}
+
+/*
+ * auth_number - check whether the remote number is allowed to connect.
+ * Returns 1 if authorized, 0 otherwise.
+ */
+int
+auth_number()
+{
+    struct wordlist *wp = permitted_numbers;
+    int l;
+
+    /* Allow all if no authorization list. */
+    if (!wp)
+	return 1;
+
+    /* Allow if we have a match in the authorization list. */
+    while (wp) {
+	/* trailing '*' wildcard */
+	l = strlen(wp->word);
+	if ((wp->word)[l - 1] == '*')
+	    l--;
+	if (!strncasecmp(wp->word, remote_number, l))
+	    return 1;
+	}
+	wp = wp->next;
+    }
+
     return 0;
 }
 

@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.65 2002/09/20 06:53:19 fcusack Exp $
+.\" $Id: pppd.8,v 1.66 2002/10/10 05:47:34 fcusack Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -199,6 +199,10 @@ Allow peers to use the given IP address or subnet without
 authenticating themselves.  The parameter is parsed as for each
 element of the list of allowed IP addresses in the secrets files (see
 the AUTHENTICATION section below).
+.TP
+.B allow-number \fInumber
+Allow peers to connect from the given telephone number.  A trailing
+`*' character will match all numbers beginning with the leading part.
 .TP
 .B bsdcomp \fInr,nt
 Request that the peer compress packets that it sends, using the
@@ -864,6 +868,10 @@ displayed in readable form using the pppdump(8) program.
 .B remotename \fIname
 Set the assumed name of the remote system for authentication purposes
 to \fIname\fR.
+.TP
+.B remotenumber \fInumber
+Set the assumed telephone number of the remote system for authentication
+purposes to \fInumber\fR.
 .TP
 .B refuse-chap
 With this option, pppd will not agree to authenticate itself to the

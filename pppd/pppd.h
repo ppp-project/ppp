@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.74 2002/09/24 11:35:22 fcusack Exp $
+ * $Id: pppd.h,v 1.75 2002/10/10 05:47:34 fcusack Exp $
  */
 
 /*
@@ -516,6 +516,7 @@ int  get_secret __P((int, char *, char *, char *, int *, int));
 				/* get "secret" for chap */
 int  auth_ip_addr __P((int, u_int32_t));
 				/* check if IP address is authorized */
+int  auth_number __P((void));	/* check if remote number is authorized */
 int  bad_ip_adrs __P((u_int32_t));
 				/* check if IP address is unreasonable */
 
@@ -755,6 +756,7 @@ extern void (*snoop_send_hook) __P((unsigned char *p, int len));
 #ifdef MAXOCTETS
 #define EXIT_TRAFFIC_LIMIT	20
 #endif
+#define EXIT_CNID_AUTH_FAILED	21
 
 /*
  * Debug macros.  Slightly useful for finding bugs in pppd, not particularly

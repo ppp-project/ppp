@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.113 2002/05/21 17:26:49 dfs Exp $"
+#define RCSID	"$Id: main.c,v 1.114 2002/10/10 05:47:34 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -84,7 +84,6 @@ char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
 char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
-char remote_number[MAXNAMELEN]; /* Remote telephone number, if available */
 uid_t uid;			/* Our real user-id */
 struct notifier *pidchange = NULL;
 struct notifier *phasechange = NULL;
@@ -361,9 +360,18 @@ main(argc, argv)
 	init_pr_log(NULL, LOG_INFO);
 	print_options(pr_log, NULL);
 	end_pr_log();
-	if (dryrun)
-	    die(0);
     }
+
+    /*
+     * Early check for remote number authorization.
+     */
+    if (!auth_number()) {
+	error("remote number %s is not authorized", remote_number);
+	exit(EXIT_CNID_AUTH_FAILED);
+    }
+
+    if (dryrun)
+	die(0);
 
     /*
      * Initialize system-dependent stuff.
