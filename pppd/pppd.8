@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.55 2001/02/22 03:10:05 paulus Exp $
+.\" $Id: pppd.8,v 1.56 2001/03/09 01:01:26 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -297,6 +297,19 @@ specify \fIdomain Quotron.COM\fR.  Pppd would then use the name
 \fIporsche.Quotron.COM\fR for looking up secrets in the secrets file,
 and as the default name to send to the peer when authenticating itself
 to the peer.  This option is privileged.
+.TP
+.B dryrun
+With the \fBdryrun\fR option, pppd will print out all the option
+values which have been set and then exit, after parsing the command
+line and options files and checking the option values, but before
+initiating the link.  The option values are logged at level info, and
+also printed to standard output unless the device on standard output
+is the device that pppd would be using to communicate with the peer.
+.TP
+.B dump
+With the \fBdump\fR option, pppd will print out all the option values
+which have been set.  This option is like the \fBdryrun\fR option
+except that pppd proceeds as normal rather than exiting.
 .TP
 .B endpoint \fI<epdisc>
 Sets the endpoint discriminator sent by the local machine to the peer
