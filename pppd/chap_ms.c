@@ -40,7 +40,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.21 2002/09/01 12:00:15 dfs Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.22 2002/09/06 22:11:12 kad Exp $"
 
 #ifdef CHAPMS
 
@@ -581,7 +581,7 @@ ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
     response->UseNT[0] = 1;
 #endif
 
-    cstate->resp_length = MS_CHAP_RESPONSE_LENGTH;
+    cstate->resp_length = MS_CHAP_RESPONSE_LEN;
 
 #ifdef MPPE
     Set_Start_Key(rchallenge, secret, secret_len);
