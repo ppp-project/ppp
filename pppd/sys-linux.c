@@ -2808,8 +2808,8 @@ sys_check_options(void)
 
     if (ipxcp_protent.enabled_flag) {
 	struct stat stat_buf;
-	if ((path = path_to_procfs("/net/ipx/interface")) == 0
-	    || (path = path_to_procfs("/net/ipx_interface")) == 0
+	if (  ((path = path_to_procfs("/net/ipx/interface")) == NULL
+	    && (path = path_to_procfs("/net/ipx_interface")) == NULL)
 	    || lstat(path, &stat_buf) < 0) {
 	    error("IPX support is not present in the kernel\n");
 	    ipxcp_protent.enabled_flag = 0;
