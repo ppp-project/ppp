@@ -26,9 +26,10 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.15 1996/01/18 03:20:25 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.16 1996/04/04 03:35:37 paulus Exp $";
 #endif
 
+#include <string.h>
 #include <syslog.h>
 #include <sys/ioctl.h>
 #include <net/ppp-comp.h>
@@ -142,8 +143,15 @@ ccp_open(unit)
 
     if (f->state != OPENED)
 	ccp_flags_set(unit, 1, 0);
-    if (!ANY_COMPRESS(ccp_wantoptions[unit]))
+
+    /*
+     * Find out which compressors the kernel supports before
+     * deciding whether to open in silent mode.
+     */
+    ccp_resetci(f);
+    if (!ANY_COMPRESS(ccp_gotoptions[unit]))
 	f->flags |= OPT_SILENT;
+
     fsm_open(f);
 }
 
@@ -259,7 +267,6 @@ static void
 ccp_resetci(f)
     fsm *f;
 {
-    int ok;
     ccp_options *go = &ccp_gotoptions[f->unit];
     u_char opt_buf[16];
 
