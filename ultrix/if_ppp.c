@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.3 1994/11/28 01:38:25 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.4 1994/12/08 00:32:59 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -127,6 +127,7 @@ int	pppoutput __P((struct ifnet *ifp, struct mbuf *m0,
 int	pppsioctl __P((struct ifnet *ifp, int cmd, caddr_t data));
 void	pppintr __P((void));
 
+static void	ppp_requeue __P((struct ppp_softc *));
 static void	ppp_outpkt __P((struct ppp_softc *));
 static int	ppp_ccp __P((struct ppp_softc *, struct mbuf *m, int rcvd));
 static void	ppp_ccp_closed __P((struct ppp_softc *));
@@ -214,17 +215,17 @@ pppalloc(pid)
     for (nppp = 0, sc = ppp_softc; nppp < NPPP; nppp++, sc++)
 	if (sc->sc_xfer == pid) {
 	    sc->sc_xfer = 0;
-	    break;
+	    return sc;
 	}
-    if (nppp >= NPPP)
-	for (nppp = 0, sc = ppp_softc; nppp < NPPP; nppp++, sc++)
-	    if (sc->sc_devp == NULL)
-		break;
+    for (nppp = 0, sc = ppp_softc; nppp < NPPP; nppp++, sc++)
+	if (sc->sc_devp == NULL)
+	    break;
     if (nppp >= NPPP)
 	return NULL;
 
     sc->sc_flags = 0;
     sc->sc_mru = PPP_MRU;
+    sc->sc_relinq = NULL;
 #ifdef VJC
     sl_compress_init(&sc->sc_comp);
 #endif
@@ -234,13 +235,14 @@ pppalloc(pid)
 #endif /* PPP_COMPRESS */
     for (i = 0; i < NUM_NP; ++i)
 	sc->sc_npmode[i] = NPMODE_ERROR;
-    sc->sc_if.if_flags |= IFF_RUNNING;
+    sc->sc_npqueue = NULL;
+    sc->sc_npqtail = &sc->sc_npqueue;
 
     return sc;
 }
 
 /*
- * Deallocate a ppp unit.
+ * Deallocate a ppp unit.  Must be called at splnet or higher.
  */
 void
 pppdealloc(sc)
@@ -268,6 +270,10 @@ pppdealloc(sc)
 	IF_DEQUEUE(&sc->sc_fastq, m);
 	if (m == NULL)
 	    break;
+	m_freem(m);
+    }
+    while ((m = sc->sc_npqueue) != NULL) {
+	sc->sc_npqueue = m->m_nextpkt;
 	m_freem(m);
     }
     if (sc->sc_togo != NULL) {
@@ -425,8 +431,10 @@ pppioctl(sc, cmd, data, flag)
 	    if (npi->mode != sc->sc_npmode[npx]) {
 		s = splimp();
 		sc->sc_npmode[npx] = npi->mode;
-		if (npi->mode != NPMODE_QUEUE)
+		if (npi->mode != NPMODE_QUEUE) {
+		    ppp_requeue(sc);
 		    (*sc->sc_start)(sc);
+		}
 		splx(s);
 	    }
 	}
@@ -547,8 +555,10 @@ pppoutput(ifp, m0, dst)
 
     /*
      * Compute PPP header.
+     * We use the m_context field of the mbuf to indicate whether
+     * the packet should go on the fast queue.
      */
-    ifq = &ifp->if_snd;
+    m0->m_context = 0;
     switch (dst->sa_family) {
 #ifdef INET
     case AF_INET:
@@ -564,7 +574,7 @@ pppoutput(ifp, m0, dst)
 	if ((ip = mtod(m0, struct ip *))->ip_p == IPPROTO_TCP) {
 	    register int p = ntohl(((int *)ip)[ip->ip_hl]);
 	    if (INTERACTIVE(p & 0xffff) || INTERACTIVE(p >> 16))
-		ifq = &sc->sc_fastq;
+		m0->m_context = 1;
 	}
 	break;
 #endif
@@ -633,20 +643,23 @@ pppoutput(ifp, m0, dst)
      * Put the packet on the appropriate queue.
      */
     s = splimp();		/* splnet should be OK now */
-    if (IF_QFULL(ifq)) {
-	IF_DROP(ifq);
-	splx(s);
-	sc->sc_if.if_oerrors++;
-	error = ENOBUFS;
-	goto bad;
-    }
-    IF_ENQUEUE(ifq, m0);
-
-    /*
-     * Tell the device to send it out.
-     */
-    if (mode == NPMODE_PASS)
+    if (mode == NPMODE_QUEUE) {
+	/* XXX we should limit the number of packets on this queue */
+	*sc->sc_npqtail = m0;
+	m0->m_nextpkt = NULL;
+	sc->sc_npqtail = &m0->m_nextpkt;
+    } else {
+	ifq = m0->m_context? &sc->sc_fastq: &ifp->if_snd;
+	if (IF_QFULL(ifq)) {
+	    IF_DROP(ifq);
+	    splx(s);
+	    sc->sc_if.if_oerrors++;
+	    error = ENOBUFS;
+	    goto bad;
+	}
+	IF_ENQUEUE(ifq, m0);
 	(*sc->sc_start)(sc);
+    }
 
     splx(s);
     return (0);
@@ -654,6 +667,57 @@ pppoutput(ifp, m0, dst)
 bad:
     m_freem(m0);
     return (error);
+}
+
+/*
+ * After a change in the NPmode for some NP, move packets from the
+ * npqueue to the send queue or the fast queue as appropriate.
+ * Should be called at splimp (actually splnet would probably suffice).
+ */
+static void
+ppp_requeue(sc)
+    struct ppp_softc *sc;
+{
+    struct mbuf *m, **mpp;
+    struct ifqueue *ifq;
+    enum NPmode mode;
+
+    for (mpp = &sc->sc_npqueue; (m = *mpp) != NULL; ) {
+	switch (PPP_PROTOCOL(mtod(m, u_char *))) {
+	case PPP_IP:
+	    mode = sc->sc_npmode[NP_IP];
+	    break;
+	default:
+	    mode = NPMODE_PASS;
+	}
+
+	switch (mode) {
+	case NPMODE_PASS:
+	    /*
+	     * This packet can now go on one of the queues to be sent.
+	     */
+	    *mpp = m->m_nextpkt;
+	    m->m_nextpkt = NULL;
+	    ifq = (m->m_flags & M_HIGHPRI)? &sc->sc_fastq: &sc->sc_if.if_snd;
+	    if (IF_QFULL(ifq)) {
+		IF_DROP(ifq);
+		sc->sc_if.if_oerrors++;
+	    } else
+		IF_ENQUEUE(ifq, m);
+	    break;
+
+	case NPMODE_DROP:
+	case NPMODE_ERROR:
+	    *mpp = m->m_nextpkt;
+	    m_freem(m);
+	    break;
+
+	case NPMODE_QUEUE:
+	    mpp = &m->m_nextpkt;
+	    break;
+	}
+    }
+    sc->sc_npqtail = mpp;
 }
 
 /*
@@ -668,6 +732,7 @@ ppp_dequeue(sc)
     struct ppp_softc *sc;
 {
     struct mbuf *m;
+    int s = splimp();
 
     m = sc->sc_togo;
     if (m) {
@@ -676,6 +741,7 @@ ppp_dequeue(sc)
 	 */
 	sc->sc_togo = NULL;
 	sc->sc_flags |= SC_TBUSY;
+	splx(s);
 	return m;
     }
     /*
@@ -683,6 +749,7 @@ ppp_dequeue(sc)
      */
     sc->sc_flags &= ~SC_TBUSY;
     schednetisr(NETISR_PPP);
+    splx(s);
     return NULL;
 }
 
@@ -696,6 +763,7 @@ pppintr()
     int i, s;
     struct mbuf *m;
 
+    s = splnet();
     sc = ppp_softc;
     for (i = 0; i < NPPP; ++i, ++sc) {
 	if (!(sc->sc_flags & SC_TBUSY) && sc->sc_togo == NULL
@@ -708,6 +776,7 @@ pppintr()
 	    ppp_inproc(sc, m);
 	}
     }
+    splx(s);
 }
 
 /*
@@ -720,59 +789,20 @@ ppp_outpkt(sc)
     struct ppp_softc *sc;
 {
     int s;
-    struct mbuf *m, *mp, **mpp;
+    struct mbuf *m, *mp;
     u_char *cp;
     int address, control, protocol;
-    struct ifqueue *ifq;
     enum NPmode mode;
 
     /*
-     * Scan through the send queues looking for a packet
-     * which can be sent: first the fast queue, then the normal queue.
+     * Grab a packet to send: first try the fast queue, then the
+     * normal queue.
      */
-    ifq = &sc->sc_fastq;
-    for (;;) {
-	mpp = &ifq->ifq_head;
-	mp = NULL;
-	while ((m = *mpp) != NULL) {
-	    switch (PPP_PROTOCOL(mtod(m, u_char *))) {
-	    case PPP_IP:
-		mode = sc->sc_npmode[NP_IP];
-		break;
-	    default:
-		mode = NPMODE_PASS;
-	    }
-	    if (mode == NPMODE_PASS)
-		break;
-	    switch (mode) {
-	    case NPMODE_DROP:
-	    case NPMODE_ERROR:
-		*mpp = m->m_act;
-		--ifq->ifq_len;
-		m_freem(m);
-		break;
-	    case NPMODE_QUEUE:
-		mpp = &m->m_act;
-		mp = m;
-		break;
-	    }
-	}
-	if (m != NULL)
-	    break;
-
-	if (ifq == &sc->sc_if.if_snd)
-	    break;
-	/* Finished the fast queue; do the normal queue. */
-	ifq = &sc->sc_if.if_snd;
-    }
-
+    IF_DEQUEUE(&sc->sc_fastq, m);
+    if (m == NULL)
+	IF_DEQUEUE(&sc->sc_if.if_snd, m);
     if (m == NULL)
 	return;
-
-    if ((*mpp = m->m_act) == NULL)
-	ifq->ifq_tail = mp;
-    m->m_act = NULL;
-    --ifq->ifq_len;
 
     /*
      * Extract the ppp header of the new packet.
@@ -948,7 +978,7 @@ ppp_ccp(sc, m, rcvd)
 		if (sc->sc_rc_state != NULL
 		    && (*sc->sc_rcomp->decomp_init)
 			(sc->sc_rc_state, dp + CCP_HDRLEN, slen - CCP_HDRLEN,
-			 sc->sc_if.if_unit, sc->sc_mru,
+			 sc->sc_if.if_unit, 0, sc->sc_mru,
 			 sc->sc_flags & SC_DEBUG)) {
 		    s = splimp();
 		    sc->sc_flags |= SC_DECOMP_RUN;
@@ -999,7 +1029,7 @@ ppp_ccp_closed(sc)
  * PPP packet input routine.
  * The caller has checked and removed the FCS and has inserted
  * the address/control bytes and the protocol high byte if they
- * were omitted.  Should be called at splimp/spltty.
+ * were omitted.
  */
 void
 ppppktin(sc, m, lost)
@@ -1007,9 +1037,12 @@ ppppktin(sc, m, lost)
     struct mbuf *m;
     int lost;
 {
+    int s = splimp();
+
     m->m_context = lost;
     IF_ENQUEUE(&sc->sc_rawq, m);
     schednetisr(NETISR_PPP);
+    splx(s);
 }
 
 /*
@@ -1023,7 +1056,7 @@ ppp_inproc(sc, m)
     struct ppp_softc *sc;
     struct mbuf *m;
 {
-    struct ifqueue *inq, *lock;
+    struct ifqueue *inq;
     int s, ilen, xlen, proto, rv;
     u_char *cp, adrs, ctrl;
     struct mbuf *mp, *dmp, *pc;
@@ -1207,6 +1240,7 @@ ppp_inproc(sc, m)
 	bpf_mtap(sc->sc_bpf, m);
 #endif
 
+    rv = 0;
     switch (proto) {
 #ifdef INET
     case PPP_IP:

@@ -1,5 +1,6 @@
 /*
- * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
+ * ppp_tty.c - Point-to-Point Protocol (PPP) driver for asynchronous
+ * 	       tty devices.
  *
  * Copyright (c) 1989 Carnegie Mellon University.
  * All rights reserved.
@@ -72,7 +73,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.2 1994/11/28 01:38:59 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.3 1994/12/08 00:32:59 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -120,6 +121,7 @@ int	pppstart __P((struct tty *tp));
 static u_short	pppfcs __P((u_short fcs, u_char *cp, int len));
 static void	pppasyncstart __P((struct ppp_softc *));
 static void	pppasyncctlp __P((struct ppp_softc *));
+static void	pppasyncrelinq __P((struct ppp_softc *));
 static void	pppgetm __P((struct ppp_softc *sc));
 static void	pppdumpb __P((u_char *b, int l));
 static void	ppplogchar __P((struct ppp_softc *, int));
@@ -182,14 +184,12 @@ pppopen(dev, tp)
     if ((sc = pppalloc(p->p_pid)) == NULL)
 	return ENXIO;
 
-    if (sc->sc_outm != NULL) {
-	m_freem(sc->sc_outm);
-	sc->sc_outm = NULL;
-    }
-	
-    pppgetm(sc);
+    if (sc->sc_relinq)
+	(*sc->sc_relinq)(sc);	/* get previous owner to relinquish the unit */
 
+    s = splimp();
     sc->sc_ilen = 0;
+    sc->sc_m = NULL;
     bzero(sc->sc_asyncmap, sizeof(sc->sc_asyncmap));
     sc->sc_asyncmap[0] = 0xffffffff;
     sc->sc_asyncmap[3] = 0x60000000;
@@ -197,9 +197,14 @@ pppopen(dev, tp)
     sc->sc_devp = (void *) tp;
     sc->sc_start = pppasyncstart;
     sc->sc_ctlp = pppasyncctlp;
+    sc->sc_relinq = pppasyncrelinq;
+    sc->sc_outm = NULL;
+    pppgetm(sc);
+    sc->sc_if.if_flags |= IFF_RUNNING;
 
     tp->t_sc = (caddr_t) sc;
     ttyflush(tp, FREAD | FWRITE);
+    splx(s);
 
     return (0);
 }
@@ -221,19 +226,37 @@ pppclose(tp, flag)
     ttywflush(tp);
     s = splimp();		/* paranoid; splnet probably ok */
     tp->t_line = 0;
-    sc = (struct ppp_softc *)tp->t_sc;
+    sc = (struct ppp_softc *) tp->t_sc;
     if (sc != NULL) {
 	tp->t_sc = NULL;
 	if (tp == (struct tty *) sc->sc_devp) {
-	    m_freem(sc->sc_outm);
-	    sc->sc_outm = NULL;
-	    m_freem(sc->sc_m);
-	    sc->sc_m = NULL;
+	    pppasyncrelinq(sc);
 	    pppdealloc(sc);
 	}
     }
     splx(s);
     return 0;
+}
+
+/*
+ * Relinquish the interface unit to another device.
+ */
+static void
+pppasyncrelinq(sc)
+    struct ppp_softc *sc;
+{
+    int s;
+
+    s = splimp();
+    if (sc->sc_outm) {
+	m_freem(sc->sc_outm);
+	sc->sc_outm = NULL;
+    }
+    if (sc->sc_m) {
+	m_freem(sc->sc_m);
+	sc->sc_m = NULL;
+    }
+    splx(s);
 }
 
 /*
@@ -341,7 +364,7 @@ ppptioctl(tp, cmd, data, flag)
     int cmd, flag;
 {
     struct ppp_softc *sc = (struct ppp_softc *) tp->t_sc;
-    int error;
+    int error, s;
 
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
 	return -1;
@@ -371,10 +394,12 @@ ppptioctl(tp, cmd, data, flag)
     case PPPIOCSXASYNCMAP:
 	if (!suser())
 	    return EPERM;
+	s = spltty();
 	bcopy(data, sc->sc_asyncmap, sizeof(sc->sc_asyncmap));
 	sc->sc_asyncmap[1] = 0;		    /* mustn't escape 0x20 - 0x3f */
 	sc->sc_asyncmap[2] &= ~0x40000000;  /* mustn't escape 0x5e */
 	sc->sc_asyncmap[3] |= 0x60000000;   /* must escape 0x7d, 0x7e */
+	splx(s);
 	break;
 
     case PPPIOCGXASYNCMAP:
@@ -451,8 +476,11 @@ pppasyncstart(sc)
     register struct ppp_softc *sc;
 {
     register struct tty *tp = (struct tty *) sc->sc_devp;
+    int s;
 
+    s = splimp();
     pppstart(tp);
+    splx(s);
 }
 
 /*
@@ -517,8 +545,11 @@ pppstart(tp)
 	     * Get another packet to be sent.
 	     */
 	    m = ppp_dequeue(sc);
-	    if (m == NULL)
+	    if (m == NULL) {
+		if (tp->t_oproc != NULL)
+		    (*tp->t_oproc)(tp);
 		return;
+	    }
 
 	    /*
 	     * The extra PPP_FLAG will start up a new packet, and thus
@@ -684,12 +715,14 @@ pppinput(c, tp)
     register struct ppp_softc *sc;
     struct mbuf *m;
     int ilen;
+    extern int tk_nin;
 
     tk_nin++;
     sc = (struct ppp_softc *) tp->t_sc;
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
 	return;
 
+    s = spltty();
     sc->sc_bytesrcvd++;
 
     c &= 0xff;
@@ -727,6 +760,7 @@ pppinput(c, tp)
 		sc->sc_if.if_ierrors++;
 	    } else
 		sc->sc_flags &= ~(SC_FLUSH | SC_ESCAPED);
+	    splx(s);
 	    return;
 	}
 
@@ -737,6 +771,7 @@ pppinput(c, tp)
 		sc->sc_if.if_ierrors++;
 		sc->sc_flags |= SC_PKTLOST;
 	    }
+	    splx(s);
 	    return;
 	}
 
@@ -760,23 +795,28 @@ pppinput(c, tp)
 	sc->sc_flags &= ~SC_PKTLOST;
 
 	pppgetm(sc);
+	splx(s);
 	return;
     }
 
     if (sc->sc_flags & SC_FLUSH) {
 	if (sc->sc_flags & SC_LOG_FLUSH)
 	    ppplogchar(sc, c);
+	splx(s);
 	return;
     }
 
-    if (c < 0x20 && (sc->sc_rasyncmap & (1 << c)))
+    if (c < 0x20 && (sc->sc_rasyncmap & (1 << c))) {
+	splx(s);
 	return;
+    }
 
     if (sc->sc_flags & SC_ESCAPED) {
 	sc->sc_flags &= ~SC_ESCAPED;
 	c ^= PPP_TRANS;
     } else if (c == PPP_ESCAPE) {
 	sc->sc_flags |= SC_ESCAPED;
+	splx(s);
 	return;
     }
 
@@ -864,6 +904,7 @@ pppinput(c, tp)
     ++m->m_len;
     *sc->sc_mp++ = c;
     sc->sc_fcs = PPP_FCS(sc->sc_fcs, c);
+    splx(s);
     return;
 
  flush:
@@ -873,6 +914,7 @@ pppinput(c, tp)
 	if (sc->sc_flags & SC_LOG_FLUSH)
 	    ppplogchar(sc, c);
     }
+    splx(s);
 }
 
 #define MAX_DUMP_BYTES	128
