@@ -2,6 +2,8 @@
 # Makefile for chat with ultrix
 #
 
+CFLAGS = -DNO_USLEEP
+
 all:	chat
 
 chat: chat.o
