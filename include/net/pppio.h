@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.5 1995/10/03 05:44:19 paulus Exp $
+ * $Id: pppio.h,v 1.6 1995/10/27 03:36:58 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -45,6 +45,8 @@
 #define PPPIO_GCLEAN	_PPPIO(143)	/* get 8-bit-clean flags */
 #define PPPIO_DEBUG	_PPPIO(144)	/* request debug information */
 #define PPPIO_BIND	_PPPIO(145)	/* bind to SAP */
+#define PPPIO_NPMODE	_PPPIO(146)	/* set mode for handling data pkts */
+#define PPPIO_GIDLE	_PPPIO(147)	/* get time since last data pkt */
 
 /*
  * Values for PPPIO_CFLAGS
@@ -90,3 +92,4 @@
 #define PPPDBG_DUMP	0x10000		/* print out debug info now */
 #define PPPDBG_LOG	0x100		/* log various things */
 #define PPPDBG_DRIVER	0		/* identifies ppp driver as target */
+#define PPPDBG_IF	1		/* identifies ppp network i/f target */
