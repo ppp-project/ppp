@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.8 1994/11/10 01:52:05 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.9 1995/10/27 03:43:46 paulus Exp $";
 #endif
 
 /*
@@ -505,6 +505,7 @@ fsm_rconfnakrej(f, code, id, inp, len)
     int len;
 {
     int (*proc)();
+    int ret;
 
     FSMDEBUG((LOG_INFO, "fsm_rconfnakrej(%s): Rcvd id %d.",
 	      PROTO_NAME(f), id));
@@ -512,7 +513,7 @@ fsm_rconfnakrej(f, code, id, inp, len)
     if (id != f->reqid || f->seen_ack)	/* Expected id? */
 	return;				/* Nope, toss... */
     proc = (code == CONFNAK)? f->callbacks->nakci: f->callbacks->rejci;
-    if (!proc || !proc(f, inp, len)) {
+    if (!proc || !(ret = proc(f, inp, len))) {
 	/* Nak/reject is bad - ignore it */
 	FSMDEBUG((LOG_INFO, "%s: received bad %s (length %d)",
 		  PROTO_NAME(f), (code==CONFNAK? "Nak": "reject"), len));
@@ -530,7 +531,10 @@ fsm_rconfnakrej(f, code, id, inp, len)
     case ACKSENT:
 	/* They didn't agree to what we wanted - try another request */
 	UNTIMEOUT(fsm_timeout, (caddr_t) f);	/* Cancel timeout */
-	fsm_sconfreq(f, 0);		/* Send Configure-Request */
+	if (ret < 0)
+	    f->state = STOPPED;		/* kludge for stopping CCP */
+	else
+	    fsm_sconfreq(f, 0);		/* Send Configure-Request */
 	break;
 
     case ACKRCVD:
