@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.1 1996/05/28 00:42:30 paulus Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.2 1997/03/04 03:37:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -161,6 +161,7 @@ ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len)
 #if 0
     CHAPDEBUG((LOG_INFO, "ChapMS: secret is '%.*s'", secret_len, secret));
 #endif
+    static int low_byte_first = -1;
 
     BZERO(&response, sizeof(response));
 
@@ -172,6 +173,14 @@ ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len)
 
     MDbegin(&md4Context);
     MDupdate(&md4Context, unicodePassword, secret_len * 2 * 8);	/* Unicode is 2 bytes/char, *8 for bit count */
+
+    if (low_byte_first == -1) {
+      low_byte_first = (htons((unsigned short int)1) != 1);
+    }
+
+    if (low_byte_first == 0) {
+      MDreverse(&md4Context);  /*  sfb 961105 */
+    }
     MDupdate(&md4Context, NULL, 0);	/* Tell MD4 we're done */
 
     ChallengeResponse(rchallenge, (char *)md4Context.buffer, response.NTResp);
