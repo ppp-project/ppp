@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.10 1994/09/01 00:36:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.11 1994/09/16 02:17:43 paulus Exp $";
 #endif
 
 /*
@@ -77,6 +77,26 @@ note_debug_level()
     } else {
 	setlogmask(LOG_UPTO(LOG_WARNING));
     }
+}
+
+/*
+ * ppp_available - check whether the system has any ppp interfaces
+ * (in fact we check whether we can do an ioctl on ppp0).
+ */
+int
+ppp_available()
+{
+    int s, ok;
+    struct ifreq ifr;
+
+    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	return 1;		/* can't tell - maybe we're not root */
+
+    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+    close(s);
+
+    return ok;
 }
 
 /*
@@ -405,7 +425,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     int unit, opt_len, for_transmit;
     u_char *opt_ptr;
 {
-    struct ppp_comp_data data;
+    struct ppp_option_data data;
 
     data.ptr = opt_ptr;
     data.length = opt_len;
@@ -430,6 +450,24 @@ ccp_flags_set(unit, isopen, isup)
     x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
     if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+}
+
+/*
+ * ccp_fatal_error - returns 1 if decompression was disabled as a
+ * result of an error detected after decompression of a packet,
+ * 0 otherwise.  This is necessary because of patent nonsense.
+ */
+int
+ccp_fatal_error(unit)
+    int unit;
+{
+    int x;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
+	return 0;
+    }
+    return x & SC_DC_FERROR;
 }
 
 /*
@@ -467,6 +505,7 @@ sifup(u)
 {
     struct ifreq ifr;
     u_int x;
+    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -478,14 +517,23 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	return 0;
-    }
-    x |= SC_ENABLE_IP;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	return 0;
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_PASS;
+    if (ioctl(fd, PPPIOCSNPMODE, &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
+	    return 0;
+	}
+	/* for backwards compatibility */
+	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	    return 0;
+	}
+	x |= SC_ENABLE_IP;
+	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	    return 0;
+	}
     }
     return 1;
 }
@@ -500,18 +548,30 @@ sifdown(u)
     struct ifreq ifr;
     u_int x;
     int rv;
+    struct npioctl npi;
 
     rv = 1;
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	rv = 0;
-    } else {
-	x &= ~SC_ENABLE_IP;
-	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_ERROR;
+    if (ioctl(fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
 	    rv = 0;
+	} else {
+	    /* backwards compatibility */
+	    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+		syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+		rv = 0;
+	    } else {
+		x &= ~SC_ENABLE_IP;
+		if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+		    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+		    rv = 0;
+		}
+	    }
 	}
     }
+
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
@@ -894,25 +954,4 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     return 0;
-}
-
-
-/*
- * ppp_available - check whether the system has any ppp interfaces
- * (in fact we check whether we can do an ioctl on ppp0).
- */
-int
-ppp_available()
-{
-    int s, ok;
-    struct ifreq ifr;
-
-    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-	return 1;		/* can't tell - maybe we're not root */
-
-    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
-    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
-    close(s);
-
-    return ok;
 }
