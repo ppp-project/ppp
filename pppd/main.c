@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.9 1994/05/09 02:40:21 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.10 1994/05/18 06:00:48 paulus Exp $";
 #endif
 
 #define SETSID
@@ -30,6 +30,7 @@ static char rcsid[] = "$Id: main.c,v 1.9 1994/05/09 02:40:21 paulus Exp $";
 #include <syslog.h>
 #include <netdb.h>
 #include <utmp.h>
+#include <pwd.h>
 #include <sys/wait.h>
 
 /*
@@ -37,11 +38,7 @@ static char rcsid[] = "$Id: main.c,v 1.9 1994/05/09 02:40:21 paulus Exp $";
  * /etc/ppp/options exists.
  */
 #ifndef	REQ_SYSOPTIONS
-#define REQ_SYSOPTIONS	0
-#endif
-
-#ifdef STREAMS
-#undef SGTTY
+#define REQ_SYSOPTIONS	1
 #endif
 
 #ifdef SGTTY
@@ -105,10 +102,11 @@ char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 char our_name[MAXNAMELEN];
 char remote_name[MAXNAMELEN];
+static char pidfilename[MAXPATHLEN];
 
 static pid_t	pid;		/* Our pid */
 static pid_t	pgrpid;		/* Process Group ID */
-static char pidfilename[MAXPATHLEN];
+uid_t uid;			/* Our real user-id */
 
 char devname[MAXPATHLEN] = "/dev/tty";	/* Device name */
 int default_device = TRUE;	/* use default device (stdin/out) */
@@ -177,9 +175,7 @@ void format_packet __ARGS((u_char *, int,
 			   void (*) (void *, char *, ...), void *));
 void pr_log __ARGS((void *, char *, ...));
 
-#ifdef	STREAMS
 extern	char	*ttyname __ARGS((int));
-#endif
 extern	char	*getlogin __ARGS((void));
 
 /*
@@ -211,12 +207,11 @@ main(argc, argv)
     struct cmd *cmdp;
     FILE *pidfile;
     char *p;
+    struct passwd *pw;
 
-#ifdef STREAMS
-    p = ttyname(fileno(stdin));
+    p = ttyname(0);
     if (p)
 	strcpy(devname, p);
-#endif
   
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	perror("couldn't get hostname");
@@ -225,6 +220,7 @@ main(argc, argv)
     hostname[MAXNAMELEN-1] = 0;
 
     pid = getpid();
+    uid = getuid();
 
     if (!ppp_available()) {
 	fprintf(stderr, "Sorry - PPP is not available on this system\n");
@@ -241,9 +237,10 @@ main(argc, argv)
   
     progname = *argv;
 
-    if (!options_from_file(_PATH_SYSOPTIONS, REQ_SYSOPTIONS) ||
+    if (!options_from_file(_PATH_SYSOPTIONS, REQ_SYSOPTIONS, 0) ||
 	!options_from_user() ||
-	!parse_args(argc-1, argv+1))
+	!parse_args(argc-1, argv+1) ||
+	!options_for_tty())
 	die(1);
     check_auth_options();
     setipdefault();
@@ -269,10 +266,15 @@ main(argc, argv)
     magic_init();
 
     p = getlogin();
-    if (p == NULL)
-	p = "(unknown)";
+    if (p == NULL) {
+	pw = getpwuid(uid);
+	if (pw != NULL && pw->pw_name != NULL)
+	    p = pw->pw_name;
+	else
+	    p = "(unknown)";
+    }
     syslog(LOG_NOTICE, "pppd %s.%d started by %s, uid %d",
-	   VERSION, PATCHLEVEL, p, getuid());
+	   VERSION, PATCHLEVEL, p, uid);
 
 #ifdef SETSID
     /*
