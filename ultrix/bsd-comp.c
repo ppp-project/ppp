@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.3 1994/12/08 00:33:31 paulus Exp $
+ * $Id: bsd-comp.c,v 1.4 1995/05/01 01:41:29 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -53,6 +53,8 @@
 
 #define PACKETPTR	struct mbuf *
 #include "ppp-comp.h"
+
+#if DO_BSD_COMPRESS
 
 #define BSD_LITTLE_ENDIAN	/* all Ultrix machines are little-endian */
 
@@ -77,15 +79,6 @@
  *	    and receiver will agree when the dictionary is cleared when
  *	    compression is not going well.
  */
-
-/*
- * Macros to extract protocol version and number of bits
- * from the third byte of the BSD Compress CCP configuration option.
- */
-#define BSD_VERSION(x)	((x) >> 5)
-#define BSD_NBITS(x)	((x) & 0x1F)
-
-#define BSD_CURRENT_VERSION	1
 
 /*
  * A dictionary for doing BSD compress.
@@ -136,15 +129,13 @@ struct bsd_db {
 };
 
 #define BSD_OVHD	2		/* BSD compress overhead/packet */
-#define MIN_BSD_BITS	9
 #define BSD_INIT_BITS	MIN_BSD_BITS
-#define MAX_BSD_BITS	15
 
 static void	*bsd_comp_alloc __P((u_char *options, int opt_len));
 static void	*bsd_decomp_alloc __P((u_char *options, int opt_len));
 static void	bsd_free __P((void *state));
 static int	bsd_comp_init __P((void *state, u_char *options, int opt_len,
-				   int unit, int debug));
+				   int unit, int hdrlen, int debug));
 static int	bsd_decomp_init __P((void *state, u_char *options, int opt_len,
 				     int unit, int hdrlen, int mru, int debug));
 static int	bsd_compress __P((void *state, struct mbuf **mret,
@@ -159,7 +150,7 @@ static void	bsd_comp_stats __P((void *state, struct compstat *stats));
  * Procedures exported to if_ppp.c.
  */
 struct compressor ppp_bsd_compress = {
-    0x21,			/* compress_proto */
+    CI_BSD_COMPRESS,		/* compress_proto */
     bsd_comp_alloc,		/* comp_alloc */
     bsd_free,			/* comp_free */
     bsd_comp_init,		/* comp_init */
@@ -193,7 +184,7 @@ struct compressor ppp_bsd_compress = {
 #define LAST	255
 
 #define MAXCODE(b)	((1 << (b)) - 1)
-#define BADCODEM1	MAXCODE(MAX_BSD_BITS);
+#define BADCODEM1	MAXCODE(BSD_MAX_BITS)
 
 #define BSD_HASH(prefix,suffix,hshift)	((((u_int32_t)(suffix)) << (hshift)) \
 					 ^ (u_int32_t)(prefix))
@@ -327,7 +318,8 @@ bsd_alloc(options, opt_len, decomp)
     u_int newlen, hsize, hshift, maxmaxcode;
     struct bsd_db *db;
 
-    if (opt_len != 3 || options[0] != 0x21 || options[1] != 3
+    if (opt_len != CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
+	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	return NULL;
     bits = BSD_NBITS(options[2]);
@@ -424,7 +416,8 @@ bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
 {
     int i;
 
-    if (opt_len != 3 || options[0] != 0x21 || options[1] != 3
+    if (opt_len != CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
+	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION
 	|| BSD_NBITS(options[2]) != db->maxbits
 	|| decomp && db->lens == NULL)
@@ -455,13 +448,13 @@ bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
 }
 
 static int
-bsd_comp_init(state, options, opt_len, unit, debug)
+bsd_comp_init(state, options, opt_len, unit, hdrlen, debug)
     void *state;
     u_char *options;
-    int opt_len, unit, debug;
+    int opt_len, unit, hdrlen, debug;
 {
     return bsd_init((struct bsd_db *) state, options, opt_len,
-		    unit, 0, 0, debug, 0);
+		    unit, hdrlen, 0, debug, 0);
 }
 
 static int
@@ -555,9 +548,10 @@ bsd_compress(state, mret, mp, slen, maxolen)
     MGET(m, M_DONTWAIT, MT_DATA);
     *mret = m;
     if (m != NULL) {
-	if (maxolen > MLEN) {
+	if (maxolen + db->hdrlen > MLEN) {
 	    MCLGET(m, clp);
 	}
+	m->m_off += db->hdrlen;
 	m->m_len = 0;
 	wptr = mtod(m, u_char *);
 	cp_end = wptr + M_TRAILINGSPACE(m);
@@ -877,12 +871,13 @@ bsd_decompress(state, cmp, dmpp)
      * Check the sequence number and give up if it differs from
      * the value we're expecting.
      */
-    if (seq != db->seqno++) {
+    if (seq != db->seqno) {
 	if (db->debug)
 	    printf("bsd_decomp%d: bad sequence # %d, expected %d\n",
 		   db->unit, seq, db->seqno - 1);
 	return DECOMP_ERROR;
     }
+    ++db->seqno;
 
     /*
      * Allocate one mbuf to start with.
@@ -1129,3 +1124,4 @@ bsd_decompress(state, cmp, dmpp)
     return DECOMP_FATALERROR;
 #endif /* DEBUG */
 }
+#endif /* DO_BSD_COMPRESS */
