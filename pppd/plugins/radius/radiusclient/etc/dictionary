@@ -77,6 +77,8 @@ ATTRIBUTE	Acct-Output-Octets	43	integer
 ATTRIBUTE	Acct-Session-Id		44	string
 ATTRIBUTE	Acct-Authentic		45	integer
 ATTRIBUTE	Acct-Session-Time	46	integer
+ATTRIBUTE	Acct-Input-Packets	47	integer
+ATTRIBUTE	Acct-Output-Packets	48	integer
 ATTRIBUTE	Acct-Terminate-Cause	49	integer
 ATTRIBUTE       Chap-Challenge          60      string
 ATTRIBUTE	NAS-Port-Type		61	integer

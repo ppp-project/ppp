@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.36 2002/05/28 17:00:57 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.37 2002/06/24 12:57:15 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +37,7 @@
 
 #ifdef MPPE
 #include "chap_ms.h"	/* mppe_xxxx_key */
-#include "lcp.h"	/* lcp_close() */
+#include "lcp.h"	/* lcp_close(), lcp_fsm */
 #endif
 
 static const char rcsid[] = RCSID;
@@ -1438,8 +1438,12 @@ ccp_down(f)
     ccp_flags_set(f->unit, 1, 0);
 #ifdef MPPE
     if (ccp_gotoptions[f->unit].mppe) {
-	error("MPPE disabled");
-	lcp_close(f->unit, "MPPE disabled");
+	ccp_gotoptions[f->unit].mppe = 0;
+	if (lcp_fsm[f->unit].state == OPENED) {
+	    /* If LCP is not already going down, make sure it does. */
+	    error("MPPE disabled");
+	    lcp_close(f->unit, "MPPE disabled");
+	}
     }
 #endif
 }

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: fsm.c,v 1.17 1999/08/13 06:46:12 paulus Exp $"
+#define RCSID	"$Id: fsm.c,v 1.18 2002/06/24 12:57:15 dfs Exp $"
 
 /*
  * TODO:
@@ -562,10 +562,10 @@ fsm_rtermreq(f, id, p, len)
 	    info("%s terminated by peer (%0.*v)", PROTO_NAME(f), len, p);
 	} else
 	    info("%s terminated by peer", PROTO_NAME(f));
-	if (f->callbacks->down)
-	    (*f->callbacks->down)(f);	/* Inform upper layers */
 	f->retransmits = 0;
 	f->state = STOPPING;
+	if (f->callbacks->down)
+	    (*f->callbacks->down)(f);	/* Inform upper layers */
 	TIMEOUT(fsm_timeout, f, f->timeouttime);
 	break;
     }
