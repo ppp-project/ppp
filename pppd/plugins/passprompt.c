@@ -14,6 +14,8 @@
 #include <syslog.h>
 #include "pppd.h"
 
+char pppd_version[] = VERSION;
+
 static char promptprog[PATH_MAX+1];
 
 static option_t options[] = {

@@ -12,6 +12,8 @@
 #include <time.h>
 #include "pppd.h"
 
+char pppd_version[] = VERSION;
+
 static int minconnect = 0;
 
 static option_t my_options[] = {

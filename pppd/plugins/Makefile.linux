@@ -1,6 +1,7 @@
 CC	= gcc
 CFLAGS	= -g -O2 -I.. -I../../include -fPIC
 LDFLAGS	= -shared
+INSTALL	= install
 
 all:	minconn.so passprompt.so
 
@@ -9,3 +10,10 @@ minconn.so: minconn.c
 
 passprompt.so: passprompt.c
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) passprompt.c
+
+LIBDIR	= /usr/lib/pppd
+
+install: minconn.so passprompt.so
+	version=`awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h`; \
+	$(INSTALL) -d $(LIBDIR)/$$version; \
+	$(INSTALL) $? $(LIBDIR)/$$version
