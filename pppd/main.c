@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.132 2004/02/02 02:52:51 carlsonj Exp $"
+#define RCSID	"$Id: main.c,v 1.133 2004/02/02 03:40:12 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1330,6 +1330,7 @@ timeleft(tvp)
 
 /*
  * kill_my_pg - send a signal to our process group, and ignore it ourselves.
+ * We assume that sig is currently blocked.
  */
 static void
 kill_my_pg(sig)
@@ -1339,8 +1340,19 @@ kill_my_pg(sig)
 
     act.sa_handler = SIG_IGN;
     act.sa_flags = 0;
-    sigaction(sig, &act, &oldact);
     kill(0, sig);
+    /*
+     * The kill() above made the signal pending for us, as well as
+     * the rest of our process group, but we don't want it delivered
+     * to us.  It is blocked at the moment.  Setting it to be ignored
+     * will cause the pending signal to be discarded.  If we did the
+     * kill() after setting the signal to be ignored, it is unspecified
+     * (by POSIX) whether the signal is immediately discarded or left
+     * pending, and in fact Linux would leave it pending, and so it
+     * would be delivered after the current signal handler exits,
+     * leading to an infinite loop.
+     */
+    sigaction(sig, &act, &oldact);
     sigaction(sig, &oldact, NULL);
 }
 
