@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.35 1996/08/28 06:41:16 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.36 1996/09/14 05:15:41 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1325,7 +1325,7 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
     unsigned long val;
     char *str, *f, *buf0;
     unsigned char *p;
-    va_list a;
+    void *a;
     char num[32];
     time_t t;
     static char hexchars[16] = "0123456789abcdef";
@@ -1417,7 +1417,11 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
 	    break;
 	case 'r':
 	    f = va_arg(args, char *);
-	    a = va_arg(args, va_list);
+	    /*
+	     * XXX We assume a va_list is either a pointer or an array, so
+	     * what gets passed for a va_list is like a void * in some sense.
+	     */
+	    a = va_arg(args, void *);
 	    n = vfmtmsg(buf, buflen + 1, f, a);
 	    buf += n;
 	    buflen -= n;
