@@ -378,8 +378,10 @@ to pppd when using PAP authentication so that it can select the
 appropriate secret from /etc/ppp/pap-secrets.
 
 Microsoft also has a variant of CHAP which uses a different hashing
-arrangement from normal CHAP.  There is a client-side implementation
-of Microsoft's CHAP in ppp-2.3; see README.MSCHAP80.
+arrangement from normal CHAP.  There is a client-side (authenticatee)
+implementation of Microsoft's CHAP in ppp-2.3; see README.MSCHAP80.
+In ppp-2.4.2, server-side (authenticator) support was added as well as
+support for Microsoft CHAP v2; see README.MSCHAP81.
 
 
 ------------------------------------------------------------------------
