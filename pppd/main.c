@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.116 2002/10/12 02:30:21 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.117 2002/10/27 12:04:07 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1116,11 +1116,11 @@ update_link_stats(u)
     link_connect_time = now.tv_sec - start_time.tv_sec;
     link_stats_valid = 1;
 
-    slprintf(numbuf, sizeof(numbuf), "%d", link_connect_time);
+    slprintf(numbuf, sizeof(numbuf), "%u", link_connect_time);
     script_setenv("CONNECT_TIME", numbuf, 0);
-    slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_out);
+    slprintf(numbuf, sizeof(numbuf), "%u", link_stats.bytes_out);
     script_setenv("BYTES_SENT", numbuf, 0);
-    slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_in);
+    slprintf(numbuf, sizeof(numbuf), "%u", link_stats.bytes_in);
     script_setenv("BYTES_RCVD", numbuf, 0);
 }
 
