@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.145 2004/11/12 10:30:51 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.146 2004/11/12 11:21:41 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -469,6 +469,8 @@ main(argc, argv)
     script_setenv("PPPD_PID", numbuf, 1);
 
     setup_signals();
+
+    create_linkpidfile(getpid());
 
     waiting = 0;
 
