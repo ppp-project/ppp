@@ -1,15 +1,15 @@
 /*
- * $Id: ip_util.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: ip_util.c,v 1.2 2002/02/27 15:51:20 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
  * Copyright 1992 Livingston Enterprises, Inc.
  *
- * Copyright 1992,1993, 1994,1995 The Regents of the University of Michigan 
+ * Copyright 1992,1993, 1994,1995 The Regents of the University of Michigan
  * and Merit Network, Inc. All Rights Reserved
  *
- * See the file COPYRIGHT for the respective terms and conditions. 
- * If the file is missing contact me at lf@elemental.net 
+ * See the file COPYRIGHT for the respective terms and conditions.
+ * If the file is missing contact me at lf@elemental.net
  * and I'll send you a copy.
  *
  */
@@ -41,7 +41,7 @@ UINT4 rc_get_ipaddr (char *host)
 		return ((UINT4) 0);
 	}
 	return ntohl((*(UINT4 *) hp->h_addr));
-} 
+}
 
 /*
  * Function: rc_good_ipaddr
@@ -100,7 +100,7 @@ int rc_good_ipaddr (char *addr)
  *	    for the supplied IP address.
  *
  */
- 
+
 const char *rc_ip_hostname (UINT4 h_ipaddr)
 {
 	struct hostent  *hp;
@@ -110,9 +110,9 @@ const char *rc_ip_hostname (UINT4 h_ipaddr)
 			    AF_INET)) == NULL) {
 		rc_log(LOG_ERR,"rc_ip_hostname: couldn't look up host by addr: %08lX", h_ipaddr);
 	}
-				  
+
 	return ((hp==NULL)?"unknown":hp->h_name);
-} 
+}
 
 /*
  * Function: rc_getport
@@ -170,7 +170,7 @@ rc_own_hostname(char *hostname, int len)
 	}
 #else
 	return -1;
-#endif	
+#endif
 
 	return 0;
 }
@@ -196,7 +196,7 @@ UINT4 rc_own_ipaddress(void)
 			rc_log(LOG_ERR, "rc_own_ipaddress: couldn't get own IP address");
 			return 0;
 		}
-	} 
-	
+	}
+
 	return this_host_ipaddr;
 }

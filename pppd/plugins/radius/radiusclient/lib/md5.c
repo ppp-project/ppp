@@ -1,5 +1,5 @@
 /*
- * $Id: md5.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: md5.c,v 1.2 2002/02/27 15:51:20 dfs Exp $
  */
 
 /* MD5C.C - RSA Data Security, Inc., MD5 message-digest algorithm
@@ -144,8 +144,8 @@ static void MD5Init (MD5_CTX *context)
 static void MD5Update (MD5_CTX *context, unsigned char *input, unsigned int inputLen)
 {
 	unsigned int    i,
-	                index,
-	                partLen;
+			index,
+			partLen;
 
 	/* Compute number of bytes mod 64 */
 	index = (unsigned int) ((context->count[0] >> 3) & 0x3F);
@@ -188,7 +188,7 @@ static void MD5Final (unsigned char *digest, MD5_CTX *context)
 {
 	unsigned char   bits[8];
 	unsigned int    index,
-	                padLen;
+			padLen;
 
 	/* Save number of bits */
 	Encode (bits, context->count, 8);
@@ -217,10 +217,10 @@ static void MD5Final (unsigned char *digest, MD5_CTX *context)
 static void MD5Transform (UINT4 *state, unsigned char *block)
 {
 	UINT4           a = state[0],
-	                b = state[1],
-	                c = state[2],
-	                d = state[3],
-	                x[16];
+			b = state[1],
+			c = state[2],
+			d = state[3],
+			x[16];
 
 	Decode (x, block, 64);
 
@@ -313,7 +313,7 @@ static void MD5Transform (UINT4 *state, unsigned char *block)
 static void Encode (unsigned char *output, UINT4 *input, unsigned int len)
 {
 	unsigned int    i,
-	                j;
+			j;
 
 	for (i = 0, j = 0; j < len; i++, j += 4)
 	{
@@ -330,7 +330,7 @@ static void Encode (unsigned char *output, UINT4 *input, unsigned int len)
 static void Decode (UINT4 *output, unsigned char *input, unsigned int len)
 {
 	unsigned int    i,
-	                j;
+			j;
 
 	for (i = 0, j = 0; j < len; i++, j += 4)
 		output[i] = ((UINT4) input[j]) | (((UINT4) input[j + 1]) << 8) |

@@ -1,15 +1,15 @@
 /*
- * $Id: radiusclient.h,v 1.1 2002/01/22 16:03:01 dfs Exp $
+ * $Id: radiusclient.h,v 1.2 2002/02/27 15:51:19 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
  * Copyright 1992 Livingston Enterprises, Inc.
  *
- * Copyright 1992,1993, 1994,1995 The Regents of the University of Michigan 
+ * Copyright 1992,1993, 1994,1995 The Regents of the University of Michigan
  * and Merit Network, Inc. All Rights Reserved
  *
- * See the file COPYRIGHT for the respective terms and conditions. 
- * If the file is missing contact me at lf@elemental.net 
+ * See the file COPYRIGHT for the respective terms and conditions.
+ * If the file is missing contact me at lf@elemental.net
  * and I'll send you a copy.
  *
  */
@@ -39,7 +39,7 @@
 #endif
 
 typedef unsigned long UINT4;
-typedef long 	      INT4;
+typedef long	      INT4;
 
 #define AUTH_VECTOR_LEN		16
 #define AUTH_PASS_LEN		(3 * 16) /* multiple of 16 */
@@ -67,7 +67,7 @@ typedef long 	      INT4;
 typedef struct server {
 	int max;
 	char *name[SERVER_MAX];
-	unsigned short port[SERVER_MAX];	
+	unsigned short port[SERVER_MAX];
 } SERVER;
 
 typedef struct pw_auth_hdr
@@ -260,7 +260,7 @@ typedef struct pw_auth_hdr
 #define PW_CALLBACK             16
 #define PW_USER_ERROR           17
 #define PW_HOST_REQUEST         18
- 
+
 /*     NAS PORT TYPES    */
 
 #define PW_ASYNC		0
@@ -285,7 +285,7 @@ typedef struct dict_attr
 	char              name[NAME_LENGTH + 1];	/* attribute name */
 	int               value;			/* attribute index */
 	int               type;				/* string, int, etc. */
-        int               vendorcode;                   /* vendor code */
+	int               vendorcode;                   /* vendor code */
 	struct dict_attr *next;
 } DICT_ATTR;
 
@@ -309,7 +309,7 @@ typedef struct value_pair
 {
 	char               name[NAME_LENGTH + 1];
 	int                attribute;
-        int                vendorcode;
+	int                vendorcode;
 	int                type;
 	UINT4              lvalue;
 	char               strvalue[AUTH_STRING_LEN + 1];
@@ -319,7 +319,7 @@ typedef struct value_pair
 /* don't change this, as it has to be the same as in the Merit radiusd code */
 #define MGMT_POLL_SECRET	"Hardlyasecret"
 
-/* 	Define return codes from "SendServer" utility */
+/*	Define return codes from "SendServer" utility */
 
 #define BADRESP_RC	-2
 #define ERROR_RC	-1
