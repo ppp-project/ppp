@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 960302==
+ *  ==FILEVERSION 960918==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -104,20 +104,21 @@ struct ppp {
 
 	__u32		recv_async_map; /* 1 bit means that given control 
 					   character is ignored on input*/
-	__s32			mtu;	/* maximum xmit frame size	*/
-	__s32			mru;	/* maximum receive frame size	*/
+	__s32		mtu;		/* maximum xmit frame size	*/
+	__s32		mru;		/* maximum receive frame size	*/
 
 	/* Information about the current tty data */
-	__s32			line;		/* PPP channel number	*/
-	struct tty_struct	*tty;		/* ptr to TTY structure	*/
-	__s32			bytes_sent;	/* Bytes sent on frame	*/
-	__s32			bytes_rcvd;	/* Bytes recvd on frame	*/
+	__s32		line;		/* PPP channel number	*/
+	struct tty_struct *tty;		/* ptr to TTY structure	*/
+	struct tty_struct *backup_tty;	/* TTY to use if tty gets closed */
+	__s32		bytes_sent;	/* Bytes sent on frame	*/
+	__s32		bytes_rcvd;	/* Bytes recvd on frame	*/
 
 	/* Interface to the network layer */
-	struct device		*dev;	 /* easy for intr handling	*/
+	struct device	*dev;		/* easy for intr handling	*/
 
 	/* VJ Header compression data */
-	struct slcompress	*slcomp; /* for header compression	*/
+	struct slcompress *slcomp;	/* for header compression	*/
 
 	/* Transmission information */
 	struct ppp_buffer *xbuf;	/* Buffer currently being sent	*/
@@ -142,8 +143,8 @@ struct ppp {
 	struct wait_queue *read_wait;	  /* queue for writing processes */
 
 	/* Statistic information */
-	struct pppstat	      stats;	  /* statistic information	*/
-	struct ppp_idle	      ddinfo;	  /* demand dial information	*/
+	struct pppstat	stats;		  /* statistic information	*/
+	struct ppp_idle	ddinfo;		  /* demand dial information	*/
 
 	/* PPP compression protocol information */
 	__u32	sc_bytessent;		  /* count of octets sent */
@@ -154,4 +155,5 @@ struct ppp {
 	struct	compressor *sc_rcomp;	  /* receive decompressor */
 	void	*sc_rc_state;		  /* receive decompressor state */
 	__s32	 sc_xfer;		  /* PID of reserved PPP table */
+	struct enet_statistics estats;	/* more detailed stats */
 };
