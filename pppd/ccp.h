@@ -24,12 +24,16 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ccp.h,v 1.4 1995/04/24 06:00:54 paulus Exp $
+ * $Id: ccp.h,v 1.5 1995/10/27 03:43:11 paulus Exp $
  */
 
 typedef struct ccp_options {
     u_int bsd_compress: 1;	/* do BSD Compress? */
+    u_int deflate: 1;		/* do Deflate? */
+    u_int predictor_1: 1;	/* do Predictor-1? */
+    u_int predictor_2: 1;	/* do Predictor-2? */
     u_short bsd_bits;		/* # bits/code for BSD Compress */
+    u_short deflate_size;	/* lg(window size) for Deflate */
 } ccp_options;
 
 extern fsm ccp_fsm[];
