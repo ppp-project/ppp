@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990325==
+ *  ==FILEVERSION 990331==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.22 1999/03/30 06:33:07 paulus Exp $ */
+/* $Id: ppp.c,v 1.23 1999/03/31 05:29:08 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -1526,7 +1526,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 			ppp->toss = 0xC0;
 			if (ppp->flags & SC_DEBUG)
 				printk(KERN_DEBUG "rcv frame too long: "
-				       "len=%ld mru=%d hroom=%d troom=%d\n",
+				       "len=%d mru=%d hroom=%d troom=%d\n",
 				       skb->len, ppp->mru, skb_headroom(skb),
 				       skb_tailroom(skb));
 			continue;
