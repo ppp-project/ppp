@@ -1,0 +1,28 @@
+#
+# Makefile for pppd under SunOS 4.
+# $Id: Makefile.sunos4,v 1.1 1995/10/27 03:53:59 paulus Exp $
+#
+
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+
+CC = gcc
+COPTS = -g -O2
+CFLAGS = $(COPTS) -I..
+
+INSTALL = install -o root -g daemon
+
+all: pppd
+
+OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+	auth.o options.o sys-sunos4.o
+
+pppd:	$(OBJS)
+	$(CC) -o pppd $(OBJS)
+
+install:
+	$(INSTALL) -c -m 4555 pppd $(BINDIR)/pppd
+	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)/man8/pppd.8
+
+clean:
+	rm -f $(OBJS) pppd *~ core
