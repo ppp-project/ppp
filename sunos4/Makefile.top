@@ -17,6 +17,7 @@ install-progs:
 	cd chat; $(MAKE) install
 	cd pppd; $(MAKE) install
 	cd pppstats; $(MAKE) install
+	cd pppdump; $(MAKE) install
 	cd sunos4; $(MAKE) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \

@@ -1,7 +1,7 @@
 #
 # ppp top level makefile for SVR4 and Solaris 2
 #
-# $Id: Makefile.top,v 1.7 1999/03/23 03:33:23 paulus Exp $
+# $Id: Makefile.top,v 1.8 1999/04/01 11:44:55 paulus Exp $
 #
 
 include svr4/Makedefs
@@ -19,6 +19,7 @@ install-progs:
 	cd chat; $(MAKE) install
 	cd pppd; $(MAKE) install
 	cd pppstats; $(MAKE) install
+	cd pppdump; $(MAKE) install
 	cd svr4; $(MAKE) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
