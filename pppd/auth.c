@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.39 1998/11/07 06:59:25 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.40 1999/01/19 23:59:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -660,10 +660,6 @@ auth_check_options()
      * set by root.
      */
     if (allow_any_ip) {
-	if (!default_device && devnam_info.priv == 0) {
-	    option_error("can't override device name when noauth option used");
-	    exit(1);
-	}
 	if ((connector != NULL && connector_info.priv == 0)
 	    || (disconnector != NULL && disconnector_info.priv == 0)
 	    || (welcomer != NULL && welcomer_info.priv == 0)) {
