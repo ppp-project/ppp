@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.5 1996/08/28 06:40:03 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.6 1997/04/30 05:51:56 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -36,6 +36,10 @@ static char rcsid[] = "$Id: demand.c,v 1.5 1996/08/28 06:40:03 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#ifdef PPP_FILTER
+#include <net/bpf.h>
+#include <pcap.h>
+#endif
 
 #include "pppd.h"
 #include "fsm.h"
@@ -85,7 +89,7 @@ demand_conf()
     ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
     ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
 
-#if 0
+#ifdef PPP_FILTER
     set_filters(&pass_filter, &active_filter);
 #endif
 
@@ -246,6 +250,10 @@ loop_chars(p, n)
  * decide whether to bring up the link or not, and, if we want
  * to transmit this frame later, put it on the pending queue.
  * Return value is 1 if we need to bring up the link, 0 otherwise.
+ * We assume that the kernel driver has already applied the
+ * pass_filter, so we won't get packets it rejected.
+ * We apply the active_filter to see if we want this packet to
+ * bring up the link.
  */
 int
 loop_frame(frame, len)
@@ -254,7 +262,7 @@ loop_frame(frame, len)
 {
     struct packet *pkt;
 
-    /* log_packet(frame, len, "from loop: "); */
+    /* log_packet(frame, len, "from loop: ", LOG_DEBUG); */
     if (len < PPP_HDRLEN)
 	return 0;
     if ((PPP_PROTOCOL(frame) & 0x8000) != 0)
@@ -322,6 +330,11 @@ active_packet(p, len)
     if (len < PPP_HDRLEN)
 	return 0;
     proto = PPP_PROTOCOL(p);
+#ifdef PPP_FILTER
+    if (active_filter.bf_len != 0
+	&& bpf_filter(active_filter.bf_insns, frame, len, len) == 0)
+	return 0;
+#endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
 	if (protp->protocol < 0xC000 && (protp->protocol & ~0x8000) == proto) {
 	    if (!protp->enabled_flag)
