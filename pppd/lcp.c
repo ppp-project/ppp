@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.24 1996/01/01 22:57:47 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.25 1996/04/04 03:58:24 paulus Exp $";
 #endif
 
 /*
@@ -928,8 +928,6 @@ lcp_rejci(f, p, len)
     u_char cichar;
     u_short cishort;
     u_int32_t cilong;
-    u_char *start = p;
-    int plen = len;
     lcp_options try;		/* options to request next time */
 
     try = *go;
@@ -1034,8 +1032,6 @@ lcp_rejci(f, p, len)
 
 bad:
     LCPDEBUG((LOG_WARNING, "lcp_rejci: received bad Reject!"));
-    LCPDEBUG((LOG_WARNING, "lcp_rejci: plen %d len %d off %d",
-	      plen, len, p - start));
     return 0;
 }
 
@@ -1058,7 +1054,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
     lcp_options *ho = &lcp_hisoptions[f->unit];
     lcp_options *ao = &lcp_allowoptions[f->unit];
     u_char *cip, *next;		/* Pointer to current and next CIs */
-    u_char cilen, citype, cichar;/* Parsed len, type, char value */
+    int cilen, citype, cichar;	/* Parsed len, type, char value */
     u_short cishort;		/* Parsed short value */
     u_int32_t cilong;		/* Parse long value */
     int rc = CONFACK;		/* Final packet return code */
@@ -1089,6 +1085,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    orc = CONFREJ;		/* Reject bad CI */
 	    cilen = l;			/* Reject till end of packet */
 	    l = 0;			/* Don't loop again */
+	    citype = 0;
 	    goto endswitch;
 	}
 	GETCHAR(citype, p);		/* Parse CI type */
@@ -1581,6 +1578,16 @@ lcp_printpkt(p, plen, printer, arg)
 		printer(arg, " %.2x", code);
 	    }
 	    printer(arg, ">");
+	}
+	break;
+    case ECHOREQ:
+    case ECHOREP:
+    case DISCREQ:
+	if (len >= 4) {
+	    GETLONG(cilong, p);
+	    printer(arg, " magic=0x%x", cilong);
+	    p += 4;
+	    len -= 4;
 	}
 	break;
     }
