@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.15 2002/09/12 05:41:49 fcusack Exp $";
+"$Id: radius.c,v 1.16 2002/10/01 08:36:49 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -45,9 +45,15 @@ static char const RCSID[] =
 #define BUF_LEN 1024
 
 static char *config_file = NULL;
+static int add_avp(char **);
+static struct avpopt {
+    char *vpstr;
+    struct avpopt *next;
+} *avpopt = NULL;
 
 static option_t Options[] = {
     { "radius-config-file", o_string, &config_file },
+    { "avpair", o_special, add_avp },
     { NULL }
 };
 
@@ -103,6 +109,7 @@ struct radius_state {
     SERVER *acctserver;		/* Accounting server to use */
     int class_len;
     char class[MAXCLASSLEN];
+    VALUE_PAIR *avp;	/* Additional (user supplied) vp's to send to server */
 };
 
 void (*radius_attributes_hook)(VALUE_PAIR *) = NULL;
@@ -149,6 +156,28 @@ plugin_init(void)
     add_options(Options);
 
     info("RADIUS plugin initialized.");
+}
+
+/**********************************************************************
+* %FUNCTION: add_avp
+* %ARGUMENTS:
+*  argv -- the <attribute=value> pair to add
+* %RETURNS:
+*  1
+* %DESCRIPTION:
+*  Adds an av pair to be passed on to the RADIUS server on each request.
+***********************************************************************/
+static int
+add_avp(char **argv)
+{
+    struct avpopt *p = malloc(sizeof(struct avpopt));
+
+    /* Append to a list of vp's for later parsing */
+    p->vpstr = strdup(*argv);
+    p->next = avpopt;
+    avpopt = p;
+
+    return 1;
 }
 
 /**********************************************************************
@@ -244,6 +273,10 @@ radius_pap_auth(char *user,
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
     }
+
+    /* Add user specified vp's */
+    if (rstate.avp)
+	rc_avpair_insert(&send, NULL, rstate.avp);
 
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
@@ -397,6 +430,10 @@ radius_chap_auth(char *user,
 #endif
 
     }
+
+    /* Add user specified vp's */
+    if (rstate.avp)
+	rc_avpair_insert(&send, NULL, rstate.avp);
 
     /*
      * make authentication with RADIUS server
@@ -801,6 +838,10 @@ radius_acct_start(void)
     av_type = htonl(hisaddr);
     rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
 
+    /* Add user specified vp's */
+    if (rstate.avp)
+	rc_avpair_insert(&send, NULL, rstate.avp);
+
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,
 				      rstate.client_port, send);
@@ -897,6 +938,10 @@ radius_acct_stop(void)
     av_type = htonl(hisaddr);
     rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
 
+    /* Add user specified vp's */
+    if (rstate.avp)
+	rc_avpair_insert(&send, NULL, rstate.avp);
+
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,
 				      rstate.client_port, send);
@@ -989,6 +1034,10 @@ radius_acct_interim(void *ignored)
     av_type = htonl(hisaddr);
     rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
 
+    /* Add user specified vp's */
+    if (rstate.avp)
+	rc_avpair_insert(&send, NULL, rstate.avp);
+
     if (rstate.acctserver) {
 	result = rc_acct_using_server(rstate.acctserver,
 				      rstate.client_port, send);
@@ -1077,6 +1126,16 @@ radius_init(char *msg)
 	slprintf(msg, BUF_LEN, "RADIUS: Can't read map file %s",
 		 rc_conf_str("mapfile"));
 	return -1;
+    }
+
+    /* Add av pairs saved during option parsing */
+    while (avpopt) {
+	struct avpopt *n = avpopt->next;
+
+	rc_avpair_parse(avpopt->vpstr, &rstate.avp);
+	free(avpopt->vpstr);
+	free(avpopt);
+	avpopt = n;
     }
     return 0;
 }
