@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.3 1994/04/18 04:40:19 paulus Exp $
+.\" $Id: pppd.8,v 1.4 1994/05/09 02:40:39 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -235,7 +235,9 @@ fully qualified domain name is porsche.Quotron.COM, you would use the
 domain option to set the domain name to Quotron.COM.
 .TP
 .B modem
-Use the modem control lines.  (This option is not fully implemented.)
+Use the modem control lines.  On Ultrix, this option implies hardware
+flow control, as for the \fBcrtscts\fR option.  (This option is not fully
+implemented.)
 .TP
 .B kdebug \fIn
 Enable debugging code in the kernel-level PPP driver.  The argument
