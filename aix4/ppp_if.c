@@ -90,6 +90,7 @@ struct ppp_if_info {
 #endif
 #ifdef	PPP_STATS
     struct pppstat	pii_stats;
+    struct ppp_comp_stats pii_cstats;
 #endif
 };
 
@@ -620,7 +621,6 @@ ppp_if_rput(q, mp)
     queue_t *q;
     register mblk_t *mp;
 {
-    register u_char	c;
     register PII	*p;
 
     switch (mp->b_datap->db_type) {
@@ -638,8 +638,7 @@ ppp_if_rput(q, mp)
     case M_CTL:
 	p = (PII *) q->q_ptr;
 	if (p != NULL) {
-	    c = *(u_char *) mp->b_rptr;
-	    switch (c) {
+	    switch (*(u_char *) mp->b_rptr) {
 	    case IF_INPUT_ERROR :
 		p->pii_ifnet.if_ierrors++;
 		INCR(ppp_ierrors);
@@ -652,9 +651,16 @@ ppp_if_rput(q, mp)
 		DLOG("ppp_if: output error inc to %d\n",
 		     p->pii_ifnet.if_oerrors);
 		break;
-	    }
+            case IF_CSTATS:
+                bcopy(mp->b_rptr + sizeof(u_long), &p->pii_cstats,
+                      sizeof(struct ppp_comp_stats));
+                freemsg(mp);
+                break;
+            default:
+                putnext(q, mp);         /* send it up to pppd */
+                break;
+            }
 	}
-	putnext(q, mp);		/* send it up to pppd */
 	break;
 
     default:
@@ -678,6 +684,7 @@ ppp_if_rsrv(q)
     int	len, xlen, count, s, pklen;
     u_char *rptr;
     int address, control;
+    int dlen;
 
     p = (PII *) q->q_ptr;
 
@@ -697,6 +704,7 @@ ppp_if_rsrv(q)
 	}
 
 	len = msgdsize(mp);
+        dlen = len - PPP_HDRLEN;
 #ifdef	PPP_STATS
 	p->pii_stats.ppp_ibytes += len;
 #endif
@@ -751,6 +759,7 @@ ppp_if_rsrv(q)
 		freemsg(mp);
 		continue;
 	    }
+	    dlen = len - xlen + hlen;
 	    cp = mvjc->b_rptr;
 	    cp[0] = address;
 	    cp[1] = control;
@@ -761,7 +770,6 @@ ppp_if_rsrv(q)
 	    mvjc->b_cont = mp;
 	    mp->b_rptr += xlen;
 	    m0 = mp = mvjc;
-	    len += PPP_HDRLEN + hlen;
 	    break;
 
 	case PPP_VJC_UNCOMP :
@@ -834,8 +842,10 @@ ppp_if_rsrv(q)
 		continue;
 	    }
 	    len = MHLEN;
+            mb1->m_pkthdr.rcvif = &(p->pii_ifnet);
+            mb1->m_pkthdr.len = dlen;
 	    mbtail = mb2 = mb1;
-	    pklen = 0;
+	    mb1->m_len = 0;
 
 	    rptr = mp->b_rptr + PPP_HDRLEN;
 	    xlen = mp->b_wptr - rptr;
@@ -866,7 +876,6 @@ ppp_if_rsrv(q)
 		rptr += count;
 		len -= count;
 		xlen -= count;
-		pklen += count;
 		mb2->m_len += count;
 	    }
 
@@ -896,9 +905,6 @@ ppp_if_rsrv(q)
 	    }
 	    else {
 */
-            ifp =  &p->pii_ifnet;
-            mb1->m_pkthdr.len = pklen;
-            mb1->m_pkthdr.rcvif = ifp;
             find_input_type(0x0800, mb1, ifp, 0);
 	}
     }	/* end while */
@@ -1046,6 +1052,7 @@ ppp_ioctl(ifp, cmd, data)
     struct ppp_stats *psp;
     struct ppp_comp_stats *pcp;
     PII *p;
+    queue_t *q;
     int	error = 0;
 
     switch (cmd) {
@@ -1108,15 +1115,28 @@ ppp_ioctl(ifp, cmd, data)
 
     case SIOCGPPPCSTATS:
         p = &pii[ifp->if_unit];
+        bzero(&p->pii_cstats, sizeof(struct ppp_comp_stats));
+
+        /* Make a message to send on the interface's write stream */
+        q = p->pii_writeq;
+        if (q != NULL) {
+            putctl1(q, M_CTL, IF_GET_CSTATS);
+            /*
+             * We assume the message gets passed along immediately, so
+             * by the time the putctl1 returns, the request has been
+             * processed, the values returned and p->pii_cstats has
+             * been updated.  If not, we just get zeroes.
+             */
+        }
         pcp = (struct ppp_comp_stats *)&((struct ifpppcstatsreq *)data)->stats;
-        bzero(pcp, sizeof(struct ppp_comp_stats));
-        /* XXX we need to fill in the compression stats */
+        bcopy(&p->pii_cstats, pcp, sizeof(struct ppp_comp_stats));
         break;
 
-    default :
-	error = EINVAL;
-	break;
+    default:
+        error = EINVAL;
+        break;
     }
+
     return(error);
 }
 

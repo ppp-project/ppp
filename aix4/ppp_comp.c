@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.2 1994/12/05 00:55:24 paulus Exp $
+ * $Id: ppp_comp.c,v 1.3 1995/04/26 04:15:48 paulus Exp $
  */
 
 #include <net/net_globals.h>
@@ -168,9 +168,34 @@ ppp_comp_wput(q, mp)
     int error, len, proto, state;
     struct ppp_option_data *odp;
     struct compressor **comp;
+    struct ppp_comp_stats *pcp;
 
     cp = (struct ppp_comp_state *) q->q_ptr;
     switch (mp->b_datap->db_type) {
+
+    case M_CTL:
+        switch (*(u_char *) mp->b_rptr) {
+        case IF_GET_CSTATS:
+            freemsg(mp);
+            mp = allocb(sizeof(struct ppp_comp_stats) + sizeof(u_long),
+                        BPRI_HI);
+            if (mp != NULL) {
+                *(u_char *) mp->b_wptr = IF_CSTATS;
+                mp->b_wptr += sizeof(u_long); /* should be enough alignment */
+                pcp = (struct ppp_comp_stats *) mp->b_wptr;
+                mp->b_wptr += sizeof(struct ppp_comp_stats);
+                bzero(pcp, sizeof(struct ppp_comp_stats));
+                if (cp->xstate != NULL)
+                    (*cp->xcomp->comp_stat)(cp->xstate, &pcp->c);
+                if (cp->rstate != NULL)
+                    (*cp->rcomp->decomp_stat)(cp->rstate, &pcp->d);
+                qreply(q, mp);
+            }
+            break;
+        default:
+            putnext(q, mp);
+        }
+        break;
 
     case M_DATA:
 	/* first find out what the protocol is */

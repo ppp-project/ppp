@@ -5,7 +5,7 @@
   fcstab and some ideas nicked from if_ppp.c from cmu.
   See copyright notice in if_ppp.h and NOTES
 
-  $Id: ppp_async.c,v 1.2 1994/12/05 00:54:58 paulus Exp $
+  $Id: ppp_async.c,v 1.3 1995/04/26 04:15:48 paulus Exp $
 */
 
 #include <sys/types.h>
@@ -244,7 +244,18 @@ ppp_async_wput(q, mp)
     int	x, flags;
   
     switch (mp->b_datap->db_type) {
-    
+ 
+    case M_CTL:
+        switch (*(u_char *)mp->b_rptr) {
+        case IF_GET_CSTATS:
+            /* trap this and remove it */
+            freemsg(mp);
+            break;
+        default:
+            putnext(q, mp);
+        }
+        break;
+   
     case M_FLUSH :
 	if (*mp->b_rptr & FLUSHW)
 	    flushq(q, FLUSHDATA);
