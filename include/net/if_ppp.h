@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.17 1998/03/25 04:03:13 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.18 1999/05/13 00:31:49 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -42,6 +42,7 @@
 #define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
+#define SC_SYNC		0x00200000	/* use synchronous HDLC framing */
 #define	SC_MASK		0x0fff00ff	/* bits that user can change */
 
 /*

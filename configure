@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.16 1999/04/27 22:18:39 varadhan Exp $
+# $Id: configure,v 1.17 1999/05/13 00:31:34 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -50,7 +50,9 @@ case $system in
     case $release in
       1.*)	state="known"; ksrc="freebsd-old";;
       2.[01]*)	state="known"; ksrc="freebsd-2.0";;
-      2.[2-9]*)	state="late"; ksrc="freebsd-2.0";;
+      2.2.[2-7]*) state="late"; ksrc="freebsd-2.0";;
+      2.2.8*)   state="known"; ksrc="freebsd-2.2.8";;
+      3.[0-1]*)	state="known"; ksrc="freebsd-3.0";;
     esac;;
   NeXTStep)
     makext="NeXT";
