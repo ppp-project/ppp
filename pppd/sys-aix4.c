@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.5 1995/04/28 06:25:40 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.6 1995/05/01 00:26:11 paulus Exp $";
 #endif
 
 /*
@@ -463,6 +463,15 @@ void
 restore_tty()
 {
     if (restore_term) {
+	if (!default_device) {
+	    /*
+	     * Turn off echoing, because otherwise we can get into
+	     * a loop with the tty and the modem echoing to each other.
+	     * We presume we are the sole user of this tty device, so
+	     * when we close it, it will revert to its defaults anyway.
+	     */
+	    inittermios.c_lflag &= ~(ECHO | ECHONL);
+	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");

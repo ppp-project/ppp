@@ -399,6 +399,15 @@ void setdtr (int fd, int on)
 void restore_tty (void)
 {
     if (restore_term) {
+	if (!default_device) {
+	    /*
+	     * Turn off echoing, because otherwise we can get into
+	     * a loop with the tty and the modem echoing to each other.
+	     * We presume we are the sole user of this tty device, so
+	     * when we close it, it will revert to its defaults anyway.
+	     */
+	    inittermios.c_lflag &= ~(ECHO | ECHONL);
+	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
