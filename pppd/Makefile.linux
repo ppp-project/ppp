@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.54 2002/11/02 19:48:12 carlsonj Exp $
+# $Id: Makefile.linux,v 1.55 2002/11/05 11:52:07 carlsonj Exp $
 #
 
 # Default installation locations
@@ -72,7 +72,7 @@ PLUGIN=y
 #CBCP=y
 
 # Enable EAP SRP-SHA1 authentication (requires libsrp)
-USE_SRP=y
+#USE_SRP=y
 
 MAXOCTETS=y
 
