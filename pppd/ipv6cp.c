@@ -90,10 +90,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.14 2001/03/08 05:29:28 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.15 2001/03/22 00:42:33 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.14 2001/03/08 05:29:28 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.15 2001/03/22 00:42:33 paulus Exp $"
 
 /*
  * TODO: 
@@ -1023,6 +1023,9 @@ static void
 ipv6_check_options()
 {
     ipv6cp_options *wo = &ipv6cp_wantoptions[0];
+
+    if (!ipv6cp_protent.enabled_flag)
+	return;
 
 #if defined(SOL2)
     /*
