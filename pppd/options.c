@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.94 2004/11/04 09:46:50 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.95 2004/11/09 22:33:35 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -199,7 +199,8 @@ option_t general_options[] = {
       OPT_PRIOSUB | OPT_A2CLR | 1, &nodetach },
 
     { "holdoff", o_int, &holdoff,
-      "Set time in seconds before retrying connection", OPT_PRIO },
+      "Set time in seconds before retrying connection",
+      OPT_PRIO, &holdoff_specified },
 
     { "idle", o_int, &idle_time_limit,
       "Set time in seconds before disconnecting idle link", OPT_PRIO },
@@ -272,7 +273,8 @@ option_t general_options[] = {
       "Stop after parsing, printing, and checking options", 1 },
 
     { "child-timeout", o_int, &child_wait,
-      "Number of seconds to wait for child processes at exit" },
+      "Number of seconds to wait for child processes at exit",
+      OPT_PRIO },
 
 #ifdef HAVE_MULTILINK
     { "multilink", o_bool, &multilink,
