@@ -1,7 +1,7 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.6 1996/05/28 00:51:44 paulus Exp $
+# $Id: Makefile.sol2,v 1.7 1996/07/01 01:24:07 paulus Exp $
 #
 
 CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I.. -O -Xa -w -DDEBUG
@@ -39,8 +39,7 @@ install: all
 	cp ppp_comp ppp_ahdl /kernel/strmod
 	if grep clone:ppp /etc/minor_perm; then :; else \
 	  echo clone:ppp 0644 root sys >>/etc/minor_perm; fi
-	if ls -L /dev/ppp; then \
-	  /usr/sbin/rem_drv ppp; fi
+	/usr/sbin/rem_drv ppp 2>/dev/null || true
 	/usr/sbin/add_drv ppp
 
 clean:
