@@ -1,7 +1,7 @@
 #
 # ppp top level makefile for Solaris 2
 #
-# $Id: Makefile.top,v 1.3 1996/08/28 06:34:16 paulus Exp $
+# $Id: Makefile.top,v 1.4 1996/09/14 05:12:31 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
@@ -36,11 +36,11 @@ $(ETCDIR)/chap-secrets:
 	$(INSTALL) -f $(ETCDIR) -m 600 etc.ppp/chap-secrets
 
 $(BINDIR):
-	$(INSTALL) -d -m 755 $@
+	mkdir -m 755 -p $@
 $(MANDIR)/man8:
-	$(INSTALL) -d -m 755 $@
+	mkdir -m 755 -p $@
 $(ETCDIR):
-	$(INSTALL) -d -m 755 $@
+	mkdir -m 755 -p $@
 
 clean:
 	rm -f *~
