@@ -2,14 +2,14 @@
 # Makefile for AIX 4.1
 #
 #
-# $Id: Makefile,v 1.4 1995/12/11 05:02:57 paulus Exp $
+# $Id: Makefile,v 1.5 1998/03/25 03:18:06 paulus Exp $
 #
 #ifndef DRIVERS
 DRIVERS=/usr/lib/drivers
 #endif
 
 CC=xlc
-IFLAGS = -I..
+IFLAGS = -I../include
 DFLAGS = -D_KERNEL -DINET -DPPP_VD -DNUM_PPP=5 -DDEBUGS -DPPP_STATS -DVJC -D__aix4__ -DAIX4
 CFLAGS = $(DFLAGS) $(IFLAGS)
 
