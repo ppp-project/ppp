@@ -41,7 +41,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.12 2000/01/21 01:04:56 masputra Exp $
+ * $Id: ppp_ahdlc.c,v 1.13 2000/01/28 01:50:14 masputra Exp $
  */
 
 /*
@@ -128,10 +128,14 @@ struct streamtab ppp_ahdlcinfo = {
     &winit,			    /* ptr to st_wrinit */
     NULL,			    /* ptr to st_muxrinit */
     NULL,			    /* ptr to st_muxwinit */
-#ifdef _SunOS4
+#if defined(SUNOS4)
     NULL			    /* ptr to ptr to st_modlist */
-#endif /* _SunOS4 */
+#endif /* SUNOS4 */
 };
+
+#if defined(SUNOS4)
+int ppp_ahdlc_count = 0;	    /* open counter */
+#endif /* SUNOS4 */
 
 /*
  * Per-stream state structure
@@ -256,6 +260,10 @@ MOD_OPEN(ahdlc_open)
     mutex_exit(&state->lock);
 #endif /* USE_MUTEX */	
 
+#if defined(SUNOS4)
+    ppp_ahdlc_count++;
+#endif /* SUNOS4 */
+
     qprocson(q);
     
     return 0;
@@ -294,6 +302,11 @@ MOD_CLOSE(ahdlc_close)
     FREE(q->q_ptr, sizeof(ahdlc_state_t));
     q->q_ptr	     = NULL;
     OTHERQ(q)->q_ptr = NULL;
+
+#if defined(SUNOS4)
+    if (ppp_ahdlc_count)
+	ppp_ahdlc_count--;
+#endif /* SUNOS4 */
     
     return 0;
 }
@@ -676,6 +689,15 @@ ahdlc_encode(q, mp)
 			(m) & (1 << (c)))
 
 /*
+ * SunOS 4.x does not have intptr_t or uintptr_t defined, so
+ * declare them here
+ */
+#if defined(SUNOS4)
+typedef	int			intptr_t;
+typedef	unsigned int		uintptr_t;
+#endif /* SUNOS4 */
+
+/*
  * Process received characters.
  */
 static void
@@ -684,10 +706,14 @@ ahdlc_decode(q, mp)
     mblk_t  *mp;
 {
     ahdlc_state_t   *state;
-    mblk_t	    *om, *zmp;
+    mblk_t	    *om;
     uchar_t	    *dp;
     ushort_t	    fcs;
+#if defined(SOL2)
+    mblk_t	    *zmp;
+#endif /* SOL2 */
 
+#if defined(SOL2)
     /*
      * In case the driver (or something below) doesn't send
      * data upstream in one message block, concatenate everything
@@ -701,6 +727,7 @@ ahdlc_decode(q, mp)
 	if (mp == 0)
 	    return; 
     }
+#endif /* SOL2 */
 
     state = (ahdlc_state_t *) q->q_ptr;
 
