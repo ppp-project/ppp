@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.88 1999/12/23 01:28:27 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.89 2000/01/18 19:49:52 masputra Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -94,6 +94,7 @@ volatile int status;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
+char *callback_script;		/* script for doing callback */
 
 int (*holdoff_hook) __P((void)) = NULL;
 int (*new_phase_hook) __P((int)) = NULL;
@@ -222,7 +223,7 @@ main(argc, argv)
 {
     int i, fdflags, t;
     struct sigaction sa;
-    char *p;
+    char *p, *connector;
     struct passwd *pw;
     struct timeval timo;
     sigset_t mask;
