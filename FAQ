@@ -440,3 +440,43 @@ with Deflate, it's hard to get a high output data rate from the
 compressor, simply because it compresses strings of nulls so well that
 it has to eat a very large amount of input data to get each byte of
 output.
+
+
+------------------------------------------------------------------------
+
+Q: I get messages saying "Unsupported protocol (...) received".  What do
+these mean?
+
+A: If you only get one or two when pppd starts negotiating with the
+peer, they mean that the peer wanted to negotiate some PPP protocol
+that pppd doesn't understand.  This doesn't represent a problem, it
+simply means that there is some functionality that the peer supports
+that pppd doesn't, so that functionality can't be used.
+
+If you get them sporadically while the link is operating, or if the
+protocol numbers (in parentheses) don't correspond to any valid PPP
+protocol that the peer might be using, then the problem is probably
+that characters are getting corrupted on the receive side, or that
+extra characters are being inserted into the receive stream somehow.
+If this is happening, most packets that get corrupted should get
+discarded by the FCS (Frame Check Sequence, a 16-bit CRC) check, but a
+small number may get through.
+
+One possibility may be that you are receiving broadcast messages on
+the remote system which are being sent over your serial link.  Another
+possibility is that your modem is set for XON/XOFF (software) flow
+control and is inserting ^Q and ^S characters into the receive data
+stream.
+
+
+------------------------------------------------------------------------
+
+Q: I get messages saying "Protocol-Reject for unsupported protocol ...".
+What do these mean?
+
+A: This is the other side of the previous question.  If characters are
+getting corrupted on the way to the peer, or if your system is
+inserting extra bogus characters into the transmit data stream, the
+peer may send protocol-reject messages to you, resulting in the above
+message (since your pppd doesn't recognize the protocol number
+either.)
