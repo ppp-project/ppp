@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.34 1996/09/14 05:16:56 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.35 1996/09/26 06:22:22 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -198,6 +198,7 @@ static int setipparam __P((char **));
 static int setpapcrypt __P((void));
 static int setidle __P((char **));
 static int setholdoff __P((char **));
+static int setdnsaddr __P((char **));
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
@@ -214,10 +215,6 @@ static int setipxcpterm __P((char **));
 static int setipxcpconf __P((char **));
 static int setipxcpfails __P((char **));
 #endif /* IPX_CHANGE */
-
-#ifdef USE_MS_DNS
-static int setdnsaddr __P((char **));
-#endif
 
 static int number_option __P((char *, u_int32_t *, int));
 static int int_option __P((char *, int *));
@@ -338,6 +335,7 @@ static struct cmd {
     {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
     {"idle", 1, setidle},		/* idle time limit (seconds) */
     {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
+    {"ms-dns", 1, setdnsaddr},		/* DNS address for the peer's use */
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -359,10 +357,6 @@ static struct cmd {
     {"+ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
     {"-ipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
 #endif /* IPX_CHANGE */
-
-#ifdef USE_MS_DNS
-    {"ms-dns", 1, setdnsaddr},	/* DNS address(es) for the peer's use */
-#endif
 
     {NULL, 0, NULL}
 };
@@ -1725,10 +1719,8 @@ setname(argv)
 	option_error("using the name option requires root privilege");
 	return 0;
     }
-    if (our_name[0] == 0) {
-	strncpy(our_name, argv[0], MAXNAMELEN);
-	our_name[MAXNAMELEN-1] = 0;
-    }
+    strncpy(our_name, argv[0], MAXNAMELEN);
+    our_name[MAXNAMELEN-1] = 0;
     return 1;
 }
 
@@ -2095,6 +2087,35 @@ setholdoff(argv)
     return int_option(*argv, &holdoff);
 }
 
+/*
+ * setdnsaddr - set the dns address(es)
+ */
+static int
+setdnsaddr(argv)
+    char **argv;
+{
+    u_int32_t dns;
+    struct hostent *hp;
+
+    dns = inet_addr(*argv);
+    if (dns == -1) {
+	if ((hp = gethostbyname(*argv)) == NULL) {
+	    option_error("invalid address parameter '%s' for ms-dns option",
+			 *argv);
+	    return 0;
+	}
+	dns = *(u_int32_t *)hp->h_addr;
+    }
+
+    if (ipcp_allowoptions[0].dnsaddr[0] == 0) {
+	ipcp_allowoptions[0].dnsaddr[0] = dns;
+    } else {
+	ipcp_allowoptions[0].dnsaddr[1] = dns;
+    }
+
+    return (1);
+}
+
 #ifdef IPX_CHANGE
 static int
 setipxrouter (argv)
@@ -2257,35 +2278,3 @@ resetipxproto()
     return 1;
 }
 #endif /* IPX_CHANGE */
-
-#ifdef USE_MS_DNS
-/*
- * setdnsaddr - set the dns address(es)
- */
-
-static int
-setdnsaddr(argv)
-    char **argv;
-{
-    u_int32_t dns;
-    struct hostent *hp;
-
-    dns = inet_addr(*argv);
-    if (dns == -1) {
-	if ((hp = gethostbyname(*argv)) == NULL) {
-	    option_error("invalid address parameter '%s' for ms-dns option",
-			 *argv);
-	    return 0;
-	}
-	dns = *(u_int32_t *)hp->h_addr;
-    }
-
-    if (ipcp_allowoptions[0].dnsaddr[0] == 0) {
-	ipcp_allowoptions[0].dnsaddr[0] = dns;
-    } else {
-	ipcp_allowoptions[0].dnsaddr[1] = dns;
-    }
-
-    return (1);
-}
-#endif /* USE_MS_DNS */
