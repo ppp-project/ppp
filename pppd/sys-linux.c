@@ -42,7 +42,7 @@
 #include <net/if.h>
 #include <net/ppp_defs.h>
 #include <net/if_arp.h>
-#include <linux/if_ppp.h>
+#include <net/if_ppp.h>
 #include <net/if_route.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
@@ -59,13 +59,17 @@ static struct termios inittermios;	/* Initial TTY termios */
 
 int sockfd;			/* socket for doing interface ioctls */
 
-static int driver_version = 0;
+static int driver_version      = 0;
 static int driver_modification = 0;
-static int driver_patch = 0;
+static int driver_patch        = 0;
 
 static char *lock_file;
 
 #define MAX_IFS		32
+
+#define FLAGS_GOOD (IFF_UP          | IFF_BROADCAST)
+#define FLAGS_MASK (IFF_UP          | IFF_BROADCAST | \
+		    IFF_POINTOPOINT | IFF_LOOPBACK  | IFF_NOARP)
 
 /*
  * SET_SA_FAMILY - set the sa_family field of a struct sockaddr,
@@ -77,89 +81,136 @@ static char *lock_file;
     addr.sa_family = (family);
 
 /*
+ * Functions to read and set the flags value in the device driver
+ */
+
+int get_flags (void)
+  {    
+    int flags;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &flags) < 0)
+      {
+	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
+	quit();
+      }
+
+    MAINDEBUG ((LOG_DEBUG, "get flags = %x\n", flags));
+    return flags;
+  }
+
+void set_flags (int flags)
+  {    
+    MAINDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0)
+      {
+	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS, %x): %m", flags);
+	quit();
+      }
+  }
+
+/*
  * sys_init - System-dependent initialization.
  */
 
 void sys_init(void)
-{
+  {
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
+      {
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-
-    /* Get an internet socket for doing socket ioctl's on. */
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+      }
+    
+    /* Get an internet socket for doing socket ioctls. */
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0)
+      {
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
-    }
-}
+      }
+  }
 
 /*
  * note_debug_level - note a change in the debug level.
  */
+
 void note_debug_level (void)
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
+  {
+    if (debug)
+      {
+	MAINDEBUG ((LOG_INFO, "Debug turned ON, Level %d", debug));
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
+      }
+    else
+      {
 	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
+      }
+  }
 
 /*
  * set_kdebugflag - Define the debugging level for the kernel
  */
 
 int set_kdebugflag (int requested_level)
-{
-    if (ioctl(fd, PPPIOCGDEBUG, &prev_kdebugflag) < 0) {
+  {
+    if (ioctl(fd, PPPIOCGDEBUG, &prev_kdebugflag) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(PPPIOCGDEBUG): %m");
 	return (0);
-    }
-
-    if (prev_kdebugflag != requested_level) {
-	if (ioctl(fd, PPPIOCSDEBUG, &requested_level) < 0) {
+      }
+    
+    if (prev_kdebugflag != requested_level)
+      {
+	if (ioctl(fd, PPPIOCSDEBUG, &requested_level) < 0)
+	  {
 	    syslog (LOG_ERR, "ioctl(PPPIOCSDEBUG): %m");
 	    return (0);
-	}
-        syslog(LOG_INFO, "set kernel debugging level to %d", requested_level);
-    }
+	  }
+        MAINDEBUG ((LOG_INFO, "set kernel debugging level to %d", requested_level));
+      }
     return (1);
-}
+  }
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
 
 void establish_ppp (void)
-{
+  {
     int pppdisc = N_PPP;
     int sig	= SIGIO;
 
-    if (ioctl(fd, TIOCEXCL, 0) < 0) {
+    if (ioctl(fd, TIOCEXCL, 0) < 0)
+      {
 	syslog (LOG_WARNING, "ioctl(TIOCEXCL): %m");
-    }
-
-    if (ioctl(fd, TIOCGETD, &initdisc) < 0) {
+      }
+    
+    if (ioctl(fd, TIOCGETD, &initdisc) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
 	die (1);
-    }
+      }
     
-    if (ioctl(fd, TIOCSETD, &pppdisc) < 0) {
+    if (ioctl(fd, TIOCSETD, &pppdisc) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
 	die (1);
-    }
-    if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {
+      }
+    
+    if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m");
 	die (1);
-    }
-
+      }
+    
     set_kdebugflag (kdebugflag);
 
-    syslog (LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
-	    driver_version, driver_modification, driver_patch);
-}
+    set_flags (get_flags() & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
+			       SC_RCV_EVNP | SC_RCV_ODDP));
+
+    MAINDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
+	    driver_version, driver_modification, driver_patch));
+  }
 
 /*
  * disestablish_ppp - Restore the serial port to normal operation.
@@ -167,50 +218,73 @@ void establish_ppp (void)
  */
 
 void disestablish_ppp(void)
-{
+  {
     int x;
     char *s;
-
-    if (initdisc >= 0) {
-        set_kdebugflag (prev_kdebugflag);
-	/*
-	 * Check whether the link seems not to be 8-bit clean.
-	 */
-	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) == 0) {
+/*
+ * Check whether the link seems not to be 8-bit clean.
+ */
+    if (initdisc >= 0)
+      {
+	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) == 0)
+	  {
 	    s = NULL;
-	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP)) {
+	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP))
+	      {
+	    case SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP:
+		s = "nothing was received";
+		break;
+
 	    case SC_RCV_B7_0:
-		s = "bit 7 set to 1";
+	    case SC_RCV_B7_0 | SC_RCV_EVNP:
+	    case SC_RCV_B7_0 | SC_RCV_ODDP:
+	    case SC_RCV_B7_0 | SC_RCV_ODDP | SC_RCV_EVNP:
+		s = "all had bit 7 set to 1";
 		break;
+
 	    case SC_RCV_B7_1:
-		s = "bit 7 set to 0";
+	    case SC_RCV_B7_1 | SC_RCV_EVNP:
+	    case SC_RCV_B7_1 | SC_RCV_ODDP:
+	    case SC_RCV_B7_1 | SC_RCV_ODDP | SC_RCV_EVNP:
+		s = "all had bit 7 set to 0";
 		break;
+
 	    case SC_RCV_EVNP:
-		s = "odd parity";
+		s = "all had odd parity";
 		break;
+
 	    case SC_RCV_ODDP:
-		s = "even parity";
+		s = "all had even parity";
 		break;
-	    }
-	    if (s != NULL) {
-		syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
-		syslog(LOG_WARNING, "All received characters had %s", s);
-	    }
-	}
+	      }
 
+	    if (s != NULL)
+	      {
+		syslog(LOG_WARNING, "Receive serial link is not 8-bit clean:");
+		syslog(LOG_WARNING, "Problem: %s", s);
+	      }
+	  }
+
+        set_kdebugflag (prev_kdebugflag);
+	
 	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
+	  {
 	    syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
-
+	  }
+	
 	if (ioctl(fd, TIOCNXCL, 0) < 0)
+	  {
 	    syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
-
+	  }
+	
 	initdisc = -1;
-    }
-}
+      }
+  }
 
 /*
  * List of valid speeds.
  */
+
 struct speed {
     int speed_int, speed_val;
 } speeds[] = {
@@ -286,275 +360,321 @@ struct speed {
 /*
  * Translate from bits/second to a speed_t.
  */
+
 int translate_speed (int bps)
-{
+  {
     struct speed *speedp;
 
     if (bps == 0)
-	return 0;
-    for (speedp = speeds; speedp->speed_int; speedp++)
-	if (bps == speedp->speed_int)
-	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
+      {
+	for (speedp = speeds; speedp->speed_int; speedp++)
+	  {
+	    if (bps == speedp->speed_int)
+	      {
+		return speedp->speed_val;
+	      }
+	  }
+	syslog(LOG_WARNING, "speed %d not supported", bps);
+      }
     return 0;
-}
+  }
 
 /*
  * Translate from a speed_t to bits/second.
  */
-int baud_rate_of (int speed)
-{
-    struct speed *speedp;
 
-    if (speed == 0)
-	return 0;
-    for (speedp = speeds; speedp->speed_int; speedp++)
-	if (speed == speedp->speed_val)
-	    return speedp->speed_int;
+int baud_rate_of (int speed)
+  {
+    struct speed *speedp;
+    
+    if (speed != 0)
+      {
+	for (speedp = speeds; speedp->speed_int; speedp++)
+	  {
+	    if (speed == speedp->speed_val)
+	      {
+		return speedp->speed_int;
+	      }
+	  }
+      }
     return 0;
-}
+  }
 
 /*
  * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
  * at the requested speed, etc.  If `local' is true, set CLOCAL
  * regardless of whether the modem option was specified.
  */
+
 void set_up_tty (int fd, int local)
-{
+  {
     int speed, x;
     struct termios tios;
-
-    if (tcgetattr(fd, &tios) < 0) {
+    
+    if (tcgetattr(fd, &tios) < 0)
+      {
 	syslog(LOG_ERR, "tcgetattr: %m");
 	die(1);
-    }
-
+      }
+    
     if (!restore_term)
+      {
 	inittermios = tios;
-
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-    if (crtscts == 1)
-	tios.c_cflag |= CRTSCTS;
-    else if (crtscts < 0)
-	tios.c_cflag &= ~CRTSCTS;
-
-    tios.c_cflag |= CS8 | CREAD | HUPCL;
-
-    if (local || !modem)
-	tios.c_cflag |= CLOCAL;
+      }
+    
+    tios.c_cflag     &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+    tios.c_cflag     |= CS8 | CREAD | HUPCL;
 
     tios.c_iflag      = IGNBRK | IGNPAR;
     tios.c_oflag      = 0;
     tios.c_lflag      = 0;
     tios.c_cc[VMIN]   = 1;
     tios.c_cc[VTIME]  = 0;
+    
+    if (local || !modem)
+      {
+	tios.c_cflag ^= (CLOCAL | HUPCL);
+      }
 
-    if (crtscts == 2) {
+    switch (crtscts)
+      {
+    case 1:
+	tios.c_cflag |= CRTSCTS;
+	break;
+
+    case 2:
 	tios.c_iflag     |= IXOFF;
 	tios.c_cc[VSTOP]  = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
-    }
+	break;
 
+    case -1:
+	tios.c_cflag &= ~CRTSCTS;
+	break;
+
+    default:
+	break;
+      }
+    
     speed = translate_speed(inspeed);
-    if (speed) {
-	cfsetospeed(&tios, speed);
-	cfsetispeed(&tios, speed);
-    } else {
+    if (speed)
+      {
+	cfsetospeed (&tios, speed);
+	cfsetispeed (&tios, speed);
+      }
+/*
+ * We can't proceed if the serial port speed is B0,
+ * since that implies that the serial port is disabled.
+ */
+    else
+      {
 	speed = cfgetospeed(&tios);
-	/*
-	 * We can't proceed if the serial port speed is B0,
-	 * since that implies that the serial port is disabled.
-	 */
-	if (speed == B0) {
+	if (speed == B0)
+	  {
 	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
 		   devnam);
-	    die(1);
-	}
-    }
+	    die (1);
+	  }
+      }
 
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+      {
 	syslog(LOG_ERR, "tcsetattr: %m");
 	die(1);
-    }
-
-    baud_rate = baud_rate_of(speed);
+      }
+    
+    baud_rate    = baud_rate_of(speed);
     restore_term = TRUE;
-}
+  }
 
 /*
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
+
 void setdtr (int fd, int on)
-{
+  {
     int modembits = TIOCM_DTR;
 
-    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
-}
+    ioctl(fd, (on ? TIOCMBIS : TIOCMBIC), &modembits);
+  }
 
 /*
  * restore_tty - restore the terminal to the saved settings.
  */
 
 void restore_tty (void)
-{
-    if (restore_term) {
-	if (!default_device) {
-	    /*
-	     * Turn off echoing, because otherwise we can get into
-	     * a loop with the tty and the modem echoing to each other.
-	     * We presume we are the sole user of this tty device, so
-	     * when we close it, it will revert to its defaults anyway.
-	     */
-	    inittermios.c_lflag &= ~(ECHO | ECHONL);
-	}
-	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
-	    if (errno != ENXIO)
-		syslog(LOG_WARNING, "tcsetattr: %m");
+  {
+    if (restore_term)
+      {
 	restore_term = 0;
-    }
-}
+/*
+ * Turn off echoing, because otherwise we can get into
+ * a loop with the tty and the modem echoing to each other.
+ * We presume we are the sole user of this tty device, so
+ * when we close it, it will revert to its defaults anyway.
+ */
+	if (!default_device)
+	  {
+	    inittermios.c_lflag &= ~(ECHO | ECHONL);
+	  }
+	
+	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	  {
+	    if (errno != ENXIO)
+	      {
+		syslog(LOG_WARNING, "tcsetattr: %m");
+	      }
+	  }
+      }
+  }
 
 /*
  * output - Output PPP packet.
  */
 
 void output (int unit, unsigned char *p, int len)
-{
+  {
     if (unit != 0)
+      {
 	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
-
-    if (debug)
-        log_packet(p, len, "sent ");
+      }
     
-    if (write(fd, p, len) < 0) {
+    if (debug)
+      {
+        log_packet(p, len, "sent ");
+      }
+    
+    if (write(fd, p, len) < 0)
+      {
         syslog(LOG_ERR, "write: %m");
 	die(1);
-    }
-}
+      }
+  }
 
 /*
  * wait_input - wait until there is data available on fd,
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+
 void wait_input (struct timeval *timo)
-{
+  {
     fd_set ready;
     int n;
-
+    
     FD_ZERO(&ready);
     FD_SET(fd, &ready);
+
     n = select(fd+1, &ready, NULL, &ready, timo);
-    if (n < 0 && errno != EINTR) {
+    if (n < 0 && errno != EINTR)
+      {
 	syslog(LOG_ERR, "select: %m");
 	die(1);
-    }
-}
+      }
+  }
 
 /*
  * read_packet - get a PPP packet from the serial device.
  */
 
 int read_packet (unsigned char *buf)
-{
+  {
     int len;
   
     len = read(fd, buf, PPP_MTU + PPP_HDRLEN);
-    if (len < 0) {
-	if (errno == EWOULDBLOCK) {
+    if (len < 0)
+      {
+	if (errno == EWOULDBLOCK)
+	  {
 	    return -1;
-	}
+	  }
 	syslog(LOG_ERR, "read(fd): %m");
 	die(1);
-    }
+      }
     return len;
-}
+  }
 
 /*
  * ppp_send_config - configure the transmit characteristics of
  * the ppp interface.
  */
+
 void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
-{
+  {
     u_int x;
     struct ifreq ifr;
   
     MAINDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
-    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
+
+    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
 	quit();
-    }
-
+      }
+    
     MAINDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
+      {
         syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
 	quit();
-    }
+      }
     
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	quit();
-    }
-
+    x = get_flags();
     x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
     x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
-
-    MAINDEBUG ((LOG_DEBUG, "send_config: flags = %x\n", x));
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	quit();
-    }
-}
+    set_flags(x);
+  }
 
 /*
  * ppp_set_xaccm - set the extended transmit ACCM for the interface.
  */
+
 void ppp_set_xaccm (int unit, ext_accm accm)
-{
+  {
     MAINDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
 		accm[0], accm[1], accm[2], accm[3]));
+
     if (ioctl(fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
+      {
 	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
-}
+      }
+  }
 
 /*
  * ppp_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
+
 void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
-{
+  {
     u_int x;
 
     MAINDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
     if (ioctl(fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+      {
 	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
+      }
 
     MAINDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0)
+      {
         syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
-    }
-  
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	quit();
-    }
+      }
 
+    x = get_flags();
     x = !accomp? x | SC_REJ_COMP_AC: x &~ SC_REJ_COMP_AC;
-    MAINDEBUG ((LOG_DEBUG, "recv_config: flags = %x\n", x));
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	quit();
-    }
-}
+    set_flags (x);
+  }
 
 /*
  * ccp_test - ask kernel whether a given compression method
  * is acceptable for use.
  */
+
 int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
   {
     struct ppp_option_data data;
@@ -572,22 +692,10 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 
 void ccp_flags_set (int unit, int isopen, int isup)
   {
-    int x;
-
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0)
-      {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-      }
-    else
-      {
-	x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
-	x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
-
-	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
-	  {
-	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	  }
-      }
+    int x = get_flags();
+    x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
+    x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
+    set_flags (x);
   }
 
 /*
@@ -598,13 +706,8 @@ void ccp_flags_set (int unit, int isopen, int isup)
 
 int ccp_fatal_error (int unit)
   {
-    int x;
+    int x = get_flags();
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0)
-      {
-	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
-	return 0;
-      }
     return x & SC_DC_FERROR;
   }
 
@@ -614,31 +717,20 @@ int ccp_fatal_error (int unit)
 
 int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
   {
-    u_int x;
-
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0)
-      {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
-	return 0;
-      }
-
-    x = vjcomp  ? x | SC_COMP_TCP     : x &~ SC_COMP_TCP;
-    x = cidcomp ? x & ~SC_NO_TCP_CCID : x | SC_NO_TCP_CCID;
-
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
-      {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	return 0;
-      }
+    u_int x = get_flags();
 
     if (vjcomp)
       {
         if (ioctl (fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0)
 	  {
 	    syslog (LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
-	    return 0;
+	    vjcomp = 0;
 	  }
       }
+
+    x = vjcomp  ? x | SC_COMP_TCP     : x &~ SC_COMP_TCP;
+    x = cidcomp ? x & ~SC_NO_TCP_CCID : x | SC_NO_TCP_CCID;
+    set_flags (x);
 
     return 1;
   }
@@ -818,26 +910,27 @@ static char *path_to_route (void)
     fp = fopen (MOUNTED, "r");
     if (fp != 0)
       {
-        while ((mntent = getmntent (fp)) != 0)
+	mntent = getmntent (fp);
+        while (mntent != (struct mntent *) 0)
 	  {
-	    if (strcmp (mntent->mnt_type, MNTTYPE_IGNORE) == 0)
+	    if (strcmp (mntent->mnt_type, MNTTYPE_IGNORE) != 0)
 	      {
-	        continue;
+		if (strcmp (mntent->mnt_type, "proc") == 0)
+		  {
+		    strncpy (route_buffer, mntent->mnt_dir,
+			     sizeof (route_buffer)-10);
+		    route_buffer [sizeof (route_buffer)-10] = '\0';
+		    strcat (route_buffer, "/net/route");
+		    
+		    fclose (fp);
+		    return (route_buffer);
+		  }
 	      }
-
-	    if (strcmp (mntent->mnt_type, "proc") == 0)
-	      {
-	        strncpy (route_buffer, mntent->mnt_dir,
-			 sizeof (route_buffer)-10);
-		route_buffer [sizeof (route_buffer)-10] = '\0';
-		strcat (route_buffer, "/net/route");
-
-		fclose (fp);
-		return (route_buffer);
-	      }
+	    mntent = getmntent (fp);
 	  }
 	fclose (fp);
       }
+
     syslog (LOG_ERR, "proc file system not mounted");
     return 0;
   }
@@ -955,6 +1048,7 @@ static int defaultroute_exists (void)
 	    break;
 	  }
       }
+
     close_route_table();
     return result;
   }
@@ -1080,6 +1174,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
 	return 0;
       }
+
     MAINDEBUG ((LOG_DEBUG, "proxy arp: scanning %d interfaces for IP %s",
 		ifc.ifc_len / sizeof(struct ifreq), ip_ntoa(ipaddr)));
 /*
@@ -1103,9 +1198,8 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 	      {
 		continue;
 	      }
-	    if ((ifreq.ifr_flags &
-		 (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
-		!= (IFF_UP|IFF_BROADCAST))
+
+	    if (((ifreq.ifr_flags ^ FLAGS_GOOD) & FLAGS_MASK) != 0)
 	      {
 		continue;
 	      }
@@ -1116,9 +1210,11 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 	      {
 	        continue;
 	      }
+
 	    mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
 	    MAINDEBUG ((LOG_DEBUG, "proxy arp: interface addr %s mask %lx",
 			ip_ntoa(ina), ntohl(mask)));
+
 	    if (((ipaddr ^ ina) & mask) != 0)
 	      {
 	        continue;
@@ -1164,63 +1260,86 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
  * network as `addr'.  If we find any, we OR in their netmask to the
  * user-specified netmask.
  */
-u_int32_t
-GetMask(addr)
-    u_int32_t addr;
-{
+
+u_int32_t GetMask (u_int32_t addr)
+  {
     u_int32_t mask, nmask, ina;
     struct ifreq *ifr, *ifend, ifreq;
     struct ifconf ifc;
     struct ifreq ifs[MAX_IFS];
 
     addr = ntohl(addr);
+    
     if (IN_CLASSA(addr))	/* determine network mask for address class */
+      {
 	nmask = IN_CLASSA_NET;
-    else if (IN_CLASSB(addr))
-	nmask = IN_CLASSB_NET;
+      }
     else
-	nmask = IN_CLASSC_NET;
+      {
+	if (IN_CLASSB(addr))
+	  {
+	    nmask = IN_CLASSB_NET;
+	  }
+	else
+	  {
+	    nmask = IN_CLASSC_NET;
+	  }
+      }
+    
     /* class D nets are disallowed by bad_ip_adrs */
     mask = netmask | htonl(nmask);
-
-    /*
-     * Scan through the system's network interfaces.
-     */
+/*
+ * Scan through the system's network interfaces.
+ */
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
-    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0)
+      {
 	syslog(LOG_WARNING, "ioctl(SIOCGIFCONF): %m");
 	return mask;
-    }
+      }
+    
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
-	/*
-	 * Check the interface's internet address.
-	 */
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr++)
+      {
+/*
+ * Check the interface's internet address.
+ */
 	if (ifr->ifr_addr.sa_family != AF_INET)
+	  {
 	    continue;
+	  }
 	ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	if ((ntohl(ina) & nmask) != (addr & nmask))
+	if (((ntohl(ina) ^ addr) & nmask) != 0)
+	  {
 	    continue;
-	/*
-	 * Check that the interface is up, and not point-to-point or loopback.
-	 */
+	  }
+/*
+ * Check that the interface is up, and not point-to-point or loopback.
+ */
 	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
+	  {
 	    continue;
-	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
-	    != IFF_UP)
+	  }
+	
+	if (((ifreq.ifr_flags ^ FLAGS_GOOD) & FLAGS_MASK) != 0)
+	  {
 	    continue;
-	/*
-	 * Get its netmask and OR it into our mask.
-	 */
+	  }
+/*
+ * Get its netmask and OR it into our mask.
+ */
 	if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
+	  {
 	    continue;
+	  }
 	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
-    }
+	break;
+      }
 
     return mask;
-}
+  }
 
 /*
  * Internal routine to decode the version.modification.patch level
@@ -1254,6 +1373,64 @@ static void decode_version (char *buf, int *version,
   }
 
 /*
+ * Procedure to determine if the PPP line dicipline is registered.
+ */
+
+int
+ppp_registered(void)
+  {
+    int local_fd;
+    int ppp_disc  = N_PPP;
+    int init_disc = -1;
+    int initfdflags;
+
+    local_fd = open(devnam, O_NONBLOCK | O_RDWR, 0);
+    if (local_fd < 0)
+      {
+	syslog(LOG_ERR, "Failed to open %s: %m", devnam);
+	return 0;
+      }
+
+    initfdflags = fcntl(local_fd, F_GETFL);
+    if (initfdflags == -1)
+      {
+	syslog(LOG_ERR, "Couldn't get device fd flags: %m");
+	close (local_fd);
+	return 0;
+      }
+
+    initfdflags &= ~O_NONBLOCK;
+    fcntl(local_fd, F_SETFL, initfdflags);
+/*
+ * Read the initial line dicipline and try to put the device into the
+ * PPP dicipline.
+ */
+    if (ioctl(local_fd, TIOCGETD, &init_disc) < 0)
+      {
+	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
+	close (local_fd);
+	return 0;
+      }
+    
+    if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0)
+      {
+	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	close (local_fd);
+	return 0;
+      }
+    
+    if (ioctl(local_fd, TIOCSETD, &init_disc) < 0)
+      {
+	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	close (local_fd);
+	return 0;
+      }
+    
+    close (local_fd);
+    return 1;
+  }
+
+/*
  * ppp_available - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
@@ -1275,14 +1452,27 @@ int ppp_available(void)
     strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 /*
+ * If the device did not exist then attempt to create one by putting the
+ * current tty into the PPP discipline. If this works then obtain the
+ * flags for the device again.
+ */
+    if (!ok)
+      {
+	if (ppp_registered())
+	  {
+	    strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+	    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+	  }
+      }
+/*
  * Ensure that the hardware address is for PPP and not something else
  */
-    if (ok != 0)
+    if (ok)
       {
         ok = ioctl (s, SIOCGIFHWADDR, (caddr_t) &ifr) >= 0;
       }
 
-    if (ok != 0 && ifr.ifr_hwaddr.sa_family != ARPHRD_PPP)
+    if (ok && ifr.ifr_hwaddr.sa_family != ARPHRD_PPP)
       {
         ok = 0;
       }
@@ -1290,7 +1480,7 @@ int ppp_available(void)
  *  This is the PPP device. Validate the version of the driver at this
  *  point to ensure that this program will work with the driver.
  */
-    if (ok != 0)
+    if (ok)
       {
         char   abBuffer [1024];
 	int    size;
@@ -1299,7 +1489,7 @@ int ppp_available(void)
 	size = ioctl (s, SIOCGPPPVER, (caddr_t) &ifr);
 	ok   = size >= 0;
 
-	if (ok != 0)
+	if (ok)
 	  {
 	    decode_version (abBuffer,
 			    &driver_version,
@@ -1308,7 +1498,7 @@ int ppp_available(void)
 	  }
       }
     
-    if (ok == 0)
+    if (!ok)
       {
         driver_version      =
         driver_modification =
@@ -1334,10 +1524,12 @@ int ppp_available(void)
         ok = 0;
       }
 
-    if (ok == 0)
+    if (!ok)
       {
 	fprintf(stderr, "Sorry - PPP driver version %d.%d.%d is out of date\n",
 		driver_version, driver_modification, driver_patch);
+	close (s);
+	exit (1);
       }
     
     close(s);
@@ -1380,71 +1572,108 @@ int logwtmp (char *line, char *name, char *host)
 /*
  * lock - create a lock file for the named device
  */
-int
-lock(dev)
-    char *dev;
-{
+
+int lock (char *dev)
+  {
     char hdb_lock_buffer[12];
     int fd, pid, n;
     char *p;
 
-    if ((p = strrchr(dev, '/')) != NULL)
-	dev = p + 1;
+    p = strrchr(dev, '/');
+    if (p != NULL)
+      {
+	dev = ++p;
+      }
+
     lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
     if (lock_file == NULL)
+      {
 	novm("lock file name");
-    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+      }
 
-    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
-	if (errno == EEXIST
-	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
-	    /* Read the lock file to find out who has the device locked */
-	    n = read(fd, hdb_lock_buffer, 11);
-	    if (n > 0) {
-		hdb_lock_buffer[n] = 0;
-		sscanf (hdb_lock_buffer, " %d", &pid);
-	    }
-	    if (n <= 0) {
-		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
-		close(fd);
-	    } else {
-		if (kill(pid, 0) == -1 && errno == ESRCH) {
-		    /* pid no longer exists - remove the lock file */
-		    if (unlink(lock_file) == 0) {
-			close(fd);
-			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
-			       dev, pid);
-			continue;
-		    } else
-			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
-			       dev);
-		} else
-		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
-			   dev, pid);
-	    }
+    strcpy (lock_file, LOCK_PREFIX);
+    strcat (lock_file, dev);
+/*
+ * Attempt to create the lock file at this point.
+ */
+    while (1)
+      {
+	fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644);
+	if (fd >= 0)
+	  {
+	    sprintf(hdb_lock_buffer, "%010d\n", getpid());
+	    write(fd, hdb_lock_buffer, 11);
 	    close(fd);
-	} else
-	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
-	free(lock_file);
-	lock_file = NULL;
-	return -1;
-    }
+	    return 0;
+	  }
+/*
+ * If the file exists then check to see if the pid is stale
+ */
+	if (errno == EEXIST)
+	  {
+	    fd = open(lock_file, O_RDONLY, 0);
+	    if (fd < 0)
+	      {
+		if (errno == ENOENT) /* This is just a timing problem. */
+		  {
+		    continue;
+		  }
+		break;
+	      }
 
-    sprintf(hdb_lock_buffer, "%010d\n", getpid());
-    write(fd, hdb_lock_buffer, 11);
+	    /* Read the lock file to find out who has the device locked */
+	    n = read (fd, hdb_lock_buffer, 11);
+	    close (fd);
+	    if (n < 0)
+	      {
+		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		break;
+	      }
 
-    close(fd);
-    return 0;
+	    if (n == 0)
+	      {
+		unlink (lock_file);
+		syslog (LOG_NOTICE, "Removed stale lock on %s", lock_file);
+		continue;
+	      }
+
+	    hdb_lock_buffer[n] = '\0';
+	    sscanf (hdb_lock_buffer, " %d", &pid);
+
+	    if (kill(pid, 0) == -1 && errno == ESRCH)
+	      {
+		/* pid no longer exists - remove the lock file */
+		if (unlink (lock_file) == 0)
+		  {
+		    syslog (LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			    dev, pid);
+		    continue;
+		  }
+	      }
+
+	    syslog (LOG_NOTICE, "Device %s is locked by pid %d", dev, pid);
+	    break;
+	  }
+
+	syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	break;
+      }
+
+    free(lock_file);
+    lock_file = NULL;
+    return -1;
 }
 
 /*
  * unlock - remove our lockfile
  */
-unlock()
-{
-    if (lock_file) {
+
+void unlock(void)
+  {
+    if (lock_file)
+      {
 	unlink(lock_file);
 	free(lock_file);
 	lock_file = NULL;
-    }
-}
+      }
+  }

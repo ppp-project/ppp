@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.7 1995/05/19 03:25:53 paulus Exp $
+ * $Id: lcp.h,v 1.8 1995/06/12 11:22:47 paulus Exp $
  */
 
 /*
@@ -58,7 +58,7 @@ typedef struct lcp_options {
     u_int32_t asyncmap;		/* Value of async map */
     u_int32_t magicnumber;
     int numloops;		/* Number of loops during magic number neg. */
-    u_int32_t lqr_period;	/* Reporting period for link quality */
+    u_int32_t lqr_period;	/* Reporting period for LQR 1/100ths second */
 } lcp_options;
 
 extern fsm lcp_fsm[];

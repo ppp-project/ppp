@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.23 1995/05/19 03:26:25 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.24 1995/06/12 11:22:49 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -306,10 +306,10 @@ main(argc, argv)
 		die(1);
 	    }
 
-	    syslog(LOG_INFO, "Connected...");
+	    syslog(LOG_INFO, "Serial connection established.");
 	    sleep(1);		/* give it time to set up its terminal */
 	}
-  
+
 	/* set line speed, flow control, etc.; clear CLOCAL if modem option */
 	set_up_tty(fd, 0);
 
@@ -365,6 +365,7 @@ main(argc, argv)
 	/*
 	 * Run disconnector script, if requested.
 	 * First we need to reset non-blocking mode.
+	 * XXX we may not be able to do this if the line has hung up!
 	 */
 	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) >= 0)
 	    initfdflags = -1;
@@ -373,10 +374,9 @@ main(argc, argv)
 	    set_up_tty(fd, 1);
 	    if (device_script(disconnector, fd, fd) < 0) {
 		syslog(LOG_WARNING, "disconnect script failed");
-		die(1);
+	    } else {
+		syslog(LOG_INFO, "Serial link disconnected.");
 	    }
-
-	    syslog(LOG_INFO, "Disconnected...");
 	}
 
 	close_fd();
@@ -438,21 +438,21 @@ get_input()
     /*
      * Upcall the proper protocol input routine.
      */
-    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
+    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++) {
 	if (prottbl[i].protocol == protocol) {
 	    (*prottbl[i].input)(0, p, len);
-	    break;
-	} else if (protocol == (prottbl[i].protocol & ~0x8000)
-		   && prottbl[i].datainput != NULL) {
-	    (*prottbl[i].datainput)(0, p, len);
-	    break;
+	    return;
 	}
-
-    if (i == sizeof (prottbl) / sizeof (struct protent)) {
-	if (debug)
-	    syslog(LOG_WARNING, "Unknown protocol (0x%x) received", protocol);
-	lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
+        if (protocol == (prottbl[i].protocol & ~0x8000)
+	    && prottbl[i].datainput != NULL) {
+	    (*prottbl[i].datainput)(0, p, len);
+	    return;
+	}
     }
+
+    if (debug)
+    	syslog(LOG_WARNING, "Unknown protocol (0x%x) received", protocol);
+    lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
 }
 
 
@@ -528,6 +528,8 @@ cleanup(status, arg)
 void
 close_fd()
 {
+    disestablish_ppp();
+
     /* drop dtr to hang up */
     if (modem)
 	setdtr(fd, FALSE);
@@ -535,8 +537,6 @@ close_fd()
     if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
 	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
     initfdflags = -1;
-
-    disestablish_ppp();
 
     restore_tty();
 
@@ -760,6 +760,7 @@ device_script(program, in, out)
 {
     int pid;
     int status;
+    int errfd;
 
     pid = fork();
 
@@ -769,10 +770,13 @@ device_script(program, in, out)
     }
 
     if (pid == 0) {
-	setuid(getuid());
-	setgid(getgid());
 	dup2(in, 0);
 	dup2(out, 1);
+	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	if (errfd >= 0)
+	    dup2(errfd, 2);
+	setuid(getuid());
+	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
 	syslog(LOG_ERR, "could not exec /bin/sh: %m");
 	_exit(99);
