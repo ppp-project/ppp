@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.11 1994/12/05 00:32:37 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.12 1995/04/24 02:40:23 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -53,6 +53,7 @@
 /*
  * State bits in sc_flags, not changeable by user.
  */
+#define SC_TIMEOUT	0x00000400	/* timeout is currently pending */
 #define SC_VJ_RESET	0x00000800	/* need to reset VJ decomp */
 #define SC_COMP_RUN	0x00001000	/* compressor has been inited */
 #define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
@@ -111,6 +112,14 @@ struct ifpppcstatsreq {
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 #define PPPIOCGIDLE	_IOR('t', 74, struct ppp_idle) /* get idle time */
 
+/* PPPIOC[GS]MTU are alternatives to SIOC[GS]IFMTU, used under Ultrix */
+#define PPPIOCGMTU	_IOR('t', 73, int)	/* get interface MTU */
+#define PPPIOCSMTU	_IOW('t', 72, int)	/* set interface MTU */
+
+/*
+ * These two are interface ioctls so that pppstats can do them on
+ * a socket without having to open the serial device.
+ */
 #define SIOCGPPPSTATS	_IOWR('i', 123, struct ifpppstatsreq)
 #define SIOCGPPPCSTATS	_IOWR('i', 122, struct ifpppcstatsreq)
 
