@@ -1,4 +1,4 @@
-#	$Id: Makefile.linux,v 1.7 1997/11/27 05:59:44 paulus Exp $
+#	$Id: Makefile.linux,v 1.8 1999/08/12 03:56:21 paulus Exp $
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DSIGTYPE=void			# Standard definition
@@ -7,6 +7,8 @@ CDEF4=	-DFNDELAY=O_NDELAY		# Old name value
 CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4)
 
 CFLAGS=	-O2 -pipe $(CDEFS)
+
+INSTALL= install
 
 all:	chat
 
@@ -18,8 +20,8 @@ chat.o:	chat.c
 
 install: chat
 	mkdir -p $(BINDIR)
-	install -s -c chat $(BINDIR)
-	install -c -m 644 chat.8 $(MANDIR)/man8
+	$(INSTALL) -s -c chat $(BINDIR)
+	$(INSTALL) -c -m 644 chat.8 $(MANDIR)/man8
 
 clean:
 	rm -f chat.o chat *~
