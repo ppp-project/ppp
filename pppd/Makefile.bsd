@@ -1,4 +1,4 @@
-#	$Id: Makefile.bsd,v 1.12 1996/08/28 06:37:41 paulus Exp $
+#	$Id: Makefile.bsd,v 1.13 1996/10/08 04:33:33 paulus Exp $
 
 BINDIR?= /usr/sbin
 # -D_BITYPES is for FreeBSD, which doesn't define anything to
@@ -10,8 +10,7 @@ PROG=	pppd
 SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	demand.c auth.c options.c sys-bsd.c
 MAN=	pppd.cat8
-# The next line is for NetBSD-1.0 and other older *BSD systems.
-MAN8=	pppd.0
+MAN8=	pppd.8
 BINMODE=4555
 BINOWN=	root
 

@@ -1,4 +1,4 @@
-/*	$Id: ppp-deflate.c,v 1.3 1996/08/28 06:37:09 paulus Exp $	*/
+/*	$Id: ppp-deflate.c,v 1.4 1996/10/08 04:38:06 paulus Exp $	*/
 
 /*
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
@@ -40,6 +40,10 @@
 #include <net/ppp-comp.h>
 
 #if DO_DEFLATE
+
+#ifdef FreeBSD
+#define inflate	inflate_ppp	/* FreeBSD already has an inflate :-( */
+#endif
 
 #define DEFLATE_DEBUG	1
 

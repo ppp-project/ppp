@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.9 1996/09/26 06:24:39 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.10 1996/10/08 04:38:03 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -234,7 +234,7 @@ pppalloc(pid)
     sc->sc_relinq = NULL;
     bzero((char *)&sc->sc_stats, sizeof(sc->sc_stats));
 #ifdef VJC
-    MALLOC(sc->sc_comp, struct slcompress *, sizeof(struct slcompress),
+    MALLOC(sc->sc_comp, struct vjcompress *, sizeof(struct vjcompress),
 	   M_DEVBUF, M_NOWAIT);
     if (sc->sc_comp)
 	vj_compress_init(sc->sc_comp, -1);

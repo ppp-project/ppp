@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.2 1996/07/01 01:00:28 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.3 1996/10/08 04:38:03 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -76,7 +76,7 @@ struct ppp_softc {
 	time_t	sc_last_sent;		/* time (secs) last NP pkt sent */
 	time_t	sc_last_recv;		/* time (secs) last NP pkt rcvd */
 #ifdef	VJC
-	struct	slcompress *sc_comp; 	/* vjc control buffer */
+	struct	vjcompress *sc_comp; 	/* vjc control buffer */
 #endif
 
 	/* Device-dependent part for async lines. */
