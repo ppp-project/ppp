@@ -40,16 +40,19 @@
 /*
  * This version is for use with STREAMS under SunOS 4.x.
  *
- * $Id: bsd-comp.c,v 1.4 1994/09/16 02:06:31 paulus Exp $
+ * $Id: bsd-comp.c,v 1.5 1994/10/21 06:30:15 paulus Exp $
  */
 
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stream.h>
 #include <sys/kmem_alloc.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <net/ppp_defs.h>
 #include <net/ppp_str.h>
 
-#define PACKET	mblk_t
+#define PACKETPTR	mblk_t *
 #include <net/ppp-comp.h>
 
 /*
@@ -98,12 +101,17 @@ struct bsd_db {
     u_short seqno;			/* sequence number of next packet */
     u_int   maxmaxcode;			/* largest valid code */
     u_int   max_ent;			/* largest code in use */
-    u_int   in_count;			/* uncompressed bytes */
-    u_int   bytes_out;			/* compressed bytes */
+    u_int   in_count;			/* uncompressed bytes, aged */
+    u_int   bytes_out;			/* compressed bytes, aged */
     u_int   ratio;			/* recent compression ratio */
-    u_int  checkpoint;			/* when to next check the ratio */
-    int	    clear_count;		/* times dictionary cleared */
-    int	    incomp_count;		/* incompressible packets */
+    u_int   checkpoint;			/* when to next check the ratio */
+    u_int   clear_count;		/* times dictionary cleared */
+    u_int   incomp_count;		/* incompressible packets */
+    u_int   incomp_bytes;		/* incompressible bytes */
+    u_int   uncomp_count;		/* uncompressed packets */
+    u_int   uncomp_bytes;		/* uncompressed bytes */
+    u_int   comp_count;			/* compressed packets */
+    u_int   comp_bytes;			/* compressed bytes */
     u_short *lens;			/* array of lengths of codes */
     struct bsd_dict {
 	union {				/* hash value */
@@ -142,6 +150,7 @@ static int	bsd_compress __P((void *state, mblk_t **mret,
 static void	bsd_incomp __P((void *state, mblk_t *dmsg));
 static int	bsd_decompress __P((void *state, mblk_t *cmp, mblk_t **dmpp));
 static void	bsd_reset __P((void *state));
+static void	bsd_comp_stats __P((void *state, struct compstat *stats));
 
 /*
  * Procedures exported to ppp_comp.c.
@@ -153,12 +162,14 @@ struct compressor ppp_bsd_compress = {
     bsd_comp_init,		/* comp_init */
     bsd_reset,			/* comp_reset */
     bsd_compress,		/* compress */
+    bsd_comp_stats,		/* comp_stat */
     bsd_decomp_alloc,		/* decomp_alloc */
     bsd_free,			/* decomp_free */
     bsd_decomp_init,		/* decomp_init */
     bsd_reset,			/* decomp_reset */
     bsd_decompress,		/* decompress */
     bsd_incomp,			/* incomp */
+    bsd_comp_stats,		/* decomp_stat */
 };
 
 /*
@@ -251,6 +262,27 @@ bsd_check(db)
 	}
     }
     return 0;
+}
+
+/*
+ * Return statistics.
+ */
+static void
+bsd_comp_stats(state, stats)
+    void *state;
+    struct compstat *stats;
+{
+    struct bsd_db *db = (struct bsd_db *) state;
+
+    stats->unc_bytes = db->uncomp_bytes;
+    stats->unc_packets = db->uncomp_count;
+    stats->comp_bytes = db->comp_bytes;
+    stats->comp_packets = db->comp_count;
+    stats->inc_bytes = db->incomp_bytes;
+    stats->inc_packets = db->incomp_count;
+    stats->ratio = (double) db->in_count;
+    if (db->bytes_out != 0)
+	stats->ratio /= db->bytes_out;
 }
 
 /*
@@ -447,7 +479,7 @@ bsd_compress(state, mretp, mp, slen, maxolen)
     u_int32_t accm = 0, fcode;
     struct bsd_dict *dictp;
     u_char c;
-    int hval, disp, ent;
+    int hval, disp, ent, ilen;
     mblk_t *np, *mret;
     u_char *rptr, *wptr;
     u_char *cp_end;
@@ -541,7 +573,7 @@ bsd_compress(state, mretp, mp, slen, maxolen)
     rptr += PPP_HDRLEN;
 
     slen = mp->b_wptr - rptr;
-    db->in_count += slen + 1;
+    ilen = slen + 1;
     np = mp->b_cont;
     for (;;) {
 	if (slen <= 0) {
@@ -552,7 +584,7 @@ bsd_compress(state, mretp, mp, slen, maxolen)
 	    np = np->b_cont;
 	    if (!slen)
 		continue;   /* handle 0-length buffers */
-	    db->in_count += slen;
+	    ilen += slen;
 	}
 
 	slen--;
@@ -606,10 +638,10 @@ bsd_compress(state, mretp, mp, slen, maxolen)
 	}
 	ent = c;
     }
-
     OUTPUT(ent);			/* output the last code */
-    db->bytes_out += olen;
 
+    db->bytes_out += olen;
+    db->in_count += ilen;
     if (bsd_check(db))
 	OUTPUT(CLEAR);			/* do not count the CLEAR */
 
@@ -627,16 +659,22 @@ bsd_compress(state, mretp, mp, slen, maxolen)
     if (max_ent >= MAXCODE(n_bits) && max_ent < db->maxmaxcode)
 	db->n_bits++;
 
+    db->uncomp_bytes += ilen;
+    ++db->uncomp_count;
     if (olen + PPP_HDRLEN + BSD_OVHD > maxolen && mret != NULL) {
 	/* throw away the compressed stuff if it is longer than uncompressed */
 	freemsg(mret);
 	mret = NULL;
+	++db->incomp_count;
+	db->incomp_bytes += ilen;
     } else if (wptr != NULL) {
 	m->b_wptr = wptr;
 	if (m->b_cont) {
 	    freemsg(m->b_cont);
 	    m->b_cont = NULL;
 	}
+	++db->comp_count;
+	db->comp_bytes += olen + BSD_OVHD;
     }
 
     *mretp = mret;
@@ -663,7 +701,7 @@ bsd_incomp(state, dmsg)
     u_int32_t fcode;
     u_char c;
     long hval, disp;
-    int slen;
+    int slen, ilen;
     u_int bitno = 7;
     u_char *rptr;
     u_int ent;
@@ -680,7 +718,7 @@ bsd_incomp(state, dmsg)
 
     db->incomp_count++;
     db->seqno++;
-    db->in_count++;		/* count the protocol as 1 byte */
+    ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;
     for (;;) {
 	slen = dmsg->b_wptr - rptr;
@@ -691,7 +729,7 @@ bsd_incomp(state, dmsg)
 	    rptr = dmsg->b_rptr;
 	    continue;		/* skip zero-length buffers */
 	}
-	db->in_count += slen;
+	ilen += slen;
 
 	do {
 	    c = *rptr++;
@@ -748,7 +786,13 @@ bsd_incomp(state, dmsg)
     }
     bitno += n_bits;		/* output (count) the last code */
     db->bytes_out += bitno/8;
+    db->in_count += ilen;
     (void)bsd_check(db);
+
+    ++db->comp_count;
+    db->comp_bytes += bitno / 8;
+    ++db->incomp_count;
+    db->incomp_bytes += ilen;
 
     /* Increase code size if we would have without the packet
      * boundary and as the decompressor will.
@@ -777,7 +821,7 @@ bsd_decompress(state, cmsg, dmpp)
     u_int incode, oldcode, finchar;
     u_char *p, *rptr, *wptr;
     mblk_t *dmsg, *mret;
-    int adrs, ctrl;
+    int adrs, ctrl, ilen;
     int dlen, space, codelen, extra;
 
     /*
@@ -802,7 +846,7 @@ bsd_decompress(state, cmsg, dmpp)
     rptr += PPP_HDRLEN;
     seq = (rptr[0] << 8) + rptr[1];
     rptr += BSD_OVHD;
-    len = cmsg->b_wptr - rptr;
+    ilen = len = cmsg->b_wptr - rptr;
 
     /*
      * Check the sequence number and give up if it is not what we expect.
@@ -830,7 +874,6 @@ bsd_decompress(state, cmsg, dmpp)
     wptr += PPP_HDRLEN - 1;
     space = dmsg->b_datap->db_lim - wptr;
 
-    db->bytes_out += len;
     oldcode = CLEAR;
     explen = 0;
     for (;;) {
@@ -840,7 +883,6 @@ bsd_decompress(state, cmsg, dmpp)
 		break;
 	    rptr = cmsg->b_rptr;
 	    len = cmsg->b_wptr - rptr;
-	    db->bytes_out += len;
 	    continue;		/* handle 0-length buffers */
 	}
 
@@ -1018,11 +1060,17 @@ bsd_decompress(state, cmsg, dmpp)
      * Keep the checkpoint right so that incompressible packets
      * clear the dictionary at the right times.
      */
+    db->bytes_out += ilen;
     db->in_count += explen;
     if (bsd_check(db) && db->debug) {
 	printf("bsd_decomp%d: peer should have cleared dictionary\n",
 	       db->unit);
     }
+
+    ++db->comp_count;
+    db->comp_bytes += ilen + BSD_OVHD;
+    ++db->uncomp_count;
+    db->uncomp_bytes += explen;
 
     *dmpp = mret;
     return DECOMP_OK;
