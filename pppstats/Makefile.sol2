@@ -1,17 +1,9 @@
 #
 # pppstats Makefile for SVR4 systems
-# $Id: Makefile.sol2,v 1.6 1996/09/26 06:16:18 paulus Exp $
+# $Id: Makefile.sol2,v 1.7 1998/02/04 01:41:46 paulus Exp $
 #
 
-BINDIR = /usr/local/bin
-MANDIR = /usr/local/man
-INSTALL = /usr/sbin/install
-
-# For gcc
-#CC = gcc
-#COPTS = -g -O
-
-COPTS = -O -Xa
+include ../svr4/Makedefs
 
 CFLAGS = -DSTREAMS -I.. $(COPTS)
 

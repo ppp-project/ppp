@@ -1,20 +1,18 @@
 #
 # Makefile for STREAMS modules for SunOS 4.
 #
-# $Id: Makefile,v 1.7 1996/09/26 06:17:12 paulus Exp $
+# $Id: Makefile,v 1.8 1998/02/04 01:42:28 paulus Exp $
 #
 
-#CC = gcc
-LD = /usr/bin/ld		# make sure we don't get gnu ld
+include Makedefs
 
-BINDIR = /usr/local/etc
-INSTALL = install -o root -g daemon
+LD = /usr/bin/ld		# make sure we don't get gnu ld
 
 # Defining __$(ARCH)__ is for gcc's broken version of sun/vddrv.h.
 ARCH = `/bin/arch -k`
 DEFINES= -DKERNEL -D_KERNEL -DSUNOS4 -D$(ARCH) -D__$(ARCH)__ \
 	 -DDEBUG -DNO_DLPI -DSNIT_SUPPORT
-CFLAGS= $(DEFINES) -I.. -O
+CFLAGS= $(DEFINES) -I.. $(COPTS)
 
 MODULES= ppp_mod.o ppp_ahdl_mod.o ppp_comp_mod.o if_ppp_mod.o
 
