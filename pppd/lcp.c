@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.36 1999/03/16 22:54:41 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.37 1999/03/19 01:24:56 paulus Exp $";
 #endif
 
 /*
@@ -40,6 +40,7 @@ static char rcsid[] = "$Id: lcp.c,v 1.36 1999/03/16 22:54:41 paulus Exp $";
  */
 int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
 int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
+bool	lax_recv = 0;		/* accept control chars in asyncmap */
 
 static int setescape __P((char **));
 
@@ -104,6 +105,8 @@ static option_t lcp_option_list[] = {
       "Set maximum number of LCP configure-request transmissions" },
     { "lcp-max-failure", o_int, &lcp_fsm[0].maxnakloops,
       "Set limit on number of LCP configure-naks" },
+    { "receive-all", o_bool, &lax_recv,
+      "Accept all received control characters", 1 },
     {NULL}
 };
 
@@ -117,7 +120,7 @@ u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
 
 static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
-static u_int32_t lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
+static u_int32_t lcp_echo_timer_running = 0;  /* set if a timer is running */
 
 static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
 
@@ -365,7 +368,7 @@ lcp_lowerup(unit)
      */
     ppp_set_xaccm(unit, xmit_accm[unit]);
     ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0);
-    ppp_recv_config(unit, PPP_MRU, 0xffffffff,
+    ppp_recv_config(unit, PPP_MRU, (lax_recv? 0: 0xffffffff),
 		    wo->neg_pcompression, wo->neg_accompression);
     peer_mru[unit] = PPP_MRU;
     lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
@@ -1044,12 +1047,9 @@ lcp_nakci(f, p, len)
 	p = next;
     }
 
-    /* If there is still anything left, this packet is bad. */
-    if (len != 0)
-	goto bad;
-
     /*
      * OK, the Nak is good.  Now we can update state.
+     * If there are any options left we ignore them.
      */
     if (f->state != OPENED) {
 	if (looped_back) {
@@ -1551,7 +1551,7 @@ lcp_up(f)
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
     ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU),
-		    (go->neg_asyncmap? go->asyncmap: 0xffffffff),
+		    (lax_recv? 0: go->neg_asyncmap? go->asyncmap: 0xffffffff),
 		    go->neg_pcompression, go->neg_accompression);
 
     if (ho->neg_mru)

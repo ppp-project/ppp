@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.34 1999/03/12 06:07:19 paulus Exp $
+.\" $Id: pppd.8,v 1.35 1999/03/19 01:24:57 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -627,6 +627,12 @@ Add an entry to this system's ARP [Address Resolution Protocol] table
 with the IP address of the peer and the Ethernet address of this
 system.  This will have the effect of making the peer appear to other
 systems to be on the local ethernet.
+.TP
+.B receive-all
+With this option, pppd will accept all control characters from the
+peer, including those marked in the receive asyncmap.  Without this
+option, pppd will discard those characters as specified in RFC1662.
+This option should only be needed if the peer is buggy.
 .TP
 .B remotename \fIname
 Set the assumed name of the remote system for authentication purposes
