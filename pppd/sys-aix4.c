@@ -3,6 +3,7 @@
  * PPP interfaces on AIX systems which use the STREAMS ppp interface.
  *
  * Copyright (c) 1989 Carnegie Mellon University.
+ * Copyright (c) 1995 The Australian National University.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms are permitted
@@ -10,16 +11,17 @@
  * duplicated in all such forms and that any documentation,
  * advertising materials, and other materials related to such
  * distribution and use acknowledge that the software was developed
- * by Carnegie Mellon University.  The name of the
- * University may not be used to endorse or promote products derived
- * from this software without specific prior written permission.
+ * by Carnegie Mellon University and The Australian National University.
+ * The names of the Universities may not be used to endorse or promote
+ * products derived from this software without specific prior written
+ * permission.
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.8 1996/01/01 23:04:13 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.9 1996/04/04 04:04:51 paulus Exp $";
 #endif
 
 /*
@@ -73,6 +75,7 @@ static int	initfdflags = -1; /* Initial file descriptor flags for fd */
 static int sockfd;		/* socket for doing interface ioctls */
 
 static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t ifaddrs[2];	/* local and remote addresses */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
@@ -118,7 +121,8 @@ sys_cleanup()
 	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
 	}
     }
-
+    if (ifaddrs[0])
+	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway);
     if (proxy_arp_addr)
@@ -899,11 +903,16 @@ sifaddr(u, o, h, m)
         syslog(LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m");
         ret = 0;
     }
+
+    /* XXX is this necessary? */
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
         syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
         ret = 0;
     }
+
+    ifaddrs[0] = o;
+    ifaddrs[1] = h;
     return ret;
 }
 
@@ -918,6 +927,8 @@ cifaddr(u, o, h)
 {
     struct ortentry rt;
 
+    ifaddrs[0] = 0;
+    BZERO(&rt, sizeof(rt));
     SET_SA_FAMILY(rt.rt_dst, AF_INET);
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr = h;
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
@@ -940,6 +951,7 @@ sifdefaultroute(u, g)
 {
     struct ortentry rt;
 
+    BZERO(&rt, sizeof(rt));
     SET_SA_FAMILY(rt.rt_dst, AF_INET);
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
@@ -962,6 +974,7 @@ cifdefaultroute(u, g)
 {
     struct ortentry rt;
 
+    BZERO(&rt, sizeof(rt));
     SET_SA_FAMILY(rt.rt_dst, AF_INET);
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
