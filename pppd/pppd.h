@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.81 2003/03/30 08:26:56 paulus Exp $
+ * $Id: pppd.h,v 1.82 2003/04/07 00:01:46 paulus Exp $
  */
 
 /*
@@ -239,6 +239,7 @@ extern bool	devnam_fixed;	/* can no longer change devnam */
 extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
+extern int	error_count;	/* # of times error() has been called */
 extern char	ppp_devnam[MAXPATHLEN];
 extern char     remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
 extern int      ppp_session_number; /* Session number (eg PPPoE session) */
@@ -439,9 +440,9 @@ struct channel {
 	/* take the channel out of PPP `mode', restore loopback if demand */
 	void (*disestablish_ppp) __P((int));
 	/* set the transmit-side PPP parameters of the channel */
-	int (*send_config) __P((int, u_int32_t, int, int));
+	void (*send_config) __P((int, u_int32_t, int, int));
 	/* set the receive-side PPP parameters of the channel */
-	int (*recv_config) __P((int, u_int32_t, int, int));
+	void (*recv_config) __P((int, u_int32_t, int, int));
 	/* cleanup on error or normal exit */
 	void (*cleanup) __P((void));
 	/* close the device, called in children after fork */
@@ -449,14 +450,6 @@ struct channel {
 };
 
 extern struct channel *the_channel;
-
-#define ppp_send_config(unit, mtu, accm, pc, acc)			 \
-	(the_channel->send_config?					 \
-	 (*the_channel->send_config)((mtu), (accm), (pc), (acc)): 0)
-
-#define ppp_recv_config(unit, mtu, accm, pc, acc)			 \
-	(the_channel->recv_config?					 \
-	 (*the_channel->recv_config)((mtu), (accm), (pc), (acc)): 0)
 
 /*
  * Prototypes.
@@ -487,6 +480,8 @@ void new_phase __P((int));	/* signal start of new phase */
 void add_notifier __P((struct notifier **, notify_func, void *));
 void remove_notifier __P((struct notifier **, notify_func, void *));
 void notify __P((struct notifier *, int));
+int  ppp_send_config __P((int, int, u_int32_t, int, int));
+int  ppp_recv_config __P((int, int, u_int32_t, int, int));
 
 /* Procedures exported from tty.c. */
 void tty_init __P((void));
@@ -588,11 +583,11 @@ void add_fd __P((int));		/* Add fd to set to wait for */
 void remove_fd __P((int));	/* Remove fd from set to wait for */
 int  read_packet __P((u_char *)); /* Read PPP packet */
 int  get_loop_output __P((void)); /* Read pkts from loopback */
-int  tty_send_config __P((int, u_int32_t, int, int));
+void tty_send_config __P((int, u_int32_t, int, int));
 				/* Configure i/f transmit parameters */
 void tty_set_xaccm __P((ext_accm));
 				/* Set extended transmit ACCM */
-int  tty_recv_config __P((int, u_int32_t, int, int));
+void tty_recv_config __P((int, u_int32_t, int, int));
 				/* Configure i/f receive parameters */
 int  ccp_test __P((int, u_char *, int, int));
 				/* Test support for compression scheme */

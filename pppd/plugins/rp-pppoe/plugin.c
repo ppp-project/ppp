@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.8 2003/03/04 05:21:38 fcusack Exp $";
+"$Id: plugin.c,v 1.9 2003/04/07 00:01:46 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -180,7 +180,7 @@ PPPOEConnectDevice(void)
     return conn->sessionSocket;
 }
 
-static int
+static void
 PPPOESendConfig(int mtu,
 		u_int32_t asyncmap,
 		int pcomp,
@@ -196,30 +196,26 @@ PPPOESendConfig(int mtu,
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
 	error("Couldn't create IP socket: %m");
-	return -1;
+	return;
     }
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_mtu = mtu;
     if (ioctl(sock, SIOCSIFMTU, &ifr) < 0) {
-	error("ioctl(SIOCSIFMTU): %m");
-	return -1;
+	error("Couldn't set interface MTU to %d: %m", mtu);
+	return;
     }
     (void) close (sock);
-    return 0;
 }
 
 
-static int
+static void
 PPPOERecvConfig(int mru,
 		u_int32_t asyncmap,
 		int pcomp,
 		int accomp)
 {
-    if (mru > MAX_PPPOE_MTU) {
-	error("Couldn't increase MRU to %d", mru);
-	return -1;
-    }
-    return 0;
+    if (mru > MAX_PPPOE_MTU)
+	warn("Couldn't increase MRU to %d", mru);
 }
 
 /**********************************************************************

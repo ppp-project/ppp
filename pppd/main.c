@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.125 2003/03/30 08:26:56 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.126 2003/04/07 00:01:45 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -174,6 +174,8 @@ static struct timeval start_time;	/* Time when link was started. */
 struct pppd_stats link_stats;
 unsigned link_connect_time;
 int link_stats_valid;
+
+int error_count;
 
 /*
  * We maintain a list of child process pids and
@@ -1058,6 +1060,48 @@ get_input()
 	    warn("Unsupported protocol 0x%x received", protocol);
     }
     lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
+}
+
+/*
+ * ppp_send_config - configure the transmit-side characteristics of
+ * the ppp interface.  Returns -1, indicating an error, if the channel
+ * send_config procedure called error() (or incremented error_count
+ * itself), otherwise 0.
+ */
+int
+ppp_send_config(unit, mtu, accm, pcomp, accomp)
+    int unit, mtu;
+    u_int32_t accm;
+    int pcomp, accomp;
+{
+	int errs;
+
+	if (the_channel->send_config == NULL)
+		return 0;
+	errs = error_count;
+	(*the_channel->send_config)(mtu, accm, pcomp, accomp);
+	return (error_count != errs)? -1: 0;
+}
+
+/*
+ * ppp_recv_config - configure the receive-side characteristics of
+ * the ppp interface.  Returns -1, indicating an error, if the channel
+ * recv_config procedure called error() (or incremented error_count
+ * itself), otherwise 0.
+ */
+int
+ppp_recv_config(unit, mru, accm, pcomp, accomp)
+    int unit, mru;
+    u_int32_t accm;
+    int pcomp, accomp;
+{
+	int errs;
+
+	if (the_channel->recv_config == NULL)
+		return 0;
+	errs = error_count;
+	(*the_channel->recv_config)(mru, accm, pcomp, accomp);
+	return (error_count != errs)? -1: 0;
 }
 
 /*

@@ -183,7 +183,14 @@ static int master_fd = -1;
 #ifdef INET6
 static int sock6_fd = -1;
 #endif /* INET6 */
+
+/*
+ * For the old-style kernel driver, this is the same as ppp_fd.
+ * For the new-style driver, it is the fd of an instance of /dev/ppp
+ * which is attached to the ppp unit and is used for controlling it.
+ */
 int ppp_dev_fd = -1;		/* fd for /dev/ppp (new style driver) */
+
 static int chindex;		/* channel index (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
@@ -224,8 +231,7 @@ static int kernel_version;
 #define SIN_ADDR(x)	(((struct sockaddr_in *) (&(x)))->sin_addr.s_addr)
 
 /* Prototypes for procedures local to this file. */
-static int get_flags (int fd);
-static int set_flags (int fd, int flags);
+static int modify_flags(int fd, int clear_bits, int set_bits);
 static int translate_speed (int bps);
 static int baud_rate_of (int speed);
 static void close_route_table (void);
@@ -278,38 +284,26 @@ static int still_ppp(void)
 	return 0;
 }
 
-/********************************************************************
- *
- * Functions to read and set the flags value in the device driver
+/*
+ * modify_flags - set and clear flag bits controlling the kernel
+ * PPP driver.
  */
-
-static int get_flags (int fd)
+static int modify_flags(int fd, int clear_bits, int set_bits)
 {
-    int flags;
+	int flags;
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &flags) < 0) {
-	if ( ok_error (errno) )
-	    flags = 0;
-	else
-	    fatal("ioctl(PPPIOCGFLAGS): %m (line %d)", __LINE__);
-    }
+	if (ioctl(fd, PPPIOCGFLAGS, &flags) == -1)
+		goto err;
+	flags = (flags & ~clear_bits) | set_bits;
+	if (ioctl(fd, PPPIOCSFLAGS, &flags) == -1)
+		goto err;
 
-    SYSDEBUG ((LOG_DEBUG, "get flags = %x\n", flags));
-    return flags;
-}
+	return 0;
 
-/********************************************************************/
-
-static int set_flags (int fd, int flags)
-{
-    SYSDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
-
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0) {
-	if (! ok_error (errno) )
-	    error("Failed to set PPP kernel option flags: %m", flags);
+ err:
+	if (errno != EIO)
+		error("Failed to set PPP kernel option flags: %m");
 	return -1;
-    }
-    return 0;
 }
 
 /********************************************************************
@@ -367,7 +361,7 @@ void sys_cleanup(void)
 void
 sys_close(void)
 {
-    if (new_style_driver)
+    if (new_style_driver && ppp_dev_fd >= 0)
 	close(ppp_dev_fd);
     if (sock_fd >= 0)
 	close(sock_fd);
@@ -388,7 +382,7 @@ sys_close(void)
 
 static int set_kdebugflag (int requested_level)
 {
-    if (new_style_driver && ifunit < 0)
+    if (ppp_dev_fd < 0)
 	return 1;
     if (ioctl(ppp_dev_fd, PPPIOCSDEBUG, &requested_level) < 0) {
 	if ( ! ok_error (errno) )
@@ -446,8 +440,8 @@ int tty_establish_ppp (int tty_fd)
 		 | SC_LOG_FLUSH)
 
     if (ret_fd >= 0) {
-	set_flags(ppp_fd, ((get_flags(ppp_fd) & ~(SC_RCVB | SC_LOGB))
-			   | ((kdebugflag * SC_DEBUG) & SC_LOGB)));
+	modify_flags(ppp_fd, SC_RCVB | SC_LOGB,
+		     (kdebugflag * SC_DEBUG) & SC_LOGB);
     } else {
 	if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0 && !ok_error(errno))
 	    warn("Couldn't reset tty to normal line discipline: %m");
@@ -499,7 +493,7 @@ int generic_establish_ppp (int fd)
 	}
 
 	if (looped)
-	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) & ~SC_LOOP_TRAFFIC);
+	    modify_flags(ppp_dev_fd, SC_LOOP_TRAFFIC, 0);
 
 	if (!multilink) {
 	    add_fd(ppp_dev_fd);
@@ -535,13 +529,13 @@ int generic_establish_ppp (int fd)
 	}
     }
 
-    looped = 0;
-
     /*
      * Enable debug in the driver if requested.
      */
     if (!looped)
 	set_kdebugflag (kdebugflag);
+
+    looped = 0;
 
     SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
@@ -608,9 +602,9 @@ void generic_disestablish_ppp(int dev_fd)
 	close(ppp_fd);
 	ppp_fd = -1;
 	if (demand) {
-	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
+	    modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	    looped = 1;
-	} else if (ifunit >= 0) {
+	} else if (ppp_dev_fd >= 0) {
 	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
 	    ppp_dev_fd = -1;
@@ -619,6 +613,8 @@ void generic_disestablish_ppp(int dev_fd)
 	/* old-style driver */
 	if (demand)
 	    set_ppp_fd(slave_fd);
+	else
+	    ppp_dev_fd = -1;
     }
 }
 
@@ -660,20 +656,16 @@ static int make_ppp_unit()
  */
 void cfg_bundle(int mrru, int mtru, int rssn, int tssn)
 {
-	int flags;
-
 	if (!new_style_driver)
 		return;
 
 	/* set the mrru, mtu and flags */
 	if (ioctl(ppp_dev_fd, PPPIOCSMRRU, &mrru) < 0)
 		error("Couldn't set MRRU: %m");
-	flags = get_flags(ppp_dev_fd);
-	flags &= ~(SC_MP_SHORTSEQ | SC_MP_XSHORTSEQ);
-	flags |= (rssn? SC_MP_SHORTSEQ: 0) | (tssn? SC_MP_XSHORTSEQ: 0)
-		| (mrru? SC_MULTILINK: 0);
 
-	set_flags(ppp_dev_fd, flags);
+	modify_flags(ppp_dev_fd, SC_MP_SHORTSEQ|SC_MP_XSHORTSEQ|SC_MULTILINK,
+		     ((rssn? SC_MP_SHORTSEQ: 0) | (tssn? SC_MP_XSHORTSEQ: 0)
+		      | (mrru? SC_MULTILINK: 0)));
 
 	/* connect up the channel */
 	if (ioctl(ppp_fd, PPPIOCCONNECT, &ifunit) < 0)
@@ -724,7 +716,7 @@ int bundle_attach(int ifnum)
 	}
 	if (ioctl(ppp_fd, PPPIOCCONNECT, &ifnum) < 0)
 		fatal("Couldn't connect to interface unit %d: %m", ifnum);
-	set_flags(master_fd, get_flags(master_fd) | SC_MULTILINK);
+	modify_flags(master_fd, 0, SC_MULTILINK);
 	close(master_fd);
 
 	ifunit = ifnum;
@@ -1029,7 +1021,7 @@ void output (int unit, unsigned char *p, int len)
 	p += 2;
 	len -= 2;
 	proto = (p[0] << 8) + p[1];
-	if (ifunit >= 0 && !(proto >= 0xc000 || proto == PPP_CCPFRAG))
+	if (ppp_dev_fd >= 0 && !(proto >= 0xc000 || proto == PPP_CCPFRAG))
 	    fd = ppp_dev_fd;
     }
     if (write(fd, p, len) < 0) {
@@ -1104,7 +1096,7 @@ int read_packet (unsigned char *buf)
 	if (nr < 0 && errno == ENXIO)
 	    return 0;
     }
-    if (nr < 0 && new_style_driver && ifunit >= 0) {
+    if (nr < 0 && new_style_driver && ppp_dev_fd >= 0) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
@@ -1189,30 +1181,23 @@ netif_get_mtu(int unit)
  * the ppp interface.
  */
 
-int tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
+void tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 {
-    u_int x;
+	int x;
 
-/*
- * Set the asyncmap and other parameters for the ppp device
- */
-    if (!still_ppp())
-	return 0;
-    link_mtu = mtu;
-    SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (errno != EIO && errno != ENOTTY)
-	    error("Couldn't set transmit async character map: %m");
-	else if (debug)
-	    dbglog("PPPIOCSASYNCMAP: %m");
-	return -1;
-    }
+	if (!still_ppp())
+		return;
+	link_mtu = mtu;
+	if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
+		if (errno != EIO && errno != ENOTTY)
+			error("Couldn't set transmit async character map: %m");
+		++error_count;
+		return;
+	}
 
-    x = get_flags(ppp_fd);
-    x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
-    x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
-    x = sync_serial ? x | SC_SYNC : x & ~SC_SYNC;
-    return set_flags(ppp_fd, x);
+	x = (pcomp? SC_COMP_PROT: 0) | (accomp? SC_COMP_AC: 0)
+	    | (sync_serial? SC_SYNC: 0);
+	modify_flags(ppp_fd, SC_COMP_PROT|SC_COMP_AC|SC_SYNC, x);
 }
 
 /********************************************************************
@@ -1239,42 +1224,29 @@ void tty_set_xaccm (ext_accm accm)
  * the ppp interface.
  */
 
-int tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
+void tty_recv_config(int mru, u_int32_t asyncmap, int pcomp, int accomp)
 {
-    int ret = 0;
-
-    SYSDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
 /*
  * If we were called because the link has gone down then there is nothing
  * which may be done. Just return without incident.
  */
-    if (!still_ppp())
-	return 0;
+	if (!still_ppp())
+		return 0;
 /*
  * Set the receiver parameters
  */
-    if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
-	if (errno != EIO && errno != ENOTTY)
-	    error("Couldn't set channel receive MRU: %m");
-	else if (debug)
-	    dbglog("PPPIOCSMRU: %m");
-	ret = -1;
-    }
-    if (new_style_driver && ifunit >= 0
-	&& ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
-	error("Couldn't set MRU in generic PPP layer: %m");
-	ret = -1;
-    }
+	if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
+		if (errno != EIO && errno != ENOTTY)
+			error("Couldn't set channel receive MRU: %m");
+	}
+	if (new_style_driver && ppp_dev_fd >= 0
+	    && ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+		error("Couldn't set MRU in generic PPP layer: %m");
 
-    SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (errno != EIO && errno != ENOTTY)
-	    error("Couldn't set channel receive asyncmap: %m");
-	else if (debug)
-	    dbglog("PPPIOCSRASYNCMAP: %m");
-	ret = -1;
-    }
-    return ret;
+	if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+		if (errno != EIO && errno != ENOTTY)
+			error("Couldn't set channel receive asyncmap: %m");
+	}
 }
 
 /********************************************************************
@@ -1306,12 +1278,11 @@ ccp_test(int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 
 void ccp_flags_set (int unit, int isopen, int isup)
 {
-    if (still_ppp() && ifunit >= 0) {
-	int x = get_flags(ppp_dev_fd);
-	x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
-	x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
-	set_flags (ppp_dev_fd, x);
-    }
+	int x;
+
+	x = (isopen? SC_CCP_OPEN: 0) | (isup? SC_CCP_UP: 0);
+	if (still_ppp() && ppp_dev_fd >= 0)
+		modify_flags(ppp_dev_fd, SC_CCP_OPEN|SC_CCP_UP, x);
 }
 
 #ifdef PPP_FILTER
@@ -1388,9 +1359,13 @@ get_ppp_stats(u, stats)
 
 int ccp_fatal_error (int unit)
 {
-    int x = get_flags(ppp_dev_fd);
+	int flags;
 
-    return x & SC_DC_FERROR;
+	if (ioctl(ppp_dev_fd, PPPIOCGFLAGS, &flags) < 0) {
+		error("Couldn't read compression error flags: %m");
+		flags = 0;
+	}
+	return flags & SC_DC_FERROR;
 }
 
 /********************************************************************
@@ -2254,21 +2229,18 @@ void logwtmp (const char *line, const char *name, const char *host)
 
 int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 {
-    u_int x = get_flags(ppp_dev_fd);
+	u_int x;
 
-    if (vjcomp) {
-	if (ioctl (ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
-	    if (! ok_error (errno))
-		error("ioctl(PPPIOCSMAXCID): %m (line %d)", __LINE__);
-	    vjcomp = 0;
+	if (vjcomp) {
+		if (ioctl(ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0)
+			error("Couldn't set up TCP header compression: %m");
+		vjcomp = 0;
 	}
-    }
 
-    x = vjcomp  ? x | SC_COMP_TCP     : x &~ SC_COMP_TCP;
-    x = cidcomp ? x & ~SC_NO_TCP_CCID : x | SC_NO_TCP_CCID;
-    set_flags (ppp_dev_fd, x);
+	x = (vjcomp? SC_COMP_TCP: 0) | (cidcomp? 0: SC_NO_TCP_CCID);
+	modify_flags(ppp_dev_fd, SC_COMP_TCP|SC_NO_TCP_CCID, x);
 
-    return 1;
+	return 1;
 }
 
 /********************************************************************
@@ -2665,7 +2637,7 @@ open_ppp_loopback(void)
 	/* allocate ourselves a ppp unit */
 	if (make_ppp_unit() < 0)
 	    die(1);
-	set_flags(ppp_dev_fd, SC_LOOP_TRAFFIC);
+	modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	set_kdebugflag(kdebugflag);
 	ppp_fd = -1;
 	return ppp_dev_fd;

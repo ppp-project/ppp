@@ -90,7 +90,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.10 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.11 2003/04/07 00:01:46 paulus Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1539,38 +1539,33 @@ netif_set_mtu(unit, mtu)
  * tty_send_config - configure the transmit characteristics of
  * the ppp interface.
  */
-int
+void
 tty_send_config(mtu, asyncmap, pcomp, accomp)
     int mtu;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int cf[2];
-    int ret = 0;
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
-	if (hungup && errno == ENXIO)
-	    return -1;
+	if (hungup && errno == ENXIO) {
+	    ++error_count;
+	    return;
+	}
 	error("Couldn't set MTU: %m");
-	ret = -1;
     }
     if (fdmuxid >= 0) {
 	if (!sync_serial) {
-	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 		error("Couldn't set transmit ACCM: %m");
-		ret = -1;
-	    }
 	}
 	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
 	cf[1] = COMP_PROT | COMP_AC;
 	if (any_compressions() &&
-	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0)
 	    error("Couldn't set prot/AC compression: %m");
-	    ret = -1;
-	}
     }
-    return ret;
 }
 
 /*
@@ -1594,38 +1589,33 @@ tty_set_xaccm(accm)
  * tty_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
-int
+void
 tty_recv_config(mru, asyncmap, pcomp, accomp)
     int mru;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int cf[2];
-    int ret = 0;
 
     link_mru = mru;
     if (strioctl(pppfd, PPPIO_MRU, &mru, sizeof(mru), 0) < 0) {
-	if (hungup && errno == ENXIO)
-	    return -1;
+	if (hungup && errno == ENXIO) {
+	    ++error_count;
+	    return;
+	}
 	error("Couldn't set MRU: %m");
-	ret = -1;
     }
     if (fdmuxid >= 0) {
 	if (!sync_serial) {
-	    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+	    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 		error("Couldn't set receive ACCM: %m");
-		ret = -1;
-	    }
 	}
 	cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
 	cf[1] = DECOMP_PROT | DECOMP_AC;
 	if (any_compressions() &&
-	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0)
 	    error("Couldn't set prot/AC decompression: %m");
-	    ret = -1;
-	}
     }
-    return ret;
 }
 
 /*

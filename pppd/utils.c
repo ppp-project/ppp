@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.21 2003/03/30 08:26:56 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.22 2003/04/07 00:01:46 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -720,6 +720,7 @@ error __V((char *fmt, ...))
 
     logit(LOG_ERR, fmt, pvar);
     va_end(pvar);
+    ++error_count;
 }
 
 /*

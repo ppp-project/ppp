@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.11 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.12 2003/04/07 00:01:46 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -108,7 +108,7 @@ int  connect_tty __P((void));
 void disconnect_tty __P((void));
 void tty_close_fds __P((void));
 void cleanup_tty __P((void));
-int  tty_do_send_config __P((int, u_int32_t, int, int));
+void tty_do_send_config __P((int, u_int32_t, int, int));
 
 static int setdevname __P((char *, char **, int));
 static int setspeed __P((char *, char **, int));
@@ -772,14 +772,14 @@ void cleanup_tty()
  * tty_do_send_config - set transmit-side PPP configuration.
  * We set the extended transmit ACCM here as well.
  */
-int
+void
 tty_do_send_config(mtu, accm, pcomp, accomp)
     int mtu;
     u_int32_t accm;
     int pcomp, accomp;
 {
 	tty_set_xaccm(xmit_accm);
-	return tty_send_config(mtu, accm, pcomp, accomp);
+	tty_send_config(mtu, accm, pcomp, accomp);
 }
 
 /*

@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-sunos4.c,v 1.31 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: sys-sunos4.c,v 1.32 2003/04/07 00:01:46 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -810,26 +810,21 @@ tty_send_config(mtu, asyncmap, pcomp, accomp)
     int pcomp, accomp;
 {
     int cf[2];
-    int ret = 0;
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
-	if (hungup && errno == ENXIO)
-	    return -1;
+	if (hungup && errno == ENXIO) {
+	    ++error_count;
+	    return;
+	}
 	error("Couldn't set MTU: %m");
-	ret = -1;
     }
-    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 	error("Couldn't set transmit ACCM: %m");
-	ret = -1;
-    }
     cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
     cf[1] = COMP_PROT | COMP_AC;
-    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0)
 	error("Couldn't set prot/AC compression: %m");
-	ret = -1;
-    }
-    return ret;
 }
 
 /*
@@ -850,33 +845,28 @@ tty_set_xaccm(unit, accm)
  * tty_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
-int
+void
 tty_recv_config(mru, asyncmap, pcomp, accomp)
     int mru;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int cf[2];
-    int ret = 0;
 
     link_mru = mru;
     if (strioctl(pppfd, PPPIO_MRU, &mru, sizeof(mru), 0) < 0) {
-	if (hungup && errno == ENXIO)
-	    return -1;
+	if (hungup && errno == ENXIO) {
+	    ++error_count;
+	    return;
+	}
 	error("Couldn't set MRU: %m");
-	ret = -1;
     }
-    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 	error("Couldn't set receive ACCM: %m");
-	ret = -1;
-    }
     cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
     cf[1] = DECOMP_PROT | DECOMP_AC;
-    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0)
 	error("Couldn't set prot/AC decompression: %m");
-	ret = -1;
-    }
-    return ret;
 }
 
 /*
