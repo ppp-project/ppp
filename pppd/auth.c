@@ -33,12 +33,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.21 1996/01/01 22:53:04 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.22 1996/04/04 03:31:27 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <syslog.h>
 #include <pwd.h>
 #include <string.h>
@@ -61,7 +62,9 @@ static char rcsid[] = "$Id: auth.c,v 1.21 1996/01/01 22:53:04 paulus Exp $";
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "ipcp.h"
 #include "upap.h"
+#include "chap.h"
 #include "pathnames.h"
 
 #if defined(sun) && defined(sparc)
@@ -113,12 +116,11 @@ static void logout __P((void));
 static int  null_login __P((int));
 static int  get_upap_passwd __P((void));
 static int  have_upap_secret __P((void));
-static int  have_chap_secret __P((char *, char *));
-static int  scan_authfile __P((FILE *, char *, char *, char *,
-				  struct wordlist **, char *));
+static int  have_chap_secret __P((char *, char *, u_int32_t));
+static int  ip_addr_check __P((u_int32_t, struct wordlist *));
+static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
+			       struct wordlist **, char *));
 static void free_wordlist __P((struct wordlist *));
-
-extern char *crypt __P((char *, char *));
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
@@ -162,7 +164,7 @@ link_down(unit)
         if (protp->protocol != PPP_LCP && protp->lowerdown != NULL)
 	    (*protp->lowerdown)(unit);
         if (protp->protocol < 0xC000 && protp->close != NULL)
-	    (*protp->close)(unit);
+	    (*protp->close)(unit, "LCP down");
     }
     num_np_open = 0;
     num_np_up = 0;
@@ -239,6 +241,8 @@ network_phase(unit)
     struct protent *protp;
 
     phase = PHASE_NETWORK;
+    if (!demand)
+	set_filters(&pass_filter, &active_filter);
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         if (protp->protocol < 0xC000 && protp->enabled_flag
 	    && protp->open != NULL) {
@@ -406,6 +410,8 @@ auth_check_options()
 {
     lcp_options *wo = &lcp_wantoptions[0];
     lcp_options *ao = &lcp_allowoptions[0];
+    ipcp_options *ipwo = &ipcp_wantoptions[0];
+    u_int32_t remote;
 
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
@@ -427,14 +433,17 @@ auth_check_options()
 	ao->neg_upap = 0;
     if (wo->neg_upap && !uselogin && !have_upap_secret())
 	wo->neg_upap = 0;
-    if (ao->neg_chap && !have_chap_secret(our_name, remote_name))
+    if (ao->neg_chap && !have_chap_secret(our_name, remote_name, (u_int32_t)0))
 	ao->neg_chap = 0;
-    if (wo->neg_chap && !have_chap_secret(remote_name, our_name))
-	wo->neg_chap = 0;
+    if (wo->neg_chap) {
+	remote = ipwo->accept_remote? 0: ipwo->hisaddr;
+	if (!have_chap_secret(remote_name, our_name, remote))
+	    wo->neg_chap = 0;
+    }
 
     if (auth_required && !wo->neg_chap && !wo->neg_upap) {
 	fprintf(stderr, "\
-pppd: peer authentication required but no authentication files accessible\n");
+pppd: peer authentication required but no suitable secret(s) found\n");
 	exit(1);
     }
 
@@ -465,6 +474,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     char *filename;
     FILE *f;
     struct wordlist *addrs;
+    u_int32_t remote;
+    ipcp_options *ipwo = &ipcp_wantoptions[unit];
     char passwd[256], user[256];
     char secret[MAXWORDLEN];
     static int attempts = 0;
@@ -493,7 +504,9 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 
     } else {
 	check_access(f, filename);
-	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0
+	remote = ipwo->accept_remote? 0: ipwo->hisaddr;
+	if (scan_authfile(f, user, our_name, remote,
+			  secret, &addrs, filename) < 0
 	    || (secret[0] != 0 && (cryptpap || strcmp(passwd, secret) != 0)
 		&& strcmp(crypt(passwd, secret), secret) != 0)) {
 	    syslog(LOG_WARNING, "PAP authentication failure for %s", user);
@@ -605,7 +618,7 @@ login(user, passwd, msg, msglen)
     tty = devnam;
     if (strncmp(tty, "/dev/", 5) == 0)
 	tty += 5;
-    logwtmp(tty, user, "");		/* Add wtmp login entry */
+    logwtmp(tty, user, remote_name);		/* Add wtmp login entry */
     logged_in = TRUE;
 
     return (UPAP_AUTHACK);
@@ -653,7 +666,7 @@ null_login(unit)
 	return 0;
     check_access(f, filename);
 
-    i = scan_authfile(f, "", our_name, secret, &addrs, filename);
+    i = scan_authfile(f, "", our_name, (u_int32_t)0, secret, &addrs, filename);
     ret = i >= 0 && (i & NONWILD_CLIENT) != 0 && secret[0] == 0;
 
     if (ret) {
@@ -686,7 +699,8 @@ get_upap_passwd()
     if (f == NULL)
 	return 0;
     check_access(f, filename);
-    if (scan_authfile(f, user, remote_name, secret, NULL, filename) < 0)
+    if (scan_authfile(f, user, remote_name, (u_int32_t)0,
+		      secret, NULL, filename) < 0)
 	return 0;
     strncpy(passwd, secret, MAXSECRETLEN);
     passwd[MAXSECRETLEN-1] = 0;
@@ -704,13 +718,16 @@ have_upap_secret()
     FILE *f;
     int ret;
     char *filename;
+    ipcp_options *ipwo = &ipcp_wantoptions[0];
+    u_int32_t remote;
 
     filename = _PATH_UPAPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
 
-    ret = scan_authfile(f, NULL, our_name, NULL, NULL, filename);
+    remote = ipwo->accept_remote? 0: ipwo->hisaddr;
+    ret = scan_authfile(f, NULL, our_name, remote, NULL, NULL, filename);
     fclose(f);
     if (ret < 0)
 	return 0;
@@ -726,9 +743,10 @@ have_upap_secret()
  * know the identity yet.
  */
 static int
-have_chap_secret(client, server)
+have_chap_secret(client, server, remote)
     char *client;
     char *server;
+    u_int32_t remote;
 {
     FILE *f;
     int ret;
@@ -744,7 +762,7 @@ have_chap_secret(client, server)
     else if (server[0] == 0)
 	server = NULL;
 
-    ret = scan_authfile(f, client, server, NULL, NULL, filename);
+    ret = scan_authfile(f, client, server, remote, NULL, NULL, filename);
     fclose(f);
     if (ret < 0)
 	return 0;
@@ -784,7 +802,8 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
     }
     check_access(f, filename);
 
-    ret = scan_authfile(f, client, server, secbuf, &addrs, filename);
+    ret = scan_authfile(f, client, server, (u_int32_t)0,
+			secbuf, &addrs, filename);
     fclose(f);
     if (ret < 0)
 	return 0;
@@ -815,18 +834,25 @@ auth_ip_addr(unit, addr)
     int unit;
     u_int32_t addr;
 {
-    u_int32_t a, mask;
+    return ip_addr_check(addr, addresses[unit]);
+}
+
+static int
+ip_addr_check(addr, addrs)
+    u_int32_t addr;
+    struct wordlist *addrs;
+{
+    u_int32_t a, mask, ah;
     int accept;
     char *ptr_word, *ptr_mask;
     struct hostent *hp;
     struct netent *np;
-    struct wordlist *addrs;
 
     /* don't allow loopback or multicast address */
     if (bad_ip_adrs(addr))
 	return 0;
 
-    if ((addrs = addresses[unit]) == NULL)
+    if (addrs == NULL)
 	return 1;		/* no restriction */
 
     for (; addrs != NULL; addrs = addrs->next) {
@@ -867,6 +893,16 @@ auth_ip_addr(unit, addr)
 		a = htonl (*(u_int32_t *)np->n_net);
 	    else
 		a = inet_addr (ptr_word);
+	    if (ptr_mask == NULL) {
+		/* calculate appropriate mask for net */
+		ah = ntohl(a);
+		if (IN_CLASSA(ah))
+		    mask = IN_CLASSA_NET;
+		else if (IN_CLASSB(ah))
+		    mask = IN_CLASSB_NET;
+		else if (IN_CLASSC(ah))
+		    mask = IN_CLASSC_NET;
+	    }
 	}
 
 	if (ptr_mask != NULL)
@@ -877,7 +913,7 @@ auth_ip_addr(unit, addr)
 		    "unknown host %s in auth. address list",
 		    addrs->word);
 	else
-	    if (((addr ^ a) & mask) == 0)
+	    if (((addr ^ a) & htonl(mask)) == 0)
 		return accept;
     }
     return 0;			/* not in list => can't have it */
@@ -925,10 +961,11 @@ check_access(f, filename)
  * info) are placed in a wordlist and returned in *addrs.  
  */
 static int
-scan_authfile(f, client, server, secret, addrs, filename)
+scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
     FILE *f;
     char *client;
     char *server;
+    u_int32_t ipaddr;
     char *secret;
     struct wordlist **addrs;
     char *filename;
@@ -936,9 +973,10 @@ scan_authfile(f, client, server, secret, addrs, filename)
     int newline, xxx;
     int got_flag, best_flag;
     FILE *sf;
-    struct wordlist *ap, *addr_list, *addr_last;
+    struct wordlist *ap, *addr_list, *alist, *alast;
     char word[MAXWORDLEN];
     char atfile[MAXWORDLEN];
+    char lsecret[MAXWORDLEN];
 
     if (addrs != NULL)
 	*addrs = NULL;
@@ -1014,16 +1052,12 @@ scan_authfile(f, client, server, secret, addrs, filename)
 	    fclose(sf);
 	}
 	if (secret != NULL)
-	    strcpy(secret, word);
-		
-	best_flag = got_flag;
+	    strcpy(lsecret, word);
 
 	/*
 	 * Now read address authorization info and make a wordlist.
 	 */
-	if (addr_list)
-	    free_wordlist(addr_list);
-	addr_list = addr_last = NULL;
+	alist = alast = NULL;
 	for (;;) {
 	    if (!getword(f, word, &newline, filename) || newline)
 		break;
@@ -1033,12 +1067,31 @@ scan_authfile(f, client, server, secret, addrs, filename)
 		novm("authorized addresses");
 	    ap->next = NULL;
 	    strcpy(ap->word, word);
-	    if (addr_list == NULL)
-		addr_list = ap;
+	    if (alist == NULL)
+		alist = ap;
 	    else
-		addr_last->next = ap;
-	    addr_last = ap;
+		alast->next = ap;
+	    alast = ap;
 	}
+
+	/*
+	 * Check if the given IP address is allowed by the wordlist.
+	 */
+	if (ipaddr != 0 && !ip_addr_check(ipaddr, alist)) {
+	    free_wordlist(alist);
+	    continue;
+	}
+
+	/*
+	 * This is the best so far; remember it.
+	 */
+	best_flag = got_flag;
+	if (addr_list)
+	    free_wordlist(addr_list);
+	addr_list = alist;
+	if (secret != NULL)
+	    strcpy(secret, lsecret);
+
 	if (!newline)
 	    break;
     }
