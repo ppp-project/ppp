@@ -180,7 +180,7 @@ static void set_ppp_fd (int new_fd)
 static int still_ppp(void)
 {
 	if (new_style_driver)
-		return 1;
+		return !hungup && ppp_fd >= 0;
 	if (!hungup || ppp_fd == slave_fd)
 		return 1;
 	if (slave_fd >= 0) {
@@ -443,6 +443,8 @@ void disestablish_ppp(int tty_fd)
 	}
     }
     initfdflags = -1;
+    if (new_style_driver)
+	set_ppp_fd(-1);
 }
 
 /********************************************************************
@@ -849,11 +851,6 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
   
     SYSDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
 /*
- * Ensure that the link is still up.
- */
-    if (!still_ppp())
-	return;
-/*
  * Set the MTU and other parameters for the ppp device
  */
     memset (&ifr, '\0', sizeof (ifr));
@@ -863,6 +860,8 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     if (ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m(%d)", errno);
 	
+    if (!still_ppp())
+	return;
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	if (!ok_error(errno))
@@ -887,6 +886,8 @@ void ppp_set_xaccm (int unit, ext_accm accm)
     SYSDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
 		accm[0], accm[1], accm[2], accm[3]));
 
+    if (!still_ppp())
+	return;
     if (ioctl(ppp_fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY) {
 	if ( ! ok_error (errno))
 	    warn("ioctl(set extended ACCM): %m(%d)", errno);
@@ -1388,6 +1389,7 @@ static int get_ether_addr (u_int32_t ipaddr,
 {
     struct ifreq *ifr, *ifend;
     u_int32_t ina, mask;
+    char *aliasp;
     struct ifreq ifreq;
     struct ifconf ifc;
     struct ifreq ifs[MAX_IFS];
@@ -1442,6 +1444,12 @@ static int get_ether_addr (u_int32_t ipaddr,
         return 0;
 
     strlcpy(name, ifreq.ifr_name, namelen);
+
+    /* trim off the :1 in eth0:1 */
+    aliasp = strchr(name, ':');
+    if (aliasp != 0)
+	*aliasp = 0;
+
     info("found interface %s for proxy arp", name);
 /*
  * Now get the hardware address.
@@ -1727,9 +1735,12 @@ int ppp_available(void)
 
 void logwtmp (const char *line, const char *name, const char *host)
 {
-    int    wtmp;
     struct utmp ut, *utp;
     pid_t  mypid = getpid();
+#if __GLIBC__ < 2
+    int    wtmp;
+#endif
+
 /*
  * Update the signon database for users.
  * Christoph Lameter: Copied from poeigl-1.36 Jan 3, 1996
@@ -1777,16 +1788,21 @@ void logwtmp (const char *line, const char *name, const char *host)
 /*
  * Update the wtmp file.
  */
+#if __GLIBC__ >= 2
+    updwtmp(_PATH_WTMP, &ut);
+#else
     wtmp = open(_PATH_WTMP, O_APPEND|O_WRONLY);
     if (wtmp >= 0) {
 	flock(wtmp, LOCK_EX);
 
-    	/* we really should check for error on the write for a full disk! */
-	write (wtmp, (char *)&ut, sizeof(ut));
-	close (wtmp);
+	if (write (wtmp, (char *)&ut, sizeof(ut)) != sizeof(ut))
+	    warn("error writing %s: %m", _PATH_WTMP);
 
 	flock(wtmp, LOCK_UN);
+
+	close (wtmp);
     }
+#endif
 }
 
 
