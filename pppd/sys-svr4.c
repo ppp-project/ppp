@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.3 1995/06/23 01:54:11 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.4 1995/08/10 06:53:39 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -37,6 +37,7 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.3 1995/06/23 01:54:11 paulus Exp $";
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/ioccom.h>
 #include <sys/stream.h>
@@ -63,6 +64,7 @@ static int	ipmuxid = -1;
 
 static int	restore_term;
 static struct termios inittermios;
+static pid_t	tty_sid;	/* original session ID for terminal */
 
 static int	link_mtu, link_mru;
 
@@ -145,6 +147,9 @@ establish_ppp()
 {
     int i, ifd;
 
+    if (default_device)
+	tty_sid = getsid((pid_t)0);
+
     pppfd = open("/dev/ppp", O_RDWR | O_NONBLOCK, 0);
     if (pppfd < 0) {
 	syslog(LOG_ERR, "Can't open /dev/ppp: %m");
@@ -226,6 +231,16 @@ disestablish_ppp()
 		if (ioctl(fd, I_PUSH, tty_modules[i]) < 0)
 		    syslog(LOG_ERR, "Couldn't restore tty module %s: %m",
 			   tty_modules[i]);
+	}
+	if (hungup && default_device && tty_sid > 0) {
+	    /*
+	     * If we have received a hangup, we need to send a SIGHUP
+	     * to the terminal's controlling process.  The reason is
+	     * that the original stream head for the terminal hasn't
+	     * seen the M_HANGUP message (it went up through the ppp
+	     * driver to the stream head for our fd to /dev/ppp).
+	     */
+	    kill(tty_sid, SIGHUP);
 	}
     }
 }
@@ -1162,7 +1177,7 @@ gethostid()
 	syslog(LOG_ERR, "sysinfo: %m");
 	return 0;
     }
-    return strtol(buf, NULL, 16);
+    return (int) strtoul(buf, NULL, 16);
 }
 
 int
