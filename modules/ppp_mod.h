@@ -18,6 +18,7 @@
 #define ALLOC_NOSLEEP(n)	kmem_alloc((n), KMEM_NOSLEEP)
 #define FREE(p, n)		kmem_free((p), (n))
 #define NOTSUSER()		(suser()? 0: EPERM)
+#define bcanputnext(q, band)	canputnext((q))
 #endif /* SunOS 4 */
 
 #ifdef __osf__
