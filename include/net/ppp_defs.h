@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.12 1997/11/27 06:05:49 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.13 1998/03/25 04:03:14 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -94,11 +94,14 @@
 /*
  * A 32-bit unsigned integral type.
  */
-#if !defined(__BIT_TYPES_DEFINED__) && !defined(_BITYPES) && !defined(__FreeBSD__)
+
+#if !defined(__BIT_TYPES_DEFINED__) && !defined(_BITYPES) \
+ && !defined(__FreeBSD__) && (NS_TARGET < 40)
 #ifdef	UINT32_T
 typedef UINT32_T	u_int32_t;
 #else
 typedef unsigned int	u_int32_t;
+typedef unsigned short  u_int16_t;
 #endif
 #endif
 
