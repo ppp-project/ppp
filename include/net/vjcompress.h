@@ -1,7 +1,7 @@
 /*
  * Definitions for tcp compression routines.
  *
- * $Id: vjcompress.h,v 1.1 1994/09/16 06:57:09 paulus Exp $
+ * $Id: vjcompress.h,v 1.2 1994/09/19 04:20:28 paulus Exp $
  *
  * Copyright (c) 1989 Regents of the University of California.
  * All rights reserved.
@@ -121,14 +121,7 @@ struct vjcompress {
     u_char last_xmit;		/* last sent conn. id */
     u_short flags;
 #ifndef VJ_NO_STATS
-    int vjs_packets;		/* outbound packets */
-    int vjs_compressed;		/* outbound compressed packets */
-    int vjs_searches;		/* searches for connection state */
-    int vjs_misses;		/* times couldn't find conn. state */
-    int vjs_uncompressedin;	/* inbound uncompressed packets */
-    int vjs_compressedin;	/* inbound compressed packets */
-    int vjs_errorin;		/* inbound unknown type packets */
-    int vjs_tossed;		/* inbound packets tossed because of error */
+    struct vjstat stats;
 #endif
     struct cstate tstate[MAX_STATES];	/* xmit connection states */
     struct cstate rstate[MAX_STATES];	/* receive connection states */
