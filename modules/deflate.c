@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.5 1997/04/30 05:43:39 paulus Exp $
+ * $Id: deflate.c,v 1.6 1997/11/27 06:05:17 paulus Exp $
  */
 
 #ifdef AIX4
@@ -70,7 +70,7 @@ struct deflate_state {
 
 static void	*z_alloc __P((void *, u_int items, u_int size));
 static void	*z_alloc_init __P((void *, u_int items, u_int size));
-static void	z_free __P((void *, void *ptr, u_int nb));
+static void	z_free __P((void *, void *ptr));
 static void	*z_comp_alloc __P((u_char *options, int opt_len));
 static void	*z_decomp_alloc __P((u_char *options, int opt_len));
 static void	z_comp_free __P((void *state));
@@ -113,16 +113,29 @@ struct compressor ppp_deflate = {
 /*
  * Space allocation and freeing routines for use by zlib routines.
  */
+struct zchunk {
+    u_int	size;
+    u_int	guard;
+};
+
+#define GUARD_MAGIC	0x77a6011a
+
 static void *
 z_alloc_init(notused, items, size)
     void *notused;
     u_int items, size;
 {
+    struct zchunk *z;
+
+    size = items * size + sizeof(struct zchunk);
 #ifdef __osf__
-    return ALLOC_SLEEP(items * size);
+    z = (struct zchunk *) ALLOC_SLEEP(size);
 #else
-    return ALLOC_NOSLEEP(items * size);
+    z = (struct zchunk *) ALLOC_NOSLEEP(size);
 #endif
+    z->size = size;
+    z->guard = GUARD_MAGIC;
+    return (void *) (z + 1);
 }
 
 static void *
@@ -130,16 +143,28 @@ z_alloc(notused, items, size)
     void *notused;
     u_int items, size;
 {
-    return ALLOC_NOSLEEP(items * size);
+    struct zchunk *z;
+
+    size = items * size + sizeof(struct zchunk);
+    z = (struct zchunk *) ALLOC_NOSLEEP(size);
+    z->size = size;
+    z->guard = GUARD_MAGIC;
+    return (void *) (z + 1);
 }
 
 static void
-z_free(notused, ptr, nbytes)
+z_free(notused, ptr)
     void *notused;
     void *ptr;
-    u_int nbytes;
 {
-    FREE(ptr, nbytes);
+    struct zchunk *z = ((struct zchunk *) ptr) - 1;
+
+    if (z->guard != GUARD_MAGIC) {
+	printf("ppp: z_free of corrupted chunk at %x (%x, %x)\n",
+	       z, z->size, z->guard);
+	return;
+    }
+    FREE(z, z->size);
 }
 
 /*
@@ -173,15 +198,15 @@ z_comp_alloc(options, opt_len)
 	return NULL;
 
     state->strm.next_in = NULL;
-    state->strm.zalloc = (alloc_func) z_alloc;
-    state->strm.zalloc_init = (alloc_func) z_alloc_init;
+    state->strm.zalloc = (alloc_func) z_alloc_init;
     state->strm.zfree = (free_func) z_free;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
-		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
+		     -w_size, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
 	FREE(state, sizeof(*state));
 	return NULL;
     }
 
+    state->strm.zalloc = (alloc_func) z_alloc;
     state->w_size = w_size;
     bzero(&state->stats, sizeof(state->stats));
     return (void *) state;
@@ -340,11 +365,8 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 
     /*
      * See if we managed to reduce the size of the packet.
-     * If the compressor just gave us a single zero byte, it means
-     * the packet was incompressible.
      */
-    if (olen < orig_len && m != NULL
-	&& !(olen == PPP_HDRLEN + 3 && *wptr == 0)) {
+    if (olen < orig_len && m != NULL) {
 	state->stats.comp_bytes += olen;
 	state->stats.comp_packets++;
     } else {
@@ -410,14 +432,14 @@ z_decomp_alloc(options, opt_len)
 	return NULL;
 
     state->strm.next_out = NULL;
-    state->strm.zalloc = (alloc_func) z_alloc;
-    state->strm.zalloc_init = (alloc_func) z_alloc_init;
+    state->strm.zalloc = (alloc_func) z_alloc_init;
     state->strm.zfree = (free_func) z_free;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	FREE(state, sizeof(*state));
 	return NULL;
     }
 
+    state->strm.zalloc = (alloc_func) z_alloc;
     state->w_size = w_size;
     bzero(&state->stats, sizeof(state->stats));
     return (void *) state;
