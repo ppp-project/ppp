@@ -578,7 +578,7 @@ static int make_ppp_unit()
 	ifunit = req_unit;
 	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
 	if (x < 0 && req_unit >= 0 && errno == EEXIST) {
-		warn("Couldn't allocate PPP unit %d as it is already in use");
+		warn("Couldn't allocate PPP unit %d as it is already in use", req_unit);
 		ifunit = -1;
 		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
 	}
