@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.65 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.66 2003/03/04 05:13:59 fcusack Exp $"
 
 /*
  * TODO:
@@ -414,7 +414,7 @@ lcp_close(unit, reason)
 	lcp_finished(f);
 
     } else
-	fsm_close(&lcp_fsm[unit], reason);
+	fsm_close(f, reason);
 }
 
 
