@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.14 2004/01/17 05:47:55 carlsonj Exp $"
+#define RCSID	"$Id: tty.c,v 1.15 2004/10/24 23:53:05 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -300,7 +300,7 @@ setdevname(cp, argv, doit)
 	if (*cp == 0)
 		return 0;
 
-	if (strncmp("/dev/", cp, 5) != 0) {
+	if (*cp != '/') {
 		strlcpy(dev, "/dev/", sizeof(dev));
 		strlcat(dev, cp, sizeof(dev));
 		cp = dev;
