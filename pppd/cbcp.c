@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: cbcp.c,v 1.14 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: cbcp.c,v 1.15 2003/01/17 07:23:35 fcusack Exp $"
 
 #include <stdio.h>
 #include <string.h>
@@ -394,9 +394,8 @@ cbcp_resp(us)
     if (cb_type & ( 1 << CB_CONF_NO ) ) {
         dbglog("cbcp_resp CONF_NO");
 	PUTCHAR(CB_CONF_NO, bufp);
-	len = 3;
+	len = 2;
 	PUTCHAR(len , bufp);
-	PUTCHAR(0, bufp);
 	cbcp_send(us, CBCP_RESP, buf, len);
 	start_networks(us->us_unit);
 	return;
