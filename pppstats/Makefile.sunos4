@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.sun,v 1.5 1995/04/28 06:16:19 paulus Exp $
+# $Id: Makefile.sunos4,v 1.1 1995/12/18 03:54:00 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
