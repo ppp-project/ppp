@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.8 1996/04/04 04:06:29 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.9 1996/05/26 23:58:46 paulus Exp $";
 #endif
 
 /*
@@ -90,11 +90,6 @@ static int get_ether_addr __P((u_int32_t, struct sockaddr *));
 void
 sys_init()
 {
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         syslog(LOG_ERR, "Couldn't create IP socket: %m");
@@ -126,20 +121,6 @@ sys_cleanup()
 	cifdefaultroute(0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
-}
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
 }
 
 /*
@@ -930,7 +911,6 @@ sifup(u)
     int u;
 {
     struct ifreq ifr;
-    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, (int)SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -943,14 +923,6 @@ sifup(u)
 	return 0;
     }
     if_is_up = 1;
-    npi.protocol = PPP_IP;
-    npi.mode = NPMODE_PASS;
-    if (ioctl(ttyfd, (int)SIOCSETNPMODE, &npi) < 0) {
-	if (errno != ENOTTY) {
-	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
-	    return 0;
-	}
-    }
     return 1;
 }
 
@@ -968,12 +940,7 @@ sifdown(u)
     rv = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_ERROR;
-    if (ioctl(ttyfd, (int)SIOCSETNPMODE, (caddr_t) &npi) < 0) {
-	if (errno != ENOTTY) {
-	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
-	    rv = 0;
-	}
-    }
+    ioctl(ttyfd, (int)SIOCSETNPMODE, (caddr_t) &npi);	/* ignore errors */
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, (int)SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {

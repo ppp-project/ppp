@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.16 1996/04/04 04:04:19 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.17 1996/05/26 23:58:03 paulus Exp $";
 #endif
 
 /*
@@ -88,8 +88,6 @@ static int get_ether_addr __P((u_int32_t, struct sockaddr *));
 void
 sys_init()
 {
-    openlog("pppd", LOG_PID);
-
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
@@ -134,7 +132,6 @@ sys_close()
 	close(loop_slave);
 	close(loop_master);
     }
-    closelog();
 }
 
 /*
@@ -148,15 +145,6 @@ sys_check_options()
 		"Sorry - demand-dialling is not supported under Ultrix\n");
 	exit(1);
     }
-}
-
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
 }
 
 
@@ -874,7 +862,6 @@ sifup(u)
     int u;
 {
     struct ifreq ifr;
-    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -887,12 +874,6 @@ sifup(u)
 	return 0;
     }
     if_is_up = 1;
-    npi.protocol = PPP_IP;
-    npi.mode = NPMODE_PASS;
-    if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
-	syslog(LOG_ERR, "ioctl(set IP mode to PASS): %m");
-	return 0;
-    }
     return 1;
 }
 

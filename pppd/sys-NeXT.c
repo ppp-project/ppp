@@ -22,7 +22,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.5 1996/04/04 04:04:17 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.6 1996/05/26 23:59:36 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -100,11 +100,6 @@ static int ether_by_host __P((char *, struct ether_addr *));
 void
 sys_init()
 {
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
@@ -149,7 +144,6 @@ sys_close()
 	close(loop_slave);
 	close(loop_master);
     }
-    closelog();
 }
 
 /*
@@ -160,20 +154,6 @@ sys_check_options()
 {
 }
 
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
 
 /*
  * ppp_available - check whether the system has any ppp interfaces
@@ -1015,7 +995,6 @@ sifup(u)
     int u;
 {
     struct ifreq ifr;
-    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -1028,12 +1007,6 @@ sifup(u)
 	return 0;
     }
     if_is_up = 1;
-    npi.protocol = PPP_IP;
-    npi.mode = NPMODE_PASS;
-    if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
-	syslog(LOG_ERR, "ioctl(set IP mode to PASS): %m");
-	return 0;
-    }
     return 1;
 }
 

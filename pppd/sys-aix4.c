@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.9 1996/04/04 04:04:51 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.10 1996/05/26 23:59:16 paulus Exp $";
 #endif
 
 /*
@@ -91,11 +91,6 @@ static int get_ether_addr __P((u_int32_t, struct sockaddr *));
 void
 sys_init()
 {
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
@@ -129,19 +124,6 @@ sys_cleanup()
 	cifproxyarp(0, proxy_arp_addr);
 }
 
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
 
 /*
  * daemon - Detach us from the terminal session.
@@ -800,7 +782,6 @@ sifup(u)
     int u;
 {
     struct ifreq ifr;
-    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -812,16 +793,28 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
-    if_is_up = 1;
-    npi.protocol = PPP_IP;
-    npi.mode = NPMODE_PASS;
-    if (ioctl(ttyfd, SIOCSETNPMODE, &npi) < 0) {
-        if (errno != ENOTTY) {
-            syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
-            return 0;
-        }
-    }
 
+    if_is_up = 1;
+    return 1;
+}
+
+/*
+ * sifnpmode - Set the mode for handling packets for a given NP.
+ */
+int
+sifnpmode(u, proto, mode)
+    int u;
+    int proto;
+    enum NPmode mode;
+{
+    struct npioctl npi;
+
+    npi.protocol = proto;
+    npi.mode = mode;
+    if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
+	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
+	return 0;
+    }
     return 1;
 }
 
@@ -839,12 +832,8 @@ sifdown(u)
     rv = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_ERROR;
-    if (ioctl(ttyfd, SIOCSETNPMODE, &npi) < 0) {
-        if (errno != ENOTTY) {
-            syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
-            rv = 0;
-        }
-    }
+    ioctl(ttyfd, SIOCSETNPMODE, &npi);
+    /* ignore errors, because ttyfd might have been closed by now. */
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
