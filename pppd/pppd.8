@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.12 1995/06/12 12:02:22 paulus Exp $
+.\" $Id: pppd.8,v 1.13 1995/08/11 02:35:43 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -261,6 +261,11 @@ Append the domain name <d> to the local host name for authentication
 purposes.  For example, if gethostname() returns the name porsche, but the
 fully qualified domain name is porsche.Quotron.COM, you would use the
 domain option to set the domain name to Quotron.COM.
+.TP
+.B ipparam \fIstring
+Provides an extra parameter to the ip-up and ip-down scripts.  If this
+option is given, the \fIstring\fR supplied is given as the 6th
+parameter to those scripts.
 .TP
 .B modem
 Use the modem control lines.  This option is the default.  With this
