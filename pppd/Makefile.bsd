@@ -1,0 +1,17 @@
+#	$Id: Makefile.bsd,v 1.1 1993/11/11 03:54:25 paulus Exp $
+
+COPTS?= -g
+CFLAGS+= -DDEBUGALL
+
+PROG=	pppd
+SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+	auth.c options.c sys-bsd.c
+MAN8=	pppd.0
+SUBDIR=	pppstats chat
+BINMODE=4555
+BINOWN=	root
+
+LDADD=	-lcrypt -lutil
+DPADD=	${LIBCRYPT} ${LIBUTIL}
+
+.include <bsd.prog.mk>
