@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.70 2001/04/27 23:13:06 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.71 2001/11/09 10:33:42 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -741,6 +741,7 @@ np_down(unit, proto)
 {
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
+	UNTIMEOUT(connect_time_expired, NULL);
 	new_phase(PHASE_NETWORK);
     }
 }
