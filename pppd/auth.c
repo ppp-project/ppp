@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.99 2004/11/04 10:02:26 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.100 2004/11/06 05:39:23 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1104,7 +1104,7 @@ auth_check_options()
     if (auth_required) {
 	allow_any_ip = 0;
 	if (!wo->neg_chap && !wo->neg_upap && !wo->neg_eap) {
-	    wo->neg_chap = 1;
+	    wo->neg_chap = chap_mdtype_all != MDTYPE_NONE;
 	    wo->chap_mdtype = chap_mdtype_all;
 	    wo->neg_upap = 1;
 	    wo->neg_eap = 1;
