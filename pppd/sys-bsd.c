@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.6 1994/05/24 11:27:56 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.7 1994/05/30 06:10:07 paulus Exp $";
 #endif
 
 /*
@@ -39,11 +39,16 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.6 1994/05/24 11:27:56 paulus Exp $";
 #include <net/if_dl.h>
 #include <netinet/in.h>
 
+#if RTM_VERSION >= 3
+#include <netinet/if_ether.h>
+#endif
+
 #include "pppd.h"
 #include "ppp.h"
 
 static int initdisc = -1;		/* Initial TTY discipline */
 extern int kdebugflag;
+static int rtm_seq;
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
@@ -408,6 +413,7 @@ cifaddr(u, o, h)
     return 1;
 }
 
+
 /*
  * sifdefaultroute - assign a default route through the address given.
  */
@@ -416,17 +422,7 @@ sifdefaultroute(u, g)
     int u;
     u_long g;
 {
-    struct ortentry rt;
-
-    SET_SA_FAMILY(rt.rt_dst, AF_INET);
-    SET_SA_FAMILY(rt.rt_gateway, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
-    rt.rt_flags = RTF_GATEWAY;
-    if (ioctl(s, SIOCADDRT, &rt) < 0) {
-	syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
-	return 0;
-    }
-    return 1;
+    return dodefaultroute(g, 's');
 }
 
 /*
@@ -437,15 +433,149 @@ cifdefaultroute(u, g)
     int u;
     u_long g;
 {
-    struct ortentry rt;
-
-    SET_SA_FAMILY(rt.rt_dst, AF_INET);
-    SET_SA_FAMILY(rt.rt_gateway, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
-    rt.rt_flags = RTF_GATEWAY;
-    if (ioctl(s, SIOCDELRT, &rt) < 0)
-	syslog(LOG_WARNING, "default route ioctl(SIOCDELRT): %m");
+    return dodefaultroute(g, 'c');
 }
+
+/*
+ * dodefaultroute - talk to a routing socket to add/delete a default route.
+ */
+int
+dodefaultroute(g, cmd)
+    u_long g;
+    int cmd;
+{
+    int routes;
+    struct {
+	struct rt_msghdr	hdr;
+	struct sockaddr_in	dst;
+	struct sockaddr_in	gway;
+	struct sockaddr_in	mask;
+    } rtmsg;
+
+    if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
+	syslog(LOG_ERR, "%cifdefaultroute: opening routing socket: %m", cmd);
+	return 0;
+    }
+
+    memset(&rtmsg, 0, sizeof(rtmsg));
+    rtmsg.hdr.rtm_type = cmd == 's'? RTM_ADD: RTM_DELETE;
+    rtmsg.hdr.rtm_flags = RTF_UP | RTF_GATEWAY;
+    rtmsg.hdr.rtm_version = RTM_VERSION;
+    rtmsg.hdr.rtm_seq = ++rtm_seq;
+    rtmsg.hdr.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
+    rtmsg.dst.sin_len = sizeof(rtmsg.dst);
+    rtmsg.dst.sin_family = AF_INET;
+    rtmsg.gway.sin_len = sizeof(rtmsg.gway);
+    rtmsg.gway.sin_family = AF_INET;
+    rtmsg.gway.sin_addr.s_addr = g;
+    rtmsg.mask.sin_len = sizeof(rtmsg.dst);
+    rtmsg.mask.sin_family = AF_INET;
+
+    rtmsg.hdr.rtm_msglen = sizeof(rtmsg);
+    if (write(routes, &rtmsg, sizeof(rtmsg)) < 0) {
+	syslog(LOG_ERR, "%s default route: %m", cmd=='s'? "add": "delete");
+	close(routes);
+	return 0;
+    }
+
+    close(routes);
+    return 1;
+}
+
+#if RTM_VERSION >= 3
+
+/*
+ * sifproxyarp - Make a proxy ARP entry for the peer.
+ */
+static struct {
+    struct rt_msghdr		hdr;
+    struct sockaddr_inarp	dst;
+    struct sockaddr_dl		hwa;
+    char			extra[128];
+} arpmsg;
+
+static int arpmsg_valid;
+
+int
+sifproxyarp(unit, hisaddr)
+    int unit;
+    u_long hisaddr;
+{
+    int routes;
+    int l;
+
+    /*
+     * Get the hardware address of an interface on the same subnet
+     * as our local address.
+     */
+    memset(&arpmsg, 0, sizeof(arpmsg));
+    if (!get_ether_addr(hisaddr, &arpmsg.hwa)) {
+	syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
+	return 0;
+    }
+
+    if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
+	syslog(LOG_ERR, "sifproxyarp: opening routing socket: %m");
+	return 0;
+    }
+
+    arpmsg.hdr.rtm_type = RTM_ADD;
+    arpmsg.hdr.rtm_flags = RTF_ANNOUNCE | RTF_HOST | RTF_STATIC;
+    arpmsg.hdr.rtm_version = RTM_VERSION;
+    arpmsg.hdr.rtm_seq = ++rtm_seq;
+    arpmsg.hdr.rtm_addrs = RTA_DST | RTA_GATEWAY;
+    arpmsg.hdr.rtm_inits = RTV_EXPIRE;
+    arpmsg.dst.sin_len = sizeof(struct sockaddr_inarp);
+    arpmsg.dst.sin_family = AF_INET;
+    arpmsg.dst.sin_addr.s_addr = hisaddr;
+    arpmsg.dst.sin_other = SIN_PROXY;
+
+    arpmsg.hdr.rtm_msglen = (char *) &arpmsg.hwa - (char *) &arpmsg
+	+ arpmsg.hwa.sdl_len;
+    if (write(routes, &arpmsg, arpmsg.hdr.rtm_msglen) < 0) {
+	syslog(LOG_ERR, "add proxy arp entry: %m");
+	close(routes);
+	return 0;
+    }
+
+    close(routes);
+    arpmsg_valid = 1;
+    return 1;
+}
+
+/*
+ * cifproxyarp - Delete the proxy ARP entry for the peer.
+ */
+int
+cifproxyarp(unit, hisaddr)
+    int unit;
+    u_long hisaddr;
+{
+    int routes;
+
+    if (!arpmsg_valid)
+	return 0;
+    arpmsg_valid = 0;
+
+    arpmsg.hdr.rtm_type = RTM_DELETE;
+    arpmsg.hdr.rtm_seq = ++rtm_seq;
+
+    if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
+	syslog(LOG_ERR, "sifproxyarp: opening routing socket: %m");
+	return 0;
+    }
+
+    if (write(routes, &arpmsg, arpmsg.hdr.rtm_msglen) < 0) {
+	syslog(LOG_ERR, "delete proxy arp entry: %m");
+	close(routes);
+	return 0;
+    }
+
+    close(routes);
+    return 1;
+}
+
+#else	/* RTM_VERSION */
 
 /*
  * sifproxyarp - Make a proxy ARP entry for the peer.
@@ -456,6 +586,10 @@ sifproxyarp(unit, hisaddr)
     u_long hisaddr;
 {
     struct arpreq arpreq;
+    struct {
+	struct sockaddr_dl	sdl;
+	char			space[128];
+    } dls;
 
     BZERO(&arpreq, sizeof(arpreq));
 
@@ -463,11 +597,14 @@ sifproxyarp(unit, hisaddr)
      * Get the hardware address of an interface on the same subnet
      * as our local address.
      */
-    if (!get_ether_addr(hisaddr, &arpreq.arp_ha)) {
+    if (!get_ether_addr(hisaddr, &dls.sdl)) {
 	syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
 	return 0;
     }
 
+    arpreq.arp_ha.sa_len = sizeof(struct sockaddr);
+    arpreq.arp_ha.sa_family = AF_UNSPEC;
+    BCOPY(LLADDR(&dls.sdl), arpreq.arp_ha.sa_data, dls.sdl.sdl_alen);
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
@@ -498,6 +635,8 @@ cifproxyarp(unit, hisaddr)
     }
     return 1;
 }
+#endif	/* RTM_VERSION */
+
 
 /*
  * get_ether_addr - get the hardware address of an interface on the
@@ -508,7 +647,7 @@ cifproxyarp(unit, hisaddr)
 int
 get_ether_addr(ipaddr, hwaddr)
     u_long ipaddr;
-    struct sockaddr *hwaddr;
+    struct sockaddr_dl *hwaddr;
 {
     struct ifreq *ifr, *ifend, *ifp;
     u_long ina, mask;
@@ -572,10 +711,8 @@ get_ether_addr(ipaddr, hwaddr)
 	    /*
 	     * Found the link-level address - copy it out
 	     */
-	    dla = (struct sockaddr_dl *)&ifr->ifr_addr;
-	    hwaddr->sa_len = sizeof(struct sockaddr);
-	    hwaddr->sa_family = AF_UNSPEC;
-	    BCOPY(LLADDR(dla), hwaddr->sa_data, dla->sdl_alen);
+	    dla = (struct sockaddr_dl *) &ifr->ifr_addr;
+	    BCOPY(dla, hwaddr, dla->sdl_len);
 	    return 1;
 	}
 	ifr = (struct ifreq *) ((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len);
