@@ -48,7 +48,7 @@
  		}
  	}
  
-@@ -1515,7 +1534,7 @@
+@@ -1515,11 +1534,11 @@
  	int len;
  
  	if (proto == PPP_COMP) {
@@ -57,3 +57,7 @@
  		if (ns == 0) {
  			printk(KERN_ERR "ppp_decompress_frame: no memory\n");
  			goto err;
+ 		}
+ 		/* the decompressor still expects the A/C bytes in the hdr */
+ 		len = ppp->rcomp->decompress(ppp->rc_state, skb->data - 2,
+ 				skb->len + 2, ns->data, ppp->mru + 128 + PPP_HDRLEN);
