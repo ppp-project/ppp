@@ -263,11 +263,6 @@ void sys_init(void)
 {
     int flags;
 
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
     if (new_style_driver) {
 	ppp_dev_fd = open("/dev/ppp", O_RDWR);
 	if (ppp_dev_fd < 0)

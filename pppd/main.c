@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.103 2001/03/08 05:11:14 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.104 2001/03/09 00:55:14 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -304,11 +304,8 @@ main(argc, argv)
     if (the_channel->process_extra_options)
 	(*the_channel->process_extra_options)();
 
-    if (dump_options || dryrun) {
-	init_pr_log(NULL, LOG_INFO);
-	print_options(pr_log, NULL);
-	end_pr_log();
-    }
+    if (debug)
+	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     /*
      * Check that we are running as root.
@@ -340,15 +337,19 @@ main(argc, argv)
     if (the_channel->check_options)
 	(*the_channel->check_options)();
 
+
+    if (dump_options || dryrun) {
+	init_pr_log(NULL, LOG_INFO);
+	print_options(pr_log, NULL);
+	end_pr_log();
+	if (dryrun)
+	    die(0);
+    }
+
     /*
      * Initialize system-dependent stuff.
      */
     sys_init();
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
-    if (dryrun)
-	die(0);
 
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
