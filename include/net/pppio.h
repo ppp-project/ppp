@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.2 1995/05/29 06:46:13 paulus Exp $
+ * $Id: pppio.h,v 1.3 1995/06/23 01:52:36 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -43,6 +43,7 @@
 #define PPPIO_ATTACH	_PPPIO(141)	/* attach to a ppa (without putmsg) */
 #define PPPIO_LASTMOD	_PPPIO(142)	/* mark last ppp module */
 #define PPPIO_GCLEAN	_PPPIO(143)	/* get 8-bit-clean flags */
+#define PPPIO_DEBUG	_PPPIO(144)	/* request debug information */
 
 /*
  * Values for PPPIO_CFLAGS
@@ -81,3 +82,9 @@
 #define PPPCTL_MTU	0xe2		/* set MTU [down] */
 #define PPPCTL_MRU	0xe3		/* set MRU [down] */
 #define PPPCTL_UNIT	0xe4		/* note PPP unit number [down] */
+
+/*
+ * Values for the integer argument to PPPIO_DEBUG.
+ */
+#define PPPDBG_DUMP	0x10000		/* print out debug info now */
+#define PPPDBG_DRIVER	0		/* identifies ppp driver as target */
