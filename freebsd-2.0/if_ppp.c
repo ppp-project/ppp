@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.1 1994/12/15 22:28:09 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.2 1995/04/28 06:19:34 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -112,6 +112,11 @@
 #include <net/if_ppp.h>
 #include <net/if_pppvar.h>
 #include <machine/cpu.h>
+
+#ifndef NETISR_PPP
+/* This definition should be moved to net/netisr.h */
+#define NETISR_PPP	26	/* PPP software interrupt */
+#endif
 
 #ifdef PPP_COMPRESS
 #define PACKETPTR	struct mbuf *
