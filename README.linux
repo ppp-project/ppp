@@ -95,31 +95,42 @@ This package supports the new driver, although it doesn't include the
 source for the new driver.
 
 The new driver is divided into two files: ppp_generic.c and
-ppp_async.c.  The old ppp.c is still present in the kernel sources but
-is not used.  If you compile PPP as a module, you will get two
+ppp_async.c.  If you compile PPP as a module, you will get two
 separate modules, called ppp_generic and ppp_async.
 Another module ppp_synctty is used for synchronous tty devices
 such as high-speed WAN adapters for leased T1/E1 lines.
 
 To talk to the new driver, pppd needs to be able to open /dev/ppp,
-character device (108,0).  If the special file node /dev/ppp is not
-present, pppd will create it.  However, if you are running with /dev
-on a read-only filesystem, pppd will not be able to create /dev/ppp.
-In that instance you should manually create /dev/ppp using the command
-`mknod /dev/ppp c 108 0'.
+character device (108,0).  If you are using devfs, the device
+filesystem, the /dev/ppp node will automagically appear when the
+ppp_generic module is loaded, or at startup if ppp_generic is compiled
+in.
+
+If you have ppp_generic as a module, and you are using devfsd (the
+devfs daemon), you will need to add a line like this to your
+/etc/devfsd.conf:
+
+LOOKUP		ppp		MODLOAD
+
+Otherwise you will need to create a /dev/ppp device node with the
+commands:
+
+# mknod /dev/ppp c 108 0
+# chmod 600 /dev/ppp
 
 If you use module autoloading and have PPP as a module, you will need
 to add the following to your /etc/modules.conf or /etc/conf.modules:
 
+/dev/ppp	     ppp_generic
+alias char-major-108 ppp_generic
 alias tty-ldisc-3    ppp_async
 alias tty-ldisc-14   ppp_synctty
-alias char-major-108 ppp_generic
 
 
 INSTALLATION
 
 This version of PPP has been tested on various Linux kernel versions
-(most recently 2.2.10). It will not work on kernels before 2.0.0. If
+(most recently 2.2.14). It will not work on kernels before 2.0.0. If
 you have an earlier kernel, please upgrade to the latest 2.2-series
 kernel.
 
