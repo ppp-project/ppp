@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.1 2002/01/22 16:03:00 dfs Exp $";
+"$Id: radius.c,v 1.2 2002/02/08 17:28:31 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -62,6 +62,7 @@ static int get_client_port(char *ifname);
 static int radius_allowed_address(u_int32_t addr);
 
 void (*radius_attributes_hook)(VALUE_PAIR *) = NULL;
+void (*radius_pre_auth_hook)(char const *user) = NULL;
 
 #ifndef MAXSESSIONID
 #define MAXSESSIONID 32
@@ -184,6 +185,13 @@ radius_pap_auth(char *user,
 	return 0;
     }
 
+    /* Put user with potentially realm added in rstate.user */
+    make_username_realm(user);
+
+    if (radius_pre_auth_hook) {
+	radius_pre_auth_hook(rstate.user);
+    }
+
     send = NULL;
     received = NULL;
 
@@ -196,9 +204,6 @@ radius_pap_auth(char *user,
 
     av_type = PW_PPP;
     rc_avpair_add(&send, PW_FRAMED_PROTOCOL, &av_type, 0, VENDOR_NONE);
-
-    /* Put user with potentially realm added in rstate.user */
-    make_username_realm(user);
 
     rc_avpair_add(&send, PW_USER_NAME, rstate.user , 0, VENDOR_NONE);
     rc_avpair_add(&send, PW_USER_PASSWORD, passwd, 0, VENDOR_NONE);
@@ -262,6 +267,9 @@ radius_chap_auth(char *user,
     if (!rstate.done_chap_once) {
 	make_username_realm(user);
 	rstate.client_port = get_client_port (ifname);
+	if (radius_pre_auth_hook) {
+	    radius_pre_auth_hook(rstate.user);
+	}
     }
 
     send = received = NULL;
