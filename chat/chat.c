@@ -78,7 +78,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chat.c,v 1.16 1997/11/27 06:00:06 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.17 1997/11/27 06:37:15 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -104,15 +104,6 @@ static char rcsid[] = "$Id: chat.c,v 1.16 1997/11/27 06:00:06 paulus Exp $";
 #endif
 #ifdef TERMIOS
 #include <termios.h>
-#endif
-
-#if __STDC__
-#include <stdarg.h>
-#define __V(x)	x
-#else
-#include <varargs.h>
-#define __V(x)	(va_alist) va_dcl
-#define const
 #endif
 
 #define	STR_LEN	1024
@@ -470,7 +461,7 @@ void logf __V((const char *fmt, ...))
 {
     va_list args;
 
-#if __STDC__
+#ifdef __STDC__
     va_start(args, fmt);
 #else
     char *fmt;
@@ -493,7 +484,7 @@ void fatal __V((int code, const char *fmt, ...))
 {
     va_list args;
 
-#if __STDC__
+#ifdef __STDC__
     va_start(args, fmt);
 #else
     int code;
