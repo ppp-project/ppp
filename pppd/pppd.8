@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.46 1999/08/24 05:31:10 paulus Exp $
+.\" $Id: pppd.8,v 1.47 1999/09/17 05:20:38 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -201,6 +201,12 @@ expression should be enclosed in single-quotes to prevent whitespace
 in the expression from being interpreted by the shell. This option
 is currently only available under NetBSD, and then only
 if both the kernel and pppd were compiled with PPP_FILTER defined.
+.TP
+.B allow-ip \fIaddress(es)
+Allow peers to use the given IP address or subnet without
+authenticating themselves.  The parameter is parsed as for each
+element of the list of allowed IP addresses in the secrets files (see
+the AUTHENTICATION section below).
 .TP
 .B bsdcomp \fInr,nt
 Request that the peer compress packets that it sends, using the
@@ -418,6 +424,13 @@ transmitted packets be printed.  On most systems, messages printed by
 the kernel are logged by syslog(1) to a file as directed in the
 /etc/syslog.conf configuration file.
 .TP
+.B ktune
+Enables pppd to alter kernel settings as appropriate.  Under Linux,
+pppd will enable IP forwarding (i.e. set /proc/sys/net/ipv4/ip_forward
+to 1) if the \fIproxyarp\fR option is used, and will enable the
+dynamic IP address option (i.e. set /proc/sys/net/ipv4/ip_dynaddr to
+1) in demand mode if the local address changes.
+.TP
 .B lcp-echo-failure \fIn
 If this option is given, pppd will presume the peer to be dead
 if \fIn\fR LCP echo-requests are sent without receiving a valid LCP
@@ -599,6 +612,10 @@ Disable the IPXCP and IPX protocols.  This option should only be
 required if the peer is buggy and gets confused by requests from pppd
 for IPXCP negotiation.
 .TP
+.B noktune
+Opposite of the \fIktune\fR option; disables pppd from changing system
+settings.
+.TP
 .B nolog
 Do not send log messages to a file or file descriptor.  This option
 cancels the \fBlogfd\fR and \fBlogfile\fR options.
@@ -685,6 +702,10 @@ the kernel and pppd were compiled with PPP_FILTER defined.
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
 the connection.
+.TP
+.B plugin \fIfilename
+Load the shared library object file \fIfilename\fR as a plugin.  This
+is a privileged option.
 .TP
 .B predictor1
 Request that the peer compress frames that it sends using Predictor-1
@@ -907,21 +928,26 @@ may use when connecting to the specified server.
 A secrets file is parsed into words as for a options file, so the
 client name, server name and secrets fields must each be one word,
 with any embedded spaces or other special characters quoted or
-escaped.  Any following words on the same line are taken to be a list
-of acceptable IP addresses for that client.  If there are only 3 words
-on the line, or if the first word is "-", then all IP addresses are
-disallowed.  To allow any address, use "*".
-A word starting with "!" indicates that the
-specified address is \fInot\fR acceptable.  An address may be followed
-by "/" and a number \fIn\fR, to indicate a whole subnet, i.e. all
-addresses which have the same value in the most significant \fIn\fR
-bits.  Note that case is significant in the client and server names
+escaped.  Note that case is significant in the client and server names
 and in the secret.
 .LP
 If the secret starts with an `@', what follows is assumed to be the
 name of a file from which to read the secret.  A "*" as the client or
 server name matches any name.  When selecting a secret, pppd takes the
 best match, i.e.  the match with the fewest wildcards.
+.LP
+Any following words on the same line are taken to be a list of
+acceptable IP addresses for that client.  If there are only 3 words on
+the line, or if the first word is "-", then all IP addresses are
+disallowed.  To allow any address, use "*".  A word starting with "!"
+indicates that the specified address is \fInot\fR acceptable.  An
+address may be followed by "/" and a number \fIn\fR, to indicate a
+whole subnet, i.e. all addresses which have the same value in the most
+significant \fIn\fR bits.  In this form, the address may be followed
+by a plus sign ("+") to indicate that one address from the subnet is
+authorized, based on the ppp network interface unit number in use.
+In this case, the host part of the address will be set to the unit
+number plus one.
 .LP
 Thus a secrets file contains both secrets for use in authenticating
 other hosts, plus secrets which we use for authenticating ourselves to

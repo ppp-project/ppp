@@ -69,8 +69,66 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.9.
-************************
+What's new in ppp-2.3.10.
+*************************
+
+* Pppd now supports `plugins', which are pieces of code (packaged as
+  shared libraries) which can be loaded into pppd at runtime and which
+  can affect its behaviour.  The intention is that plugins provide a
+  way for people to customize the behaviour of pppd for their own
+  needs without needing to change the base pppd source.  I have added
+  some hooks into pppd (places where pppd will call a function
+  pointer, if non-zero, to replace some of pppd's code) and I will be
+  receptive to suggestions about places to add more hooks.  Plugins
+  are supported under Linux and Solaris at present.
+
+* We have a new maintainer for the Solaris port, Adi Masputra of Sun
+  Microsystems, and he has updated the Solaris port so that it should
+  work on 64-bit machines under Solaris 7 and later.
+
+* Pppd now has an `allow-ip' option, which takes an argument which is
+  an IP address (or subnet) which peers are permitted to use without
+  authenticating themselves.  The argument takes the same form as each
+  element of the allowed IP address list in the secrets files.  The
+  allow-ip option is privileged and may be specified multiple times.
+  Using the allow-ip option should be cleaner than putting a line like
+  `"" * "" address' in /etc/ppp/pap-secrets.
+
+* Chat can now substitute environment variables into the script.  This
+  is enabled by the -E flag.  (Thanks to Andreas Arens for the patch.)
+
+* If the PAP username and password from the peer contains unprintable
+  characters, they will be translated to a printable form before
+  looking in the pap-secrets file.  Characters >= 0x80 are translated
+  to a M- form, and characters from 0 to 0x1f (and 0x7f as well) are
+  translated to a ^X form.  If this change causes you grief, let me
+  know what would be a better translation.  It appears that some peers
+  send nulls or other control characters in their usernames and
+  passwords.
+
+* Pppd has new `ktune' and `noktune' options, which enable/disable
+  it to change kernel settings as appropriate.  This is only
+  implemented under Linux, and requires the /proc filesystem to be
+  mounted.  Under Linux, with the ktune option, pppd will enable IP
+  forwarding in the kernel if the proxyarp option is used, and will
+  enable the dynamic IP address kernel option in demand mode if the
+  local IP address changes.
+
+* Pppd no longer requires a remote address to be specified for demand
+  dialling.  If none is specified, it will use a default value of
+  10.112.112.112+unit_number.  (It will not propose this default to
+  the peer.)
+
+* The default holdoff is now 0 if no connect script is given.
+
+* The IPV6 code from Tommi Komulainen, which I unfortunately only
+  partially merged in to ppp-2.3.9, has been fixed and updated.
+
+* The linux compilation glitches should be fixed now.
+
+
+What was new in ppp-2.3.9.
+**************************
 
 * Support for the new generic PPP layer under development for the
   Linux kernel.
@@ -483,4 +541,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.20 1999/08/19 19:26:03 masputra Exp $)
+($Id: README,v 1.21 1999/09/17 05:20:36 paulus Exp $)

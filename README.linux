@@ -1,7 +1,7 @@
-PPP for Linux                                             Version 2.3.9
+PPP for Linux                                            Version 2.3.10
 =============                                                  based on
-                                                              ppp-2.3.9
-                                                              July 1999
+                                                             ppp-2.3.10
+                                                         September 1999
 
 Paul Mackerras      Paul.Mackerras@cs.anu.edu.au
 Al Longyear         longyear@netcom.com
@@ -206,7 +206,7 @@ above).
 
 If you are using a kernel earlier than 2.2.8, you can either use the
 driver in this package or upgrade your kernel to the current 2.2.x
-series kernel (2.2.11, as of the release of ppp-2.3.9).  If you choose
+series kernel (2.2.12, as of the release of ppp-2.3.10).  If you choose
 to use the driver in this package, you will need a copy of the kernel
 source tree to compile the driver.  Issue the command:
 
