@@ -10,11 +10,11 @@
  * - added inflateIncomp and deflateOutputPending
  * - allow strm->next_out to be NULL, meaning discard the output
  *
- * $Id: zlib.c,v 1.8 1997/11/27 06:03:32 paulus Exp $
+ * $Id: zlib.c,v 1.9 1998/02/04 01:36:09 paulus Exp $
  */
 
 /* 
- *  ==FILEVERSION 971127==
+ *  ==FILEVERSION 971210==
  *
  * This marker is used by the Linux installation script to determine
  * whether an up-to-date version of this file is already installed.
@@ -954,7 +954,7 @@ local void flush_pending(strm)
     if (len > strm->avail_out) len = strm->avail_out;
     if (len == 0) return;
 
-    if (strm->next_out != NULL) {
+    if (strm->next_out != Z_NULL) {
 	zmemcpy(strm->next_out, s->pending_out, len);
 	strm->next_out += len;
     }
@@ -4888,7 +4888,7 @@ int r;
     z->adler = s->check = (*s->checkfn)(s->check, q, n);
 
   /* copy as far as end of window */
-  if (p != NULL) {
+  if (p != Z_NULL) {
     zmemcpy(p, q, n);
     p += n;
   }
@@ -4916,7 +4916,7 @@ int r;
       z->adler = s->check = (*s->checkfn)(s->check, q, n);
 
     /* copy */
-    if (p != NULL) {
+    if (p != Z_NULL) {
       zmemcpy(p, q, n);
       p += n;
     }
