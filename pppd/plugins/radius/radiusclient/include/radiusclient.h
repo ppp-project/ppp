@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.4 2002/03/04 14:59:52 dfs Exp $
+ * $Id: radiusclient.h,v 1.5 2002/03/05 15:14:06 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -157,6 +157,8 @@ typedef struct pw_auth_hdr
 /* Vendor RADIUS attribute-value pairs */
 #define PW_MS_CHAP_CHALLENGE		11	/* string */
 #define PW_MS_CHAP_RESPONSE		1	/* string */
+#define PW_MS_CHAP2_RESPONSE		25	/* string */
+#define PW_MS_CHAP2_SUCCESS		26	/* string */
 
 /*	Accounting */
 

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.17 2002/01/14 15:31:34 dfs Exp $"
+#define RCSID	"$Id: utils.c,v 1.18 2002/03/05 15:14:04 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -209,6 +209,28 @@ vslprintf(buf, buflen, fmt, args)
 	neg = 0;
 	++fmt;
 	switch (c) {
+	case 'l':
+	    c = *fmt++;
+	    switch (c) {
+	    case 'd':
+		val = va_arg(args, long);
+		if (val < 0) {
+		    neg = 1;
+		    val = -val;
+		}
+		base = 10;
+		break;
+	    case 'u':
+		val = va_arg(args, unsigned long);
+		base = 10;
+		break;
+	    default:
+		*buf++ = '%'; --buflen;
+		*buf++ = 'l'; --buflen;
+		--fmt;		/* so %lz outputs %lz etc. */
+		continue;
+	    }
+	    break;
 	case 'd':
 	    i = va_arg(args, int);
 	    if (i < 0) {

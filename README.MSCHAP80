@@ -162,7 +162,7 @@ Assuming that everything else has been configured correctly for PPP and
 CHAP, the MS-CHAP-specific problems you're likely to encounter are mostly
 related to your Windows NT account and its settings.  A Microsoft server
 returns error codes in its CHAP response.  The following are extracted from
-Microsoft's "chapexts.txt" file referenced above:
+RFC 2433:
 
  646 ERROR_RESTRICTED_LOGON_HOURS
  647 ERROR_ACCT_DISABLED

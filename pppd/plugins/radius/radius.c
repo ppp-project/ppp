@@ -2,8 +2,8 @@
 *
 * radius.c
 *
-* RADIUS plugin for pppd.  Performs PAP, CHAP and MS-CHAP authentication
-* using RADIUS.
+* RADIUS plugin for pppd.  Performs PAP, CHAP, MS-CHAP, MS-CHAPv2
+* authentication using RADIUS.
 *
 * Copyright (C) 2002 Roaring Penguin Software Inc.
 *
@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.5 2002/03/04 14:59:51 dfs Exp $";
+"$Id: radius.c,v 1.6 2002/03/05 15:14:05 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -58,7 +58,7 @@ static int radius_chap_auth(char *user,
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
 static void make_username_realm(char *user);
-static int radius_setparams(VALUE_PAIR *vp, char *msg);
+static int radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg);
 static void radius_choose_ip(u_int32_t *addrp);
 static int radius_init(char *msg);
 static int get_client_port(char *ifname);
@@ -233,7 +233,7 @@ radius_pap_auth(char *user,
     }
 
     if (result == OK_RC) {
-	if (radius_setparams(received, radius_msg) < 0) {
+	if (radius_setparams(NULL, received, radius_msg) < 0) {
 	    result = ERROR_RC;
 	}
     }
@@ -255,7 +255,7 @@ radius_pap_auth(char *user,
 * %RETURNS:
 *  CHAP_SUCCESS if we can authenticate, CHAP_FAILURE if we cannot.
 * %DESCRIPTION:
-* Performs CHAP and MS-CHAP authentication using RADIUS
+* Performs CHAP, MS-CHAP and MS-CHAPv2 authentication using RADIUS
 ***********************************************************************/
 static int
 radius_chap_auth(char *user,
@@ -279,6 +279,7 @@ radius_chap_auth(char *user,
     if ((cstate->chal_type != CHAP_DIGEST_MD5)
 #ifdef CHAPMS
 	&& (cstate->chal_type != CHAP_MICROSOFT)
+	&& (cstate->chal_type != CHAP_MICROSOFT_V2)
 #endif
 	) {
 	error("RADIUS: Challenge type %u unsupported", cstate->chal_type);
@@ -325,7 +326,7 @@ radius_chap_auth(char *user,
     case CHAP_MICROSOFT:
     {
 	/* MS-CHAP-Challenge and MS-CHAP-Response */
-	MS_ChapResponse *rmd = remmd;
+	MS_ChapResponse *rmd = (MS_ChapResponse *) remmd;
 	u_char *p = cpassword;
 
 	*p++ = cstate->chal_id;
@@ -340,6 +341,29 @@ radius_chap_auth(char *user,
 		      cstate->challenge, cstate->chal_len, VENDOR_MICROSOFT);
 	rc_avpair_add(&send, PW_MS_CHAP_RESPONSE,
 		      cpassword, MS_CHAP_RESPONSE_LEN + 1, VENDOR_MICROSOFT);
+	break;
+    }
+
+    case CHAP_MICROSOFT_V2:
+    {
+	/* MS-CHAP-Challenge and MS-CHAP2-Response */
+	MS_Chap2Response *rmd = (MS_Chap2Response *) remmd;
+	u_char *p = cpassword;
+
+	*p++ = cstate->chal_id;
+	/* The idiots use a different field order in RADIUS than PPP */
+	memcpy(p, rmd->Flags, sizeof(rmd->Flags));
+	p += sizeof(rmd->Flags);
+	memcpy(p, rmd->PeerChallenge, sizeof(rmd->PeerChallenge));
+	p += sizeof(rmd->PeerChallenge);
+	memcpy(p, rmd->Reserved, sizeof(rmd->Reserved));
+	p += sizeof(rmd->Reserved);
+	memcpy(p, rmd->NTResp, sizeof(rmd->NTResp));
+
+	rc_avpair_add(&send, PW_MS_CHAP_CHALLENGE,
+		      cstate->challenge, cstate->chal_len, VENDOR_MICROSOFT);
+	rc_avpair_add(&send, PW_MS_CHAP2_RESPONSE,
+		      cpassword, MS_CHAP2_RESPONSE_LEN + 1, VENDOR_MICROSOFT);
 	break;
     }
 #endif
@@ -360,7 +384,7 @@ radius_chap_auth(char *user,
 
     if (result == OK_RC) {
 	if (!rstate.done_chap_once) {
-	    if (radius_setparams(received, radius_msg) < 0) {
+	    if (radius_setparams(cstate, received, radius_msg) < 0) {
 		error("%s", radius_msg);
 		result = ERROR_RC;
 	    } else {
@@ -408,18 +432,20 @@ make_username_realm(char *user)
 /**********************************************************************
 * %FUNCTION: radius_setparams
 * %ARGUMENTS:
+*  cstate -- pppd's chap_state structure
 *  vp -- received value-pairs
 *  msg -- buffer in which to place error message.  Holds up to BUF_LEN chars
 * %RETURNS:
 *  >= 0 on success; -1 on failure
 * %DESCRIPTION:
 *  Parses attributes sent by RADIUS server and sets them in pppd.  Currently,
-*  used only to set IP address.
+*  used only to set IP address and MS-CHAPv2 Authenticator Response.
 ***********************************************************************/
 static int
-radius_setparams(VALUE_PAIR *vp, char *msg)
+radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg)
 {
     u_int32_t remote;
+    int ms_chap2_success = 0;
 
     /* Send RADIUS attributes to anyone else who might be interested */
     if (radius_attributes_hook) {
@@ -432,49 +458,62 @@ radius_setparams(VALUE_PAIR *vp, char *msg)
      */
 
     while (vp) {
-	if (vp->vendorcode == VENDOR_NONE) {
-	    switch (vp->attribute) {
-	    case PW_SERVICE_TYPE:
-		/* check for service type       */
-		/* if not FRAMED then exit      */
-		if (vp->lvalue != PW_FRAMED) {
-		    slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
-			     vp->lvalue, rstate.user);
-		    return -1;
-		}
-		break;
-	    case PW_FRAMED_PROTOCOL:
-		/* check for framed protocol type       */
-		/* if not PPP then also exit            */
-		if (vp->lvalue != PW_PPP) {
-		    slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
-			     vp->lvalue, rstate.user);
-		    return -1;
-		}
-		break;
-
-	    case PW_FRAMED_IP_ADDRESS:
-		/* seting up remote IP addresses */
-		remote = vp->lvalue;
-		if (remote == 0xffffffff) {
-		    /* 0xffffffff means user should be allowed to select one */
-		    rstate.any_ip_addr_ok = 1;
-		} else if (remote != 0xfffffffe) {
-		    /* 0xfffffffe means NAS should select an ip address */
-		    remote = htonl(vp->lvalue);
-		    if (bad_ip_adrs (remote)) {
-			slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
-				 remote, rstate.user);
-			return -1;
-		    }
-		    rstate.choose_ip = 1;
-		    rstate.ip_addr = remote;
-		}
-	    break;
+	if ((vp->attribute == PW_SERVICE_TYPE) &&
+	    (vp->vendorcode == VENDOR_NONE)) {
+	    /* check for service type       */
+	    /* if not FRAMED then exit      */
+	    if (vp->lvalue != PW_FRAMED) {
+		slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
+			 vp->lvalue, rstate.user);
+		return -1;
 	    }
+	} else if ((vp->attribute == PW_FRAMED_PROTOCOL) &&
+		   (vp->vendorcode == VENDOR_NONE)) {
+	    /* check for framed protocol type       */
+	    /* if not PPP then also exit            */
+	    if (vp->lvalue != PW_PPP) {
+		slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
+			 vp->lvalue, rstate.user);
+		return -1;
+	    }
+	} else if ((vp->attribute == PW_FRAMED_IP_ADDRESS) &&
+		   (vp->vendorcode == VENDOR_NONE)) {
+	    /* seting up remote IP addresses */
+	    remote = vp->lvalue;
+	    if (remote == 0xffffffff) {
+		/* 0xffffffff means user should be allowed to select one */
+		rstate.any_ip_addr_ok = 1;
+	    } else if (remote != 0xfffffffe) {
+		/* 0xfffffffe means NAS should select an ip address */
+		remote = htonl(vp->lvalue);
+		if (bad_ip_adrs (remote)) {
+		    slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
+			     remote, rstate.user);
+		    return -1;
+		}
+		rstate.choose_ip = 1;
+		rstate.ip_addr = remote;
+	    }
+#ifdef CHAPMS
+	} else if ((vp->attribute == PW_MS_CHAP2_SUCCESS) &&
+		   (vp->vendorcode == VENDOR_MICROSOFT)) {
+	    if ((vp->lvalue != 43) || strncmp(vp->strvalue + 1, "S=", 2)) {
+		slprintf(msg, BUF_LEN, "RADIUS: bad MS-CHAP2-Success packet");
+		return -1;
+	    }
+	    memcpy(cstate->saresponse, vp->strvalue + 3,
+		   MS_AUTH_RESPONSE_LENGTH);
+	    cstate->saresponse[MS_AUTH_RESPONSE_LENGTH] = '\0';
+	    ms_chap2_success = 1;
+#endif /* CHAPMS */
 	}
 	vp = vp->next;
     }
+
+    /* Require a valid MS-CHAP2-SUCCESS for MS-CHAPv2 auth */
+    if (cstate && (cstate->chal_type == CHAP_MICROSOFT_V2) && !ms_chap2_success)
+	return -1;
+
     return 0;
 }
 

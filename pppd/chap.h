@@ -30,7 +30,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap.h,v 1.10 2002/03/01 14:39:18 dfs Exp $
+ * $Id: chap.h,v 1.12 2002/04/02 13:54:59 dfs Exp $
  */
 
 #ifndef __CHAP_INCLUDE__
@@ -45,6 +45,7 @@
 #define CHAP_DIGEST_MD5		5	/* use MD5 algorithm */
 #define MD5_SIGNATURE_SIZE	16	/* 16 bytes in a MD5 message digest */
 #define CHAP_MICROSOFT		0x80	/* use Microsoft-compatible alg. */
+#define CHAP_MICROSOFT_V2	0x81	/* use Microsoft-compatible alg. */
 
 /*
  * Digest type and selection.
@@ -52,10 +53,11 @@
 
 /* bitmask of supported algorithms */
 #define MDTYPE_MD5		0x1
-#define MDTYPE_MICROSOFT	0x2
+#define MDTYPE_MICROSOFT_V2	0x2
+#define MDTYPE_MICROSOFT	0x4
 
 #ifdef CHAPMS
-#define MDTYPE_ALL (MDTYPE_MD5 | MDTYPE_MICROSOFT)
+#define MDTYPE_ALL (MDTYPE_MD5 | MDTYPE_MICROSOFT_V2 | MDTYPE_MICROSOFT)
 #else
 #define MDTYPE_ALL (MDTYPE_MD5)
 #endif
@@ -64,6 +66,7 @@
 /* Return the digest alg. ID for the most preferred digest type. */
 #define CHAP_DIGEST(mdtype) \
     ((mdtype) & MDTYPE_MD5)? CHAP_DIGEST_MD5: \
+    ((mdtype) & MDTYPE_MICROSOFT_V2)? CHAP_MICROSOFT_V2: \
     ((mdtype) & MDTYPE_MICROSOFT)? CHAP_MICROSOFT: \
     0
 
@@ -73,12 +76,14 @@
 /* Return the bit flag for a given digest algorithm ID. */
 #define CHAP_MDTYPE_D(digest) \
     ((digest) == CHAP_DIGEST_MD5)? MDTYPE_MD5: \
+    ((digest) == CHAP_MICROSOFT_V2)? MDTYPE_MICROSOFT_V2: \
     ((digest) == CHAP_MICROSOFT)? MDTYPE_MICROSOFT: \
     0
 
 /* Can we do the requested digest? */
 #define CHAP_CANDIGEST(mdtype, digest) \
     ((digest) == CHAP_DIGEST_MD5)? (mdtype) & MDTYPE_MD5: \
+    ((digest) == CHAP_MICROSOFT_V2)? (mdtype) & MDTYPE_MICROSOFT_V2: \
     ((digest) == CHAP_MICROSOFT)? (mdtype) & MDTYPE_MICROSOFT: \
     0
 
@@ -91,8 +96,10 @@
  *  Challenge lengths (for challenges we send) and other limits.
  */
 #define MIN_CHALLENGE_LENGTH	16
-#define MAX_CHALLENGE_LENGTH	24
+#define MAX_CHALLENGE_LENGTH	24	/* sufficient for MS-CHAP Peer Chal. */
 #define MAX_RESPONSE_LENGTH	64	/* sufficient for MD5 or MS-CHAP */
+#define MS_AUTH_RESPONSE_LENGTH	40	/* MS-CHAPv2 authenticator response, */
+					/* as ASCII */
 
 /*
  * Each interface is described by a chap structure.
@@ -114,6 +121,9 @@ typedef struct chap_state {
     int chal_transmits;		/* Number of transmissions of challenge */
     int resp_transmits;		/* Number of transmissions of response */
     u_char response[MAX_RESPONSE_LENGTH];	/* Response to send */
+    char saresponse[MS_AUTH_RESPONSE_LENGTH+1];	/* Auth response to send */
+    char earesponse[MS_AUTH_RESPONSE_LENGTH+1];	/* Auth response expected */
+						/* +1 for null terminator */
     u_char resp_length;		/* length of response */
     u_char resp_id;		/* ID for response messages */
     u_char resp_type;		/* hash algorithm for responses */

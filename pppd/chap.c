@@ -33,13 +33,14 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.28 2002/03/04 14:59:51 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.29 2002/03/05 15:14:04 dfs Exp $"
 
 /*
  * TODO:
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -483,9 +484,17 @@ ChapReceiveChallenge(cstate, inp, id, len)
 
 #ifdef CHAPMS
     case CHAP_MICROSOFT:
-	ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len);
+	ChapMS(cstate, rchallenge, secret, secret_len,
+	       (MS_ChapResponse *) cstate->response);
+	cstate->resp_length = MS_CHAP_RESPONSE_LEN;
 	break;
-#endif
+
+    case CHAP_MICROSOFT_V2:
+	ChapMS2(cstate, rchallenge, NULL, cstate->resp_name, secret, secret_len,
+		(MS_Chap2Response *) cstate->response, cstate->earesponse);
+	cstate->resp_length = MS_CHAP2_RESPONSE_LEN;
+	break;
+#endif /* CHAPMS */
 
     default:
 	CHAPDEBUG(("unknown digest type %d", cstate->resp_type));
@@ -589,7 +598,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 		MD5Final(hash, &mdContext);
 
 		/* compare MDs and send the appropriate status */
-		if (memcmp (hash, remmd, MD5_SIGNATURE_SIZE) == 0)
+		if (memcmp(hash, remmd, MD5_SIGNATURE_SIZE) == 0)
 		    code = CHAP_SUCCESS;	/* they are the same! */
 		break;
 
@@ -598,25 +607,53 @@ ChapReceiveResponse(cstate, inp, id, len)
 	    {
 		int response_offset, response_size;
 		MS_ChapResponse *rmd = (MS_ChapResponse *) remmd;
+		MS_ChapResponse md;
 
 		if (remmd_len != MS_CHAP_RESPONSE_LEN)
 		    break;			/* not even the right length */
-		ChapMS(cstate, cstate->challenge, cstate->chal_len,
-		       secret, secret_len);
 
 		/* Determine which part of response to verify against */
 		if (rmd->UseNT[0]) {
 		    response_offset = offsetof(MS_ChapResponse, NTResp);
 		    response_size = sizeof(rmd->NTResp);
 		} else {
+#ifdef MSLANMAN
 		    response_offset = offsetof(MS_ChapResponse, LANManResp);
 		    response_size = sizeof(rmd->LANManResp);
+#else
+		    /* Should really propagate this into the error packet. */
+		    notice("Peer request for LANMAN auth not supported");
+		    break;
+#endif /* MSLANMAN */
 		}
 
+		/* Generate the expected response. */
+		ChapMS(cstate, cstate->challenge, secret, secret_len, &md);
+
 		/* compare MDs and send the appropriate status */
-		if (memcmp(cstate->response + response_offset,
-		    remmd + response_offset, response_size) == 0)
+		if (memcmp(&md + response_offset,
+			   remmd + response_offset, response_size) == 0)
 		    code = CHAP_SUCCESS;	/* they are the same! */
+		break;
+	    }
+
+	    case CHAP_MICROSOFT_V2:
+	    {
+		MS_Chap2Response *rmd = (MS_Chap2Response *) remmd;
+		MS_Chap2Response md;
+
+		if (remmd_len != MS_CHAP2_RESPONSE_LEN)
+		    break;			/* not even the right length */
+
+		/* Generate the expected response and our mutual auth. */
+		ChapMS2(cstate, cstate->challenge, rmd->PeerChallenge,
+			(explicit_remote? remote_name: rhostname),
+			secret, secret_len, &md,
+			cstate->saresponse);
+
+		/* compare MDs and send the appropriate status */
+		if (memcmp(md.NTResp, rmd->NTResp, sizeof(md.NTResp)) == 0)
+		    code = CHAP_SUCCESS;	/* yay! */
 		break;
 	    }
 #endif /* CHAPMS */
@@ -670,6 +707,37 @@ ChapReceiveSuccess(cstate, inp, id, len)
 
     UNTIMEOUT(ChapResponseTimeout, cstate);
 
+#ifdef CHAPMS
+    /*
+     * For MS-CHAPv2, we must verify that the peer knows our secret.
+     */
+    if (cstate->resp_type == CHAP_MICROSOFT_V2) {
+	if ((len >= MS_AUTH_RESPONSE_LENGTH + 2) && !strncmp(inp, "S=", 2)) {
+	    inp += 2; len -= 2;
+	    if (!memcmp(inp, cstate->earesponse, MS_AUTH_RESPONSE_LENGTH)) {
+		/* Authenticator Response matches. */
+		inp += MS_AUTH_RESPONSE_LENGTH; /* Eat it */
+		len -= MS_AUTH_RESPONSE_LENGTH;
+		if ((len >= 3) && !strncmp(inp, " M=", 3)) {
+		    inp += 3; len -= 3; /* Eat the delimiter */
+		} else if (len) {
+		    /* Packet has extra text which does not begin " M=" */
+		    error("MS-CHAPv2 Success packet is badly formed.");
+		    auth_withpeer_fail(cstate->unit, PPP_CHAP);
+		}
+	    } else {
+		/* Authenticator Response did not match expected. */
+		error("MS-CHAPv2 mutual authentication failed.");
+		auth_withpeer_fail(cstate->unit, PPP_CHAP);
+	    }
+	} else {
+	    /* Packet does not start with "S=" */
+	    error("MS-CHAPv2 Success packet is badly formed.");
+	    auth_withpeer_fail(cstate->unit, PPP_CHAP);
+	}
+    }
+#endif
+
     /*
      * Print message.
      */
@@ -692,22 +760,103 @@ ChapReceiveFailure(cstate, inp, id, len)
     u_char id;
     int len;
 {
+    u_char *msg;
+    u_char *p = inp;
+
     if (cstate->clientstate != CHAPCS_RESPONSE) {
 	/* don't know what this is */
 	CHAPDEBUG(("ChapReceiveFailure: in state %d\n", cstate->clientstate));
 	return;
     }
 
+#ifdef CHAPMS
+    /* We want a null-terminated string for strxxx(). */
+    msg = malloc(len + 1);
+    if (!msg) {
+	p = NULL;
+	notice("Out of memory in ChapReceiveFailure");
+	goto print_msg;
+    }
+    BCOPY(inp, msg, len);
+    p = msg + len; *p = '\0'; p = msg;
+#endif
+
     UNTIMEOUT(ChapResponseTimeout, cstate);
+
+#ifdef CHAPMS
+    if ((cstate->resp_type == CHAP_MICROSOFT_V2) ||
+	(cstate->resp_type == CHAP_MICROSOFT)) {
+	long error;
+
+	/*
+	 * Deal with MS-CHAP formatted failure messages; just print the
+	 * M=<message> part (if any).  For MS-CHAP we're not really supposed
+	 * to use M=<message>, but it shouldn't hurt.  See ChapSendStatus().
+	 */
+	if (!strncmp(p, "E=", 2))
+	    error = strtol(p, NULL, 10); /* Remember the error code. */
+	else
+	    goto print_msg; /* Message is badly formatted. */
+
+	if (len && ((p = strstr(p, " M=")) != NULL)) {
+	    /* M=<message> field found. */
+	    p += 3;
+	} else {
+	    /* No M=<message>; use the error code. */
+	    switch(error - MS_CHAP_ERROR_BASE) {
+	    case MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS:
+		p = "Restricted logon hours";
+		break;
+
+	    case MS_CHAP_ERROR_ACCT_DISABLED:
+		p = "Account disabled";
+		break;
+
+	    case MS_CHAP_ERROR_PASSWD_EXPIRED:
+		p = "Password expired";
+		break;
+
+	    case MS_CHAP_ERROR_NO_DIALIN_PERMISSION:
+		p = "No dialin permission";
+		break;
+
+	    case MS_CHAP_ERROR_AUTHENTICATION_FAILURE:
+		p = "Authentication failure";
+		break;
+
+	    case MS_CHAP_ERROR_CHANGING_PASSWORD:
+		/* Should never see this, we don't support Change Password. */
+		p = "Error changing password";
+		break;
+
+	    default:
+		free(msg);
+		p = msg = malloc(len + 33);
+		if (!msg) {
+		    notice("Out of memory in ChapReceiveFailure");
+		    goto print_msg;
+		}
+		slprintf(p, len + 33, "Unknown authentication failure: %.*s",
+			 len, inp);
+		break;
+	    }
+	}
+	len = strlen(p);
+    }
+#endif
 
     /*
      * Print message.
      */
-    if (len > 0)
-	PRINTMSG(inp, len);
+print_msg:
+    if (len > 0 && p != NULL)
+	PRINTMSG(p, len);
 
     error("CHAP authentication failed");
     auth_withpeer_fail(cstate->unit, PPP_CHAP);
+#ifdef CHAPMS
+    if (msg) free(msg);
+#endif
 }
 
 
@@ -748,6 +897,7 @@ ChapSendChallenge(cstate)
 
 /*
  * ChapSendStatus - Send a status response (ack or nak).
+ * See RFC 2433 and RFC 2759 for MS-CHAP and MS-CHAPv2 message formats.
  */
 static void
 ChapSendStatus(cstate, code)
@@ -755,13 +905,63 @@ ChapSendStatus(cstate, code)
     int code;
 {
     u_char *outp;
-    int outlen, msglen;
+    int i, outlen, msglen;
     char msg[256];
+    char *p, *q;
 
-    if (code == CHAP_SUCCESS)
-	slprintf(msg, sizeof(msg), "Welcome to %s.", hostname);
-    else
-	slprintf(msg, sizeof(msg), "I don't like you.  Go 'way.");
+    p = msg;
+    q = p + sizeof(msg); /* points 1 byte past msg */
+
+    if (code == CHAP_SUCCESS) {
+#ifdef CHAPMS
+	if (cstate->chal_type == CHAP_MICROSOFT_V2) {
+	    /*
+	     * Success message must be formatted as
+	     *     "S=<auth_string> M=<message>"
+	     * where
+	     *     <auth_string> is the Authenticator Response (mutual auth)
+	     *     <message> is a text message
+	     */
+	    slprintf(p, q - p, "S=");
+	    p += 2;
+	    slprintf(p, q - p, "%s", cstate->saresponse);
+	    p += strlen(cstate->saresponse);
+	    slprintf(p, q - p, " M=");
+	    p += 3;
+	}
+#endif /* CHAPMS */
+
+	slprintf(p, q - p, "Welcome to %s.", hostname);
+    } else {
+#ifdef CHAPMS
+	if ((cstate->chal_type == CHAP_MICROSOFT_V2) ||
+	    (cstate->chal_type == CHAP_MICROSOFT)) {
+	    /*
+	     * Failure message must be formatted as
+	     *     "E=e R=r C=c V=v M=m"
+	     * where
+	     *     e = error code (we use 691, ERROR_AUTHENTICATION_FAILURE)
+	     *     r = retry (we use 1, ok to retry)
+	     *     c = challenge to use for next response, we reuse previous
+	     *     v = Change Password version supported, we use 0
+	     *     m = text message
+	     *
+	     * The M=m part is only for MS-CHAPv2, but MS-CHAP should ignore
+	     * any extra text according to RFC 2433.  So we'll go the easy
+	     * (read: lazy) route and include it always.
+	     */
+	    slprintf(p, q - p, "E=691 R=1 C=");
+	    p += 12;
+	    for (i = 0; i < cstate->chal_len; i++)
+		sprintf(p + i * 2, "%02X", cstate->challenge[i]);
+	    p += cstate->chal_len * 2;
+	    slprintf(p, q - p, " V=0 M=");
+	    p += 7;
+	}
+#endif /* CHAPMS */
+
+	slprintf(p, q - p, "I don't like you.  Go 'way.");
+    }
     msglen = strlen(msg);
 
     outlen = CHAP_HEADERLEN + msglen;
@@ -806,6 +1006,11 @@ ChapGenChallenge(cstate)
     case CHAP_MICROSOFT:
 	/* MS-CHAP is fixed to an 8 octet challenge. */
 	chal_len = 8;
+	break;
+
+    case CHAP_MICROSOFT_V2:
+	/* MS-CHAPv2 is fixed to a 16 octet challenge. */
+	chal_len = 16;
 	break;
 #endif
     default:

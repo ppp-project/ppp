@@ -228,3 +228,4 @@ VALUE		Add-Port-To-IP-Address	Yes			1
 #VALUE		Server-Config		Password-Expiration	30
 #VALUE		Server-Config		Password-Warning	5
 
+INCLUDE /etc/radiusclient/dictionary.microsoft

@@ -1,5 +1,5 @@
 /*
- * $Id: dict.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: dict.c,v 1.2 2002/03/05 15:14:06 dfs Exp $
  *
  * Copyright (C) 2002 Roaring Penguin Software Inc.
  *
@@ -51,7 +51,7 @@ int rc_read_dictionary (char *filename)
 	int             value;
 	int             type;
 	int             n;
-
+	int             retcode;
 	if ((dictfd = fopen (filename, "r")) == (FILE *) NULL)
 	{
 		rc_log(LOG_ERR, "rc_read_dictionary: couldn't open dictionary %s: %s",
@@ -60,6 +60,7 @@ int rc_read_dictionary (char *filename)
 	}
 
 	line_no = 0;
+	retcode = 0;
 	while (fgets (buffer, sizeof (buffer), dictfd) != (char *) NULL)
 	{
 		line_no++;
@@ -75,19 +76,22 @@ int rc_read_dictionary (char *filename)
 		    if (sscanf(buffer, "%s%s%d", dummystr, namestr, &value) != 3) {
 			rc_log(LOG_ERR, "rc_read_dictionary: invalid vendor on line %d of dictionary %s",
 			       line_no, filename);
-			return (-1);
+			retcode = -1;
+			break;
 		    }
 		    /* Validate entry */
 		    if (strlen (namestr) > NAME_LENGTH) {
 			rc_log(LOG_ERR, "rc_read_dictionary: invalid name length on line %d of dictionary %s",
 			       line_no, filename);
-			return (-1);
+			retcode = -1;
+			break;
 		    }
 		    /* Create new vendor entry */
 		    vdict = (VENDOR_DICT *) malloc (sizeof (VENDOR_DICT));
 		    if (!vdict) {
 			rc_log(LOG_CRIT, "rc_read_dictionary: out of memory");
-			return (-1);
+			retcode = -1;
+			break;
 		    }
 		    strcpy(vdict->vendorname, namestr);
 		    vdict->vendorcode = value;
@@ -107,7 +111,8 @@ int rc_read_dictionary (char *filename)
 			{
 				rc_log(LOG_ERR, "rc_read_dictionary: invalid attribute on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			/*
@@ -117,14 +122,16 @@ int rc_read_dictionary (char *filename)
 			{
 				rc_log(LOG_ERR, "rc_read_dictionary: invalid name length on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			if (strlen (vendorstr) > NAME_LENGTH)
 			{
 				rc_log(LOG_ERR, "rc_read_dictionary: invalid name length on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			if (!isdigit (*valstr))
@@ -132,7 +139,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 				 "rc_read_dictionary: invalid value on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 			value = atoi (valstr);
 
@@ -157,7 +165,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 				  "rc_read_dictionary: invalid type on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			/* Search for vendor if supplied */
@@ -167,7 +176,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 				       "rc_read_dictionary: unknown vendor on line %d of dictionary %s",
 				       line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			    }
 			} else {
 			    vdict = NULL;
@@ -178,7 +188,8 @@ int rc_read_dictionary (char *filename)
 							== (DICT_ATTR *) NULL)
 			{
 				rc_log(LOG_CRIT, "rc_read_dictionary: out of memory");
-				return (-1);
+				retcode = -1;
+				break;
 			}
 			strcpy (attr->name, namestr);
 			if (vdict) {
@@ -207,7 +218,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 			   "rc_read_dictionary: invalid value entry on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			/*
@@ -218,7 +230,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 		      "rc_read_dictionary: invalid attribute length on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			if (strlen (namestr) > NAME_LENGTH)
@@ -226,7 +239,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 			   "rc_read_dictionary: invalid name length on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 
 			if (!isdigit (*valstr))
@@ -234,7 +248,8 @@ int rc_read_dictionary (char *filename)
 				rc_log(LOG_ERR,
 				 "rc_read_dictionary: invalid value on line %d of dictionary %s",
 					 line_no, filename);
-				return (-1);
+				retcode = -1;
+				break;
 			}
 			value = atoi (valstr);
 
@@ -244,7 +259,8 @@ int rc_read_dictionary (char *filename)
 							== (DICT_VALUE *) NULL)
 			{
 				rc_log(LOG_CRIT, "rc_read_dictionary: out of memory");
-				return (-1);
+				retcode = -1;
+				break;
 			}
 			strcpy (dval->attrname, attrstr);
 			strcpy (dval->name, namestr);
@@ -254,9 +270,26 @@ int rc_read_dictionary (char *filename)
 			dval->next = dictionary_values;
 			dictionary_values = dval;
 		}
+		else if (strncmp (buffer, "INCLUDE", 7) == 0)
+		{
+			/* Read the INCLUDE line */
+			if (sscanf (buffer, "%s%s", dummystr, namestr) != 2)
+			{
+				rc_log(LOG_ERR,
+			   "rc_read_dictionary: invalid include entry on line %d of dictionary %s",
+					 line_no, filename);
+				retcode = -1;
+				break;
+			}
+			if (rc_read_dictionary(namestr) == -1)
+			{
+				retcode = -1;
+				break;
+			}
+		}
 	}
 	fclose (dictfd);
-	return (0);
+	return retcode;
 }
 
 /*

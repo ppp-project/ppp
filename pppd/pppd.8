@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.60 2002/03/01 14:39:18 dfs Exp $
+.\" $Id: pppd.8,v 1.61 2002/03/05 15:14:04 dfs Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -857,6 +857,10 @@ peer using CHAP.
 With this option, pppd will not agree to authenticate itself to the
 peer using MS-CHAP.
 .TP
+.B refuse-mschap-v2
+With this option, pppd will not agree to authenticate itself to the
+peer using MS-CHAPv2.
+.TP
 .B refuse-pap
 With this option, pppd will not agree to authenticate itself to the
 peer using PAP.
@@ -868,6 +872,10 @@ Handshake Authentication Protocol] authentication.
 .B require-mschap
 Require the peer to authenticate itself using MS-CHAP [Microsft Challenge
 Handshake Authentication Protocol] authentication.
+.TP
+.B require-mschap-v2
+Require the peer to authenticate itself using MS-CHAPv2 [Microsft Challenge
+Handshake Authentication Protocol, Version 2] authentication.
 .TP
 .B require-pap
 Require the peer to authenticate itself using PAP [Password
@@ -1020,7 +1028,8 @@ pppd will not agree to authenticate itself with a particular protocol
 if it has no secrets which could be used to do so.
 .LP
 Pppd stores secrets for use in authentication in secrets
-files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP/MS-CHAP).
+files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for
+CHAP/MS-CHAP/MS-CHAPv2).
 Both secrets files have the same format.  The secrets files can
 contain secrets for pppd to use in authenticating itself to other
 systems, as well as secrets for pppd to use when authenticating other
@@ -1498,7 +1507,8 @@ script.
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.
 .TP
-.B /var/run/ppp-\fIname\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp-\fIname\fB.pid \fR(others)
+.B /var/run/ppp-\fIname\fB.pid \fR(BSD or Linux),
+\fB/etc/ppp/ppp-\fIname\fB.pid \fR(others)
 Process-ID for pppd process for logical link \fIname\fR (see the
 \fIlinkname\fR option).
 .TP
@@ -1508,8 +1518,8 @@ file should be owned by root and not readable or writable by any other
 user.  Pppd will log a warning if this is not the case.
 .TP
 .B /etc/ppp/chap-secrets
-Names, secrets and IP addresses for CHAP/MS-CHAP authentication.  As for
-/etc/ppp/pap-secrets, this file should be owned by root and not
+Names, secrets and IP addresses for CHAP/MS-CHAP/MS-CHAPv2 authentication.
+As for /etc/ppp/pap-secrets, this file should be owned by root and not
 readable or writable by any other user.  Pppd will log a warning if
 this is not the case.
 .TP

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.58 2002/03/01 14:39:18 dfs Exp $"
+#define RCSID	"$Id: lcp.c,v 1.60 2002/04/02 13:54:59 dfs Exp $"
 
 /*
  * TODO:
@@ -1943,7 +1943,12 @@ lcp_printpkt(p, plen, printer, arg)
 				break;
 #ifdef CHAPMS
 			    case CHAP_MICROSOFT:
-				printer(arg, " m$oft");
+				printer(arg, " MS");
+				++p;
+				break;
+
+			    case CHAP_MICROSOFT_V2:
+				printer(arg, " MS-v2");
 				++p;
 				break;
 #endif

@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.74 2002/03/01 14:39:18 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.75 2002/03/05 15:14:04 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -171,8 +171,10 @@ bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
 bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
 #ifdef CHAPMS
 bool refuse_mschap = 0;		/* Don't wanna auth. ourselves with MS-CHAP */
+bool refuse_mschap_v2 = 0;	/* Don't wanna auth. ourselves with MS-CHAPv2 */
 #else
 bool refuse_mschap = 1;		/* Don't wanna auth. ourselves with MS-CHAP */
+bool refuse_mschap_v2 = 1;	/* Don't wanna auth. ourselves with MS-CHAPv2 */
 #endif
 bool usehostname = 0;		/* Use hostname for our_name */
 bool auth_required = 0;		/* Always require authentication from peer */
@@ -248,6 +250,14 @@ option_t auth_options[] = {
       "Require MS-CHAP authentication from peer",
       OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT,
       &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+    { "require-mschap-v2", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require MS-CHAPv2 authentication from peer",
+      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT_V2,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+    { "+mschap-v2", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require MS-CHAPv2 authentication from peer",
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT_V2,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
 #endif
 
     { "refuse-pap", o_bool, &refuse_pap,
@@ -263,11 +273,18 @@ option_t auth_options[] = {
       &lcp_allowoptions[0].chap_mdtype },
 #ifdef CHAPMS
     { "refuse-mschap", o_bool, &refuse_mschap,
-      "Don't agree to auth to peer with MS-CHAP", OPT_A2CLRB | MDTYPE_MICROSOFT,
-      &lcp_allowoptions[0].chap_mdtype },
+      "Don't agree to auth to peer with MS-CHAP",
+      OPT_A2CLRB | MDTYPE_MICROSOFT, &lcp_allowoptions[0].chap_mdtype },
     { "-mschap", o_bool, &refuse_mschap,
       "Don't allow MS-CHAP authentication with peer",
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT,
+      &lcp_allowoptions[0].chap_mdtype },
+    { "refuse-mschap-v2", o_bool, &refuse_mschap_v2,
+      "Don't agree to auth to peer with MS-CHAPv2",
+      OPT_A2CLRB | MDTYPE_MICROSOFT_V2, &lcp_allowoptions[0].chap_mdtype },
+    { "-mschap-v2", o_bool, &refuse_mschap_v2,
+      "Don't allow MS-CHAPv2 authentication with peer",
+      OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT_V2,
       &lcp_allowoptions[0].chap_mdtype },
 #endif
 
@@ -917,7 +934,7 @@ auth_reset(unit)
     lcp_options *ao = &lcp_allowoptions[0];
 
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
-    ao->neg_chap = (!refuse_chap || !refuse_mschap)
+    ao->neg_chap = (!refuse_chap || !refuse_mschap || !refuse_mschap_v2)
 	&& (passwd[0] != 0
 	    || have_chap_secret(user, (explicit_remote? remote_name: NULL),
 				0, NULL));
