@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.40 2000/01/28 01:51:19 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.41 2000/02/11 03:09:19 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -67,6 +67,10 @@
 #endif
 
 #include "pppd.h"
+#include "fsm.h"
+#include "lcp.h"
+#include "ipcp.h"
+#include "ccp.h"
 
 #if !defined(PPP_DEV_NAME)
 #define PPP_DEV_NAME	"/dev/ppp"
@@ -688,6 +692,27 @@ ppp_available()
 }
 
 /*
+ * any_compressions - see if compression is enabled or not
+ *
+ * In the STREAMS implementation of kernel-portion pppd,
+ * the comp STREAMS module performs the ACFC, PFC, as well
+ * CCP and VJ compressions. However, if the user has explicitly
+ * declare to not enable them from the command line, there is
+ * no point of having the comp module be pushed on the stream.
+ */
+static int
+any_compressions()
+{
+    if ((!lcp_wantoptions[0].neg_accompression) &&
+	(!lcp_wantoptions[0].neg_pcompression) &&
+	(!ccp_protent.enabled_flag) &&
+	(!ipcp_wantoptions[0].neg_vj)) {
+	    return 0;
+    }
+    return 1;
+}
+
+/*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
 int
@@ -718,12 +743,21 @@ establish_ppp(fd)
 	i = PPPDBG_LOG + PPPDBG_AHDLC;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
-    if (ioctl(fd, I_PUSH, COMP_MOD_NAME) < 0)
-	error("Couldn't push PPP compression module: %m");
-    else
-	++tty_npushed;
+    /*
+     * There's no need to push comp module if we don't intend
+     * to compress anything
+     */
+    if (any_compressions()) { 
+        if (ioctl(fd, I_PUSH, COMP_MOD_NAME) < 0)
+	    error("Couldn't push PPP compression module: %m");
+	else
+	    ++tty_npushed;
+    }
+
     if (kdebugflag & 2) {
-	i = PPPDBG_LOG + PPPDBG_COMP;
+	i = PPPDBG_LOG; 
+	if (any_compressions())
+	    i += PPPDBG_COMP;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
 
@@ -1294,7 +1328,8 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	}
 	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
 	cf[1] = COMP_PROT | COMP_AC;
-	if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	if (any_compressions() &&
+	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	    error("Couldn't set prot/AC compression: %m");
 	}
     }
@@ -1367,7 +1402,8 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	}
 	cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
 	cf[1] = DECOMP_PROT | DECOMP_AC;
-	if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	if (any_compressions() &&
+	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	    error("Couldn't set prot/AC decompression: %m");
 	}
     }
