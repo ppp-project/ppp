@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.20 1999/03/16 22:54:38 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.21 1999/03/19 01:20:19 paulus Exp $";
 #endif
 
 /*
@@ -436,8 +436,8 @@ ChapReceiveChallenge(cstate, inp, id, len)
     rhostname[len] = '\000';
 
     /* Microsoft doesn't send their name back in the PPP packet */
-    if (remote_name[0] != 0 && (explicit_remote || rhostname[0] == 0)) {
-	strlcpy(rhostname, sizeof(rhostname), remote_name);
+    if (explicit_remote || (remote_name[0] != 0 && rhostname[0] == 0)) {
+	strlcpy(rhostname, remote_name, sizeof(rhostname));
 	CHAPDEBUG(("ChapReceiveChallenge: using '%q' as remote name",
 		   rhostname));
     }
@@ -552,8 +552,8 @@ ChapReceiveResponse(cstate, inp, id, len)
      * do the hash ourselves, and compare the result.
      */
     code = CHAP_FAILURE;
-    if (!get_secret(cstate->unit, rhostname, cstate->chal_name,
-		    secret, &secret_len, 1)) {
+    if (!get_secret(cstate->unit, (explicit_remote? remote_name: rhostname),
+		    cstate->chal_name, secret, &secret_len, 1)) {
 	warn("No CHAP secret found for authenticating %q", rhostname);
     } else {
 
