@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.1 1994/11/21 04:50:36 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.2 1994/11/28 01:38:59 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -96,6 +96,7 @@
 #include "../h/systm.h"
 
 #include "../net/net/if.h"
+#include "ppp_defs.h"
 
 #ifdef VJC
 #include "../net/netinet/in.h"
@@ -104,7 +105,6 @@
 #include "slcompress.h"
 #endif
 
-#include "ppp_defs.h"
 #include "if_ppp.h"
 #include "if_pppvar.h"
 
@@ -322,7 +322,7 @@ pppwrite(tp, uio, flag)
 	m->m_len = len;
     }
     dst.sa_family = AF_UNSPEC;
-    *(u_int32_t *)dst.sa_data = *mtod(m0, u_int32_t *);
+    bcopy(mtod(m0, caddr_t), dst.sa_data, PPP_HDRLEN);
     m0->m_off += PPP_HDRLEN;
     m0->m_len -= PPP_HDRLEN;
     return (pppoutput(&sc->sc_if, m0, &dst));

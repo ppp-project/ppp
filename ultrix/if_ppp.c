@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.2 1994/11/21 04:50:36 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.3 1994/11/28 01:38:25 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -101,12 +101,17 @@
 #include "../net/netinet/ip.h"
 #endif
 
-#ifdef VJC
-#include "slcompress.h"
+#ifdef vax
+#include "../machine/mtpr.h"
 #endif
 
 #include "ppp_defs.h"
 #include "if_ppp.h"
+
+#ifdef VJC
+#include "slcompress.h"
+#endif
+
 #include "if_pppvar.h"
 
 #ifdef PPP_COMPRESS
@@ -457,12 +462,12 @@ pppsioctl(ifp, cmd, data)
 	break;
 
     case SIOCSIFADDR:
-	if (ifa->ifa_addr->sa_family != AF_INET)
+	if (ifa->ifa_addr.sa_family != AF_INET)
 	    error = EAFNOSUPPORT;
 	break;
 
     case SIOCSIFDSTADDR:
-	if (ifa->ifa_addr->sa_family != AF_INET)
+	if (ifa->ifa_addr.sa_family != AF_INET)
 	    error = EAFNOSUPPORT;
 	break;
 
@@ -742,12 +747,12 @@ ppp_outpkt(sc)
 	    switch (mode) {
 	    case NPMODE_DROP:
 	    case NPMODE_ERROR:
-		*mpp = m->m_nextpkt;
+		*mpp = m->m_act;
 		--ifq->ifq_len;
 		m_freem(m);
 		break;
 	    case NPMODE_QUEUE:
-		mpp = &m->m_nextpkt;
+		mpp = &m->m_act;
 		mp = m;
 		break;
 	    }
@@ -764,9 +769,9 @@ ppp_outpkt(sc)
     if (m == NULL)
 	return;
 
-    if ((*mpp = m->m_nextpkt) == NULL)
+    if ((*mpp = m->m_act) == NULL)
 	ifq->ifq_tail = mp;
-    m->m_nextpkt = NULL;
+    m->m_act = NULL;
     --ifq->ifq_len;
 
     /*
@@ -996,16 +1001,13 @@ ppp_ccp_closed(sc)
  * the address/control bytes and the protocol high byte if they
  * were omitted.  Should be called at splimp/spltty.
  */
-#define M_ERRMARK	0x4000	/* steal a bit in mbuf m_flags */
-
 void
 ppppktin(sc, m, lost)
     struct ppp_softc *sc;
     struct mbuf *m;
     int lost;
 {
-    if (lost)
-	m->m_flags |= M_ERRMARK;
+    m->m_context = lost;
     IF_ENQUEUE(&sc->sc_rawq, m);
     schednetisr(NETISR_PPP);
 }
@@ -1040,8 +1042,7 @@ ppp_inproc(sc, m)
     ctrl = PPP_CONTROL(cp);
     proto = PPP_PROTOCOL(cp);
 
-    if (m->m_flags & M_ERRMARK) {
-	m->m_flags &= ~M_ERRMARK;
+    if (m->m_context) {
 	s = splimp();
 	sc->sc_flags |= SC_VJ_RESET;
 	splx(s);
@@ -1135,7 +1136,7 @@ ppp_inproc(sc, m)
 	    goto bad;
 	mp->m_len = 0;
 	mp->m_next = NULL;
-	if (hlen + PPP_HDRLEN > MHLEN) {
+	if (hlen + PPP_HDRLEN > MLEN) {
 	    MCLGET(mp, pc);
 	    if (M_TRAILINGSPACE(mp) < hlen + PPP_HDRLEN) {
 		m_freem(mp);
@@ -1193,7 +1194,7 @@ ppp_inproc(sc, m)
     if (ilen <= MLEN && M_IS_CLUSTER(m)) {
 	MGET(mp, M_DONTWAIT, MT_DATA);
 	if (mp != NULL) {
-	    m_copydata(m, 0, ilen, mtod(mp, caddr_t));
+	    m_copydata(m, mtod(mp, caddr_t), ilen);
 	    m_freem(m);
 	    m = mp;
 	    m->m_len = ilen;
