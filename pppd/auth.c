@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.59 1999/11/20 05:11:01 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.60 1999/12/23 01:25:13 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -125,6 +125,9 @@ int (*pap_check_hook) __P((void)) = NULL;
 int (*pap_auth_hook) __P((char *user, char *passwd, char **msgp,
 			  struct wordlist **paddrs,
 			  struct wordlist **popts)) = NULL;
+
+/* Hook for a plugin to know about the PAP user logout */
+void (*pap_logout_hook) __P((void)) = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
 int (*pap_passwd_hook) __P((char *user, char *passwd)) = NULL;
@@ -349,8 +352,12 @@ link_terminated(unit)
 {
     if (phase == PHASE_DEAD)
 	return;
-    if (logged_in)
-	plogout();
+    if (pap_logout_hook) {
+	pap_logout_hook();
+    } else {
+	if (logged_in)
+	    plogout();
+    }
     new_phase(PHASE_DEAD);
     notice("Connection terminated.");
 }
