@@ -30,7 +30,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap.h,v 1.6 1996/07/01 01:12:21 paulus Exp $
+ * $Id: chap.h,v 1.7 1996/10/08 06:43:27 paulus Exp $
  */
 
 #ifndef __CHAP_INCLUDE__
@@ -57,7 +57,7 @@
  */
 #define MIN_CHALLENGE_LENGTH	32
 #define MAX_CHALLENGE_LENGTH	64
-#define MAX_RESPONSE_LENGTH	16	/* sufficient for MD5 */
+#define MAX_RESPONSE_LENGTH	64	/* sufficient for MD5 or MS-CHAP */
 
 /*
  * Each interface is described by a chap structure.
