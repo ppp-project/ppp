@@ -11,7 +11,7 @@
 # PARTICULAR PURPOSE.
 
 #
-# $Id: Makefile.in,v 1.1 2002/01/22 16:03:01 dfs Exp $
+# $Id: Makefile.in,v 1.2 2002/02/19 22:10:17 dfs Exp $
 #
 # Copyright (C) 1997,1998 Lars Fenneberg
 #
@@ -173,7 +173,7 @@ uninstall: uninstall-pkgsysconfDATA uninstall-local
 install-strip:
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' INSTALL_SCRIPT='$(INSTALL_PROGRAM)' install
 installdirs:
-	$(mkinstalldirs)  $(DATADIR)$(pkgsysconfdir)
+	$(mkinstalldirs)  $(DESTDIR)$(pkgsysconfdir)
 
 
 mostlyclean-generic:
@@ -214,12 +214,12 @@ radiusclient.conf: radiusclient.conf.in
 	    <$(srcdir)/radiusclient.conf.in >radiusclient.conf
 
 install-data-local: servers
-	$(mkinstalldirs) $(pkgsysconfdir); \
-        echo " $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers"; \
-        $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers
+	$(mkinstalldirs) $(DESTDIR)$(pkgsysconfdir); \
+        echo " $(INSTALL) -m600 $(srcdir)/servers $(DESTDIR)$(pkgsysconfdir)/servers"; \
+        $(INSTALL) -m600 $(srcdir)/servers $(DESTDIR)$(pkgsysconfdir)/servers
 
 uninstall-local:
-	rm -f $(pkgsysconfdir)/servers
+	rm -f $(DESTDIR)$(pkgsysconfdir)/servers
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
