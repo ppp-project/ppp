@@ -1,66 +1,13 @@
-*** /usr/sys/net/net/netisr.h.orig	Fri Dec  9 09:53:17 1994
---- /usr/sys/net/net/netisr.h	Fri Dec  9 09:54:14 1994
-***************
-*** 77,82 ****
---- 77,83 ----
-  #define NETISR_LAT	14		/* same as AF_LAT */
-  #define NETISR_BSC	15		/* same as AF_BSC */
-  #define NETISR_DLO      19              /* same as AF_OSI */
-+ #define NETISR_PPP	26		/* Point-to-Point Protocol */
-  
-  #define	schednetisr(anisr)	{ set_bit_atomic(anisr,&netisr); setsoftnet(); }
-  
-*** /usr/sys/net/net/conf_net.c.orig	Fri Dec  9 13:29:49 1994
---- /usr/sys/net/net/conf_net.c	Fri Dec  9 13:32:50 1994
-***************
-*** 84,89 ****
---- 84,90 ----
-  #ifdef vax
-  #include "bsc.h"
-  #endif vax
-+ #include "ppp.h"
-  
-  
-  #if ((NETHER==0 && NFDDI==0) || NINET==0)
-***************
-*** 251,257 ****
-  };
-  
-  
-! extern int rawintr(), ipintr(), nsintr(), dnetintr(), dlointr(), dliintr(), latintr(), bscintr();
-  #ifdef	__mips
-  extern int scsiisr();
-  #endif
---- 252,258 ----
-  };
-  
-  
-! extern int rawintr(), ipintr(), nsintr(), dnetintr(), dlointr(), dliintr(), latintr(), bscintr(), pppintr();
-  #ifdef	__mips
-  extern int scsiisr();
-  #endif
-***************
-*** 289,294 ****
---- 290,298 ----
-          {NETISR_SCSI,scsiisr},
-  #endif /* NSCSI > 0 || NSII > 0 || NASC > 0 */
-  #endif	/* __mips */
-+ #if NPPP > 0
-+ 	{NETISR_PPP,pppintr},
-+ #endif /* NPPP */
-  
-  	{-1	,0}
-  };
 *** /usr/sys/conf/mips/files.mips.orig	Sat Sep 11 06:09:28 1993
 --- /usr/sys/conf/mips/files.mips	Fri Dec  9 09:32:01 1994
 ***************
-*** 115,120 ****
---- 115,122 ----
-  io/netif/if_ne.c	        optional ne device-driver Binary
-  io/netif/if_sl.c		optional sl device-driver Binary Unsupported
+*** 117,122 ****
+--- 117,124 ----
   io/netif/if_ppp.c		optional ppp device-driver Notbinary
-+ io/netif/ppp_tty.c		optional ppp device-driver Notbinary
-+ io/netif/bsd-comp.c		optional ppp device-driver Notbinary
+  io/netif/ppp_tty.c		optional ppp device-driver Notbinary
+  io/netif/bsd-comp.c		optional ppp device-driver Notbinary
++ io/netif/ppp-deflate.c		optional ppp device-driver Notbinary
++ io/netif/zlib.c			optional ppp device-driver Notbinary
   io/netif/slcompress.c		optional sl or ppp device-driver Notbinary
   io/netif/if_qe.c		optional qe device-driver Binary
   io/netif/if_uba.c		optional inet device-driver Binary

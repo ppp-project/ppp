@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.6 1996/01/18 03:13:09 paulus Exp $
+ * $Id: bsd-comp.c,v 1.7 1996/07/01 01:24:24 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -197,6 +197,12 @@ struct compressor ppp_bsd_compress = {
 #define RATIO_SCALE	(1<<RATIO_SCALE_LOG)
 #define RATIO_MAX	(0x7fffffff>>RATIO_SCALE_LOG)
 
+static void bsd_clear __P((struct bsd_db *));
+static int bsd_check __P((struct bsd_db *));
+static void *bsd_alloc __P((u_char *, int, int));
+static int bsd_init __P((struct bsd_db *, u_char *, int, int, int, int,
+			 int, int));
+
 /*
  * clear the dictionary
  */
@@ -318,7 +324,7 @@ bsd_alloc(options, opt_len, decomp)
     u_int newlen, hsize, hshift, maxmaxcode;
     struct bsd_db *db;
 
-    if (opt_len != CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
+    if (opt_len < CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
 	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	return NULL;
@@ -494,7 +500,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
     u_char *rptr, *wptr;
     u_char *cp_end;
     int olen;
-    struct mbuf *m, **mnp, *clp;
+    struct mbuf *m, *clp;
 	
 #define PUTBYTE(v) {					\
     ++olen;						\
@@ -721,7 +727,6 @@ bsd_incomp(state, dmsg)
     if (ent < 0x21 || ent > 0xf9)
 	return;
 
-    db->incomp_count++;
     db->seqno++;
     ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;
@@ -842,7 +847,7 @@ bsd_decompress(state, cmp, dmpp)
     struct mbuf *m, *dmp, *mret;
     int adrs, ctrl, ilen;
     int space, codelen, extra;
-    struct mbuf *last, *clp;
+    struct mbuf *clp;
 
     /*
      * Save the address/control from the PPP header
