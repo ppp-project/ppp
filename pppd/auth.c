@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.25 1996/07/01 01:10:24 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.26 1996/08/28 06:39:12 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -244,7 +244,7 @@ link_established(unit)
 	auth |= PAP_PEER;
     }
     if (ho->neg_chap) {
-	ChapAuthWithPeer(unit, our_name, ho->chap_mdtype);
+	ChapAuthWithPeer(unit, user, ho->chap_mdtype);
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
 	if (passwd[0] == 0) {
@@ -451,6 +451,7 @@ check_idle(arg)
     if (itime >= idle_time_limit) {
 	/* link is idle: shut it down. */
 	syslog(LOG_INFO, "Terminating connection due to lack of activity.");
+	need_holdoff = 0;
 	lcp_close(0, "Link inactive");
     } else {
 	TIMEOUT(check_idle, NULL, idle_time_limit - itime);
@@ -467,6 +468,12 @@ auth_check_options()
     int can_auth;
     ipcp_options *ipwo = &ipcp_wantoptions[0];
     u_int32_t remote;
+
+    /* Check that we are running as root. */
+    if (geteuid() != 0) {
+	option_error("must be run with root privileges");
+	exit(1);
+    }
 
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
@@ -491,11 +498,27 @@ auth_check_options()
     }
 
     if (auth_required && !can_auth) {
-	fprintf(stderr, "\
-pppd: peer authentication required but no suitable secret(s) found\n");
+	option_error("peer authentication required but no suitable secret(s) found\n");
 	exit(1);
     }
 
+    /*
+     * Check whether the user tried to override certain values
+     * set by root.
+     */
+    if (!auth_required && auth_req_info.priv > 0) {
+	if (!default_device && devnam_info.priv == 0) {
+	    option_error("can't override device name when noauth option used");
+	    exit(1);
+	}
+	if (connector != NULL && connector_info.priv == 0
+	    || disconnector != NULL && disconnector_info.priv == 0
+	    || welcomer != NULL && welcomer_info.priv == 0) {
+	    option_error("can't override connect, disconnect or welcome");
+	    option_error("option values when noauth option used");
+	    exit(1);
+	}
+    }
 }
 
 /*
@@ -514,7 +537,7 @@ auth_reset(unit)
 
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
     ao->neg_chap = !refuse_chap
-	&& have_chap_secret(our_name, remote_name, (u_int32_t)0);
+	&& have_chap_secret(user, remote_name, (u_int32_t)0);
 
     if (go->neg_upap && !uselogin && !have_pap_secret())
 	go->neg_upap = 0;
