@@ -1,2 +1,4 @@
 Makefile
 ppp.info
+pppd-bsd
+pppd-sunos4
