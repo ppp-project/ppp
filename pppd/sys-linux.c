@@ -47,6 +47,7 @@
 #define MAX_ADDR_LEN 7
 #endif
 
+#include <linux/version.h>
 #include <net/if.h>
 #include <linux/ppp_defs.h>
 #include <net/if_arp.h>
@@ -59,8 +60,16 @@
 #include "fsm.h"
 #include "ipcp.h"
 
+#ifndef RTF_DEFAULT  /* Normally in <linux/route.h> from <net/route.h> */
+#define RTF_DEFAULT  0
+#endif
+
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
+#endif
+
+#ifdef LOCKLIB
+#include <sys/locks.h>
 #endif
 
 #define ok_error(num) ((num)==EIO)
@@ -232,7 +241,7 @@ void sys_cleanup(void)
  */
     if (default_route_gateway != 0)
       {
-	cifdefaultroute(0, default_route_gateway);
+	cifdefaultroute(0, 0, default_route_gateway);
       }
 
     if (has_proxy_arp)
@@ -1243,7 +1252,7 @@ static int defaultroute_exists (struct rtentry *rt)
  * sifdefaultroute - assign a default route through the address given.
  */
 
-int sifdefaultroute (int unit, u_int32_t gateway)
+int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
   {
     struct rtentry rt;
 
@@ -1265,9 +1274,15 @@ int sifdefaultroute (int unit, u_int32_t gateway)
     memset (&rt, '\0', sizeof (rt));
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+
+#if LINUX_VERSION_CODE > 0x020100
+    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+#endif
+
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
-    rt.rt_flags = RTF_UP | RTF_GATEWAY;
+    rt.rt_flags = RTF_UP | RTF_GATEWAY | RTF_DEFAULT;
     if (ioctl(sock_fd, SIOCADDRT, &rt) < 0)
       {
 	if ( ! ok_error ( errno ))
@@ -1286,7 +1301,7 @@ int sifdefaultroute (int unit, u_int32_t gateway)
  * cifdefaultroute - delete a default route through the address given.
  */
 
-int cifdefaultroute (int unit, u_int32_t gateway)
+int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
   {
     struct rtentry rt;
 
@@ -1295,9 +1310,15 @@ int cifdefaultroute (int unit, u_int32_t gateway)
     memset (&rt, '\0', sizeof (rt));
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+
+#if LINUX_VERSION_CODE > 0x020100
+    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+#endif
+
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
-    rt.rt_flags = RTF_UP | RTF_GATEWAY;
+    rt.rt_flags = RTF_UP | RTF_GATEWAY | RTF_DEFAULT;
     if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
       {
 	if (still_ppp())
@@ -1368,8 +1389,9 @@ int cifproxyarp (int unit, u_int32_t his_adr)
       {
 	memset (&arpreq, '\0', sizeof(arpreq));
 	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
-    
 	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
+	arpreq.arp_flags = ATF_PERM | ATF_PUBL;
+
 	if (ioctl(sock_fd, SIOCDARP, (caddr_t)&arpreq) < 0)
 	  {
 	    if ( ! ok_error ( errno ))
@@ -1396,7 +1418,6 @@ static int get_ether_addr (u_int32_t ipaddr,
     struct ifreq *ifr, *ifend, *ifp;
     int i;
     u_int32_t ina, mask;
-    struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;
     struct ifreq ifs[MAX_IFS];
@@ -1796,7 +1817,7 @@ int ppp_available(void)
  * Update the wtmp file with the appropriate user name and tty device.
  */
 
-int logwtmp (char *line, char *name, char *host)
+void logwtmp (const char *line, const char *name, const char *host)
   {
     int    wtmp;
     struct utmp ut, *utp;
@@ -1884,6 +1905,35 @@ int logwtmp (char *line, char *name, char *host)
 
 int lock (char *dev)
   {
+#ifdef LOCKLIB
+    int result;
+    lock_file = malloc(strlen(dev) + 1);
+    if (lock_file == NULL)
+      {
+	novm("lock file name");
+      }
+    strcpy (lock_file, dev);
+    result = mklock (dev, (void *) 0);
+
+    if (result > 0)
+      {
+        syslog (LOG_NOTICE, "Device %s is locked by pid %d", dev, result);
+	free (lock_file);
+	lock_file = NULL;
+	result = -1;
+      }
+    else
+      {
+        if (result < 0)
+	  {
+	    syslog (LOG_ERR, "Can't create lock file %s", lock_file);
+	    free (lock_file);
+	    lock_file = NULL;
+	    result = -1;
+	  }
+      }
+    return (result);
+#else
     char hdb_lock_buffer[12];
     int fd, n;
     int pid = getpid();
@@ -1954,7 +2004,8 @@ int lock (char *dev)
 #else
 		pid = ((int *) hdb_lock_buffer)[0];
 #endif
-		if (pid == 0 || (kill(pid, 0) == -1 && errno == ESRCH))
+		if (pid == 0 || pid == getpid()
+		    || (kill(pid, 0) == -1 && errno == ESRCH))
 		  {
 		    n = 0;
 		  }
@@ -1979,6 +2030,7 @@ int lock (char *dev)
     free(lock_file);
     lock_file = NULL;
     return -1;
+#endif
 }
 
 
@@ -1991,7 +2043,11 @@ void unlock(void)
   {
     if (lock_file)
       {
+#ifdef LOCKLIB
+	(void) rmlock (lock_file, (void *) 0);
+#else
 	unlink(lock_file);
+#endif
 	free(lock_file);
 	lock_file = NULL;
       }
@@ -2161,13 +2217,19 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Add the device route
  */
+#if LINUX_VERSION_CODE < 0x020100+16		/* 2.1.16 */
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    rt.rt_dev = ifname;  /* MJC */
+    rt.rt_dev = ifname;
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0L;
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
+
+#if LINUX_VERSION_CODE > 0x020100
+    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
+#endif
 
     if (ioctl(sock_fd, SIOCADDRT, &rt) < 0)
       {
@@ -2177,6 +2239,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 	  }
         return (0);
       }
+#endif
     return 1;
   }
 
@@ -2188,6 +2251,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 
 int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
   {
+#if LINUX_VERSION_CODE < 0x020100+16		/* 2.1.16 */
     struct rtentry rt;
 /*
  *  Delete the route through the device
@@ -2196,11 +2260,16 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    rt.rt_dev = ifname;  /* MJC */
+    rt.rt_dev = ifname;
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0;
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
+
+#if LINUX_VERSION_CODE > 0x020100
+    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
+    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
+#endif
 
     if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
       {
@@ -2210,6 +2279,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 	  }
 	return (0);
       }
+#endif
     return 1;
   }
 
@@ -2341,13 +2411,14 @@ sifnpmode(u, proto, mode)
 
 int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
   {
-    int    skfd; 
     int    result = 1;
+
+#ifdef IPX_CHANGE
+    int    skfd; 
     struct sockaddr_ipx  ipx_addr;
     struct ifreq         ifr;
     struct sockaddr_ipx *sipx = (struct sockaddr_ipx *) &ifr.ifr_addr;
 
-#ifdef IPX_CHANGE
     skfd = socket (AF_IPX, SOCK_DGRAM, 0);
     if (skfd < 0)
       { 
@@ -2403,13 +2474,14 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
 
 int cipxfaddr (int unit)
   {
-    int    skfd; 
     int    result = 1;
+
+#ifdef IPX_CHANGE
+    int    skfd; 
     struct sockaddr_ipx  ipx_addr;
     struct ifreq         ifr;
     struct sockaddr_ipx *sipx = (struct sockaddr_ipx *) &ifr.ifr_addr;
 
-#ifdef IPX_CHANGE
     skfd = socket (AF_IPX, SOCK_DGRAM, 0);
     if (skfd < 0)
       { 
