@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.64 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.65 2003/03/03 05:11:46 paulus Exp $"
 
 /*
  * TODO:
@@ -433,9 +433,10 @@ lcp_lowerup(unit)
      * but accept A/C and protocol compressed packets
      * if we are going to ask for A/C and protocol compression.
      */
-    ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0);
-    ppp_recv_config(unit, PPP_MRU, (lax_recv? 0: 0xffffffff),
-		    wo->neg_pcompression, wo->neg_accompression);
+    if (ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0) < 0
+	|| ppp_recv_config(unit, PPP_MRU, (lax_recv? 0: 0xffffffff),
+			   wo->neg_pcompression, wo->neg_accompression) < 0)
+	    return;
     peer_mru[unit] = PPP_MRU;
 
     if (listen_time != 0) {

@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.122 2003/02/24 12:46:37 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.123 2003/03/03 05:11:46 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -113,6 +113,7 @@ struct notifier *pidchange = NULL;
 struct notifier *phasechange = NULL;
 struct notifier *exitnotify = NULL;
 struct notifier *sigreceived = NULL;
+struct notifier *fork_notifier = NULL;
 
 int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
@@ -139,6 +140,7 @@ static int conn_running;	/* we have a [dis]connector running */
 static int devfd;		/* fd of underlying device */
 static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
+static int fd_devnull;		/* fd for /dev/null */
 
 int phase;			/* where the link is at */
 int kill_link;
@@ -190,8 +192,8 @@ static struct subprocess *children;
 /* Prototypes for procedures local to this file. */
 
 static void setup_signals __P((void));
-static void create_pidfile __P((void));
-static void create_linkpidfile __P((void));
+static void create_pidfile __P((int pid));
+static void create_linkpidfile __P((int pid));
 static void cleanup __P((void));
 static void get_input __P((void));
 static void calltimeout __P((void));
@@ -277,18 +279,6 @@ main(argc, argv)
 
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
-
-    /*
-     * Ensure that fds 0, 1, 2 are open, to /dev/null if nowhere else.
-     * This way we can close 0, 1, 2 in detach() without clobbering
-     * a fd that we are using.
-     */
-    if ((i = open("/dev/null", O_RDWR)) >= 0) {
-	while (0 <= i && i <= 2)
-	    i = dup(i);
-	if (i >= 0)
-	    close(i);
-    }
 
     script_env = NULL;
 
@@ -387,14 +377,6 @@ main(argc, argv)
 	end_pr_log();
     }
 
-    /*
-     * Early check for remote number authorization.
-     */
-    if (!auth_number()) {
-	warn("calling number %q is not authorized", remote_number);
-	exit(EXIT_CNID_AUTH_FAILED);
-    }
-
     if (dryrun)
 	die(0);
 
@@ -402,6 +384,17 @@ main(argc, argv)
      * Initialize system-dependent stuff.
      */
     sys_init();
+
+    /* Make sure fds 0, 1, 2 are open to somewhere. */
+    fd_devnull = open(_PATH_DEVNULL, O_RDWR);
+    if (fd_devnull < 0)
+	fatal("Couldn't open %s: %m", _PATH_DEVNULL);
+    while (fd_devnull <= 2) {
+	i = dup(fd_devnull);
+	if (i < 0)
+	    fatal("Critical shortage of file descriptors: dup failed: %m");
+	fd_devnull = i;
+    }
 
 #ifdef USE_TDB
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
@@ -443,7 +436,7 @@ main(argc, argv)
 
     waiting = 0;
 
-    create_linkpidfile();
+    create_linkpidfile(getpid());
 
     /*
      * If we're doing dial-on-demand, set up the interface now.
@@ -783,8 +776,8 @@ set_ifunit(iskey)
     slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     script_setenv("IFNAME", ifname, iskey);
     if (iskey) {
-	create_pidfile();	/* write pid to file */
-	create_linkpidfile();
+	create_pidfile(getpid());	/* write pid to file */
+	create_linkpidfile(getpid());
     }
 }
 
@@ -796,9 +789,12 @@ detach()
 {
     int pid;
     char numbuf[16];
+    int pipefd[2];
 
     if (detached)
 	return;
+    if (pipe(pipefd) == -1)
+	pipefd[0] = pipefd[1] = -1;
     if ((pid = fork()) < 0) {
 	error("Couldn't detach (fork failed: %m)");
 	die(1);			/* or just return? */
@@ -806,23 +802,28 @@ detach()
     if (pid != 0) {
 	/* parent */
 	notify(pidchange, pid);
+	/* update pid files if they have been written already */
+	if (pidfilename[0])
+	    create_pidfile(pid);
+	if (linkpidfile[0])
+	    create_linkpidfile(pid);
 	exit(0);		/* parent dies */
     }
     setsid();
     chdir("/");
-    close(0);
-    close(1);
-    close(2);
+    dup2(fd_devnull, 0);
+    dup2(fd_devnull, 1);
+    dup2(fd_devnull, 2);
     detached = 1;
     if (log_default)
 	log_to_fd = -1;
-    /* update pid files if they have been written already */
-    if (pidfilename[0])
-	create_pidfile();
-    if (linkpidfile[0])
-	create_linkpidfile();
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
     script_setenv("PPPD_PID", numbuf, 1);
+
+    /* wait for parent to finish updating pid & lock files and die */
+    close(pipefd[1]);
+    read(pipefd[0], numbuf, 1);
+    close(pipefd[0]);
 }
 
 /*
@@ -843,7 +844,8 @@ reopen_log()
  * Create a file containing our process ID.
  */
 static void
-create_pidfile()
+create_pidfile(pid)
+    int pid;
 {
     FILE *pidfile;
 
@@ -859,7 +861,8 @@ create_pidfile()
 }
 
 static void
-create_linkpidfile()
+create_linkpidfile(pid)
+    int pid;
 {
     FILE *pidfile;
 
@@ -1405,6 +1408,40 @@ bad_signal(sig)
     die(127);
 }
 
+/*
+ * safe_fork - Create a child process.  The child closes all the
+ * file descriptors that we don't want to leak to a script.
+ * The parent waits for the child to do this before returning.
+ */
+pid_t
+safe_fork()
+{
+	pid_t pid;
+	int pipefd[2];
+	char buf[1];
+
+	if (pipe(pipefd) == -1)
+		pipefd[0] = pipefd[1] = -1;
+	pid = fork();
+	if (pid < 0)
+		return -1;
+	if (pid > 0) {
+		close(pipefd[1]);
+		/* this read() blocks until the close(pipefd[1]) below */
+		read(pipefd[0], buf, 1);
+		close(pipefd[0]);
+		return pid;
+	}
+	sys_close();
+#ifdef USE_TDB
+	tdb_close(pppdb);
+#endif
+	notify(fork_notifier, 0);
+	close(pipefd[0]);
+	/* this close unblocks the read() call above in the parent */
+	close(pipefd[1]);
+	return 0;
+}
 
 /*
  * device_script - run a program to talk to the specified fds
@@ -1417,12 +1454,12 @@ device_script(program, in, out, dont_wait)
     int in, out;
     int dont_wait;
 {
-    int pid, fd;
+    int pid;
     int status = -1;
     int errfd;
 
     ++conn_running;
-    pid = fork();
+    pid = safe_fork();
 
     if (pid < 0) {
 	--conn_running;
@@ -1446,13 +1483,6 @@ device_script(program, in, out, dont_wait)
     }
 
     /* here we are executing in the child */
-    /* make sure fds 0, 1, 2 are occupied */
-    while ((fd = dup(in)) >= 0) {
-	if (fd > 2) {
-	    close(fd);
-	    break;
-	}
-    }
 
     /* dup in and out to fds > 2 */
     {
@@ -1474,10 +1504,10 @@ device_script(program, in, out, dont_wait)
     close(0);
     close(1);
     close(2);
-    sys_close();
     if (the_channel->close)
 	(*the_channel->close)();
     closelog();
+    close(fd_devnull);
 
     /* dup the in, out, err fds to 0, 1, 2 */
     dup2(in, 0);
@@ -1537,66 +1567,54 @@ run_program(prog, args, must_exist, done, arg)
 	return 0;
     }
 
-    pid = fork();
+    pid = safe_fork();
     if (pid == -1) {
 	error("Failed to create child process for %s: %m", prog);
 	return -1;
     }
-    if (pid == 0) {
-	int new_fd;
-
-	/* Leave the current location */
-	(void) setsid();	/* No controlling tty. */
-	(void) umask (S_IRWXG|S_IRWXO);
-	(void) chdir ("/");	/* no current directory. */
-	setuid(0);		/* set real UID = root */
-	setgid(getegid());
-
-	/* Ensure that nothing of our device environment is inherited. */
-	sys_close();
-	closelog();
-	close (0);
-	close (1);
-	close (2);
-	if (the_channel->close)
-	    (*the_channel->close)();
-
-        /* Don't pass handles to the PPP device, even by accident. */
-	new_fd = open (_PATH_DEVNULL, O_RDWR);
-	if (new_fd >= 0) {
-	    if (new_fd != 0) {
-	        dup2  (new_fd, 0); /* stdin <- /dev/null */
-		close (new_fd);
-	    }
-	    dup2 (0, 1); /* stdout -> /dev/null */
-	    dup2 (0, 2); /* stderr -> /dev/null */
-	}
-
-#ifdef BSD
-	/* Force the priority back to zero if pppd is running higher. */
-	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
-	    warn("can't reset priority to 0: %m");
-#endif
-
-	/* SysV recommends a second fork at this point. */
-
-	/* run the program */
-	execve(prog, args, script_env);
-	if (must_exist || errno != ENOENT) {
-	    /* have to reopen the log, there's nowhere else
-	       for the message to go. */
-	    reopen_log();
-	    syslog(LOG_ERR, "Can't execute %s: %m", prog);
-	    closelog();
-	}
-	_exit(-1);
+    if (pid != 0) {
+	if (debug)
+	    dbglog("Script %s started (pid %d)", prog, pid);
+	record_child(pid, prog, done, arg);
+	return pid;
     }
 
-    if (debug)
-	dbglog("Script %s started (pid %d)", prog, pid);
-    record_child(pid, prog, done, arg);
+    /* Leave the current location */
+    (void) setsid();	/* No controlling tty. */
+    (void) umask (S_IRWXG|S_IRWXO);
+    (void) chdir ("/");	/* no current directory. */
+    setuid(0);		/* set real UID = root */
+    setgid(getegid());
 
-    return pid;
+    /* Ensure that nothing of our device environment is inherited. */
+    closelog();
+    if (the_channel->close)
+	(*the_channel->close)();
+
+    /* Don't pass handles to the PPP device, even by accident. */
+    dup2(fd_devnull, 0);
+    dup2(fd_devnull, 1);
+    dup2(fd_devnull, 2);
+    close(fd_devnull);
+
+#ifdef BSD
+    /* Force the priority back to zero if pppd is running higher. */
+    if (setpriority (PRIO_PROCESS, 0, 0) < 0)
+	warn("can't reset priority to 0: %m");
+#endif
+
+    /* SysV recommends a second fork at this point. */
+
+    /* run the program */
+    execve(prog, args, script_env);
+    if (must_exist || errno != ENOENT) {
+	/* have to reopen the log, there's nowhere else
+	   for the message to go. */
+	reopen_log();
+	syslog(LOG_ERR, "Can't execute %s: %m", prog);
+	closelog();
+    }
+    _exit(-1);
 }
 
 

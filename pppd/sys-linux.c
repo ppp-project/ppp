@@ -183,7 +183,7 @@ static int master_fd = -1;
 #ifdef INET6
 static int sock6_fd = -1;
 #endif /* INET6 */
-int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
+int ppp_dev_fd = -1;		/* fd for /dev/ppp (new style driver) */
 static int chindex;		/* channel index (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
@@ -225,7 +225,7 @@ static int kernel_version;
 
 /* Prototypes for procedures local to this file. */
 static int get_flags (int fd);
-static void set_flags (int fd, int flags);
+static int set_flags (int fd, int flags);
 static int translate_speed (int bps);
 static int baud_rate_of (int speed);
 static void close_route_table (void);
@@ -300,14 +300,16 @@ static int get_flags (int fd)
 
 /********************************************************************/
 
-static void set_flags (int fd, int flags)
+static int set_flags (int fd, int flags)
 {
     SYSDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
 
     if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0) {
 	if (! ok_error (errno) )
-	    fatal("ioctl(PPPIOCSFLAGS, %x): %m (line %d)", flags, errno, __LINE__);
+	    error("Failed to set PPP kernel option flags: %m", flags);
+	return -1;
     }
+    return 0;
 }
 
 /********************************************************************
@@ -317,18 +319,6 @@ static void set_flags (int fd, int flags)
 
 void sys_init(void)
 {
-    int flags;
-
-    if (new_style_driver) {
-	ppp_dev_fd = open("/dev/ppp", O_RDWR);
-	if (ppp_dev_fd < 0)
-	    fatal("Couldn't open /dev/ppp: %m");
-	flags = fcntl(ppp_dev_fd, F_GETFL);
-	if (flags == -1
-	    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
-	    warn("Couldn't set /dev/ppp to nonblock: %m");
-    }
-
     /* Get an internet socket for doing socket ioctls. */
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd < 0)
@@ -381,11 +371,14 @@ sys_close(void)
 	close(ppp_dev_fd);
     if (sock_fd >= 0)
 	close(sock_fd);
+#ifdef INET6
+    if (sock6_fd >= 0)
+	close(sock6_fd);
+#endif
     if (slave_fd >= 0)
 	close(slave_fd);
     if (master_fd >= 0)
 	close(master_fd);
-    closelog();
 }
 
 /********************************************************************
@@ -472,9 +465,9 @@ int generic_establish_ppp (int fd)
     int x;
 
     if (new_style_driver) {
-	/* Open another instance of /dev/ppp and connect the channel to it */
 	int flags;
 
+	/* Open an instance of /dev/ppp and connect the channel to it */
 	if (ioctl(fd, PPPIOCGCHAN, &chindex) == -1) {
 	    error("Couldn't get channel number: %m");
 	    goto err;
@@ -617,10 +610,11 @@ void generic_disestablish_ppp(int dev_fd)
 	if (demand) {
 	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
 	    looped = 1;
-	} else if (ifunit >= 0 && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
-	    error("Couldn't release PPP unit: %m");
-	if (!multilink)
+	} else if (ifunit >= 0) {
+	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
+	    ppp_dev_fd = -1;
+	}
     } else {
 	/* old-style driver */
 	if (demand)
@@ -634,7 +628,19 @@ void generic_disestablish_ppp(int dev_fd)
  */
 static int make_ppp_unit()
 {
-	int x;
+	int x, flags;
+
+	if (ppp_dev_fd >= 0) {
+		dbglog("in make_ppp_unit, already had /dev/ppp open?");
+		close(ppp_dev_fd);
+	}
+	ppp_dev_fd = open("/dev/ppp", O_RDWR);
+	if (ppp_dev_fd < 0)
+		fatal("Couldn't open /dev/ppp: %m");
+	flags = fcntl(ppp_dev_fd, F_GETFL);
+	if (flags == -1
+	    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
+		warn("Couldn't set /dev/ppp to nonblock: %m");
 
 	ifunit = req_unit;
 	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
@@ -701,17 +707,25 @@ void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
  */
 int bundle_attach(int ifnum)
 {
+	int master_fd;
+
 	if (!new_style_driver)
 		return -1;
 
-	if (ioctl(ppp_dev_fd, PPPIOCATTACH, &ifnum) < 0) {
-		if (errno == ENXIO)
+	master_fd = open("/dev/ppp", O_RDWR);
+	if (master_fd < 0)
+		fatal("Couldn't open /dev/ppp: %m");
+	if (ioctl(master_fd, PPPIOCATTACH, &ifnum) < 0) {
+		if (errno == ENXIO) {
+			close(master_fd);
 			return 0;	/* doesn't still exist */
+		}
 		fatal("Couldn't attach to interface unit %d: %m\n", ifnum);
 	}
 	if (ioctl(ppp_fd, PPPIOCCONNECT, &ifnum) < 0)
 		fatal("Couldn't connect to interface unit %d: %m", ifnum);
-	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_MULTILINK);
+	set_flags(master_fd, get_flags(master_fd) | SC_MULTILINK);
+	close(master_fd);
 
 	ifunit = ifnum;
 	return 1;
@@ -1175,7 +1189,7 @@ netif_get_mtu(int unit)
  * the ppp interface.
  */
 
-void tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
+int tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 {
     u_int x;
 
@@ -1183,20 +1197,22 @@ void tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
  * Set the asyncmap and other parameters for the ppp device
  */
     if (!still_ppp())
-	return;
+	return 0;
     link_mtu = mtu;
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (!ok_error(errno))
-	    fatal("ioctl(PPPIOCSASYNCMAP): %m (line %d)", __LINE__);
-	return;
+	if (errno != EIO && errno != ENOTTY)
+	    error("Couldn't set transmit async character map: %m");
+	else if (debug)
+	    dbglog("PPPIOCSASYNCMAP: %m");
+	return -1;
     }
 
     x = get_flags(ppp_fd);
     x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
     x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
     x = sync_serial ? x | SC_SYNC : x & ~SC_SYNC;
-    set_flags(ppp_fd, x);
+    return set_flags(ppp_fd, x);
 }
 
 /********************************************************************
@@ -1223,31 +1239,42 @@ void tty_set_xaccm (ext_accm accm)
  * the ppp interface.
  */
 
-void tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
+int tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
 {
+    int ret = 0;
+
     SYSDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
 /*
  * If we were called because the link has gone down then there is nothing
  * which may be done. Just return without incident.
  */
     if (!still_ppp())
-	return;
+	return 0;
 /*
  * Set the receiver parameters
  */
     if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
-	if ( ! ok_error (errno))
-	    error("ioctl(PPPIOCSMRU): %m (line %d)", __LINE__);
+	if (errno != EIO && errno != ENOTTY)
+	    error("Couldn't set channel receive MRU: %m");
+	else if (debug)
+	    dbglog("PPPIOCSMRU: %m");
+	ret = -1;
     }
     if (new_style_driver && ifunit >= 0
-	&& ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+	&& ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
 	error("Couldn't set MRU in generic PPP layer: %m");
+	ret = -1;
+    }
 
     SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (!ok_error(errno))
-	    error("ioctl(PPPIOCSRASYNCMAP): %m (line %d)", __LINE__);
+	if (errno != EIO && errno != ENOTTY)
+	    error("Couldn't set channel receive asyncmap: %m");
+	else if (debug)
+	    dbglog("PPPIOCSRASYNCMAP: %m");
+	ret = -1;
     }
+    return ret;
 }
 
 /********************************************************************

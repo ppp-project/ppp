@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: demand.c,v 1.16 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: demand.c,v 1.17 2003/03/03 05:11:45 paulus Exp $"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,8 +102,9 @@ demand_conf()
     fcs = PPP_INITFCS;
 
     netif_set_mtu(0, MIN(lcp_allowoptions[0].mru, PPP_MRU));
-    ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
-    ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
+    if (ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0) < 0
+	|| ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0) < 0)
+	    fatal("Couldn't set up demand-dialled PPP interface: %m");
 
 #ifdef PPP_FILTER
     set_filters(&pass_filter, &active_filter);

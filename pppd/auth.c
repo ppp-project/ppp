@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.92 2003/02/16 22:29:50 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.93 2003/03/03 05:11:45 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -428,7 +428,8 @@ setupapfile(argv)
 
     /* get username */
     if (fgets(u, MAXNAMELEN - 1, ufile) == NULL
-	|| fgets(p, MAXSECRETLEN - 1, ufile) == NULL){
+	|| fgets(p, MAXSECRETLEN - 1, ufile) == NULL) {
+	fclose(ufile);
 	option_error("unable to read user login data file %s", fname);
 	return 0;
     }
@@ -1148,6 +1149,14 @@ auth_check_options()
 "(None of the available passwords would let it use an IP address.)");
 
 	exit(1);
+    }
+
+    /*
+     * Early check for remote number authorization.
+     */
+    if (!auth_number()) {
+	warn("calling number %q is not authorized", remote_number);
+	exit(EXIT_CNID_AUTH_FAILED);
     }
 }
 

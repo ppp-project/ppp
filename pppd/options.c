@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.90 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.91 2003/03/03 05:11:46 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1483,7 +1483,6 @@ setdomain(argv)
     return (1);
 }
 
-
 static int
 setlogfile(argv)
     char **argv;
@@ -1511,6 +1510,7 @@ setlogfile(argv)
     log_default = 0;
     return 1;
 }
+
 #ifdef MAXOCTETS
 static int
 setmodir(argv)

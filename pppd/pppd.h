@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.79 2003/02/16 22:26:27 paulus Exp $
+ * $Id: pppd.h,v 1.80 2003/03/03 05:11:46 paulus Exp $
  */
 
 /*
@@ -252,6 +252,7 @@ extern struct notifier *ip_up_notifier; /* IPCP has come up */
 extern struct notifier *ip_down_notifier; /* IPCP has gone down */
 extern struct notifier *auth_up_notifier; /* peer has authenticated */
 extern struct notifier *link_down_notifier; /* link has gone down */
+extern struct notifier *fork_notifier;	/* we are a new child process */
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */
@@ -438,9 +439,9 @@ struct channel {
 	/* take the channel out of PPP `mode', restore loopback if demand */
 	void (*disestablish_ppp) __P((int));
 	/* set the transmit-side PPP parameters of the channel */
-	void (*send_config) __P((int, u_int32_t, int, int));
+	int (*send_config) __P((int, u_int32_t, int, int));
 	/* set the receive-side PPP parameters of the channel */
-	void (*recv_config) __P((int, u_int32_t, int, int));
+	int (*recv_config) __P((int, u_int32_t, int, int));
 	/* cleanup on error or normal exit */
 	void (*cleanup) __P((void));
 	/* close the device, called in children after fork */
@@ -450,16 +451,12 @@ struct channel {
 extern struct channel *the_channel;
 
 #define ppp_send_config(unit, mtu, accm, pc, acc)			 \
-do {									 \
-	if (the_channel->send_config)					 \
-		(*the_channel->send_config)((mtu), (accm), (pc), (acc)); \
-} while (0)
+	(the_channel->send_config?					 \
+	 (*the_channel->send_config)((mtu), (accm), (pc), (acc)): 0)
 
 #define ppp_recv_config(unit, mtu, accm, pc, acc)			 \
-do {									 \
-	if (the_channel->send_config)					 \
-		(*the_channel->recv_config)((mtu), (accm), (pc), (acc)); \
-} while (0)
+	(the_channel->recv_config?					 \
+	 (*the_channel->recv_config)((mtu), (accm), (pc), (acc)): 0)
 
 /*
  * Prototypes.
@@ -476,6 +473,7 @@ void timeout __P((void (*func)(void *), void *arg, int s, int us));
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
 void record_child __P((int, char *, void (*) (void *), void *));
+pid_t safe_fork __P((void));	/* Fork & close stuff in child */
 int  device_script __P((char *cmd, int in, int out, int dont_wait));
 				/* Run `cmd' with given stdin and stdout */
 pid_t run_program __P((char *prog, char **args, int must_exist,
@@ -588,11 +586,11 @@ void add_fd __P((int));		/* Add fd to set to wait for */
 void remove_fd __P((int));	/* Remove fd from set to wait for */
 int  read_packet __P((u_char *)); /* Read PPP packet */
 int  get_loop_output __P((void)); /* Read pkts from loopback */
-void tty_send_config __P((int, u_int32_t, int, int));
+int  tty_send_config __P((int, u_int32_t, int, int));
 				/* Configure i/f transmit parameters */
 void tty_set_xaccm __P((ext_accm));
 				/* Set extended transmit ACCM */
-void tty_recv_config __P((int, u_int32_t, int, int));
+int  tty_recv_config __P((int, u_int32_t, int, int));
 				/* Configure i/f receive parameters */
 int  ccp_test __P((int, u_char *, int, int));
 				/* Test support for compression scheme */
