@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under SunOS 4.
-# $Id: Makefile.sunos4,v 1.4 1996/04/04 03:26:02 paulus Exp $
+# $Id: Makefile.sunos4,v 1.5 1996/05/28 00:54:23 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -9,19 +9,19 @@ MANDIR = /usr/local/man
 CC = gcc
 COPTS = -g -O2
 #COPTS = -O
+LIBS =
 
-CFLAGS = $(COPTS) -I..
+CFLAGS = $(COPTS) -I.. -DSUNOS4
 
 INSTALL = install -o root -g daemon
 
 all: pppd
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-sunos4.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
+	auth.o options.o demand.o sys-sunos4.o
 
 pppd:	$(OBJS)
-	$(CC) -o pppd $(OBJS)
+	$(CC) -o pppd $(OBJS) $(LIBS)
 
 install:
 	$(INSTALL) -c -m 4555 pppd $(BINDIR)/pppd

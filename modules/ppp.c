@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.4 1996/04/04 02:45:29 paulus Exp $
+ * $Id: ppp.c,v 1.5 1996/05/28 00:56:18 paulus Exp $
  */
 
 /*
@@ -58,7 +58,6 @@
 #endif /* SVR4 */
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
-#include <net/bpf.h>
 #include "ppp_mod.h"
 
 #ifdef __STDC__
@@ -107,8 +106,6 @@ typedef struct upperstr {
     struct pppstat stats;	/* statistics */
     time_t last_sent;		/* time last NP packet sent */
     time_t last_recv;		/* time last NP packet rcvd */
-    struct bpf_program active_f;/* filter for active packets */
-    struct bpf_program pass_f;	/* filter for packets to pass */
 #ifdef SOL2
     kstat_t *kstats;		/* stats for netstat */
 #endif /* SOL2 */
@@ -381,15 +378,6 @@ pppclose(q, flag)
 	kstat_delete(up->kstats);
 #endif
 
-    if (up->active_f.bf_insns) {
-	kmem_free(up->active_f.bf_insns, up->active_f.bf_len);
-	up->active_f.bf_insns = 0;
-    }
-    if (up->pass_f.bf_insns) {
-	kmem_free(up->pass_f.bf_insns, up->pass_f.bf_len);
-	up->pass_f.bf_insns = 0;
-    }
-
     q->q_ptr = NULL;
     WR(q)->q_ptr = NULL;
 
@@ -428,8 +416,6 @@ pppuwput(q, mp)
     mblk_t *mq;
     struct ppp_idle *pip;
     int len;
-    struct bpf_insn *ip;
-    struct bpf_program *dest;
 
     us = (upperstr_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
@@ -637,8 +623,11 @@ pppuwput(q, mp)
 	    for (nps = us->next; nps != 0; nps = nps->next)
 		if (nps->sap == sap)
 		    break;
-	    if (nps == 0)
+	    if (nps == 0) {
+		if (us->flags & US_DBGLOG)
+		    DPRINT2("ppp/%d: no stream for sap %x\n", us->mn, sap);
 		break;
+	    }
 	    nps->npmode = (enum NPmode) ((int *)mp->b_cont->b_rptr)[1];
 	    if (nps->npmode == NPMODE_DROP || nps->npmode == NPMODE_ERROR)
 		flushq(WR(nps->q), FLUSHDATA);
@@ -667,34 +656,6 @@ pppuwput(q, mp)
 	    mq->b_wptr += sizeof(struct ppp_idle);
 	    iop->ioc_count = sizeof(struct ppp_idle);
 	    error = 0;
-	    break;
-
-	case PPPIO_PASSFILT:
-	case PPPIO_ACTIVEFILT:
-	    if ((us->flags & US_CONTROL) == 0)
-		break;
-	    len = iop->ioc_count;
-	    if (len > BPF_MAXINSNS * sizeof(struct bpf_insn)
-		|| len % sizeof(struct bpf_insn) != 0)
-		break;
-	    if (len > 0) {
-		if (!bpf_validate((struct bpf_insn *) mp->b_cont->b_rptr,
-				  len / sizeof(struct bpf_insn)))
-		    break;
-		ip = (struct bpf_insn *) ALLOC_NOSLEEP(len);
-		if (ip == 0) {
-		    error = ENOSR;
-		    break;
-		}
-		bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)ip, len);
-	    } else
-		ip = 0;
-	    dest = iop->ioc_cmd == PPPIO_ACTIVEFILT?
-		&us->active_f: &us->pass_f;
-	    if (dest->bf_insns != 0)
-		kmem_free((caddr_t) dest->bf_insns, dest->bf_len);
-	    dest->bf_len = len;
-	    dest->bf_insns = ip;
 	    break;
 
 #ifdef LACHTCP
@@ -864,7 +825,7 @@ dlpi_request(q, mp, us)
     dl_bind_ack_t *ackp;
 
     if (us->flags & US_DBGLOG)
-	cmn_err(CE_CONT, "ppp/%d: dlpi prim %x len=%d\n", us->mn,
+	DPRINT3("ppp/%d: dlpi prim %x len=%d\n", us->mn,
 		d->dl_primitive, size);
     switch (d->dl_primitive) {
     case DL_INFO_REQ:
@@ -1023,9 +984,9 @@ dlpi_request(q, mp, us)
 	mp->b_rptr[1] = PPP_UI;
 	mp->b_rptr[2] = us->sap >> 8;
 	mp->b_rptr[3] = us->sap;
-	if (!pass_packet(ppa, mp, 1))
+	if (!pass_packet(ppa, mp, 1)) {
 	    freemsg(mp);
-	else {
+	} else {
 	    if (!send_data(mp, us))
 		putq(q, mp);
 	}
@@ -1125,25 +1086,15 @@ pass_packet(ppa, mp, outbound)
     mblk_t *mp;
     int outbound;
 {
-    int len, adr, pass;
-
-    if (PPP_PROTOCOL(mp->b_rptr) >= 0x8000
-	|| (ppa->pass_f.bf_insns == 0 && ppa->active_f.bf_insns == 0))
-	return 1;
-    len = msgdsize(mp);
-    adr = *mp->b_rptr;
-    *mp->b_rptr = outbound;
-    pass = ppa->pass_f.bf_insns == 0
-	|| bpf_filter(ppa->pass_f.bf_insns, mp, len, 0);
-    if (pass && (ppa->active_f.bf_insns == 0
-		 || bpf_filter(ppa->active_f.bf_insns, mp, len, 0))) {
-	if (outbound)
-	    ppa->last_sent = time;
-	else
-	    ppa->last_recv = time;
-    }
-    *mp->b_rptr = adr;
-    return pass;
+    /*
+     * Here is where we might, in future, decide whether to pass
+     * or drop the packet, and whether it counts as link activity.
+     */
+    if (outbound)
+	ppa->last_sent = time;
+    else
+	ppa->last_recv = time;
+    return 1;
 }
 
 static int
@@ -1154,10 +1105,12 @@ send_data(mp, us)
     queue_t *q;
     upperstr_t *ppa;
 
-    if (us->flags & US_BLOCKED || us->npmode == NPMODE_QUEUE)
+    if ((us->flags & US_BLOCKED) || us->npmode == NPMODE_QUEUE)
 	return 0;
     ppa = us->ppa;
     if (ppa == 0 || us->npmode == NPMODE_DROP || us->npmode == NPMODE_ERROR) {
+	if (us->flags & US_DBGLOG)
+	    DPRINT2("ppp/%d: dropping pkt (npmode=%d)\n", us->mn, us->npmode);
 	freemsg(mp);
 	return 1;
     }

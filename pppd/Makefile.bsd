@@ -1,12 +1,11 @@
-#	$Id: Makefile.bsd,v 1.9 1996/04/04 03:25:59 paulus Exp $
+#	$Id: Makefile.bsd,v 1.10 1996/05/28 00:54:20 paulus Exp $
 
 BINDIR?= /usr/sbin
 CFLAGS+= -g -I.. -DHAVE_PATHS_H
 
 PROG=	pppd
 SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	demand.c auth.c options.c sys-bsd.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c bpf_filter.c
+	demand.c auth.c options.c sys-bsd.c
 MAN=	pppd.cat8
 # The next line is for NetBSD-1.0 and other older *BSD systems.
 MAN8=	pppd.0
