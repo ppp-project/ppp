@@ -81,7 +81,7 @@
  */
 
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.22 1999/08/12 03:56:05 paulus Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.23 1999/08/13 01:54:32 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -615,26 +615,26 @@ int status;
 	exit(status);
     terminating = 1;
     echo_stderr(-1);
-    if (report_file != (char *) 0 && report_fp != (FILE *) NULL) {
 /*
  * Allow the last of the report string to be gathered before we terminate.
  */
-	if (report_gathering) {
-	    int c, rep_len;
+    if (report_gathering) {
+	int c, rep_len;
 
-	    rep_len = strlen(report_buffer);
-	    while (rep_len + 1 <= sizeof(report_buffer)) {
-		alarm(1);
-		c = get_char();
-		alarm(0);
-		if (c < 0 || iscntrl(c))
-		    break;
-		report_buffer[rep_len] = c;
-		++rep_len;
-	    }
-	    report_buffer[rep_len] = 0;
-	    fprintf (report_fp, "chat:  %s\n", report_buffer);
+	rep_len = strlen(report_buffer);
+	while (rep_len + 1 <= sizeof(report_buffer)) {
+	    alarm(1);
+	    c = get_char();
+	    alarm(0);
+	    if (c < 0 || iscntrl(c))
+		break;
+	    report_buffer[rep_len] = c;
+	    ++rep_len;
 	}
+	report_buffer[rep_len] = 0;
+	fprintf (report_fp, "chat:  %s\n", report_buffer);
+    }
+    if (report_file != (char *) 0 && report_fp != (FILE *) NULL) {
 	if (verbose)
 	    fprintf (report_fp, "Closing \"%s\".\n", report_file);
 	fclose (report_fp);
