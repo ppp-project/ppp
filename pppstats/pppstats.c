@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.3 1994/04/21 03:11:03 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.4 1994/06/08 00:38:49 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -47,7 +47,10 @@ static char rcsid[] = "$Id: pppstats.c,v 1.3 1994/04/21 03:11:03 paulus Exp $";
 
 #define	VJC	1
 #include <net/slcompress.h>
+
+#ifndef STREAMS
 #include <net/if_ppp.h>
+#endif
 
 #ifdef STREAMS
 #define PPP_STATS	1	/* should be defined iff it is in ppp_if.c */
