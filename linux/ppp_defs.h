@@ -1,4 +1,4 @@
-/*	From: ppp_defs.h,v 1.2 1994/09/21 01:31:06 paulus Exp	*/
+/*	$Id: ppp_defs.h,v 1.7 1997/07/14 03:50:51 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -28,7 +28,7 @@
  */
 
 /*
- *  ==FILEVERSION 970501==
+ *  ==FILEVERSION 970607==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -70,6 +70,7 @@
 #define PPP_IPX		0x2b	/* IPX protocol */
 #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
 #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
+#define PPP_IPV6	0x57	/* Internet Protocol Version 6 */
 #define PPP_COMP	0xfd	/* compressed packet */
 #define PPP_IPCP	0x8021	/* IP Control Protocol */
 #define PPP_ATCP	0x8029	/* AppleTalk Control Protocol */

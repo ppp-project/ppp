@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 960918==
+ *  ==FILEVERSION 970626==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -79,7 +79,7 @@ struct ppp_buffer {
 					/* =2, daemon write buffer	*/
 					/* =3, daemon read buffer	*/
         __u16		fcs;		/* Frame Check Sequence (CRC)	*/
-        __u8		filler[4];	/* Extra space if needed	*/
+        __u16		magic;		/* Extra space if needed	*/
 };
 
 /* Given a pointer to the ppp_buffer then return base address of buffer */
@@ -91,6 +91,7 @@ struct ppp_buffer {
 
 struct ppp {
 	__s32		magic;		/* magic value for structure	*/
+	struct ppp	*next;		/* unit with next index		*/
 
 	/* Bitmapped flag fields. */
 	__u32		inuse;		/* are we allocated?		*/
@@ -113,9 +114,6 @@ struct ppp {
 	struct tty_struct *backup_tty;	/* TTY to use if tty gets closed */
 	__s32		bytes_sent;	/* Bytes sent on frame	*/
 	__s32		bytes_rcvd;	/* Bytes recvd on frame	*/
-
-	/* Interface to the network layer */
-	struct device	*dev;		/* easy for intr handling	*/
 
 	/* VJ Header compression data */
 	struct slcompress *slcomp;	/* for header compression	*/
@@ -155,5 +153,7 @@ struct ppp {
 	struct	compressor *sc_rcomp;	  /* receive decompressor */
 	void	*sc_rc_state;		  /* receive decompressor state */
 	__s32	 sc_xfer;		  /* PID of reserved PPP table */
+	char	name[8];
+	struct device	dev;		/* net device structure */
 	struct enet_statistics estats;	/* more detailed stats */
 };

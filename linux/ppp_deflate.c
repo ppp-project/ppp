@@ -357,9 +357,6 @@ z_decomp_free(arg)
 
     if (state) {
 	    inflateEnd(&state->strm);
-#if USEMEMPOOL
-	    memPoolFree(&state->strm.opaque);
-#endif
 	    kfree(state);
 	    MOD_DEC_USE_COUNT;
     }
