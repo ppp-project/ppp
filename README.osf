@@ -16,7 +16,9 @@ version 2.1.2 with a hardware serial port, then you probably used the
 You don't need this any more, and will have a more efficient connection
 if you get rid of this old work-around.
 
-Below are the steps for installing PPP on a DEC AXP system running OSF/1.
+Below are the steps for installing PPP on a Digital Equipment Corp.
+Alpha system running Digital UNIX (formerly known as DEC OSF/1.)
+
 You must do all of the following as "root".
 
 1.  Make the kernel sources, daemon, chat, and pppstat program by typing 
@@ -32,7 +34,7 @@ You must do all of the following as "root".
 2.  This step differs depending on whether you are running OSF/1 V3.0
     or later.
 
-    FOR OSF/1 VERSIONS PRIOR TO V3.0:
+    FOR DEC OSF/1 VERSIONS PRIOR TO V3.0:
 
     | Add the following lines to the file /sys/conf/files:
     |
@@ -54,7 +56,7 @@ You must do all of the following as "root".
     |      retval = ppp_configure(SYSCONFIG_CONFIGURE,
     |                             &sb, sc_size, &sc, sc_size);
 
-    FOR OSF/1 VERSIONS V3.0 AND LATER:
+    FOR DEC OSF/1 VERSIONS V3.0 AND LATER, INCLUDING DIGITAL UNIX:
 
     | Add the following lines to the file /sys/conf/files:
     |
@@ -71,9 +73,9 @@ You must do all of the following as "root".
     /sys/conf/ZAPHOD.  I will refer to this file from now on as 
     /sys/conf/SYSNAME.
 
-5.  Add the following line at the end of /sys/conf/SYSNAME:
+5.  Add the following line among the other options in /sys/conf/SYSNAME:
 
-	pseudo-device   ppp     2
+	options		PPP
 
 6.  Build a new kernel by using the command
 
