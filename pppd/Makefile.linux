@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.56 2003/01/13 08:17:04 fcusack Exp $
+# $Id: Makefile.linux,v 1.57 2003/05/12 08:13:24 fcusack Exp $
 #
 
 # Default installation locations
@@ -119,17 +119,18 @@ CFLAGS   += -DHAS_SHADOW
 #LIBS     += -lshadow $(LIBS)
 endif
 
-ifdef NEEDDES
-ifndef USE_CRYPT
-LIBS     += -ldes $(LIBS)
-else
-CFLAGS   += -DUSE_CRYPT=1
 ifneq ($(wildcard /usr/include/crypt.h),)
 CFLAGS   += -DHAVE_CRYPT_H=1
 endif
 ifneq ($(wildcard /usr/lib/libcrypt.*),)
 LIBS	+= -lcrypt
 endif
+
+ifdef NEEDDES
+ifndef USE_CRYPT
+LIBS     += -ldes $(LIBS)
+else
+CFLAGS   += -DUSE_CRYPT=1
 endif
 PPPDOBJS += pppcrypt.o
 HEADERS += pppcrypt.h
