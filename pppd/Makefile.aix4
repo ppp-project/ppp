@@ -1,6 +1,6 @@
 #
 # pppd makefile for AIX 4.1
-# $Id: Makefile.aix4,v 1.1 1994/12/12 00:40:06 paulus Exp $
+# $Id: Makefile.aix4,v 1.2 1996/04/04 03:25:06 paulus Exp $
 #
 #ifndef BINDIR
 BINDIR = /usr/sbin
@@ -9,13 +9,13 @@ BINDIR = /usr/sbin
 MANDIR = /usr/man
 #ENDIF
 
-PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
-	auth.c options.c sys-bsd.c sys-str.c sys-aix4.c ccp.c
-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
-MANPAGES = pppd.8
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+	auth.c options.c demand.c sys-aix4.c \
+	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
 
-PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
-	auth.o options.o sys-aix4.o ccp.o
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+	auth.o options.o demand.o sys-aix4.o \
+	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
 
 CC = xlc
 DEBUG_FLAGS = -DDEBUGALL
@@ -26,9 +26,6 @@ LIBS= -bI:/lib/pse.exp
 LOCK_PREFIX=\"/var/locks/LCK..\"
 
 CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
-
-SOURCE= RELNOTES Makefile \
-	$(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
 all: pppd
 
@@ -42,20 +39,9 @@ install: all
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
 
-pppd.tar: $(SOURCE)
-	tar -cvf pppd.tar $(SOURCE)
-
-pppd.tar.Z: pppd.tar
-	compress pppd.tar
-
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core
 
 depend:
 	cpp -M $(CFLAGS) $(PPPDSRCS) >.depend
 #	makedepend $(CFLAGS) $(PPPDSRCS)
-
-lock.o: lock.c
-	$(CC) -c -o lock.o $(CFLAGS) -DLOCK_DIR=1 -DPIDSTRING=1 \
--DLOCK_PREFIX=$(LOCK_PREFIX) lock.c
-

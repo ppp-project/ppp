@@ -1,15 +1,15 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.10 1995/12/18 03:32:57 paulus Exp $
+# $Id: Makefile.linux,v 1.11 1996/04/04 03:25:07 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c sys-linux.c ipxcp.c
-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
-MANPAGES = pppd.8
+	auth.c options.c demand.c sys-linux.c ipxcp.c \
+	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o sys-linux.o ipxcp.o
+	auth.o options.o demand.o sys-linux.o ipxcp.o \
+	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
 
 all: pppd
 
@@ -17,7 +17,6 @@ all: pppd
 # include dependancies if present and backup if as a header file
 ifeq (.depend,$(wildcard .depend))
 include .depend
-HEADERS := $(HEADERS) .depend
 endif
 
 # CC = gcc
@@ -28,7 +27,6 @@ VER = 0.2.8
 LIBS = -lbsd
 
 CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
-SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
 install: pppd
 	mkdir -p $(BINDIR)
@@ -37,12 +35,6 @@ install: pppd
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS) # -Wl,-M >pppd.map
-
-pppd.tar: $(SOURCE)
-	tar -cvf pppd.tar $(SOURCE)
-
-pppd.tar.gz: pppd.tar
-	gzip pppd.tar
 
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core

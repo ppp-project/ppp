@@ -1,18 +1,18 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.5 1995/04/28 04:33:21 paulus Exp $
+# $Id: Makefile.ultrix,v 1.6 1996/04/04 03:25:09 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c
-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
-MANPAGES = pppd.8
+	auth.c options.c demand.c sys-ultrix.c \
+	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o sys-ultrix.o
+	auth.o options.o demand.o sys-ultrix.o \
+	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
 
 # CC = gcc
 DEBUG_FLAGS =
@@ -22,9 +22,6 @@ LIBS =
 
 CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 
-SOURCE= RELNOTES Makefile \
-	$(PPPDSRCS) $(HEADERS) $(MANPAGES)
-
 all: pppd
 
 install: pppd
@@ -33,12 +30,6 @@ install: pppd
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
-
-pppd.tar: $(SOURCE)
-	tar -cvf pppd.tar $(SOURCE)
-
-pppd.tar.Z: pppd.tar
-	compress pppd.tar
 
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core
