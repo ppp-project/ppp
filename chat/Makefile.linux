@@ -1,14 +1,13 @@
-#	$Id: Makefile.linux,v 1.1 1995/04/28 05:26:48 paulus Exp $
+#	$Id: Makefile.linux,v 1.2 1995/06/12 11:24:12 paulus Exp $
 
 BINDIR=/usr/etc
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DPIDSTRING			# I like ascii pid values
-CDEF3=	-DLOCK_DIR=\"/usr/spool/uucp\"	# Directory for lock file
-CDEF4=	-DSIGTYPE=void			# Standard definition
-CDEF5=	-UNO_SLEEP			# Use the usleep function
-CDEF6=	-DFNDELAY=O_NDELAY		# Old name value
-CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4) $(CDEF5) $(CDEF6)
+CDEF3=	-DSIGTYPE=void			# Standard definition
+CDEF4=	-UNO_SLEEP			# Use the usleep function
+CDEF5=	-DFNDELAY=O_NDELAY		# Old name value
+CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4) $(CDEF5)
 
 CFLAGS=	-O2 -N $(CDEFS)
 
