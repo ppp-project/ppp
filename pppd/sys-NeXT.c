@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.1 1995/08/10 06:48:34 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.2 1995/10/27 03:44:56 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -56,6 +56,7 @@ static char rcsid[] = "$Id: sys-NeXT.c,v 1.1 1995/08/10 06:48:34 paulus Exp $";
 #include "pppd.h"
 
 static int initdisc = -1;	/* Initial TTY discipline */
+static int initfdflags = -1;	/* Initial file descriptor flags for fd */
 
 extern int errno;
 
@@ -64,11 +65,23 @@ static struct termios inittermios; /* Initial TTY termios */
 
 static char *lock_file;
 
-int sockfd;			/* socket for doing interface ioctls */
+static int sockfd;		/* socket for doing interface ioctls */
 
 #if defined(i386) && defined(HAS_BROKEN_IOCTL)
 #define	ioctl	myioctl
 #endif
+
+static int if_is_up;		/* the interface is currently up */
+static u_int32_t default_route_gateway;	/* gateway addr for default route */
+static u_int32_t proxy_arp_addr;	/* remote addr for proxy arp */
+
+/* Prototypes for procedures local to this file. */
+static int translate_speed __P((int));
+static int baud_rate_of __P((int));
+static int dodefaultroute __P((u_int32_t, int));
+static int get_ether_addr __P((u_int32_t, struct sockaddr *));
+static int ether_by_host __P((char *, struct ether_addr *));
+
 
 /*
  * sys_init - System-dependent initialization.
@@ -86,6 +99,31 @@ sys_init()
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
     }
+}
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void
+sys_cleanup()
+{
+    struct ifreq ifr;
+
+    if (if_is_up) {
+	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
+	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
+	    ifr.ifr_flags &= ~IFF_UP;
+	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
+	}
+    }
+
+    if (default_route_gateway)
+	cifdefaultroute(0, default_route_gateway);
+    if (proxy_arp_addr)
+	cifproxyarp(0, proxy_arp_addr);
 }
 
 /*
@@ -160,6 +198,14 @@ establish_ppp()
 		syslog(LOG_WARNING, "ioctl(PPPIOCSFLAGS): %m");
 	}
     }
+
+    /*
+     * Set device for non-blocking reads.
+     */
+    if ((initfdflags = fcntl(fd, F_GETFL)) == -1
+	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+    }
 }
 
 
@@ -172,6 +218,11 @@ disestablish_ppp()
 {
     int x;
     char *s;
+
+    /* Reset non-blocking mode on the file descriptor. */
+    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
+	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+    initfdflags = -1;
 
     if (initdisc >= 0) {
 	/*
@@ -308,7 +359,7 @@ translate_speed(bps)
 /*
  * Translate from a speed_t to bits/second.
  */
-int
+static int
 baud_rate_of(speed)
     int speed;
 {
@@ -328,6 +379,7 @@ baud_rate_of(speed)
  * at the requested speed, etc.  If `local' is true, set CLOCAL
  * regardless of whether the modem option was specified.
  */
+void
 set_up_tty(fd, local)
     int fd, local;
 {
@@ -353,8 +405,8 @@ set_up_tty(fd, local)
     tios.c_cc[VMIN] = 1;
     tios.c_cc[VTIME] = 0;
 
-    if (crtscts == 2) {
-	tios.c_iflag |= IXOFF;
+    if (crtscts == -2) {
+	tios.c_iflag |= IXON | IXOFF;
 	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
     }
@@ -405,6 +457,7 @@ restore_tty()
  * NXFax's capability to determine port usage.
  *
  */
+void
 setdtr(fd, on)
 int fd, on;
 {
@@ -430,14 +483,17 @@ output(unit, p, len)
     u_char *p;
     int len;
 {
-    if (unit != 0)
-	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
     if (debug)
 	log_packet(p, len, "sent ");
 
     if (write(fd, p, len) < 0) {
-	syslog(LOG_ERR, "write: %m");
-	die(1);
+	if (errno == EWOULDBLOCK || errno == ENOBUFS
+	    || errno == ENXIO || errno == EIO) {
+	    syslog(LOG_WARNING, "write: warning: %m");
+	} else {
+	    syslog(LOG_ERR, "write: %m");
+	    die(1);
+	}
     }
 }
 
@@ -447,6 +503,7 @@ output(unit, p, len)
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_input(timo)
     struct timeval *timo;
 {
@@ -570,6 +627,7 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
  * ccp_test - ask kernel whether a given compression method
  * is acceptable for use.
  */
+int
 ccp_test(unit, opt_ptr, opt_len, for_transmit)
     int unit, opt_len, for_transmit;
     u_char *opt_ptr;
@@ -579,7 +637,9 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     data.ptr = opt_ptr;
     data.length = opt_len;
     data.transmit = for_transmit;
-    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
+    if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+	return 1;
+    return (errno == ENOBUFS)? 0: -1;
 }
 
 /*
@@ -670,6 +730,7 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
+    if_is_up = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_PASS;
     if (ioctl(fd, PPPIOCSNPMODE, &npi) < 0) {
@@ -734,7 +795,8 @@ sifdown(u)
 	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	    rv = 0;
-	}
+	} else
+	    if_is_up = 0;
     }
     return rv;
 }
@@ -855,6 +917,7 @@ dodefaultroute(g, cmd)
 	       (cmd == 's') ? "SIOCADDRT" : "SIOCDELRT");
 	return 0;
     }
+    default_route_gateway = (cmd == 's')? g: 0;
     return 1;
 }
 
@@ -887,6 +950,7 @@ sifproxyarp(unit, hisaddr)
 	return 0;
     }
 
+    proxy_arp_addr = hisaddr;
     return 1;
 }
 
@@ -907,6 +971,7 @@ cifproxyarp(unit, hisaddr)
 	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
 	return 0;
     }
+    proxy_arp_addr = 0;
     return 1;
 }
 
@@ -989,7 +1054,7 @@ get_ether_addr(ipaddr, hwaddr)
     return 1;
 }
 
-int
+static int
 ether_by_host(hostname, etherptr)
     char *hostname;
     struct ether_addr *etherptr;
