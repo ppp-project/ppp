@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.16 1999/02/26 10:52:06 paulus Exp $
+ * $Id: ppp.c,v 1.17 1999/03/08 05:34:16 paulus Exp $
  */
 
 /*
@@ -140,8 +140,8 @@ krwlock_t ppp_lower_lock;
 #define LOCK_LOWER_R	0
 #define TRYLOCK_LOWER_R	1
 #define UNLOCK_LOWER	0
-#define MUTEX_ENTER(x)	0
-#define MUTEX_EXIT(x)	0
+#define MT_ENTER(x)	0
+#define MT_EXIT(x)	0
 
 #endif /* SOL2 */
 
@@ -468,7 +468,7 @@ pppclose(q, flag)
 #endif
 	if (up->lowerq != 0) {
 	    /* Gack! the lower stream should have be unlinked earlier! */
-	    cmn_err(CE_WARN, "ppp%d: lower stream still connected on close?\n",
+	    DPRINT1("ppp%d: lower stream still connected on close?\n",
 		    up->mn);
 	    LOCK_LOWER_W;
 	    up->lowerq->q_ptr = 0;
