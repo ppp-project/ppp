@@ -1,6 +1,6 @@
 #
 # pppd makefile for OSF/1 on DEC Alpha
-# $Id: Makefile.osf,v 1.2 1995/04/28 04:32:39 paulus Exp $
+# $Id: Makefile.osf,v 1.3 1995/06/01 01:30:14 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -30,7 +30,7 @@ all: pppd
 
 install: pppd
 	installbsd -c -m 4555 -o root -g daemon pppd $(BINDIR)/pppd
-	installbsd -c -m 555 -o root pppd.8 $(MANDIR)/man8
+	installbsd -c -m 444 -o root pppd.8 $(MANDIR)/man8/pppd.8
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
