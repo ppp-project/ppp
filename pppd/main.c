@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.86 1999/09/11 12:08:57 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.87 1999/11/15 03:55:37 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -251,6 +251,9 @@ main(argc, argv)
 	exit(1);
     }
     hostname[MAXNAMELEN-1] = 0;
+
+    /* make sure we don't create world or group writable files. */
+    umask(umask(0777) | 022);
 
     uid = getuid();
     privileged = uid == 0;

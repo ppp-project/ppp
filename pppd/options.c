@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.67 1999/11/15 01:51:52 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.68 1999/11/15 03:55:37 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1523,7 +1523,9 @@ setlogfile(argv)
 
     if (!privileged_option)
 	seteuid(getuid());
-    fd = open(*argv, O_WRONLY | O_APPEND);
+    fd = open(*argv, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0644);
+    if (fd < 0 && errno == EEXIST)
+	fd = open(*argv, O_WRONLY | O_APPEND);
     err = errno;
     if (!privileged_option)
 	seteuid(0);
