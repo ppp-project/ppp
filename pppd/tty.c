@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.19 2004/11/06 05:42:29 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.20 2004/11/12 09:51:23 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -644,6 +644,12 @@ int connect_tty()
 	} else if (notty) {
 		if (!start_charshunt(0, 1))
 			goto errret;
+		dup2(fd_devnull, 0);
+		dup2(fd_devnull, 1);
+		if (log_to_fd == 1)
+			log_to_fd = -1;
+		if (log_to_fd != 2)
+			dup2(fd_devnull, 2);
 	} else if (record_file != NULL) {
 		int fd = dup(ttyfd);
 		if (!start_charshunt(fd, fd))
