@@ -1,0 +1,28 @@
+#
+# ppp top level makefile
+#
+
+BINDIR = /usr/sbin
+DRIVERS = /usr/lib/drivers
+MANDIR = /usr/man
+
+all:
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+	cd pppstats; $(MAKE) all
+	cd aix4; $(MAKE) all
+
+install:
+	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd aix4; $(MAKE) BINDIR=$(BINDIR) install
+	[ -d /etc/ppp ] || { mkdir /etc/ppp; echo lock > /etc/ppp/options; }
+
+clean:
+	rm -f *~
+	cd chat; $(MAKE) clean
+	cd pppd; $(MAKE) clean
+	cd pppstats; $(MAKE) clean
+	cd aix4; $(MAKE) clean
+
