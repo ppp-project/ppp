@@ -1,7 +1,7 @@
 /*
  * Definitions for tcp compression routines.
  *
- * $Header: /home/paulus/ppp/samba.org/ppp/include/net/slcompress.h,v 1.1 1994/02/23 03:49:22 paulus Exp $
+ * $Id: slcompress.h,v 1.2 1994/04/18 05:09:38 paulus Exp $
  *
  * Copyright (c) 1989 Regents of the University of California.
  * All rights reserved.
@@ -21,6 +21,9 @@
  *	Van Jacobson (van@helios.ee.lbl.gov), Dec 31, 1989:
  *	- Initial distribution.
  */
+
+#ifndef _SLCOMPRESS_H_
+#define _SLCOMPRESS_H_
 
 #define MAX_STATES 16		/* must be > 2 and < 256 */
 #define MAX_HDR MLEN		/* XXX 4bsd-ism: should really be 128 */
@@ -135,6 +138,9 @@ struct slcompress {
 #define SLF_TOSS 1		/* tossing rcvd frames because of input err */
 
 extern void sl_compress_init(/* struct slcompress * */);
+extern void sl_compress_setup(/* struct slcompress *, int */);
 extern u_char sl_compress_tcp(/* struct mbuf *, struct ip *,
 				struct slcompress *, int compress_cid_flag */);
 extern int sl_uncompress_tcp(/* u_char **, int,  u_char, struct slcompress * */);
+
+#endif /* _SLCOMPRESS_H_ */
