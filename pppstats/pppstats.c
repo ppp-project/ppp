@@ -6,6 +6,7 @@
  *   -v Verbose mode for default display
  *   -r Show compression ratio in default display
  *   -c Show Compression statistics instead of default display
+ *   -a Do not show relative values. Show absolute values at all times.
  *
  *
  * History:
@@ -36,7 +37,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.10 1995/06/30 01:58:25 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.11 1995/07/11 06:41:45 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -69,7 +70,7 @@ static char rcsid[] = "$Id: pppstats.c,v 1.10 1995/06/30 01:58:25 paulus Exp $";
 #endif
 #endif
 
-int	vflag, rflag, cflag;
+int	vflag, rflag, cflag, aflag;
 unsigned interval = 5;
 int	unit;
 int	s;			/* socket file descriptor */
@@ -84,6 +85,11 @@ main(argc, argv)
 {
     --argc; ++argv;
     while (argc > 0) {
+	if (strcmp(argv[0], "-a") == 0) {
+	    ++aflag;
+	    ++argv, --argc;
+	    continue;
+	}
 	if (strcmp(argv[0], "-v") == 0) {
 	    ++vflag;
 	    ++argv, --argc;
@@ -268,8 +274,11 @@ intpr()
 	sigprocmask(SIG_SETMASK, &oldmask, NULL);
 	signalled = 0;
 	(void)alarm(interval);
-	old = cur;
-	ocs = ccs;
+
+	if (aflag==0) {
+	    old = cur;
+	    ocs = ccs;
+	}
     }
 }
 
@@ -289,8 +298,10 @@ get_ppp_stats(curp)
 {
     struct ifpppstatsreq req;
 
+    memset (&req, 0, sizeof (req));
+
 #ifdef _linux_
-    req.stats_ptr = &req.stats;
+    req.stats_ptr = (caddr_t) &req.stats;
 #undef ifr_name
 #define ifr_name ifr__name
 #endif
@@ -311,8 +322,10 @@ get_ppp_cstats(csp)
 {
     struct ifpppcstatsreq creq;
 
+    memset (&creq, 0, sizeof (creq));
+
 #ifdef _linux_
-    creq.stats_ptr = &creq.stats;
+    creq.stats_ptr = (caddr_t) &creq.stats;
 #undef  ifr_name
 #define ifr_name ifr__name
 #endif
