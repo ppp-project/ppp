@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.48 1999/03/30 06:02:21 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.49 1999/03/31 05:39:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -891,6 +891,7 @@ static int PAM_conv (int num_msg, const struct pam_message **msg,
     *resp = reply;     
     return PAM_SUCCESS;
 }
+
 static struct pam_conv PAM_conversation = {
     &PAM_conv,
     NULL
@@ -921,7 +922,8 @@ plogin(user, passwd, msg, msglen)
 
     pam_error = pam_start ("ppp", user, &PAM_conversation, &pamh);
     if (pam_error != PAM_SUCCESS) {
-        *msg = (char *) pam_strerror (pamh, pam_error);  
+        *msg = (char *) pam_strerror (pamh, pam_error);
+	reopen_log();
 	return UPAP_AUTHNAK;
     }
     /*
@@ -944,9 +946,11 @@ plogin(user, passwd, msg, msglen)
     }
 
     *msg = (char *) pam_strerror (pamh, pam_error);
+
     /*
      * Clean up the mess
      */
+    reopen_log();	/* apparently the PAM stuff does closelog() */
     PAM_username = NULL;
     PAM_password = NULL;
     if (pam_error != PAM_SUCCESS)
@@ -1039,6 +1043,8 @@ plogout()
 	pam_end (pamh, pam_error);
 	pamh = NULL;
     }
+    /* Apparently the pam stuff does closelog(). */
+    reopen_log();
 #else /* ! USE_PAM */   
     char *tty;
 

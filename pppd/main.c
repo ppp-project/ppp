@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.69 1999/03/30 06:01:24 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.70 1999/03/31 05:39:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -214,12 +214,7 @@ main(argc, argv)
     script_env = NULL;
 
     /* Initialize syslog facilities */
-#ifdef ULTRIX
-    openlog("pppd", LOG_PID);
-#else
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-#endif
+    reopen_log();
 
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	option_error("Couldn't get hostname: %m");
@@ -837,6 +832,20 @@ detach()
     /* update pid file if it has been written already */
     if (pidfilename[0])
 	create_pidfile();
+}
+
+/*
+ * reopen_log - (re)open our connection to syslog.
+ */
+void
+reopen_log()
+{
+#ifdef ULTRIX
+    openlog("pppd", LOG_PID);
+#else
+    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
+    setlogmask(LOG_UPTO(LOG_INFO));
+#endif
 }
 
 /*
@@ -1459,12 +1468,7 @@ run_program(prog, args, must_exist, done, arg)
 	if (must_exist || errno != ENOENT) {
 	    /* have to reopen the log, there's nowhere else
 	       for the message to go. */
-#ifdef ULTRIX
-	    openlog("pppd", LOG_PID);
-#else
-	    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-	    setlogmask(LOG_UPTO(LOG_INFO));
-#endif
+	    reopen_log();
 	    syslog(LOG_ERR, "Can't execute %s: %m", prog);
 	    closelog();
 	}

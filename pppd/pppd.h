@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.36 1999/03/30 06:33:09 paulus Exp $
+ * $Id: pppd.h,v 1.37 1999/03/31 05:39:43 paulus Exp $
  */
 
 /*
@@ -285,6 +285,7 @@ void notice __P((char *, ...));	/* log a notice-level message */
 void warn __P((char *, ...));	/* log a warning message */
 void error __P((char *, ...));	/* log an error message */
 void fatal __P((char *, ...));	/* log an error message and die(1) */
+void reopen_log __P((void));	/* (re)open the connection to syslog */
 
 /* Procedures exported from auth.c */
 void link_required __P((int));	  /* we are starting to use the link */
