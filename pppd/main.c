@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.106 2001/04/27 23:16:13 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.107 2001/05/23 03:39:13 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -468,7 +468,10 @@ main(argc, argv)
 	 * Start opening the connection and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
-	notice("Connect: %s <--> %s", ifname, ppp_devnam);
+	if (ifunit >= 0)
+		notice("Connect: %s <--> %s", ifname, ppp_devnam);
+	else
+		notice("Starting negotiation on %s", ppp_devnam);
 	gettimeofday(&start_time, NULL);
 	link_stats_valid = 0;
 	script_unsetenv("CONNECT_TIME");
@@ -942,13 +945,12 @@ get_input()
 	return;
     }
 
-    if (debug /*&& (debugflags & DBG_INPACKET)*/)
-	dbglog("rcvd %P", p, len);
-
     if (len < PPP_HDRLEN) {
-	MAINDEBUG(("io(): Received short packet."));
+	dbglog("received short packet:%.*B", len, p);
 	return;
     }
+
+    dump_packet("rcvd", p, len);
 
     p += 2;				/* Skip address and control */
     GETSHORT(protocol, p);

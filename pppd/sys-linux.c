@@ -945,8 +945,7 @@ void output (int unit, unsigned char *p, int len)
     int fd = ppp_fd;
     int proto;
 
-    if (debug)
-	dbglog("sent %P", p, len);
+    dump_packet("sent", p, len);
 
     if (len < PPP_HDRLEN)
 	return;

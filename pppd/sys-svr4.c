@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.42 2000/04/06 23:11:05 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.43 2001/05/23 03:39:14 paulus Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1297,8 +1297,7 @@ output(unit, p, len)
     int retries;
     struct pollfd pfd;
 
-    if (debug)
-	dbglog("sent %P", p, len);
+    dump_packet("sent", p, len);
 
     data.len = len;
     data.buf = (caddr_t) p;

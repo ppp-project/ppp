@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.13 2001/03/16 02:08:13 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.14 2001/05/23 03:39:14 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -44,6 +44,8 @@
 #endif
 
 #include "pppd.h"
+#include "fsm.h"
+#include "lcp.h"
 
 static const char rcsid[] = RCSID;
 
@@ -759,6 +761,36 @@ dbglog __V((char *fmt, ...))
 
     logit(LOG_DEBUG, fmt, pvar);
     va_end(pvar);
+}
+
+/*
+ * dump_packet - print out a packet in readable form if it is interesting.
+ * Assumes len >= PPP_HDRLEN.
+ */
+void
+dump_packet(const char *tag, unsigned char *p, int len)
+{
+    int proto;
+
+    if (!debug)
+	return;
+
+    /*
+     * don't print LCP echo request/reply packets if debug <= 1
+     * and the link is up.
+     */
+    proto = (p[2] << 8) + p[3];
+    if (debug <= 1 && unsuccess == 0 && proto == PPP_LCP
+	&& len >= PPP_HDRLEN + HEADERLEN) {
+	unsigned char *lcp = p + PPP_HDRLEN;
+	int l = (lcp[2] << 8) + lcp[3];
+
+	if ((lcp[0] == ECHOREQ || lcp[0] == ECHOREP)
+	    && l >= HEADERLEN && l <= len - PPP_HDRLEN)
+	    return;
+    }
+
+    dbglog("%s %P", tag, p - PPP_HDRLEN, len + PPP_HDRLEN);
 }
 
 /* Procedures for locking the serial device using a lock file. */

@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-sunos4.c,v 1.27 2001/04/27 23:16:13 paulus Exp $"
+#define RCSID	"$Id: sys-sunos4.c,v 1.28 2001/05/23 03:39:13 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -574,8 +574,7 @@ output(unit, p, len)
     int retries;
     struct pollfd pfd;
 
-    if (debug)
-	dbglog("sent %P", p, len);
+    dump_packet("sent", p, len);
 
     data.len = len;
     data.buf = (caddr_t) p;
