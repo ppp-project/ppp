@@ -4,7 +4,10 @@ but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the
 modules directory).
 
-This version has been tested under Solaris 2.6.
+This version has been tested under Solaris 7, and the upcoming
+Solaris 8. As of now, it will only work when the system is booted
+in 32-bit mode. 64-bit clean driver as well as IPv6 support for
+Solaris 8 are currently under development.
 
 NOTE: Although the kernel driver and modules have been designed to
 operate correctly on SMP systems, they have not been extensively
