@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.70 2003/03/25 09:33:32 fcusack Exp $
+.\" $Id: pppd.8,v 1.71 2003/04/25 08:57:58 fcusack Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -829,6 +829,11 @@ is possible to apply different constraints to incoming and outgoing
 packets using the \fBinbound\fR and \fBoutbound\fR qualifiers. This
 option is currently only available under NetBSD or Linux, and then
 only if both the kernel and pppd were compiled with PPP_FILTER defined.
+.TP
+.B password \fIpassword-string
+Specifies the password to use for authenticating to the peer.  Use
+of this option is discouraged, as the password is likely to be visible
+to other users on the system (for example, by using ps(1)).
 .TP
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
