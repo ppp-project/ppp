@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.15 1994/10/22 11:49:27 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.16 1994/10/24 04:30:35 paulus Exp $";
 #endif
 
 /*
@@ -695,13 +695,14 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 }
 
 /*
- * sifup - Config the interface up.
+ * sifup - Config the interface up and enable IP packets to pass.
  */
 int
 sifup(u)
     int u;
 {
     struct ifreq ifr;
+    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -712,6 +713,14 @@ sifup(u)
     if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
+    }
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_PASS;
+    if (ioctl(fd, SIOCSETNPMODE, &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
+	    return 0;
+	}
     }
     return 1;
 }
@@ -724,17 +733,31 @@ sifdown(u)
     int u;
 {
     struct ifreq ifr;
+    int rv;
+    struct npioctl npi;
+
+    rv = 1;
+    npi.protocol = PPP_IP;
+    npi.mode = NPMODE_ERROR;
+    if (ioctl(fd, SIOCSETNPMODE, (caddr_t) &npi) < 0) {
+	if (errno != ENOTTY) {
+	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
+	    rv = 0;
+	}
+    }
+
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
-	return 0;
+	rv = 0;
+    } else {
+	ifr.ifr_flags &= ~IFF_UP;
+	if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+	    rv = 0;
+	}
     }
-    ifr.ifr_flags &= ~IFF_UP;
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
-	return 0;
-    }
-    return 1;
+    return rv;
 }
 
 /*
