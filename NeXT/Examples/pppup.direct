@@ -1,0 +1,19 @@
+#!/bin/sh -f
+#
+# -*- Fundamental -*-
+#
+# kdebug 1  is SC_DEBUG
+#        2  is SC_LOG_INPKT
+#        4  is SC_LOG_OUTPKT
+#        8  is SC_LOG_RAWIN
+#        16 is SC_LOG_FLUSH
+# 
+# add together to get debugging you want
+# Remember: for HW flow control you must you /dev/cufa or /dev/cufb
+#
+# This is used to start a ppp session over a link that is directly
+# connected to another computer.  Make sure the peer runs at the
+# same speed.
+#
+/usr/local/bin/pppd bsdcomp 10,10 ipcp-restart 4 ipcp-max-configure 5 lcp-echo-failure 3 lcp-echo-interval 30 debug crtscts kdebug 17 -pap -chap /dev/ttyfb 38400 lock
+exit 0

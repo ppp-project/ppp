@@ -1,5 +1,5 @@
 #
-#  $Id: README.NeXT,v 1.3 1997/04/30 05:37:02 paulus Exp $
+#  $Id: README.NeXT,v 1.4 1998/03/26 02:54:17 paulus Exp $
 #
 
 This distribution contains a port of PPP-2.3 for NeXT.  The full
@@ -11,17 +11,24 @@ the version you presently use.  The web site contains a comprehensive
 NeXT specific FAQ, mailing list information, and a bug submission
 form.  Please see:
 
-  http://www.thoughtport.com:8080/PPP/
-     -or-
-  ftp://ftp.thoughtport.com/pub/next/ppp/
+  WWW site:     http://www.peak.org/next/ppp/
+  WWW mirror:   http://www.thoughtport.com:8080/PPP/
+
+  FTP site:     ftp://next-ftp.peak.org/pub/next/apps/internet/ppp/dev
+  FTP Mirror:   ftp://ftp.NMR.EMBL-Heidelberg.DE/pub/next/ppp/
 
 If you use this software and are pleased with its performance, you are
 encouraged to make a donation to support continued development.  50%
 of all donations go to charity.  For more information, please see:
-  http://www.thoughtport.com:8080/PPP/donations.html
+  http://www.thoughtport.com:8080/cgi-bin/PPP/donation
 
-
-The subdirectory NeXT contains several files of interest:
+It is recommended that you use the PPP installer package to install
+the latest version of PPP.  This installer package has been designed
+to make installation of PPP exceedingly easy and includes all the
+documentation you need.  However, if you want to manually compile and
+configure PPP, the subdirectory 'NeXT' contains the documentation and
+information you need.  You do NOT need to look at these files if you
+use the installer package.
 
    INSTALL -     A file giving specific directions for installing
                  ppp-2.3 on a NeXT computer.
@@ -29,18 +36,9 @@ The subdirectory NeXT contains several files of interest:
    Examples -    This directory provides more examples of
                  scripts and other helpful utilities.
 
-   MailBug.app - This application is similar to BugNeXT.  It will 
-                 allow you to submit bugs electronically.  
-                 Many thanks to Running-Start, Inc. for this program.
-                 The WWW page also has a bug submission form.
-
    NeXT_Version - This file describes what NeXT specific version of
                   PPP-2.3 you have.
 
-   ChangeLog.rtf - A history of development and bug fixes for ppp-2.3.
+   ChangeLog.rtf - A history of development and bug fixes for ppp-2.3
 
    TODO.NeXT -   A wishlist for features.
-
-
-
-

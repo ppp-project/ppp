@@ -1,0 +1,95 @@
+NeXTSTEP on HP-PA OS 3.2 has a few problems that require special
+installation procedures.
+
+There seem to be two major problems.  The first is related to the use
+of FAT binaries on HPPA Lodable Kernel Servers and the second seems to
+be kernel bugs. NeXT says they will be fixed in 3.3.  I guess we will
+have to wait and see. 
+
+Problem 1
+=========
+
+For some reason, the HPPA kernel loading utility kl_util is unable to
+load FAT LKS modules.  So before you try to load a FAT LKS onto an
+HPPA machine, you will need to use lipo to thin it down. You may use a
+command similar to:
+    lipo ppp_reloc -thin hppa -output ppp_reloc.hppa
+to get a thin version named ppp_reloc.hppa. 
+
+
+
+Problem 2
+=========
+
+Alain Fauconnet managed to get PPP-2.1.2 working
+on HPPA.  He graciously allowed me to incorporate his changes into
+PPP-2.2.  I have included part of his original instructions for
+getting the serial driver patch installed.  You should follow these
+procedures for PPP-2.2.  Also, you may wish to send him a short thank
+you for his excellent work.
+
+Please note, that you only need these instructions to install the
+SerialDriverPatch.  After that is installed, you may install PPP-2.2
+as specified in the README.NeXT file at the top level directory.
+
+Here are the original instructions:
+
+Temporary PPP 2.1.2 kit for HP-PA systems running NeXTSTEP 3.2
+==============================================================
+
+							14-Nov-1994
+							Alain Fauconnet
+							<af@biomath.jussieu.fr>
+
+
+INSTALLATION FOR A HP-PA/NEXSTEP MACHINE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	1) Serial driver patch
+
+This tarfile includes a ./hppaSerialPatch tree that is a temporary
+work-around for a severe bug in the HP-PA serial tty driver. I have
+been allowed to include it here provided that it is clearly stated that
+it is *not* an official patch from NeXT and that it should *not* be
+installed on machines that do not absolutely require it. The problem
+will be corrected in NeXTSTEP 3.3, according to the NeXT people.
+
+As I understand it, the problem is about the select() call on a file
+descriptor opened on a tty line. This affect emacs (hangs when run from
+a remote tty session), MicroEMACS (arrow keys don't work), PPP (protocol
+hangs) and probably other programs as well.
+
+I felt the need to add some installation instructions, since I've lost
+some hair in that process myself.
+
+Install it as follows :
+
+a) go to the hppaSerialPatch directory
+
+b) type `make'. Compilation should complete with a few warnings about
+`linesw'
+
+c) type `make install' (YOU DON'T NEED TO BE root FOR THAT, the
+installed tree will be created in /tmp/hppaSerialPatch.*
+
+d) as root, bring up  /NextAdmin/Configure.app, choose Configuration ->
+Install driver... and select
+/tmp/hppaSerialPatch.bproj/usr/Devices/hppaSerialPatch.config from the
+file selection box.
+
+e) reboot the system. As root, bring up /NextAdmin/Configure.app again
+and look if "hppaSerialPatch" appears on the "Other" line. If not, click
+the "Other" icon. Click "Add". The correct driver will probably appear
+as "Long Name" in the list of drivers. Select it and click "Add".
+Go back to "Summary" and click "Save". Reboot the system.
+Check the file /usr/Devices/System.config/Instance0.table,
+"hppaSerialPatch" should appear in the line of "Active Drivers".
+
+f) the /tmp/hppaSerialPatch trees may be deleted now.
+
+
+GOOD LUCK !
+
+Thanks to:
+		Jean Michel LUNATI <Jean_Michel_Lunati@NeXT.COM>
+		Philip Prindeville <philipp@res.enst.fr>

@@ -1,10 +1,6 @@
 #
-#  $Id: TODO.NeXT,v 1.2 1997/04/30 05:39:29 paulus Exp $
+#  $Id: TODO.NeXT,v 1.3 1998/03/26 02:51:42 paulus Exp $
 #
-
-* FAQ on shell chat scripts and special characters
-
-* Add /dev/bpf* in installation docs
 
 * Check persist option
 
@@ -14,18 +10,11 @@
 
 * NUM_PPP in pppd/pppd.h and Makefile are different
 
-* Unify NBPFILTER symbol
-
-* Better Load support for BPF.  Figure out how to support
-  NeXT (moto) with driverkit stuff.
-
 * Fix with VirtModem
 
-* If the dialing program fails to get a line, but returns success,
-  then ppp will report that it could not determine the ip address,
-  and not notice the "received own echo reply" condition.
-
 * Use kget inside interrupt handler.
+
+* Move LKS to user space via an IP Tunneler
 
 Look at NAT:There *is* a way to get multiple machines on a network to use
 	one IP address.  RFC 1631 -- The IP Network Address Translator

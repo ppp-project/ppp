@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# This script fill find processes with 'pppd' in the name 
+# and send them SIGINT.  It must be run suid root to work
+# correctly.  Some people don't like suid root shell scripts.
+# In that case, check out the example pppkill.c which contains a
+# C program that does the same thing.  This might be a bit safer
+# to make suid root.
+#
+# Note: there is the potential that this script can kill more than
+#       one process.  Maybe even an incorrect process.  It could 
+#       probably be done better.
+#
+
+PATH=/usr/ucb:/bin:/usr/bin:/etc:/usr/etc:/usr/local/bin; export PATH
+
+kill -INT `ps -ax | egrep "(pppd)" | egrep -v "egrep" | sed 's/^\([ 0-9]*\) .*/\1'/`
+exit 0

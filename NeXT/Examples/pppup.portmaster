@@ -1,0 +1,12 @@
+#!/bin/sh -f
+#
+#  Call a portmaster terminal server;
+#  start ppp.
+#
+# Thanks to Terence John Parr <parrt@parr-research.com>
+#
+exec /usr/local/ppp/bin/pppd \
+netmask 255.255.255.0 bsdcomp 10,10 mtu 296 lcp-echo-interval 15 \
+lcp-echo-failure 3 debug crtscts kdebug 31 defaultroute modem +pap -chap \
+connect '/usr/local/ppp/bin/chat -v ABORT BUSY ABORT "NO CARRIER" ABORT "NO DIAL TONE" ABORT "ERROR" "" ATZ0 "OK" ATDT000-0000 CONNECT "" ogin:--ogin: mylogin: assword: mypassword.' \
+/dev/cufb 57600

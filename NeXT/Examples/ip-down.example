@@ -1,0 +1,33 @@
+#!/bin/sh
+# -*- Fundamental -*-
+#
+# args: interface-name tty-device speed local-IP remote-IP
+
+PATH=/usr/ucb:/bin:/usr/bin:/etc:/usr/etc:/usr/local/bin; export PATH
+
+#
+# Remove the route to localhost that we created in ip-up
+#
+/usr/etc/route delete $4 127.0.0.1
+
+#  Let the nmserver know the fruits of our network configuration
+#  endeavor. This allows NXHost connections. Thanks to Glenn Brown
+#  <gbrown@alumni.caltech.edu>  
+pid=`ps cax | egrep nmserver | awk '{print $1;}'`
+if [ -n "$pid" ]; then
+    echo "PPP Reinitializing nmserver's network portion" > /dev/console
+    kill -USR2 $pid
+fi
+
+#
+# Let lookupd know that things have changed
+#
+pid=`ps cax | egrep lookupd | awk '{print $1;}'`
+if [ -n "$pid" ]; then
+    echo "PPP Reinitializing lookupd" > /dev/console
+    kill -HUP $pid
+fi
+
+
+
+

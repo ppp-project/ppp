@@ -1,0 +1,134 @@
+#
+# NOTE:  All options in the file are commented out.  PPP.app
+#        typically takes care of setting options on a per provider
+#        basis.  If you want to set a global option, then 
+#        add/uncomment the appropriate option in this file.
+#
+#
+# This is an example options file.  The options file
+# should be placed in /etc/ppp/options.  These options
+# are global to all ppp connections.  See the "OPTIONS FILES" section
+# in the pppd man page for more details.
+#
+# Options specified here don't need to be respecified
+# on the pppd command line.  Note: Most of the example
+# scripts in this directory assume an empty options file.
+# However, it doesn't hurt to respecify them.
+#
+
+#
+# The size of the Maximum Transfer Unit.  Higher values
+# give better performance for file transfers.  Lower values
+# give better performance for interactive performance.
+#
+#mtu 296
+
+#
+# If you want to periodically touch the other end to make 
+# sure it is still alive, set these options.
+#
+#lcp-echo-interval 15    # interval in seconds between touches
+#lcp-echo-failure  3     # number of failed attempts before link shutdown
+
+#
+# If you want to enable debugging of the pppd process, leave
+# this uncommented.  Output will be sent to the file
+# /usr/adm/ppp2.2.debug (or whatever you set it to in
+# /etc/syslog.conf.
+#
+#debug
+
+#
+# If you want kernel debugging (i.e. debug output from the
+# NeXT LKS), enable this:
+#
+# kdebug 1  is SC_DEBUG
+#        2  is SC_LOG_INPKT
+#        4  is SC_LOG_OUTPKT
+#        8  is SC_LOG_RAWIN
+#        16 is SC_LOG_FLUSH
+# 
+# add together to get debugging you want.
+#
+#kdebug 17
+
+#
+# If you want pppd to set the PPP connection as the default
+# route when the link is brought up, enable this option.
+# Standalone systems dialing into a provider probably want this
+# option.
+#
+#defaultroute
+
+#
+# These two options disable some of the
+# various types of authentication.
+#
+# Note: Some systems require authenticaion before
+#       negotiation can complete.  If you disable
+#       authentication on these systems, they will
+#       not complain, but they will also not allow
+#       negotiaion to complete and your link will
+#       not come up.
+#
+# NOTE: PAP and CHAP authentication are enabled
+#       by default.
+#
+# If you uncomment either or both of these, you will
+# refuse that type of authentication if the server
+# requests it.  DO NOT put +pap or +chap.  This will
+# require the server to authenticate to you and it will
+# refuse (causing PPP to fail).  read the pppd man page
+# to create the proper secrets files.
+#
+#-pap
+#-chap
+
+#
+# This specifies that should use a UUCP-style lock on the
+# serial device to ensure exclusive access to the device.
+#
+#lock
+
+#
+# Use hardware flow control (i.e. RTS/CTS) to control the
+#  flow of data on the serial port.
+#
+# On NeXT, you also must use the proper device.
+#  /dev/cufa 
+#    -or-
+#  /dev/cufb
+#
+#crtscts
+
+#
+# bsdcomp nr,nt
+#
+# Request that the peer compress packets that it sends,
+# using the BSD-Compress scheme, with a maximum code size
+# of nr bits, and agree to compress packets sent to the
+# peer with a maximum code size of nt bits.  If nt is not
+# specified, it defaults to the value given for nr.
+# Values in the range 9 to 15 may be used for nr and nt;
+# larger values give better compression but consume more
+# kernel memory for compression dictionaries.  Alterna-
+# tively, a value of 0 for nr or nt disables compression
+# in the corresponding direction.
+#
+# It is OK if the peer doesn't support BSD compression.  In that
+# case, the peer will NAK this option and things will continue
+# normally.
+#
+#bsdcomp 10,10	
+
+#
+# Add an entry to this system's ARP [Address Resolution
+# Protocol] table with the IP address of the peer and the
+# Ethernet address of this system.
+#
+# This is only necessary if your are allowing others to dial
+# into you (i.e. you are the server).
+#proxyarp
+
+
+

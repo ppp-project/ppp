@@ -81,17 +81,26 @@
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #if !defined(lint)
-static char sccsid[] = "$Revision: 1.4 $ ($Date: 1997/11/27 05:59:11 $)";
+static char sccsid[] = "$Revision: 1.5 $ ($Date: 1998/03/26 02:51:47 $)";
 #endif /* not lint*/
 
 #define KERNEL 1
 #define KERNEL_FEATURES 1
 #define INET 1
 
-/* #include "ppp.h" */
-
+#if NS_TARGET >= 40
+#if NS_TARGET >= 41
+#include <kernserv/clock_timer.h>
+#include <kernserv/lock.h>
+#else
+#include <kern/lock.h>
+#endif /* NS_TARGET */
+#endif /* NS_TARGET */
 
 #include <sys/param.h>
+#if NS_TARGET >= 41
+typedef simple_lock_data_t lock_data_t;		/* XXX */
+#endif /* NS_TARGET */
 #include <sys/proc.h>
 #include "netbuf.h"
 #include <sys/socket.h>
@@ -99,7 +108,9 @@ static char sccsid[] = "$Revision: 1.4 $ ($Date: 1997/11/27 05:59:11 $)";
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/errno.h>
+#if !(NS_TARGET >= 40)
 #include <kernserv/prototypes.h>
+#endif
 #if defined(m68k)
 #import "spl.h"
 #else
@@ -122,13 +133,14 @@ static char sccsid[] = "$Revision: 1.4 $ ($Date: 1997/11/27 05:59:11 $)";
 #include <netinet/tcp.h>
 #endif
 
-
 #include <net/ppp_defs.h>
 #ifdef	VJC
 #include <net/vjcompress.h>
 #endif
 #include <net/if_ppp.h>
+#include "NeXT_Version.h"
 #include "if_pppvar.h"
+
 
 struct	ppp_softc ppp_softc[NUM_PPP];
 
@@ -136,15 +148,6 @@ struct	ppp_softc ppp_softc[NUM_PPP];
 #ifdef	PPP_COMPRESS
 #define	PACKETPTR	NETBUF_T
 #include <net/ppp-comp.h>
-#endif
-
-#ifdef NBPFILTER
-#include <bpf/bpf.h>
-/*
- * We store the address of necessary BPF functions
- * here.
- */
-struct bpf_fns fnarg;
 #endif
 
 /*
@@ -282,22 +285,16 @@ pppattach()
     register struct ppp_softc *sc;
     register int i = 0;
     
-    IOLog("\nPPP version 2.3.0 for NS 3.2 and 3.3\n");
-    IOLog("LKS: %s\n", sccsid);
+    IOLog("\nPPP version 2.3.3-%s for NeXTSTEP and OPENSTEP\n", PPPVERSION);
     IOLog("by  Stephen Perkins, Philip Prindeville, and Pete French\n");
-
-    IOLog("Installing PPP on Line Discipline %d\n", PPPDISC);
     if (install_ppp_ld() < 0) {
 	IOLog("ppp: Could not install line discipline\n");
     }
     
-
-    IOLog("Installing interfaces:\n");
     for (sc = ppp_softc; i < NUM_PPP; sc++, i++) {
 	sc->sc_if = if_attach(NULL, NULL, pppoutput, 
 			      pppgetbuf, pppcontrol, "ppp", i, "Serial line PPP", 
 			      PPP_MTU, IFF_POINTOPOINT, NETIFCLASS_VIRTUAL, (void *) sc);
-	IOLog("     Initializing ppp%d\n", i);
 	nbq_init(&sc->sc_freeq, &qparms[QFREE]);
 	nbq_init(&sc->sc_rawq, &qparms[QRAW]);
 	nbq_init(&sc->sc_fastq, &qparms[QFAST]);
@@ -306,15 +303,12 @@ pppattach()
 	nbq_init(&sc->sc_npq, &qparms[QNP]);
 	nbq_init(&sc->sc_compq, &qparms[QCACHE]);
 	IOLog("     ppp%d successfully attached.\n", i);
-#ifdef NBPFILTER
-	bpfattach((caddr_t *) &sc->sc_bpf, sc->sc_if, DLT_PPP, PPP_HDRLEN);
-#endif
     }
 
     ipforwarding = 1;
     ipsendredirects = 1;
 
-    IOLog("PPP-2.3 Successfully Installed.\n\n");
+    IOLog("PPP Successfully Installed.\n\n");
 }
 
 int
@@ -354,6 +348,9 @@ pppalloc(pid)
 {
     int nppp, i;
     struct ppp_softc *sc;
+#if NS_TARGET >= 40
+    struct timeval tv_time;
+#endif /* NS_TARGET */
 
     for (nppp = 0, sc = ppp_softc; nppp < NUM_PPP; nppp++, sc++)
 	if (sc->sc_xfer == pid) {
@@ -380,7 +377,14 @@ pppalloc(pid)
     for (i = 0; i < NUM_NP; ++i)
 	sc->sc_npmode[i] = NPMODE_ERROR;
     /* XXX - I'm not sure why the npqueue was zapped here... */
+
+#if NS_TARGET >= 40
+    ns_time_to_timeval(clock_value(System), &tv_time);
+    sc->sc_last_sent = sc->sc_last_recv = tv_time.tv_sec;
+#else
     sc->sc_last_sent = sc->sc_last_recv = time.tv_sec;
+#endif
+
     sc->sc_compsched = 0;
     sc->sc_decompsched = 0;
 
@@ -443,6 +447,10 @@ pppioctl(sc, cmd, data, flag)
 #ifdef	HAS_BROKEN_TIOCSPGRP
     struct tty *tp = sc->sc_devp;
 #endif
+#if NS_TARGET >= 40
+	struct timeval tv_time;
+#endif /* NS_TARGET */
+
 
     switch (cmd) {
     case FIONREAD:
@@ -614,7 +622,12 @@ pppioctl(sc, cmd, data, flag)
 
     case PPPIOCGIDLE:
 	s = splimp();
+#if NS_TARGET >= 40
+	ns_time_to_timeval(clock_value(System), &tv_time);
+	t = tv_time.tv_sec;
+#else
 	t = time.tv_sec;
+#endif /* NS_TARGET */
 	((struct ppp_idle *)data)->xmit_idle = t - sc->sc_last_sent;
 	((struct ppp_idle *)data)->recv_idle = t - sc->sc_last_recv;
 	splx(s);
@@ -799,11 +812,6 @@ pppoutput(ifp, in_nb, arg)
 	goto bad;
     }
 
-#ifdef NETBUF_PROXY
-	m0->pktinfo.first.tv_sec = time.tv_sec;
-	m0->pktinfo.first.tv_usec = time.tv_usec;
-	m0->pktinfo.size1 = NB_SIZE(m0);
-#endif
 
     /*
      * Compute PPP header.
@@ -874,34 +882,11 @@ urgent:		flags |= M_HIGHPRI;
     *cp++ = protocol >> 8;
     *cp++ = protocol & 0xff;
 
-#if defined(NBPFILTER) && defined(NETBUF_PROXY)
-   /*
-    * We need to copy the header to the original copy.
-    */
-    bcopy(mtod(m0, u_char *), NB_MAP_ORIG(m0), PPP_HDRLEN);
-
-#endif
 
     if (sc->sc_flags & SC_LOG_OUTPKT) {
 	IOLog("ppp%d: output:\n", if_unit(ifp));	/* XXX */
 	pppdumpm(m0);
     }
-
-
-#if defined(NBPFILTER)  && !defined(NETBUF_PROXY)
-    /*
-     * See if bpf wants to look at the packet.
-     * We must hand it off _before_ any compression
-     * takes place.  If NETBUF_PROXY is defined,
-     * we do the handoff later (in ppp_tty.c)
-     * because we keep a copy of the original
-     * datagram around.
-     */
-
-   if (sc->sc_bpf)
-      bpf_tap(sc->sc_bpf, NB_MAP(m0), NB_SIZE(m0));
- 
-#endif
 
 
     /*
@@ -1137,6 +1122,9 @@ ppp_outpkt(sc)
     NETBUF_T m;
     u_char *cp;
     int address, control, protocol;
+#if NS_TARGET >= 40
+    struct timeval tv_time;
+#endif
 
     /*
      * Grab a packet to send: first try the fast queue, then the
@@ -1157,17 +1145,20 @@ ppp_outpkt(sc)
     control = PPP_CONTROL(cp);
     protocol = PPP_PROTOCOL(cp);
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.second.tv_sec = time.tv_sec;
-	m->pktinfo.second.tv_usec = time.tv_usec;
-#endif
+#if NS_TARGET >= 40
+	ns_time_to_timeval(clock_value(System), &tv_time);
+#endif /* NS_TARGET */
 
     switch (protocol) {
     case PPP_IP:
 	/*
 	 * Update the time we sent the most recent packet.
 	 */
-	sc->sc_last_sent = time.tv_sec;
+#if NS_TARGET >= 40
+	sc->sc_last_sent = tv_time.tv_sec;
+#else
+        sc->sc_last_sent = time.tv_sec;
+#endif /* NS_TARGET */
 
 #ifdef VJC
 	/*
@@ -1187,15 +1178,9 @@ ppp_outpkt(sc)
 		switch (type) {
 		case TYPE_UNCOMPRESSED_TCP:
 		    protocol = PPP_VJC_UNCOMP;
-#ifdef NETBUF_PROXY
-		    m->pktinfo.flags |= NBFLAG_VJCINC;
-#endif
 		    break;
 		case TYPE_COMPRESSED_TCP:
 		    NB_SHRINK_TOP(m, vjhdr - (u_char *) ip);
-#ifdef NETBUF_PROXY
-		    m->pktinfo.flags |= NBFLAG_VJC;		    
-#endif
 		    protocol = PPP_VJC_COMP;
 		    cp = mtod(m, u_char *);
 		    cp[0] = address;	/* header has moved */
@@ -1219,11 +1204,6 @@ ppp_outpkt(sc)
     }
 
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.size2 = NB_SIZE(m);
-#endif
-
-
 #ifdef PPP_COMPRESS
     if (protocol != PPP_LCP && protocol != PPP_CCP
 	&& sc->sc_xc_state && (sc->sc_flags & SC_COMP_RUN)) {
@@ -1243,33 +1223,13 @@ ppp_outpkt(sc)
 
 	if (mcomp != NULL) {
 
-#ifdef NETBUF_PROXY
-	  /*
-	   * duplicate all the stat info into the new
-	   * buffer.
-	   */
-	    m->pktinfo.flags |= NBFLAG_CCP;
-
- 	    NB_DUPLICATE(m, mcomp);
-#endif
-
 	    NB_FREE(m);
 	    m = mcomp;
 	    cp = mtod(m, u_char *);
 	    protocol = cp[3];
 	}
-#ifdef NETBUF_PROXY
-	else
-	  m->pktinfo.flags |= NBFLAG_CCPINC;
-#endif	
-
     }
 #endif	/* PPP_COMPRESS */
-
-#ifdef NETBUF_PROXY
-	m->pktinfo.size3 = NB_SIZE(m);
-#endif
-
 
     /*
      * Compress the address/control and protocol, if possible.
@@ -1279,9 +1239,6 @@ ppp_outpkt(sc)
 	protocol != PPP_LCP) {
 	/* can compress address/control */
 	NB_SHRINK_TOP(m, 2);
-#ifdef NETBUF_PROXY
-	m->pktinfo.flags |= NBFLAG_AC;
-#endif
     }
     if (sc->sc_flags & SC_COMP_PROT && protocol < 0xFF) {
 	/* can compress protocol */
@@ -1290,15 +1247,8 @@ ppp_outpkt(sc)
 	    cp[1] = cp[0];
 	}
 	NB_SHRINK_TOP(m, 1);
-#ifdef NETBUF_PROXY
-	m->pktinfo.flags |= NBFLAG_PC;
-#endif
     }
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.third.tv_sec = time.tv_sec;
-	m->pktinfo.third.tv_usec = time.tv_usec;
-#endif	
 
     s = splimp();
     nbq_enqueue(&sc->sc_compq, m);
@@ -1466,11 +1416,10 @@ ppp_inproc(sc, m)
     NETBUF_T dmp;
     u_char *iphdr;
     u_int hlen;
+#if NS_TARGET >= 40
+    struct timeval tv_time;
+#endif /* NS_TARGET */
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.third.tv_sec = time.tv_sec;
-	m->pktinfo.third.tv_usec = time.tv_usec;
-#endif	    
 
     incr_cnt(sc->sc_if, if_ipackets);
 
@@ -1499,22 +1448,10 @@ ppp_inproc(sc, m)
      */
     if (proto == PPP_COMP && sc->sc_rc_state && (sc->sc_flags & SC_DECOMP_RUN)
 	&& !(sc->sc_flags & SC_DC_ERROR) && !(sc->sc_flags & SC_DC_FERROR)) {
-#ifdef NETBUF_PROXY
-	m->pktinfo.flags |= NBFLAG_CCP;
-#endif	    
 	/* decompress this packet */
 	rv = (*sc->sc_rcomp->decompress)(sc->sc_rc_state, m, &dmp);
 	if (rv == DECOMP_OK){
 
-#ifdef NETBUF_PROXY
-	  if (dmp != NULL)
-	    {
-
-	      NB_DUPLICATE(m, dmp);
-/*	      bcopy(&(m->pktinfo), &(dmp->pktinfo), sizeof(bpf_encapsulater)); */
-
-	    }
-#endif
 	  NB_FREE(m);
 	  if (dmp == NULL){
 	    /* No error, but no decompressed packet returned */
@@ -1544,9 +1481,6 @@ ppp_inproc(sc, m)
 	if (sc->sc_rc_state && (sc->sc_flags & SC_DECOMP_RUN))
 	  {
 
-#ifdef NETBUF_PROXY
-	    m->pktinfo.flags |= NBFLAG_CCPINC;
-#endif
 	    (*sc->sc_rcomp->incomp)(sc->sc_rc_state, m);
 	}
 	if (proto == PPP_CCP) {
@@ -1556,10 +1490,6 @@ ppp_inproc(sc, m)
 #endif
 
     ilen = NB_SIZE(m);
-
-#ifdef NETBUF_PROXY
-    m->pktinfo.size2 = ilen;
-#endif
 
 #ifdef VJC
     if (sc->sc_flags & SC_VJ_RESET) {
@@ -1583,9 +1513,6 @@ ppp_inproc(sc, m)
 	if (sc->sc_flags & SC_REJ_COMP_TCP)
 	    goto bad;
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.flags |= NBFLAG_VJC;
-#endif	    
 
 	xlen = vj_uncompress_tcp(cp + PPP_HDRLEN, ilen - PPP_HDRLEN,
 				 ilen - PPP_HDRLEN,
@@ -1650,9 +1577,6 @@ ppp_inproc(sc, m)
 	if (sc->sc_flags & SC_REJ_COMP_TCP)
 	    goto bad;
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.flags |= NBFLAG_VJCINC;
-#endif	    
 
 	vj_uncompress_uncomp(cp + PPP_HDRLEN, ilen-PPP_HDRLEN, &sc->sc_comp);
 
@@ -1661,24 +1585,6 @@ ppp_inproc(sc, m)
     }
 #endif /* VJC */
 
-#ifdef NETBUF_PROXY
-    m->pktinfo.size3 = NB_SIZE(m);
-    m->pktinfo.fourth.tv_sec = time.tv_sec;
-    m->pktinfo.fourth.tv_usec = time.tv_usec;
-#endif	    
-
-#ifdef NBPFILTER
-    /*
-     * See if bpf wants to look at the packet.
-     * Size includes the PPP header by not the trailer.
-     */
-    if (sc->sc_bpf)
-#ifndef NETBUF_PROXY
-	bpf_tap(sc->sc_bpf, NB_MAP(m), NB_SIZE(m)); 
-#else
-	bpf_tap(sc->sc_bpf, m, 0);
-#endif
-#endif
 
     rv = 0;
     switch (proto) {
@@ -1696,7 +1602,13 @@ ppp_inproc(sc, m)
 	}
 	NB_SHRINK_TOP(m, PPP_HDRLEN);
 	inet_queue(sc->sc_if, NB_TO_nb(m));
+#if NS_TARGET >= 40
+	/*  I am assuming the time is different here than above. */
+	ns_time_to_timeval(clock_value(System), &tv_time);
+	sc->sc_last_recv = tv_time.tv_sec; /* update time of last pkt rcvd */
+#else
 	sc->sc_last_recv = time.tv_sec; /* update time of last pkt rcvd */
+#endif
 	return;
 #endif
 

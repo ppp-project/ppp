@@ -1,22 +1,31 @@
-
 # ppp top level makefile for NeXT systems
 #
-# $Id: Makefile.top,v 1.2 1997/04/30 05:39:28 paulus Exp $
+# $Id: Makefile.top,v 1.3 1998/03/26 02:51:39 paulus Exp $
 #
 
-BINDIR = /usr/local/ppp/bin
-MANDIR = /usr/local/ppp/man
-ETCDIR = /etc/ppp
-
+# Change the values of ARCHFLAGS to include the 
+# appropriate architectures.  A blank entry compiles
+# for the local architecture
 #ARCHFLAGS = -arch i386 -arch m68k -arch hppa -arch sparc
 #ARCHFLAGS = -arch i386 -arch m68k
 ARCHFLAGS =
 
+#
+# It is not suggested that you change any values from here
+# on.
+#
+BINDIR = /usr/local/ppp/bin
+MANDIR = /usr/local/ppp/man
+ETCDIR = /etc/ppp
+
+
 all:
+	cd NeXT/libposix; $(MAKE) ARCHFLAGS="$(ARCHFLAGS)" all
 	cd chat; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
 	cd pppstats; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
 	cd pppd; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
 	cd NeXT; $(MAKE) ARCHFLAGS="$(ARCHFLAGS)" all
+
 
 install: 
 	cd chat; \
@@ -30,6 +39,7 @@ install:
 
 clean: 
 	rm -f *~
+	(cd libposix; $(MAKE) -f Makefile.NeXT clean)
 	(cd chat; $(MAKE) -f Makefile.NeXT clean)
 	(cd pppstats; $(MAKE) -f Makefile.NeXT clean)
 	(cd pppd; $(MAKE) -f Makefile.NeXT clean)
@@ -41,6 +51,11 @@ NEXTTOP = \
 	README.NeXT				\
 	${NULL}
 
+NEXTPOSIX = \
+	libposix/Makefile.NeXT			\
+	libposix/libposix.c			\
+	${NULL}
+
 NEXTPPPD = \
 	pppd/Makefile.NeXT			\
 	pppd/sys-NeXT.c				\
@@ -48,12 +63,15 @@ NEXTPPPD = \
 
 NEXTNET = \
 	net/if_ppp.h				\
+	net/ppp_defs.h				\
 	${NULL}
 
 NEXTSTATS = \
 	pppstats/Makefile.NeXT			\
-	pppstats/pppstats.c			\
 	${NULL}
+
+#	pppstats/pppstats.c			
+
 
 NEXTCHAT = \
 	chat/Makefile.NeXT			\
@@ -64,10 +82,9 @@ NEXTLKS = \
 	NeXT/ChangeLog.rtf			\
 	NeXT/INSTALL				\
 	NeXT/Load_Commands.sect			\
-	NeXT/MailBug.app.tar.gz			\
 	NeXT/Makefile				\
 	NeXT/Makefile.top			\
-        NeXT/NeXT_Version			\
+        NeXT/NeXT_Version.h			\
 	NeXT/TODO.NeXT				\
 	NeXT/Unload_Commands.sect		\
 	NeXT/bsd-comp.c				\
@@ -75,7 +92,6 @@ NEXTLKS = \
 	NeXT/if_pppvar.h			\
 	NeXT/inlines.h				\
 	NeXT/linedisc.h				\
-	NeXT/nbq.c				\
 	NeXT/nbq.h				\
 	NeXT/netbuf.h				\
 	NeXT/ppp_tty.c				\
@@ -93,30 +109,16 @@ NEXTMACH = \
 	${NULL}
 
 
-NEXTBPF = \
-	NeXT/bpf/Load_Commands.sect		\
-	NeXT/bpf/Makefile			\
-	NeXT/bpf/NeXT_Support.c			\
-	NeXT/bpf/README.NeXT			\
-	NeXT/bpf/Unload_Commands.sect		\
-	NeXT/bpf/bpf.4				\
-	NeXT/bpf/bpf.c				\
-	NeXT/bpf/bpf.h				\
-	NeXT/bpf/bpf_compat.h			\
-	NeXT/bpf/bpf_filter.c			\
-	NeXT/bpf/bpfdesc.h			\
-	NeXT/bpf/netbuf.h			\
-	NeXT/bpf/promisc.c			\
-	NeXT/bpf/spl.h				\
-	${NULL}
-
 NEXTEXAMP = \
+	NeXT/Examples/NXHosting_with_PPP	\
 	NeXT/Examples/Persistent_Connection	\
 	NeXT/Examples/README			\
+	NeXT/Examples/chap-secrets.example	\
 	NeXT/Examples/flow-control-hints	\
 	NeXT/Examples/ip-down.example		\
 	NeXT/Examples/ip-up.example		\
-	NeXT/Examples/options			\
+	NeXT/Examples/options.example		\
+	NeXT/Examples/pap-secrets.example	\
 	NeXT/Examples/ppp_multiple_hosts.tar.gz	\
 	NeXT/Examples/pppdown			\
 	NeXT/Examples/pppkill.c			\
@@ -125,12 +127,12 @@ NEXTEXAMP = \
 	NeXT/Examples/pppup.portmaster		\
 	NeXT/Examples/pppup.remote		\
 	NeXT/Examples/pppup.zyxel		\
-	NeXT/Examples/rc.ppp			\
 	NeXT/Examples/redial.sh			\
 	${NULL}
 
 NEXTPORT = \
 	   ${NEXTTOP}			\
+	   ${NEXTPOSIX}			\
 	   ${NEXTPPPD}			\
 	   ${NEXTNET}			\
 	   ${NEXTSTATS}			\
@@ -138,10 +140,8 @@ NEXTPORT = \
 	   ${NEXTLKS}			\
 	   ${NEXTHPPA}			\
 	   ${NEXTMACH}			\
-	   ${NEXTBPF}			\
 	   ${NEXTEXAMP}			\
 	   ${NULL}
-
 
 
 #
@@ -155,27 +155,27 @@ NEXTPORT = \
 #
 
 portdist: 
-	echo NeXT-ppp2.3-`sed -e '/version_string/!d' \
-             -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q ./NeXT/NeXT_Version` > .fname
+	echo NeXT-ppp2.3.3-`sed -e '/version_string/!d' \
+             -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q ./NeXT/NeXT_Version.h` > .fname
 	rm -rf `cat .fname`
 	mkdir `cat .fname`
+	mkdir `cat .fname`/libposix
 	mkdir `cat .fname`/pppd
 	mkdir `cat .fname`/net
 	mkdir `cat .fname`/chat
 	mkdir `cat .fname`/NeXT
 	mkdir `cat .fname`/NeXT/hppa
 	mkdir `cat .fname`/NeXT/mach
-	mkdir `cat .fname`/NeXT/bpf
 	mkdir `cat .fname`/NeXT/Examples
 	mkdir `cat .fname`/pppstats
 	-ln $(NEXTTOP) `cat .fname`
+	-ln $(NEXTPOSIX) `cat .fname`/libposix
 	-ln $(NEXTPPPD) `cat .fname`/pppd
 	-ln $(NEXTNET) `cat .fname`/net
 	-ln $(NEXTCHAT) `cat .fname`/chat
 	-ln $(NEXTLKS) `cat .fname`/NeXT
 	-ln $(NEXTHPPA) `cat .fname`/NeXT/hppa
 	-ln $(NEXTMACH) `cat .fname`/NeXT/mach
-	-ln $(NEXTBPF) `cat .fname`/NeXT/bpf
 	-ln $(NEXTEXAMP) `cat .fname`/NeXT/Examples
 	-ln $(NEXTSTATS) `cat .fname`/pppstats
 	for file in $(NEXTPORT); do \

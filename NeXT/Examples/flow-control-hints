@@ -1,0 +1,9 @@
+From katzlbt@vuse.vanderbilt.edu mentions:
+
+I was working with software flow control (at 38400 baud) so the output
+to /dev/cufa resulted in a deadlock.  If the modem does not dial but
+shows TR, check hardware flow control by using the device /dev/cufa
+with tip. If this results in a deadlock relace your modem cable, for
+now replace /dev/cufa with /dev/cua and change the baudrate to 19200.
+
+

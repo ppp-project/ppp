@@ -1,0 +1,427 @@
+{\rtf0\ansi{\fonttbl\f0\fmodern Courier;\f1\fswiss Helvetica;\f2\fmodern Ohlfs;}
+\paperw12040
+\paperh11720
+\margl40
+\margr40
+{\colortbl;\red59\green11\blue84;\red0\green0\blue0;\red19\green34\blue84;\red6\green0\blue85;}
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\b0\i0\ulnone\fs24\fc0\cf0 \
+
+\b\gray128\fc1\cf1 11
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Jul 10 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/Documentation/WWW Pages/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Fixed\
+	
+\b0 \
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\b\i\gray136\fc3\cf3 	Mail setup for FAQ\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Wed Jul 10 14:59:39 EDT 1996]\
+[perkins Wed Jun 05 21:31:44 EDT 1996]\
+On 06/04/96, Francois Magnan wrote:\
+
+\gray46\fc4\cf4 >\
+>I have written down the steps I did to configure sendmail 8.7.5 for a \
+>standalone machine using a dial up PPP connection to link to the \
+>internet. It uses the user database to set From and Reply to fields \
+>correctly to each user of the system own's Pop account (in all \
+>outgoing mail). Is there a need for this? Should I post it? Could an \
+>expert verify it before an unexperienced user try this???\
+>\
+>Thank you,\
+>Francois Magnan\
+>   \
+>-- \
+>______________________________________________________\
+>Francois Magnan\
+>Departement de Mathematique & Statistiques\
+>Universite de Montreal\
+>email: magnan@mathcn.umontreal.ca (MIME, NeXTMail Ok!)\
+>\
+>\
+
+\gray0\fc0\cf0 \
+Sorry for this.... My news server was always telling me it could not \
+send the post.\
+\
+Francois\
+\
+\
+-- \
+______________________________________________________\
+Francois Magnan\
+Departement de Mathematique & Statistiques\
+Universite de Montreal\
+email: magnan@mathcn.umontreal.ca (MIME, NeXTMail Ok!)\
+\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\fc0\cf0 \
+
+\b\gray128\fc1\cf1 13
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Jul 10 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/PPP Daemon/Interoperation/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Open\
+	
+\b0 \
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\b\i\gray136\fc3\cf3 	PPP-2.2 doesn't negotiate well with Netcom's PPP server using bsdcomp\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Wed Jul 10 15:01:24 EDT 1996]\
+\
+[aisbell@cubicsol.com Mon Jun 17 16:47:27 CDT 1996]\
+    Using the default PPP options file which specifies the "bsdcomp 10,10" pppd option, negotiation with Netcom's PPP server has been problematic since early June, 1996.  Negotiation succeeds, ipcp comes up, but then the Netcom server resends a negotiation packet causing ipcp to be brought down followed by successful renegotiation bringing ipcp up.  This causes ip-up to run, then ip-down, and then ip-up again.  Depending on what is being done in ip-up and ip-down, this multiple repeated execution, possibly concurrently, can cause problems.\
+\
+    However, BSD compression negotiation is rejected by the Netcom server.  So by disabling BSD compression negotiation (i.e., specifying the "-bsdcomp" instead of the "bsdcomp 10,10" pppd option), this problem seems to disappear.
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 15
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Jul 10 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/Kernel Server/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Open\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	PPP running out of netbuffers & thrashing\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Wed Jul 10 15:02:51 EDT 1996]\
+\
+[rvose@ix.netcom.com Wed Jun 26 01:03:20 CDT 1996]\
+You'll have to excuse me if this is categorized wrong.  I'm a PPP newbie.\
+\
+I'm running PPP 2.2.046 on a NeXTstation Turbo Color w/32MB RAM to access my ISP over a modem.  Certain operations cause my system to thrash until I break into the NMI to stop it.  When I look at messages in the NMI, at the very end are several errors from PPP indicating that it's out of 'netbuffers'  I'm not sure if PPP is causing the trash, but the netbuffer errors seemed to point to it.  A friend of mine running the same configuration has the same problems.\
+\
+I'm looking for a way to recreate the problem on demand, and will forward that on when I find it.  The trashing usually appears while using OmniWeb 2.0.1 from Lighthouse Design, but I've had similar problems using NetSurfer.  The problem seems to happen much faster with NetSurfer.\
+\
+Again, I'll try to get you more details.  Does this sound like a PPP problem? 
+\b \
+ ===============================================\
+\
+
+\b0 [perkins Mon Jul 01 10:33:36 EDT 1996]\
+\
+See Bug #16 for more information.\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 16
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Jul 10 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/Kernel Server/Panic/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Obsolete\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	Re: PPP causing thrashing - Tracking ID 15\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Wed Jul 10 15:04:07 EDT 1996]\
+\
+[rvose@ix.netcom.com Mon Jul  1 04:37:03 CDT 1996]\
+Last week I had submitted report indicating that my NeXTstation Color Turbo machine ran out of network buffers and thrashed to the point of crashing.  The tracking ID assigned was 16.\
+\
+I believe that this problem may have been due to my swapfile size growing beyond the high-water mark.  My machine crashed several times this evening (thrashing) while connected and I happened to notice that the swapfile size was pushing the hiwat limit.  I increased the hiwat limit on the file from 40 MB (which is the NeXT default) to 105 MB (the partition size where the file residess - it's on its own drive) and voila!  No more thrashing.  I've been connected over PPP and hitting the system hard with network transactions with ZERO difficulties.\
+\
+Just wanted to pass that info along.  I'm not sure if the combination of the system hitting the hiwat mark on the swapfile + PPP needing more resources caused the thrashing problem, but it seems reasobable.\
+\
+Thanks...\
+\
+Randy\
+rvose@ix.netcom.com\
+\
+ 
+\b \
+ ===============================================\
+\
+
+\b0 [perkins Mon Jul 01 10:33:24 EDT 1996]\
+\
+This bug is in relation to bug #15\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 21
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Aug 10 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/PPP Daemon/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Fixed\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	ip-up and ip-down examples need updating\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Sat Aug 10 09:41:59 EDT 1996]\
+\
+Update ip-up and ip-down examples.\
+\
+\
+\
+\
+ams@best.com (Samuel G. Streeper) wrote:\
+\
+
+\gray46\fc4\cf4 > You need to restart the nameserver on your home system when\
+> you bring PPP up:\
+> \
+> 	kill -USR2 <nmserver pid>\
+> \
+> (You may want to do this in your ppp-up script)  I've heard some\
+> people also do the same with lookupd but that hasn't been necessary\
+> for me.\
+
+\gray0\fc0\cf0 \
+    Sending the pre-OS 4.0 lookupd a USR2 signal causes it to toggle logging, \
+but sending it a HUP signal forces it to restart and thus read any new \
+resolv.conf indo.  You shouldn't have to do this unless you need to use \
+different nameservers when establishing your PPP connection.  I need to \
+connect to several different PPP servers, so I slide in the correct \
+resolv.conf and send resolv.conf a HUP signal in pppd's ip-up.\
+\
+    Note that sending the OS 4.0 lookupd a HUP signal won't cause it to \
+restart.  Restarting it manually will leave the system unusable until a \
+reboot :-(  NeXT is aware of this problem.\
+-- \
+Art Isbell                      NeXT/MIME Mail: aisbell@ix.netcom.com\
+Trego Systems                              Voice/Fax: +1 408 335 2515\
+CaseServ:  NEXTSTEP/OpenStep              Voice Mail: +1 408 335 1154\
+   managed care solutions              US Mail: Felton, CA 95018-9442\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 22
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Aug 13 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/PPP Daemon/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Open\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	NXHosting \
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [perkins Tue Aug 13 09:06:52 EDT 1996]\
+\
+In article <4ule10$g2t@nuke.csu.net>, John Rudd <kzin@arcadia.sjsu.edu> wrote:\
+
+\gray46\fc4\cf4 >(isc-ts2-* are our dialup PPP lines.. each line in the hunt group has a \
+>different IP addy associated with it.. so you are likely to get a different \
+>one each time.  And this is why I can't do the "Services -> OpenSesame -> \
+>Open on host X", because that sends "-NXHost copernicus".. which is what my \
+>home machine internally identifies itself as)\
+
+\gray0\fc0\cf0 \
+The only way to get -NXHost to work over PPP is to have an IP address\
+assigned to your Ethernet port, and have a route to that address\
+reachable over the PPP.\
+\
+When you try to -NXHost, it uses UDP, and for some reason the UDP\
+protocol decides to use the Ethernet's IP address for outgoing\
+packets, rather than using the PPP's IP address.\
+\
+You'll also have similar problems trying to get talk to work over\
+PPP. Unless there is a route to your Ethernet's IP address, it isn't\
+going to work.\
+\
+-- \
+Chris Osborn, Network Administrator     Napa Valley College\
+707 253 3130 - Voice                    2277 Napa-Vallejo Hwy.\
+707 253 3063 - Fax                      Napa, CA 94558\
+<fozztexx@nvc.cc.ca.us>    <¬http://www.nvc.cc.ca.us/~fozztexx>\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 25
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 perkins
+\b0 	
+\b\fc0\cf0 Sep 17 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/Documentation/Installation Instructions/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Fixed\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	typo?\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [sysadmin Tue Sep 17 12:05:33 EDT 1996]\
+In ./NeXT/INSTALL, I assume '-DBPFILTER' in the second paragraph  \
+should be '-DNBPFILTER'? And the third paragraph applies with the  \
+second paragraph condition?\
+\
+ 4) If you plan in using tcpdump to monitor packets, you must\
+    enable the Berkley Packet Filter code.  Edit ./NeXT/Makefile\
+    and make sure the '-DNBPFILTER' option is defined in DFLAGS.\
+    WARNING: If you choose to use BPF, you must make sure that you\
+    compile _AND LOAD_ the bpf_reloc LKS _BEFORE_ you load the\
+    ppp_reloc LKS.  See the ./NeXT/bpf directory for more  \
+information.\
+\
+    If you don't want to compile in this code, please make sure that\
+    '-DBPFILTER' is _not_ defined in the ./NeXT/Makefile DFLAGS.\
+\
+    Also, make sure you read the installation file in ./NeXT/bpf.   \
+You\
+    will need to create a few special device files in /dev/.\
+\
+Stephen Johnson\
+stephen@ccc1.tamu.edu\
+\
+\
+
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		\
+
+\b\gray128\fc1\cf1 26
+\b0\gray0\fc0\cf0 	Submitted:	
+\b\fc2\cf2 J. P. McCann
+\b0 	
+\b\fc0\cf0 Oct 06 1996 00:00\
+	
+\b0 Topic:		
+\b /PPP-2.x/PPP Daemon/Option Handling/
+\b0 \
+	Owner:		
+\b perkins 
+\b0 (nobody)
+\b \
+
+\b0 	Status: 	
+\b Superseded\
+	
+\b0 \
+
+\b\i\gray136\fc3\cf3 	Netcom ISP hookups disconnect with bsdcomp values\
+
+\i0\gray0\fc0\cf0 	
+\b0 \
+
+\pard\tx1480\tx2020\tx2560\tx3080\tx3620\tx4160\tx4680\tx5220\tx5760\tx6280\f1\li960\fc0\cf0 [jpmeia@ix.netcom.com Sun Oct  6 20:11:22 CDT 1996]\
+When trying to connect to Netcom with any bsdcomp values (eg, bsdcomp 10,10) in the options script, connection will fail vice ignore bsdcomp.  Must use the "-bsdcomp" option to negotiate a connection that does not fail.
+\pard\tx960\tx1920\tx2880\tx3840\tx4800\tx5760\tx6720\tx7680\tx8640\tx9600\f0\li960\fc0\cf0 \
+
+\li0 \
+Trackers:	perkins\
+		
+}

@@ -1,0 +1,21 @@
+#!/bin/sh -f
+# -*- Fundamental -*-
+#
+# kdebug 1  is SC_DEBUG
+#        2  is SC_LOG_INPKT
+#        4  is SC_LOG_OUTPKT
+#        8  is SC_LOG_RAWIN
+#        16 is SC_LOG_FLUSH
+# 
+# add together to get debugging you want
+# Remember: for HW flow control you must you /dev/cufa or /dev/cufb
+#
+#
+#  This is an example that dials a modem, logs into a remote Annex terminal
+#  server and starts ppp. 
+#
+exec /usr/local/bin/pppd bsdcomp 10,10 mtu 296 lcp-echo-interval 15 \
+lcp-echo-failure 3 debug crtscts kdebug 17 defaultroute modem -pap -chap \
+connect '/usr/local/bin/chat -v ABORT BUSY ABORT "NO CARRIER" ABORT "NO DIAL TONE" ABORT "ERROR" "" ATZ0 "OK" ATDT####### CONNECT "" MSUnet: ppp sername: USER assword: PASS PPP.' \
+/dev/cufa 57600 lock
+

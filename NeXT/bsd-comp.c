@@ -49,12 +49,11 @@
 /*
  * This version is for use with mbufs on BSD-derived systems.
  *
- * $Id: bsd-comp.c,v 1.4 1997/04/30 05:39:29 paulus Exp $
+ * $Id: bsd-comp.c,v 1.5 1998/03/26 02:51:45 paulus Exp $
  */
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 
 #define	KERNEL 1
@@ -62,6 +61,7 @@
 #include <net/if.h>
 
 #include <net/ppp_defs.h>
+
 #include <net/if_ppp.h>
 
 #include "nbq.h"
@@ -93,7 +93,6 @@
 #include <netinet/ip.h>
 
 #define	mtod(m,type)	((type)NB_MAP(m))
-typedef unsigned short u_int16_t;
 
 /*
  * PPP "BSD compress" compression

@@ -217,31 +217,3 @@ extern struct uthread *uthread_from_thread(thread_t);
 
 #define	curproc		(proc_from_thread(current_thread()))
 
-#ifdef NBPFILTER
-#include <bpf/bpf.h>
-
-extern struct bpf_fns fnarg;
-
-static inline void
-bpfattach(caddr_t *driverp, netif_t ifp, u_int dlt, u_int hdrlen)
-{
-  struct bpf_attachargs atarg = {driverp, (caddr_t) ifp, dlt, hdrlen};
-
-  if (cdevsw[BPF_MAJOR_CHAR].d_ioctl != 0)
-    {
-      (*cdevsw[BPF_MAJOR_CHAR].d_ioctl)(0, BIOCATTACH, &atarg, 0);
-      (*cdevsw[BPF_MAJOR_CHAR].d_ioctl)(0, BIOCGFNS, &fnarg, 0);
-    }
-}
-
-
-static inline void
-#ifndef NETBUF_PROXY
- bpf_tap(caddr_t arg, u_char *pkt, u_int pktlen) 
-#else
- bpf_tap(caddr_t arg, NETBUF_T pkt, u_int pktlen)
-#endif
-{
-  (*fnarg.tapfn)(arg, pkt, pktlen);
-}
-#endif

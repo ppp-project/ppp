@@ -20,7 +20,9 @@
 /* Portions Copyright (C) 1990 Brad K. Clements (streams support)
  */
 
+#if !(NS_TARGET >= 40)
 #import <kernserv/prototypes.h>
+#endif /* NS_TARGET */
 
 /*
  * Supported network protocols.  These values are used for
@@ -34,7 +36,6 @@
 
 /* only defined in the posix universe... */
 /*typedef	int pid_t; */
-typedef unsigned short u_int16_t;
 
 struct ppp_softc {
 	netif_t	sc_if;		/* network-visible interface */
@@ -58,10 +59,6 @@ struct ppp_softc {
 #endif
 	u_int	sc_bytessent;	/* count of octets sent */
 	u_int	sc_bytesrcvd;	/* count of octets received */
-#if NBPFILTER
-	caddr_t	sc_bpf;		/* hook for BPF */
-	int if_pcount;          /* Really belongs in ifnet_t */
-#endif
 	enum NPmode sc_npmode[NUM_NP]; /* what to do with each NP */
 #ifdef	PPP_COMPRESS
 	struct compressor *sc_xcomp; /* transmit compressor */

@@ -1,0 +1,22 @@
+#!/bin/csh -f
+#
+# -*- Fundamental -*-
+#
+#
+# kdebug 1  is SC_DEBUG
+#        2  is SC_LOG_INPKT
+#        4  is SC_LOG_OUTPKT
+#        8  is SC_LOG_RAWIN
+#        16 is SC_LOG_FLUSH
+# 
+# add together to get debugging you want
+# Remember: for HW flow control you must you /dev/cufa or /dev/cufb
+#
+# This script is used as the shell for a user account entitiled ppp.
+# When users log into this account, PPP is automatically started
+# (through this script).  The 'echo' command is to help the remote
+# process synchronize with this end.
+echo Starting PPP
+/usr/bin/mesg n
+/bin/stty -tostop litout
+exec /usr/local/bin/pppd passive bsdcomp 10,10 lcp-echo-interval 15 lcp-echo-failure 3 debug kdebug 17 57600

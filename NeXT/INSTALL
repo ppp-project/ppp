@@ -4,24 +4,22 @@
 
 Authoritative information can be found at:
 
-  WWW site:     http://www.thoughtport.com:8080/PPP/ 
-  FTP site:     ftp://ftp.thoughtport.com/pub/next/ppp
-  Mirror FTP:   ftp://ftp.duq.edu/pub/next/ppp/
-  Mirror FTP:   ftp://ftp.NMR.EMBL-Heidelberg.DE/pub/next/ppp/
+  WWW site:     http://www.peak.org/next/ppp/
+  WWW mirror:   http://www.thoughtport.com:8080/PPP/
+
+  FTP site:     ftp://next-ftp.peak.org/pub/next/apps/internet/ppp/dev
+  FTP Mirror:   ftp://ftp.NMR.EMBL-Heidelberg.DE/pub/next/ppp/
 
 If you have questions or problems, please visit the WWW site
 for FAQ and mailing list information.
 
-NEW: If you want to submit a bug report, use the new MailBug.app
-     provided in this directory.  You will need to install it as
-     you would any package.  If you don't have email access, please
-     use bug submission form on the WWW site.
+NEW: If you want to submit a bug report, please
+     use the bug submission form on the WWW site.
 
 If you use this software and are pleased with its performance, you are
 encouraged to make a donation to support continued development.  50%
 of all donations go to charity.  For more information, please see:
-  http://www.thoughtport.com:8080/PPP/donations.html
-
+  http://www.thoughtport.com:8080/cgi-bin/PPP/donation
 
 
 NeXT Specific Installation Instructions
@@ -43,51 +41,41 @@ To install on a computer running NeXTSTEP:
     ./NeXT/hppa/README.hppa and install the serial
     driver patch.  Successfull installation of this
     patch will require a reboot of your machine.  HPPA
-    is not supported.
+    is no longer supported.
 
  3) If you have previously installed a SLIP package, comment out
     the slip configuration code in /etc/rc.local and reboot your
     machine.  SLIP and PPP _should_ interoperate but for initial
     testing it is best to remove SLIP.
 
- 4) If you are using Intel, you _must_ get the latest NeXT serial
-    drivers from NeXTAnswers.  You need both the serial and ttyport
-    drivers (version 3.33 or later).  Install these according to
-    the directions.  PPP-2.3 is optimized to work with 
-    the NeXT drivers.   It will work with the Mux driver, but
-    that driver has been known to cause panics with PPP.
+ 4) If you are using Intel OS version 3.3, you _must_ get the latest
+    NeXT serial drivers from NeXTAnswers.  You need both the serial
+    and ttyport drivers (version 3.33 or later).  Install these
+    according to the directions.  PPP-2.3 is optimized to work with 
+    the NeXT drivers.   It will work with the Mux driver (especially
+    beneficial for OS versions prior to 3.3), but that driver has been
+    known to cause panics with PPP.  If you use OS 4.x you can use the
+    drivers that came with the system.
 
- 5) If you plan in using tcpdump to monitor packets, you must
-    enable the Berkley Packet Filter code.  Edit ./NeXT/Makefile
-    and make sure the '-DNBPFILTER' option is defined in DFLAGS.
-    WARNING: If you choose to use BPF, you must make sure that you
-    compile _AND LOAD_ the bpf_reloc LKS _BEFORE_ you load the
-    ppp_reloc LKS.  Also, make sure you read the installation file in
-    ./NeXT/bpf.  You will need to create a few special device files in
-    /dev/.
-
-    If you don't want to compile in this code, please make sure that
-    '-DBPFILTER' is _not_ defined in the ./NeXT/Makefile DFLAGS.
-
- 6) Type ./configure in the top level PPP directory.  This will set
+ 5) Type ./configure in the top level PPP directory.  This will set
     up some necessary links.
 
- 7) If you have developer 3.2, you need to use the old version of
+ 6) If you have developer 3.2, you need to use the old version of
     chat.c.  Perform:
       a) cd to the chat directory
       b) backup chat.c (mv chat.c chat.c.orig)
       c) use the old chat (mv chat.c.3.2 chat.c)
 
- 8) Edit ./Makefile and set the installation directories.
+ 7) Edit ./Makefile and set the installation directories.
     If you change the ETCDIR you will need to modify pathnames in
     pppd/pathnames.h. I recommend keeping it set to /etc/ppp. 
     If you don't specifically like that directory, you may
     also change the Makefile directory and put a link in /etc/ppp
-    that points to the proper place.
+    that points to the proper place. 
 
     You will also want to set the -arch flags to the appropriate
     architectures.  Leaving it blank will default to your current
-    architecture.
+    architecture. 
 
  9) Do a:
       make 
@@ -99,10 +87,9 @@ To install on a computer running NeXTSTEP:
 If you are performing an upgrade, you are done after successfully
 making and installing the latest release.  All you need to do is to
 reboot your machine so that the new loadable kernel server (LKS) is
-loaded. Make sure you remember to edit /etc/rc.local and add the code
-to load the bpf_reloc LKS (if you enabled BPF support).  You should be
-able to start the upgraded PPP just like normal.  If this doesn't
-work, see the "Troubleshooting" section later on.
+loaded.  You should be able to start the upgraded PPP just like
+normal.  If this doesn't work, see the "Troubleshooting" section later
+on.
 
 Also, you might want to compare the ip-up and ip-down scripts in 
 the ./NeXT/Examples directory with those you have installed in
@@ -135,20 +122,8 @@ done once.  These steps do not need to be re-performed for an upgrade.
    separators ;) somewhere near the end of the file /etc/rc.local:
  
 ======================================================================
-#
-# Load the Berkley Packet Filter LKS
-# This must be done before PPP.  Comment this out
-# if you disabled BPF. If you use BPF, you _must_ 
-# load it before the PPP LKS.  If you chaged pathnames
-# in the Makefile, make sure the appropriate paths are
-# used below.
-#
-if [ -f /usr/local/bpf/reloc/bpf_reloc ]; then
-       /usr/etc/kl_util -a /usr/local/bpf/reloc/bpf_reloc
-fi
-
 # 
-# Load the selected version of the PPP-2.2 loadable
+# Load the selected version of the PPP-2.3 loadable
 # kernel server (LKS).
 #     
 if [ -f /usr/local/ppp/reloc/ppp_reloc ]; then
@@ -157,15 +132,10 @@ if [ -f /usr/local/ppp/reloc/ppp_reloc ]; then
 fi
 ======================================================================
 
-  If you choose not to use BPF, then comment out the first lines
-  of code by adding the '#' mark in front of them (similar to the 
-  comment lines that are already in place).  All three lines
-  (including the 'if' and 'fi') need to be commented.
-
   This code will now be executed next time you reboot your machine.
-  You can verify that this was executed by checking  the output of
+  You can verify that this was executed by checking the output of
   /usr/adm/messages upon a successful reboot.  There should be a
-  section of output that says the PPP-2.2 LKS was successfully loaded.
+  section of output that says the PPP-2.3 LKS was successfully loaded.
 
 
 2) The default Makefile paths place PPP files  in a directory called
@@ -199,7 +169,6 @@ fi
    to you from the command line.  However, before you can immediately
    see them, you may need to log out and log back in.
  
-
 3) Once you start trying to make PPP connections, it is important
    to have access to the logging information that PPP generates. This
    will allow you to follow the progress of PPP and will aid in
@@ -218,11 +187,11 @@ fi
    Now, as root, use vi or your favorite editor to edit the file
    /etc/syslog.conf.  You need to add the line:
 
-       local2.debug		/usr/adm/ppp2.2.log
+       local2.debug		/usr/adm/pppd.log
 
    It is _imperative_ that you place a <tab> character
    between the level "local2.debug" and the file name
-   "/usr/adm/ppp2.2.log.  Do _not_ use spaces. If your
+   "/usr/adm/pppd.log.  Do _not_ use spaces. If your
    editor converts tab characters to spaces, you need to
    use a different editor.  Also beware of cutting and pasting
    between buffers.  Sometimes a tab will be converted to spaces
@@ -230,7 +199,7 @@ fi
    my /etc/syslog.conf:
 
 ======================================================================
-local2.debug					/usr/adm/ppp2.2.log
+local2.debug					/usr/adm/pppd.log
 *.err;kern.debug;auth.notice			/dev/console
 kern.debug;daemon,auth.notice;*.err;mail.crit	/usr/adm/messages
 mark.debug,daemon.info				/usr/adm/messages
@@ -248,11 +217,12 @@ mail.info					/usr/spool/mqueue/syslog
    This step is necessary because if syslog does not see the file, it
    will not create it.  So, removing the file is a handy way to turn
    off the logging.  To create an empty logging file, as root execute:
-        touch /usr/adm/ppp2.2.log
+        touch /usr/adm/pppd.log
 
    Upon a successful reboot, logging will be enabled for pppd
    (remember to specify the 'debug' option to pppd to get reasonable 
    information sent to the logging file).
+
 
 4) You should copy a few files to a new directory.  Part of the
    installation process creates a new directory (or link)
@@ -265,82 +235,13 @@ mail.info					/usr/spool/mqueue/syslog
    following commands.  It assumes you are in the PPP distribution
    directory:
 
-     cp NeXT/Examples/options /etc/ppp/options
+     cp NeXT/Examples/options.example /etc/ppp/options
      cp NeXT/Examples/ip-up.example /etc/ppp/ip-up
      cp NeXT/Examples/ip-down.example /etc/ppp/ip-down
      /usr/etc/chown root.wheel /etc/ppp/options /etc/ppp/ip-up /etc/ppp/ip-down
      chmod 644 /etc/ppp/options
      chmod  511 /etc/ppp/ip-up /etc/ppp/ip-down
- 
 
-5) If you have a standalone machine, it is necessary for you to make
-   sure your system is configured to correctly support a network.  The
-   following steps will help in correctly configuring your machine.
-   Please note, if you do not have a standalone machine (i.e. you are
-   on a local network), you need to speak with your system
-   administrator to determine the proper configuration for your
-   machine.  In most cases, a machine correctly configured for a
-   network will not need to perform the steps listed here. The
-   following only applies to standalone machines.
-
-   It is suggested that you reboot your machine _before_ you start 
-   these procedures.  This is to verify that you successfully
-   completed the previous steps and that your machine does indeed
-   reboot.  If it doesn't, you should replace /etc/rc.local with the
-   backup copy and reboot.  Then, determine why your modifications
-   failed.  After successfully rebooting, you are ready to move on to 
-   these steps.
-
-   As root, make a backup copy of /etc/hostconfig.  You might
-   name it /etc/hostconfig.prePPP.  If, after the following steps, you
-   run into problems booting your machine, you may replace
-   /etc/hostconfig with the backup and you should be able to
-   successfully reboot.
-
-   Start up the HostManager.app (under /NextAdmin).  After
-   successfully entering the root password, you should get the
-   HostManager Menu.  Select the "Local..." menu option to get the
-   main window.  Modify it as follows: 
-
-	   For "NetInfo Binding", select "use local domain only"
-           and make sure the box for "Readable only by local net" 
-           is checked.
-
-           For "Hostname", fill in your host name as appropriate.  Do
-           _not_ add the domain name.  For example, use "sidney"
-           rather than "sidney.cps.msu.edu". 
-
-           For "NIS Domain Name", select "None"
-
-           For "Internet Address", use the provided IP address
-           (probably 192.42.172.1) unless your system administrator has
-           assigned you your own unique IP address.  In this case,
-           reverify that you are a standalone machine.  Please
-           note... if your PPP service provider has assigned you an
-           IP address, do _NOT_ use that address here.  That address
-           will be used later.  Use whatever address is already in
-           the display.
-
-           For "Broadcast Address", select "Default"
-	
-	   For "Time Standard", select "Ignore Network Time"
-
-           For "Netmask", select "Default"
-
-           For "Router", select "None"
-
-  When this is complete, click the "Set" button.   You will then have
-  the option to reboot or to skip the reboot.  Choose the appropriate 
-  action.  It is suggested that you reboot immediately and verify that
-  your system does indeed reboot (and behave as normal).  If it
-  doesn't, replace /etc/hostconfig with the backup copy and then
-  reboot.  Once you are back up, determine the problem with your
-  configuration. 
-
-  Please note that this description is generic and will work in most
-  cases.  There are lots of variations that people can and will need 
-  to make. Your network administrator will be able to provide you with
-  the correct details for your particular site.
 
 Congratulations!  You have successfully installed PPP and are now
 ready to start up a connection.  See the section "Initial Testing" for
@@ -354,7 +255,11 @@ One of the most notoriously difficult portions of getting PPP links up
 and running involves writing the script that automatically dials your
 modem, connects to the peer, and starts the remote ppp process.  Once
 you are connected to the peer, each PPP process will start
-communications and things become much easier.
+communications and things become much easier.  Several frontends are
+available that help ease this problem.  See:
+  http://www.peak.org/next/ppp/NeXT_PPP_Frontends.html
+for more information on those.  If you want or need to go the
+scripting route, then please read on.
 
 Before you dive into script writing, there is a simpler solution that
 will allow you to test the ppp portion.  Once this works, getting the
@@ -413,7 +318,7 @@ There are several ways to determine if the link has actaully been
 established.  I will go through some of them.
 
 1) You may look at the pppd log file (typically
-   /usr/adm/ppp2.2.log).  If you see lines that look similar to:
+   /usr/adm/pppd.log).  If you see lines that look similar to:
 
     Jan 11 23:13:38 sidney2b pppd[2141]: local  IP address 35.9.12.55
     Jan 11 23:13:38 sidney2b pppd[2141]: remote IP address 35.9.10.13
@@ -484,7 +389,8 @@ the scripts icon.  This will start the chat process that will dial the
 modem and log into the remote system.  It will then turn control over
 to pppd.  If your script is successful (as described in the
 "Determining if the link is actually up" section), you will be all
-set.  All your apps, OmniWeb, FTP, telnet, etc should work.
+set.  All your apps, OmniWeb, FTP, telnet, etc should work.  Please
+note that pppd itself will not appear to do anything but sit there.
 
 Once you are through using the connection, you can close down the PPP
 link by executing the ppp down script.  Again, this can be done by
@@ -519,9 +425,8 @@ the command line).
 
 The second thing is a list of name servers.  These should be local to
 your ppp provider.  Your network administrator will be able to provide
-you with the appropriate addresses. There are default name servers to
-use in case the local provider is not responding.  An example file
-might look like:
+you with the appropriate addresses and you should use those, not the
+ones listed below.  An example file might look like:
 
 ----------------------------------------------------------------------
 domain cps.msu.edu
@@ -538,12 +443,6 @@ nameserver 35.8.2.41
 nameserver 35.8.2.41
 nameserver 128.247.160.56
 
-#
-# Other servers -- hopefully something will work if needed
-#shadooby.cc.umich.edu
-nameserver 35.1.1.91
-#ns.nasa.gov
-nameserver 128.102.16.10
 ----------------------------------------------------------------------
 
 You will need to reboot your computer for the new nameservers to take
@@ -607,136 +506,10 @@ the bug report form found there.  Please remember to include your
 hardware type and the LKS version number in all reports.  This number
 may be found in the file /usr/adm/messages (once the LKS has been
 installed). Also, for most questions, it is best to append a copy of
-the /usr/adm/ppp2.2.log file.
+the /usr/adm/pppd.log file.
 
 If you do have troubles, please see the FAQ on:
-  http://www.thoughtport.com:8080/PPP/
-
-Here are a few of the more common problems that this FAQ addresses:
-
-======================================================================
-1) pppd bombs out with an error similar to:
- Jan 26 14:46:25 localhost pppd[256]: Connected...
- Jan 26 14:46:26 localhost pppd[256]: ioctl(PPPIOCGUNIT): Inappropriate ioctl for device
- Jan 26 14:46:26 localhost pppd[256]: Exit.
-
-There are two things that can cause this error.  The most common error
-is that you are using the innappropriate device for communication to
-your modem.  You should be using /dev/cufa or /dev/cufb.  Second, the
-Loadable Kernel Server (LKS) and the user level daemon (pppd) must be
-of the same version.  While unusual, the error above can be the result
-of using the wrong Loadable Kernel Server (LKS) with pppd (or vice
-versa).  Some versions of PPP installed the LKS (ppp_reloc) in
-/usr/lib/kern_loader/ppp and some in /usr/local/ppp/reloc.  The second
-is going to be the standard place for installation from now on.
-
-Solution: Make sure that you are using the appropriate device for
-communications with your modem.  Further, make sure that your
-/etc/rc.local is loading the correct version of the LKS and make sure
-you are really calling the correct pppd for use with the LKS that you
-loaded. 
-======================================================================
-
-2) PPP works fine, but when the link is up, netinfo sleeps when you
-   try to print or send mail.
-
-This problem is typically a result of an improper routing setup on the
-PPP client (your host).  When PPP starts up, it will dynamically
-negotiate an IP address for use on the PPP interface (usually ppp0).
-If you don't specify an IP address to pppd, then the address will
-usually be provided by the peer.  It may change each time that you
-bring up a PPP link.  If you did specify an IP address, pppd will
-attempt to use that address first.  If that fails, it will try to get
-an address from the peer.  Either way, the PPP interface usually has a
-new IP address.  The routing problem can result when trying to access
-your local host (and netinfo) on the IP address that was dynamically
-negotiated.
-
-Solution: The solution is straightforward.  You must add a route from
-the IP address that your PPP interface uses to the special loopback IP
-address 127.0.0.1.  The 'route' command will allow you to do this.
-For instance, if you are assigned the address 35.8.74.211 during PPP
-negotiation, you can add the needed route byentering (as the user
-root):
-
-  /usr/etc/route add 35.8.74.211 127.0.0.1 0
-
-This route needs to be added each time the link comes up.  However,
-one problem with hard coding this command into /etc/ppp/ip-up is that
-you may get a different IP address each time the link comes
-up. Fortunately, Bill Bereza <berezaw@river.it.gvsu.edu> submitted
-this nice script clip that can be pasted into /etc/ppp/ip-up.  This
-will create the correct route entry for you automatically.  Place this
-in /etc/ppp/ip-up:
-
-    /usr/etc/route add $4 127.0.0.1 0
-
-You will also want to add this little clip to /etc/ppp/ip-down:					<br>
-
-   /usr/etc/route delete $4 127.0.0.1
-
-This removes the route when your link goes down.
-
-======================================================================
-
-3) People who are trying to set up a NeXT as a PPP server that
-   they dial into often complain that they can make a connection, but
-   the remote machine can only ping the server.  No other packets
-   work.
-
-Check out the 'proxyarp' option to pppd.  Servers (connected to their
-LAN) must proxyarp for the remote address (i.e. the address of the
-machine dialing in).
-
-======================================================================
-
-4) Your pppd/chat dials the modem but you cannot get a negotiation
-   to start.  The /usr/adm/ppp2.2.log file shows something similar
-   to:
-
-  Mar 13 12:02:41 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:02:44 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:02:47 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:02:51 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:02:54 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:02:57 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:03:00 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:03:03 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:03:06 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:03:09 crystal pppd[243]: sent [LCP ConfReq id=0x1 <pcomp> <accomp>]
-  Mar 13 12:03:12 crystal pppd[243]: LCP: timeout sending Config-Requests
-  Mar 13 12:03:12 crystal pppd[243]: Connection terminated.
-  Mar 13 12:03:12 crystal pppd[243]: Serial link is not 8-bit clean:
-  Mar 13 12:03:12 crystal pppd[243]: All received characters had bit 7 set to 0
-
-Discussion: This is a common problem.  It is typically the result of a
-failure to properly start the remote PPP process.  The problem arises
-since the local PPP starts sending packets as soon as chat
-exits. Since there is no remote PPP process running to interpret the
-packets, the remote command line interpreter starts sending error
-messages for each received packet (considered garbage to the remote
-CLI).  Thus, your local PPP process is receiveing error message text
-instead of the expected PPP packets.  Since error message text is
-usually ascii (values < 127) PPP believes that the link is not 8-bit
-clean.
-
-Solution: Make sure you add the '-v' option to chat (in your dial
-script) and then check the output of /usr/adm/ppp2.2.log to see why
-chat failed to start the remote PPP process.
-
-
-
-======================================================================
-
-5) NXHosting applications over PPP fails.  I don't know why this 
-   happens.  Rest assured, that I and others do have it working.
-   The most obvious things to check are that you have your system set
-   up as a public window server.  Also, make sure that you reset the
-   nmserver in /etc/ppp/ip-up (see the example ip-up file).  If it
-   still doesn't work, you might want to add your peer to your
-   /etc/hosts.equiv file.  I don't know if that has anything to do
-   with it or not, but I don't know why some people can't NXHost
-   and others can.
+  http://www.peak.org/next/ppp/
 
 
 Updates
@@ -746,16 +519,16 @@ You may want to join the mailing list for PPP.  This will keep
 you informed of new releases and will provide an arena for discussing
 problems with the NeXT specific PPP port.  To add yourself to the list
 (or for any other administrative requests), send an email message to:
-	listproc@listproc.thoughtport.com
+	majordomo@peak.org
 with no subject and message body consisting of:
-	subscribe nextppp Stephen J. Perkins
+	subscribe nextppp 
 (please use your own name ;). To send mail to all the participants on
 the list, address your messages to:
-       nextppp@listproc.thoughtport.com
+       nextppp@peak.org
 
 If you want announcements only, there is a second "announcements only"
 list.  To subscribe to this, you may use the alternate body:
-	subscribe nextppp-announce Stephen J. Perkins
+	subscribe nextppp-announce 
 You don't need to subscribe to both.  All announcements are forwarded
 to the regular list.
 
@@ -772,11 +545,10 @@ Noted bugs
 
 There have been various problems reported when trying to install LKSs
 the way NeXT intended (i.e. placing them in /usr/lib/kern_loader/* and
-modifying /etc/kern_loader.conf). The main problem seems to be that
-after modifying /etc/iftab, /etc/rc.net (on NSFIP) will not correctly
-configure the interfaces.  This means that booting under NSFIP will
-hang. So, for the time, it is suggested that you install the package
-manually and load the LKS in /etc/rc.local.
+modifying /etc/kern_loader.conf). The main problem is that if users
+have a bad copy of the LKS, the system will panic and will be unable
+to boot. So, for the time, it is suggested that you install the package
+manually and load the LKS in /etc/rc.local as directed above.
 
 
 Modem Configuration
@@ -805,4 +577,6 @@ ftpmail service, send a message to "ftpmail@decwrl.dec.com" whose body
 consists of the single line "help".
 
 
-Thanks Stephen J. Perkins
+Thanks
+
+Stephen J. Perkins

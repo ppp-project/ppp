@@ -1,0 +1,125 @@
+#! /usr/bin/perl
+
+# ip-down -- executed by pppd on connection death
+#
+# This particular implementation of ip-down attempts to re-establish
+# the ppp connection.  It does this by first forking and having the
+# parent die (returning control to the invoking pppd for final
+# cleanup).
+#
+# The child waits until the specified port (pppd passes the path to
+# the port's device as argument 2) is available and launches pppd (or
+# whatever is specfied by $PATH_pppd.
+#
+# This script requires "syslog.pl" (included with perl).  Because of
+# this, it also requires "syslog.ph";  "syslog.ph" can be
+# manufactured using the h2ph script included with the perl
+# distribution.  Under NeXTSTEP, one can create syslog.ph by:
+#
+#        h2ph < /usr/include/bsd/sys/syslog.h > syslog.ph
+#
+# 'syslog.ph' should either be copied into your machines perl library
+# (wherever syslog.pl resides), or you should add wherever syslog.ph
+# resides to Perl's library search path.
+#
+# Removing all references to syslog (including openlog() and
+# closelog()) will also work, but will render this script's execution
+# completely silent.
+#
+# By default, this script logs to the default target for ppp's logs --
+# LOCAL2.
+#
+# hacqued by: <bbum@friday.com>, jan 30 1995
+#
+# Please send any changes/improvements to <bbum@friday.com>.  And
+# please try not to laugh at this code... or, at least, tell me why
+# you are laughing so I won't make the same mistakes twice.
+
+# ABSOLUTE path to PPP daemon (or whatever you want executed after the
+# port becomes available).
+
+$PATH_pppd = "/usr/local/ppp/bin/pppd";
+
+# number of seconds to sleep between checking for port availability
+$lock_sleep = 2;
+
+require "syslog.pl";
+
+FORK: {
+    if ($pid = fork) {
+	# this is the parent.  It must die so the old pppd can
+ 	# clean-up and exit.
+	exit;
+    } elsif ($! =~ /No more process/) {
+	# oops! ran out of processes.  This is supposed to be a
+ 	# recoverable error, so sleep and try again.
+	sleep 5;
+	redo FORK;	
+    } elsif (!defined($pid)) {
+	# fork error -- log it and die.
+	&openlog("pppd/ip-down", 'cons,pid', LOG_LOCAL2);
+	&syslog('warning',
+		"Fork() error '$!'");
+	&closelog;
+	die "can't fork: $!\n";
+    }
+}
+
+# everything from here down is the child.
+&openlog("pppd/ip-down", 'cons,pid', LOG_LOCAL2);
+
+if ( ! @ARGV ) {
+    # no arguments -- exec specified thing (assume the process
+    # being called has a clue about what port it should use)
+
+    &syslog('info', "No device specified. Executing '$PATH_pppd'.");
+    &closelog;
+
+    exec $PATH_pppd;
+    ## NOT REACHED: exec never returns
+}
+
+# (assume-- it will if pppd starts ip-down)
+# ARGV contains:
+#          interface-name tty-device speed local-IP-address
+#          remote-IP-address
+($interface_name,
+ $tty_device,
+ $speed,
+ $local_IP_address,
+ $remote_IP_address) = @ARGV;
+
+# find the raw device name
+@path = split ('/', $tty_device);
+$device = pop @path;
+
+# Generate path to lock file -- assumes NeXT style device locking
+$lock = "/usr/spool/uucp/LCK/LCK..$device";
+
+# log some info.
+&syslog('info',
+	"Reconnecting '$interface_name' ($local_IP_address:$remote_IP_address) through '$tty_device' at '$speed' baud.");
+
+# check for lock
+if ( -e $lock) {
+
+    &syslog('info',
+	    "'$device' locked. Waiting for unlock.");
+
+    # loop until unlocked
+    while ( -e $lock ) {
+	sleep $lock_sleep;
+    }
+}
+
+#### port available -- log and execute
+
+&syslog('info',
+	"Port '$device' available. Launching '$PATH_pppd'");
+
+&closelog;
+
+exec $PATH_pppd;
+### NOT REACHED
+
+

@@ -1,0 +1,56 @@
+From: gbrown@alumni.caltech.edu (Glenn Brown)
+Subject: Re: ppp and NXHost problems
+Date: 23 Nov 1994 07:37:57 GMT
+Organization: California Institute of Technology, Pasadena
+
+If you want to NXHost over PPP, Simply execute the following 7 lines
+after the ppp connection has been brought up (these are simply the
+lines from the rc.net script that signal the nmserver that it should
+check for new interfaces.  Note that the kill command does not kill the
+nmserver.  Rather, it sends the "USR2" signal to the nmserver.)
+
+#!/bin/sh
+#  Let the nmserver know the fruits of our network configuration endeavor.
+pid=`ps cax | egrep nmserver | awk '{print $1;}'`
+if [ -n "$pid" ]; then
+    echo "Reinitializing nmserver's network portion"
+    /bin/kill -USR2 $pid
+fi
+
+Note 1: You have to executed the lines under "sh".  I suggest you
+save them in a file and type "/bin/sh file".
+
+Note 2: I haven't actually tried this (I don't have another NeXT to
+test it on), but I figured out out reading the rc scripts.  Please let
+me know the result if you try it.
+
+--Glenn
+
+----------------------------------------------------------------------
+
+In article <4ule10$g2t@nuke.csu.net>, John Rudd <kzin@arcadia.sjsu.edu> wrote:
+>(isc-ts2-* are our dialup PPP lines.. each line in the hunt group has a 
+>different IP addy associated with it.. so you are likely to get a different 
+>one each time.  And this is why I can't do the "Services -> OpenSesame -> 
+>Open on host X", because that sends "-NXHost copernicus".. which is what my 
+>home machine internally identifies itself as)
+
+The only way to get -NXHost to work over PPP is to have an IP address
+assigned to your Ethernet port, and have a route to that address
+reachable over the PPP.
+
+When you try to -NXHost, it uses UDP, and for some reason the UDP
+protocol decides to use the Ethernet's IP address for outgoing
+packets, rather than using the PPP's IP address.
+
+You'll also have similar problems trying to get talk to work over
+PPP. Unless there is a route to your Ethernet's IP address, it isn't
+going to work.
+
+-- 
+Chris Osborn, Network Administrator     Napa Valley College
+707 253 3130 - Voice                    2277 Napa-Vallejo Hwy.
+707 253 3063 - Fax                      Napa, CA 94558
+<fozztexx@nvc.cc.ca.us>    <¬http://www.nvc.cc.ca.us/~fozztexx>
+
+

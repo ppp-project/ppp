@@ -1,0 +1,46 @@
+#!/bin/sh
+# -*- Fundamental -*-
+#
+#
+# args: interface-name tty-device speed local-IP remote-IP
+
+PATH=/usr/ucb:/bin:/usr/bin:/etc:/usr/etc:/usr/local/bin; export PATH
+
+#
+# Add a route to localhost so netinfo won't sleep.
+#
+/usr/etc/route add $4 127.0.0.1 0
+
+
+#  Let the nmserver know the fruits of our network configuration
+#  endeavor. This allows NXHost connections. Thanks to Glenn Brown
+#  <gbrown@alumni.caltech.edu>  
+pid=`ps cax | egrep nmserver | awk '{print $1;}'`
+if [ -n "$pid" ]; then
+    echo "PPP Reinitializing nmserver's network portion" > /dev/console
+    kill -USR2 $pid
+fi
+
+
+#
+# Let lookupd know that things have changed
+pid=`ps cax | egrep lookupd | awk '{print $1;}'`
+if [ -n "$pid" ]; then
+    echo "PPP Reinitializing lookupd" > /dev/console
+    kill -HUP $pid
+fi
+
+
+#
+# Send any mail that has been queued while the link
+# was down.
+/usr/lib/sendmail -q &
+
+
+#
+# Synchronize our clock with some of the public NTP servers.
+#
+# norad.arc.nasa.gov  - 192.203.230.10
+# tick.usno.navy.mil  - 192.5.41.40
+#
+/usr/etc/ntp -sf 192.203.230.10 192.5.41.40 > /dev/console 2>&1 &

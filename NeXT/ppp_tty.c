@@ -91,7 +91,18 @@
 #define KERNEL_FEATURES 1
 #define INET 1
 
+#if NS_TARGET >= 40
+#if NS_TARGET >= 41
+#include <kernserv/lock.h>
+#else
+#include <kern/lock.h>
+#endif /* NS_TARGET */
+#endif /* NS_TARGET */
+
 #include <sys/param.h>
+#if NS_TARGET >= 41
+typedef simple_lock_data_t lock_data_t;		/* XXX */
+#endif /* NS_TARGET */
 #include <sys/proc.h>
 #include <sys/user.h>
 #include "netbuf.h"
@@ -103,8 +114,10 @@
 #include <sys/dk.h>
 #include <sys/uio.h>
 #include <sys/errno.h>
+#if !(NS_TARGET >= 40)
+/*  XXX what happened to this header file? */
 #include <machine/param.h>
-
+#endif
 
 #include <kernserv/prototypes.h>
 /* NeXT broke spl.h in 3.2/m68k. Thanks EPS! */
@@ -675,12 +688,6 @@ pppstart(tp)
 	    *cp++ = (sc->sc_outfcs >> 8) & 0xFF;
 	}
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.fourth.tv_sec = time.tv_sec;
-	m->pktinfo.fourth.tv_usec = time.tv_usec;
-#endif
-
-
 	start = mtod(m, u_char *);
 	len = NB_SIZE(m);
 	stop = start + len;
@@ -727,9 +734,6 @@ pppstart(tp)
 		sc->sc_bytessent += 2;
 		start++;
 		len--;
-#ifdef NETBUF_PROXY
- 	++(m->pktinfo.async_esc);
-#endif
 	    }
 	}
 	/*
@@ -754,31 +758,6 @@ pppstart(tp)
 	sc->sc_bytessent++;
 
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.fifth.tv_sec = time.tv_sec;
-	m->pktinfo.fifth.tv_usec = time.tv_usec;
-#endif
-
-
-#if defined(NBPFILTER) && defined(NETBUF_PROXY)
-
-    /*
-     * See if bpf wants to look at the packet.  Gotta be careful
-     * here because BPF want the uncompressed packet.  For now we
-     * stash a copy that we hand off.  In the future, we may try
-     * to modify BPF to handle compressed packets instead.
-     *
-     * The BPF process point will not work for
-     * non-NETBUF_PROXY points.  In this case, we hand the packet
-     * to BPF earlier in the process (see if_ppp.c).
-     *
-     */
-
-	  if (sc->sc_bpf)
-	      bpf_tap(sc->sc_bpf, m, 0);
-
-#endif
-
 	/* Finished with this netbuf; free it and move on. */
 	NB_FREE(m);
 	m = NULL;
@@ -800,7 +779,11 @@ pppstart(tp)
      * drained the t_outq.
      */
     if (!idle && (sc->sc_flags & SC_TIMEOUT) == 0) {
+#if NS_TARGET >= 40
+	timeout(ppp_timeout, (void *) sc, 1);
+#else
 	ns_timeout(ppp_timeout, (void *) sc, 1 * (1000000000L / HZ), CALLOUT_PRI_SOFTINT0);
+#endif /*NS_TARGET */
 	sc->sc_flags |= SC_TIMEOUT;
     }
 
@@ -1038,12 +1021,6 @@ pppinput(c, tp)
 	    return;
 	  }
 	
-#ifdef NETBUF_PROXY
-	sc->sc_m->pktinfo.second.tv_sec = time.tv_sec;
-	sc->sc_m->pktinfo.second.tv_usec = time.tv_usec;
-	sc->sc_m->pktinfo.size1 = ilen;
-#endif
-
 	/*
 	 * Remove FCS trailer.  Set packet length...
 	 */
@@ -1085,9 +1062,6 @@ pppinput(c, tp)
 	c ^= PPP_TRANS;
     } else if (c == PPP_ESCAPE) {
 	sc->sc_flags |= SC_ESCAPED;
-#ifdef NETBUF_PROXY
- 	++(sc->sc_m->pktinfo.async_esc);
-#endif
 	return;
     }
 
@@ -1119,11 +1093,6 @@ pppinput(c, tp)
 	sc->sc_mp = mtod(m, char *);
 	sc->sc_fcs = PPP_INITFCS;
 
-#ifdef NETBUF_PROXY
-	m->pktinfo.first.tv_sec = time.tv_sec;
-	m->pktinfo.first.tv_usec = time.tv_usec;
-	m->pktinfo.flags |= NBFLAG_INCOMING;
-#endif
 	if (c != PPP_ALLSTATIONS) {
 	    if (sc->sc_flags & SC_REJ_COMP_AC) {
 		IOLogDbg("ppp%d: garbage received: 0x%02x (need 0x%02x)\n",
@@ -1133,9 +1102,6 @@ pppinput(c, tp)
 	    *sc->sc_mp++ = PPP_ALLSTATIONS;
 	    *sc->sc_mp++ = PPP_UI;
 	    sc->sc_ilen += 2;
-#ifdef NETBUF_PROXY
-	    m->pktinfo.flags |= NBFLAG_AC;
-#endif	    
 	}
     }
 
@@ -1150,9 +1116,6 @@ pppinput(c, tp)
 	/* a compressed protocol */
 	*sc->sc_mp++ = 0;
 	sc->sc_ilen++;
-#ifdef NETBUF_PROXY
-	    m->pktinfo.flags |= NBFLAG_PC;
-#endif	    
     }
 
     if (sc->sc_ilen == 3 && (c & 1) == 0) {
