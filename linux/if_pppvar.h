@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 980704==
+ *  ==FILEVERSION 981004==
  *
  *  NOTE TO MAINTAINERS:
  *   If you modify this file at all, please set the above date.
@@ -80,6 +80,7 @@ struct ppp {
 	struct slcompress *slcomp;	/* for TCP header compression	*/
 	struct sk_buff_head xmt_q;	/* frames to send from pppd	*/
 	struct sk_buff_head rcv_q;	/* frames for pppd to read	*/
+	unsigned long	xmit_busy;	/* bit 0 set when xmitter busy  */
 
 	/* Information specific to using ppp on async serial lines. */
 	struct tty_struct *tty;		/* ptr to TTY structure	*/
