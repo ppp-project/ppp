@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.4 1994/12/08 00:32:59 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.5 1994/12/13 03:24:47 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -273,7 +273,7 @@ pppdealloc(sc)
 	m_freem(m);
     }
     while ((m = sc->sc_npqueue) != NULL) {
-	sc->sc_npqueue = m->m_nextpkt;
+	sc->sc_npqueue = m->m_act;
 	m_freem(m);
     }
     if (sc->sc_togo != NULL) {
@@ -297,7 +297,7 @@ pppioctl(sc, cmd, data, flag)
     int cmd, flag;
 {
     struct proc *p = u.u_procp;
-    int s, error, flags, mru, nb, npx;
+    int s, error, flags, mru, mtu, nb, npx;
     struct ppp_option_data *odp;
     struct compressor **cp;
     struct npioctl *npi;
@@ -338,6 +338,27 @@ pppioctl(sc, cmd, data, flag)
 
     case PPPIOCGMRU:
 	*(int *)data = sc->sc_mru;
+	break;
+
+    /*
+     * PPPIOC[GS]MTU are implemented here, instead of supporting
+     * SIOC[GS]IFMTU in pppsioctl, because under Ultrix, we can't get an
+     * interface ioctl through to the interface until it has an IP
+     * address set.
+     */
+    case PPPIOCSMTU:
+	if (!suser())
+	    return EPERM;
+	mtu = *(int *) data;
+	if (mtu < PPP_MRU || mtu > PPP_MAXMRU)
+	    return EINVAL;
+	s = splimp();
+	sc->sc_if.if_mtu = mtu;
+	splx(s);
+	break;
+
+    case PPPIOCGMTU:
+	*(int *) data = sc->sc_if.if_mtu;
 	break;
 
 #ifdef VJC
@@ -479,6 +500,12 @@ pppsioctl(ifp, cmd, data)
 	    error = EAFNOSUPPORT;
 	break;
 
+/*
+ * Ioctls other than the above don't get through until the
+ * interface has its IP addresses set :-(
+ */
+
+#if 0
     case SIOCSIFMTU:
 	if (!suser())
 	    return EPERM;
@@ -488,6 +515,7 @@ pppsioctl(ifp, cmd, data)
     case SIOCGIFMTU:
 	ifr->ifr_mtu = sc->sc_if.if_mtu;
 	break;
+#endif
 
     case SIOCGPPPSTATS:
 	psp = &((struct ifpppstatsreq *) data)->stats;
@@ -646,8 +674,8 @@ pppoutput(ifp, m0, dst)
     if (mode == NPMODE_QUEUE) {
 	/* XXX we should limit the number of packets on this queue */
 	*sc->sc_npqtail = m0;
-	m0->m_nextpkt = NULL;
-	sc->sc_npqtail = &m0->m_nextpkt;
+	m0->m_act = NULL;
+	sc->sc_npqtail = &m0->m_act;
     } else {
 	ifq = m0->m_context? &sc->sc_fastq: &ifp->if_snd;
 	if (IF_QFULL(ifq)) {
@@ -696,9 +724,9 @@ ppp_requeue(sc)
 	    /*
 	     * This packet can now go on one of the queues to be sent.
 	     */
-	    *mpp = m->m_nextpkt;
-	    m->m_nextpkt = NULL;
-	    ifq = (m->m_flags & M_HIGHPRI)? &sc->sc_fastq: &sc->sc_if.if_snd;
+	    *mpp = m->m_act;
+	    m->m_act = NULL;
+	    ifq = m->m_context? &sc->sc_fastq: &sc->sc_if.if_snd;
 	    if (IF_QFULL(ifq)) {
 		IF_DROP(ifq);
 		sc->sc_if.if_oerrors++;
@@ -708,12 +736,12 @@ ppp_requeue(sc)
 
 	case NPMODE_DROP:
 	case NPMODE_ERROR:
-	    *mpp = m->m_nextpkt;
+	    *mpp = m->m_act;
 	    m_freem(m);
 	    break;
 
 	case NPMODE_QUEUE:
-	    mpp = &m->m_nextpkt;
+	    mpp = &m->m_act;
 	    break;
 	}
     }
@@ -1056,7 +1084,7 @@ ppp_inproc(sc, m)
     struct ppp_softc *sc;
     struct mbuf *m;
 {
-    struct ifqueue *inq;
+    struct ifqueue *inq, *lock;
     int s, ilen, xlen, proto, rv;
     u_char *cp, adrs, ctrl;
     struct mbuf *mp, *dmp, *pc;
