@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.10 1996/09/14 05:08:07 paulus Exp $
+# $Id: configure,v 1.11 1996/09/26 06:15:36 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -62,7 +62,7 @@ case $system in
   # Intel SVR4 systems come with a bug in the uname program.  Unless
   # your provider fixed the bug, or you get a fix for it, uname -S will
   # overwrite the system name with the node name!
-  UNIX_System_V|`uname -n`)
+  UNIX_SV|UNIX_System_V|`uname -n`)
     case $release in
       4.0) state=known; ksrc=svr4; makext=svr4;;
       4.2) state=late; ksrc=svr4; makext=svr4;;
