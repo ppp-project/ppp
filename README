@@ -457,8 +457,8 @@ If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
 Linux			Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
-Solaris 2		Paul Mackerras (for want of anybody better :-)
-SunOS 4.x		Paul Mackerras (for want of anybody better :-)
+Solaris 2		Adi Masputra <adi.masputra@sun.com>
+SunOS 4.x		Adi Masputra <adi.masputra@sun.com>
 Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
 NetBSD			Matthew Green <mrg@eterna.com.au>
 FreeBSD			Peter Wemm <peter@haywire.DIALix.COM>
@@ -483,4 +483,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.19 1999/08/13 01:54:02 paulus Exp $)
+($Id: README,v 1.20 1999/08/19 19:26:03 masputra Exp $)
