@@ -7,7 +7,7 @@ all:	chat
 chat: chat.o
 	$(CC) -o chat chat.o
 
-install:
+install: chat
 	install -c chat $(BINDIR)/chat
 
 clean:
