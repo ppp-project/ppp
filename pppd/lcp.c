@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.39 1999/05/12 06:19:47 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.40 1999/05/13 00:33:26 paulus Exp $";
 #endif
 
 /*
@@ -1056,6 +1056,7 @@ lcp_nakci(f, p, len)
 	    if (++try.numloops >= lcp_loopbackfail) {
 		notice("Serial line is looped back.");
 		lcp_close(f->unit, "Loopback detected");
+		status = EXIT_LOOPBACK;
 	    }
 	} else
 	    try.numloops = 0;
