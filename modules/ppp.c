@@ -14,7 +14,7 @@
  * IN NO EVENT SHALL THE AUSTRALIAN NATIONAL UNIVERSITY BE LIABLE TO ANY
  * PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
  * ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
- * THE AUSTRALIAN NATIONAL UNIVERSITY HAVE BEEN ADVISED OF THE POSSIBILITY
+ * THE AUSTRALIAN NATIONAL UNIVERSITY HAS BEEN ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
  * THE AUSTRALIAN NATIONAL UNIVERSITY SPECIFICALLY DISCLAIMS ANY WARRANTIES,
@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.2 1995/12/18 03:57:27 paulus Exp $
+ * $Id: ppp.c,v 1.3 1996/01/01 22:48:39 paulus Exp $
  */
 
 /*
@@ -93,6 +93,7 @@ typedef struct upperstr {
     struct upperstr *ppa;	/* control stream for our ppa */
     struct upperstr *next;	/* next stream for this ppa */
     uint ioc_id;		/* last ioctl ID for this stream */
+    enum NPmode npmode;		/* what to do with packets on this SAP */
     /*
      * There is exactly one control stream for each PPA.
      * The following fields are only used for control streams.
@@ -288,6 +289,7 @@ pppopen(q, dev, oflag, sflag)
 #endif
     up->sap = -1;
     up->last_sent = up->last_recv = time;
+    up->npmode = NPMODE_DROP;
     q->q_ptr = (caddr_t) up;
     WR(q)->q_ptr = (caddr_t) up;
     noenable(WR(q));
@@ -402,7 +404,7 @@ pppuwput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    upperstr_t *us, *usnext, *ppa, *os;
+    upperstr_t *us, *usnext, *ppa, *os, *nps;
     struct iocblk *iop;
     struct linkblk *lb;
 #ifdef LACHTCP
@@ -410,7 +412,7 @@ pppuwput(q, mp)
     int i;
 #endif
     queue_t *lq;
-    int error, n;
+    int error, n, sap;
     mblk_t *mq;
     struct ppp_idle *pip;
 
@@ -607,6 +609,27 @@ pppuwput(q, mp)
 		putnext(us->ppa->lowerq, mp);
 		error = -1;
 	    }
+	    break;
+
+	case PPPIO_NPMODE:
+	    if (iop->ioc_count != 2 * sizeof(int))
+		break;
+	    if ((us->flags & US_CONTROL) == 0)
+		break;
+	    sap = ((int *)mp->b_cont->b_rptr)[0];
+	    for (nps = us->next; nps != 0; nps = nps->next)
+		if (nps->sap == sap)
+		    break;
+	    if (nps == 0)
+		break;
+	    nps->npmode = (enum NPmode) ((int *)mp->b_cont->b_rptr)[1];
+	    if (nps->npmode == NPMODE_DROP || nps->npmode == NPMODE_ERROR)
+		flushq(WR(nps->q), FLUSHDATA);
+	    else if (nps->npmode == NPMODE_PASS && qsize(WR(nps->q)) > 0
+		     && (nps->flags & US_BLOCKED) == 0)
+		qenable(WR(nps->q));
+	    iop->ioc_count = 0;
+	    error = 0;
 	    break;
 
 	case PPPIO_GIDLE:
@@ -915,7 +938,7 @@ dlpi_request(q, mp, us)
 	}
 	us->sap = -1;
 	us->state = DL_UNBOUND;
-#ifndef sun
+#ifdef LACHTCP
 	us->ppa->ifstats.ifs_active = 0;
 #endif
 	dlpi_ok(q, DL_UNBIND_REQ);
@@ -1056,10 +1079,10 @@ send_data(mp, us)
     queue_t *q;
     upperstr_t *ppa;
 
-    if (us->flags & US_BLOCKED)
+    if (us->flags & US_BLOCKED || us->npmode == NPMODE_QUEUE)
 	return 0;
     ppa = us->ppa;
-    if (ppa == 0) {
+    if (ppa == 0 || us->npmode == NPMODE_DROP || us->npmode == NPMODE_ERROR) {
 	freemsg(mp);
 	return 1;
     }
@@ -1111,6 +1134,7 @@ new_ppa(q, mp)
     us->nextppa = *usp;
     *usp = us;
     us->flags |= US_CONTROL;
+    us->npmode = NPMODE_PASS;
 
     us->mtu = PPP_MRU;
     us->mru = PPP_MRU;
