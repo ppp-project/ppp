@@ -26,18 +26,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.15 1997/03/04 03:43:54 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.16 1997/04/30 05:59:25 paulus Exp $";
 #endif
 
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
-#if defined(SNI) || defined(__USLC__)
-extern void *alloca(size_t);
-#else
-#include <alloca.h>
-#endif
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -78,6 +73,7 @@ static int	restore_term;
 static struct termios inittermios;
 #ifndef CRTSCTS
 static struct termiox inittermiox;
+static int	termiox_ok;
 #endif
 static struct winsize wsinfo;	/* Initial window size info */
 static pid_t	tty_sid;	/* original session ID for terminal */
@@ -516,9 +512,11 @@ set_up_tty(fd, local)
     }
 
 #ifndef CRTSCTS
+    termiox_ok = 1;
     if (ioctl (fd, TCGETX, &tiox) < 0) {
-	syslog (LOG_ERR, "TCGETX: %m");
-	die (1);
+	termiox_ok = 0;
+	if (errno != ENOTTY)
+	    syslog (LOG_ERR, "TCGETX: %m");
     }
 #endif
 
@@ -537,10 +535,11 @@ set_up_tty(fd, local)
     else if (crtscts < 0)
 	tios.c_cflag &= ~CRTSCTS;
 #else
-    if (crtscts > 0) {
+    if (crtscts != 0 && !termiox_ok) {
+	syslog(LOG_ERR, "Can't set RTS/CTS flow control");
+    } else if (crtscts > 0) {
 	tiox.x_hflag |= RTSXOFF|CTSXON;
-    }
-    else if (crtscts < 0) {
+    } else if (crtscts < 0) {
 	tiox.x_hflag &= ~(RTSXOFF|CTSXON);
     }
 #endif
@@ -583,9 +582,8 @@ set_up_tty(fd, local)
     }
 
 #ifndef CRTSCTS
-    if (ioctl (fd, TCSETXF, &tiox) < 0){
+    if (termiox_ok && ioctl (fd, TCSETXF, &tiox) < 0){
 	syslog (LOG_ERR, "TCSETXF: %m");
-	die (1);
     }
 #endif
 
@@ -661,7 +659,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     data.len = len;
     data.buf = (caddr_t) p;
@@ -798,6 +796,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int pcomp, accomp;
 {
     int cf[2];
+    struct ifreq ifr;
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
@@ -815,6 +814,14 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	    syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
 	}
+    }
+
+    /* set the MTU for IP as well */
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    ifr.ifr_metric = link_mtu;
+    if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
+	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
     }
 }
 
@@ -1063,6 +1070,7 @@ sifaddr(u, o, h, m)
     u_int32_t o, h, m;
 {
     struct ifreq ifr;
+    int ret = 1;
 
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
@@ -1070,23 +1078,41 @@ sifaddr(u, o, h, m)
     INET_ADDR(ifr.ifr_addr) = m;
     if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
+	ret = 0;
     }
     ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = o;
     if (ioctl(ipfd, SIOCSIFADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set local IP address: %m");
+	ret = 0;
+    }
+
+    /*
+     * On some systems, we have to explicitly set the point-to-point
+     * flag bit before we can set a destination address.
+     */
+    if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) >= 0
+	&& (ifr.ifr_flags & IFF_POINTOPOINT) == 0) {
+	ifr.ifr_flags |= IFF_POINTOPOINT;
+	if (ioctl(ipfd, SIOCSIFFLAGS, &ifr) < 0) {
+	    syslog(LOG_ERR, "Couldn't mark interface pt-to-pt: %m");
+	    ret = 0;
+	}
     }
     ifr.ifr_dstaddr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_dstaddr) = h;
     if (ioctl(ipfd, SIOCSIFDSTADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set remote IP address: %m");
+	ret = 0;
     }
+#if 0	/* now done in ppp_send_config */
     ifr.ifr_metric = link_mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
     }
+#endif
 
-    return 1;
+    return ret;
 }
 
 /*
@@ -1242,11 +1268,12 @@ get_ether_addr(ipaddr, hwaddr)
 #endif
 	nif = MAX_IFS;
     ifc.ifc_len = nif * sizeof(struct ifreq);
-    ifc.ifc_buf = (caddr_t) alloca(ifc.ifc_len);
-    if (ifc.ifc_req == 0)
+    ifc.ifc_buf = (caddr_t) malloc(ifc.ifc_len);
+    if (ifc.ifc_buf == 0)
 	return 0;
     if (ioctl(ipfd, SIOCGIFCONF, &ifc) < 0) {
 	syslog(LOG_WARNING, "Couldn't get system interface list: %m");
+	free(ifc.ifc_buf);
 	return 0;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
@@ -1276,15 +1303,18 @@ get_ether_addr(ipaddr, hwaddr)
 
     if (ifr >= ifend) {
 	syslog(LOG_WARNING, "No suitable interface found for proxy ARP");
+	free(ifc.ifc_buf);
 	return 0;
     }
 
     syslog(LOG_INFO, "found interface %s for proxy ARP", ifr->ifr_name);
     if (!get_hw_addr(ifr->ifr_name, hwaddr)) {
 	syslog(LOG_ERR, "Couldn't get hardware address for %s", ifr->ifr_name);
+	free(ifc.ifc_buf);
 	return 0;
     }
 
+    free(ifc.ifc_buf);
     return 1;
 }
 
@@ -1460,11 +1490,12 @@ GetMask(addr)
 #endif
 	nif = MAX_IFS;
     ifc.ifc_len = nif * sizeof(struct ifreq);
-    ifc.ifc_buf = (caddr_t) alloca(ifc.ifc_len);
-    if (ifc.ifc_req == 0)
+    ifc.ifc_buf = (caddr_t) malloc(ifc.ifc_len);
+    if (ifc.ifc_buf == 0)
 	return mask;
     if (ioctl(ipfd, SIOCGIFCONF, &ifc) < 0) {
 	syslog(LOG_WARNING, "Couldn't get system interface list: %m");
+	free(ifc.ifc_buf);
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
@@ -1494,6 +1525,7 @@ GetMask(addr)
 	mask |= INET_ADDR(ifreq.ifr_addr);
     }
 
+    free(ifc.ifc_buf);
     return mask;
 }
 
