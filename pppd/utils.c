@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 #ifndef lint
-static char rcsid[] = "$Id: utils.c,v 1.2 1999/04/16 11:34:27 paulus Exp $";
+static char rcsid[] = "$Id: utils.c,v 1.3 1999/05/04 06:58:36 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -40,6 +40,9 @@ static char rcsid[] = "$Id: utils.c,v 1.2 1999/04/16 11:34:27 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#ifdef SVR4
+#include <sys/sysmacros.h>
+#endif
 
 #include "pppd.h"
 
