@@ -25,7 +25,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.2 1999/04/01 07:26:30 paulus Exp $
+ * $Id: deflate.c,v 1.3 1999/04/16 11:35:59 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -153,7 +153,7 @@ z_decomp_alloc(options, opt_len)
     }
 
     state->w_size = w_size;
-    bzero(&state->stats, sizeof(state->stats));
+    memset(&state->stats, 0, sizeof(state->stats));
     return (void *) state;
 }
 

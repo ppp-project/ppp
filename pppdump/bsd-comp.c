@@ -38,7 +38,7 @@
  */
 
 /*
- * $Id: bsd-comp.c,v 1.2 1999/04/01 07:26:30 paulus Exp $
+ * $Id: bsd-comp.c,v 1.3 1999/04/16 11:35:59 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -326,7 +326,7 @@ bsd_alloc(options, opt_len, decomp)
     db = (struct bsd_db *) malloc(newlen);
     if (!db)
 	return NULL;
-    bzero(db, sizeof(*db) - sizeof(db->dict));
+    memset(db, 0, sizeof(*db) - sizeof(db->dict));
 
     if (!decomp) {
 	db->lens = NULL;
