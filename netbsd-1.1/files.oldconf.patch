@@ -1,0 +1,13 @@
+*** files.oldconf.orig	Thu Mar  7 14:04:18 1996
+--- files.oldconf	Tue May 28 13:01:09 1996
+***************
+*** 135,140 ****
+--- 135,142 ----
+  net/if_ppp.c		optional ppp device-driver
+  net/bsd-comp.c		optional ppp
+  net/ppp_tty.c		optional ppp
++ net/ppp-deflate.c	optional ppp
++ net/zlib.c		optional ppp
+  net/if_sl.c		optional sl device-driver
+  net/if_tun.c		optional tun device-driver
+  net/radix.c		standard

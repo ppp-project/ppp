@@ -1,0 +1,13 @@
+*** files.orig	Thu Mar  7 14:04:18 1996
+--- files	Tue May 28 12:59:43 1996
+***************
+*** 181,186 ****
+--- 181,188 ----
+  file net/if_ppp.c			ppp			needs-count
+  file net/ppp_tty.c			ppp
+  file net/bsd-comp.c			ppp
++ file net/ppp-deflate.c			ppp
++ file net/zlib.c				ppp
+  file net/if_tun.c			tun			needs-count
+  file net/radix.c
+  file net/raw_cb.c
