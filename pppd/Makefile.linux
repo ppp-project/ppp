@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.15 1996/09/14 05:13:45 paulus Exp $
+# $Id: Makefile.linux,v 1.16 1996/09/26 06:19:57 paulus Exp $
 #
 
 # Default installation locations
@@ -36,7 +36,7 @@ LIBS = -lc -lbsd
 #INCLUDE_DIRS= -I/usr/include -I..
 INCLUDE_DIRS=
 
-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -D__BSD_SOURCE -DIPX_CHANGE
+COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
