@@ -738,6 +738,9 @@ struct speed {
 #ifdef B57600
     { 57600, B57600 },
 #endif
+#ifdef B76800
+    { 76800, B76800 },
+#endif
 #ifdef B115200
     { 115200, B115200 },
 #endif
@@ -752,6 +755,9 @@ struct speed {
 #endif
 #ifdef B460800
     { 460800, B460800 },
+#endif
+#ifdef B921600
+    { 921600, B921600 },
 #endif
     { 0, 0 }
 };
