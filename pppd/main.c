@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.15 1994/08/22 00:40:48 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.16 1994/08/25 06:55:21 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -30,7 +30,26 @@ static char rcsid[] = "$Id: main.c,v 1.15 1994/08/22 00:40:48 paulus Exp $";
 #include <netdb.h>
 #include <utmp.h>
 #include <pwd.h>
+#include <sys/param.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <net/if.h>
+
+#include "ppp.h"
+#include "pppd.h"
+#include "magic.h"
+#include "fsm.h"
+#include "lcp.h"
+#include "ipcp.h"
+#include "upap.h"
+#include "chap.h"
+#include "ccp.h"
+#include "pathnames.h"
+#include "patchlevel.h"
 
 /*
  * If REQ_SYSOPTIONS is defined to 1, pppd will not run unless
@@ -40,50 +59,7 @@ static char rcsid[] = "$Id: main.c,v 1.15 1994/08/22 00:40:48 paulus Exp $";
 #define REQ_SYSOPTIONS	1
 #endif
 
-#ifdef SGTTY
-#include <sgtty.h>
-#else
-#ifndef sun
-#include <sys/ioctl.h>
-#endif
-#include <termios.h>
-#endif
-
-#include <sys/param.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-
-#include <net/if.h>
-
-#include "ppp.h"
-#include "magic.h"
-#include "fsm.h"
-#include "lcp.h"
-#include "ipcp.h"
-#include "upap.h"
-#include "chap.h"
-#include "ccp.h"
-
-#include "pppd.h"
-#include "pathnames.h"
-#include "patchlevel.h"
-
-
-#ifndef TRUE
-#define TRUE (1)
-#endif /*TRUE*/
-
-#ifndef FALSE
-#define FALSE (0)
-#endif /*FALSE*/
-
-#ifdef PIDPATH
-static char *pidpath = PIDPATH;	/* filename in which pid will be stored */
-#else
 static char *pidpath = _PATH_PIDFILE;
-#endif /* PIDFILE */
 
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
@@ -91,16 +67,11 @@ int ifunit;			/* Interface unit number */
 
 char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
-char our_name[MAXNAMELEN];
-char remote_name[MAXNAMELEN];
 static char pidfilename[MAXPATHLEN];
 
 static pid_t	pid;		/* Our pid */
 static pid_t	pgrpid;		/* Process Group ID */
-uid_t uid;			/* Our real user-id */
-
-char devnam[MAXPATHLEN] = "/dev/tty";	/* Device name */
-int default_device = TRUE;	/* use default device (stdin/out) */
+static uid_t uid;		/* Our real user-id */
 
 int fd = -1;			/* Device file descriptor */
 int s;				/* Socket file descriptor */
@@ -108,15 +79,7 @@ int s;				/* Socket file descriptor */
 int phase;			/* where the link is at */
 int kill_link;
 
-#ifdef SGTTY
-static struct sgttyb initsgttyb;	/* Initial TTY sgttyb */
-#else
-static struct termios inittermios;	/* Initial TTY termios */
-#endif
-
 static int initfdflags = -1;	/* Initial file descriptor flags */
-
-int restore_term;	/* 1 => we've munged the terminal */
 
 u_char outpacket_buf[MTU+DLLHEADERLEN]; /* buffer for outgoing packet */
 static u_char inpacket_buf[MTU+DLLHEADERLEN]; /* buffer for incoming packet */
@@ -124,28 +87,7 @@ static u_char inpacket_buf[MTU+DLLHEADERLEN]; /* buffer for incoming packet */
 int hungup;			/* terminal has been hung up */
 static int n_children;		/* # child processes still running */
 
-/* configured variables */
-
-int debug = 0;		        /* Debug flag */
-int kdebugflag = 0;		/* Kernel debugging flag */
-char user[MAXNAMELEN];		/* username for PAP */
-char passwd[MAXSECRETLEN];	/* password for PAP */
-char *connector = NULL;		/* "connect" command */
-char *disconnector = NULL;	/* "disconnect" command */
-int inspeed = 0;		/* Input/Output speed requested */
-int baud_rate;			/* bits/sec currently used */
-u_long netmask = 0;		/* netmask to use on ppp interface */
-int crtscts = 0;		/* use h/w flow control */
-int nodetach = 0;		/* don't fork */
-int modem = 0;			/* use modem control lines */
-int auth_required = 0;		/* require peer to authenticate */
-int defaultroute = 0;		/* assign default route through interface */
-int proxyarp = 0;		/* set entry in arp table */
-int persist = 0;		/* re-initiate on termination */
-int answer = 0;			/* wait for incoming call */
-int uselogin = 0;		/* check PAP info against /etc/passwd */
-int lockflag = 0;		/* lock the serial device */
-
+int baud_rate;
 
 /* prototypes */
 static void hup __ARGS((int));
@@ -198,7 +140,7 @@ main(argc, argv)
     int argc;
     char *argv[];
 {
-    int mask, i;
+    int mask, i, nonblock;
     struct sigaction sa;
     struct cmd *cmdp;
     FILE *pidfile;
@@ -209,7 +151,7 @@ main(argc, argv)
     p = ttyname(0);
     if (p)
 	strcpy(devnam, p);
-  
+
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	perror("couldn't get hostname");
 	die(1);
@@ -242,19 +184,9 @@ main(argc, argv)
     setipdefault();
 
     /*
-     * Initialize syslog system and magic number package.
+     * Initialize system-dependent stuff and magic number package.
      */
-#if !defined(ultrix)
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-#else
-    openlog("pppd", LOG_PID);
-#define LOG_UPTO(x) (x)
-#define setlogmask(x) (x)
-#endif
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
+    sys_init();
     magic_init();
 
     /*
@@ -262,7 +194,7 @@ main(argc, argv)
      * and identify who is running us.
      */
     if (!default_device && !nodetach && daemon(0, 0) < 0) {
-	perror("daemon");
+	perror("Couldn't detach from controlling terminal");
 	exit(1);
     }
     pid = getpid();
@@ -279,7 +211,7 @@ main(argc, argv)
 
     /* Get an internet socket for doing socket ioctl's on. */
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	syslog(LOG_ERR, "socket : %m");
+	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
     }
   
@@ -297,7 +229,7 @@ main(argc, argv)
 #define SIGNAL(s, handler)	{ \
 	sa.sa_handler = handler; \
 	if (sigaction(s, &sa, NULL) < 0) { \
-	    syslog(LOG_ERR, "sigaction(%d): %m", s); \
+	    syslog(LOG_ERR, "Couldn't establish signal handler (%d): %m", s); \
 	    die(1); \
 	} \
     }
@@ -323,16 +255,28 @@ main(argc, argv)
 
 	/*
 	 * Open the serial device and set it up to be the ppp interface.
+	 * If we're dialling out, or we don't want to use the modem lines,
+	 * we open it in non-blocking mode, but then we need to clear
+	 * the non-blocking I/O bit.
 	 */
-	if ((fd = open(devnam, O_RDWR, 0)) < 0) {
-	    syslog(LOG_ERR, "open(%s): %m", devnam);
+	nonblock = (connector || !modem)? O_NONBLOCK: 0;
+	if ((fd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
+	    syslog(LOG_ERR, "Failed to open %s: %m", devnam);
 	    die(1);
+	}
+	if ((initfdflags = fcntl(fd, F_GETFL)) == -1) {
+	    syslog(LOG_ERR, "Couldn't get device fd flags: %m");
+	    die(1);
+	}
+	if (nonblock) {
+	    initfdflags &= ~O_NONBLOCK;
+	    fcntl(fd, F_SETFL, initfdflags);
 	}
 	hungup = 0;
 	kill_link = 0;
 
 	/* run connection script */
-	if (connector) {
+	if (connector && connector[0]) {
 	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
 
 	    /* set line speed, flow control, etc.; set CLOCAL for now */
@@ -346,7 +290,7 @@ main(argc, argv)
 	    }
 
 	    if (device_script(connector, fd, fd) < 0) {
-		syslog(LOG_ERR, "could not set up connection");
+		syslog(LOG_ERR, "Connect script failed");
 		setdtr(fd, FALSE);
 		die(1);
 	    }
@@ -370,20 +314,15 @@ main(argc, argv)
 	    fprintf(pidfile, "%d\n", pid);
 	    (void) fclose(pidfile);
 	} else {
-	    syslog(LOG_ERR, "unable to create pid file: %m");
+	    syslog(LOG_ERR, "Failed to create pid file %s: %m", pidfilename);
 	    pidfilename[0] = 0;
 	}
 
 	/*
-	 * Record initial device flags, then set device for
-	 * non-blocking reads.
+	 * Set device for non-blocking reads.
 	 */
-	if ((initfdflags = fcntl(fd, F_GETFL)) == -1) {
-	    syslog(LOG_ERR, "fcntl(F_GETFL): %m");
-	    die(1);
-	}
-	if (fcntl(fd, F_SETFL, FNDELAY) == -1) {
-	    syslog(LOG_ERR, "fcntl(F_SETFL, FNDELAY): %m");
+	if (fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	    syslog(LOG_ERR, "Couldn't set device to non-blocking mode: %m");
 	    die(1);
 	}
   
@@ -418,8 +357,8 @@ main(argc, argv)
 	}
 
 	close_fd();
-	if (unlink(pidfilename) < 0) 
-	    syslog(LOG_WARNING, "unable to unlink pid file: %m");
+	if (unlink(pidfilename) < 0 && errno != ENOENT) 
+	    syslog(LOG_WARNING, "unable to delete pid file: %m");
 	pidfilename[0] = 0;
 
     } while (persist);
@@ -491,8 +430,9 @@ get_input()
 	    }
 
 	if (i == sizeof (prottbl) / sizeof (struct protent)) {
-	    syslog(LOG_WARNING, "input: Unknown protocol (%x) received!",
-		   protocol);
+	    if (debug)
+		syslog(LOG_WARNING, "Unknown protocol (%x) received",
+		       protocol);
 	    lcp_sprotrej(0, p - DLLHEADERLEN, len + DLLHEADERLEN);
 	}
     }
@@ -519,237 +459,8 @@ demuxprotrej(unit, protocol)
 	}
 
     syslog(LOG_WARNING,
-	   "demuxprotrej: Unrecognized Protocol-Reject for protocol %d!",
+	   "demuxprotrej: Unrecognized Protocol-Reject for protocol 0x%x",
 	   protocol);
-}
-
-
-#if B9600 == 9600
-/*
- * XXX assume speed_t values numerically equal bits per second
- * (so we can ask for any speed).
- */
-#define translate_speed(bps)	(bps)
-#define baud_rate_of(speed)	(speed)
-
-#else
-/*
- * List of valid speeds.
- */
-struct speed {
-    int speed_int, speed_val;
-} speeds[] = {
-#ifdef B50
-    { 50, B50 },
-#endif
-#ifdef B75
-    { 75, B75 },
-#endif
-#ifdef B110
-    { 110, B110 },
-#endif
-#ifdef B134
-    { 134, B134 },
-#endif
-#ifdef B150
-    { 150, B150 },
-#endif
-#ifdef B200
-    { 200, B200 },
-#endif
-#ifdef B300
-    { 300, B300 },
-#endif
-#ifdef B600
-    { 600, B600 },
-#endif
-#ifdef B1200
-    { 1200, B1200 },
-#endif
-#ifdef B1800
-    { 1800, B1800 },
-#endif
-#ifdef B2000
-    { 2000, B2000 },
-#endif
-#ifdef B2400
-    { 2400, B2400 },
-#endif
-#ifdef B3600
-    { 3600, B3600 },
-#endif
-#ifdef B4800
-    { 4800, B4800 },
-#endif
-#ifdef B7200
-    { 7200, B7200 },
-#endif
-#ifdef B9600
-    { 9600, B9600 },
-#endif
-#ifdef B19200
-    { 19200, B19200 },
-#endif
-#ifdef B38400
-    { 38400, B38400 },
-#endif
-#ifdef EXTA
-    { 19200, EXTA },
-#endif
-#ifdef EXTB
-    { 38400, EXTB },
-#endif
-#ifdef B57600
-    { 57600, B57600 },
-#endif
-#ifdef B115200
-    { 115200, B115200 },
-#endif
-    { 0, 0 }
-};
-
-/*
- * Translate from bits/second to a speed_t.
- */
-int
-translate_speed(bps)
-    int bps;
-{
-    struct speed *speedp;
-
-    if (bps == 0)
-	return 0;
-    for (speedp = speeds; speedp->speed_int; speedp++)
-	if (bps == speedp->speed_int)
-	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
-    return 0;
-}
-
-/*
- * Translate from a speed_t to bits/second.
- */
-int
-baud_rate_of(speed)
-    int speed;
-{
-    struct speed *speedp;
-
-    if (speed == 0)
-	return 0;
-    for (speedp = speeds; speedp->speed_int; speedp++)
-	if (speed == speedp->speed_val)
-	    return speedp->speed_int;
-    return 0;
-}
-#endif
-
-/*
- * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
- * at the requested speed, etc.  If `local' is true, set CLOCAL
- * regardless of whether the modem option was specified.
- */
-set_up_tty(fd, local)
-    int fd, local;
-{
-#ifndef SGTTY
-    int speed, x;
-    struct termios tios;
-
-    if (tcgetattr(fd, &tios) < 0) {
-	syslog(LOG_ERR, "tcgetattr: %m");
-	die(1);
-    }
-
-    if (!restore_term)
-	inittermios = tios;
-
-#ifdef CRTSCTS
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
-    if (crtscts == 1)
-	tios.c_cflag |= CRTSCTS;
-#else
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-#endif	/* CRTSCTS */
-
-    tios.c_cflag |= CS8 | CREAD | HUPCL;
-    if (local || !modem)
-	tios.c_cflag |= CLOCAL;
-    tios.c_iflag = IGNBRK | IGNPAR;
-    tios.c_oflag = 0;
-    tios.c_lflag = 0;
-    tios.c_cc[VMIN] = 1;
-    tios.c_cc[VTIME] = 0;
-
-    if (crtscts == 2) {
-	tios.c_iflag |= IXOFF;
-	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
-	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
-    }
-
-    speed = translate_speed(inspeed);
-    if (speed) {
-	cfsetospeed(&tios, speed);
-	cfsetispeed(&tios, speed);
-    } else {
-	speed = cfgetospeed(&tios);
-    }
-
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
-	syslog(LOG_ERR, "tcsetattr: %m");
-	die(1);
-    }
-
-#ifdef ultrix
-    x = 0;
-    if (ioctl(fd, (crtscts || modem)? TIOCMODEM: TIOCNMODEM, &x) < 0)
-	syslog(LOG_WARNING, "TIOC(N)MODEM: %m");
-    if (ioctl(fd, (local || !modem)? TIOCNCAR: TIOCCAR) < 0)
-	syslog(LOG_WARNING, "TIOC(N)CAR: %m");
-#endif
-
-#else	/* SGTTY */
-    int speed;
-    struct sgttyb sgttyb;
-
-    /*
-     * Put the tty in raw mode.
-     */
-    if (ioctl(fd, TIOCGETP, &sgttyb) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCGETP): %m");
-	die(1);
-    }
-
-    if (!restore_term)
-	initsgttyb = sgttyb;
-
-    sgttyb.sg_flags = RAW | ANYP;
-    speed = translate_speed(inspeed);
-    if (speed)
-	sgttyb.sg_ispeed = speed;
-    else
-	speed = sgttyb.sg_ispeed;
-
-    if (ioctl(fd, TIOCSETP, &sgttyb) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCSETP): %m");
-	die(1);
-    }
-#endif
-
-    baud_rate = inspeed = baud_rate_of(speed);
-    restore_term = TRUE;
-}
-
-/*
- * setdtr - control the DTR line on the serial port.
- * This is called from die(), so it shouldn't call die().
- */
-setdtr(fd, on)
-int fd, on;
-{
-    int modembits = TIOCM_DTR;
-
-    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
 }
 
 
@@ -786,8 +497,8 @@ cleanup(status, arg)
     if (fd >= 0)
 	close_fd();
 
-    if (pidfilename[0] != 0 && unlink(pidfilename) < 0) 
-	syslog(LOG_WARNING, "unable to unlink pid file: %m");
+    if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
+	syslog(LOG_WARNING, "unable to delete pid file: %m");
     pidfilename[0] = 0;
 
     if (lockflag && !default_device)
@@ -805,21 +516,12 @@ close_fd()
 	setdtr(fd, FALSE);
 
     if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-	syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
+	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
     initfdflags = -1;
 
     disestablish_ppp();
 
-    if (restore_term) {
-#ifndef SGTTY
-	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
-	    if (errno != ENXIO)
-		syslog(LOG_WARNING, "tcsetattr: %m");
-#else
-	if (ioctl(fd, TIOCSETP, &initsgttyb) < 0)
-	    syslog(LOG_WARNING, "ioctl(TIOCSETP): %m");
-#endif
-    }
+    restore_tty();
 
     close(fd);
     fd = -1;
@@ -827,10 +529,10 @@ close_fd()
 
 
 struct	callout {
-	struct timeval	c_time;		/* time at which to call routine */
-	caddr_t		c_arg;		/* argument to routine */
-	void		(*c_func)();	/* routine */
-	struct		callout *c_next;
+    struct timeval	c_time;		/* time at which to call routine */
+    caddr_t		c_arg;		/* argument to routine */
+    void		(*c_func)();	/* routine */
+    struct		callout *c_next;
 };
 
 static struct callout *callout = NULL;	/* Callout list */
@@ -917,7 +619,7 @@ calltimeout()
 	p = callout;
 
 	if (gettimeofday(&timenow, NULL) < 0) {
-	    syslog(LOG_ERR, "gettimeofday: %m");
+	    syslog(LOG_ERR, "Failed to get time of day: %m");
 	    die(1);
 	}
 	if (!(p->c_time.tv_sec < timenow.tv_sec
@@ -1011,9 +713,8 @@ static void
 incdebug(sig)
     int sig;
 {
-    syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-    setlogmask(LOG_UPTO(LOG_DEBUG));
     debug++;
+    note_debug_level();
 }
 
 
@@ -1027,8 +728,8 @@ static void
 nodebug(sig)
     int sig;
 {
-    setlogmask(LOG_UPTO(LOG_WARNING));
     debug = 0;
+    note_debug_level();
 }
 
 
@@ -1053,7 +754,7 @@ device_script(program, in, out)
     pid = fork();
 
     if (pid < 0) {
-	syslog(LOG_ERR, "fork: %m");
+	syslog(LOG_ERR, "Failed to create child process: %m");
 	die(1);
     }
 
@@ -1072,7 +773,7 @@ device_script(program, in, out)
     while (waitpid(pid, &status, 0) < 0) {
 	if (errno == EINTR)
 	    continue;
-	syslog(LOG_ERR, "waiting for (dis)connection process: %m");
+	syslog(LOG_ERR, "error waiting for (dis)connection process: %m");
 	die(1);
     }
     sigprocmask(SIG_SETMASK, &mask, NULL);
@@ -1097,13 +798,45 @@ run_program(prog, args, must_exist)
 
     pid = fork();
     if (pid == -1) {
-	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
+	syslog(LOG_ERR, "Failed to create child process for %s: %m", prog);
 	return -1;
     }
     if (pid == 0) {
+        int new_fd;
+
+	/* Leave the current location */
+	(void) setsid();    /* No controlling tty. */
+	(void) umask (0);   /* no umask. Must change in script. */
+	(void) chdir ("/"); /* no current directory. */
+
+	/* Ensure that nothing of our device environment is inherited. */
+	close (0);
+	close (1);
+	close (2);
+	close (s);   /* Socket interface to the ppp device */
+	close (fd);  /* tty interface to the ppp device */
+	
+        /* Don't pass handles to the PPP device, even by accident. */
+	new_fd = open (_PATH_DEVNULL, O_RDWR);
+	if (new_fd >= 0) {
+	    if (new_fd != 0) {
+	        dup2  (new_fd, 0); /* stdin <- /dev/null */
+		close (new_fd);
+	    }
+	    dup2 (0, 1); /* stdout -> /dev/null */
+	    dup2 (0, 2); /* stderr -> /dev/null */
+	}
+
+	/* Force the priority back to zero if pppd is running higher. */
+	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
+	    syslog (LOG_WARNING, "can't reset priority to 0: %m"); 
+
+	/* SysV recommends a second fork at this point. */
+
+	/* run the program */
 	execv(prog, args);
 	if (must_exist || errno != ENOENT)
-	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
+	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
 	_exit(-1);
     }
     MAINDEBUG((LOG_DEBUG, "Script %s started; pid = %d", prog, pid));
@@ -1125,13 +858,13 @@ reap_kids()
 	return;
     if ((pid = waitpid(-1, &status, WNOHANG)) == -1) {
 	if (errno != ECHILD)
-	    syslog(LOG_ERR, "waitpid: %m");
+	    syslog(LOG_ERR, "Error waiting for child process: %m");
 	return;
     }
     if (pid > 0) {
 	--n_children;
 	if (WIFSIGNALED(status)) {
-	    syslog(LOG_WARNING, "child process %d terminated with signal %d",
+	    syslog(LOG_WARNING, "Child process %d terminated with signal %d",
 		   pid, WTERMSIG(status));
 	}
     }
