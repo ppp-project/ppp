@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.57 2003/05/12 08:13:24 fcusack Exp $
+# $Id: Makefile.linux,v 1.58 2003/05/12 08:18:54 fcusack Exp $
 #
 
 # Default installation locations
@@ -42,9 +42,6 @@ USE_CRYPT=y
 # Uncomment the next line to include support for MPPE.  CHAPMS (above) must
 # also be enabled.  Also, edit plugins/radius/Makefile.linux.
 MPPE=y
-ifneq ($(wildcard /usr/lib/libcrypt.*),)
-HAVE_CRYPT_H=y
-endif
 
 # Uncomment the next line to include support for PPP packet filtering.
 # This requires that the libpcap library and headers be installed
