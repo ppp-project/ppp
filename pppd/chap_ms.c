@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.7 1998/03/25 03:08:14 paulus Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.8 1998/04/01 00:15:43 paulus Exp $";
 #endif
 
 #ifdef CHAPMS
@@ -44,7 +44,7 @@ static char rcsid[] = "$Id: chap_ms.c,v 1.7 1998/03/25 03:08:14 paulus Exp $";
 #include <sys/time.h>
 #include <syslog.h>
 #include <unistd.h>
-#ifdef USE_CRYPT
+#ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
 
