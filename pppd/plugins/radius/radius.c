@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.13 2002/07/25 16:29:15 dfs Exp $";
+"$Id: radius.c,v 1.14 2002/09/01 08:56:01 kad Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -513,7 +513,7 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 		break;
 	    case PW_OCTETS_DIRECTION:
 		/* Session traffic limit direction check */
-		maxoctets_dir = ( vp->lvalue > 4 ) 0 : vp->lvalue ;
+		maxoctets_dir = ( vp->lvalue > 4 ) ? 0 : vp->lvalue ;
 		break;
 #endif
 	    case PW_ACCT_INTERIM_INTERVAL:
