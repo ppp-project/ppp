@@ -1,3 +1,36 @@
+/*
+ * ppp_ahdlc.c - STREAMS module for doing PPP asynchronous HDLC.
+ *
+ * Copyright (c) 1994 The Australian National University.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, provided that the above copyright
+ * notice appears in all copies.  This software is provided without any
+ * warranty, express or implied. The Australian National University
+ * makes no representations about the suitability of this software for
+ * any purpose.
+ *
+ * IN NO EVENT SHALL THE AUSTRALIAN NATIONAL UNIVERSITY BE LIABLE TO ANY
+ * PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+ * ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
+ * THE AUSTRALIAN NATIONAL UNIVERSITY HAVE BEEN ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
+ *
+ * THE AUSTRALIAN NATIONAL UNIVERSITY SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE AUSTRALIAN NATIONAL UNIVERSITY HAS NO
+ * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
+ * OR MODIFICATIONS.
+ *
+ * $Id: ppp_ahdlc.c,v 1.2 1995/05/19 02:18:34 paulus Exp $
+ */
+
+/*
+ * This file is used under Solaris 2.
+ */
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stream.h>
@@ -6,6 +39,8 @@
 #include <sys/kmem.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/errno.h>
+#include <sys/cmn_err.h>
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 
@@ -65,6 +100,7 @@ struct ahdlc_state {
     u_int32_t raccm;
     int mtu;
     int mru;
+    int unit;
 };
 
 /* Values for flags */
@@ -185,6 +221,7 @@ ahdlc_wput(q, mp)
 {
     struct ahdlc_state *state;
     struct iocblk *iop;
+    int error;
 
     state = (struct ahdlc_state *) q->q_ptr;
     switch (mp->b_datap->db_type) {
@@ -199,36 +236,63 @@ ahdlc_wput(q, mp)
 
     case M_IOCTL:
 	iop = (struct iocblk *) mp->b_rptr;
+	error = EINVAL;
 	switch (iop->ioc_cmd) {
 	case PPPIO_XACCM:
-	    if (iop->ioc_count != sizeof(ext_accm))
-		goto iocnak;
-	    bcopy(mp->b_cont->b_rptr, (caddr_t)state->xaccm, sizeof(ext_accm));
+	    if (iop->ioc_count < sizeof(u_int32_t)
+		|| iop->ioc_count > sizeof(ext_accm))
+		break;
+	    bcopy(mp->b_cont->b_rptr, (caddr_t)state->xaccm, iop->ioc_count);
 	    state->xaccm[2] &= 0x40000000;	/* don't escape 0x5e */
 	    state->xaccm[3] |= 0x60000000;	/* do escape 0x7d, 0x7e */
-	    goto iocack;
+	    iop->ioc_count = 0;
+	    error = 0;
+	    break;
 
 	case PPPIO_RACCM:
 	    if (iop->ioc_count != sizeof(u_int32_t))
-		goto iocnak;
-	    state->raccm = *(u_int32_t *)mp->b_cont->b_rptr;
-	    goto iocack;
+		break;
+	    bcopy(mp->b_cont->b_rptr, (caddr_t)&state->raccm,
+		  sizeof(u_int32_t));
+	    iop->ioc_count = 0;
+	    error = 0;
+	    break;
 
 	default:
-	    putnext(q, mp);
-	    break;
-
-	iocack:
-	    iop->ioc_count = 0;
-	    mp->b_datap->db_type = M_IOCACK;
-	    qreply(q, mp);
-	    break;
-
-	iocnak:
-	    mp->b_datap->db_type = M_IOCNAK;
-	    qreply(q, mp);
+	    error = -1;
 	    break;
 	}
+
+	if (error < 0)
+	    putnext(q, mp);
+	else if (error == 0) {
+	    mp->b_datap->db_type = M_IOCACK;
+	    qreply(q, mp);
+	} else {
+	    mp->b_datap->db_type = M_IOCNAK;
+	    iop->ioc_count = 0;
+	    iop->ioc_error = error;
+	    qreply(q, mp);
+	}
+	break;
+
+    case M_CTL:
+	switch (*mp->b_rptr) {
+	case PPPCTL_MTU:
+	    state->mtu = ((unsigned short *)mp->b_rptr)[1];
+	    freemsg(mp);
+	    break;
+	case PPPCTL_MRU:
+	    state->mru = ((unsigned short *)mp->b_rptr)[1];
+	    freemsg(mp);
+	    break;
+	case PPPCTL_UNIT:
+	    state->unit = mp->b_rptr[1];
+	    break;
+	default:
+	    putnext(q, mp);
+	}
+	break;
 
     default:
 	putnext(q, mp);
@@ -308,13 +372,22 @@ stuff_frame(q, mp)
 
     /*
      * For LCP packets, we must escape all control characters.
+     * LCP packets must not be A/C or protocol compressed.
      */
-    if (proto == PPP_LCP) {
-	bcopy(state->xaccm, lcp_xaccm, sizeof(lcp_xaccm));
-	lcp_xaccm[0] = ~0;
-	xaccm = lcp_xaccm;
-    } else
-	xaccm = state->xaccm;
+    xaccm = state->xaccm;
+    if (ilen >= PPP_HDRLEN) {
+	if (mp->b_wptr - mp->b_rptr >= PPP_HDRLEN
+	    || pullupmsg(mp, PPP_HDRLEN)) {
+	    if (PPP_ADDRESS(mp->b_rptr) == PPP_ALLSTATIONS
+		&& PPP_CONTROL(mp->b_rptr) == PPP_UI
+		&& PPP_PROTOCOL(mp->b_rptr) == PPP_LCP) {
+		bcopy((caddr_t) state->xaccm, (caddr_t) lcp_xaccm,
+		      sizeof(lcp_xaccm));
+		lcp_xaccm[0] = ~0;
+		xaccm = lcp_xaccm;
+	    }
+	}
+    }
 
     sp = mp->b_rptr;
     fcs = PPP_INITFCS;
@@ -457,7 +530,7 @@ unstuff_chars(q, mp)
 	     */
 	    dp = om->b_wptr;
 	    len = om->b_datap->db_lim - dp; /* max # output bytes */
-	    extra = (cpend - cp) - len;	    /* #input chars - #output bytes */
+	    extra = (mp->b_wptr - cp) - len;/* #input chars - #output bytes */
 	    if (extra < 0) {
 		len += extra;		    /* we'll run out of input first */
 		extra = 0;
@@ -471,11 +544,10 @@ unstuff_chars(q, mp)
 		    break;
 		++cp;
 		if (c == PPP_ESCAPE) {
-		    if (extra > 0)
+		    if (extra > 0) {
 			--extra;
-		    else if (len > 1)
-			--len;
-		    else {
+			++cpend;
+		    } else if (cp >= cpend) {
 			state->flags |= ESCAPED;
 			break;
 		    }
@@ -491,7 +563,7 @@ unstuff_chars(q, mp)
 	    state->inlen += dp - dp0;
 	    state->infcs = fcs;
 	    om->b_wptr = dp;
-	    if (len <= 0)
+	    if (cp >= cpend)
 		continue;	/* go back and check cp again */
 	}
 
@@ -508,20 +580,19 @@ unstuff_chars(q, mp)
 	    state->inlen = 0;
 	    if (om == 0)
 		continue;
-	    if (state->flags & (IFLUSH|ESCAPED) || len < PPP_FCSLEN) {
-		/* XXX should send up ctl message to notify VJ decomp */
-		freemsg(om);
-		continue;
-	    }
-	    if (state->infcs != PPP_GOODFCS) {
+	    if (!(state->flags & (IFLUSH|ESCAPED) || len < PPP_FCSLEN)) {
+		if (state->infcs == PPP_GOODFCS) {
+		    adjmsg(om, -PPP_FCSLEN);	/* chop off fcs */
+		    putnext(q, om);		/* bombs away! */
+		    continue;
+		}
 		/* incr bad fcs stats */
-		/* would like to be able to pass this up for debugging */
-		/* XXX should send up ctl message to notify VJ decomp */
-		freemsg(om);
-		continue;
+#if DEBUG
+		cmn_err(CE_CONT, "ppp_ahdl: bad fcs %x\n", state->infcs);
+#endif
 	    }
-	    adjmsg(om, -PPP_FCSLEN);	/* chop off fcs */
-	    putnext(q, om);		/* bombs away! */
+	    freemsg(om);
+	    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
 	    continue;
 	}
 
@@ -529,6 +600,7 @@ unstuff_chars(q, mp)
 	    continue;
 	if (state->flags & ESCAPED) {
 	    c ^= PPP_TRANS;
+	    state->flags &= ~ESCAPED;
 	} else if (c == PPP_ESCAPE) {
 	    state->flags |= ESCAPED;
 	    continue;
@@ -549,11 +621,19 @@ unstuff_chars(q, mp)
 	    om = state->cur_blk;
 	    if (om->b_wptr >= om->b_datap->db_lim) {
 		/*
-		 * Current message block is full.  Allocate another one.
+		 * Current message block is full.  Allocate another one,
+		 * unless we have run out of MRU.
 		 */
+		if (state->inlen >= state->mru + PPP_HDRLEN + PPP_FCSLEN) {
+#if DEBUG
+		    cmn_err(CE_CONT, "ppp_ahdl: frame too long (%d)\n",
+			    state->inlen);
+#endif
+		    state->flags |= IFLUSH;
+		    continue;
+		}
 		om = allocb(IFRAME_BSIZE, BPRI_MED);
 		if (om == 0) {
-		    freemsg(state->cur_frame);
 		    state->flags |= IFLUSH;
 		    continue;
 		}
@@ -571,18 +651,20 @@ unstuff_chars(q, mp)
 	     * but we do leave space for the decompressed fields and
 	     * arrange for the info field to start on a word boundary.
 	     */
-	    cp = om->b_rptr;
-	    if (*cp == PPP_ALLSTATIONS)
-		cp += 2;
-	    if ((*cp & 1) == 0)
-		++cp;
-	    /* cp is now pointing at the last byte of the ppp protocol field */
-	    offset = 3 - ((unsigned)cp & 3);
+	    dp = om->b_rptr;
+	    if (PPP_ADDRESS(dp) == PPP_ALLSTATIONS
+		&& PPP_CONTROL(dp) == PPP_UI)
+		dp += 2;
+	    if ((*dp & 1) == 0)
+		++dp;
+	    /* dp is now pointing at the last byte of the ppp protocol field */
+	    offset = 3 - ((unsigned)dp & 3);
 	    if (offset > 0) {
+		dp = om->b_wptr;
 		do {
-		    cp[offset] = cp[0];
-		    --cp;
-		} while (cp >= om->b_rptr);
+		    --dp;
+		    dp[offset] = dp[0];
+		} while (dp > om->b_rptr);
 		om->b_rptr += offset;
 		om->b_wptr += offset;
 	    }

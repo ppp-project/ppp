@@ -1,3 +1,36 @@
+/*
+ * ppp.c - STREAMS multiplexing pseudo-device driver for PPP.
+ *
+ * Copyright (c) 1994 The Australian National University.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, provided that the above copyright
+ * notice appears in all copies.  This software is provided without any
+ * warranty, express or implied. The Australian National University
+ * makes no representations about the suitability of this software for
+ * any purpose.
+ *
+ * IN NO EVENT SHALL THE AUSTRALIAN NATIONAL UNIVERSITY BE LIABLE TO ANY
+ * PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+ * ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
+ * THE AUSTRALIAN NATIONAL UNIVERSITY HAVE BEEN ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
+ *
+ * THE AUSTRALIAN NATIONAL UNIVERSITY SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE AUSTRALIAN NATIONAL UNIVERSITY HAS NO
+ * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
+ * OR MODIFICATIONS.
+ *
+ * $Id: ppp.c,v 1.2 1995/05/19 02:17:42 paulus Exp $
+ */
+
+/*
+ * This file is used under Solaris 2.
+ */
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -28,7 +61,7 @@
 #endif
 
 #ifndef PPP_MAXMTU
-#define PPP_MAXMTU	65536
+#define PPP_MAXMTU	65535
 #endif
 
 /*
@@ -40,6 +73,7 @@ struct upperstr {
     int flags;			/* flag bits, see below */
     int state;			/* current DLPI state */
     int sap;			/* service access point */
+    int req_sap;		/* which SAP the DLPI client requested */
     struct upperstr *ppa;	/* control stream for our ppa */
     struct upperstr *next;	/* next stream for this ppa */
     /*
@@ -49,6 +83,8 @@ struct upperstr {
     int ppa_id;
     queue_t *lowerq;		/* write queue attached below this PPA */
     struct upperstr *nextppa;	/* next control stream */
+    int mru;
+    int mtu;
 };
 
 /* Values for flags */
@@ -77,6 +113,8 @@ static void dlpi_ok __P((queue_t *, int));
 static int send_data __P((mblk_t *, struct upperstr *));
 static void new_ppa __P((queue_t *, mblk_t *));
 static struct upperstr *find_dest __P((struct upperstr *, int));
+static int putctl2 __P((queue_t *, int, int, int));
+static int putctl4 __P((queue_t *, int, int, int));
 
 static struct module_info ppp_info = {
     0xb1a6, "ppp", 0, 512, 512, 128
@@ -255,7 +293,6 @@ pppopen(q, devp, oflag, sflag, credp)
     } else {
 	mn = getminor(*devp);
     }
-    cmn_err(CE_CONT, "pppopen: minor %d\n", mn);
 
     /*
      * Construct a new minor node.
@@ -295,7 +332,6 @@ pppclose(q, flag, credp)
     qprocsoff(q);
 
     up = (struct upperstr *) q->q_ptr;
-    cmn_err(CE_CONT, "pppclose: minor %d\n", up->mn);
     if (up->flags & US_CONTROL) {
 	/*
 	 * This stream represents a PPA:
@@ -354,7 +390,7 @@ pppuwput(q, mp)
     struct iocblk *iop;
     struct linkblk *lb;
     queue_t *lq;
-    int error;
+    int error, n;
     mblk_t *mq;
 
     us = (struct upperstr *) q->q_ptr;
@@ -365,56 +401,68 @@ pppuwput(q, mp)
 	break;
 
     case M_DATA:
+	if ((us->flags & US_CONTROL) == 0
+	    || msgdsize(mp) > us->mtu + PPP_HDRLEN) {
+#if DEBUG
+	    cmn_err(CE_CONT, "pppuwput: junk data len=%d\n", msgdsize(mp));
+#endif
+	    freemsg(mp);
+	    break;
+	}
 	if (!send_data(mp, us))
 	    putq(q, mp);
 	break;
 
     case M_IOCTL:
 	iop = (struct iocblk *) mp->b_rptr;
-	cmn_err(CE_CONT, "ppp%d ioctl %x count=%d\n", us->mn, iop->ioc_cmd,
-		iop->ioc_count);
+	error = EINVAL;
 	switch (iop->ioc_cmd) {
 	case I_LINK:
 	    if ((us->flags & US_CONTROL) == 0 || us->lowerq != 0)
-		goto iocnak;
+		break;
 	    lb = (struct linkblk *) mp->b_cont->b_rptr;
 	    us->lowerq = lq = lb->l_qbot;
 	    lq->q_ptr = us;
-	    WR(lq)->q_ptr = us;
+	    RD(lq)->q_ptr = us;
 	    iop->ioc_count = 0;
-	    mp->b_datap->db_type = M_IOCACK;
-	    qreply(q, mp);
+	    error = 0;
 	    /* Unblock upper streams which now feed this lower stream. */
 	    qenable(lq);
+	    /* Send useful information down to the modules which
+	       are now linked below us. */
+	    putctl2(lq, M_CTL, PPPCTL_UNIT, us->ppa_id);
+	    putctl4(lq, M_CTL, PPPCTL_MRU, us->mru);
+	    putctl4(lq, M_CTL, PPPCTL_MTU, us->mtu);
 	    break;
 
 	case I_UNLINK:
 	    lb = (struct linkblk *) mp->b_cont->b_rptr;
+#if DEBUG
 	    if (us->lowerq != lb->l_qbot)
 		cmn_err(CE_CONT, "ppp unlink: lowerq=%x qbot=%x\n",
 			us->lowerq, lb->l_qbot);
+#endif
 	    us->lowerq = 0;
 	    iop->ioc_count = 0;
-	    mp->b_datap->db_type = M_IOCACK;
-	    qreply(q, mp);
+	    error = 0;
 	    /* Unblock streams which now feed back up the control stream. */
 	    qenable(us->q);
 	    break;
 
 	case PPPIO_NEWPPA:
 	    if (us->flags & US_CONTROL)
-		goto iocnak;
+		break;
 	    if ((us->flags & US_PRIV) == 0) {
-		iop->ioc_error = EPERM;
-		goto iocnak;
+		error = EPERM;
+		break;
 	    }
 	    /* Arrange to return an int */
 	    if ((mq = mp->b_cont) == 0
 		|| mq->b_datap->db_lim - mq->b_rptr < sizeof(int)) {
 		mq = allocb(sizeof(int), BPRI_HI);
 		if (mq == 0) {
-		    iop->ioc_error = ENOSR;
-		    goto iocnak;
+		    error = ENOSR;
+		    break;
 		}
 		if (mp->b_cont != 0)
 		    freemsg(mp->b_cont);
@@ -424,28 +472,67 @@ pppuwput(q, mp)
 	    iop->ioc_count = sizeof(int);
 	    mq->b_wptr = mq->b_rptr + sizeof(int);
 	    qwriter(q, mp, new_ppa, PERIM_OUTER);
+	    error = -1;
+	    break;
+
+	case PPPIO_MRU:
+	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
+		break;
+	    n = *(int *)mp->b_cont->b_rptr;
+	    if (n <= 0 || n > PPP_MAXMTU)
+		break;
+	    if (n < PPP_MRU)
+		n = PPP_MRU;
+	    us->mru = n;
+	    if (us->lowerq)
+		putctl4(us->lowerq, M_CTL, PPPCTL_MRU, n);
+	    error = 0;
+	    iop->ioc_count = 0;
+	    break;
+
+	case PPPIO_MTU:
+	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
+		break;
+	    n = *(int *)mp->b_cont->b_rptr;
+	    if (n <= 0 || n > PPP_MAXMTU)
+		break;
+	    if (n < PPP_MRU)
+		n = PPP_MRU;
+	    us->mtu = n;
+	    if (us->lowerq)
+		putctl4(us->lowerq, M_CTL, PPPCTL_MTU, n);
+	    error = 0;
+	    iop->ioc_count = 0;
 	    break;
 
 	default:
 	    if (us->ppa == 0 || us->ppa->lowerq == 0)
-		goto iocnak;
+		break;
+	    error = -1;
 	    switch (iop->ioc_cmd) {
 	    case PPPIO_GETSTAT:
 	    case PPPIO_GETCSTAT:
+		putnext(us->ppa->lowerq, mp);
 		break;
 	    default:
-		if ((us->flags & US_PRIV) == 0) {
-		    iop->ioc_error = EPERM;
-		    goto iocnak;
+		if (us->flags & US_PRIV)
+		    putnext(us->ppa->lowerq, mp);
+		else {
+		    cmn_err(CE_CONT, "ppp ioctl %x rejected\n", iop->ioc_cmd);
+		    error = EPERM;
 		}
+		break;
 	    }
-	    putnext(us->ppa->lowerq, mp);
 	    break;
+	}
 
-	iocnak:
+	if (error > 0) {
+	    iop->ioc_error = error;
 	    mp->b_datap->db_type = M_IOCNAK;
 	    qreply(q, mp);
-	    break;
+	} else if (error == 0) {
+	    mp->b_datap->db_type = M_IOCACK;
+	    qreply(q, mp);
 	}
 	break;
 
@@ -476,13 +563,12 @@ dlpi_request(q, mp, us)
     int size = mp->b_wptr - mp->b_rptr;
     mblk_t *reply, *np;
     struct upperstr *t, *ppa;
-    int sap;
+    int sap, *ip;
     dl_info_ack_t *info;
     dl_bind_ack_t *ackp;
     dl_phys_addr_ack_t *adrp;
+    dl_get_statistics_ack_t *statsp;
 
-    cmn_err(CE_CONT, "ppp%d dlpi prim %x, state=%x\n", us->mn,
-	    d->dl_primitive, us->state);
     switch (d->dl_primitive) {
     case DL_INFO_REQ:
 	if (size < sizeof(dl_info_req_t))
@@ -560,7 +646,10 @@ dlpi_request(q, mp, us)
 	}
 	/* saps must be valid PPP network protocol numbers */
 	sap = d->bind_req.dl_sap;
+	us->req_sap = sap;
+#if DEBUG
 	cmn_err(CE_CONT, "ppp bind %x\n", sap);
+#endif
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff
@@ -604,6 +693,14 @@ dlpi_request(q, mp, us)
 	    dlpi_error(q, DL_UNITDATA_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
+	if (mp->b_cont != 0 && us->ppa != 0
+	    && msgdsize(mp->b_cont) > us->ppa->mtu) {
+#if DEBUG
+	    cmn_err(CE_CONT, "dlpi data too large (%d > %d)\n",
+		    msgdsize(mp->b_cont), us->mtu);
+#endif
+	    break;
+	}
 	/* this assumes PPP_HDRLEN <= sizeof(dl_unitdata_req_t) */
 	if (mp->b_datap->db_ref > 1) {
 	    np = allocb(PPP_HDRLEN, BPRI_HI);
@@ -613,8 +710,10 @@ dlpi_request(q, mp, us)
 	    mp->b_cont = 0;
 	    freeb(mp);
 	    mp = np;
-	}
-	/* XXX should use dl_dest_addr_offset/length here */
+	} else
+	    mp->b_datap->db_type = M_DATA;
+	/* XXX should use dl_dest_addr_offset/length here,
+	   but we would have to translate ETHERTYPE_IP -> PPP_IP */
 	mp->b_wptr = mp->b_rptr + PPP_HDRLEN;
 	mp->b_rptr[0] = PPP_ALLSTATIONS;
 	mp->b_rptr[1] = PPP_UI;
@@ -623,6 +722,29 @@ dlpi_request(q, mp, us)
 	if (!send_data(mp, us))
 	    putq(q, mp);
 	return;
+
+#if 0
+    case DL_GET_STATISTICS_REQ:
+	if (size < sizeof(dl_get_statistics_req_t))
+	    goto badprim;
+	if ((reply = allocb(sizeof(dl_get_statistics_ack_t) + 5 * sizeof(int),
+			    BPRI_HI)) == 0)
+	    break;		/* XXX should do bufcall */
+	statsp = (dl_get_statistics_ack_t *) reply->b_wptr;
+	reply->b_wptr += sizeof(dl_get_statistics_ack_t) + 5 * sizeof(int);
+	reply->b_datap->db_type = M_PCPROTO;
+	statsp->dl_primitive = DL_GET_STATISTICS_ACK;
+	statsp->dl_stat_length = 5 * sizeof(int);
+	statsp->dl_stat_offset = sizeof(dl_get_statistics_ack_t);
+	ip = (int *) (statsp + 1);
+	ip[0] = 1;
+	ip[1] = 2;
+	ip[2] = 3;
+	ip[3] = 4;
+	ip[4] = 5;
+	qreply(q, reply);
+	break;
+#endif
 
     case DL_SUBS_BIND_REQ:
     case DL_SUBS_UNBIND_REQ:
@@ -637,7 +759,6 @@ dlpi_request(q, mp, us)
     case DL_CONNECT_REQ:
     case DL_TOKEN_REQ:
     case DL_REPLY_UPDATE_REQ:
-    case DL_GET_STATISTICS_REQ:
     case DL_REPLY_REQ:
     case DL_DATA_ACK_REQ:
 	dlpi_error(q, d->dl_primitive, DL_NOTSUPPORTED, 0);
@@ -659,6 +780,8 @@ dlpi_request(q, mp, us)
 	break;
 
     default:
+	cmn_err(CE_CONT, "ppp: unknown dlpi prim 0x%x\n", d->dl_primitive);
+	/* fall through */
     badprim:
 	dlpi_error(q, d->dl_primitive, DL_BADPRIM, 0);
 	break;
@@ -759,6 +882,9 @@ new_ppa(q, mp)
     *usp = us;
     us->flags |= US_CONTROL;
 
+    us->mtu = PPP_MRU;
+    us->mru = PPP_MRU;
+
     *(int *)mp->b_cont->b_rptr = ppa_id;
     mp->b_datap->db_type = M_IOCACK;
     qreply(q, mp);
@@ -780,6 +906,8 @@ pppuwsrv(q)
 	    break;
 	}
     }
+    if (mp == 0)
+	us->flags &= ~US_BLOCKED;
     return 0;
 }
 
@@ -856,8 +984,11 @@ pppursrv(q)
 	    ud->dl_src_addr_length = sizeof(ulong);
 	    ud->dl_src_addr_offset = ud->dl_dest_addr_offset + sizeof(ulong);
 	    ud->dl_group_address = 0;
-	    ((ulong *)(ud + 1))[0] = proto;	/* dest SAP */
-	    ((ulong *)(ud + 1))[1] = proto;	/* src SAP */
+	    /* Send the DLPI client the data with the SAP they requested,
+	       (e.g. ETHERTYPE_IP) rather than the PPP protocol number
+	       (e.g. PPP_IP) */
+	    ((ulong *)(ud + 1))[0] = us->req_sap;	/* dest SAP */
+	    ((ulong *)(ud + 1))[1] = us->req_sap;	/* src SAP */
 	    putnext(q, mp);
 	}
     }
@@ -887,6 +1018,13 @@ ppplrput(q, mp)
     int proto;
 
     ppa = (struct upperstr *) q->q_ptr;
+    if (ppa == 0) {
+#if DEBUG
+	cmn_err(CE_CONT, "ppplrput: q = %x, ppa = 0??\n", q);
+#endif
+	freemsg(mp);
+	return 0;
+    }
     switch (mp->b_datap->db_type) {
     case M_FLUSH:
 	if (*mp->b_rptr & FLUSHW) {
@@ -896,30 +1034,42 @@ ppplrput(q, mp)
 	    freemsg(mp);
 	break;
 
+    case M_CTL:
+	freemsg(mp);
+	break;
+
     default:
-	if (mp->b_datap->db_type == M_DATA
-	    && (proto = PPP_PROTOCOL(mp->b_rptr)) < 0x8000
-	    && (us = find_dest(ppa, proto)) != 0) {
-	    /*
-	     * A data packet for some network protocol.
-	     * Queue it on the upper stream for that protocol.
-	     */
-	    if (canput(us->q))
-		putq(us->q, mp);
-	    else
-		putq(q, mp);
-	    break;
-	} else {
-	    /*
-	     * A control frame, a frame for an unknown protocol,
-	     * or some other message type.
-	     * Send it up to pppd via the control stream.
-	     */
-	    if (mp->b_datap->db_type >= QPCTL || canputnext(ppa->q))
-		putnext(ppa->q, mp);
-	    else
-		putq(q, mp);
+	if (mp->b_datap->db_type == M_DATA) {
+	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN
+		&& !pullupmsg(mp, PPP_HDRLEN)) {
+#if DEBUG
+		cmn_err(CE_CONT, "ppp_lrput: pullupmsg failed\n");
+#endif
+		freemsg(mp);
+		break;
+	    }
+	    proto = PPP_PROTOCOL(mp->b_rptr);
+	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
+		/*
+		 * A data packet for some network protocol.
+		 * Queue it on the upper stream for that protocol.
+		 */
+		if (canput(us->q))
+		    putq(us->q, mp);
+		else
+		    putq(q, mp);
+		break;
+	    }
 	}
+	/*
+	 * A control frame, a frame for an unknown protocol,
+	 * or some other message type.
+	 * Send it up to pppd via the control stream.
+	 */
+	if (mp->b_datap->db_type >= QPCTL || canputnext(ppa->q))
+	    putnext(ppa->q, mp);
+	else
+	    putq(q, mp);
 	break;
     }
 
@@ -958,4 +1108,40 @@ ppplrsrv(q)
 	}
     }
     return 0;
+}
+
+static int
+putctl2(q, type, code, val)
+    queue_t *q;
+    int type, code, val;
+{
+    mblk_t *mp;
+
+    mp = allocb(2, BPRI_HI);
+    if (mp == 0)
+	return 0;
+    mp->b_datap->db_type = type;
+    mp->b_wptr[0] = code;
+    mp->b_wptr[1] = val;
+    mp->b_wptr += 2;
+    putnext(q, mp);
+    return 1;
+}
+
+static int
+putctl4(q, type, code, val)
+    queue_t *q;
+    int type, code, val;
+{
+    mblk_t *mp;
+
+    mp = allocb(4, BPRI_HI);
+    if (mp == 0)
+	return 0;
+    mp->b_datap->db_type = type;
+    mp->b_wptr[0] = code;
+    ((short *)mp->b_wptr)[1] = val;
+    mp->b_wptr += 4;
+    putnext(q, mp);
+    return 1;
 }
