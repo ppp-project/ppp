@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.24 1998/03/25 01:27:01 paulus Exp $
+# $Id: Makefile.linux,v 1.25 1998/04/01 02:06:41 paulus Exp $
 #
 
 # Default installation locations
@@ -38,6 +38,10 @@ endif
 # MS-CHAP authentication protocol.
 CHAPMS=y
 USE_CRYPT=y
+ifneq ($(wildcard /usr/lib/libcrypt*),)
+HAVE_CRYPT_H=y
+endif
+
 
 HAS_SHADOW=y
 #USE_PAM=y
@@ -54,6 +58,9 @@ ifndef USE_CRYPT
 LIBS     := -ldes $(LIBS)
 else
 CFLAGS   += -DUSE_CRYPT=1
+ifneq ($(wildcard /usr/include/crypt.h),)
+CFLAGS   += -DHAVE_CRYPT_H=1
+endif
 endif
 PPPDOBJS += md4.o chap_ms.o
 ifdef MSLANMAN
