@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This script modifies the kernel sources in /sys to install
-# ppp-2.2.  It is intended to be run in the ppp-2.2 directory.
+# ppp-2.3.  It is intended to be run in the ppp-2.3 directory.
 #
 # Paul Mackerras	11-Dec-95
 
@@ -30,8 +30,7 @@ for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
   if [ -f $dest ]; then
     if ! cmp -s $f $dest; then
       echo "Copying $f to $dest"
-      mv -f $dest $dest.orig
-      echo " (old version saved in $dest.orig)"
+      mv -f $dest $dest.orig && echo " (old version saved in $dest.orig)"
       cp $f $dest
       DOMAKE=yes
     fi
