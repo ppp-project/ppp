@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.21 1999/09/15 23:49:05 masputra Exp $
+ * $Id: ppp.c,v 1.22 1999/09/17 05:59:00 paulus Exp $
  */
 
 /*
@@ -572,6 +572,9 @@ pppuwput(q, mp)
 #ifdef PRIOQ
     queue_t *tlq;
 #endif	/* PRIOQ */
+#ifdef NO_DLPI
+    upperstr_t *os;
+#endif
 
     us = (upperstr_t *) q->q_ptr;
     if (us == 0) {
