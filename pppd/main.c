@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.143 2004/11/06 05:42:29 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.144 2004/11/09 22:35:02 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -413,11 +413,6 @@ main(argc, argv)
     if (dryrun)
 	die(0);
 
-    /*
-     * Initialize system-dependent stuff.
-     */
-    sys_init();
-
     /* Make sure fds 0, 1, 2 are open to somewhere. */
     fd_devnull = open(_PATH_DEVNULL, O_RDWR);
     if (fd_devnull < 0)
@@ -428,6 +423,11 @@ main(argc, argv)
 	    fatal("Critical shortage of file descriptors: dup failed: %m");
 	fd_devnull = i;
     }
+
+    /*
+     * Initialize system-dependent stuff.
+     */
+    sys_init();
 
 #ifdef USE_TDB
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
