@@ -1,5 +1,5 @@
 /*
- * $Id: sendserver.c,v 1.2 2002/03/04 14:59:52 dfs Exp $
+ * $Id: sendserver.c,v 1.3 2002/03/05 15:36:17 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -20,7 +20,7 @@
 #include <pathnames.h>
 
 static void rc_random_vector (unsigned char *);
-static int rc_check_reply (AUTH_HDR *, char *, unsigned char *, unsigned char);
+static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned char);
 
 /*
  * Function: rc_pack_list
@@ -343,7 +343,7 @@ int rc_send_server (SEND_DATA *data, char *msg)
 
 	recv_auth = (AUTH_HDR *)recv_buffer;
 
-	result = rc_check_reply (recv_auth, secret, vector, data->seq_nbr);
+	result = rc_check_reply (recv_auth, BUFFER_LEN, secret, vector, data->seq_nbr);
 
 	data->receive_pairs = rc_avpair_gen(recv_auth);
 
@@ -388,7 +388,7 @@ int rc_send_server (SEND_DATA *data, char *msg)
  *
  */
 
-static int rc_check_reply (AUTH_HDR *auth, char *secret, unsigned char *vector,\
+static int rc_check_reply (AUTH_HDR *auth, int bufferlen, char *secret, unsigned char *vector,\
 			   unsigned char seq_nbr)
 {
 	int             secretlen;
@@ -398,17 +398,31 @@ static int rc_check_reply (AUTH_HDR *auth, char *secret, unsigned char *vector,\
 
 	totallen = ntohs (auth->length);
 
+	secretlen = strlen (secret);
+
+	/* Do sanity checks on packet length */
+	if ((totallen < 20) || (totallen > 4096))
+	{
+		rc_log(LOG_ERR, "rc_check_reply: received RADIUS server response with invalid length");
+		return (BADRESP_RC);
+	}
+
+	/* Verify buffer space, should never trigger with current buffer size and check above */
+	if ((totallen + secretlen) > bufferlen)
+	{
+		rc_log(LOG_ERR, "rc_check_reply: not enough buffer space to verify RADIUS server response");
+		return (BADRESP_RC);
+	}
 	/* Verify that id (seq. number) matches what we sent */
 	if (auth->id != seq_nbr)
 	{
-		rc_log(LOG_ERR, "check_radius_reply: received non-matching id in RADIUS server response");
+		rc_log(LOG_ERR, "rc_check_reply: received non-matching id in RADIUS server response");
 		return (BADRESP_RC);
 	}
 
 	/* Verify the reply digest */
 	memcpy ((char *) reply_digest, (char *) auth->vector, AUTH_VECTOR_LEN);
 	memcpy ((char *) auth->vector, (char *) vector, AUTH_VECTOR_LEN);
-	secretlen = strlen (secret);
 	memcpy ((char *) auth + totallen, secret, secretlen);
 	rc_md5_calc (calc_digest, (char *) auth, totallen + secretlen);
 
@@ -445,7 +459,7 @@ static int rc_check_reply (AUTH_HDR *auth, char *secret, unsigned char *vector,\
 		if (auth->code == PW_ACCOUNTING_RESPONSE)
 			return (OK_RC);
 #endif
-		rc_log(LOG_ERR, "check_radius_reply: received invalid reply digest from RADIUS server");
+		rc_log(LOG_ERR, "rc_check_reply: received invalid reply digest from RADIUS server");
 		return (BADRESP_RC);
 	}
 
