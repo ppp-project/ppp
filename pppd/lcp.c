@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.46 1999/11/15 01:51:51 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.47 1999/12/23 01:27:28 paulus Exp $";
 
 /*
  * TODO:
@@ -209,10 +209,10 @@ int lcp_loopbackfail = DEFLOOPBACKFAIL;
  */
 #define CILEN_VOID	2
 #define CILEN_CHAR	3
-#define CILEN_SHORT	4	/* CILEN_VOID + sizeof(short) */
-#define CILEN_CHAP	5	/* CILEN_VOID + sizeof(short) + 1 */
-#define CILEN_LONG	6	/* CILEN_VOID + sizeof(long) */
-#define CILEN_LQR	8	/* CILEN_VOID + sizeof(short) + sizeof(long) */
+#define CILEN_SHORT	4	/* CILEN_VOID + 2 */
+#define CILEN_CHAP	5	/* CILEN_VOID + 2 + 1 */
+#define CILEN_LONG	6	/* CILEN_VOID + 4 */
+#define CILEN_LQR	8	/* CILEN_VOID + 2 + 4 */
 #define CILEN_CBCP	3
 
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
@@ -919,11 +919,18 @@ lcp_nakci(f, p, len)
 	    if (go->neg_chap) {
 		/*
 		 * We were asking for CHAP/MD5; they must want a different
-		 * algorithm.  If they can't do MD5, we'll have to stop
+		 * algorithm.  If they can't do MD5, we can ask for M$-CHAP
+		 * if we support it, otherwise we'll have to stop
 		 * asking for CHAP.
 		 */
-		if (cichar != go->chap_mdtype)
-		    try.neg_chap = 0;
+		if (cichar != go->chap_mdtype) {
+#ifdef CHAPMS
+		    if (cichar == CHAP_MICROSOFT)
+			go->chap_mdtype = CHAP_MICROSOFT;
+		    else
+#endif /* CHAPMS */
+			try.neg_chap = 0;
+		}
 	    } else {
 		/*
 		 * Stop asking for PAP if we were asking for it.
@@ -1324,7 +1331,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    GETSHORT(cishort, p);
 
 	    /*
-	     * Authtype must be UPAP or CHAP.
+	     * Authtype must be PAP or CHAP.
 	     *
 	     * Note: if both ao->neg_upap and ao->neg_chap are set,
 	     * and the peer sends a Configure-Request with two
@@ -1347,6 +1354,8 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		    PUTCHAR(CILEN_CHAP, nakp);
 		    PUTSHORT(PPP_CHAP, nakp);
 		    PUTCHAR(ao->chap_mdtype, nakp);
+		    /* XXX if we can do CHAP_MICROSOFT as well, we should
+		       probably put in another option saying so */
 		    break;
 		}
 		ho->neg_upap = 1;
