@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.24 1995/06/12 11:22:49 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.25 1995/07/11 06:40:58 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -347,6 +347,7 @@ main(argc, argv)
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
 	    wait_input(timeleft(&timo));
 	    calltimeout();
+	    get_input();
 	    if (kill_link) {
 		lcp_close(0);
 		kill_link = 0;
@@ -358,7 +359,6 @@ main(argc, argv)
 		}
 		open_ccp_flag = 0;
 	    }
-	    get_input();
 	    reap_kids();	/* Don't leave dead kids lying around */
 	}
 
