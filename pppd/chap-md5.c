@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id"
+#define RCSID	"$Id: chap-md5.c,v 1.2 2003/11/27 22:21:46 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>
