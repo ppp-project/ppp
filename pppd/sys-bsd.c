@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.24 1996/04/04 04:05:34 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.25 1996/05/27 00:00:12 paulus Exp $";
 #endif
 
 /*
@@ -91,11 +91,6 @@ static int get_ether_addr __P((u_int32_t, struct sockaddr_dl *));
 void
 sys_init()
 {
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
@@ -140,7 +135,6 @@ sys_close()
 	close(loop_slave);
 	close(loop_master);
     }
-    closelog();
 }
 
 /*
@@ -151,20 +145,6 @@ sys_check_options()
 {
 }
 
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
 
 /*
  * ppp_available - check whether the system has any ppp interfaces
@@ -814,31 +794,6 @@ get_idle_time(u, ip)
 
 
 /*
- * set_filters - transfer the pass and active filters to the kernel.
- */
-int
-set_filters(pass, active)
-    struct bpf_program *pass, *active;
-{
-    int ret = 1;
-
-    if (pass->bf_len > 0) {
-	if (ioctl(ppp_fd, PPPIOCSPASS, pass) < 0) {
-	    syslog(LOG_ERR, "Couldn't set pass-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    if (active->bf_len > 0) {
-	if (ioctl(ppp_fd, PPPIOCSACTIVE, active) < 0) {
-	    syslog(LOG_ERR, "Couldn't set active-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    return ret;
-}
-
-
-/*
  * sifvjcomp - config tcp header compression
  */
 int
@@ -872,7 +827,6 @@ sifup(u)
     int u;
 {
     struct ifreq ifr;
-    struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
@@ -885,12 +839,6 @@ sifup(u)
 	return 0;
     }
     if_is_up = 1;
-    npi.protocol = PPP_IP;
-    npi.mode = NPMODE_PASS;
-    if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
-	syslog(LOG_ERR, "ioctl(set IP mode to PASS): %m");
-	return 0;
-    }
     return 1;
 }
 
