@@ -1571,47 +1571,39 @@ ppp_registered(void)
 {
     int local_fd;
     int init_disc = -1;
-    int initfdflags;
+    int mfd = -1;
+    int ret = 0;
 
-    local_fd = open(devnam, O_NONBLOCK | O_RDWR, 0);
-    if (local_fd < 0) {
-	error("Failed to open %s: %m(%d)", devnam, errno);
-	return 0;
+    if (devnam[0] == 0) {
+	/* running with notty or pty option */
+	char slave[16];
+	if (!get_pty(&mfd, &local_fd, slave, 0))
+	    return 0;
+    } else {
+	local_fd = open(devnam, O_NONBLOCK | O_RDWR, 0);
+	if (local_fd < 0) {
+	    error("Failed to open %s: %m(%d)", devnam, errno);
+	    return 0;
+	}
     }
 
-    initfdflags = fcntl(local_fd, F_GETFL);
-    if (initfdflags == -1) {
-	error("Couldn't get device fd flags: %m(%d)", errno);
-	close (local_fd);
-	return 0;
-    }
-
-    initfdflags &= ~O_NONBLOCK;
-    fcntl(local_fd, F_SETFL, initfdflags);
 /*
- * Read the initial line dicipline and try to put the device into the
+ * Read the initial line discipline and try to put the device into the
  * PPP dicipline.
  */
     if (ioctl(local_fd, TIOCGETD, &init_disc) < 0) {
 	error("ioctl(TIOCGETD): %m(%d)", errno);
-	close (local_fd);
-	return 0;
-    }
-    
-    if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0) {
-	error("ioctl(TIOCSETD): %m(%d)", errno);
-	close (local_fd);
-	return 0;
-    }
-    
-    if (ioctl(local_fd, TIOCSETD, &init_disc) < 0) {
-	error("ioctl(TIOCSETD): %m(%d)", errno);
-	close (local_fd);
-	return 0;
-    }
+    } else if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0) {
+	error("ioctl(TIOCSETD(PPP)): %m(%d)", errno);
+    } else if (ioctl(local_fd, TIOCSETD, &init_disc) < 0) {
+	error("ioctl(TIOCSETD(%d)): %m(%d)", init_disc, errno);
+    } else
+	ret = 1;
     
     close (local_fd);
-    return 1;
+    if (mfd >= 0)
+	close(mfd);
+    return ret;
 }
 
 /********************************************************************
