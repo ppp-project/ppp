@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.138 2004/10/28 00:32:32 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.139 2004/11/04 09:46:50 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -125,6 +125,8 @@ int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
 int ppp_session_number;		/* Session number, for channels with such a
 				   concept (eg PPPoE) */
+int childwait_done;		/* have timed out waiting for children */
+
 #ifdef USE_TDB
 TDB_CONTEXT *pppdb;		/* database for storing status etc. */
 #endif
@@ -210,7 +212,8 @@ static void toggle_debug __P((int));
 static void open_ccp __P((int));
 static void bad_signal __P((int));
 static void holdoff_end __P((void *));
-static int reap_kids __P((int waitfor));
+static int reap_kids __P((void));
+static void childwait_end __P((void *));
 
 #ifdef USE_TDB
 static void update_db_entry __P((void));
@@ -627,16 +630,21 @@ main(argc, argv)
     }
 
     /* Wait for scripts to finish */
-    /* XXX should have a timeout here */
-    while (n_children > 0) {
+    reap_kids();
+    if (n_children > 0) {
+	if (child_wait > 0)
+	    TIMEOUT(childwait_end, NULL, child_wait);
 	if (debug) {
 	    struct subprocess *chp;
 	    dbglog("Waiting for %d child processes...", n_children);
 	    for (chp = children; chp != NULL; chp = chp->next)
 		dbglog("  script %s, pid %d", chp->prog, chp->pid);
 	}
-	if (reap_kids(1) < 0)
-	    break;
+	while (n_children > 0 && !childwait_done) {
+	    handle_events();
+	    if (kill_link && !childwait_done)
+		childwait_end(NULL);
+	}
     }
 
     die(status);
@@ -677,8 +685,8 @@ handle_events()
 	got_sigterm = 0;
     }
     if (got_sigchld) {
-	reap_kids(0);	/* Don't leave dead kids lying around */
 	got_sigchld = 0;
+	reap_kids();	/* Don't leave dead kids lying around */
     }
     if (got_sigusr2) {
 	open_ccp_flag = 1;
@@ -1735,22 +1743,37 @@ record_child(pid, prog, done, arg)
     }
 }
 
+/*
+ * childwait_end - we got fed up waiting for the child processes to
+ * exit, send them all a SIGTERM.
+ */
+static void
+childwait_end(arg)
+    void *arg;
+{
+    struct subprocess *chp;
+
+    for (chp = children; chp != NULL; chp = chp->next) {
+	if (debug)
+	    dbglog("sending SIGTERM to process %d", chp->pid);
+	kill(chp->pid, SIGTERM);
+    }
+    childwait_done = 1;
+}
 
 /*
  * reap_kids - get status from any dead child processes,
  * and log a message for abnormal terminations.
  */
 static int
-reap_kids(waitfor)
-    int waitfor;
+reap_kids()
 {
     int pid, status;
     struct subprocess *chp, **prevp;
 
     if (n_children == 0)
 	return 0;
-    while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
-	   && pid != 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) != -1 && pid != 0) {
 	for (prevp = &children; (chp = *prevp) != NULL; prevp = &chp->next) {
 	    if (chp->pid == pid) {
 		--n_children;

@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.93 2004/10/28 00:15:08 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.94 2004/11/04 09:46:50 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -113,6 +113,7 @@ char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
 bool	dryrun;			/* print out option values and exit */
 char	*domain;		/* domain name set by domain option */
+int	child_wait = 5;		/* # seconds to wait for children at exit */
 
 #ifdef MAXOCTETS
 unsigned int  maxoctets = 0;    /* default - no limit */
@@ -269,6 +270,9 @@ option_t general_options[] = {
       "Print out option values after parsing all options", 1 },
     { "dryrun", o_bool, &dryrun,
       "Stop after parsing, printing, and checking options", 1 },
+
+    { "child-timeout", o_int, &child_wait,
+      "Number of seconds to wait for child processes at exit" },
 
 #ifdef HAVE_MULTILINK
     { "multilink", o_bool, &multilink,
