@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.33 1998/03/25 03:08:47 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.34 1998/04/28 23:38:09 paulus Exp $";
 #endif
 
 /*
@@ -1411,9 +1411,9 @@ ipcp_printpkt(p, plen, printer, arg)
 		if (olen == CILEN_ADDRS) {
 		    p += 2;
 		    GETLONG(cilong, p);
-		    printer(arg, "addrs %s", ip_ntoa(htonl(cilong)));
+		    printer(arg, "addrs %I", htonl(cilong));
 		    GETLONG(cilong, p);
-		    printer(arg, " %s", ip_ntoa(htonl(cilong)));
+		    printer(arg, " %I", htonl(cilong));
 		}
 		break;
 	    case CI_COMPRESSTYPE:
@@ -1437,20 +1437,20 @@ ipcp_printpkt(p, plen, printer, arg)
 		if (olen == CILEN_ADDR) {
 		    p += 2;
 		    GETLONG(cilong, p);
-		    printer(arg, "addr %s", ip_ntoa(htonl(cilong)));
+		    printer(arg, "addr %I", htonl(cilong));
 		}
 		break;
 	    case CI_MS_DNS1:
 	    case CI_MS_DNS2:
 	        p += 2;
 		GETLONG(cilong, p);
-		printer(arg, "dns-addr %s", ip_ntoa(htonl(cilong)));
+		printer(arg, "ms-dns %I", htonl(cilong));
 		break;
 	    case CI_MS_WINS1:
 	    case CI_MS_WINS2:
 	        p += 2;
 		GETLONG(cilong, p);
-		printer(arg, "wins-addr %s", ip_ntoa(htonl(cilong)));
+		printer(arg, "ms-wins %I", htonl(cilong));
 		break;
 	    }
 	    while (p < optend) {
