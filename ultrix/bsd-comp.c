@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.1 1994/11/21 05:02:49 paulus Exp $
+ * $Id: bsd-comp.c,v 1.2 1994/11/28 01:41:29 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -51,7 +51,7 @@
 #include "ppp_defs.h"
 #include "if_ppp.h"
 
-#define PACKET	struct mbuf
+#define PACKETPTR	struct mbuf *
 #include "ppp-comp.h"
 
 /*
@@ -207,7 +207,8 @@ struct compressor ppp_bsd_compress = {
  * clear the dictionary
  */
 static void
-bsd_clear(struct bsd_db *db)
+bsd_clear(db)
+    struct bsd_db *db;
 {
     db->clear_count++;
     db->max_ent = FIRST-1;
@@ -233,7 +234,8 @@ bsd_clear(struct bsd_db *db)
  * must compute the same ratio.
  */
 static int				/* 1=output CLEAR */
-bsd_check(struct bsd_db *db)
+bsd_check(db)
+    struct bsd_db *db;
 {
     u_int new_ratio;
 
@@ -278,6 +280,7 @@ bsd_comp_stats(state, stats)
     struct compstat *stats;
 {
     struct bsd_db *db = (struct bsd_db *) state;
+    u_int out;
 
     stats->unc_bytes = db->uncomp_bytes;
     stats->unc_packets = db->uncomp_count;
@@ -285,9 +288,14 @@ bsd_comp_stats(state, stats)
     stats->comp_packets = db->comp_count;
     stats->inc_bytes = db->incomp_bytes;
     stats->inc_packets = db->incomp_count;
-    stats->ratio = (double) db->in_count;
-    if (db->bytes_out != 0)
-	stats->ratio /= db->bytes_out;
+    stats->ratio = db->in_count;
+    out = db->bytes_out;
+    if (stats->ratio <= 0x7fffff)
+	stats->ratio <<= 8;
+    else
+	out >>= 8;
+    if (out != 0)
+	stats->ratio /= out;
 }
 
 /*
@@ -349,8 +357,8 @@ bsd_alloc(options, opt_len, decomp)
     }
 
     maxmaxcode = MAXCODE(bits);
-    newlen = sizeof(*db) + (hsize-1)*(sizeof(db->dict[0]));
-    MALLOC(db, struct bsd_db *, newlen, M_DEVBUF, M_NOWAIT);
+    newlen = sizeof(*db) + (hsize-1) * (sizeof(db->dict[0]));
+    KM_ALLOC(db, struct bsd_db *, newlen, KM_DEVBUF, KM_NOARG);
     if (!db)
 	return NULL;
     bzero(db, sizeof(*db) - sizeof(db->dict));
@@ -358,10 +366,10 @@ bsd_alloc(options, opt_len, decomp)
     if (!decomp) {
 	db->lens = NULL;
     } else {
-	MALLOC(db->lens, u_short *, (maxmaxcode+1) * sizeof(db->lens[0]),
-	       M_DEVBUF, M_NOWAIT);
+	KM_ALLOC(db->lens, u_short *, (maxmaxcode+1) * sizeof(db->lens[0]),
+		 KM_DEVBUF, KM_NOARG);
 	if (!db->lens) {
-	    FREE(db, M_DEVBUF);
+	    KM_FREE(db, KM_DEVBUF);
 	    return NULL;
 	}
     }
@@ -382,8 +390,8 @@ bsd_free(state)
     struct bsd_db *db = (struct bsd_db *) state;
 
     if (db->lens)
-	FREE(db->lens, M_DEVBUF);
-    FREE(db, M_DEVBUF);
+	KM_FREE(db->lens, KM_DEVBUF);
+    KM_FREE(db, KM_DEVBUF);
 }
 
 static void *
@@ -468,7 +476,7 @@ bsd_decomp_init(state, options, opt_len, unit, mru, debug)
  *	One change from the BSD compress command is that when the
  *	code size expands, we do not output a bunch of padding.
  */
-int					/* new slen */
+static int				/* new slen */
 bsd_compress(state, mret, mp, slen, maxolen)
     void *state;
     struct mbuf **mret;		/* return compressed mbuf chain here */
@@ -500,9 +508,10 @@ bsd_compress(state, mret, mp, slen, maxolen)
 	    MGET(m->m_next, M_DONTWAIT, MT_DATA);	\
 	    m = m->m_next;				\
 	    if (m) {					\
-		m->m_len = 0;				\
-		if (maxolen - olen > MLEN)		\
+		if (maxolen - olen > MLEN) {		\
 		    MCLGET(m, clp);			\
+		}					\
+		m->m_len = 0;				\
 		wptr = mtod(m, u_char *);		\
 		cp_end = wptr + M_TRAILINGSPACE(m);	\
 	    } else					\
@@ -542,9 +551,10 @@ bsd_compress(state, mret, mp, slen, maxolen)
     MGET(m, M_DONTWAIT, MT_DATA);
     *mret = m;
     if (m != NULL) {
-	m->m_len = 0;
-	if (maxolen > MLEN)
+	if (maxolen > MLEN) {
 	    MCLGET(m, clp);
+	}
+	m->m_len = 0;
 	wptr = mtod(m, u_char *);
 	cp_end = wptr + M_TRAILINGSPACE(m);
     } else
@@ -635,7 +645,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
     OUTPUT(ent);		/* output the last code */
     db->bytes_out += olen;
     db->in_count += ilen;
-/*    if (bitno < 32)
+    if (bitno < 32)
 	++db->bytes_out;	/* count complete bytes */
 
     if (bsd_check(db))
@@ -662,10 +672,12 @@ bsd_compress(state, mret, mp, slen, maxolen)
 
     db->uncomp_bytes += ilen;
     ++db->uncomp_count;
-    if (olen + PPP_HDRLEN + BSD_OVHD > maxolen && *mret != NULL) {
+    if (olen + PPP_HDRLEN + BSD_OVHD > maxolen) {
 	/* throw away the compressed stuff if it is longer than uncompressed */
-	m_freem(*mret);
-	*mret = NULL;
+	if (*mret != NULL) {
+	    m_freem(*mret);
+	    *mret = NULL;
+	}
 	++db->incomp_count;
 	db->incomp_bytes += ilen;
     } else {
@@ -785,10 +797,10 @@ bsd_incomp(state, dmsg)
     db->in_count += ilen;
     (void)bsd_check(db);
 
-    ++db->comp_count;
-    db->comp_bytes += bitno / 8;
     ++db->incomp_count;
     db->incomp_bytes += ilen;
+    ++db->uncomp_count;
+    db->uncomp_bytes += ilen;
 
     /* Increase code size if we would have without the packet
      * boundary and as the decompressor will.
@@ -799,9 +811,22 @@ bsd_incomp(state, dmsg)
 
 
 /*
- * Decompress "BSD Compress"
+ * Decompress "BSD Compress".
+ *
+ * Because of patent problems, we return DECOMP_ERROR for errors
+ * found by inspecting the input data and for system problems, but
+ * DECOMP_FATALERROR for any errors which could possibly be said to
+ * be being detected "after" decompression.  For DECOMP_ERROR,
+ * we can issue a CCP reset-request; for DECOMP_FATALERROR, we may be
+ * infringing a patent of Motorola's if we do, so we take CCP down
+ * instead.
+ *
+ * Given that the frame has the correct sequence number and a good FCS,
+ * errors such as invalid codes in the input most likely indicate a
+ * bug, so we return DECOMP_FATALERROR for them in order to turn off
+ * compression, even though they are detected by inspecting the input.
  */
-int
+static int
 bsd_decompress(state, cmp, dmpp)
     void *state;
     struct mbuf *cmp, **dmpp;
@@ -862,9 +887,9 @@ bsd_decompress(state, cmp, dmpp)
     if (dmp == NULL)
 	return DECOMP_ERROR;
     mret = dmp;
-    dmp->m_len = 0;
     dmp->m_next = NULL;
     MCLGET(dmp, clp);
+    dmp->m_len = 0;
     wptr = mtod(dmp, u_char *);
     space = M_TRAILINGSPACE(dmp) - PPP_HDRLEN + 1;
 
@@ -922,7 +947,7 @@ bsd_decompress(state, cmp, dmpp)
 		}
 	    }
 	    bsd_clear(db);
-	    explen = 0;
+	    explen = ilen = 0;
 	    break;
 	}
 
@@ -974,10 +999,10 @@ bsd_decompress(state, cmp, dmpp)
 		m_freem(mret);
 		return DECOMP_ERROR;
 	    }
-	    m->m_len = 0;
 	    m->m_next = NULL;
 	    dmp->m_next = m;
 	    MCLGET(m, clp);
+	    m->m_len = 0;
 	    space = M_TRAILINGSPACE(m) - (codelen + extra);
 	    if (space < 0) {
 		/* now that's what I call *compression*. */
