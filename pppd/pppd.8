@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.10 1995/05/01 01:43:54 paulus Exp $
+.\" $Id: pppd.8,v 1.11 1995/05/01 01:46:40 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -36,6 +36,7 @@ NCP for establishing and configuring the Internet Protocol (IP)
 .I <tty_name>
 Communicate over the named device.  The string "/dev/"
 is prepended if necessary.  If no device name is given,
+or if the name of the controlling terminal is given,
 .I pppd
 will use the controlling terminal, and will not fork to put itself in
 the background.
