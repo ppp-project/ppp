@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.26 1996/07/01 01:13:53 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.27 1996/07/01 05:32:17 paulus Exp $";
 #endif
 
 /*
@@ -1222,8 +1222,9 @@ ipcp_down(f)
 {
     u_int32_t ouraddr, hisaddr;
 
-    np_down(f->unit, PPP_IP);
     IPCPDEBUG((LOG_INFO, "ipcp: down"));
+    np_down(f->unit, PPP_IP);
+    sifvjcomp(f->unit, 0, 0, 0);
 
     /*
      * If we are doing dial-on-demand, set the interface
