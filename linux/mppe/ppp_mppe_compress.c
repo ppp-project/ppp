@@ -428,14 +428,19 @@ mppe_decompress(void *arg, unsigned char *ibuf, int isize, unsigned char *obuf,
 	return DECOMP_ERROR;
     }
 
-    /* Make sure we have enough room to decrypt the packet. */
-    if (osize < isize - MPPE_OVHD - 2) {
+    /*
+     * Make sure we have enough room to decrypt the packet.
+     * Note that for our test we only subtract 1 byte whereas in
+     * mppe_compress() we added 2 bytes (+MPPE_OVHD);
+     * this is to account for possible PFC.
+     */
+    if (osize < isize - MPPE_OVHD - 1) {
 	printk(KERN_DEBUG "mppe_decompress[%d]: osize too small! "
 	       "(have: %d need: %d)\n", state->unit,
-	       osize, isize - MPPE_OVHD - 2);
+	       osize, isize - MPPE_OVHD - 1);
 	return DECOMP_ERROR;
     }
-    osize = isize - MPPE_OVHD - 2;
+    osize = isize - MPPE_OVHD - 2;	/* assume no PFC */
 
     ccount = MPPE_CCOUNT(ibuf);
     if (state->debug >= 7)
@@ -537,8 +542,26 @@ mppe_decompress(void *arg, unsigned char *ibuf, int isize, unsigned char *obuf,
     isize -= PPP_HDRLEN + MPPE_OVHD;	/* -6 */
 					/* net osize: isize-4 */
 
-    /* And finally, decrypt the packet. */
-    arcfour_decrypt(&state->arcfour_context, ibuf, isize, obuf);
+    /*
+     * Decrypt the first byte in order to check if it is
+     * a compressed or uncompressed protocol field.
+     */
+    arcfour_decrypt(&state->arcfour_context, ibuf, 1, obuf);
+
+    /*
+     * Do PFC decompression.
+     * This would be nicer if we were given the actual sk_buff
+     * instead of a char *.
+     */
+    if ((obuf[0] & 0x01) != 0) {
+	obuf[1] = obuf[0];
+	obuf[0] = 0;
+	obuf++;
+	osize++;
+    }
+
+    /* And finally, decrypt the rest of the packet. */
+    arcfour_decrypt(&state->arcfour_context, ibuf + 1, isize - 1, obuf + 1);
 
     state->stats.unc_bytes += osize;
     state->stats.unc_packets++;
