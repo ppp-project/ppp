@@ -69,8 +69,39 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.8.
+What's new in ppp-2.3.9.
 ************************
+
+* Support for the new generic PPP layer under development for the
+  Linux kernel.
+
+* You can now place extra options to apply to specific users at the
+  end of the line with their password in the pap-secrets or
+  chap-secrets file, separated from the IP address(es) with a "--"
+  separator.  These options are parsed after the peer is authenticated
+  but before network protocol (IPCP, IPXCP) or CCP negotiation
+  commences.
+
+* Pppd will apply the holdoff period if the link was terminated by the
+  peer.  It doesn't apply it if the link was terminated because the
+  local pppd thought it was idle.
+
+* The `nodefaultip' option can be used in demand mode to say that pppd
+  should not suggest its local IP address to the peer.
+
+* The `init' option has been added; this causes pppd to run a script
+  to initialize the serial device (e.g. by sending an init string to
+  the modem).  Unlike the connect option, this can be used in a
+  dial-in situation.  (Thanks to Tobias Ringstrom.)
+
+* There is a new `logfile' option to send log messages to a file as
+  well as syslog.
+
+* Sundry bugs fixed.
+
+
+What was new in ppp-2.3.8.
+**************************
 
 * The exit status of pppd will now indicate whether the link was
   successfully established, or if not, what error was encountered.
@@ -423,4 +454,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.17 1999/05/13 00:30:16 paulus Exp $)
+($Id: README,v 1.18 1999/07/23 07:07:33 paulus Exp $)

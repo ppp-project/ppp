@@ -81,7 +81,7 @@
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #if !defined(lint)
-static char sccsid[] = "$Revision: 1.9 $ ($Date: 1999/05/13 00:35:56 $)";
+static char sccsid[] = "$Revision: 1.10 $ ($Date: 1999/07/23 07:07:33 $)";
 #endif /* not lint*/
 
 #define KERNEL 1
@@ -285,7 +285,7 @@ pppattach()
     register struct ppp_softc *sc;
     register int i = 0;
     
-    IOLog("\nPPP version 2.3.8-%s for NeXTSTEP and OPENSTEP\n", PPPVERSION);
+    IOLog("\nPPP version 2.3.9-%s for NeXTSTEP and OPENSTEP\n", PPPVERSION);
     IOLog("by  Stephen Perkins, Philip Prindeville, and Pete French\n");
     if (install_ppp_ld() < 0) {
 	IOLog("ppp: Could not install line discipline\n");

@@ -1,6 +1,6 @@
 # ppp top level makefile for NeXT systems
 #
-# $Id: Makefile.top,v 1.7 1999/05/13 00:35:56 paulus Exp $
+# $Id: Makefile.top,v 1.8 1999/07/23 07:07:33 paulus Exp $
 #
 
 # Change the values of ARCHFLAGS to include the 
@@ -155,7 +155,7 @@ NEXTPORT = \
 #
 
 portdist: 
-	echo NeXT-ppp2.3.8-`sed -e '/version_string/!d' \
+	echo NeXT-ppp2.3.9-`sed -e '/version_string/!d' \
              -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q ./NeXT/NeXT_Version.h` > .fname
 	rm -rf `cat .fname`
 	mkdir `cat .fname`

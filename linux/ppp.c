@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.29 1999/05/14 02:52:08 paulus Exp $ */
+/* $Id: ppp.c,v 1.30 1999/07/23 07:07:34 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -104,7 +104,7 @@
 #endif
 
 #undef PPP_VERSION
-#define PPP_VERSION	"2.3.8"
+#define PPP_VERSION	"2.3.9"
 
 #if LINUX_VERSION_CODE >= VERSION(2,1,4)
 
