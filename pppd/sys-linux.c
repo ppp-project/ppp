@@ -49,28 +49,38 @@
 #define MAX_ADDR_LEN 7
 #endif
 
+#if __GLIBC__ >= 2
+#include <net/ppp_defs.h>
+#include <net/if_arp.h>
+#include <net/if_ppp.h>
+#include <net/route.h>
+#include <netinet/if_ether.h>
+#else
 #include <linux/if.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_arp.h>
 #include <linux/if_ppp.h>
 #include <linux/route.h>
 #include <linux/if_ether.h>
+#endif
 #include <netinet/in.h>
 
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
-
-#ifndef RTF_DEFAULT  /* Normally in <linux/route.h> from <net/route.h> */
-#define RTF_DEFAULT  0
-#endif
+#include "patchlevel.h"
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
-#endif
+#include <linux/ipx.h>
+#endif /* IPX_CHANGE */
 
 #ifdef LOCKLIB
 #include <sys/locks.h>
+#endif
+
+#ifndef RTF_DEFAULT  /* Normally in <linux/route.h> from <net/route.h> */
+#define RTF_DEFAULT  0
 #endif
 
 #define ok_error(num) ((num)==EIO)
@@ -138,22 +148,27 @@ extern u_char	inpacket_buf[];	/* borrowed from main.c */
  */
 
 extern int hungup;
-#define still_ppp() (hungup == 0)
 
 #ifndef LOCK_PREFIX
 #define LOCK_PREFIX	"/var/lock/LCK.."
 #endif
 
-/********************************************************************
- *
- * Functions to read and set the flags value in the device driver
- */
-
 static void set_ppp_fd (int new_fd)
-  {    
-    SYSDEBUG ((LOG_DEBUG, "setting ppp_fd to %d\n", ppp_fd));
-    ppp_fd = new_fd;
-  }
+{    
+	SYSDEBUG ((LOG_DEBUG, "setting ppp_fd to %d\n", ppp_fd));
+	ppp_fd = new_fd;
+}
+
+static int still_ppp(void)
+{
+	if (!hungup || ppp_fd == slave_fd)
+		return 1;
+	if (slave_fd >= 0) {
+		set_ppp_fd(slave_fd);
+		return 1;
+	}
+	return 0;
+}
 
 /********************************************************************
  *
@@ -570,6 +585,12 @@ struct speed {
 #endif
 #ifdef EXTB
     { 38400, EXTB },
+#endif
+#ifdef B230400
+    { 230400, B230400 },
+#endif
+#ifdef B460800
+    { 460800, B460800 },
 #endif
     { 0, 0 }
 };
@@ -1646,7 +1667,7 @@ static void decode_version (char *buf, int *version,
 
 /********************************************************************
  *
- * Procedure to determine if the PPP line dicipline is registered.
+ * Procedure to determine if the PPP line discipline is registered.
  */
 
 int
@@ -1758,7 +1779,7 @@ int ppp_available(void)
 	  "This system lacks kernel support for PPP.  This could be because\n"
 	  "the PPP kernel module is not loaded, or because the kernel is\n"
 	  "not configured for PPP.  See the README.linux file in the\n"
-	  "ppp-2.3.2 distribution.\n";
+	  "ppp-2.3.3 distribution.\n";
       }
 /*
  *  This is the PPP device. Validate the version of the driver at this
@@ -1789,7 +1810,7 @@ int ppp_available(void)
 /*
  * Validate the version of the driver against the version that we used.
  */
-	decode_version (PPP_VERSION,
+	decode_version (VERSION,
 			&my_version,
 			&my_modification,
 			&my_patch);
@@ -2314,7 +2335,7 @@ open_ppp_loopback(void)
     master_fd = -1;
     for (i = 0; i < 64; ++i) {
       sprintf(loop_name, "/dev/pty%c%x", 'p' + i / 16, i % 16);
-      master_fd = open(loop_name, O_RDWR, 0);
+      master_fd = open(loop_name, O_RDWR | O_NOCTTY, 0);
       if (master_fd >= 0)
 	break;
     }
@@ -2324,7 +2345,7 @@ open_ppp_loopback(void)
     }
     SYSDEBUG((LOG_DEBUG, "using %s for loopback", loop_name));
     loop_name[5] = 't';
-    slave_fd = open(loop_name, O_RDWR, 0);
+    slave_fd = open(loop_name, O_RDWR | O_NOCTTY, 0);
     if (slave_fd < 0) {
       syslog(LOG_ERR, "Couldn't open %s for loopback: %m", loop_name);
       die(1);
@@ -2430,8 +2451,6 @@ sifnpmode(u, proto, mode)
   }
 
 
-#include <linux/ipx.h>
-
 /********************************************************************
  *
  * sipxfaddr - Config the interface IPX networknumber
