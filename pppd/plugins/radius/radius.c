@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.21 2003/11/25 11:50:10 paulus Exp $";
+"$Id: radius.c,v 1.22 2004/01/11 08:01:30 paulus Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -425,7 +425,7 @@ radius_chap_verify(char *user, char *ourname, int id,
     case CHAP_MICROSOFT_V2:
     {
 	/* MS-CHAP-Challenge and MS-CHAP2-Response */
-	MS_Chap2Response *rmd = (MS_Chap2Response *) (response + 1);
+	MS_Chap2Response *rmd = (MS_Chap2Response *) response;
 	u_char *p = cpassword;
 
 	if (response_len != MS_CHAP2_RESPONSE_LEN)
