@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.62 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.63 2003/06/29 10:06:14 paulus Exp $"
 
 /*
  * TODO:
@@ -91,6 +91,7 @@ static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
 static int ipcp_is_up;			/* have called np_up() */
+static int ipcp_is_open;		/* haven't called np_finished() */
 static bool ask_for_local;		/* request our address from peer */
 static char vj_value[8];		/* string form of vj option value */
 static char netmask_str[20];		/* string form of netmask value */
@@ -602,6 +603,7 @@ ipcp_open(unit)
     int unit;
 {
     fsm_open(&ipcp_fsm[unit]);
+    ipcp_is_open = 1;
 }
 
 
@@ -1894,7 +1896,10 @@ static void
 ipcp_finished(f)
     fsm *f;
 {
-    np_finished(f->unit, PPP_IP);
+	if (ipcp_is_open) {
+		ipcp_is_open = 0;
+		np_finished(f->unit, PPP_IP);
+	}
 }
 
 

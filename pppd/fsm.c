@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: fsm.c,v 1.19 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: fsm.c,v 1.20 2003/06/29 10:06:14 paulus Exp $"
 
 /*
  * TODO:
@@ -406,6 +406,7 @@ fsm_rconfreq(f, id, inp, len)
 	if( f->callbacks->down )
 	    (*f->callbacks->down)(f);	/* Inform upper layers */
 	fsm_sconfreq(f, 0);		/* Send initial Configure-Request */
+	f->state = REQSENT;
 	break;
 
     case STOPPED:
@@ -626,6 +627,7 @@ fsm_rtermack(f)
 	if (f->callbacks->down)
 	    (*f->callbacks->down)(f);	/* Inform upper layers */
 	fsm_sconfreq(f, 0);
+	f->state = REQSENT;
 	break;
     }
 }
