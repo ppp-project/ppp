@@ -70,7 +70,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: ppp_tty.c,v 1.2 1995/05/02 01:00:44 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.3 1995/08/16 01:36:40 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -157,7 +157,7 @@ static void	ppplogchar __P((struct ppp_softc *, int));
 
 static struct linesw pppdisc = {
 	pppopen, pppclose, pppread, pppwrite, ppptioctl,
-	pppinput, pppstart, nullmodem
+	pppinput, pppstart, ttymodem
 };
 
 void
@@ -301,8 +301,7 @@ pppread(tp, uio, flag)
 	}
 	if (sc->sc_inq.ifq_head != NULL)
 	    break;
-	if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
-	    && (tp->t_state & TS_ISOPEN)) {
+	if ((tp->t_state & TS_CONNECTED) == 0 && (tp->t_state & TS_ISOPEN)) {
 	    splx(s);
 	    return 0;		/* end of file */
 	}
@@ -310,7 +309,7 @@ pppread(tp, uio, flag)
 	    splx(s);
 	    return (EWOULDBLOCK);
 	}
-	error = ttysleep(tp, (caddr_t)&tp->t_rawq, TTIPRI|PCATCH, ttyin, 0);
+	error = ttysleep(tp, TSA_HUP_OR_INPUT(tp), TTIPRI | PCATCH, "pppin", 0);
 	if (error) {
 	    splx(s);
 	    return error;
@@ -345,7 +344,7 @@ pppwrite(tp, uio, flag)
     struct sockaddr dst;
     int len, error;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0)
+    if ((tp->t_state & TS_CONNECTED) == 0)
 	return 0;		/* wrote 0 bytes */
     if (tp->t_line != PPPDISC)
 	return (EINVAL);
@@ -543,7 +542,7 @@ pppstart(tp)
     int n, s, ndone, done, idle;
     struct mbuf *m2;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
+    if ((tp->t_state & TS_CONNECTED) == 0
 	|| sc == NULL || tp != (struct tty *) sc->sc_devp) {
 	if (tp->t_oproc != NULL)
 	    (*tp->t_oproc)(tp);
@@ -695,7 +694,7 @@ pppstart(tp)
     }
 
     /*
-     * If there is stuff in the output queue, send it now.
+     * Send anything that may be in the output queue.
      * We are being called in lieu of ttstart and must do what it would.
      */
     if (tp->t_oproc != NULL)
