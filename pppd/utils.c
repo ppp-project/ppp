@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.15 2001/11/09 10:33:04 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.16 2002/01/11 18:27:17 etbe Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <netdb.h>
+#include <time.h>
 #include <utmp.h>
 #include <pwd.h>
 #include <sys/param.h>
@@ -851,9 +852,20 @@ lock(dev)
 	     major(sbuf.st_rdev), minor(sbuf.st_rdev));
 #else
     char *p;
+    char lockdev[MAXPATHLEN];
 
-    if ((p = strrchr(dev, '/')) != NULL)
-	dev = p + 1;
+    if ((p = strstr(dev, "dev/")) != NULL) {
+	dev = p + 4;
+	strncpy(lockdev, dev, MAXPATHLEN-1);
+	lockdev[MAXPATHLEN-1] = 0;
+	while ((p = strrchr(lockdev, '/')) != NULL) {
+	    *p = '_';
+	}
+	dev = lockdev;
+    } else
+	if ((p = strrchr(dev, '/')) != NULL)
+	    dev = p + 1;
+
     slprintf(lock_file, sizeof(lock_file), "%s/LCK..%s", LOCK_DIR, dev);
 #endif
 
