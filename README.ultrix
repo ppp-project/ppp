@@ -16,7 +16,7 @@ installed in the kernel, follow these steps:
 
 2. Apply the patches in the file ultrix/patches using the command:
 
-	patch -p <ultrix/patches
+	patch -p -N <ultrix/patches
 
 This will edit the following files, saving the original versions in a
 file with `.orig' appended to the name:
@@ -65,6 +65,7 @@ of your old /vmunix in / under a different name.
 
 7. Reboot the system.
 
+********
 
 If you have ppp-2.1.2 or earlier already installed in your kernel,
 some files will already have been modified as required.  The files
