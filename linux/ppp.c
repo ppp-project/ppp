@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.27 1999/05/13 00:35:57 paulus Exp $ */
+/* $Id: ppp.c,v 1.28 1999/05/14 01:07:57 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -343,7 +343,9 @@ __u16 ppp_crc16_table[256] =
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
+#if LINUX_VERSION_CODE >= VERSION(2,1,18)
 EXPORT_SYMBOL(ppp_crc16_table);
+#endif
 
 #ifdef CHECK_CHARACTERS
 static __u32 paritytab[8] =
