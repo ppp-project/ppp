@@ -4,11 +4,6 @@ but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the
 modules directory).
 
-This version has been tested under Solaris 7, and the upcoming
-Solaris 8. As of now, it will only work when the system is booted
-in 32-bit mode. 64-bit clean driver as well as IPv6 support for
-Solaris 8 are currently under development.
-
 NOTE: Although the kernel driver and modules have been designed to
 operate correctly on SMP systems, they have not been extensively
 tested on SMP machines.  Some users of SMP Solaris x86 systems have
@@ -49,6 +44,16 @@ create an /etc/ppp/ip-up script containing something like this:
 	/usr/sbin/ndd -set /dev/ip ip_forwarding 1
 
 See the man page for ip(7p) for details.
+
+64-bit Support.
+***************
+
+This version has been tested under Solaris 7 (and Solaris 8 Beta) in both 
+32- and 64-bits environments (Ultra class machines). Installing the package
+by executing "make install" will result in additional files residing in
+/kernel/drv/sparcv9 and /kernel/strmod/sparcv9 subdirectories.
+
+64-bit modules and driver have been compiled and tested using Sun's cc.
 
 Synchronous Serial Support.
 ***************************
