@@ -2,9 +2,9 @@
 		-------------
 
 		Paul Mackerras
-		17 April 2000
+		8 March 2001
 
-		for ppp-2.4.0
+		for ppp-2.4.1
 
 1. Introduction
 ---------------
@@ -13,7 +13,7 @@ The Linux PPP implementation includes both kernel and user-level
 parts.  This package contains the user-level part, which consists of
 the PPP daemon (pppd) and associated utilities.  In the past this
 package has contained updated kernel drivers.  This is no longer
-necessary, as the current 2.2 and 2.3 kernel sources contain
+necessary, as the current 2.2 and 2.4 kernel sources contain
 up-to-date drivers.
 
 The Linux PPP implementation is capable of being used both for
@@ -47,7 +47,7 @@ the link down, when it negotiates a graceful disconnect.
 
 2.1 Kernel driver
 
-Assuming you are running a recent 2.2 or 2.3 (or later) series kernel,
+Assuming you are running a recent 2.2 or 2.4 (or later) series kernel,
 the kernel source code will contain an up-to-date kernel PPP driver.
 If the PPP driver was included in your kernel configuration when your
 kernel was built, then you only need to install the user-level
@@ -64,8 +64,8 @@ under /lib/modules and is loaded into the kernel when needed.
 
 The 2.2 series kernels contain an older version of the kernel PPP
 driver, one which doesn't support multilink.  If you want multilink,
-you need to run the latest 2.3 series kernel.  The kernel PPP driver
-was completely rewritten for the 2.3 series kernels to support
+you need to run the latest 2.4 series kernel.  The kernel PPP driver
+was completely rewritten for the 2.4 series kernels to support
 multilink and to allow it to operate over diverse kinds of
 communication medium (the 2.2 driver only operates over serial ports
 and devices which look like serial ports, such as pseudo-ttys).
@@ -80,7 +80,7 @@ compiled into the kernel, the compression code will still be compiled
 as modules, for kernels before 2.2.17pre12.  For 2.2.17pre12 and later,
 if the PPP driver is compiled in, the compression code will also.
 
-Under the 2.3 kernels, there are two PPP modules, ppp_generic.o and
+Under the 2.4 kernels, there are two PPP modules, ppp_generic.o and
 ppp_async.o, plus the compression modules (ppp_deflate.o, bsd_comp.o
 and slhc.o).  If the PPP generic driver is compiled into the kernel,
 the other four can then be present either as modules or compiled into
@@ -94,7 +94,7 @@ If you obtained this package in .rpm or .deb format, you simply follow
 the usual procedure for installing the package.
 
 If you are using the .tar.gz form of this package, then cd into the
-ppp-2.4.0b2 directory you obtained by unpacking the archive and issue
+ppp-2.4.1b1 directory you obtained by unpacking the archive and issue
 the following commands:
 
 $ ./configure
@@ -108,9 +108,9 @@ install' step will create it and install some default configuration
 files.
 
 
-2.3 System setup for 2.3 kernels
+2.3 System setup for 2.4 kernels
 
-Under the 2.3 series kernels, pppd needs to be able to open /dev/ppp,
+Under the 2.4 series kernels, pppd needs to be able to open /dev/ppp,
 character device (108,0).  If you are using devfs (the device
 filesystem), the /dev/ppp node will automagically appear when the
 ppp_generic module is loaded, or at startup if ppp_generic is compiled
@@ -157,16 +157,16 @@ alias ppp-compress-26	ppp_deflate
 If you have problems with your PPP setup, or you just want to ask some
 questions, or better yet if you can help others with their PPP
 questions, then you should join the linux-ppp mailing list.  Send an
-email to majordomo@vger.rutgers.edu with a line in the body saying
+email to majordomo@vger.kernel.org with a line in the body saying
 
 subscribe linux-ppp
 
-To leave the mailing list, send an email to majordomo@vger.rutgers.edu
+To leave the mailing list, send an email to majordomo@vger.kernel.org
 with a line in the body saying
 
 unsubscribe linux-ppp
 
-To send a message to the list, email it to linux-ppp@vger.rutgers.edu.
+To send a message to the list, email it to linux-ppp@vger.kernel.org.
 You don't have to be subscribed to send messages to the list.
 
 You can also email me (paulus@linuxcare.com.au) but I am overloaded
