@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.134 2004/04/12 04:53:00 kad Exp $"
+#define RCSID	"$Id: main.c,v 1.135 2004/04/12 05:02:00 kad Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -649,6 +649,13 @@ handle_events()
 {
     struct timeval timo;
     sigset_t mask;
+
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGHUP);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGCHLD);
+    sigaddset(&mask, SIGUSR2);
 
     kill_link = open_ccp_flag = 0;
     if (sigsetjmp(sigjmp, 1) == 0) {
