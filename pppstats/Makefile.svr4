@@ -1,6 +1,6 @@
 #
 # pppstats Makefile for SVR4 systems
-# $Id: Makefile.svr4,v 1.1 1995/06/01 02:11:46 paulus Exp $
+# $Id: Makefile.svr4,v 1.2 1996/07/01 01:22:16 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
@@ -9,7 +9,7 @@ INSTALL = /usr/sbin/install
 
 CC = gcc
 COPTS = -g -O
-CFLAGS = -I.. $(COPTS)
+CFLAGS = -I.. $(COPTS) -DSTREAMS
 
 all: pppstats
 
