@@ -1,4 +1,4 @@
-/*	$Id: ppp-deflate.c,v 1.3 1997/04/30 06:00:45 paulus Exp $	*/
+/*	$Id: ppp-deflate.c,v 1.4 1997/11/27 06:06:33 paulus Exp $	*/
 
 /*
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
@@ -59,7 +59,7 @@ struct deflate_state {
 #define DEFLATE_OVHD	2		/* Deflate overhead/packet */
 
 static void	*zalloc __P((void *, u_int items, u_int size));
-static void	zfree __P((void *, void *ptr, u_int nb));
+static void	zfree __P((void *, void *ptr));
 static void	*z_comp_alloc __P((u_char *options, int opt_len));
 static void	*z_decomp_alloc __P((u_char *options, int opt_len));
 static void	z_comp_free __P((void *state));
@@ -121,10 +121,9 @@ zalloc(notused, items, size)
 }
 
 void
-zfree(notused, ptr, nbytes)
+zfree(notused, ptr)
     void *notused;
     void *ptr;
-    u_int nbytes;
 {
     KM_FREE(ptr, KM_DEVBUF);
 }
@@ -157,10 +156,9 @@ z_comp_alloc(options, opt_len)
 
     state->strm.next_in = NULL;
     state->strm.zalloc = (alloc_func) zalloc;
-    state->strm.zalloc_init = (alloc_func) zalloc;
     state->strm.zfree = (free_func) zfree;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
-		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
+		     -w_size, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
 	KM_FREE(state, KM_DEVBUF);
 	return NULL;
     }
@@ -393,7 +391,6 @@ z_decomp_alloc(options, opt_len)
 
     state->strm.next_out = NULL;
     state->strm.zalloc = (alloc_func) zalloc;
-    state->strm.zalloc_init = (alloc_func) zalloc;
     state->strm.zfree = (free_func) zfree;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	KM_FREE(state, KM_DEVBUF);

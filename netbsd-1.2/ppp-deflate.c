@@ -61,7 +61,7 @@ struct deflate_state {
 #define DEFLATE_OVHD	2		/* Deflate overhead/packet */
 
 static void	*zalloc __P((void *, u_int items, u_int size));
-static void	zfree __P((void *, void *ptr, u_int nb));
+static void	zfree __P((void *, void *ptr));
 static void	*z_comp_alloc __P((u_char *options, int opt_len));
 static void	*z_decomp_alloc __P((u_char *options, int opt_len));
 static void	z_comp_free __P((void *state));
@@ -114,10 +114,9 @@ zalloc(notused, items, size)
 }
 
 void
-zfree(notused, ptr, nbytes)
+zfree(notused, ptr)
     void *notused;
     void *ptr;
-    u_int nbytes;
 {
     FREE(ptr, M_DEVBUF);
 }
@@ -149,10 +148,9 @@ z_comp_alloc(options, opt_len)
 
     state->strm.next_in = NULL;
     state->strm.zalloc = zalloc;
-    state->strm.zalloc_init = zalloc;
     state->strm.zfree = zfree;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
-		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
+		     -w_size, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
 	FREE(state, M_DEVBUF);
 	return NULL;
     }
@@ -313,11 +311,8 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 
     /*
      * See if we managed to reduce the size of the packet.
-     * If the compressor just gave us a single zero byte, it means
-     * the packet was incompressible.
      */
-    if (m != NULL && olen < orig_len
-	&& !(olen == PPP_HDRLEN + 3 && *wptr == 0)) {
+    if (m != NULL && olen < orig_len) {
 	state->stats.comp_bytes += olen;
 	state->stats.comp_packets++;
     } else {
@@ -381,7 +376,6 @@ z_decomp_alloc(options, opt_len)
 
     state->strm.next_out = NULL;
     state->strm.zalloc = zalloc;
-    state->strm.zalloc_init = zalloc;
     state->strm.zfree = zfree;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	FREE(state, M_DEVBUF);
