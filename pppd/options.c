@@ -18,19 +18,22 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.6 1994/05/01 11:45:53 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.7 1994/05/18 06:34:15 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <termios.h>
 #include <syslog.h>
 #include <string.h>
 #include <netdb.h>
+#include <pwd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <netinet/in.h>
 
 #include "ppp.h"
 #include "pppd.h"
@@ -47,6 +50,12 @@ static char rcsid[] = "$Id: options.c,v 1.6 1994/05/01 11:45:53 paulus Exp $";
 
 #ifdef ultrix
 char *strdup __ARGS((char *));
+#endif
+
+#if defined(ultrix) || defined(sun)
+#define GETGROUPS_TYPE	int
+#else
+#define GETGROUPS_TYPE	gid_t
 #endif
 
 /*
@@ -111,7 +120,7 @@ static int setipcpaccl __ARGS((void));
 static int setipcpaccr __ARGS((void));
 
 static int number_option __ARGS((char *, long *, int));
-
+static int readable __ARGS((int fd));
 
 /*
  * Option variables
@@ -243,6 +252,7 @@ parse_args(argc, argv)
 {
     char *arg, *val;
     struct cmd *cmdp;
+    int ret;
 
     while (argc > 0) {
 	arg = *argv++;
@@ -269,11 +279,15 @@ parse_args(argc, argv)
 	    /*
 	     * Maybe a tty name, speed or IP address?
 	     */
-	    if (!setdevname(arg) && !setspeed(arg) && !setipaddr(arg)) {
+	    if ((ret = setdevname(arg)) == 0
+		&& (ret = setspeed(arg)) == 0
+		&& (ret = setipaddr(arg)) == 0) {
 		fprintf(stderr, "%s: unrecognized command\n", arg);
 		usage();
 		return 0;
 	    }
+	    if (ret < 0)	/* error */
+		return 0;
 	}
     }
     return 1;
@@ -292,12 +306,13 @@ usage()
  * and interpret them.
  */
 int
-options_from_file(filename, must_exist)
+options_from_file(filename, must_exist, check_prot)
     char *filename;
     int must_exist;
+    int check_prot;
 {
     FILE *f;
-    int i, newline;
+    int i, newline, ret;
     struct cmd *cmdp;
     char *argv[MAXARGS];
     char args[MAXARGS][MAXWORDLEN];
@@ -309,6 +324,12 @@ options_from_file(filename, must_exist)
 	perror(filename);
 	return 0;
     }
+    if (check_prot && !readable(fileno(f))) {
+	fprintf(stderr, "%s: access denied\n", filename);
+	fclose(f);
+	return 0;
+    }
+
     while (getword(f, cmd, &newline, filename)) {
 	/*
 	 * First see if it's a command.
@@ -337,12 +358,16 @@ options_from_file(filename, must_exist)
 	    /*
 	     * Maybe a tty name, speed or IP address?
 	     */
-	    if (!setdevname(cmd) && !setspeed(cmd) && !setipaddr(cmd)) {
+	    if ((ret = setdevname(cmd)) == 0
+		&& (ret = setspeed(cmd)) == 0
+		&& (ret = setipaddr(cmd)) == 0) {
 		fprintf(stderr, "In file %s: unrecognized command %s\n",
 			filename, cmd);
 		fclose(f);
 		return 0;
 	    }
+	    if (ret < 0)	/* error */
+		return 0;
 	}
     }
     return 1;
@@ -357,18 +382,76 @@ options_from_user()
 {
     char *user, *path, *file;
     int ret;
+    struct passwd *pw;
 
-    if ((user = getenv("HOME")) == NULL)
+    pw = getpwuid(getuid());
+    if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
 	return;
-    file = "/.ppprc";
-    path = malloc(strlen(user) + strlen(file) + 1);
+    file = _PATH_USEROPT;
+    path = malloc(strlen(user) + strlen(file) + 2);
     if (path == NULL)
 	novm("init file name");
     strcpy(path, user);
+    strcat(path, "/");
     strcat(path, file);
-    ret = options_from_file(path, 0);
+    ret = options_from_file(path, 0, 1);
     free(path);
     return ret;
+}
+
+/*
+ * options_for_tty - See if an options file exists for the serial
+ * device, and if so, interpret options from it.
+ */
+int
+options_for_tty()
+{
+    char *dev, *path;
+    int ret;
+
+    dev = strrchr(devname, '/');
+    if (dev == NULL)
+	dev = devname;
+    else
+	++dev;
+    if (strcmp(dev, "tty") == 0)
+	return 1;		/* don't look for /etc/ppp/options.tty */
+    path = malloc(strlen(_PATH_TTYOPT) + strlen(dev) + 1);
+    if (path == NULL)
+	novm("tty init file name");
+    strcpy(path, _PATH_TTYOPT);
+    strcat(path, dev);
+    ret = options_from_file(path, 0, 0);
+    free(path);
+    return ret;
+}
+
+/*
+ * readable - check if a file is readable by the real user.
+ */
+static int
+readable(fd)
+    int fd;
+{
+    uid_t uid;
+    int ngroups, i;
+    struct stat sbuf;
+    GETGROUPS_TYPE groups[NGROUPS_MAX];
+
+    uid = getuid();
+    if (uid == 0)
+	return 1;
+    if (fstat(fd, &sbuf) != 0)
+	return 0;
+    if (sbuf.st_uid == uid)
+	return sbuf.st_mode & S_IRUSR;
+    if (sbuf.st_gid == getgid())
+	return sbuf.st_mode & S_IRGRP;
+    ngroups = getgroups(NGROUPS_MAX, groups);
+    for (i = 0; i < ngroups; ++i)
+	if (sbuf.st_gid == groups[i])
+	    return sbuf.st_mode & S_IRGRP;
+    return sbuf.st_mode & S_IROTH;
 }
 
 /*
@@ -527,7 +610,7 @@ static int
 readfile(argv)
     char **argv;
 {
-    return options_from_file(*argv, 1);
+    return options_from_file(*argv, 1, 1);
 }
 
 /*
@@ -923,16 +1006,16 @@ setdevname(cp)
      */
     if (stat(cp, &statbuf) < 0) {
 	if (errno == ENOENT)
-	    return (0);
+	    return 0;
 	syslog(LOG_ERR, cp);
-	return 0;
+	return -1;
     }
   
     (void) strncpy(devname, cp, MAXPATHLEN);
     devname[MAXPATHLEN-1] = 0;
     default_device = FALSE;
   
-    return (1);
+    return 1;
 }
 
 
@@ -952,7 +1035,7 @@ setipaddr(arg)
      * IP address pair separated by ":".
      */
     if ((colon = index(arg, ':')) == NULL)
-	return (0);
+	return 0;
   
     /*
      * If colon first character, then no local addr.
@@ -961,8 +1044,8 @@ setipaddr(arg)
 	*colon = '\0';
 	if ((local = inet_addr(arg)) == -1) {
 	    if ((hp = gethostbyname(arg)) == NULL) {
-		fprintf(stderr, "unknown host: %s", arg);
-		local = 0;
+		fprintf(stderr, "unknown host: %s\n", arg);
+		return -1;
 	    } else {
 		local = *(long *)hp->h_addr;
 		if (our_name[0] == 0) {
@@ -970,6 +1053,10 @@ setipaddr(arg)
 		    our_name[MAXNAMELEN-1] = 0;
 		}
 	    }
+	}
+	if (bad_ip_adrs(local)) {
+	    fprintf(stderr, "bad local IP address %s\n", ip_ntoa(local));
+	    return -1;
 	}
 	if (local != 0)
 	    wo->ouraddr = local;
@@ -982,8 +1069,8 @@ setipaddr(arg)
     if (*++colon != '\0') {
 	if ((remote = inet_addr(colon)) == -1) {
 	    if ((hp = gethostbyname(colon)) == NULL) {
-		fprintf(stderr, "unknown host: %s", colon);
-		remote = 0;
+		fprintf(stderr, "unknown host: %s\n", colon);
+		return -1;
 	    } else {
 		remote = *(long *)hp->h_addr;
 		if (remote_name[0] == 0) {
@@ -992,11 +1079,15 @@ setipaddr(arg)
 		}
 	    }
 	}
+	if (bad_ip_adrs(remote)) {
+	    fprintf(stderr, "bad remote IP address %s\n", ip_ntoa(remote));
+	    return -1;
+	}
 	if (remote != 0)
 	    wo->hisaddr = remote;
     }
 
-    return (1);
+    return 1;
 }
 
 
@@ -1058,7 +1149,7 @@ setipdefault()
     if ((hp = gethostbyname(hostname)) == NULL)
 	return;
     local = *(long *)hp->h_addr;
-    if (local != 0)
+    if (local != 0 && !bad_ip_adrs(local))
 	wo->ouraddr = local;
 }
 
@@ -1071,8 +1162,8 @@ setnetmask(argv)
     char **argv;
 {
     u_long mask;
-	
-    if ((mask = inet_addr(*argv)) == -1) {
+
+    if ((mask = inet_addr(*argv)) == -1 || (netmask & ~mask) != 0) {
 	fprintf(stderr, "Invalid netmask %s\n", *argv);
 	return 0;
     }
