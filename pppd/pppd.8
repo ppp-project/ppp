@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.50 1999/11/20 05:11:47 paulus Exp $
+.\" $Id: pppd.8,v 1.51 1999/12/23 01:29:11 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -92,17 +92,6 @@ suspend transmission when requested by the modem (via CTS)
 but will be unable to request the modem stop sending to the
 computer. This mode retains the ability to use DTR as
 a modem control line.
-.TP
-.B cdtrcts
-Use a non-standard hardware flow control (i.e. DTR/CTS) to control
-the flow of data on the serial port.  If neither the \fIcrtscts\fR,
-the \fInocrtscts\fR, the \fIcdtrcts\fR nor the \fInocdtrcts\fR
-option is given, the hardware flow control setting for the serial
-port is left unchanged.
-Some serial ports (such as Macintosh serial ports) lack a true
-RTS output. Such serial ports use this mode to implement true
-bi-directional flow control. The sacrifice is that this flow
-control mode does not permit using DTR as a modem control line.
 .TP
 .B defaultroute
 Add a default route to the system routing tables, using the peer as
@@ -223,6 +212,17 @@ Alternatively, a value of 0 for \fInr\fR or \fInt\fR disables
 compression in the corresponding direction.  Use \fInobsdcomp\fR or
 \fIbsdcomp 0\fR to disable BSD-Compress compression entirely.
 .TP
+.B cdtrcts
+Use a non-standard hardware flow control (i.e. DTR/CTS) to control
+the flow of data on the serial port.  If neither the \fIcrtscts\fR,
+the \fInocrtscts\fR, the \fIcdtrcts\fR nor the \fInocdtrcts\fR
+option is given, the hardware flow control setting for the serial
+port is left unchanged.
+Some serial ports (such as Macintosh serial ports) lack a true
+RTS output. Such serial ports use this mode to implement true
+bi-directional flow control. The sacrifice is that this flow
+control mode does not permit using DTR as a modem control line.
+.TP
 .B chap-interval \fIn
 If this option is given, pppd will rechallenge the peer every \fIn\fR
 seconds.
@@ -234,6 +234,14 @@ Set the maximum number of CHAP challenge transmissions to \fIn\fR
 .B chap-restart \fIn
 Set the CHAP restart interval (retransmission timeout for challenges)
 to \fIn\fR seconds (default 3).
+.TP
+.B connect-delay \fIn
+Wait for up \fIn\fR milliseconds after the connect script finishes for
+a valid PPP packet from the peer.  At the end of this time, or when a
+valid PPP packet is received from the peer, pppd will commence
+negotiation by sending its first LCP packet.  The default value is
+1000 (1 second).  This wait period only applies if the \fBconnect\fR
+or \fBpty\fR option is used.
 .TP
 .B debug
 Enables connection debugging facilities.
