@@ -1,10 +1,10 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile,v 1.3 1995/05/23 01:35:25 paulus Exp $
+# $Id: Makefile,v 1.4 1995/06/01 02:22:48 paulus Exp $
 #
 
-CFLAGS= -D_KERNEL -I..
+CFLAGS= -D_KERNEL -I.. -O
 CC=	gcc
 
 all:	ppp ppp_ahdl ppp_comp
@@ -21,7 +21,9 @@ ppp_comp: ppp_comp.o bsd-comp.o vjcompress.o
 install: all
 	cp ppp ppp.conf /kernel/drv
 	cp ppp_comp ppp_ahdl /kernel/strmod
-	/usr/sbin/add_drv -m '* 0644 root sys' ppp
+	if grep clone:ppp /etc/minor_perm; then :; else \
+	  echo clone:ppp 0644 root sys >>/etc/minor_perm; fi
+	/usr/sbin/add_drv ppp
 
 clean:
 	rm -f ppp ppp_comp ppp_ahdl *.o *~ core
