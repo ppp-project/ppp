@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.sol2,v 1.15 1999/09/30 19:55:52 masputra Exp $
+# $Id: Makefile.sol2,v 1.16 2000/01/24 20:42:18 masputra Exp $
 #
 
 include ../svr4/Makedefs
@@ -17,6 +17,12 @@ OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
 #
 CFLAGS	+= -DPLUGIN
 LIBS	+= -ldl
+
+#
+# Solaris 8 and above accomodates /var/run, so uncomment the
+# following to place pppd process IDs on that location
+#
+#CFLAGS += -D_PATH_VARRUN='"/var/run/"'
 
 #
 # uncomment the following to enable IPv6
