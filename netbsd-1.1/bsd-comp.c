@@ -1,4 +1,4 @@
-/*	$Id: bsd-comp.c,v 1.4 1996/07/01 01:02:22 paulus Exp $	*/
+/*	$Id: bsd-comp.c,v 1.5 1996/07/01 05:31:02 paulus Exp $	*/
 
 /* Because this code is derived from the 4.3BSD compress source:
  *
@@ -416,7 +416,7 @@ bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
 	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION
 	|| BSD_NBITS(options[2]) != db->maxbits
-	|| decomp && db->lens == NULL)
+	|| (decomp && db->lens == NULL))
 	return 0;
 
     if (decomp) {
@@ -943,7 +943,7 @@ bsd_decompress(state, cmp, dmpp)
 	}
 
 	if (incode > max_ent + 2 || incode > db->maxmaxcode
-	    || incode > max_ent && oldcode == CLEAR) {
+	    || (incode > max_ent && oldcode == CLEAR)) {
 	    m_freem(mret);
 	    if (db->debug) {
 		printf("bsd_decomp%d: bad code 0x%x oldcode=0x%x ",
