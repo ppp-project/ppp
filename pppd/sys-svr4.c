@@ -26,14 +26,18 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.12 1996/08/28 06:42:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.13 1996/09/14 05:18:24 paulus Exp $";
 #endif
 
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#ifdef SNI
+extern void *alloca(size_t);
+#else
 #include <alloca.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
