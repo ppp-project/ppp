@@ -41,7 +41,7 @@ struct ifpppcstatsreq {
  * Ioctl definitions.
  */
 
-#ifdef	__STDC__
+#if defined(__STDC__) || defined(__osf__)
 #define	SIOCSIFCOMPAC	_IOW('p', 130, char)
 #define	SIOCSIFCOMPPROT	_IOW('p', 131, char)
 #define	SIOCSIFMRU	_IOW('p', 132, int)	/* set max receive unit */
@@ -116,5 +116,7 @@ struct ifpppcstatsreq {
 #define CCP_FATALERROR	0x20
 
 /* defines for streams modules */
-#define       IF_INPUT_ERROR  0xe1
-#define       IF_OUTPUT_ERROR 0xe2
+#define IF_INPUT_ERROR	0xe1
+#define IF_OUTPUT_ERROR	0xe2
+#define IF_GET_CSTATS	0xe3
+#define IF_CSTATS	0xe4
