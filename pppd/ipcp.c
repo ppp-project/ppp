@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.23 1996/01/01 22:56:53 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.24 1996/04/04 03:57:12 paulus Exp $";
 #endif
 
 /*
@@ -266,9 +266,35 @@ ipcp_cilen(f)
     fsm *f;
 {
     ipcp_options *go = &ipcp_gotoptions[f->unit];
+    ipcp_options *wo = &ipcp_wantoptions[f->unit];
+    ipcp_options *ho = &ipcp_hisoptions[f->unit];
 
 #define LENCIVJ(neg, old)	(neg ? (old? CILEN_COMPRESS : CILEN_VJ) : 0)
 #define LENCIADDR(neg, old)	(neg ? (old? CILEN_ADDRS : CILEN_ADDR) : 0)
+
+    /*
+     * First see if we want to change our options to the old
+     * forms because we have received old forms from the peer.
+     */
+    if (wo->neg_addr && !go->neg_addr && !go->old_addrs) {
+	/* use the old style of address negotiation */
+	go->neg_addr = 1;
+	go->old_addrs = 1;
+    }
+    if (wo->neg_vj && !go->neg_vj && !go->old_vj) {
+	/* try an older style of VJ negotiation */
+	if (cis_received[f->unit] == 0) {
+	    /* keep trying the new style until we see some CI from the peer */
+	    go->neg_vj = 1;
+	} else {
+	    /* use the old style only if the peer did */
+	    if (ho->neg_vj && ho->old_vj) {
+		go->neg_vj = 1;
+		go->old_vj = 1;
+		go->vj_protocol = ho->vj_protocol;
+	    }
+	}
+    }
 
     return (LENCIADDR(go->neg_addr, go->old_addrs) +
 	    LENCIVJ(go->neg_vj, go->old_vj));
@@ -284,9 +310,7 @@ ipcp_addci(f, ucp, lenp)
     u_char *ucp;
     int *lenp;
 {
-    ipcp_options *wo = &ipcp_wantoptions[f->unit];
     ipcp_options *go = &ipcp_gotoptions[f->unit];
-    ipcp_options *ho = &ipcp_hisoptions[f->unit];
     int len = *lenp;
 
 #define ADDCIVJ(opt, neg, val, old, maxslotindex, cflag) \
@@ -321,30 +345,6 @@ ipcp_addci(f, ucp, lenp)
 	    len -= addrlen; \
 	} else \
 	    neg = 0; \
-    }
-
-    /*
-     * First see if we want to change our options to the old
-     * forms because we have received old forms from the peer.
-     */
-    if (wo->neg_addr && !go->neg_addr && !go->old_addrs) {
-	/* use the old style of address negotiation */
-	go->neg_addr = 1;
-	go->old_addrs = 1;
-    }
-    if (wo->neg_vj && !go->neg_vj && !go->old_vj) {
-	/* try an older style of VJ negotiation */
-	if (cis_received[f->unit] == 0) {
-	    /* keep trying the new style until we see some CI from the peer */
-	    go->neg_vj = 1;
-	} else {
-	    /* use the old style only if the peer did */
-	    if (ho->neg_vj && ho->old_vj) {
-		go->neg_vj = 1;
-		go->old_vj = 1;
-		go->vj_protocol = ho->vj_protocol;
-	    }
-	}
     }
 
     ADDCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), go->neg_addr,
@@ -741,6 +741,9 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
     u_char *ucp = inp;		/* Pointer to current output char */
     int l = *len;		/* Length left */
     u_char maxslotindex, cflag;
+    int d;
+
+    cis_received[f->unit] = 1;
 
     /*
      * Reset all his options.
@@ -868,45 +871,26 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	    ho->hisaddr = ciaddr1;
 	    break;
 
-#ifdef USE_MS_DNS
 	case CI_MS_DNS1:
-	    /* Microsoft primary DNS request */
-	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS1 Request "));
-
-	    /* If we do not have a DNS address then we cannot send it */
-	    if (ao->dnsaddr[0] == 0 ||
-		cilen != CILEN_ADDR) {	/* Check CI length */
-		orc = CONFREJ;		/* Reject CI */
-		break;
-	    }
-	    GETLONG(tl, p);
-	    if (htonl(tl) != ao->dnsaddr[0]) {
-                DECPTR(sizeof(u_int32_t), p);
-		tl = ntohl(ao->dnsaddr[0]);
-		PUTLONG(tl, p);
-		orc = CONFNAK;
-            }
-            break;
-
 	case CI_MS_DNS2:
-	    /* Microsoft secondary DNS request */
-	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS2 Request "));
+	    /* Microsoft primary or secondary DNS request */
+	    d = citype == CI_MS_DNS2;
+	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS%d Request ", d+1));
 
 	    /* If we do not have a DNS address then we cannot send it */
-	    if (ao->dnsaddr[1] == 0 ||	/* Yes, this is the first one! */
+	    if (ao->dnsaddr[d] == 0 ||
 		cilen != CILEN_ADDR) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
 		break;
 	    }
 	    GETLONG(tl, p);
-	    if (htonl(tl) != ao->dnsaddr[1]) { /* and this is the 2nd one */
+	    if (htonl(tl) != ao->dnsaddr[d]) {
                 DECPTR(sizeof(u_int32_t), p);
-		tl = ntohl(ao->dnsaddr[1]);
+		tl = ntohl(ao->dnsaddr[d]);
 		PUTLONG(tl, p);
 		orc = CONFNAK;
             }
             break;
-#endif
 	
 	case CI_COMPRESSTYPE:
 	    IPCPDEBUG((LOG_INFO, "ipcp: received COMPRESSTYPE "));
@@ -1047,8 +1031,13 @@ ip_check_options()
     }
 
     if (demand && wo->hisaddr == 0) {
-	fprintf(stderr,
-		"Remote IP address must be specified for demand-dialling\n");
+	fprintf(stderr, "%s: remote IP address required for demand-dialling\n",
+		progname);
+	exit(1);
+    }
+    if (demand && wo->accept_remote) {
+	fprintf(stderr, "%s: ipcp-accept-remote is incompatible with demand\n",
+		progname);
 	exit(1);
     }
 }
