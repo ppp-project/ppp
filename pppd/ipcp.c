@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.56 2001/02/22 03:15:16 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.57 2001/03/08 05:11:12 paulus Exp $"
 
 /*
  * TODO:
@@ -43,7 +43,7 @@ static const char rcsid[] = RCSID;
 /* global vars */
 ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */
 ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
-ipcp_options ipcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
+ipcp_options ipcp_allowoptions[NUM_PPP]; /* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 
 u_int32_t netmask = 0;		/* IP netmask to set on interface */
@@ -65,6 +65,8 @@ static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
 static int ipcp_is_up;			/* have called np_up() */
 static bool ask_for_local;		/* request our address from peer */
+static char vj_value[8];		/* string form of vj option value */
+static char netmask_str[20];		/* string form of netmask value */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -108,66 +110,84 @@ static int setdnsaddr __P((char **));
 static int setwinsaddr __P((char **));
 static int setnetmask __P((char **));
 static int setipaddr __P((char *, char **, int));
+static void printipaddr __P((option_t *, void (*)(void *, char *,...),void *));
 
 static option_t ipcp_option_list[] = {
     { "noip", o_bool, &ipcp_protent.enabled_flag,
       "Disable IP and IPCP" },
     { "-ip", o_bool, &ipcp_protent.enabled_flag,
-      "Disable IP and IPCP" },
+      "Disable IP and IPCP", OPT_ALIAS },
+
     { "novj", o_bool, &ipcp_wantoptions[0].neg_vj,
-      "Disable VJ compression", OPT_A2COPY, &ipcp_allowoptions[0].neg_vj },
+      "Disable VJ compression", OPT_A2CLR, &ipcp_allowoptions[0].neg_vj },
     { "-vj", o_bool, &ipcp_wantoptions[0].neg_vj,
-      "Disable VJ compression", OPT_A2COPY, &ipcp_allowoptions[0].neg_vj },
+      "Disable VJ compression", OPT_ALIAS | OPT_A2CLR,
+      &ipcp_allowoptions[0].neg_vj },
+
     { "novjccomp", o_bool, &ipcp_wantoptions[0].cflag,
-      "Disable VJ connection-ID compression", OPT_A2COPY,
+      "Disable VJ connection-ID compression", OPT_A2CLR,
       &ipcp_allowoptions[0].cflag },
     { "-vjccomp", o_bool, &ipcp_wantoptions[0].cflag,
-      "Disable VJ connection-ID compression", OPT_A2COPY,
+      "Disable VJ connection-ID compression", OPT_ALIAS | OPT_A2CLR,
       &ipcp_allowoptions[0].cflag },
+
     { "vj-max-slots", o_special, (void *)setvjslots,
-      "Set maximum VJ header slots" },
+      "Set maximum VJ header slots",
+      OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, vj_value },
+
     { "ipcp-accept-local", o_bool, &ipcp_wantoptions[0].accept_local,
       "Accept peer's address for us", 1 },
     { "ipcp-accept-remote", o_bool, &ipcp_wantoptions[0].accept_remote,
       "Accept peer's address for it", 1 },
+
     { "ipparam", o_string, &ipparam,
-      "Set ip script parameter" },
+      "Set ip script parameter", OPT_PRIO },
+
     { "noipdefault", o_bool, &disable_defaultip,
       "Don't use name for default IP adrs", 1 },
+
     { "ms-dns", 1, (void *)setdnsaddr,
       "DNS address for the peer's use" },
     { "ms-wins", 1, (void *)setwinsaddr,
       "Nameserver for SMB over TCP/IP for peer" },
+
     { "ipcp-restart", o_int, &ipcp_fsm[0].timeouttime,
-      "Set timeout for IPCP" },
+      "Set timeout for IPCP", OPT_PRIO },
     { "ipcp-max-terminate", o_int, &ipcp_fsm[0].maxtermtransmits,
-      "Set max #xmits for term-reqs" },
+      "Set max #xmits for term-reqs", OPT_PRIO },
     { "ipcp-max-configure", o_int, &ipcp_fsm[0].maxconfreqtransmits,
-      "Set max #xmits for conf-reqs" },
+      "Set max #xmits for conf-reqs", OPT_PRIO },
     { "ipcp-max-failure", o_int, &ipcp_fsm[0].maxnakloops,
-      "Set max #conf-naks for IPCP" },
+      "Set max #conf-naks for IPCP", OPT_PRIO },
+
     { "defaultroute", o_bool, &ipcp_wantoptions[0].default_route,
       "Add default route", OPT_ENABLE|1, &ipcp_allowoptions[0].default_route },
     { "nodefaultroute", o_bool, &ipcp_allowoptions[0].default_route,
-      "disable defaultroute option", OPT_A2COPY,
+      "disable defaultroute option", OPT_A2CLR,
       &ipcp_wantoptions[0].default_route },
     { "-defaultroute", o_bool, &ipcp_allowoptions[0].default_route,
-      "disable defaultroute option", OPT_A2COPY,
+      "disable defaultroute option", OPT_ALIAS | OPT_A2CLR,
       &ipcp_wantoptions[0].default_route },
+
     { "proxyarp", o_bool, &ipcp_wantoptions[0].proxy_arp,
       "Add proxy ARP entry", OPT_ENABLE|1, &ipcp_allowoptions[0].proxy_arp },
     { "noproxyarp", o_bool, &ipcp_allowoptions[0].proxy_arp,
-      "disable proxyarp option", OPT_A2COPY,
+      "disable proxyarp option", OPT_A2CLR,
       &ipcp_wantoptions[0].proxy_arp },
     { "-proxyarp", o_bool, &ipcp_allowoptions[0].proxy_arp,
-      "disable proxyarp option", OPT_A2COPY,
+      "disable proxyarp option", OPT_ALIAS | OPT_A2CLR,
       &ipcp_wantoptions[0].proxy_arp },
+
     { "usepeerdns", o_bool, &usepeerdns,
       "Ask peer for DNS address(es)", 1 },
+
     { "netmask", o_special, (void *)setnetmask,
-      "set netmask" },
+      "set netmask", OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, netmask_str },
+
     { "IP addresses", o_wild, (void *) &setipaddr,
-      "set local and remote IP addresses", OPT_NOARG | OPT_MULTIPART },
+      "set local and remote IP addresses",
+      OPT_NOARG | OPT_A2PRINTER, (void *) &printipaddr },
+
     { NULL }
 };
 
@@ -269,6 +289,7 @@ setvjslots(argv)
     }
     ipcp_wantoptions [0].maxslotindex =
         ipcp_allowoptions[0].maxslotindex = value - 1;
+    slprintf(vj_value, sizeof(vj_value), "%d", value);
     return 1;
 }
 
@@ -292,11 +313,15 @@ setdnsaddr(argv)
 	dns = *(u_int32_t *)hp->h_addr;
     }
 
-    /* if there is no primary then update it. */
-    if (ipcp_allowoptions[0].dnsaddr[0] == 0)
+    /* We take the last 2 values given, the 2nd-last as the primary
+       and the last as the secondary.  If only one is given it
+       becomes both primary and secondary. */
+    if (ipcp_allowoptions[0].dnsaddr[1] == 0)
 	ipcp_allowoptions[0].dnsaddr[0] = dns;
+    else
+	ipcp_allowoptions[0].dnsaddr[0] = ipcp_allowoptions[0].dnsaddr[1];
 
-    /* always set the secondary address value to the same value. */
+    /* always set the secondary address value. */
     ipcp_allowoptions[0].dnsaddr[1] = dns;
 
     return (1);
@@ -324,11 +349,15 @@ setwinsaddr(argv)
 	wins = *(u_int32_t *)hp->h_addr;
     }
 
-    /* if there is no primary then update it. */
-    if (ipcp_allowoptions[0].winsaddr[0] == 0)
+    /* We take the last 2 values given, the 2nd-last as the primary
+       and the last as the secondary.  If only one is given it
+       becomes both primary and secondary. */
+    if (ipcp_allowoptions[0].winsaddr[1] == 0)
 	ipcp_allowoptions[0].winsaddr[0] = wins;
+    else
+	ipcp_allowoptions[0].winsaddr[0] = ipcp_allowoptions[0].winsaddr[1];
 
-    /* always set the secondary address value to the same value. */
+    /* always set the secondary address value. */
     ipcp_allowoptions[0].winsaddr[1] = wins;
 
     return (1);
@@ -406,6 +435,21 @@ setipaddr(arg, argv, doit)
     return 1;
 }
 
+static void
+printipaddr(opt, printer, arg)
+    option_t *opt;
+    void (*printer) __P((void *, char *, ...));
+    void *arg;
+{
+	ipcp_options *wo = &ipcp_wantoptions[0];
+
+	if (wo->ouraddr != 0)
+		printer(arg, "%I", wo->ouraddr);
+	printer(arg, ":");
+	if (wo->hisaddr != 0)
+		printer(arg, "%I", wo->hisaddr);
+}
+
 /*
  * setnetmask - set the netmask to be used on the interface.
  */
@@ -432,6 +476,8 @@ setnetmask(argv)
     }
 
     netmask = mask;
+    slprintf(netmask_str, sizeof(netmask_str), "%I", mask);
+
     return (1);
 }
 

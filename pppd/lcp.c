@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.56 2001/02/22 03:16:26 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.57 2001/03/08 05:11:14 paulus Exp $"
 
 /*
  * TODO:
@@ -54,94 +54,112 @@ bool	lax_recv = 0;		/* accept control chars in asyncmap */
 bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 
 static int noopt __P((char **));
-static int setescape __P((char **));
 
 #ifdef HAVE_MULTILINK
 static int setendpoint __P((char **));
+static void printendpoint __P((option_t *, void (*)(void *, char *, ...),
+			       void *));
 #endif /* HAVE_MULTILINK */
 
 static option_t lcp_option_list[] = {
     /* LCP options */
     { "-all", o_special_noarg, (void *)noopt,
       "Don't request/allow any LCP options" },
+
     { "noaccomp", o_bool, &lcp_wantoptions[0].neg_accompression,
       "Disable address/control compression",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_accompression },
+      OPT_A2CLR, &lcp_allowoptions[0].neg_accompression },
     { "-ac", o_bool, &lcp_wantoptions[0].neg_accompression,
       "Disable address/control compression",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_accompression },
-    { "default-asyncmap", o_bool, &lcp_wantoptions[0].neg_asyncmap,
-      "Disable asyncmap negotiation",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_asyncmap },
-    { "-am", o_bool, &lcp_wantoptions[0].neg_asyncmap,
-      "Disable asyncmap negotiation",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_asyncmap },
+      OPT_ALIAS | OPT_A2CLR, &lcp_allowoptions[0].neg_accompression },
+
     { "asyncmap", o_uint32, &lcp_wantoptions[0].asyncmap,
       "Set asyncmap (for received packets)",
       OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
     { "-as", o_uint32, &lcp_wantoptions[0].asyncmap,
       "Set asyncmap (for received packets)",
-      OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
+      OPT_ALIAS | OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
+    { "default-asyncmap", o_uint32, &lcp_wantoptions[0].asyncmap,
+      "Disable asyncmap negotiation",
+      OPT_OR | OPT_NOARG | OPT_VAL(~0U) | OPT_A2CLR,
+      &lcp_allowoptions[0].neg_asyncmap },
+    { "-am", o_uint32, &lcp_wantoptions[0].asyncmap,
+      "Disable asyncmap negotiation",
+      OPT_ALIAS | OPT_OR | OPT_NOARG | OPT_VAL(~0U) | OPT_A2CLR,
+      &lcp_allowoptions[0].neg_asyncmap },
+
     { "nomagic", o_bool, &lcp_wantoptions[0].neg_magicnumber,
       "Disable magic number negotiation (looped-back line detection)",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_magicnumber },
+      OPT_A2CLR, &lcp_allowoptions[0].neg_magicnumber },
     { "-mn", o_bool, &lcp_wantoptions[0].neg_magicnumber,
       "Disable magic number negotiation (looped-back line detection)",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_magicnumber },
-    { "default-mru", o_bool, &lcp_wantoptions[0].neg_mru,
-      "Disable MRU negotiation (use default 1500)",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_mru },
-    { "-mru", o_bool, &lcp_wantoptions[0].neg_mru,
-      "Disable MRU negotiation (use default 1500)",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_mru },
+      OPT_ALIAS | OPT_A2CLR, &lcp_allowoptions[0].neg_magicnumber },
+
     { "mru", o_int, &lcp_wantoptions[0].mru,
       "Set MRU (maximum received packet size) for negotiation",
-      0, &lcp_wantoptions[0].neg_mru },
+      OPT_PRIO, &lcp_wantoptions[0].neg_mru },
+    { "default-mru", o_bool, &lcp_wantoptions[0].neg_mru,
+      "Disable MRU negotiation (use default 1500)",
+      OPT_PRIOSUB | OPT_A2CLR, &lcp_allowoptions[0].neg_mru },
+    { "-mru", o_bool, &lcp_wantoptions[0].neg_mru,
+      "Disable MRU negotiation (use default 1500)",
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR, &lcp_allowoptions[0].neg_mru },
+
     { "mtu", o_int, &lcp_allowoptions[0].mru,
       "Set our MTU", OPT_LIMITS, NULL, MAXMRU, MINMRU },
+
     { "nopcomp", o_bool, &lcp_wantoptions[0].neg_pcompression,
       "Disable protocol field compression",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_pcompression },
+      OPT_A2CLR, &lcp_allowoptions[0].neg_pcompression },
     { "-pc", o_bool, &lcp_wantoptions[0].neg_pcompression,
       "Disable protocol field compression",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_pcompression },
-    { "-p", o_bool, &lcp_wantoptions[0].passive,
-      "Set passive mode", 1 },
+      OPT_ALIAS | OPT_A2CLR, &lcp_allowoptions[0].neg_pcompression },
+
     { "passive", o_bool, &lcp_wantoptions[0].passive,
       "Set passive mode", 1 },
+    { "-p", o_bool, &lcp_wantoptions[0].passive,
+      "Set passive mode", OPT_ALIAS | 1 },
+
     { "silent", o_bool, &lcp_wantoptions[0].silent,
       "Set silent mode", 1 },
-    { "escape", o_special, (void *)setescape,
-      "List of character codes to escape on transmission" },
+
     { "lcp-echo-failure", o_int, &lcp_echo_fails,
-      "Set number of consecutive echo failures to indicate link failure" },
+      "Set number of consecutive echo failures to indicate link failure",
+      OPT_PRIO },
     { "lcp-echo-interval", o_int, &lcp_echo_interval,
-      "Set time in seconds between LCP echo requests" },
+      "Set time in seconds between LCP echo requests", OPT_PRIO },
     { "lcp-restart", o_int, &lcp_fsm[0].timeouttime,
-      "Set time in seconds between LCP retransmissions" },
+      "Set time in seconds between LCP retransmissions", OPT_PRIO },
     { "lcp-max-terminate", o_int, &lcp_fsm[0].maxtermtransmits,
-      "Set maximum number of LCP terminate-request transmissions" },
+      "Set maximum number of LCP terminate-request transmissions", OPT_PRIO },
     { "lcp-max-configure", o_int, &lcp_fsm[0].maxconfreqtransmits,
-      "Set maximum number of LCP configure-request transmissions" },
+      "Set maximum number of LCP configure-request transmissions", OPT_PRIO },
     { "lcp-max-failure", o_int, &lcp_fsm[0].maxnakloops,
-      "Set limit on number of LCP configure-naks" },
+      "Set limit on number of LCP configure-naks", OPT_PRIO },
+
     { "receive-all", o_bool, &lax_recv,
       "Accept all received control characters", 1 },
+
 #ifdef HAVE_MULTILINK
     { "mrru", o_int, &lcp_wantoptions[0].mrru,
       "Maximum received packet size for multilink bundle",
-      0, &lcp_wantoptions[0].neg_mrru },
+      OPT_PRIO, &lcp_wantoptions[0].neg_mrru },
+
     { "mpshortseq", o_bool, &lcp_wantoptions[0].neg_ssnhf,
       "Use short sequence numbers in multilink headers",
-      OPT_A2COPY | 1, &lcp_allowoptions[0].neg_ssnhf },
+      OPT_PRIO | 1, &lcp_allowoptions[0].neg_ssnhf },
     { "nompshortseq", o_bool, &lcp_wantoptions[0].neg_ssnhf,
       "Don't use short sequence numbers in multilink headers",
-      OPT_A2COPY, &lcp_allowoptions[0].neg_ssnhf },
-    { "endpoint", o_special, setendpoint,
-      "Endpoint discriminator for multilink" },
+      OPT_PRIOSUB | OPT_A2CLR, &lcp_allowoptions[0].neg_ssnhf },
+
+    { "endpoint", o_special, (void *) setendpoint,
+      "Endpoint discriminator for multilink",
+      OPT_PRIO | OPT_A2PRINTER, (void *) printendpoint },
 #endif /* HAVE_MULTILINK */
+
     { "noendpoint", o_bool, &noendpoint,
       "Don't send or accept multilink endpoint discriminator", 1 },
+
     {NULL}
 };
 
@@ -151,7 +169,6 @@ lcp_options lcp_wantoptions[NUM_PPP];	/* Options that we want to request */
 lcp_options lcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 lcp_options lcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 lcp_options lcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
-u_int32_t xmit_accm[NUM_PPP][8];	/* extended transmit ACCM */
 
 static int lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static int lcp_echo_number   = 0;	/* ID number of next echo frame */
@@ -266,37 +283,6 @@ noopt(argv)
     return (1);
 }
 
-/*
- * setescape - add chars to the set we escape on transmission.
- */
-static int
-setescape(argv)
-    char **argv;
-{
-    int n, ret;
-    char *p, *endp;
-
-    p = *argv;
-    ret = 1;
-    while (*p) {
-	n = strtol(p, &endp, 16);
-	if (p == endp) {
-	    option_error("escape parameter contains invalid hex number '%s'",
-			 p);
-	    return 0;
-	}
-	p = endp;
-	if (n < 0 || n == 0x5E || n > 0xFF) {
-	    option_error("can't escape character 0x%x", n);
-	    ret = 0;
-	} else
-	    xmit_accm[0][n >> 5] |= 1 << (n & 0x1F);
-	while (*p == ',' || *p == ' ')
-	    ++p;
-    }
-    return ret;
-}
-
 #ifdef HAVE_MULTILINK
 static int
 setendpoint(argv)
@@ -308,6 +294,15 @@ setendpoint(argv)
     }
     option_error("Can't parse '%s' as an endpoint discriminator", *argv);
     return 0;
+}
+
+static void
+printendpoint(opt, printer, arg)
+    option_t *opt;
+    void (*printer) __P((void *, char *, ...));
+    void *arg;
+{
+	printer(arg, "%s", epdisc_to_str(&lcp_wantoptions[0].endpoint));
 }
 #endif /* HAVE_MULTILINK */
 
@@ -351,9 +346,6 @@ lcp_init(unit)
     ao->neg_cbcp = 1;
 #endif
     ao->neg_endpoint = 1;
-
-    BZERO(xmit_accm[unit], sizeof(xmit_accm[0]));
-    xmit_accm[unit][3] = 0x60000000;
 }
 
 
@@ -418,12 +410,10 @@ lcp_lowerup(unit)
      * but accept A/C and protocol compressed packets
      * if we are going to ask for A/C and protocol compression.
      */
-    ppp_set_xaccm(unit, xmit_accm[unit]);
     ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0);
     ppp_recv_config(unit, PPP_MRU, (lax_recv? 0: 0xffffffff),
 		    wo->neg_pcompression, wo->neg_accompression);
     peer_mru[unit] = PPP_MRU;
-    lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
 
     if (listen_time != 0) {
 	f->flags |= DELAYED_UP;
@@ -1781,6 +1771,7 @@ lcp_up(f)
     lcp_options *ho = &lcp_hisoptions[f->unit];
     lcp_options *go = &lcp_gotoptions[f->unit];
     lcp_options *ao = &lcp_allowoptions[f->unit];
+    int mtu;
 
     if (!go->neg_magicnumber)
 	go->magicnumber = 0;
@@ -1792,8 +1783,16 @@ lcp_up(f)
      * the MRU our peer wanted.  If we negotiated an MRU,
      * set our MRU to the larger of value we wanted and
      * the value we got in the negotiation.
+     * Note on the MTU: the link MTU can be the MRU the peer wanted,
+     * the interface MTU is set to the lower of that and the
+     * MTU we want to use.
      */
-    ppp_send_config(f->unit, MIN(ao->mru, (ho->neg_mru? ho->mru: PPP_MRU)),
+    mtu = ho->neg_mru? ho->mru: PPP_MRU;
+#ifdef HAVE_MULTILINK
+    if (!(multilink && go->neg_mrru && ho->neg_mrru))
+#endif /* HAVE_MULTILINK */
+	netif_set_mtu(f->unit, MIN(mtu, ao->mru));
+    ppp_send_config(f->unit, mtu,
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
     ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU),

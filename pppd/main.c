@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.102 2001/02/22 03:10:57 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.103 2001/03/08 05:11:14 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -54,7 +54,6 @@
 #include "chap.h"
 #include "ccp.h"
 #include "pathnames.h"
-#include "patchlevel.h"
 #include "tdb.h"
 
 #ifdef CBCP_SUPPORT
@@ -73,6 +72,8 @@ static const char rcsid[] = RCSID;
 /* interface vars */
 char ifname[32];		/* Interface name */
 int ifunit;			/* Interface unit number */
+
+struct channel *the_channel;
 
 char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
@@ -278,6 +279,10 @@ main(argc, argv)
      */
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         (*protp->init)(0);
+
+    /*
+     * Initialize the default channel.
+     */
     tty_init();
 
     progname = *argv;
@@ -296,7 +301,14 @@ main(argc, argv)
      * Work out the device name, if it hasn't already been specified,
      * and parse the tty's options file.
      */
-    tty_device_check();
+    if (the_channel->process_extra_options)
+	(*the_channel->process_extra_options)();
+
+    if (dump_options || dryrun) {
+	init_pr_log(NULL, LOG_INFO);
+	print_options(pr_log, NULL);
+	end_pr_log();
+    }
 
     /*
      * Check that we are running as root.
@@ -315,6 +327,7 @@ main(argc, argv)
     /*
      * Check that the options given are valid and consistent.
      */
+    check_options();
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
@@ -324,7 +337,8 @@ main(argc, argv)
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
-    tty_check_options();
+    if (the_channel->check_options)
+	(*the_channel->check_options)();
 
     /*
      * Initialize system-dependent stuff.
@@ -332,6 +346,9 @@ main(argc, argv)
     sys_init();
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
+
+    if (dryrun)
+	die(0);
 
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
@@ -359,8 +376,7 @@ main(argc, argv)
 	else
 	    p = "(unknown)";
     }
-    syslog(LOG_NOTICE, "pppd %s.%d%s started by %s, uid %d",
-	   VERSION, PATCHLEVEL, IMPLEMENTATION, p, uid);
+    syslog(LOG_NOTICE, "pppd %s started by %s, uid %d", VERSION, p, uid);
     script_setenv("PPPLOGNAME", p, 0);
 
     if (devnam[0])
@@ -430,7 +446,7 @@ main(argc, argv)
 
 	new_phase(PHASE_SERIALCONN);
 
-	devfd = connect_tty();
+	devfd = the_channel->connect();
 	if (devfd < 0)
 	    goto fail;
 
@@ -507,7 +523,7 @@ main(argc, argv)
 	clean_check();
 	if (demand)
 	    restore_loop();
-	disestablish_ppp(devfd);
+	disestablish_ppp(devfd);	/* XXX */
 	fd_ppp = -1;
 	if (!hungup)
 	    lcp_lowerdown(0);
@@ -520,10 +536,11 @@ main(argc, argv)
 	 */
     disconnect:
 	new_phase(PHASE_DISCONNECT);
-	disconnect_tty();
+	the_channel->disconnect();
 
     fail:
-	cleanup_tty();
+	if (the_channel->cleanup)
+	    (*the_channel->cleanup)();
 
 	if (!demand) {
 	    if (pidfilename[0] != 0
@@ -741,7 +758,7 @@ detach()
     close(1);
     close(2);
     detached = 1;
-    if (!log_to_file && !log_to_specific_fd)
+    if (log_default)
 	log_to_fd = -1;
     /* update pid files if they have been written already */
     if (pidfilename[0])
@@ -1020,7 +1037,8 @@ cleanup()
 
     if (fd_ppp >= 0)
 	disestablish_ppp(devfd);
-    cleanup_tty();
+    if (the_channel->cleanup)
+	(*the_channel->cleanup)();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
 	warn("unable to delete pid file %s: %m", pidfilename);
@@ -1378,7 +1396,8 @@ device_script(program, in, out, dont_wait)
     close(1);
     close(2);
     sys_close();
-    tty_close_fds();
+    if (the_channel->close)
+	(*the_channel->close)();
     closelog();
 
     /* dup the in, out, err fds to 0, 1, 2 */
@@ -1460,7 +1479,8 @@ run_program(prog, args, must_exist, done, arg)
 	close (0);
 	close (1);
 	close (2);
-	tty_close_fds();
+	if (the_channel->close)
+	    (*the_channel->close)();
 
         /* Don't pass handles to the PPP device, even by accident. */
 	new_fd = open (_PATH_DEVNULL, O_RDWR);

@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.31 2001/02/22 03:10:06 paulus Exp $"
+#define RCSID	"$Id: ccp.c,v 1.32 2001/03/08 05:11:11 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -51,38 +51,46 @@ static const char rcsid[] = RCSID;
  */
 static int setbsdcomp __P((char **));
 static int setdeflate __P((char **));
+static char bsd_value[8];
+static char deflate_value[8];
 
 static option_t ccp_option_list[] = {
     { "noccp", o_bool, &ccp_protent.enabled_flag,
       "Disable CCP negotiation" },
     { "-ccp", o_bool, &ccp_protent.enabled_flag,
-      "Disable CCP negotiation" },
+      "Disable CCP negotiation", OPT_ALIAS },
+
     { "bsdcomp", o_special, (void *)setbsdcomp,
-      "Request BSD-Compress packet compression" },
+      "Request BSD-Compress packet compression",
+      OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, bsd_value },
     { "nobsdcomp", o_bool, &ccp_wantoptions[0].bsd_compress,
-      "don't allow BSD-Compress", OPT_A2COPY,
+      "don't allow BSD-Compress", OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].bsd_compress },
     { "-bsdcomp", o_bool, &ccp_wantoptions[0].bsd_compress,
-      "don't allow BSD-Compress", OPT_A2COPY,
+      "don't allow BSD-Compress", OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].bsd_compress },
+
     { "deflate", o_special, (void *)setdeflate,
-      "request Deflate compression" },
+      "request Deflate compression",
+      OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, deflate_value },
     { "nodeflate", o_bool, &ccp_wantoptions[0].deflate,
-      "don't allow Deflate compression", OPT_A2COPY,
+      "don't allow Deflate compression", OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].deflate },
     { "-deflate", o_bool, &ccp_wantoptions[0].deflate,
-      "don't allow Deflate compression", OPT_A2COPY,
+      "don't allow Deflate compression", OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].deflate },
+
     { "nodeflatedraft", o_bool, &ccp_wantoptions[0].deflate_draft,
       "don't use draft deflate #", OPT_A2COPY,
       &ccp_allowoptions[0].deflate_draft },
+
     { "predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
-      "request Predictor-1", 1, &ccp_allowoptions[0].predictor_1 },
+      "request Predictor-1", 1, &ccp_allowoptions[0].predictor_1, OPT_PRIO },
     { "nopredictor1", o_bool, &ccp_wantoptions[0].predictor_1,
-      "don't allow Predictor-1", OPT_A2COPY,
+      "don't allow Predictor-1", OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].predictor_1 },
     { "-predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
-      "don't allow Predictor-1", OPT_A2COPY,
+      "don't allow Predictor-1", OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].predictor_1 },
 
     { NULL }
@@ -216,6 +224,9 @@ setbsdcomp(argv)
 	ccp_allowoptions[0].bsd_bits = abits;
     } else
 	ccp_allowoptions[0].bsd_compress = 0;
+    slprintf(bsd_value, sizeof(bsd_value),
+	     rbits == abits? "%d": "%d,%d", rbits, abits);
+
     return 1;
 }
 
@@ -261,9 +272,11 @@ setdeflate(argv)
 	ccp_allowoptions[0].deflate_size = abits;
     } else
 	ccp_allowoptions[0].deflate = 0;
+    slprintf(deflate_value, sizeof(deflate_value),
+	     rbits == abits? "%d": "%d,%d", rbits, abits);
+
     return 1;
 }
-
 
 /*
  * ccp_init - initialize CCP.

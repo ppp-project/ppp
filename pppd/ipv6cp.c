@@ -90,10 +90,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.12 2001/02/22 03:15:16 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.13 2001/03/08 05:11:12 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.12 2001/02/22 03:15:16 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.13 2001/03/08 05:11:12 paulus Exp $"
 
 /*
  * TODO: 
@@ -172,33 +172,40 @@ static fsm_callbacks ipv6cp_callbacks = { /* IPV6CP callback routines */
  * Command-line options.
  */
 static int setifaceid __P((char **arg));
+static void printifaceid __P((option_t *,
+			      void (*)(void *, char *, ...), void *));
 
 static option_t ipv6cp_option_list[] = {
     { "ipv6", o_special, (void *)setifaceid,
-      "Set interface identifiers for IPV6", OPT_MULTIPART },
-    { "noipv6", o_bool, &ipv6cp_protent.enabled_flag,
-      "Disable IPv6 and IPv6CP" },
-    { "-ipv6", o_bool, &ipv6cp_protent.enabled_flag,
-      "Disable IPv6 and IPv6CP" },
+      "Set interface identifiers for IPV6",
+      OPT_A2PRINTER, (void *)printifaceid },
+
     { "+ipv6", o_bool, &ipv6cp_protent.enabled_flag,
-      "Enable IPv6 and IPv6CP", 1 },
+      "Enable IPv6 and IPv6CP", OPT_PRIO | 1 },
+    { "noipv6", o_bool, &ipv6cp_protent.enabled_flag,
+      "Disable IPv6 and IPv6CP", OPT_PRIOSUB },
+    { "-ipv6", o_bool, &ipv6cp_protent.enabled_flag,
+      "Disable IPv6 and IPv6CP", OPT_PRIOSUB | OPT_ALIAS },
 
     { "ipv6cp-accept-local", o_bool, &ipv6cp_allowoptions[0].accept_local,
       "Accept peer's interface identifier for us", 1 },
+
     { "ipv6cp-use-ipaddr", o_bool, &ipv6cp_allowoptions[0].use_ip,
-      "Use (default) IPv4 address as interface identifier", 0 },
+      "Use (default) IPv4 address as interface identifier", 1 },
+
 #if defined(SOL2)
     { "ipv6cp-use-persistent", o_bool, &ipv6cp_wantoptions[0].use_persistent,
       "Use uniquely-available persistent value for link local address", 1 },
 #endif /* defined(SOL2) */
+
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
-      "Set timeout for IPv6CP" },
+      "Set timeout for IPv6CP", OPT_PRIO },
     { "ipv6cp-max-terminate", o_int, &ipv6cp_fsm[0].maxtermtransmits,
-      "Set max #xmits for term-reqs" },
+      "Set max #xmits for term-reqs", OPT_PRIO },
     { "ipv6cp-max-configure", o_int, &ipv6cp_fsm[0].maxconfreqtransmits,
-      "Set max #xmits for conf-reqs" },
+      "Set max #xmits for conf-reqs", OPT_PRIO },
     { "ipv6cp-max-failure", o_int, &ipv6cp_fsm[0].maxnakloops,
-      "Set max #conf-naks for IPv6CP" },
+      "Set max #conf-naks for IPv6CP", OPT_PRIO },
 
    { NULL }
 };
@@ -318,8 +325,24 @@ setifaceid(argv)
 	}
     }
 
-    ipv6cp_protent.enabled_flag = 1;
+    if (override_value("+ipv6", option_priority, option_source))
+	ipv6cp_protent.enabled_flag = 1;
     return 1;
+}
+
+static void
+printipaddr(opt, printer, arg)
+    option_t *opt;
+    void (*printer) __P((void *, char *, ...));
+    void *arg;
+{
+	ipv6cp_options *wo = &ipv6cp_wantoptions[0];
+
+	if (wo->opt_local)
+		printer(arg, "%s", llv6_ntoa(wo->ourid));
+	printer(arg, ",");
+	if (wo->opt_remote)
+		printer(arg, "%s", llv6_ntoa(wo->hisid));
 }
 
 /*
