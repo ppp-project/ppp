@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: fsm.c,v 1.21 2004/02/02 02:52:51 carlsonj Exp $"
+#define RCSID	"$Id: fsm.c,v 1.22 2004/02/02 03:57:19 carlsonj Exp $"
 
 /*
  * TODO:
@@ -208,8 +208,9 @@ fsm_open(f)
  * send a terminate-request message as configured.
  */
 static void
-terminate_layer(f)
+terminate_layer(f, nextstate)
     fsm *f;
+    int nextstate;
 {
     if( f->state != OPENED )
 	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
@@ -227,7 +228,7 @@ terminate_layer(f)
 	 * We've already fired off one Terminate-Request just to be nice
 	 * to the peer, but we're not going to wait for a reply.
 	 */
-	f->state = CLOSED;
+	f->state = nextstate == CLOSING ? CLOSED : STOPPED;
 	if( f->callbacks->finished )
 	    (*f->callbacks->finished)(f);
 	return;
@@ -236,7 +237,7 @@ terminate_layer(f)
     TIMEOUT(fsm_timeout, f, f->timeouttime);
     --f->retransmits;
 
-    f->state = CLOSING;
+    f->state = nextstate;
 }
 
 /*
@@ -267,7 +268,7 @@ fsm_close(f, reason)
     case ACKRCVD:
     case ACKSENT:
     case OPENED:
-	terminate_layer(f);
+	terminate_layer(f, CLOSING);
 	break;
     }
 }
@@ -714,7 +715,7 @@ fsm_protreject(f)
 	break;
 
     case OPENED:
-	terminate_layer(f);
+	terminate_layer(f, STOPPING);
 	break;
 
     default:
