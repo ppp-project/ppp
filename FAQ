@@ -561,3 +561,20 @@ If this is older than the latest version, you may wish to install the
 latest version so that you can take advantage of the new features or
 bug fixes.
 
+
+------------------------------------------------------------------------
+
+Q: I'm running pppd in demand mode, and I find that pppd often dials
+out unnecessarily when I try to make a connection within my local
+machine or with a machine on my local LAN.  What can I do about this?
+
+A: Very often the cause of this is that a program is trying to contact
+a nameserver to resolve a hostname, and the nameserver (specified in
+/etc/resolv.conf, usually) is on the far side of the ppp link.  You
+can try executing a command such as `ping myhost' (where myhost is the
+name of the local machine, or some other machine on a local LAN), to
+see whether that starts the ppp link.  If it does, check the setup of
+your /etc/hosts file to make sure you have the local machine and any
+hosts on your local LAN listed, and /etc/resolv.conf and/or
+/etc/nsswitch.conf files to make sure you resolve hostnames from
+/etc/hosts if possible before trying to contact a nameserver.
