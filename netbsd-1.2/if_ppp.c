@@ -1,5 +1,5 @@
-/*	$NetBSD: if_ppp.c,v 1.41 1998/05/02 14:34:24 christos Exp $	*/
-/*	Id: if_ppp.c,v 1.6 1997/03/04 03:33:00 paulus Exp 	*/
+/*	$NetBSD: if_ppp.c,v 1.46 1998/08/02 15:09:50 sommerfe Exp $	*/
+/*	$Id: if_ppp.c,v 1.5 1998/09/02 21:19:44 christos Exp $ 	*/
 
 /*
  * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
@@ -82,6 +82,12 @@
 #define PPP_COMPRESS
 
 #include <sys/param.h>
+
+#ifdef __NetBSD_Version__	/* Post 1.3 */
+#include "opt_inet.h"
+#include "opt_gateway.h"
+#endif
+
 #include <sys/proc.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
@@ -99,7 +105,7 @@
 #include <net/bpf.h>
 #endif
 
-#if INET
+#ifdef INET
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/in_var.h>
@@ -471,11 +477,11 @@ pppioctl(sc, cmd, data, flag, p)
 	    if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 		return (error);
 	    if (npi->mode != sc->sc_npmode[npx]) {
-		s = splsoftnet();
+		s = splimp();
 		sc->sc_npmode[npx] = npi->mode;
 		if (npi->mode != NPMODE_QUEUE) {
 		    ppp_requeue(sc);
-		    (*sc->sc_start)(sc);
+		    ppp_restart(sc);
 		}
 		splx(s);
 	    }
@@ -771,7 +777,7 @@ pppoutput(ifp, m0, dst, rtp)
     /*
      * Put the packet on the appropriate queue.
      */
-    s = splsoftnet();
+    s = splimp();
     if (mode == NPMODE_QUEUE) {
 	/* XXX we should limit the number of packets on this queue */
 	*sc->sc_npqtail = m0;
@@ -788,7 +794,7 @@ pppoutput(ifp, m0, dst, rtp)
 	    goto bad;
 	}
 	IF_ENQUEUE(ifq, m0);
-	(*sc->sc_start)(sc);
+	ppp_restart(sc);
     }
     ifp->if_lastchange = time;
     ifp->if_opackets++;
@@ -805,7 +811,7 @@ bad:
 /*
  * After a change in the NPmode for some NP, move packets from the
  * npqueue to the send queue or the fast queue as appropriate.
- * Should be called at splsoftnet.
+ * Should be called at splimp, since we muck with the queues.
  */
 static void
 ppp_requeue(sc)
@@ -882,14 +888,18 @@ ppp_dequeue(sc)
     struct mbuf *m, *mp;
     u_char *cp;
     int address, control, protocol;
+    int s;
 
     /*
      * Grab a packet to send: first try the fast queue, then the
      * normal queue.
      */
+    s = splimp();    
     IF_DEQUEUE(&sc->sc_fastq, m);
     if (m == NULL)
 	IF_DEQUEUE(&sc->sc_if.if_snd, m);
+    splx(s);
+    
     if (m == NULL)
 	return NULL;
 
@@ -1014,7 +1024,8 @@ pppintr()
     s = splsoftnet();
     for (i = 0; i < NPPP; ++i, ++sc) {
 	if (!(sc->sc_flags & SC_TBUSY)
-	    && (sc->sc_if.if_snd.ifq_head || sc->sc_fastq.ifq_head)) {
+	    && (sc->sc_if.if_snd.ifq_head || sc->sc_fastq.ifq_head
+		|| sc->sc_outm)) {
 	    s2 = splimp();
 	    sc->sc_flags |= SC_TBUSY;
 	    splx(s2);
@@ -1416,6 +1427,12 @@ ppp_inproc(sc, m)
 	m->m_pkthdr.len -= PPP_HDRLEN;
 	m->m_data += PPP_HDRLEN;
 	m->m_len -= PPP_HDRLEN;
+#ifdef __NetBSD_Version__
+#ifdef GATEWAY
+	if (ipflow_fastforward(m))
+		return;
+#endif
+#endif
 	schednetisr(NETISR_IP);
 	inq = &ipintrq;
 	break;
