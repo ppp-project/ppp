@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.62 2001/05/23 03:39:13 paulus Exp $
+ * $Id: pppd.h,v 1.63 2002/01/11 18:31:42 etbe Exp $
  */
 
 /*
@@ -71,7 +71,7 @@ enum opt_type {
 	o_int,
 	o_uint32,
 	o_string,
-	o_wild,
+	o_wild
 };
 
 typedef struct {
@@ -580,6 +580,7 @@ int  get_if_hwaddr __P((u_char *addr, char *name));
 char *get_first_ethernet __P((void));
 
 /* Procedures exported from options.c */
+int setipaddr __P((char *, char **, int)); /* Set local/remote ip addresses */
 int  parse_args __P((int argc, char **argv));
 				/* Parse options from arguments given */
 int  options_from_file __P((char *filename, int must_exist, int check_prot,

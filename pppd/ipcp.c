@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.58 2001/04/27 23:13:06 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.59 2002/01/11 18:31:42 etbe Exp $"
 
 /*
  * TODO:
@@ -113,7 +113,7 @@ static int setvjslots __P((char **));
 static int setdnsaddr __P((char **));
 static int setwinsaddr __P((char **));
 static int setnetmask __P((char **));
-static int setipaddr __P((char *, char **, int));
+int setipaddr __P((char *, char **, int));
 static void printipaddr __P((option_t *, void (*)(void *, char *,...),void *));
 
 static option_t ipcp_option_list[] = {
@@ -371,8 +371,9 @@ setwinsaddr(argv)
  * setipaddr - Set the IP address
  * If doit is 0, the call is to check whether this option is
  * potentially an IP address specification.
+ * Not static so that plugins can call it to set the addresses
  */
-static int
+int
 setipaddr(arg, argv, doit)
     char *arg;
     char **argv;
@@ -2018,7 +2019,9 @@ ipcp_printpkt(p, plen, printer, arg)
  */
 #define IP_HDRLEN	20	/* bytes */
 #define IP_OFFMASK	0x1fff
+#ifndef IPPROTO_TCP
 #define IPPROTO_TCP	6
+#endif
 #define TCP_HDRLEN	20
 #define TH_FIN		0x01
 
