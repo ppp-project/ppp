@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.81 2004/11/13 12:02:22 paulus Exp $
+.\" $Id: pppd.8,v 1.82 2004/11/13 12:04:02 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -1308,13 +1308,13 @@ randomly strings of bytes, or E-164 phone numbers.  The endpoint
 discriminator sent to the peer by pppd can be set using the endpoint
 option.
 .LP
-In circumstances the peer may send no endpoint discriminator or a
-non-unique value.  The optional bundle option adds an extra string
-which is added to the peer's endpoint discriminator and authenticated
-identity when matching up links to be joined together in a bundle.
-The bundle option can also be used to allow the establishment of
-multiple bundles between the local system and the peer.  Pppd uses a
-TDB database in /var/run/pppd.tdb to match up links.
+In some circumstances the peer may send no endpoint discriminator or a
+non-unique value.  The bundle option adds an extra string which is
+added to the peer's endpoint discriminator and authenticated identity
+when matching up links to be joined together in a bundle.  The bundle
+option can also be used to allow the establishment of multiple bundles
+between the local system and the peer.  Pppd uses a TDB database in
+/var/run/pppd2.tdb to match up links.
 .LP
 Assuming that multilink is enabled and the peer is willing to
 negotiate multilink, then when pppd is invoked to bring up the first
@@ -1322,8 +1322,19 @@ link to the peer, it will detect that no other link is connected to
 the peer and create a new bundle, that is, another ppp network
 interface unit.  When another pppd is invoked to bring up another link
 to the peer, it will detect the existing bundle and join its link to
-it.  Currently, if the first pppd terminates (for example, because of
-a hangup or a received signal) the bundle is destroyed.
+it.
+.LP
+If the first link terminates (for example, because of a hangup or a
+received LCP terminate-request) the bundle is not destroyed unless
+there are no other links remaining in the bundle.  Rather than
+exiting, the first pppd keeps running after its link terminates, until
+all the links in the bundle have terminated.  If the first pppd
+receives a SIGTERM or SIGINT signal, it will destroy the bundle and
+send a SIGHUP to the pppd processes for each of the links in the
+bundle.  If the first pppd receives a SIGHUP signal, it will terminate
+its link but not the bundle.
+.LP
+Note: demand mode is not currently supported with multilink.
 .SH EXAMPLES
 .LP
 The following examples assume that the /etc/ppp/options file contains
