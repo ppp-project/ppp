@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.18 1999/03/22 05:55:59 paulus Exp $
+ * $Id: ppp.c,v 1.19 1999/05/13 00:32:42 paulus Exp $
  */
 
 /*
@@ -809,7 +809,7 @@ pppuwput(q, mp)
 	    if (n == PPPDBG_DUMP + PPPDBG_DRIVER) {
 		qwriter(q, NULL, debug_dump, PERIM_OUTER);
 		iop->ioc_count = 0;
-		error = 0;
+		error = -1;
 	    } else if (n == PPPDBG_LOG + PPPDBG_DRIVER) {
 		DPRINT1("ppp/%d: debug log enabled\n", us->mn);
 		us->flags |= US_DBGLOG;
@@ -1098,7 +1098,7 @@ dlpi_request(q, mp, us)
 	}
 	us->ppa = ppa;
 	qwriter(q, mp, attach_ppa, PERIM_OUTER);
-	break;
+	return;
 
     case DL_DETACH_REQ:
 	if (size < sizeof(dl_detach_req_t))
@@ -1108,7 +1108,7 @@ dlpi_request(q, mp, us)
 	    break;
 	}
 	qwriter(q, mp, detach_ppa, PERIM_OUTER);
-	break;
+	return;
 
     case DL_BIND_REQ:
 	if (size < sizeof(dl_bind_req_t))
@@ -2092,8 +2092,8 @@ putctl4(q, type, code, val)
 
 static void
 debug_dump(q, mp)
-    queue_t *q;			/* not used */
-    mblk_t *mp;			/* not used either */
+    queue_t *q;
+    mblk_t *mp;
 {
     upperstr_t *us;
     queue_t *uq, *lq;
@@ -2119,6 +2119,8 @@ debug_dump(q, mp)
 		    (lq? qsize(lq): 0), us->mru, us->mtu);
 	}
     }
+    mp->b_datap->db_type = M_IOCACK;
+    qreply(q, mp);
 }
 
 #ifdef FILTER_PACKETS
