@@ -41,7 +41,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.15 2000/02/18 10:00:58 masputra Exp $
+ * $Id: ppp_ahdlc.c,v 1.16 2000/03/06 19:38:12 masputra Exp $
  */
 
 /*
@@ -74,6 +74,21 @@
 #if defined(SOL2)
 #define USE_MUTEX
 #endif /* SOL2 */
+
+/*
+ * intpointer_t and uintpointer_t are signed and unsigned integer types 
+ * large enough to hold any data pointer; that is, data pointers can be 
+ * assigned into or from these integer types without losing precision.
+ * On recent Solaris releases, these types are defined in sys/int_types.h,
+ * but not on SunOS 4.x or the earlier Solaris versions.
+ */
+#if defined(_LP64) || defined(_I32LPx)
+typedef long                    intpointer_t;
+typedef unsigned long           uintpointer_t;
+#else
+typedef int                     intpointer_t;
+typedef unsigned int            uintpointer_t;
+#endif
 
 MOD_OPEN_DECL(ahdlc_open);
 MOD_CLOSE_DECL(ahdlc_close);
@@ -688,14 +703,6 @@ ahdlc_encode(q, mp)
 #define IN_RX_MAP(c, m)	((((unsigned int) (uchar_t) (c)) < 0x20) && \
 			(m) & (1 << (c)))
 
-/*
- * SunOS 4.x does not have intptr_t or uintptr_t defined, so
- * declare them here
- */
-#if defined(SUNOS4)
-typedef	int			intptr_t;
-typedef	unsigned int		uintptr_t;
-#endif /* SUNOS4 */
 
 /*
  * Process received characters.
@@ -719,7 +726,7 @@ ahdlc_decode(q, mp)
      * data upstream in one message block, concatenate everything
      */
     if (!((mp->b_wptr - mp->b_rptr == msgdsize(mp)) && 
-         ((intptr_t)mp->b_rptr % sizeof(intptr_t) == 0))) {
+         ((intpointer_t)mp->b_rptr % sizeof(intpointer_t) == 0))) {
 
 	zmp = msgpullup(mp, -1);
 	freemsg(mp);
