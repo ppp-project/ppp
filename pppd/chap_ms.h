@@ -27,7 +27,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: chap_ms.h,v 1.11 2004/11/04 12:00:07 paulus Exp $
+ * $Id: chap_ms.h,v 1.12 2004/11/09 22:49:05 paulus Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -49,6 +49,17 @@
 #define MS_CHAP_ERROR_CHANGING_PASSWORD		709
 
 /*
+ * Apparently gcc on ARM gives all structures 4-byte alignment
+ * by default.  This tells gcc that these structures may be
+ * unaligned and may not have extra padding inside them.
+ */
+#ifdef __GNUC__
+#define PACKED	__attribute__((__packed__))
+#else
+#define PACKED
+#endif
+
+/*
  * Use MS_CHAP_RESPONSE_LEN, rather than sizeof(MS_ChapResponse),
  * in case this struct gets padded.
  */
@@ -56,7 +67,7 @@ typedef struct {
     u_char LANManResp[24];
     u_char NTResp[24];
     u_char UseNT[1];		/* If 1, ignore the LANMan response field */
-} MS_ChapResponse;
+} MS_ChapResponse PACKED;
 
 /*
  * Use MS_CHAP2_RESPONSE_LEN, rather than sizeof(MS_Chap2Response),
@@ -67,7 +78,7 @@ typedef struct {
     u_char Reserved[8];		/* Must be zero */
     u_char NTResp[24];
     u_char Flags[1];		/* Must be zero */
-} MS_Chap2Response;
+} MS_Chap2Response PACKED;
 
 #ifdef MPPE
 #include <net/ppp-comp.h>	/* MPPE_MAX_KEY_LEN */
