@@ -18,6 +18,10 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#ifndef lint
+static char rcsid[] = "$Id: sys-str.c,v 1.12 1994/09/16 02:18:01 paulus Exp $";
+#endif
+
 /*
  * TODO:
  */
@@ -651,6 +655,24 @@ ccp_flags_set(unit, isopen, isup)
     x = (isopen? 1: 0) + (isup? 2: 0);
     if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY)
 	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
+}
+
+/*
+ * ccp_fatal_error - returns 1 if decompression was disabled as a
+ * result of an error detected after decompression of a packet,
+ * 0 otherwise.  This is necessary because of patent nonsense.
+ */
+int
+ccp_fatal_error(unit)
+    int unit;
+{
+    int x;
+
+    if (ioctl(fd, SIOCGIFCOMP, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCGIFCOMP): %m");
+	return 0;
+    }
+    return x & CCP_FATALERROR;
 }
 
 /*
