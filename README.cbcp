@@ -8,7 +8,7 @@ in such a manner so as to require that the client systems which
 connect with it are required that following a valid authentication to
 leave a method by which the number may be returned call.
 
-It is a requirement of servers so configured that the protocol be
+It is a requirement of servers to be so configured that the protocol be
 exchanged.
 
 So, this set of patches may be applied to the pppd process to enable
@@ -26,72 +26,69 @@ To enable CBCP support, all that is required is to change the
 appropriate Makefile in the pppd subdirectory to add "-DCBCP_SUPPORT"
 to the CFLAGS definition and add cbcp.o to the list of object files,
 and then recompile pppd.  The patch below does this for Makefile.bsd
-and Makefile.linux.
+and Makefile.linux. You can patch the Makefiles by running
+patch -p1 < README.cbcp.
 
+I use such script to make a callback:
+
+pppd debug nodetach /dev/modem 115200 crtscts modem	\
+callback 222222 name NAME remotename SERVER	\
+connect 'chat -v "" atz OK atdt111111 CONNECT ""'
+sleep 1
+pppd debug /dev/modem 115200 crtscts modem	\
+name NAME remotename SERVER defaultroute	\
+connect 'chat -v RING ATA CONNECT "\c"'
+
+First we invoke pppd with 'nodetach' option in order to not detach from
+the controlling terminal and 'callback NUMBER' option, then wait for
+1 second and invoke pppd again which waits for a callback (RING) and
+then answers (ATA). Number 222222 is a callback number, i.e. server will
+call us back at this number, while number 111111 is the number we are
+calling to.
+
+You have to put in /etc/ppp/chap-secrets the following two lines:
+
+NAME SERVER PASSWORD
+SERVER NAME PASSWORD
+
+You have to use your real login name, remote server name and password.
 
 --------------------------------cut here-------------------------------
-diff -r -c ppp-2.3.orig/pppd/Makefile.bsd ppp-2.3/pppd/Makefile.bsd
-*** ppp-2.3.orig/pppd/Makefile.bsd	Tue Oct  8 13:33:33 1996
---- ppp-2.3/pppd/Makefile.bsd	Fri Apr 11 23:59:15 1997
-***************
-*** 4,14 ****
-  # -D_BITYPES is for FreeBSD, which doesn't define anything to
-  # tell us that u_int32_t gets defined if <sys/types.h> is included.
-  # Remove for older *BSD systems for which this isn't true.
-! CFLAGS+= -g -I.. -DHAVE_PATHS_H -D_BITYPES
-  
-  PROG=	pppd
-  SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-! 	demand.c auth.c options.c sys-bsd.c
-  MAN=	pppd.cat8
-  MAN8=	pppd.8
-  BINMODE=4555
---- 4,14 ----
-  # -D_BITYPES is for FreeBSD, which doesn't define anything to
-  # tell us that u_int32_t gets defined if <sys/types.h> is included.
-  # Remove for older *BSD systems for which this isn't true.
-! CFLAGS+= -I.. -DHAVE_PATHS_H -D_BITYPES -DCBCP_SUPPORT
-  
-  PROG=	pppd
-  SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-! 	demand.c auth.c options.c sys-bsd.c cbcp.c
-  MAN=	pppd.cat8
-  MAN8=	pppd.8
-  BINMODE=4555
-diff -r -c ppp-2.3.orig/pppd/Makefile.linux ppp-2.3/pppd/Makefile.linux
-*** ppp-2.3.orig/pppd/Makefile.linux	Tue Oct  8 15:42:41 1996
---- ppp-2.3/pppd/Makefile.linux	Sat Apr 12 00:02:28 1997
-***************
-*** 14,20 ****
-  	   ipxcp.h cbcp.h
-  MANPAGES = pppd.8
-  PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-! 	   auth.o options.o demand.o sys-linux.o ipxcp.o
-  
-  all: pppd
-  
---- 14,20 ----
-  	   ipxcp.h cbcp.h
-  MANPAGES = pppd.8
-  PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-! 	   auth.o options.o demand.o sys-linux.o ipxcp.o cbcp.o
-  
-  all: pppd
-  
-***************
-*** 36,42 ****
-  #INCLUDE_DIRS= -I/usr/include -I..
-  INCLUDE_DIRS=
-  
-! COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE
-  
-  CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
-  
---- 36,42 ----
-  #INCLUDE_DIRS= -I/usr/include -I..
-  INCLUDE_DIRS=
-  
-! COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DCBCP_SUPPORT
-  
-  CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
-  
+diff -ur ppp-2.4.1.orig/pppd/Makefile.bsd ppp-2.4.1/pppd/Makefile.bsd
+--- ppp-2.4.1.orig/pppd/Makefile.bsd	Mon Apr 12 08:24:44 1999
++++ ppp-2.4.1/pppd/Makefile.bsd	Tue Nov 20 02:36:49 2001
+@@ -4,11 +4,11 @@
+ # -D_BITYPES is for FreeBSD, which doesn't define anything to
+ # tell us that u_int32_t gets defined if <sys/types.h> is included.
+ # Remove for older *BSD systems for which this isn't true.
+-CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES
++CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES -DCBCP_SUPPORT
+ 
+ PROG=	pppd
+ SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+-	demand.c auth.c options.c utils.c sys-bsd.c
++	demand.c auth.c options.c utils.c sys-bsd.c cbcp.c
+ MAN=	pppd.cat8
+ MAN8=	pppd.8
+ BINMODE=4555
+diff -ur ppp-2.4.1.orig/pppd/Makefile.linux ppp-2.4.1/pppd/Makefile.linux
+--- ppp-2.4.1.orig/pppd/Makefile.linux	Wed May 23 05:39:50 2001
++++ ppp-2.4.1/pppd/Makefile.linux	Tue Nov 20 02:40:56 2001
+@@ -15,7 +15,7 @@
+ MANPAGES = pppd.8
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+ 	   auth.o options.o demand.o utils.o sys-linux.o ipxcp.o multilink.o \
+-	   tdb.o tty.o
++	   tdb.o tty.o cbcp.o
+ 
+ all: pppd
+ 
+@@ -56,7 +56,7 @@
+ 
+ INCLUDE_DIRS= -I../include
+ 
+-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MULTILINK -DHAVE_MMAP
++COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MULTILINK -DHAVE_MMAP -DCBCP_SUPPORT
+ 
+ CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
+ 
