@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.2 2002/01/22 16:03:05 dfs Exp $";
+"$Id: plugin.c,v 1.3 2002/02/12 04:36:00 mostrows Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -62,6 +62,7 @@ extern int new_style_driver;
 static char *service = NULL;
 static char *acName = NULL;
 static char *existingSession = NULL;
+static int printACNames = 0;
 
 static int PPPoEDevnameHook(const char *name);
 static option_t Options[] = {
@@ -75,6 +76,8 @@ static option_t Options[] = {
       "Desired PPPoE access concentrator name" },
     { "rp_pppoe_sess",    o_string, &existingSession,
       "Attach to existing session (sessid:macaddr)" },
+    { "rp_pppoe_verbose", o_int, &printACNames,
+      "Be verbose about discovered access concentrators"},
     { NULL }
 };
 int (*OldDevnameHook)(const char *name) = NULL;
@@ -107,6 +110,7 @@ PPPOEInitDevice(void)
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
     conn->useHostUniq = 1;
+    conn->printACNames = printACNames;
     return 1;
 }
 
