@@ -43,7 +43,6 @@
 
 #include "pppd.h"
 #include "ppp.h"
-#include <net/if_ppp.h>
 #include <net/ppp_str.h>
 
 #ifndef ifr_mtu

@@ -18,12 +18,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.11 1994/05/24 11:25:33 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.12 1994/05/26 06:36:22 paulus Exp $";
 #endif
 
 #define SETSID
 
 #include <stdio.h>
+#include <string.h>
 #include <signal.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -55,14 +56,9 @@ static char rcsid[] = "$Id: main.c,v 1.11 1994/05/24 11:25:33 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <net/if.h>
 
 #include "callout.h"
-
-#include <net/if.h>
-#include <net/if_ppp.h>
-
-#include <string.h>
-
 #include "ppp.h"
 #include "magic.h"
 #include "fsm.h"
