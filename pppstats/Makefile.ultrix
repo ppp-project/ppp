@@ -1,0 +1,33 @@
+#
+# pppstats makefile
+# $Id: Makefile.ultrix,v 1.1 1994/04/21 03:10:50 paulus Exp $
+#
+
+PPPSTATSRCS = pppstats.c
+PPPSTATOBJS = pppstats.o
+
+#CC = gcc
+COPTS = -O
+COMPILE_FLAGS = 
+LIBS = 
+
+CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+
+all: pppstats
+
+install:
+	install -c -g kmem pppstats $(BINDIR)/pppstats
+
+pppstats: $(PPPSTATSRCS)
+	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
+
+clean:
+	rm -f pppstats *~ #* core
+
+depend:
+	cpp -M $(CFLAGS) $(PPPSTATSRCS) >.depend
+#	makedepend $(CFLAGS) $(PPPSTATSRCS)
+
+saber_pppstats:
+	#setopt load_flags $(CFLAGS)
+	#load $(PPPSTATSRCS)
