@@ -31,7 +31,7 @@
  *   You should also use DOMAIN\\USERNAME as described in README.MSCHAP80
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.16 2002/03/01 14:39:18 dfs Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.17 2002/03/04 14:59:51 dfs Exp $"
 
 #ifdef CHAPMS
 
@@ -318,9 +318,9 @@ ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len)
     ChapMS_LANMan(rchallenge, rchallenge_len, secret, secret_len, &response);
 
     /* prefered method is set by option  */
-    response.UseNT = !ms_lanman;
+    response.UseNT[0] = !ms_lanman;
 #else
-    response.UseNT = 1;
+    response.UseNT[0] = 1;
 #endif
 
     BCOPY(&response, cstate->response, MS_CHAP_RESPONSE_LEN);

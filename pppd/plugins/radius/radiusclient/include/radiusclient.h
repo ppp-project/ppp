@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.3 2002/03/01 14:39:19 dfs Exp $
+ * $Id: radiusclient.h,v 1.4 2002/03/04 14:59:52 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -83,8 +83,8 @@ typedef struct pw_auth_hdr
 #define MAX_SECRET_LENGTH		(3 * 16) /* MUST be multiple of 16 */
 #define CHAP_VALUE_LENGTH		16
 
-#define PW_AUTH_UDP_PORT		1645
-#define PW_ACCT_UDP_PORT		1646
+#define PW_AUTH_UDP_PORT		1812
+#define PW_ACCT_UDP_PORT		1813
 
 #define PW_TYPE_STRING			0
 #define PW_TYPE_INTEGER			1
@@ -153,6 +153,10 @@ typedef struct pw_auth_hdr
 #define	PW_NAS_PORT_TYPE                61      /* integer */
 #define	PW_PORT_LIMIT                   62      /* integer */
 #define PW_LOGIN_LAT_PORT               63      /* string */
+
+/* Vendor RADIUS attribute-value pairs */
+#define PW_MS_CHAP_CHALLENGE		11	/* string */
+#define PW_MS_CHAP_RESPONSE		1	/* string */
 
 /*	Accounting */
 
@@ -277,6 +281,7 @@ typedef struct pw_auth_hdr
 
 /* Vendor codes */
 #define VENDOR_NONE     (-1)
+#define VENDOR_MICROSOFT	311
 
 /* Server data structures */
 

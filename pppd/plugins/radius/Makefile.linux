@@ -7,6 +7,14 @@ MANDIR=/usr/man
 PLUGIN=radius.so radattr.so
 CFLAGS=-I../.. -Iradiusclient/include -O2
 
+# Uncomment the next line to include support for Microsoft's
+# MS-CHAP authentication protocol.
+CHAPMS=y
+
+ifdef CHAPMS
+CFLAGS += -DCHAPMS=1
+endif
+
 all: $(PLUGIN)
 
 install: all

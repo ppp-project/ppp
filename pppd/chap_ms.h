@@ -19,7 +19,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap_ms.h,v 1.3 2002/03/01 14:39:18 dfs Exp $
+ * $Id: chap_ms.h,v 1.4 2002/03/04 14:59:51 dfs Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -36,7 +36,7 @@
 typedef struct {
     u_char LANManResp[24];
     u_char NTResp[24];
-    u_char UseNT;		/* If 1, ignore the LANMan response field */
+    u_char UseNT[1];		/* If 1, ignore the LANMan response field */
 } MS_ChapResponse;
 
 void ChapMS __P((chap_state *, char *, int, char *, int));

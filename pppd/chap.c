@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.27 2002/03/01 14:39:18 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.28 2002/03/04 14:59:51 dfs Exp $"
 
 /*
  * TODO:
@@ -597,6 +597,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 	    case CHAP_MICROSOFT:
 	    {
 		int response_offset, response_size;
+		MS_ChapResponse *rmd = (MS_ChapResponse *) remmd;
 
 		if (remmd_len != MS_CHAP_RESPONSE_LEN)
 		    break;			/* not even the right length */
@@ -604,13 +605,12 @@ ChapReceiveResponse(cstate, inp, id, len)
 		       secret, secret_len);
 
 		/* Determine which part of response to verify against */
-		if ((u_char *) (remmd + offsetof(MS_ChapResponse, UseNT))) {
+		if (rmd->UseNT[0]) {
 		    response_offset = offsetof(MS_ChapResponse, NTResp);
-		    response_size = sizeof(((MS_ChapResponse *) remmd)->NTResp);
+		    response_size = sizeof(rmd->NTResp);
 		} else {
 		    response_offset = offsetof(MS_ChapResponse, LANManResp);
-		    response_size =
-			sizeof(((MS_ChapResponse *) remmd)->LANManResp);
+		    response_size = sizeof(rmd->LANManResp);
 		}
 
 		/* compare MDs and send the appropriate status */

@@ -2,8 +2,8 @@
 *
 * radius.c
 *
-* RADIUS plugin for pppd.  Performs PAP and CHAP authentication using
-* RADIUS.
+* RADIUS plugin for pppd.  Performs PAP, CHAP and MS-CHAP authentication
+* using RADIUS.
 *
 * Copyright (C) 2002 Roaring Penguin Software Inc.
 *
@@ -21,10 +21,13 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.4 2002/03/01 15:16:51 dfs Exp $";
+"$Id: radius.c,v 1.5 2002/03/04 14:59:51 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
+#ifdef CHAPMS
+#include "chap_ms.h"
+#endif
 #include "radiusclient.h"
 #include "fsm.h"
 #include "ipcp.h"
@@ -252,7 +255,7 @@ radius_pap_auth(char *user,
 * %RETURNS:
 *  CHAP_SUCCESS if we can authenticate, CHAP_FAILURE if we cannot.
 * %DESCRIPTION:
-* Performs CHAP authentication using RADIUS
+* Performs CHAP and MS-CHAP authentication using RADIUS
 ***********************************************************************/
 static int
 radius_chap_auth(char *user,
@@ -264,7 +267,7 @@ radius_chap_auth(char *user,
     UINT4 av_type;
     static char radius_msg[BUF_LEN];
     int result;
-    u_char cpassword[MD5_SIGNATURE_SIZE+1];
+    u_char cpassword[MAX_RESPONSE_LENGTH + 1];
     radius_msg[0] = 0;
 
     if (radius_init(radius_msg) < 0) {
@@ -272,9 +275,13 @@ radius_chap_auth(char *user,
 	return CHAP_FAILURE;
     }
 
-    /* we handle md5 digest at the moment */
-    if (cstate->chal_type != CHAP_DIGEST_MD5) {
-	error("RADIUS: Challenge type not MD5");
+    /* return error for types we can't handle */
+    if ((cstate->chal_type != CHAP_DIGEST_MD5)
+#ifdef CHAPMS
+	&& (cstate->chal_type != CHAP_MICROSOFT)
+#endif
+	) {
+	error("RADIUS: Challenge type %u unsupported", cstate->chal_type);
 	return CHAP_FAILURE;
     }
 
@@ -300,16 +307,44 @@ radius_chap_auth(char *user,
     rc_avpair_add (&send, PW_USER_NAME, rstate.user , 0, VENDOR_NONE);
 
     /*
-     * add the CHAP-Password and CHAP-Challenge fields
+     * add the challenge and response fields
      */
+    switch (cstate->chal_type) {
+    case CHAP_DIGEST_MD5:
+	/* CHAP-Challenge and CHAP-Password */
+	cpassword[0] = cstate->chal_id;
+	memcpy(&cpassword[1], remmd, MD5_SIGNATURE_SIZE);
 
-    cpassword[0] = cstate->chal_id;
+	rc_avpair_add(&send, PW_CHAP_CHALLENGE,
+		      cstate->challenge, cstate->chal_len, VENDOR_NONE);
+	rc_avpair_add(&send, PW_CHAP_PASSWORD,
+		      cpassword, MD5_SIGNATURE_SIZE + 1, VENDOR_NONE);
+	break;
 
-    memcpy(&cpassword[1], remmd, MD5_SIGNATURE_SIZE);
+#ifdef CHAPMS
+    case CHAP_MICROSOFT:
+    {
+	/* MS-CHAP-Challenge and MS-CHAP-Response */
+	MS_ChapResponse *rmd = remmd;
+	u_char *p = cpassword;
 
-    rc_avpair_add(&send, PW_CHAP_PASSWORD, cpassword, MD5_SIGNATURE_SIZE + 1, VENDOR_NONE);
+	*p++ = cstate->chal_id;
+	/* The idiots use a different field order in RADIUS than PPP */
+	memcpy(p, rmd->UseNT, sizeof(rmd->UseNT));
+	p += sizeof(rmd->UseNT);
+	memcpy(p, rmd->LANManResp, sizeof(rmd->LANManResp));
+	p += sizeof(rmd->LANManResp);
+	memcpy(p, rmd->NTResp, sizeof(rmd->NTResp));
 
-    rc_avpair_add(&send, PW_CHAP_CHALLENGE, cstate->challenge, cstate->chal_len, VENDOR_NONE);
+	rc_avpair_add(&send, PW_MS_CHAP_CHALLENGE,
+		      cstate->challenge, cstate->chal_len, VENDOR_MICROSOFT);
+	rc_avpair_add(&send, PW_MS_CHAP_RESPONSE,
+		      cpassword, MS_CHAP_RESPONSE_LEN + 1, VENDOR_MICROSOFT);
+	break;
+    }
+#endif
+
+    }
 
     /*
      * make authentication with RADIUS server

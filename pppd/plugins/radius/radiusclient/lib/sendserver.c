@@ -1,5 +1,5 @@
 /*
- * $Id: sendserver.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: sendserver.c,v 1.2 2002/03/04 14:59:52 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -177,8 +177,8 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 		    }
 		    break;
 		}
-		vp = vp->next;
 	    }
+	    vp = vp->next;
 	}
     return total_length;
 }
