@@ -1,0 +1,64 @@
+#
+# pppd makefile for Linux
+# $Id: Makefile.linux,v 1.1 1994/05/24 11:29:16 paulus Exp $
+#
+
+BINDIR = /usr/etc
+MANDIR = /usr/man
+
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+	auth.c options.c lock.c sys-linux.c logwtmp.c
+HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
+MANPAGES = pppd.8
+
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
+	auth.o options.o lock.o sys-linux.o logwtmp.o
+
+all: pppd
+
+#
+# include dependancies if present and backup if as a header file
+ifeq (.depend,$(wildcard .depend))
+include .depend
+HEADERS := $(HEADERS) .depend
+endif
+
+# CC = gcc
+# SECURE_FLAGS = -DREQ_SYSOPTIONS=1
+DEBUG_FLAGS = -DDEBUGALL
+COMPILE_FLAGS = -I.. -D_linux_=1 -DGIDSET_TYPE=gid_t
+COPTS = -g # -O2
+LOCKPREFIX = \"/usr/spool/uucp/LCK..\"
+VER = 0.2.8
+
+CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
+SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
+
+install:
+	install -c -m 4555 -o root pppd $(BINDIR)/pppd
+	install -c -m 555 -o root pppd.8 $(MANDIR)/man8
+
+pppd: $(PPPDOBJS)
+	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+
+pppd.tar: $(SOURCE)
+	tar -cvf pppd.tar $(SOURCE)
+
+pppd.tar.gz: pppd.tar
+	gzip pppd.tar
+
+clean:
+	rm -f $(PPPDOBJS) pppd *~ #* core
+
+depend:
+	$(CPP) -M $(CFLAGS) $(PPPDSRCS) >.depend
+
+options.o:	options.c
+	$(CC) -c -o options.o $(CFLAGS) \
+	"-DIMPLEMENTATION=\" (Linux $(VER))\"" options.c
+
+lock.o: lock.c
+	$(CC) -c -o lock.o $(CFLAGS) -DPIDSTRING=1 -DLOCK_DIR=1 \
+	"-DLOCK_PREFIX=$(LOCKPREFIX)" lock.c
+
+saber_pppd:
