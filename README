@@ -41,7 +41,7 @@ that system.  The supported systems, and the corresponding README
 files, are:
 
 	Linux				README.linux
-	Solaris 2			README.sol2
+	Solaris				README.sol2
 	SunOS 4.x			README.sunos4
 
 In each case you start by running the ./configure script.  This works
@@ -145,7 +145,7 @@ If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
 Linux			Paul Mackerras <paulus@linuxcare.com>
-Solaris 2		James Carlson <james.d.carlson@east.sun.com>
+Solaris			James Carlson <james.d.carlson@east.sun.com>
 SunOS 4.x		Adi Masputra <adi.masputra@sun.com>
 
 
@@ -165,4 +165,4 @@ The primary site for releases of this software is:
 	ftp://linuxcare.com.au/pub/ppp/
 
 
-($Id: README,v 1.24 2001/03/09 00:53:57 paulus Exp $)
+($Id: README,v 1.25 2002/09/07 06:07:48 carlsonj Exp $)
