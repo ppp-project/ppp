@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.126 2003/04/07 00:01:45 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.127 2003/05/12 07:31:36 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -438,8 +438,6 @@ main(argc, argv)
 
     waiting = 0;
 
-    create_linkpidfile(getpid());
-
     /*
      * If we're doing dial-on-demand, set up the interface now.
      */
@@ -459,6 +457,7 @@ main(argc, argv)
 	 * Configure the interface and mark it up, etc.
 	 */
 	demand_conf();
+	create_linkpidfile(getpid());
     }
 
     do_callback = 0;
@@ -515,6 +514,9 @@ main(argc, argv)
 	    status = EXIT_FATAL_ERROR;
 	    goto disconnect;
 	}
+	/* create the pid file, now that we've obtained a ppp interface */
+	if (!demand)
+	    create_linkpidfile(getpid());
 
 	if (!demand && ifunit >= 0)
 	    set_ifunit(1);
