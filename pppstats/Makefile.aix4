@@ -1,0 +1,40 @@
+#
+# pppstats makefile
+#
+
+#ifndef BINDIR
+BINDIR=/usr/sbin
+#endif
+#ifndef MANDIR
+MANDIR = /usr/man
+#ENDIF
+
+PPPSTATSRCS = pppstats.c
+PPPSTATOBJS = pppstats.o
+
+CC = xlc
+COPTS = -O
+COMPILE_FLAGS = -DSTREAMS 
+LIBS =
+
+CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+
+all: pppstats
+
+install: all
+	install -O root -G system -M 4555 -f $(BINDIR) pppstats
+	install -M 555 -O root -f $(MANDIR)/man8 pppstats.8
+
+pppstats: $(PPPSTATSRCS)
+	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
+
+clean:
+	rm -f pppstats *.o
+
+depend:
+	cpp -M $(CFLAGS) $(PPPSTATSRCS) >.depend
+#	makedepend $(CFLAGS) $(PPPSTATSRCS)
+
+saber_pppstats:
+	#setopt load_flags $(CFLAGS)
+	#load $(PPPSTATSRCS)
