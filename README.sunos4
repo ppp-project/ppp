@@ -49,3 +49,8 @@ It is not advisable to unload the "if_ppp" module, because it creates
 network interface units, and SunOS does not provide any way to destroy
 network interfaces once created.  If you do unload it, the system will
 probably crash at some later stage.
+
+If you have previously had ppp-2.2 installed, you may have statements
+in your /etc/rc.local to load the ppp module.  You will need to remove
+those.  Having done this, you will need to reboot to remove the old
+ppp module and load the new modules.
