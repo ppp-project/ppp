@@ -15,12 +15,13 @@
 */
 
 static char const RCSID[] =
-    "$Id: radrealms.c,v 1.1 2002/10/05 04:35:24 fcusack Exp $";
+    "$Id: radrealms.c,v 1.2 2004/11/14 07:26:26 paulus Exp $";
 
 #include "pppd.h"
 #include "radiusclient.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 char pppd_version[] = VERSION;
 
@@ -44,7 +45,7 @@ lookup_realm(char const *user,
     FILE *fd;
     SERVER *accts, *auths, *s;
     char buffer[512], *p;
-    int line, pos;
+    int line = 0;
     
     auths = (SERVER *) malloc(sizeof(SERVER));
     auths->max = 0;

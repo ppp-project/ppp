@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.26 2004/10/28 00:22:54 paulus Exp $";
+"$Id: radius.c,v 1.27 2004/11/14 07:26:26 paulus Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -41,6 +41,8 @@ static char const RCSID[] =
 #include <sys/types.h>
 #include <sys/time.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <stdlib.h>
 
 #define BUF_LEN 1024
 
@@ -738,18 +740,18 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
 
     memcpy(plain, vp->strvalue, sizeof(plain));
 
-    MD5Init(&Context);
-    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
-    MD5Final(buf, &Context);
+    MD5_Init(&Context);
+    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5_Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
+    MD5_Final(buf, &Context);
 
     for (i = 0; i < 16; i++)
 	plain[i] ^= buf[i];
 
-    MD5Init(&Context);
-    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5Update(&Context, vp->strvalue, 16);
-    MD5Final(buf, &Context);
+    MD5_Init(&Context);
+    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5_Update(&Context, vp->strvalue, 16);
+    MD5_Final(buf, &Context);
 
     for(i = 0; i < 16; i++)
 	plain[i + 16] ^= buf[i];
@@ -802,11 +804,11 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 
     memcpy(plain, crypt, 32);
 
-    MD5Init(&Context);
-    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
-    MD5Update(&Context, salt, 2);
-    MD5Final(buf, &Context);
+    MD5_Init(&Context);
+    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5_Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
+    MD5_Update(&Context, salt, 2);
+    MD5_Final(buf, &Context);
 
     for (i = 0; i < 16; i++)
 	plain[i] ^= buf[i];
@@ -817,10 +819,10 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 	return -1;
     }
 
-    MD5Init(&Context);
-    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5Update(&Context, crypt, 16);
-    MD5Final(buf, &Context);
+    MD5_Init(&Context);
+    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5_Update(&Context, crypt, 16);
+    MD5_Final(buf, &Context);
 
     plain[16] ^= buf[0]; /* only need the first byte */
 

@@ -7,10 +7,12 @@ DESTDIR = @DESTDIR@
 MANDIR = $(DESTDIR)/share/man/man8
 LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
+VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
+
 INSTALL	= install
 
 PLUGIN=radius.so radattr.so radrealms.so
-CFLAGS=-I../.. -I../../../include -Iradiusclient/include -O2
+CFLAGS=-I. -I../.. -I../../../include -O2 -fPIC -DRC_LOG_FACILITY=LOG_DAEMON
 
 # Uncomment the next line to include support for Microsoft's
 # MS-CHAP authentication protocol.
@@ -33,7 +35,6 @@ endif
 all: $(PLUGIN)
 
 install: all
-	$(MAKE) $(MFLAGS) -C radiusclient install
 	$(INSTALL) -d -m 755 $(LIBDIR)
 	$(INSTALL) -s -c -m 755 radius.so $(LIBDIR)
 	$(INSTALL) -s -c -m 755 radattr.so $(LIBDIR)
@@ -41,39 +42,24 @@ install: all
 	$(INSTALL) -c -m 444 pppd-radius.8 $(MANDIR)
 	$(INSTALL) -c -m 444 pppd-radattr.8 $(MANDIR)
 
-radius.so: radiusclient/lib/.libs/libradiusclient.a radius.o
-	gcc -o radius.so -shared radius.o radiusclient/lib/.libs/libradiusclient.a
+radius.so: radius.o libradiusclient.a
+	$(CC) -o radius.so -shared radius.o libradiusclient.a
 
 radattr.so: radattr.o
-	gcc -o radattr.so -shared radattr.o
+	$(CC) -o radattr.so -shared radattr.o
 
 radrealms.so: radrealms.o
-	gcc -o radrealms.so -shared radrealms.o
+	$(CC) -o radrealms.so -shared radrealms.o
 
-radius.o: radius.c
-	gcc $(CFLAGS) -c -o radius.o -fPIC radius.c
-
-radattr.o: radattr.c
-	gcc $(CFLAGS) -c -o radattr.o -fPIC radattr.c
-
-radrealms.o: radrealms.c
-	gcc $(CFLAGS) -c -o radrealms.o -fPIC radrealms.c
-
-radiusclient/lib/.libs/libradiusclient.a:
-	test -r radiusclient/Makefile ||            \
-		(cd radiusclient;                   \
-		 ./configure --prefix=@PREFIX@      \
-			     --sysconfdir=@SYSCONF@ \
-			     --enable-shared        \
-			     --enable-static)
-	$(MAKE) -C radiusclient
+CLIENTOBJS = avpair.o buildreq.o config.o dict.o ip_util.o \
+	clientid.o sendserver.o lock.o util.o md5.o
+libradiusclient.a: $(CLIENTOBJS)
+	$(AR) rv $@ $?
 
 clean:
-	$(MAKE) $(MFLAGS) -C radiusclient clean
-	rm -f *.o *.so
+	rm -f *.o *.so *.a
 
 distclean:
-	rm -f *.o *.so
-	$(MAKE) $(MFLAGS) -C radiusclient distclean
+	rm -f *.o *.so *.a
 
 dist-clean: distclean
