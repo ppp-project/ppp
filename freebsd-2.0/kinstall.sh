@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This script modifies the kernel sources in /sys to install
-# ppp-2.2.  It is intended to be run in the ppp-2.2 directory.
+# ppp-2.3.  It is intended to be run in the ppp-2.3 directory.
 #
 # Paul Mackerras	17-Mar-95
 
@@ -17,14 +17,13 @@ CONFIG=config
 # Copy new versions of files into /sys/net
 
 for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
-	 $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
-	 $SRC/pppcompress.c $SRC/pppcompress.h; do
+	 $SRC/ppp-deflate.c $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
+	 $SRC/pppcompress.c $SRC/pppcompress.h common/zlib.c common/zlib.h; do
   dest=$SYS/net/$(basename $f)
   if [ -f $dest ]; then
     if ! cmp -s $f $dest; then
       echo "Copying $f to $dest"
-      mv -f $dest $dest.orig
-      echo " (old version saved in $dest.orig)"
+      mv -f $dest $dest.orig && echo " (old version saved in $dest.orig)"
       cp $f $dest
       DOMAKE=yes
     fi
@@ -41,9 +40,11 @@ if [ -f $SYS/conf/files ]; then
   if ! grep -q ppp_tty $SYS/conf/files; then
     echo "Patching $SYS/conf/files"
     patch -p -N -d $SYS/conf <$SRC/files.patch
-    if [ $CONFIG = config ]; then
-      DOCONF=yes
-    fi
+    DOCONF=yes
+  elif ! grep -q ppp-deflate $SYS/conf/files; then
+    echo "Patching $SYS/conf/files"
+    patch -N $SYS/conf/$OLDFILES <$SRC/files-2.2.patch
+    DOCONF=yes
   fi
 fi
 
