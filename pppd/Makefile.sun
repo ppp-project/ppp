@@ -1,55 +1,35 @@
 #
-# pppd, pppstats makefile
+# pppd makefile for Suns
+# $Id: Makefile.sun,v 1.2 1993/12/14 05:16:20 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c logwtmp.c chap.c md5.c \
 	auth.c options.c sys-bsd.c sys-str.c
-PPPSTATSRCS = pppstats.c
-MD5SRCS = md5driver.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
-MANPAGES = pppd.8 pppstats.8
+MANPAGES = pppd.8
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o logwtmp.o chap.o md5.o \
-	auth.o options.o
-PPPSTATOBJS = pppstats.o
-MD5OBJS = md5driver.o
+	auth.o options.o sys-str.o
 
+# CC = gcc
 DEBUG_FLAGS = -DDEBUGALL
-SECURE_FLAGS = -DREQ_SYSOPTIONS=1
+# SECURE_FLAGS = -DREQ_SYSOPTIONS=1
+COMPILE_FLAGS = -DSTREAMS
 COPTS = -O
-
-# 386BSD 
-#COMPILE_FLAGS = -DNO_DRAND48 -DKVMLIB
-#SYSOBJ = sys-bsd.o
-#LIBS = -lutil
-
-# Sun
-CC = gcc
-COMPILE_FLAGS = -DKVMLIB -DSTREAMS -I.
-SYSOBJ = sys-str.o
 LIBS = -lkvm
 
-CFLAGS = -I../include $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
+CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
 
-SOURCE= ChangeLog README vax.diff Makefile \
-	$(PPPDSRCS) $(PPPSTATSRCS) $(HEADERS) $(MANPAGES)
+SOURCE= RELNOTES Makefile \
+	$(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
-
-all: pppd pppstats
+all: pppd
 
 install:
 	install -c -m 4555 -o root -g daemon pppd $(BINDIR)/pppd
-	install -c -g kmem pppstats $(BINDIR)/pppstats
 
-pppd: $(PPPDOBJS) $(SYSOBJ)
-	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(SYSOBJ) $(LIBS)
-
-
-pppstats: $(PPPSTATSRCS)
-	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
-
-md5driver: md5.h md5.o md5driver.o
-	$(CC) $(CFLAGS) -o md5driver md5driver.o md5.o
+pppd: $(PPPDOBJS)
+	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
 
 pppd.tar: $(SOURCE)
 	tar -cvf pppd.tar $(SOURCE)
@@ -58,23 +38,15 @@ pppd.tar.Z: pppd.tar
 	compress pppd.tar
 
 clean:
-	rm -f $(PPPDOBJS) pppd pppstats md5driver md5driver.o *~ #* core make
+	rm -f $(PPPDOBJS) pppd *~ #* core
 
 depend:
-	cpp -M $(CFLAGS) $(PPPDSRCS) $(PPPSTATSRCS) $(MD5SRCS) >.depend
-#	makedepend $(CFLAGS) $(PPPDSRCS) $(PPPSTATSRCS) $(MD5SRCS)
+	cpp -M $(CFLAGS) $(PPPDSRCS) >.depend
+#	makedepend $(CFLAGS) $(PPPDSRCS)
 
 saber_pppd:
 	#setopt load_flags $(CFLAGS)
 	#setopt ansi
 	#suppress 452 md5.c
 	#load $(PPPDSRCS)
-
-saber_pppstats:
-	#setopt load_flags $(CFLAGS)
-	#load $(PPPSTATSRCS)
-
-saber_md5driver:
-	#setopt load_flags $(CFLAGS)
-	#load $(MD5SRCS)
 
