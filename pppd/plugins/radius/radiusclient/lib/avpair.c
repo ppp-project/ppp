@@ -1,5 +1,5 @@
 /*
- * $Id: avpair.c,v 1.3 2002/11/13 18:19:26 fcusack Exp $
+ * $Id: avpair.c,v 1.4 2003/04/16 05:55:35 fcusack Exp $
  *
  * Copyright (C) 1995 Lars Fenneberg
  *
@@ -164,8 +164,8 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 	DICT_ATTR      *attr;
 	VALUE_PAIR     *vp;
 	VALUE_PAIR     *pair;
-	unsigned char          hex[3];		/* For hex string conversion. */
-	char            buffer[256];
+	unsigned char   hex[3];		/* For hex string conversion. */
+	char            buffer[512];
 
 	/*
 	 * Extract attribute-value pairs
