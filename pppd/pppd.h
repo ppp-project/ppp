@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.33 1999/03/19 04:23:45 paulus Exp $
+ * $Id: pppd.h,v 1.34 1999/03/22 05:55:35 paulus Exp $
  */
 
 /*
@@ -111,6 +111,17 @@ struct permitted_ip {
 };
 
 /*
+ * Unfortunately, the linux kernel driver uses a different structure
+ * for statistics from the rest of the ports.
+ * This structure serves as a common representation for the bits
+ * pppd needs.
+ */
+struct pppd_stats {
+    unsigned int	bytes_in;
+    unsigned int	bytes_out;
+};
+
+/*
  * Global variables.
  */
 
@@ -131,7 +142,7 @@ extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
 extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
-extern struct ppp_stats link_stats; /* byte/packet counts etc. for link */
+extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
 
 /*
@@ -152,6 +163,7 @@ extern bool	updetach;	/* Detach from controlling tty when link up */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
+extern char	*ptycommand;	/* Command to run on other side of pty */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
 extern char	user[MAXNAMELEN];/* Our name for authenticating ourselves */
 extern char	passwd[MAXSECRETLEN];	/* Password for PAP */
@@ -166,6 +178,8 @@ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
+extern bool	notty;		/* Stdin/out is not a tty */
+extern char	*record_file;	/* File to record chars sent/received */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -313,6 +327,7 @@ void sys_cleanup __P((void));	/* Restore system state before exiting */
 int  sys_check_options __P((void)); /* Check options specified */
 void sys_close __P((void));	/* Clean up in a child before execing */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
+int  get_pty __P((int *, int *, char *, int));	/* Get pty master/slave */
 int  open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
 int  establish_ppp __P((int));	/* Turn serial port into a ppp interface */
 void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
@@ -341,7 +356,7 @@ void ccp_flags_set __P((int, int, int));
 int  ccp_fatal_error __P((int)); /* Test for fatal decomp error in kernel */
 int  get_idle_time __P((int, struct ppp_idle *));
 				/* Find out how long link has been idle */
-int  get_ppp_stats __P((int, struct ppp_stats *));
+int  get_ppp_stats __P((int, struct pppd_stats *));
 				/* Return link statistics */
 int  sifvjcomp __P((int, int, int, int));
 				/* Configure VJ TCP header compression */
@@ -410,6 +425,7 @@ extern struct option_info devnam_info;
 extern struct option_info connector_info;
 extern struct option_info disconnector_info;
 extern struct option_info welcomer_info;
+extern struct option_info ptycommand_info;
 
 /*
  * Inline versions of get/put char/short/long.

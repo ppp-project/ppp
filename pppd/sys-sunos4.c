@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.17 1999/03/19 04:23:50 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.18 1999/03/22 05:55:39 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -865,12 +865,16 @@ get_idle_time(u, ip)
 int
 get_ppp_stats(u, stats)
     int u;
-    struct ppp_stats *stats;
+    struct pppd_stats *stats;
 {
-    if (strioctl(pppfd, PPPIO_GETSTAT, stats, 0, sizeof(*stats)) < 0) {
+    struct ppp_stats s;
+
+    if (strioctl(pppfd, PPPIO_GETSTAT, &s, 0, sizeof(s)) < 0) {
 	error("Couldn't get link statistics: %m");
 	return 0;
     }
+    stats->bytes_in = s.p.ppp_ibytes;
+    stats->bytes_out = s.p.ppp_obytes;
     return 1;
 }
 

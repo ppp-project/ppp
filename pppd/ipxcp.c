@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.13 1999/03/19 01:22:09 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.14 1999/03/22 05:55:31 paulus Exp $";
 #endif
 
 /*
@@ -199,7 +199,7 @@ short int internal;
 {
     short int  external;
 
-    if (internal & IPX_NONE)
+    if (internal & BIT(IPX_NONE) )
         external = IPX_NONE;
     else
         external = RIP_SAP;
@@ -666,9 +666,8 @@ ipxcp_ackci(f, p, len)
 	ACKCINETWORK  (IPX_NETWORK_NUMBER,  go->neg_nn,	    go->our_network);
 	ACKCINODE     (IPX_NODE_NUMBER,	    go->neg_node,   go->our_node);
 	ACKCINAME     (IPX_ROUTER_NAME,	    go->neg_name,   go->name);
-	ACKCIPROTO    (IPX_ROUTER_PROTOCOL, go->neg_router, go->router);
-	ACKCIPROTO    (IPX_ROUTER_PROTOCOL, go->neg_router, go->router);
-	ACKCIPROTO    (IPX_ROUTER_PROTOCOL, go->neg_router, go->router);
+	if (len > 0)
+		ACKCIPROTO    (IPX_ROUTER_PROTOCOL, go->neg_router, go->router);
 /*
  * This is the end of the record.
  */

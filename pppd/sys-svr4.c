@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.28 1999/03/19 04:23:52 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.29 1999/03/22 05:55:39 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -92,6 +92,7 @@ static int	link_mtu, link_mru;
 #define NMODULES	32
 static int	tty_nmodules;
 static char	tty_modules[NMODULES][FMNAMESZ+1];
+static int	tty_npushed;
 
 static int	if_is_up;	/* Interface has been marked up */
 static u_int32_t remote_addr;		/* IP address of peer */
@@ -128,7 +129,7 @@ sys_init()
     if (ipfd < 0)
 	fatal("Couldn't open IP device: %m");
 
-    if (default_device)
+    if (default_device && !notty)
 	tty_sid = getsid((pid_t)0);
 
     pppfd = open("/dev/ppp", O_RDWR | O_NONBLOCK, 0);
@@ -269,27 +270,36 @@ establish_ppp(fd)
     /* Pop any existing modules off the tty stream. */
     for (i = 0;; ++i)
 	if (ioctl(fd, I_LOOK, tty_modules[i]) < 0
+	    || strcmp(tty_modules[i], "ptem") == 0
 	    || ioctl(fd, I_POP, 0) < 0)
 	    break;
     tty_nmodules = i;
 
     /* Push the async hdlc module and the compressor module. */
-    if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0)
-	fatal("Couldn't push PPP Async HDLC module: %m");
+    tty_npushed = 0;
+    if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0) {
+	error("Couldn't push PPP Async HDLC module: %m");
+	return -1;
+    }
+    ++tty_npushed;
     if (kdebugflag & 4) {
 	i = PPPDBG_LOG + PPPDBG_AHDLC;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
     if (ioctl(fd, I_PUSH, "ppp_comp") < 0)
 	error("Couldn't push PPP compression module: %m");
+    else
+	++tty_npushed;
     if (kdebugflag & 2) {
 	i = PPPDBG_LOG + PPPDBG_COMP;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
 
     /* Link the serial port under the PPP multiplexor. */
-    if ((fdmuxid = ioctl(pppfd, I_LINK, fd)) < 0)
-	fatal("Can't link tty to PPP mux: %m");
+    if ((fdmuxid = ioctl(pppfd, I_LINK, fd)) < 0) {
+	error("Can't link tty to PPP mux: %m");
+	return -1;
+    }
 
     return pppfd;
 }
@@ -322,8 +332,8 @@ disestablish_ppp(fd)
 	fdmuxid = -1;
 
 	if (!hungup) {
-	    while (ioctl(fd, I_POP, 0) >= 0)
-		;
+	    while (tty_npushed > 0 && ioctl(fd, I_POP, 0) >= 0)
+		--tty_npushed;
 	    for (i = tty_nmodules - 1; i >= 0; --i)
 		if (ioctl(fd, I_PUSH, tty_modules[i]) < 0)
 		    error("Couldn't restore tty module %s: %m",
@@ -938,12 +948,16 @@ get_idle_time(u, ip)
 int
 get_ppp_stats(u, stats)
     int u;
-    struct ppp_stats *stats;
+    struct pppd_stats *stats;
 {
-    if (strioctl(pppfd, PPPIO_GETSTAT, stats, 0, sizeof(*stats)) < 0) {
+    struct ppp_stats s;
+
+    if (strioctl(pppfd, PPPIO_GETSTAT, &s, 0, sizeof(s)) < 0) {
 	error("Couldn't get link statistics: %m");
 	return 0;
     }
+    stats->bytes_in = s.p.ppp_ibytes;
+    stats->bytes_out = s.p.ppp_obytes;
     return 1;
 }
 
@@ -1851,4 +1865,55 @@ have_route_to(addr)
     }
     close(fd);
     return 0;
+}
+
+/*
+ * get_pty - get a pty master/slave pair and chown the slave side to
+ * the uid given.  Assumes slave_name points to MAXPATHLEN bytes of space.
+ */
+int
+get_pty(master_fdp, slave_fdp, slave_name, uid)
+    int *master_fdp;
+    int *slave_fdp;
+    char *slave_name;
+    int uid;
+{
+    int mfd, sfd;
+    char *pty_name;
+    struct termios tios;
+
+    mfd = open("/dev/ptmx", O_RDWR);
+    if (mfd < 0) {
+	error("Couldn't open pty master: %m");
+	return 0;
+    }
+
+    pty_name = ptsname(mfd);
+    if (pty_name == NULL) {
+	error("Couldn't get name of pty slave");
+	close(mfd);
+	return 0;
+    }
+    if (chown(pty_name, uid, -1) < 0)
+	warn("Couldn't change owner of pty slave: %m");
+    if (chmod(pty_name, S_IRUSR | S_IWUSR) < 0)
+	warn("Couldn't change permissions on pty slave: %m");
+    if (unlockpt(mfd) < 0)
+	warn("Couldn't unlock pty slave: %m");
+
+    sfd = open(pty_name, O_RDWR);
+    if (sfd < 0) {
+	error("Couldn't open pty slave %s: %m", pty_name);
+	close(mfd);
+	return 0;
+    }
+    if (ioctl(sfd, I_PUSH, "ptem") < 0)
+	warn("Couldn't push ptem module on pty slave: %m");
+
+    dbglog("Using %s", pty_name);
+    strlcpy(slave_name, pty_name, MAXPATHLEN);
+    *master_fdp = mfd;
+    *slave_fdp = sfd;
+
+    return 1;
 }

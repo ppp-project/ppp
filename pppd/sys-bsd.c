@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.40 1999/03/19 04:23:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.41 1999/03/22 05:55:36 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -798,7 +798,7 @@ get_idle_time(u, ip)
 int
 get_ppp_stats(u, stats)
     int u;
-    struct ppp_stats *stats;
+    struct pppd_stats *stats;
 {
     struct ifpppstatsreq req;
 
@@ -808,7 +808,8 @@ get_ppp_stats(u, stats)
 	error("Couldn't get PPP statistics: %m");
 	return 0;
     }
-    *stats = req.stats;
+    stats->bytes_in = req.stats.p.ppp_ibytes;
+    stats->bytes_out = req.stats.p.ppp_obytes;
     return 1;
 }
 

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.53 1999/03/19 04:23:44 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.54 1999/03/22 05:55:33 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -65,7 +65,7 @@ int	dflag = 0;		/* Tell libpcap we want debugging */
 int	debug = 0;		/* Debug flag */
 int	kdebugflag = 0;		/* Tell kernel to print debug messages */
 int	default_device = 1;	/* Using /dev/tty or equivalent */
-char	devnam[MAXPATHLEN] = "/dev/tty";	/* Device name */
+char	devnam[MAXPATHLEN];	/* Device name */
 int	crtscts = 0;		/* Use hardware flow control */
 bool	modem = 1;		/* Use modem control lines */
 int	inspeed = 0;		/* Input/Output speed requested */
@@ -76,6 +76,7 @@ bool	updetach = 0;		/* Detach once link is up */
 char	*connector = NULL;	/* Script to establish physical link */
 char	*disconnector = NULL;	/* Script to disestablish physical link */
 char	*welcomer = NULL;	/* Script to run after phys link estab. */
+char	*ptycommand = NULL;	/* Command to run on other side of pty */
 int	maxconnect = 0;		/* Maximum connect time */
 char	user[MAXNAMELEN];	/* Username for PAP */
 char	passwd[MAXSECRETLEN];	/* Password for PAP */
@@ -85,6 +86,8 @@ bool	demand = 0;		/* do dial-on-demand */
 char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
+bool	notty = 0;		/* Stdin/out is not a tty */
+char	*record_file = NULL;	/* File to record chars sent/received */
 
 extern option_t auth_options[];
 
@@ -92,6 +95,7 @@ struct option_info connector_info;
 struct option_info disconnector_info;
 struct option_info welcomer_info;
 struct option_info devnam_info;
+struct option_info ptycommand_info;
 
 #ifdef PPP_FILTER
 struct	bpf_program pass_filter;/* Filter program for packets to pass */
@@ -159,6 +163,13 @@ option_t general_options[] = {
     { "welcome", o_string, &welcomer,
       "Script to welcome client",
       OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
+    { "pty", o_string, &ptycommand,
+      "Script to run on pseudo-tty master side",
+      OPT_A2INFO | OPT_PRIVFIX, &ptycommand_info },
+    { "notty", o_bool, &notty,
+      "Input/output is not a tty", 1 },
+    { "record", o_string, &record_file,
+      "Record characters sent/received to file" },
     { "maxconnect", o_int, &maxconnect,
       "Set connection time limit", OPT_LLIMIT|OPT_NOINCR|OPT_ZEROINF },
     { "crtscts", o_int, &crtscts,
@@ -440,7 +451,7 @@ options_for_tty()
     dev = devnam;
     if (strncmp(dev, "/dev/", 5) == 0)
 	dev += 5;
-    if (strcmp(dev, "tty") == 0)
+    if (dev[0] == 0 || strcmp(dev, "tty") == 0)
 	return 1;		/* don't look for /etc/ppp/options.tty */
     pl = strlen(_PATH_TTYOPT) + strlen(dev) + 1;
     path = malloc(pl);

@@ -120,6 +120,7 @@ static unsigned char inbuf[512]; /* buffer for chars read from loopback */
 static int	if_is_up;	/* Interface has been marked up */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
+static char proxy_arp_dev[16];		/* Device for proxy arp entry */
 
 static char *lock_file;
 
@@ -144,7 +145,7 @@ static int open_route_table (void);
 static int read_route_table (struct rtentry *rt);
 static int defaultroute_exists (struct rtentry *rt);
 static int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr,
-			   char *name);
+			   char *name, int namelen);
 static void decode_version (char *buf, int *version, int *mod, int *patch);
 static int set_kdebugflag(int level);
 static int ppp_registered(void);
@@ -971,7 +972,7 @@ get_idle_time(u, ip)
 int
 get_ppp_stats(u, stats)
     int u;
-    struct ppp_stats *stats;
+    struct pppd_stats *stats;
 {
     struct ifpppstatsreq req;
 
@@ -983,9 +984,10 @@ get_ppp_stats(u, stats)
 	error("Couldn't get PPP statistics: %m");
 	return 0;
     }
-    *stats = req.stats;
+    stats->bytes_in = req.stats.p.ppp_ibytes;
+    stats->bytes_out = req.stats.p.ppp_obytes;
     return 1;
-} 
+}
 
 /********************************************************************
  *
@@ -1319,11 +1321,13 @@ int sifproxyarp (int unit, u_int32_t his_adr)
  * Get the hardware address of an interface on the same subnet
  * as our local address.
  */
-	if (!get_ether_addr(his_adr, &arpreq.arp_ha, arpreq.arp_dev)) {
+	if (!get_ether_addr(his_adr, &arpreq.arp_ha, proxy_arp_dev,
+			    sizeof(proxy_arp_dev))) {
 	    error("Cannot determine ethernet address for proxy ARP");
 	    return 0;
 	}
-	
+	strlcpy(arpreq.arp_dev, proxy_arp_dev, sizeof(arpreq.arp_dev));
+
 	if (ioctl(sock_fd, SIOCSARP, (caddr_t)&arpreq) < 0) {
 	    if ( ! ok_error ( errno ))
 		error("ioctl(SIOCSARP): %m(%d)", errno);
@@ -1351,6 +1355,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
 	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
 	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
 	arpreq.arp_flags = ATF_PERM | ATF_PUBL;
+	strlcpy(arpreq.arp_dev, proxy_arp_dev, sizeof(arpreq.arp_dev));
 
 	if (ioctl(sock_fd, SIOCDARP, (caddr_t)&arpreq) < 0) {
 	    if ( ! ok_error ( errno ))
@@ -1369,7 +1374,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
 
 static int get_ether_addr (u_int32_t ipaddr,
 			   struct sockaddr *hwaddr,
-			   char *name)
+			   char *name, int namelen)
 {
     struct ifreq *ifr, *ifend;
     u_int32_t ina, mask;
@@ -1426,7 +1431,7 @@ static int get_ether_addr (u_int32_t ipaddr,
     if (ifr >= ifend)
         return 0;
 
-    memcpy (name, ifreq.ifr_name, sizeof(ifreq.ifr_name));
+    strlcpy(name, ifreq.ifr_name, namelen);
     info("found interface %s for proxy arp", name);
 /*
  * Now get the hardware address.
@@ -2114,6 +2119,56 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
     return 1;
 }
 
+/*
+ * get_pty - get a pty master/slave pair and chown the slave side
+ * to the uid given.  Assumes slave_name points to >= 12 bytes of space.
+ */
+int
+get_pty(master_fdp, slave_fdp, slave_name, uid)
+    int *master_fdp;
+    int *slave_fdp;
+    char *slave_name;
+    int uid;
+{
+    int i, mfd, sfd;
+    char pty_name[12];
+    struct termios tios;
+
+    sfd = -1;
+    for (i = 0; i < 64; ++i) {
+	slprintf(pty_name, sizeof(pty_name), "/dev/pty%c%x",
+		 'p' + i / 16, i % 16);
+	mfd = open(pty_name, O_RDWR, 0);
+	if (mfd >= 0) {
+	    pty_name[5] = 't';
+	    sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
+	    if (sfd >= 0)
+		break;
+	    close(mfd);
+	}
+    }
+    if (sfd < 0)
+	return 0;
+
+    strlcpy(slave_name, pty_name, 12);
+    *master_fdp = mfd;
+    *slave_fdp = sfd;
+    fchown(sfd, uid, -1);
+    fchmod(sfd, S_IRUSR | S_IWUSR);
+    if (tcgetattr(sfd, &tios) == 0) {
+	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
+	tios.c_cflag |= CS8 | CREAD;
+	tios.c_iflag  = IGNPAR | CLOCAL;
+	tios.c_oflag  = 0;
+	tios.c_lflag  = 0;
+	if (tcsetattr(sfd, TCSAFLUSH, &tios) < 0)
+	    warn("couldn't set attributes on pty: %m");
+    } else
+	warn("couldn't get attributes on pty: %m");
+
+    return 1;
+}
+
 /********************************************************************
  *
  * open_loopback - open the device we use for getting packets
@@ -2122,36 +2177,13 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 int
 open_ppp_loopback(void)
 {
-    int flags, i;
-    struct termios tios;
+    int flags;
 
-    master_fd = -1;
-    for (i = 0; i < 64; ++i) {
-	slprintf(loop_name, sizeof(loop_name), "/dev/pty%c%x",
-		 'p' + i / 16, i % 16);
-	master_fd = open(loop_name, O_RDWR | O_NOCTTY, 0);
-	if (master_fd >= 0)
-	    break;
-    }
-    if (master_fd < 0)
+    if (!get_pty(&master_fd, &slave_fd, loop_name, 0))
 	fatal("No free pty for loopback");
     SYSDEBUG(("using %s for loopback", loop_name));
-    loop_name[5] = 't';
-    slave_fd = open(loop_name, O_RDWR | O_NOCTTY, 0);
-    if (slave_fd < 0)
-	fatal("Couldn't open %s for loopback: %m", loop_name);
 
     set_ppp_fd(slave_fd);
-
-    if (tcgetattr(ppp_fd, &tios) == 0) {
-	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
-	tios.c_cflag |= CS8 | CREAD;
-	tios.c_iflag  = IGNPAR | CLOCAL;
-	tios.c_oflag  = 0;
-	tios.c_lflag  = 0;
-	if (tcsetattr(ppp_fd, TCSAFLUSH, &tios) < 0)
-	    warn("couldn't set attributes on loopback: %m(%d)", errno);
-    }
 
     flags = fcntl(master_fd, F_GETFL);
     if (flags == -1 ||

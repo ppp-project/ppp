@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.29 1999/03/19 04:23:54 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.30 1999/03/22 05:55:40 paulus Exp $";
 #endif
 
 /*
@@ -801,7 +801,7 @@ get_idle_time(u, ip)
 int
 get_ppp_stats(u, stats)
     int u;
-    struct ppp_stats *stats;
+    struct pppd_stats *stats;
 {
     struct ifpppstatsreq req;
 
@@ -811,7 +811,8 @@ get_ppp_stats(u, stats)
 	error("Couldn't get PPP statistics: %m");
 	return 0;
     }
-    *stats = req.stats;
+    stats->bytes_in = req.stats.p.ppp_ibytes;
+    stats->bytes_out = req.stats.p.ppp_obytes;
     return 1;
 }
 
