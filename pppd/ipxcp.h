@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipxcp.h,v 1.1 1995/12/18 03:33:00 paulus Exp $
+ * $Id: ipxcp.h,v 1.2 1996/07/01 01:14:37 paulus Exp $
  */
 
 /*
@@ -60,14 +60,5 @@ extern ipxcp_options ipxcp_wantoptions[];
 extern ipxcp_options ipxcp_gotoptions[];
 extern ipxcp_options ipxcp_allowoptions[];
 extern ipxcp_options ipxcp_hisoptions[];
-
-void ipxcp_init __P((int));
-void ipxcp_open __P((int));
-void ipxcp_close __P((int, char *));
-void ipxcp_lowerup __P((int));
-void ipxcp_lowerdown __P((int));
-void ipxcp_input __P((int, u_char *, int));
-void ipxcp_protrej __P((int));
-int  ipxcp_printpkt __P((u_char *, int, void (*)(), void *));
 
 extern struct protent ipxcp_protent;
