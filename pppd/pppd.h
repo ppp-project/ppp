@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.20 1998/03/25 01:30:18 paulus Exp $
+ * $Id: pppd.h,v 1.21 1998/03/26 04:46:08 paulus Exp $
  */
 
 /*
@@ -69,6 +69,7 @@ extern char	peer_authname[];/* Authenticated name of peer */
 extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
+extern int	detached;	/* Have detached from controlling tty */
 
 /*
  * Variables set by command-line options.
@@ -176,6 +177,7 @@ extern struct protent *protocols[];
  */
 
 /* Procedures exported from main.c. */
+void detach __P((void));	/* Detach from controlling tty */
 void die __P((int));		/* Cleanup and exit */
 void quit __P((void));		/* like die(1) */
 void novm __P((char *));	/* Say we ran out of memory, and die */

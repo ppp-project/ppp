@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.41 1998/03/25 01:29:05 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.42 1998/03/26 04:46:06 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -173,6 +173,7 @@ static int setcrtscts __P((char **));
 static int setnocrtscts __P((char **));
 static int setxonxoff __P((char **));
 static int setnodetach __P((char **));
+static int setupdetach __P((char **));
 static int setmodem __P((char **));
 static int setlocal __P((char **));
 static int setlock __P((char **));
@@ -275,6 +276,7 @@ static struct cmd {
     {"-d", 0, setdebug},	/* Increase debugging level */
     {"nodetach", 0, setnodetach}, /* Don't detach from controlling tty */
     {"-detach", 0, setnodetach}, /* don't fork */
+    {"updetach", 0, setupdetach}, /* Detach once an NP has come up */
     {"noip", 0, noip},		/* Disable IP and IPCP */
     {"-ip", 0, noip},		/* Disable IP and IPCP */
     {"nomagic", 0, nomagicnumber}, /* Disable magic number negotiation */
@@ -1867,6 +1869,14 @@ setnodetach(argv)
     char **argv;
 {
     nodetach = 1;
+    return (1);
+}
+
+static int
+setupdetach(argv)
+    char **argv;
+{
+    nodetach = -1;
     return (1);
 }
 

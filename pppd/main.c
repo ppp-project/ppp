@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.45 1998/03/25 01:28:14 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.46 1998/03/26 04:46:04 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -85,11 +85,11 @@ int baud_rate;			/* Actual bits/second for serial device */
 int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
+int detached;			/* have detached from terminal */
 
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
-int redirect_stderr;		/* Connector's stderr should go to file */
 
 char **script_env;		/* Env. variable values for scripts */
 int s_env_nalloc;		/* # words avail at script_env */
@@ -256,7 +256,8 @@ main(argc, argv)
      */
     if (!default_device && strcmp(devnam, default_devnam) == 0)
 	default_device = 1;
-    redirect_stderr = !nodetach || default_device;
+    if (default_device)
+	nodetach = 1;
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -270,10 +271,8 @@ main(argc, argv)
      * Detach ourselves from the terminal, if required,
      * and identify who is running us.
      */
-    if (!default_device && !nodetach && daemon(0, 0) < 0) {
-	perror("Couldn't detach from controlling terminal");
-	exit(1);
-    }
+    if (nodetach == 0)
+	detach();
     pid = getpid();
     p = getlogin();
     if (p == NULL) {
@@ -622,6 +621,21 @@ main(argc, argv)
 
     die(0);
     return 0;
+}
+
+/*
+ * detach - detach us from the controlling terminal.
+ */
+void
+detach()
+{
+    if (detached)
+	return;
+    if (daemon(0, 0) < 0) {
+	perror("Couldn't detach from controlling terminal");
+	die(1);
+    }
+    detached = 1;
 }
 
 /*
@@ -1068,7 +1082,7 @@ device_script(program, in, out)
 		close(out);
 	    }
 	}
-	if (redirect_stderr) {
+	if (nodetach == 0) {
 	    close(2);
 	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
 	    if (errfd >= 0 && errfd != 2) {

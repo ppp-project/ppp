@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.36 1998/03/25 01:26:03 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.37 1998/03/26 04:46:03 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -433,6 +433,12 @@ np_up(unit, proto)
 	 */
 	if (maxconnect > 0)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
+
+	/*
+	 * Detach now, if the updetach option was given.
+	 */
+	if (nodetach == -1)
+	    detach();
     }
     ++num_np_up;
 }
