@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.22 1995/05/01 01:44:30 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.23 1995/05/19 03:26:25 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -386,10 +386,7 @@ main(argc, argv)
 
     } while (persist);
 
-    if (lockflag && !default_device)
-	unlock();
-
-    exit(0);
+    die(0);
 }
 
 
@@ -410,7 +407,7 @@ get_input()
 	return;
 
     if (len == 0) {
-	MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
+	syslog(LOG_NOTICE, "Modem hangup");
 	hungup = 1;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	phase = PHASE_DEAD;
