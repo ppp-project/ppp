@@ -1,7 +1,7 @@
-PPP for Linux                                            Version 2.3.11
+PPP for Linux                                             Version 2.4.0
 =============                                                  based on
-                                                             ppp-2.3.11
-                                                          December 1999
+                                                              ppp-2.4.0
+                                                             April 2000
 
 Paul Mackerras      Paul.Mackerras@cs.anu.edu.au
 Al Longyear         longyear@netcom.com
@@ -130,7 +130,7 @@ alias tty-ldisc-14   ppp_synctty
 INSTALLATION
 
 This version of PPP has been tested on various Linux kernel versions
-(most recently 2.2.14). It will not work on kernels before 2.0.0. If
+(most recently 2.2.14). It will not work on kernels before 2.2.0. If
 you have an earlier kernel, please upgrade to the latest 2.2-series
 kernel.
 
