@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.7 1995/04/24 06:01:18 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.8 1995/04/26 06:47:24 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -112,7 +112,7 @@ ccp_init(unit)
     ccp_wantoptions[0].bsd_bits = 12;	/* default value */
 
     ccp_allowoptions[0].bsd_compress = 1;
-    ccp_allowoptions[0].bsd_bits = MAX_BSD_BITS;
+    ccp_allowoptions[0].bsd_bits = BSD_MAX_BITS;
 }
 
 /*
@@ -432,10 +432,10 @@ ccp_reqci(f, p, lenp, dont_nak)
 		    || nb > ao->bsd_bits) {
 		    newret = CONFNAK;
 		    nb = ao->bsd_bits;
-		} else if (nb < MIN_BSD_BITS) {
+		} else if (nb < BSD_MIN_BITS) {
 		    newret = CONFREJ;
 		} else if (!ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 1)) {
-		    if (nb > MIN_BSD_BITS) {
+		    if (nb > BSD_MIN_BITS) {
 			--nb;
 			newret = CONFNAK;
 		    } else
