@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.44 2003/03/05 23:01:28 fcusack Exp $"
+#define RCSID	"$Id: ccp.c,v 1.45 2003/04/25 09:41:58 fcusack Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -916,11 +916,13 @@ ccp_nakci(f, p, len)
 	 * Fail if we aren't willing to use his suggestion.
 	 */
 	MPPE_CI_TO_OPTS(&p[2], try.mppe);
-	if ((try.mppe & MPPE_OPT_STATEFUL) && refuse_mppe_stateful)
+	if ((try.mppe & MPPE_OPT_STATEFUL) && refuse_mppe_stateful) {
+	    error("Refusing MPPE stateful mode offered by peer");
 	    try.mppe = 0;
-	else if (((go->mppe | MPPE_OPT_STATEFUL) & try.mppe) != try.mppe)
+	} else if (((go->mppe | MPPE_OPT_STATEFUL) & try.mppe) != try.mppe) {
 	    /* Peer must have set options we didn't request (suggest) */
 	    try.mppe = 0;
+	}
 
 	if (!try.mppe) {
 	    error("MPPE required but peer negotiation failed");
@@ -1131,6 +1133,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 		     * the Internet -- which is where we expect MPPE.
 		     */
 		   if (refuse_mppe_stateful) {
+			error("Refusing MPPE stateful mode offered by peer");
 			newret = CONFREJ;
 			break;
 		    }
