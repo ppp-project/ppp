@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.33 1997/11/27 06:07:29 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.34 1997/11/27 06:36:50 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -100,7 +100,7 @@ char peer_authname[MAXNAMELEN];
 /* Records which authentication operations haven't completed yet. */
 static int auth_pending[NUM_PPP];
 
-/* Set if we have successfully called login() */
+/* Set if we have successfully called plogin() */
 static int logged_in;
 
 /* Set if we have run the /etc/ppp/auth-up script. */
@@ -131,8 +131,8 @@ extern char *crypt __P((const char *, const char *));
 static void network_phase __P((int));
 static void check_idle __P((void *));
 static void connect_time_expired __P((void *));
-static int  login __P((char *, char *, char **, int *));
-static void logout __P((void));
+static int  plogin __P((char *, char *, char **, int *));
+static void plogout __P((void));
 static int  null_login __P((int));
 static int  get_pap_passwd __P((char *));
 static int  have_pap_secret __P((void));
@@ -165,7 +165,7 @@ link_terminated(unit)
     if (phase == PHASE_DEAD)
 	return;
     if (logged_in)
-	logout();
+	plogout();
     phase = PHASE_DEAD;
     syslog(LOG_NOTICE, "Connection terminated.");
 }
@@ -652,7 +652,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     }
 
     if (uselogin && ret == UPAP_AUTHACK) {
-	ret = login(user, passwd, msg, msglen);
+	ret = plogin(user, passwd, msg, msglen);
 	if (ret == UPAP_AUTHNAK) {
 	    syslog(LOG_WARNING, "PAP login failure for %s", user);
 	}
@@ -705,7 +705,7 @@ static int pam_conv(int num_msg, const struct pam_message **msg,
 #endif
 
 /*
- * login - Check the user name and password against the system
+ * plogin - Check the user name and password against the system
  * password database, and login the user if OK.
  *
  * returns:
@@ -715,7 +715,7 @@ static int pam_conv(int num_msg, const struct pam_message **msg,
  */
 
 static int
-login(user, passwd, msg, msglen)
+plogin(user, passwd, msg, msglen)
     char *user;
     char *passwd;
     char **msg;
@@ -831,10 +831,10 @@ login(user, passwd, msg, msglen)
 }
 
 /*
- * logout - Logout the user.
+ * plogout - Logout the user.
  */
 static void
-logout()
+plogout()
 {
     char *tty;
 
