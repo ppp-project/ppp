@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.8 1995/07/04 12:32:26 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.9 1995/12/18 03:46:19 paulus Exp $";
 #endif
 
 /*
@@ -35,6 +35,12 @@ static char rcsid[] = "$Id: chap.c,v 1.8 1995/07/04 12:32:26 paulus Exp $";
 #include "pppd.h"
 #include "chap.h"
 #include "md5.h"
+
+struct protent chap_protent = {
+    PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
+    ChapLowerUp, ChapLowerDown, NULL, NULL,
+    ChapPrintPkt, NULL, 1, "CHAP"
+};
 
 chap_state chap[NUM_PPP];		/* CHAP state; one for each unit */
 

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: upap.h,v 1.4 1995/06/12 12:02:25 paulus Exp $
+ * $Id: upap.h,v 1.5 1995/12/18 03:46:50 paulus Exp $
  */
 
 /*
@@ -91,3 +91,5 @@ void upap_input __P((int, u_char *, int));
 void upap_protrej __P((int));
 int  upap_printpkt __P((u_char *, int,
 			void (*) __P((void *, char *, ...)), void *));
+
+extern struct protent pap_protent;
