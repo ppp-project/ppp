@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.101 2004/11/12 10:30:51 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.102 2004/12/31 11:58:56 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -532,9 +532,12 @@ void
 link_required(unit)
     int unit;
 {
+    char *msg;
+
     new_phase(PHASE_SERIALCONN);
 
     devfd = the_channel->connect();
+    msg = "Connect script failed";
     if (devfd < 0)
 	goto fail;
 
@@ -547,6 +550,7 @@ link_required(unit)
      * gives us.  Thus we don't need the tdb_writelock/tdb_writeunlock.
      */
     fd_ppp = the_channel->establish_ppp(devfd);
+    msg = "ppp establishment failed";
     if (fd_ppp < 0) {
 	status = EXIT_FATAL_ERROR;
 	goto disconnect;
@@ -581,6 +585,8 @@ link_required(unit)
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
+    /* XXX not nice here but needs to go somewhere... */
+    lcp_close(0, msg);
 }
 
 /*
