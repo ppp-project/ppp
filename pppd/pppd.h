@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.12 1996/04/04 04:01:51 paulus Exp $
+ * $Id: pppd.h,v 1.13 1996/05/27 00:02:42 paulus Exp $
  */
 
 /*
@@ -31,14 +31,20 @@
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
-#include <net/bpf.h>
 
-#define NUM_PPP	1		/* One PPP interface supported (per process) */
+#if __STDC__
+#include <stdarg.h>
+#define __V(x)	x
+#else
+#include <varargs.h>
+#define __V(x)	(va_alist) va_dcl
+#endif
 
 /*
  * Limits.
  */
 
+#define NUM_PPP		1	/* One PPP interface supported (per process) */
 #define MAXWORDLEN	1024	/* max length of word in file (incl null) */
 #define MAXARGS		1	/* max # args to a command */
 #define MAXNAMELEN	256	/* max length of hostname or name for auth */
@@ -93,19 +99,18 @@ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
-extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
-extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 
 /*
  * Values for phase.
  */
 #define PHASE_DEAD		0
-#define PHASE_DORMANT		1
-#define PHASE_ESTABLISH		2
-#define PHASE_AUTHENTICATE	3
-#define PHASE_NETWORK		4
-#define PHASE_TERMINATE		5
-#define PHASE_HOLDOFF		6
+#define PHASE_INITIALIZE	1
+#define PHASE_DORMANT		2
+#define PHASE_ESTABLISH		3
+#define PHASE_AUTHENTICATE	4
+#define PHASE_NETWORK		5
+#define PHASE_TERMINATE		6
+#define PHASE_HOLDOFF		7
 
 /*
  * The following struct gives the addresses of procedures to call
@@ -153,6 +158,8 @@ void log_packet __P((u_char *, int, char *));
 				/* Format a packet and log it with syslog */
 void print_string __P((char *, int,  void (*) (void *, char *, ...),
 		void *));	/* Format a string for output */
+int fmtmsg __P((char *, int, char *, ...));		/* sprintf++ */
+int vfmtmsg __P((char *, int, char *, va_list));	/* vsprintf++ */
 
 /* Procedures exported from auth.c */
 void link_required __P((int));	  /* we are starting to use the link */
@@ -197,7 +204,6 @@ void sys_init __P((void));	/* Do system-dependent initialization */
 void sys_cleanup __P((void));	/* Restore system state before exiting */
 void sys_check_options __P((void)); /* Check options specified */
 void sys_close __P((void));	/* Clean up in a child before execing */
-void note_debug_level __P((void)); /* Note change in debug level */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
 void open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
 void establish_ppp __P((int));	/* Turn serial port into a ppp interface */
@@ -252,8 +258,6 @@ void unlock __P((void));	/* Delete previously-created lock file */
 int  daemon __P((int, int));	/* Detach us from terminal session */
 int  logwtmp __P((char *, char *, char *));
 				/* Write entry to wtmp file */
-int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
-				/* Set filter programs in kernel */
 
 /* Procedures exported from options.c */
 int  parse_args __P((int argc, char **argv));
