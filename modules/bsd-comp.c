@@ -39,6 +39,8 @@
 
 /*
  * This version is for use with STREAMS under SunOS 4.x.
+ *
+ * $Id: bsd-comp.c,v 1.3 1994/08/31 23:58:53 paulus Exp $
  */
 
 #include <sys/param.h>
