@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.135 2004/04/12 05:02:00 kad Exp $"
+#define RCSID	"$Id: main.c,v 1.136 2004/04/12 11:20:19 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -150,6 +150,7 @@ int got_sigusr2;
 int got_sigterm;
 int got_sighup;
 
+static sigset_t signals_handled;
 static int waiting;
 static sigjmp_buf sigjmp;
 
@@ -648,23 +649,15 @@ static void
 handle_events()
 {
     struct timeval timo;
-    sigset_t mask;
-
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGHUP);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGCHLD);
-    sigaddset(&mask, SIGUSR2);
 
     kill_link = open_ccp_flag = 0;
     if (sigsetjmp(sigjmp, 1) == 0) {
-	sigprocmask(SIG_BLOCK, &mask, NULL);
+	sigprocmask(SIG_BLOCK, &signals_handled, NULL);
 	if (got_sighup || got_sigterm || got_sigusr2 || got_sigchld) {
-	    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	    sigprocmask(SIG_UNBLOCK, &signals_handled, NULL);
 	} else {
 	    waiting = 1;
-	    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	    sigprocmask(SIG_UNBLOCK, &signals_handled, NULL);
 	    wait_input(timeleft(&timo));
 	}
     }
@@ -699,19 +692,18 @@ static void
 setup_signals()
 {
     struct sigaction sa;
-    sigset_t mask;
 
     /*
      * Compute mask of all interesting signals and install signal handlers
      * for each.  Only one signal handler may be active at a time.  Therefore,
      * all other signals should be masked when any handler is executing.
      */
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGHUP);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGCHLD);
-    sigaddset(&mask, SIGUSR2);
+    sigemptyset(&signals_handled);
+    sigaddset(&signals_handled, SIGHUP);
+    sigaddset(&signals_handled, SIGINT);
+    sigaddset(&signals_handled, SIGTERM);
+    sigaddset(&signals_handled, SIGCHLD);
+    sigaddset(&signals_handled, SIGUSR2);
 
 #define SIGNAL(s, handler)	do { \
 	sa.sa_handler = handler; \
@@ -719,7 +711,7 @@ setup_signals()
 	    fatal("Couldn't establish signal handler (%d): %m", s); \
     } while (0)
 
-    sa.sa_mask = mask;
+    sa.sa_mask = signals_handled;
     sa.sa_flags = 0;
     SIGNAL(SIGHUP, hup);		/* Hangup */
     SIGNAL(SIGINT, term);		/* Interrupt */
@@ -1345,9 +1337,7 @@ kill_my_pg(sig)
 {
     struct sigaction act, oldact;
 
-    sigemptyset(&act.sa_mask);
-    sigaddset(&act.sa_mask, sig);
-
+    sigemptyset(&act.sa_mask);		/* unnecessary in fact */
     act.sa_handler = SIG_IGN;
     act.sa_flags = 0;
     kill(0, sig);
