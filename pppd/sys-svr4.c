@@ -26,12 +26,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.1 1995/05/19 03:08:27 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.2 1995/06/01 01:31:28 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -45,7 +46,10 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.1 1995/05/19 03:08:27 paulus Exp $";
 #include <sys/syslog.h>
 #include <sys/systeminfo.h>
 #include <sys/dlpi.h>
+#include <sys/stat.h>
 #include <net/if.h>
+#include <net/if_arp.h>
+#include <net/route.h>
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include <netinet/in.h>
@@ -128,7 +132,9 @@ note_debug_level()
 int
 ppp_available()
 {
-    return access("/dev/ppp", R_OK) >= 0;
+    struct stat buf;
+
+    return stat("/dev/ppp", &buf) >= 0;
 }
 
 /*
@@ -186,7 +192,8 @@ disestablish_ppp()
 
     if (fdmuxid >= 0) {
 	if (ioctl(pppfd, I_UNLINK, fdmuxid) < 0) {
-	    syslog(LOG_ERR, "Can't unlink tty from PPP mux: %m");
+	    if (!hungup)
+		syslog(LOG_ERR, "Can't unlink tty from PPP mux: %m");
 	}
 	fdmuxid = -1;
 
@@ -394,7 +401,7 @@ restore_tty()
 	    inittermios.c_lflag &= ~(ECHO | ECHONL);
 	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
-	    if (errno != ENXIO)
+	    if (!hungup && errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
 	restore_term = 0;
     }
@@ -465,29 +472,34 @@ read_packet(buf)
 {
     struct strbuf ctrl, data;
     int flags, len;
-    unsigned char ctrlbuf[sizeof(union DL_primitives)];
+    unsigned char ctrlbuf[sizeof(union DL_primitives) + 64];
 
-    data.maxlen = PPP_MRU + PPP_HDRLEN;
-    data.buf = (caddr_t) buf;
-    ctrl.maxlen = sizeof(ctrlbuf);
-    ctrl.buf = (caddr_t) ctrlbuf;
-    flags = 0;
-    len = getmsg(pppfd, &ctrl, &data, &flags);
-    if (len < 0) {
-	if (errno = EAGAIN || errno == EINTR)
-	    return -1;
-	syslog(LOG_ERR, "Error reading packet: %m");
-	die(1);
-    }
+    for (;;) {
+	data.maxlen = PPP_MRU + PPP_HDRLEN;
+	data.buf = (caddr_t) buf;
+	ctrl.maxlen = sizeof(ctrlbuf);
+	ctrl.buf = (caddr_t) ctrlbuf;
+	flags = 0;
+	len = getmsg(pppfd, &ctrl, &data, &flags);
+	if (len < 0) {
+	    if (errno = EAGAIN || errno == EINTR)
+		return -1;
+	    syslog(LOG_ERR, "Error reading packet: %m");
+	    die(1);
+	}
 
-    if (ctrl.len > 0) {
+	if (ctrl.len <= 0)
+	    return data.len;
+
 	/*
 	 * Got a M_PROTO or M_PCPROTO message.  Interpret it
 	 * as a DLPI primitive.
 	 */
-    }
+	if (debug)
+	    syslog(LOG_DEBUG, "got dlpi prim 0x%x, len=%d",
+		   ((union DL_primitives *)ctrlbuf)->dl_primitive, ctrl.len);
 
-    return data.len;
+    }
 }
 
 /*
@@ -502,7 +514,10 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 {
     int cf[2];
 
+    link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
+	if (hungup && errno == ENXIO)
+	    return;
 	syslog(LOG_ERR, "Couldn't set MTU: %m");
     }
     if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
@@ -513,7 +528,6 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
     }
-    link_mtu = mtu;
 }
 
 /*
@@ -525,7 +539,8 @@ ppp_set_xaccm(unit, accm)
     ext_accm accm;
 {
     if (strioctl(pppfd, PPPIO_XACCM, accm, sizeof(ext_accm), 0) < 0) {
-	syslog(LOG_WARNING, "Couldn't set extended ACCM: %m");
+	if (!hungup || errno != ENXIO)
+	    syslog(LOG_WARNING, "Couldn't set extended ACCM: %m");
     }
 }
 
@@ -541,7 +556,10 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 {
     int cf[2];
 
+    link_mru = mru;
     if (strioctl(pppfd, PPPIO_MRU, &mru, sizeof(mru), 0) < 0) {
+	if (hungup && errno == ENXIO)
+	    return;
 	syslog(LOG_ERR, "Couldn't set MRU: %m");
     }
     if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
@@ -552,7 +570,6 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	syslog(LOG_ERR, "Couldn't set prot/AC decompression: %m");
     }
-    link_mru = mru;
 }
 
 /*
@@ -579,7 +596,8 @@ ccp_flags_set(unit, isopen, isup)
     cf[0] = (isopen? CCP_ISOPEN: 0) + (isup? CCP_ISUP: 0);
     cf[1] = CCP_ISOPEN | CCP_ISUP | CCP_ERROR | CCP_FATALERROR;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't set kernel CCP state: %m");
+	if (!hungup || errno != ENXIO)
+	    syslog(LOG_ERR, "Couldn't set kernel CCP state: %m");
     }
 }
 
@@ -596,7 +614,8 @@ ccp_fatal_error(unit)
 
     cf[0] = cf[1] = 0;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't get compression flags: %m");
+	if (errno != ENXIO && errno != EINVAL)
+	    syslog(LOG_ERR, "Couldn't get compression flags: %m");
 	return 0;
     }
     return cf[0] & CCP_FATALERROR;
@@ -681,6 +700,8 @@ sifdown(u)
     return 1;
 }
 
+#define INET_ADDR(x)	(((struct sockaddr_in *) &(x))->sin_addr.s_addr)
+
 /*
  * sifaddr - Config the interface IP addresses and netmask.
  */
@@ -712,17 +733,17 @@ sifaddr(u, o, h, m)
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_addr.sa_family = AF_INET;
-    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
+    INET_ADDR(ifr.ifr_addr) = o;
     if (ioctl(ipfd, SIOCSIFADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set local IP address: %m");
     }
     ifr.ifr_dstaddr.sa_family = AF_INET;
-    ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = h;
+    INET_ADDR(ifr.ifr_dstaddr) = h;
     if (ioctl(ipfd, SIOCSIFDSTADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set remote IP address: %m");
     }
     ifr.ifr_addr.sa_family = AF_INET;
-    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
+    INET_ADDR(ifr.ifr_addr) = m;
     if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
     }
@@ -761,6 +782,19 @@ sifdefaultroute(u, g)
     int u;
     u_int32_t g;
 {
+    struct rtentry rt;
+
+    rt.rt_dst.sa_family = AF_INET;
+    INET_ADDR(rt.rt_dst) = 0;
+    rt.rt_gateway.sa_family = AF_INET;
+    INET_ADDR(rt.rt_gateway) = g;
+    rt.rt_flags = RTF_GATEWAY;
+
+    if (ioctl(ipfd, SIOCADDRT, &rt) < 0) {
+	syslog(LOG_ERR, "Can't add default route: %m");
+	return 0;
+    }
+
     return 1;
 }
 
@@ -772,6 +806,19 @@ cifdefaultroute(u, g)
     int u;
     u_int32_t g;
 {
+    struct rtentry rt;
+
+    rt.rt_dst.sa_family = AF_INET;
+    INET_ADDR(rt.rt_dst) = 0;
+    rt.rt_gateway.sa_family = AF_INET;
+    INET_ADDR(rt.rt_gateway) = g;
+    rt.rt_flags = RTF_GATEWAY;
+
+    if (ioctl(ipfd, SIOCDELRT, &rt) < 0) {
+	syslog(LOG_ERR, "Can't delete default route: %m");
+	return 0;
+    }
+
     return 1;
 }
 
@@ -783,6 +830,20 @@ sifproxyarp(unit, hisaddr)
     int unit;
     u_int32_t hisaddr;
 {
+    struct arpreq arpreq;
+
+    memset(&arpreq, 0, sizeof(arpreq));
+    if (!get_ether_addr(hisaddr, &arpreq.arp_ha))
+	return 0;
+
+    arpreq.arp_pa.sa_family = AF_INET;
+    INET_ADDR(arpreq.arp_pa) = hisaddr;
+    arpreq.arp_flags = ATF_PERM | ATF_PUBL;
+    if (ioctl(ipfd, SIOCSARP, (caddr_t) &arpreq) < 0) {
+	syslog(LOG_ERR, "Couldn't set proxy ARP entry: %m");
+	return 0;
+    }
+
     return 1;
 }
 
@@ -794,6 +855,16 @@ cifproxyarp(unit, hisaddr)
     int unit;
     u_int32_t hisaddr;
 {
+    struct arpreq arpreq;
+
+    memset(&arpreq, 0, sizeof(arpreq));
+    arpreq.arp_pa.sa_family = AF_INET;
+    INET_ADDR(arpreq.arp_pa) = hisaddr;
+    if (ioctl(ipfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
+	syslog(LOG_ERR, "Couldn't delete proxy ARP entry: %m");
+	return 0;
+    }
+
     return 1;
 }
 
@@ -806,8 +877,196 @@ cifproxyarp(unit, hisaddr)
 int
 get_ether_addr(ipaddr, hwaddr)
     u_int32_t ipaddr;
-    struct sockaddr_dl *hwaddr;
+    struct sockaddr *hwaddr;
 {
+    struct ifreq *ifr, *ifend, ifreq;
+    int nif;
+    struct ifconf ifc;
+    u_int32_t ina, mask;
+
+    /*
+     * Scan through the system's network interfaces.
+     */
+    if (ioctl(ipfd, SIOCGIFNUM, &nif) < 0)
+	nif = MAX_IFS;
+    ifc.ifc_len = nif * sizeof(struct ifreq);
+    ifc.ifc_req = alloca(ifc.ifc_len);
+    if (ifc.ifc_req == 0)
+	return 0;
+    if (ioctl(ipfd, SIOCGIFCONF, &ifc) < 0) {
+	syslog(LOG_WARNING, "Couldn't get system interface list: %m");
+	return 0;
+    }
+    ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
+    for (ifr = ifc.ifc_req; ifr < ifend; ++ifr) {
+	if (ifr->ifr_addr.sa_family != AF_INET)
+	    continue;
+	/*
+	 * Check that the interface is up, and not point-to-point or loopback.
+	 */
+	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	if (ioctl(ipfd, SIOCGIFFLAGS, &ifreq) < 0)
+	    continue;
+	if ((ifreq.ifr_flags &
+	     (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
+	    != (IFF_UP|IFF_BROADCAST))
+	    continue;
+	/*
+	 * Get its netmask and check that it's on the right subnet.
+	 */
+	if (ioctl(ipfd, SIOCGIFNETMASK, &ifreq) < 0)
+	    continue;
+	ina = INET_ADDR(ifr->ifr_addr);
+	mask = INET_ADDR(ifreq.ifr_addr);
+	if ((ipaddr & mask) == (ina & mask))
+	    break;
+    }
+
+    if (ifr >= ifend) {
+	syslog(LOG_WARNING, "No suitable interface found for proxy ARP");
+	return 0;
+    }
+
+    syslog(LOG_INFO, "found interface %s for proxy ARP", ifr->ifr_name);
+    if (!get_hw_addr(ifr->ifr_name, hwaddr)) {
+	syslog(LOG_ERR, "Couldn't get hardware address for %s", ifr->ifr_name);
+	return 0;
+    }
+
+    return 1;
+}
+
+/*
+ * get_hw_addr - obtain the hardware address for a named interface.
+ */
+int
+get_hw_addr(name, hwaddr)
+    char *name;
+    struct sockaddr *hwaddr;
+{
+    char *p, *q;
+    int unit, iffd, adrlen;
+    unsigned char *adrp;
+    char ifdev[24];
+    struct {
+	union DL_primitives prim;
+	char space[64];
+    } reply;
+
+    /*
+     * We have to open the device and ask it for its hardware address.
+     * First split apart the device name and unit.
+     */
+    strcpy(ifdev, "/dev/");
+    q = ifdev + 5;		/* strlen("/dev/") */
+    while (*name != 0 && !isdigit(*name))
+	*q++ = *name++;
+    *q = 0;
+    unit = atoi(name);
+
+    /*
+     * Open the device and do a DLPI attach and phys_addr_req.
+     */
+    iffd = open(ifdev, O_RDWR);
+    if (iffd < 0) {
+	syslog(LOG_ERR, "Can't open %s: %m", ifdev);
+	return 0;
+    }
+    if (dlpi_attach(iffd, unit) < 0
+	|| dlpi_get_reply(iffd, &reply.prim, DL_OK_ACK, sizeof(reply)) < 0
+	|| dlpi_phys_addr_req(iffd) < 0
+	|| dlpi_get_reply(iffd, &reply.prim, DL_PHYS_ADDR_ACK,
+			  sizeof(reply)) < 0) {
+	close(iffd);
+	return 0;
+    }
+
+    hwaddr->sa_family = AF_UNSPEC;
+    adrlen = reply.prim.physaddr_ack.dl_addr_length;
+    adrp = (unsigned char *)&reply + reply.prim.physaddr_ack.dl_addr_offset;
+    memcpy(hwaddr->sa_data, adrp, adrlen);
+
+    return 1;
+}
+
+int
+dlpi_attach(fd, ppa)
+    int fd, ppa;
+{
+    dl_attach_req_t req;
+    struct strbuf buf;
+
+    req.dl_primitive = DL_ATTACH_REQ;
+    req.dl_ppa = ppa;
+    buf.len = sizeof(req);
+    buf.buf = (void *) &req;
+    return putmsg(fd, &buf, NULL, RS_HIPRI);
+}
+
+int
+dlpi_phys_addr_req(fd)
+    int fd;
+{
+    dl_phys_addr_req_t req;
+    struct strbuf buf;
+
+    req.dl_primitive = DL_PHYS_ADDR_REQ;
+    req.dl_addr_type = DL_CURR_PHYS_ADDR;
+    buf.len = sizeof(req);
+    buf.buf = (void *) &req;
+    return putmsg(fd, &buf, NULL, RS_HIPRI);
+}
+
+int
+dlpi_get_reply(fd, reply, expected_prim, maxlen)
+    union DL_primitives *reply;
+    int fd, expected_prim, maxlen;
+{
+    struct strbuf buf;
+    int flags, n;
+    struct pollfd pfd;
+
+    /*
+     * Use poll to wait for a message with a timeout.
+     */
+    pfd.fd = fd;
+    pfd.events = POLLIN | POLLPRI;
+    do {
+	n = poll(&pfd, 1, 1000);
+    } while (n == -1 && errno == EINTR);
+    if (n <= 0)
+	return -1;
+
+    /*
+     * Get the reply.
+     */
+    buf.maxlen = maxlen;
+    buf.buf = (void *) reply;
+    flags = 0;
+    if (getmsg(fd, &buf, NULL, &flags) < 0)
+	return -1;
+
+    if (buf.len < sizeof(ulong)) {
+	if (debug)
+	    syslog(LOG_DEBUG, "dlpi response short (len=%d)\n", buf.len);
+	return -1;
+    }
+
+    if (reply->dl_primitive == expected_prim)
+	return 0;
+
+    if (debug) {
+	if (reply->dl_primitive == DL_ERROR_ACK) {
+	    syslog(LOG_DEBUG, "dlpi error %d (unix errno %d) for prim %x\n",
+		   reply->error_ack.dl_errno, reply->error_ack.dl_unix_errno,
+		   reply->error_ack.dl_error_primitive);
+	} else {
+	    syslog(LOG_DEBUG, "dlpi unexpected response prim %x\n",
+		   reply->dl_primitive);
+	}
+    }
+
+    return -1;
 }
 
 /*
@@ -857,7 +1116,7 @@ GetMask(addr)
 	 */
 	if (ifr->ifr_addr.sa_family != AF_INET)
 	    continue;
-	ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	ina = INET_ADDR(ifr->ifr_addr);
 	if ((ntohl(ina) & nmask) != (addr & nmask))
 	    continue;
 	/*
@@ -874,7 +1133,7 @@ GetMask(addr)
 	 */
 	if (ioctl(ipfd, SIOCGIFNETMASK, &ifreq) < 0)
 	    continue;
-	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
+	mask |= INET_ADDR(ifreq.ifr_addr);
     }
 
     return mask;
