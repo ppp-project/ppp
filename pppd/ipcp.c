@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.27 1996/07/01 05:32:17 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.28 1996/08/28 06:40:29 paulus Exp $";
 #endif
 
 /*
@@ -1062,13 +1062,11 @@ ip_check_options()
     }
 
     if (demand && wo->hisaddr == 0) {
-	fprintf(stderr, "%s: remote IP address required for demand-dialling\n",
-		progname);
+	option_error("remote IP address required for demand-dialling\n");
 	exit(1);
     }
     if (demand && wo->accept_remote) {
-	fprintf(stderr, "%s: ipcp-accept-remote is incompatible with demand\n",
-		progname);
+	option_error("ipcp-accept-remote is incompatible with demand\n");
 	exit(1);
     }
 }
@@ -1086,9 +1084,9 @@ ip_demand_conf(u)
 
     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
 	return 0;
-    if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
-	return 0;
     if (!sifup(u))
+	return 0;
+    if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
 	return 0;
     if (wo->default_route)
 	if (sifdefaultroute(u, wo->hisaddr))
@@ -1414,6 +1412,16 @@ ipcp_printpkt(p, plen, printer, arg)
 #define IP_OFFMASK	0x1fff
 #endif
 
+/*
+ * We use these macros because the IP header may be at an odd address,
+ * and some compilers might use word loads to get th_off or ip_hl.
+ */
+
+#define net_short(x)	(((x)[0] << 8) + (x)[1])
+#define get_iphl(x)	(((unsigned char *)(x))[0] & 0xF)
+#define get_ipoff(x)	net_short((unsigned char *)(x) + 6)
+#define get_tcpoff(x)	(((unsigned char *)(x))[12] >> 4)
+
 static int
 ip_active_pkt(pkt, len)
     u_char *pkt;
@@ -1423,18 +1431,20 @@ ip_active_pkt(pkt, len)
     struct tcphdr *tcp;
     int hlen;
 
+    len -= PPP_HDRLEN;
     if (len < sizeof(struct ip) + PPP_HDRLEN)
 	return 0;
-    ip = (struct ip *) (pkt + PPP_HDRLEN);
-    if ((ntohs(ip->ip_off) & IP_OFFMASK) != 0)
+    pkt += PPP_HDRLEN;
+    ip = (struct ip *) pkt;
+    if ((get_ipoff(ip) & IP_OFFMASK) != 0)
 	return 0;
     if (ip->ip_p != IPPROTO_TCP)
 	return 1;
-    hlen = ip->ip_hl * 4;
-    if (len < hlen + sizeof(struct tcphdr) + PPP_HDRLEN)
+    hlen = get_iphl(ip) * 4;
+    if (len < hlen + sizeof(struct tcphdr))
 	return 0;
-    tcp = (struct tcphdr *) (pkt + PPP_HDRLEN + hlen);
-    if ((tcp->th_flags & TH_FIN) != 0 && hlen + tcp->th_off * 4 == len)
+    tcp = (struct tcphdr *) (pkt + hlen);
+    if ((tcp->th_flags & TH_FIN) != 0 && len == hlen + get_tcpoff(tcp) * 4)
 	return 0;
     return 1;
 }
