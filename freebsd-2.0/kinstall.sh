@@ -17,7 +17,7 @@ CONFIG=config
 # Copy new versions of files into /sys/net
 
 for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
-	 $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/netisr.h $SRC/ppp_tty.c \
+	 $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
 	 $SRC/pppcompress.c $SRC/pppcompress.h; do
   dest=$SYS/net/$(basename $f)
   if [ -f $dest ]; then
@@ -47,18 +47,6 @@ if [ -f $SYS/conf/files ]; then
   fi
 fi
 
-# Add in patch to call PPP software interrupt routine.
-
-d=i386
-p=machdep.c
-if [ -f $ARCHDIR/$d/$p ]; then
-  if ! grep -q NETISR_PPP $ARCHDIR/$d/$p; then
-    echo "Patching $ARCHDIR/$d/$p"
-    patch -p -N -d $ARCHDIR/$d < $SRC/$p.patch
-    DOMAKE=yes
-  fi
-fi
-
 # Tell the user to add a pseudo-device line to the configuration file.
 
 if [ -f $CFILE ]; then
@@ -81,18 +69,17 @@ if [ $DOCONF ]; then
   echo
   echo "	cd $ARCHDIR/conf"
   echo "	/usr/sbin/$CONFIG $CONF"
-  echo "	cd ../compile/$CONF"
+  echo "	cd ../../compile/$CONF"
   DOMAKE=yes
 elif [ $DOMAKE ]; then
   echo "You need to build a new kernel."
   echo "The procedure for doing this involves the following commands."
   echo
-  echo "	cd $ARCHDIR/compile/$CONF"
+  echo "	cd $SYS/compile/$CONF"
 fi
 if [ $DOMAKE ]; then
   echo "	make"
   echo
-  echo "Then copy the new kernel ($ARCHDIR/compile/$CONF/freebsd)"
-  echo "to /freebsd and reboot.  (Keep a copy of the old /freebsd,"
-  echo "just in case.)"
+  echo "Then copy the new kernel ($SYS/compile/$CONF/kernel) to /"
+  echo "and reboot.  (Keep a copy of the old /kernel, just in case.)"
 fi
