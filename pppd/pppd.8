@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.75 2004/01/13 04:04:52 paulus Exp $
+.\" $Id: pppd.8,v 1.76 2004/01/15 05:09:00 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -1556,6 +1556,14 @@ the connection.
 .TP
 .B LINKNAME
 The logical name of the link, set with the \fIlinkname\fR option.
+.TP
+.B DNS1
+If the peer supplies DNS server addresses, this variable is set to the
+first DNS server address supplied.
+.TP
+.B DNS2
+If the peer supplies DNS server addresses, this variable is set to the
+second DNS server address supplied.
 .P
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
