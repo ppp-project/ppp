@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.3 2002/02/12 04:36:00 mostrows Exp $";
+"$Id: plugin.c,v 1.4 2002/02/27 16:00:30 dfs Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -59,7 +59,7 @@ char pppd_version[] = VERSION;
 /* From sys-linux.c in pppd -- MUST FIX THIS! */
 extern int new_style_driver;
 
-static char *service = NULL;
+char *pppd_pppoe_service = NULL;
 static char *acName = NULL;
 static char *existingSession = NULL;
 static int printACNames = 0;
@@ -70,7 +70,7 @@ static option_t Options[] = {
       "PPPoE device name",
       OPT_DEVNAM | OPT_PRIVFIX | OPT_NOARG  | OPT_A2STRVAL | OPT_STATIC,
       devnam},
-    { "rp_pppoe_service", o_string, &service,
+    { "rp_pppoe_service", o_string, &pppd_pppoe_service,
       "Desired PPPoE service name" },
     { "rp_pppoe_ac",      o_string, &acName,
       "Desired PPPoE access concentrator name" },
@@ -103,8 +103,8 @@ PPPOEInitDevice(void)
     if (acName) {
 	SET_STRING(conn->acName, acName);
     }
-    if (service) {
-	SET_STRING(conn->serviceName, acName);
+    if (pppd_pppoe_service) {
+	SET_STRING(conn->serviceName, pppd_pppoe_service);
     }
     SET_STRING(conn->ifName, devnam);
     conn->discoverySocket = -1;
