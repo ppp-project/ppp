@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.7 1994/05/24 11:21:52 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.8 1994/05/26 06:37:34 paulus Exp $";
 #endif
 
 /*
@@ -30,9 +30,6 @@ static char rcsid[] = "$Id: ipcp.c,v 1.7 1994/05/24 11:21:52 paulus Exp $";
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-
-#include <net/if.h>
-#include <net/if_ppp.h>
 
 #include "pppd.h"
 #include "ppp.h"
