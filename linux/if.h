@@ -97,7 +97,6 @@ struct ifreq
 	union
 	{
 		char	ifrn_name[IFNAMSIZ];		/* if name, e.g. "en0" */
-		char	ifrn_hwaddr[IFHWADDRLEN];	/* Obsolete */
 	} ifr_ifrn;
 	
 	union {
@@ -116,7 +115,6 @@ struct ifreq
 };
 
 #define ifr_name	ifr_ifrn.ifrn_name	/* interface name 	*/
-#define old_ifr_hwaddr	ifr_ifrn.ifrn_hwaddr	/* interface hardware   */
 #define ifr_hwaddr	ifr_ifru.ifru_hwaddr	/* MAC address 		*/
 #define	ifr_addr	ifr_ifru.ifru_addr	/* address		*/
 #define	ifr_dstaddr	ifr_ifru.ifru_dstaddr	/* other end of p-p lnk	*/

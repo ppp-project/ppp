@@ -37,9 +37,9 @@
  */
 
 /*
- * This version is for use with contigious buffers on Linux-derived systems.
+ * This version is for use with contiguous buffers on Linux-derived systems.
  *
- *  ==FILEVERSION 5==
+ *  ==FILEVERSION 4==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, increment the number above.
@@ -49,7 +49,7 @@
  *     install a new bsd_comp.c file. Don't change the format of that
  *     line otherwise, so the installation script can recognize it.
  *
- * $Id: bsd_comp.c,v 1.3 1996/01/18 03:12:47 paulus Exp $
+ * From: bsd_comp.c,v 1.3 1994/12/08 01:59:58 paulus Exp
  */
 
 #ifndef MODULE
@@ -78,7 +78,7 @@
 #include <asm/bitops.h>
 #include <asm/segment.h>
 
-#include <net/if.h>
+#include <linux/if.h>
 
 #include <linux/if_ether.h>
 #include <linux/netdevice.h>
@@ -92,9 +92,9 @@
 #include <linux/netprotocol.h>
 #endif
 
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <net/if_arp.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/if_arp.h>
 
 #undef   PACKETPTR
 #define  PACKETPTR 1
@@ -501,9 +501,7 @@ static int bsd_init (void *state, unsigned char *options,
     struct bsd_db *db = state;
     int indx;
     
-    if ((opt_len < CILEN_BSD_COMPRESS)
-	|| (options[0] != CI_BSD_COMPRESS)
-	|| (options[1] != CILEN_BSD_COMPRESS)
+    if ((opt_len != 3) || (options[0] != CI_BSD_COMPRESS) || (options[1] != 3)
 	|| (BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	|| (BSD_NBITS(options[2]) != db->maxbits)
 	|| (decomp && db->lens == NULL))

@@ -24,14 +24,14 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.1 1995/12/18 03:38:10 paulus Exp $
+ * From: ppp-comp.h,v 1.7 1995/05/01 01:43:37 paulus Exp
  */
 
 /*
- *  ==FILEVERSION 4==
+ *  ==FILEVERSION 960302==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the number above.
+ *     If you modify this file at all, please set the above date.
  *     ppp-comp.h is shipped with a PPP distribution as well as with the kernel;
  *     if everyone increases the FILEVERSION number above, then scripts
  *     can do the right thing when deciding whether to install a new ppp-comp.h

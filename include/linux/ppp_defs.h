@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.1 1995/12/18 03:38:15 paulus Exp $	*/
+/*	From: ppp_defs.h,v 1.2 1994/09/21 01:31:06 paulus Exp	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -28,10 +28,10 @@
  */
 
 /*
- *  ==FILEVERSION 6==
+ *  ==FILEVERSION 960302==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the number above.
+ *     If you modify this file at all, please set the above date.
  *     ppp_defs.h is shipped with a PPP distribution as well as with the kernel;
  *     if everyone increases the FILEVERSION number above, then scripts
  *     can do the right thing when deciding whether to install a new ppp_defs.h
@@ -49,9 +49,9 @@
 #define PPP_FCSLEN	2	/* octets for FCS */
 #define PPP_MRU		1500	/* default MRU = max length of info field */
 
-#define PPP_ADDRESS(p)	(((u_char *)(p))[0])
-#define PPP_CONTROL(p)	(((u_char *)(p))[1])
-#define PPP_PROTOCOL(p)	((((u_char *)(p))[2] << 8) + ((u_char *)(p))[3])
+#define PPP_ADDRESS(p)	(((__u8 *)(p))[0])
+#define PPP_CONTROL(p)	(((__u8 *)(p))[1])
+#define PPP_PROTOCOL(p)	((((__u8 *)(p))[2] << 8) + ((__u8 *)(p))[3])
 
 /*
  * Significant octet values.
@@ -79,20 +79,18 @@
 #define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
 
 /*
- * A 32-bit unsigned integral type.
+ * Values for FCS calculations.
  */
-#ifndef __BIT_TYPES_DEFINED__
-#ifdef	UINT32_T
-typedef UINT32_T	u_int32_t;
-#else
-typedef unsigned int	u_int32_t;
-#endif
-#endif
+
+#define PPP_INITFCS	0xffff	/* Initial FCS value */
+#define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
+#define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
 
 /*
  * Extended asyncmap - allows any character to be escaped.
  */
-typedef u_int32_t	ext_accm[8];
+
+typedef __u32		ext_accm[8];
 
 /*
  * What to do with network protocol (NP) packets.
@@ -108,42 +106,44 @@ enum NPmode {
  * Statistics for LQRP and pppstats
  */
 struct pppstat	{
-    u_int	ppp_discards;	/* # frames discarded */
+    __u32	ppp_discards;	/* # frames discarded */
 
-    u_int	ppp_ibytes;	/* bytes received */
-    u_int	ppp_ioctects;	/* bytes received not in error */
-    u_int	ppp_ipackets;	/* packets received */
-    u_int	ppp_ierrors;	/* receive errors */
-    u_int	ppp_ilqrs;	/* # LQR frames received */
+    __u32	ppp_ibytes;	/* bytes received */
+    __u32	ppp_ioctects;	/* bytes received not in error */
+    __u32	ppp_ipackets;	/* packets received */
+    __u32	ppp_ierrors;	/* receive errors */
+    __u32	ppp_ilqrs;	/* # LQR frames received */
 
-    u_int	ppp_obytes;	/* raw bytes sent */
-    u_int	ppp_ooctects;	/* frame bytes sent */
-    u_int	ppp_opackets;	/* packets sent */
-    u_int	ppp_oerrors;	/* transmit errors */ 
-    u_int	ppp_olqrs;	/* # LQR frames sent */
+    __u32	ppp_obytes;	/* raw bytes sent */
+    __u32	ppp_ooctects;	/* frame bytes sent */
+    __u32	ppp_opackets;	/* packets sent */
+    __u32	ppp_oerrors;	/* transmit errors */ 
+    __u32	ppp_olqrs;	/* # LQR frames sent */
 };
 
 struct vjstat {
-    u_int	vjs_packets;	/* outbound packets */
-    u_int	vjs_compressed;	/* outbound compressed packets */
-    u_int	vjs_searches;	/* searches for connection state */
-    u_int	vjs_misses;	/* times couldn't find conn. state */
-    u_int	vjs_uncompressedin; /* inbound uncompressed packets */
-    u_int	vjs_compressedin;   /* inbound compressed packets */
-    u_int	vjs_errorin;	/* inbound unknown type packets */
-    u_int	vjs_tossed;	/* inbound packets tossed because of error */
+    __u32	vjs_packets;	/* outbound packets */
+    __u32	vjs_compressed;	/* outbound compressed packets */
+    __u32	vjs_searches;	/* searches for connection state */
+    __u32	vjs_misses;	/* times couldn't find conn. state */
+    __u32	vjs_uncompressedin; /* inbound uncompressed packets */
+    __u32	vjs_compressedin;   /* inbound compressed packets */
+    __u32	vjs_errorin;	/* inbound unknown type packets */
+    __u32	vjs_tossed;	/* inbound packets tossed because of error */
 };
 
 struct compstat {
-    u_int	unc_bytes;	/* total uncompressed bytes */
-    u_int	unc_packets;	/* total uncompressed packets */
-    u_int	comp_bytes;	/* compressed bytes */
-    u_int	comp_packets;	/* compressed packets */
-    u_int	inc_bytes;	/* incompressible bytes */
-    u_int	inc_packets;	/* incompressible packets */
+    __u32	unc_bytes;	/* total uncompressed bytes */
+    __u32	unc_packets;	/* total uncompressed packets */
+    __u32	comp_bytes;	/* compressed bytes */
+    __u32	comp_packets;	/* compressed packets */
+    __u32	inc_bytes;	/* incompressible bytes */
+    __u32	inc_packets;	/* incompressible packets */
+
     /* the compression ratio is defined as in_count / bytes_out */
-    u_int       in_count;	/* Bytes received */
-    u_int       bytes_out;	/* Bytes transmitted */
+    __u32       in_count;	/* Bytes received */
+    __u32       bytes_out;	/* Bytes transmitted */
+
     double	ratio;		/* not computed in kernel. */
 };
 

@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.4 1995/12/18 03:38:01 paulus Exp $	*/
+/*	From: if_ppp.h,v 1.3 1995/06/12 11:36:50 paulus Exp */
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,10 +21,10 @@
  */
 
 /*
- *  ==FILEVERSION 6==
+ *  ==FILEVERSION 960109==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the number above.
+ *     If you modify this file at all, please set the above date.
  *     if_ppp.h is shipped with a PPP distribution as well as with the kernel;
  *     if everyone increases the FILEVERSION number above, then scripts
  *     can do the right thing when deciding whether to install a new if_ppp.h
@@ -92,14 +92,14 @@
  */
 
 struct npioctl {
-    int		protocol;	/* PPP procotol, e.g. PPP_IP */
+    int		protocol;	/* PPP protocol, e.g. PPP_IP */
     enum NPmode	mode;
 };
 
 /* Structure describing a CCP configuration option, for PPPIOCSCOMPRESS */
 struct ppp_option_data {
-	u_char	*ptr;
-	u_int	length;
+	__u8	*ptr;
+	__u32	length;
 	int	transmit;
 };
 

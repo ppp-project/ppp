@@ -9,16 +9,16 @@ ETCDIR = /etc/ppp
 INSTALL= install -o 0 -g daemon
 
 all:
-	cd chat; $(MAKE) all
-	cd pppd; $(MAKE) all
-	cd pppstats; $(MAKE) all
+	cd chat; $(MAKE) $(MFLAGS) all
+	cd pppd; $(MAKE) $(MFLAGS) all
+	cd pppstats; $(MAKE) $(MFLAGS) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
 
 install-progs:
-	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
-	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
-	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
+	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets

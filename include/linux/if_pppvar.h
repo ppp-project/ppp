@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.3 1995/12/18 03:38:02 paulus Exp $	*/
+/*	From: if_pppvar.h,v 1.2 1995/06/12 11:36:51 paulus Exp */
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -42,10 +42,10 @@
  */
 
 /*
- *  ==FILEVERSION 4==
+ *  ==FILEVERSION 960302==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the number above.
+ *     If you modify this file at all, please set the above date.
  *     if_pppvar.h is shipped with a PPP distribution as well as with the kernel;
  *     if everyone increases the FILEVERSION number above, then scripts
  *     can do the right thing when deciding whether to install a new if_pppvar.h
@@ -65,62 +65,62 @@
  * Buffers for the PPP process have the following structure
  */
 
-#define RBUFSIZE  2048           /* MUST be a power of 2 and be <= 4095 */
+#define RBUFSIZE  2048		 /* MUST be a power of 2 and be <= 4095 */
 
 struct ppp_buffer {
-  int			size;		/* Size of the buffer area	*/
-  int			count;		/* Count of characters in bufr	*/
-  int			head;		/* index to head of list	*/
-  int			tail;		/* index to tail of list	*/
-  unsigned long		locked;		/* Buffer is being sent		*/
-  int			type;		/* Type of the buffer		*/
+	__s32		size;		/* Size of the buffer area	*/
+        __s32		count;		/* Count of characters in bufr	*/
+        __s32		head;		/* index to head of list	*/
+        __s32		tail;		/* index to tail of list	*/
+        __u32		locked;		/* Buffer is being sent		*/
+        __s32		type;		/* Type of the buffer		*/
 					/* =0, device read buffer	*/
 					/* =1, device write buffer	*/
 					/* =2, daemon write buffer	*/
 					/* =3, daemon read buffer	*/
-  unsigned short	fcs;		/* Frame Check Sequence (CRC)	*/
-  unsigned char         filler[4];      /* Extra space if needed        */
+        __u16		fcs;		/* Frame Check Sequence (CRC)	*/
+        __u8		filler[4];	/* Extra space if needed	*/
 };
 
 /* Given a pointer to the ppp_buffer then return base address of buffer */
-#define buf_base(buf) ((u_char *) (&buf[1]))
+#define buf_base(buf) ((__u8 *) (&buf[1]))
 
 /*
  * Structure describing each ppp unit.
  */
 
 struct ppp {
-	int		magic;		/* magic value for structure	*/
+	__s32		magic;		/* magic value for structure	*/
 
-  /* Bitmapped flag fields. */
-	char		inuse;		/* are we allocated?		*/
-	char		escape;		/* 0x20 if prev char was PPP_ESC*/
-	char		toss;		/* toss this frame		*/
+	/* Bitmapped flag fields. */
+	__u8		inuse;		/* are we allocated?		*/
+	__u8		escape;		/* 0x20 if prev char was PPP_ESC*/
+	__u8		toss;		/* toss this frame		*/
 
-	unsigned int	flags;		/* miscellany			*/
+	__u32		flags;		/* miscellany			*/
 
-	ext_accm	xmit_async_map; /* 1 bit means that given control 
+	__u32		xmit_async_map[8]; /* 1 bit means that given control 
 					   character is quoted on output*/
 
 	__u32		recv_async_map; /* 1 bit means that given control 
 					   character is ignored on input*/
-	int			mtu;	/* maximum xmit frame size	*/
-	int			mru;	/* maximum receive frame size	*/
+	__s32			mtu;	/* maximum xmit frame size	*/
+	__s32			mru;	/* maximum receive frame size	*/
 
-  /* Information about the current tty data */
-	int			line;		/* PPP channel number	*/
+	/* Information about the current tty data */
+	__s32			line;		/* PPP channel number	*/
 	struct tty_struct	*tty;		/* ptr to TTY structure	*/
-	int			bytes_sent;	/* Bytes sent on frame	*/
-	int			bytes_rcvd;	/* Bytes recvd on frame	*/
+	__s32			bytes_sent;	/* Bytes sent on frame	*/
+	__s32			bytes_rcvd;	/* Bytes recvd on frame	*/
 
-  /* Interface to the network layer */
-	struct device		*dev;	/* easy for intr handling	*/
+	/* Interface to the network layer */
+	struct device		*dev;	 /* easy for intr handling	*/
 
-  /* VJ Header compression data */
-	struct slcompress	*slcomp;/* for header compression	*/
+	/* VJ Header compression data */
+	struct slcompress	*slcomp; /* for header compression	*/
 
-  /* Transmission information */
-	struct ppp_buffer *xbuf;	/* Buffer currently being sent  */
+	/* Transmission information */
+	struct ppp_buffer *xbuf;	/* Buffer currently being sent	*/
 	struct ppp_buffer *s1buf;	/* Pointer to daemon buffer	*/
 	struct ppp_buffer *s2buf;	/* Pointer to device buffer	*/
 
@@ -131,26 +131,27 @@ struct ppp {
      has to hang around for the user process to read it, it lingers in
      the user buffers below. */
 
-	struct ppp_buffer *wbuf;	/* Transmission information	*/
-	struct ppp_buffer *tbuf;	/* daemon transmission buffer	*/
-	struct ppp_buffer *rbuf;	/* Receive information		*/
-	struct ppp_buffer *ubuf;	/* User buffer information	*/
-	struct ppp_buffer *cbuf;	/* compression buffer		*/
+	struct ppp_buffer *wbuf;	  /* Transmission information	*/
+	struct ppp_buffer *tbuf;	  /* daemon transmission buffer	*/
+	struct ppp_buffer *rbuf;	  /* Receive information	*/
+	struct ppp_buffer *ubuf;	  /* User buffer information	*/
+	struct ppp_buffer *cbuf;	  /* compression buffer		*/
 
-  /* Queues for select() functionality */
-	struct wait_queue *write_wait;	/* queue for reading processes	*/
-	struct wait_queue *read_wait;	/* queue for writing processes	*/
+	/* Queues for select() functionality */
+	struct wait_queue *write_wait;	  /* queue for reading processes */
+	struct wait_queue *read_wait;	  /* queue for writing processes */
 
-  /* Statistic information */
-	struct pppstat        stats;	/* statistic information	*/
-	struct ppp_idle       ddinfo;	/* demand dial information	*/
+	/* Statistic information */
+	struct pppstat	      stats;	  /* statistic information	*/
+	struct ppp_idle	      ddinfo;	  /* demand dial information	*/
 
-  /* PPP compression protocol information */
-	u_int	sc_bytessent;		  /* count of octets sent */
-	u_int	sc_bytesrcvd;		  /* count of octets received */
+	/* PPP compression protocol information */
+	__u32	sc_bytessent;		  /* count of octets sent */
+	__u32	sc_bytesrcvd;		  /* count of octets received */
 	enum	NPmode sc_npmode[NUM_NP]; /* what to do with each NP */
 	struct	compressor *sc_xcomp;	  /* transmit compressor */
 	void	*sc_xc_state;		  /* transmit compressor state */
 	struct	compressor *sc_rcomp;	  /* receive decompressor */
 	void	*sc_rc_state;		  /* receive decompressor state */
+	__s32	 sc_xfer;		  /* PID of reserved PPP table */
 };

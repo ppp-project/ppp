@@ -1,0 +1,8 @@
+--- types.h.orig	Wed Mar 27 16:36:46 1996
++++ types.h	Tue Jul  4 16:07:02 1995
+@@ -3,4 +3,5 @@
+ 
+ #include <linux/types.h>
++#include <sys/bitypes.h>
+ 
+ #ifndef howmany

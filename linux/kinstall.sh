@@ -80,10 +80,22 @@ echo
 echo Installing into kernel version $KERNEL in $LINUXSRC
 echo
 
+echo "Notice to the user:"
+echo
+echo "It is perfectly legal for this script to run without making any changes"
+echo "to your system. This only means that the system currently contains the"
+echo "necessary changes to support this package. Please do not attempt to"
+echo "force this script to replace any file or make any patch. If you do so"
+echo "then it is probable that you are actually putting older, buggier, code"
+echo "over newer, fixed, code. Thank you."
+echo
+echo Installing into kernel version $KERNEL in $LINUXSRC
+echo
+
 #
 # convenience function to exit if the last command failed
 
-function bombiffailed () {
+bombiffailed () {
   STATUS=$?
   if [ $STATUS -ne 0 ]; then
     echo "=== kinstall.sh exiting with failure status $STATUS"
@@ -95,27 +107,38 @@ function bombiffailed () {
 # convenience function to compare two files marked with ==FILEVERSION
 # version numbers; returns success if $1 is newer than $2
 
-function newer () {
-  if [ -r $1 ] && f1rev=`fgrep "==FILEVERSION " $1 | sed 's/[^0-9]//g'`; then
-    if [ -r $2 ] && f2rev=`fgrep "==FILEVERSION " $2 | sed 's/[^0-9]//g'`; then
-      if [ "$f1rev" != "" ]; then
-        # return true if f2rev is empty or f1rev => f2rev
-        [ "$f2rev" = "" ] || [ $f1rev -ge $f2rev ]
-      else
-        # f1rev is empty, so false
-        false
-      fi
-    else
-      true  # no FILEVERSION in $2, so $1 is newer
-    fi
-  else
-    false  # no FILEVERSION in $1, so not newer
+newer () {
+  file1=$1
+  file2=$2
+  pat='==FILEVERSION[ \t]+[0-9]+[ \t]*=='
+
+  # Find the revision in the kernel
+  f1rev=""
+  if [ -r $file1 ]; then
+    f1rev=`egrep "$pat" $file1 | head -1 | sed 's/[^0-9]//g'`
   fi
+
+  # Find the revision of the local file
+  f2rev=""
+  if [ -r $file2 ]; then
+    f2rev=`egrep "$pat" $file2 | head -1 | sed 's/[^0-9]//g'`
+  fi
+
+  # Make the strings the same length to avoid comparison problems
+  f1rev=`echo "0000000000"$f1rev | tail -c 10`
+  f2rev=`echo "0000000000"$f2rev | tail -c 10`
+
+  # Test the order of the two revisions
+  if [ $f1rev -ge $f2rev ]; then
+    true ; return
+  fi
+
+  false ; return
 }
 
 #
 #  Change the USE_SKB_PROTOCOL for correct operation on 1.3.x
-function update_ppp () {
+update_ppp () {
   mv $LINUXSRC/drivers/net/ppp.c $LINUXSRC/drivers/net/ppp.c.in
   if [ "$VERSION.$PATCHLEVEL" = "1.3" ]; then
     sed 's/#define USE_SKB_PROTOCOL 0/#define USE_SKB_PROTOCOL 1/' <$LINUXSRC/drivers/net/ppp.c.in >$LINUXSRC/drivers/net/ppp.c
@@ -128,7 +151,7 @@ function update_ppp () {
 #
 #  Install the files.
 
-function installfile () {
+installfile () {
   BASE=`basename $1`
   if newer $1 $BASE; then
     echo $1 is newer than $BASE, skipping
@@ -150,6 +173,67 @@ function installfile () {
   fi
 }
 
+#
+# Patch the bad copies of the sys/types.h file
+#
+patch_include () {
+  echo -n "Ensuring that sys/types.h includes sys/bitypes.h"
+  fgrep "<sys/bitypes.h>" /usr/include/sys/types.h >/dev/null
+  if [ ! "$?" = "0" ]; then
+    echo -n '.'
+    rm -f /usr/include/sys/types.h.rej
+    (cd /usr/include/sys; patch -p0 -f -F30 -s) <patch-include
+    if [ ! "$?" = "0" ]; then
+       touch /usr/include/sys/types.h.rej
+    fi
+    if [ -f /usr/include/sys/types.h.rej ]; then
+       echo " --- FAILED!!!! You must fix this yourself!"
+       echo "The /usr/include/sys/types.h file must include the file"
+       echo "<sys/bitypes.h> after it includes the <linux/types.h> file."
+       echo -n "Please change it so that it does."
+       rm -f /usr/include/sys/types.h.rej
+    else
+       echo -n " -- completed"
+    fi
+  else
+    echo -n " -- skipping"
+  fi
+  echo ""
+}
+
+#
+# Check for the root user
+test_root() {
+  my_uid=`id -u`
+  my_name=`id -u -n`
+  if [ $my_uid -ne 0 ]; then
+    echo
+    echo "********************************************************************"
+    echo "Hello, $my_name. Since you are not running as the root user, it"
+    echo "is possible that this script will fail to install the needed files."
+    echo "If this happens then please use the root account and re-execute the"
+    echo "'make kernel' command.  (This script is paused for 10 seconds.)"
+    echo "********************************************************************"
+    echo
+    sleep 10s
+  fi
+}
+
+test_root
+
+echo
+echo "Notice to the user:"
+echo
+echo "It is perfectly legal for this script to run without making any changes"
+echo "to your system. This means that the system currently contains the"
+echo "necessary changes to support this package. Please do not attempt to"
+echo "force this script to replace any file nor make any patch. If you do so"
+echo "then it is probable that you are actually putting older, buggier, code"
+echo "over the newer, fixed, code. Thank you."
+echo
+echo Installing into kernel version $KERNEL in $LINUXSRC
+echo
+
 if [ -f $LINUXSRC/drivers/net/ppp.h ]; then
   echo Moving old $LINUXSRC/drivers/net/ppp.h file out of the way
   mv $LINUXSRC/drivers/net/ppp.h $LINUXSRC/drivers/net/ppp.old.h
@@ -157,6 +241,9 @@ if [ -f $LINUXSRC/drivers/net/ppp.h ]; then
 fi
 
 for FILE in $LINUXSRC/drivers/net/bsd_comp.c \
+	    $LINUXSRC/drivers/net/ppp_deflate.c \
+	    $LINUXSRC/drivers/net/zlib.c \
+	    $LINUXSRC/drivers/net/zlib.h \
             $LINUXSRC/include/linux/if_ppp.h \
             $LINUXSRC/include/linux/if_pppvar.h \
             $LINUXSRC/include/linux/ppp-comp.h \
@@ -200,9 +287,9 @@ if [ ! "$?" = "0" ]; then
       fi
    fi
 #
-   if [ -e $NETMK.rej ]; then
+   if [ -f $NETMK.rej ]; then
       rm -f $NETMK.rej
-      if [ -e $NETMK.orig ]; then
+      if [ -f $NETMK.orig ]; then
          mv $NETMK.orig $NETMK
       fi
       sed 's/ppp.o$/ppp.o bsd_comp.o/g' <$NETMK >$NETMK.temp
@@ -215,9 +302,26 @@ if [ ! "$?" = "0" ]; then
       bombiffailed
    fi
 #
-   if [ -e $NETMK.orig ]; then
+   if [ -f $NETMK.orig ]; then
       mv $NETMK.orig $NETMK.old
    fi
+else
+   echo -n '(already there--skipping)'
+fi
+echo
+echo -n 'Adding Deflate compression module to drivers makefile...'
+NETMK=$LINUXSRC/drivers/net/Makefile
+fgrep ppp_deflate.o $NETMK >/dev/null
+if [ ! "$?" = "0" ]; then
+   echo -n '.'
+   sed 's/bsd_comp.o$/bsd_comp.o ppp_deflate.o/g' <$NETMK >$NETMK.temp
+   bombiffailed
+   echo -n '.'
+   mv $NETMK $NETMK.orig
+   bombiffailed
+   echo -n '.'
+   mv $NETMK.temp $NETMK
+   bombiffailed
 else
    echo -n '(already there--skipping)'
 fi
@@ -266,5 +370,17 @@ for FILE in ip.h \
   fi
 done
 
+patch_include
+
 echo "Kernel driver files installation done."
+
+if [ "$VERSION.$PATCHLEVEL" = "1.2" ]; then
+  echo
+  echo "Please make sure that you apply the kernel patches in the"
+  echo "linux/Other.Patches directory. You should apply both the 1.2.13 and"
+  echo "slhc.patch files or the driver in the kernel may not compile."
+  echo "The instructions are in each of these files and the README.Linux"
+  echo "document."
+fi
+
 exit 0
