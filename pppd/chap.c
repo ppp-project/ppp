@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.30 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.31 2002/04/02 14:15:07 dfs Exp $"
 
 /*
  * TODO:
@@ -648,8 +648,9 @@ ChapReceiveResponse(cstate, inp, id, len)
 		ChapMS(cstate, cstate->challenge, secret, secret_len, &md);
 
 		/* compare MDs and send the appropriate status */
-		if (memcmp(&md + response_offset,
-			   remmd + response_offset, response_size) == 0)
+		if (memcmp((u_char *) &md + response_offset,
+			   (u_char *) remmd + response_offset,
+			   response_size) == 0)
 		    code = CHAP_SUCCESS;	/* they are the same! */
 		break;
 	    }

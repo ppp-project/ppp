@@ -40,7 +40,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.19 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.20 2002/04/02 14:15:07 dfs Exp $"
 
 #ifdef CHAPMS
 
@@ -261,11 +261,18 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 {
     SHA1_CTX	sha1Context;
     u_char	sha1Hash[SHA1_SIGNATURE_SIZE];
+    char	*user;
+
+    /* remove domain from "domain\username" */
+    if ((user = strrchr(username, '\\')) != NULL)
+	++user;
+    else
+	user = username;
 
     SHA1_Init(&sha1Context);
     SHA1_Update(&sha1Context, PeerChallenge, 16);
     SHA1_Update(&sha1Context, rchallenge, 16);
-    SHA1_Update(&sha1Context, username, strlen(username));
+    SHA1_Update(&sha1Context, user, strlen(user));
     SHA1_Final(sha1Hash, &sha1Context);
 
     BCOPY(sha1Hash, Challenge, 8);
