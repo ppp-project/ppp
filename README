@@ -2,14 +2,6 @@ This is the README file for ppp-2.3, a package which implements the
 Point-to-Point Protocol (PPP) to provide Internet connections over
 serial lines.
 
-In this first beta release, the ports for SunOS, Solaris, NetBSD and
-Digital Unix (OSF/1) are believed to be working correctly.  The Linux
-port mostly works, but still has some known bugs (demand dialling
-doesn't work correctly).  The remaining ports haven't been tested
-extensively.  The NeXTStep port is not included here since it hasn't
-been updated from 2.2 yet.  For information on its current status, see
-http://www.thoughtport.com:8080/PPP/.
-
 
 Introduction.
 *************
@@ -73,7 +65,8 @@ What's new in ppp-2.3.
 * Demand-dialling.  Pppd now has a mode where it will establish the
 network interface immediately when it starts, but not actually bring
 the link up until it sees some data to be sent.  Look for the demand
-option description in the pppd man page.
+option description in the pppd man page.  Demand-dialling is not
+supported under Ultrix or NeXTStep.
 
 * Idle timeout.  Pppd will optionally terminate the link if no data
 packets are sent or received within a certain time interval.
@@ -140,29 +133,24 @@ removed from the Makefiles.
 Contacts.
 *********
 
-Bugs in the the SunOS, Solaris 2, NetBSD and Ultrix ports, and bugs in
-pppd, chat or pppstats should be reported me at:
+The comp.protocols.ppp newsgroup is a useful place to get help if you
+have trouble getting your ppp connections to work.  Please do not send
+me questions of the form "please help me get connected to my ISP" -
+I'm sorry, but I simply do not have the time to answer all the
+questions like this that I get.
 
-	email:	Paul.Mackerras@cs.anu.edu.au
+If you find bugs in this package, please report them to the maintainer
+for the port for the operating system you are using:
 
-	mail:	Dr Paul Mackerras
-		Dept. of Computer Science
-		Australian National University
-		Canberra  ACT  0200
-		AUSTRALIA
-
-	fax:	+61-6-249-0010
-
-Bugs in other ports should be reported to the maintainer for that port
-(see the appropriate README.* file) or to me.
-
-Thanks to:
-
-	Brad Parker  (brad@fcr.com)
-	Greg Christy (gmc@quotron.com)
-	Drew D. Perkins (ddp@andrew.cmu.edu)
-	Rick Adams (rick@seismo.ARPA)
-	Chris Torek (chris@mimsy.umd.edu, umcp-cs!chris).
+Digital Unix (OSF/1)	Farrell Woods <ftw@zk3.dec.com>
+Linux			Al Longyear <longyear@pobox.com>
+NetBSD			Matthew Green <mrg@eterna.com.au
+FreeBSD			Peter Wemm <peter@haywire.DIALix.COM>
+NeXTStep		Steve Perkins <perkins@cps.msu.edu>
+Solaris 2		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+SunOS 4.x		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+System V Release 4	Matthias Apitz <Matthias.Apitz@SOFTCON.de>
+Ultrix 4.x		Paul Mackerras (for want of anybody better :-)
 
 
 Copyrights:
@@ -179,4 +167,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.7 1996/08/28 06:30:32 paulus Exp $)
+($Id: README,v 1.8 1997/05/22 06:43:44 paulus Exp $)

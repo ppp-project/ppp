@@ -1,10 +1,9 @@
 Installation instructions for installing ppp-2.3 on FreeBSD and
 NetBSD systems.
 
-This package supports NetBSD-current, NetBSD-1.1, NetBSD-1.0, and
-FreeBSD-2.0.  (The code hasn't been tested under NetBSD-current or
-FreeBSD at this stage.)  Modloading is not supported.  I have code
-which may work on earlier systems; contact me if you need it.
+This package supports NetBSD-current, NetBSD-1.2, NetBSD-1.1,
+FreeBSD-2.1, and FreeBSD-2.0.  Modloading is not supported.  I have
+code which may work on earlier systems; contact me if you need it.
 
 To install PPP, you need to rebuild your kernel to include the latest
 version of the PPP driver, as well as compiling and installing the
@@ -14,14 +13,14 @@ reboot with the new kernel (you'll have to reboot with the new kernel
 before you can run them, of course).
 
 The following commands should compile and install the user-level
-applications (in the ppp-2.3b1 directory):
+applications (in the ppp-2.3 directory):
 
 	./configure
 	make
 	make install		(you need to be root for this)
 
 The process of updating the kernel source files is now largely
-automated.  In the ppp-2.3b1 directory, issue the command:
+automated.  In the ppp-2.3 directory, issue the command:
 
 	make kernel
 
@@ -81,35 +80,9 @@ or this (old-style):
 If you use config.old or config.new, you will need to edit
 /sys/conf/files.oldconf or /sys/conf/files.newconf respectively.
 
-For NetBSD-1.0, if you have not previously had ppp-2.2 installed, you
-will need to patch the file containing the code which dispatches
-software interrupts.  Unfortunately, this code is in the
-architecture-dependent files, so the file to patch depends on which
-NetBSD port you are using:
 
-Port	File to patch			   Patch file is netbsd-1.0/arch/
-----	-------------			   ------------------------------
-amiga	/sys/arch/amiga/amiga/machdep.c	   amiga/machdep.c.patch
-hp300	/sys/arch/hp300/hp300/machdep.c	   hp300/machdep.c.patch
-i386	/sys/arch/i386/isa/icu.s	   i386/icu.s.patch
-mac68k	/sys/arch/mac68k/mac68k/machdep.c  mac68k/machdep.c.patch
-pc532	/sys/arch/pc532/pc532/locore.s	   pc532/locore.s.patch
-pmax	/sys/arch/pmax/pmax/trap.c	   pmax/trap.c.patch
-sparc	/sys/arch/sparc/sparc/intr.c	   sparc/intr.c.patch
-sun3	/sys/arch/sun3/sun3/isr.c	   sun3/isr.c.patch
-
-To do the patch, you would use a command something like this:
-
-	patch -p -d /sys/arch/i386/isa <netbsd-1.0/arch/i386/icu.s.patch
-
-You also need to make sure that there is a line like this in
-/sys/net/netisr.h:
-
-#define	NETISR_PPP	26		/* for PPP processing */
-
-
-FreeBSD-2.0.
-============
+FreeBSD.
+========
 
 Copy the following files to /sys/net:
 
