@@ -1,12 +1,12 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.51 2002/07/13 06:24:36 kad Exp $
+# $Id: Makefile.linux,v 1.52 2002/10/27 12:44:41 fcusack Exp $
 #
 
 # Default installation locations
-BINDIR = /usr/sbin
-MANDIR = /usr/man
-INCDIR = /usr/include
+BINDIR = $(DESTDIR)/usr/sbin
+MANDIR = $(DESTDIR)/usr/man
+INCDIR = $(DESTDIR)/usr/include
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c ecp.c \
 	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c cbcp.c \
