@@ -70,7 +70,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: ppp_tty.c,v 1.1 1994/12/15 22:28:09 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.2 1995/05/02 01:00:44 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -287,12 +287,25 @@ pppread(tp, uio, flag)
     register int s;
     int error = 0;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0)
-	return 0;		/* end of file */
-    if (sc == NULL || tp != (struct tty *) sc->sc_devp)
+    if (sc == NULL)
 	return 0;
+    /*
+     * Loop waiting for input, checking that nothing disasterous
+     * happens in the meantime.
+     */
     s = splimp();
-    while (sc->sc_inq.ifq_head == NULL && tp->t_line == PPPDISC) {
+    for (;;) {
+	if (tp != (struct tty *) sc->sc_devp || tp->t_line != PPPDISC) {
+	    splx(s);
+	    return 0;
+	}
+	if (sc->sc_inq.ifq_head != NULL)
+	    break;
+	if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
+	    && (tp->t_state & TS_ISOPEN)) {
+	    splx(s);
+	    return 0;		/* end of file */
+	}
 	if (tp->t_state & TS_ASYNC || flag & IO_NDELAY) {
 	    splx(s);
 	    return (EWOULDBLOCK);
@@ -302,10 +315,6 @@ pppread(tp, uio, flag)
 	    splx(s);
 	    return error;
 	}
-    }
-    if (tp->t_line != PPPDISC) {
-	splx(s);
-	return (-1);
     }
 
     /* Pull place-holder byte out of canonical queue */
