@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.2 1996/07/01 01:14:25 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.3 1996/09/14 05:15:20 paulus Exp $";
 #endif
 
 /*
@@ -1269,7 +1269,7 @@ static int
 ipxcp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer)();
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     int code, id, len, olen;
