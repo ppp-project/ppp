@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.1 1993/11/11 03:54:25 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.2 1993/12/14 05:41:11 paulus Exp $";
 #endif
 
 /*
@@ -479,4 +479,25 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     return 0;
+}
+
+/*
+ * ppp_available - check whether the system has any ppp interfaces
+ * (in fact we check whether we can do an ioctl on ppp0).
+ */
+
+int
+ppp_available()
+{
+    int s, ok;
+    struct ifreq ifr;
+
+    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	return 1;		/* can't tell - maybe we're not root */
+
+    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+    close(s);
+
+    return ok;
 }
