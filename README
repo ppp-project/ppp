@@ -70,9 +70,11 @@ authenticating itself to you, of course.)
 What's new in ppp-2.3.6.
 ************************
 
-* The device name is now a privileged option, meaning a non-privileged
-  user cannot specify the device name on the command line or in their
-  .ppprc file.
+* Pppd now opens the tty device as the user (rather than as root) if
+  the device name was given by the user, i.e. on the command line or
+  in the ~/.ppprc file.  If the device name was given in
+  /etc/ppp/options or in a file loaded with the `call' option, the
+  device is opened as root.
 
 * The default behaviour of pppd is now to let a peer which has not
   authenticated itself (e.g. your ISP) use any IP address to which the
@@ -313,4 +315,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.14 1999/03/02 05:25:29 paulus Exp $)
+($Id: README,v 1.15 1999/03/10 05:10:47 paulus Exp $)
