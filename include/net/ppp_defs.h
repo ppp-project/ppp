@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.3 1994/10/22 11:56:19 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.4 1994/10/23 11:46:45 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -132,7 +132,7 @@ struct compstat {
     u_int	comp_packets;	/* compressed packets */
     u_int	inc_bytes;	/* incompressible bytes */
     u_int	inc_packets;	/* incompressible packets */
-    double	ratio;		/* recent compression ratio */
+    u_int	ratio;		/* recent compression ratio << 8 */
 };
 
 struct ppp_comp_stats {
