@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.10 1996/07/01 01:15:37 paulus Exp $
+ * $Id: lcp.h,v 1.11 1996/08/28 06:40:44 paulus Exp $
  */
 
 /*
@@ -82,4 +82,4 @@ extern struct protent lcp_protent;
 
 /* Default number of times we receive our magic number from the peer
    before deciding the link is looped-back. */
-#define DEFLOOPBACKFAIL	5
+#define DEFLOOPBACKFAIL	10
