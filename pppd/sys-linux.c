@@ -36,6 +36,7 @@
 #include <mntent.h>
 
 #include <net/if.h>
+#include <net/if_arp.h>
 #include <linux/ppp.h>
 #include <linux/route.h>
 #include <linux/if_ether.h>
@@ -49,13 +50,15 @@
 
 static int initdisc = -1;	/* Initial TTY discipline */
 static int prev_kdebugflag = 0;
-extern int kdebugflag;
-extern u_long netmask;
+
+static int restore_term;		/* 1 => we've munged the terminal */
+static struct termios inittermios;	/* Initial TTY termios */
+
+static int driver_version = 0;
+static int driver_modification = 0;
+static int driver_patch = 0;
 
 #define MAX_IFS		32
-
-/* prototypes */
-void die         __ARGS((int));
 
 /*
  * SET_SA_FAMILY - set the sa_family field of a struct sockaddr,
@@ -65,6 +68,32 @@ void die         __ARGS((int));
 #define SET_SA_FAMILY(addr, family)			\
     memset ((char *) &(addr), '\0', sizeof(addr));	\
     addr.sa_family = (family);
+
+/*
+ * sys_init - System-dependent initialization.
+ */
+void
+sys_init()
+{
+    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
+    setlogmask(LOG_UPTO(LOG_INFO));
+    if (debug)
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+}
+
+/*
+ * note_debug_level - note a change in the debug level.
+ */
+void
+note_debug_level()
+{
+    if (debug) {
+	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+    } else {
+	setlogmask(LOG_UPTO(LOG_WARNING));
+    }
+}
 
 /*
  * set_kdebugflag - Define the debugging level for the kernel
@@ -96,11 +125,6 @@ void establish_ppp (void)
     int pppdisc = N_PPP;
     int sig	= SIGIO;
 
-    if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
-	die(1);
-    }
-
     if (ioctl(fd, TIOCEXCL, 0) < 0) {
 	syslog (LOG_WARNING, "ioctl(TIOCEXCL): %m");
     }
@@ -114,13 +138,15 @@ void establish_ppp (void)
 	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
 	die (1);
     }
-
     if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m");
 	die (1);
     }
 
     set_kdebugflag (kdebugflag);
+
+    syslog (LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
+	    driver_version, driver_modification, driver_patch);
 }
 
 /*
@@ -160,13 +186,227 @@ void disestablish_ppp(void)
 	    }
 	}
 
-    if (ioctl(fd, TIOCSETD, &initdisc) < 0)
-        syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
+	    syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
 
-    if (ioctl(fd, TIOCNXCL, 0) < 0)
-        syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
+	if (ioctl(fd, TIOCNXCL, 0) < 0)
+	    syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
 
-    initdisc = -1;
+	initdisc = -1;
+    }
+}
+
+#if B9600 == 9600
+/*
+ * XXX assume speed_t values numerically equal bits per second
+ * (so we can ask for any speed).
+ */
+#define translate_speed(bps)	(bps)
+#define baud_rate_of(speed)	(speed)
+
+#else
+/*
+ * List of valid speeds.
+ */
+struct speed {
+    int speed_int, speed_val;
+} speeds[] = {
+#ifdef B50
+    { 50, B50 },
+#endif
+#ifdef B75
+    { 75, B75 },
+#endif
+#ifdef B110
+    { 110, B110 },
+#endif
+#ifdef B134
+    { 134, B134 },
+#endif
+#ifdef B150
+    { 150, B150 },
+#endif
+#ifdef B200
+    { 200, B200 },
+#endif
+#ifdef B300
+    { 300, B300 },
+#endif
+#ifdef B600
+    { 600, B600 },
+#endif
+#ifdef B1200
+    { 1200, B1200 },
+#endif
+#ifdef B1800
+    { 1800, B1800 },
+#endif
+#ifdef B2000
+    { 2000, B2000 },
+#endif
+#ifdef B2400
+    { 2400, B2400 },
+#endif
+#ifdef B3600
+    { 3600, B3600 },
+#endif
+#ifdef B4800
+    { 4800, B4800 },
+#endif
+#ifdef B7200
+    { 7200, B7200 },
+#endif
+#ifdef B9600
+    { 9600, B9600 },
+#endif
+#ifdef B19200
+    { 19200, B19200 },
+#endif
+#ifdef B38400
+    { 38400, B38400 },
+#endif
+#ifdef EXTA
+    { 19200, EXTA },
+#endif
+#ifdef EXTB
+    { 38400, EXTB },
+#endif
+#ifdef B57600
+    { 57600, B57600 },
+#endif
+#ifdef B115200
+    { 115200, B115200 },
+#endif
+    { 0, 0 }
+};
+
+/*
+ * Translate from bits/second to a speed_t.
+ */
+int
+translate_speed(bps)
+    int bps;
+{
+    struct speed *speedp;
+
+    if (bps == 0)
+	return 0;
+    for (speedp = speeds; speedp->speed_int; speedp++)
+	if (bps == speedp->speed_int)
+	    return speedp->speed_val;
+    syslog(LOG_WARNING, "speed %d not supported", bps);
+    return 0;
+}
+
+/*
+ * Translate from a speed_t to bits/second.
+ */
+int
+baud_rate_of(speed)
+    int speed;
+{
+    struct speed *speedp;
+
+    if (speed == 0)
+	return 0;
+    for (speedp = speeds; speedp->speed_int; speedp++)
+	if (speed == speedp->speed_val)
+	    return speedp->speed_int;
+    return 0;
+}
+#endif
+
+/*
+ * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
+ * at the requested speed, etc.  If `local' is true, set CLOCAL
+ * regardless of whether the modem option was specified.
+ */
+set_up_tty(fd, local)
+    int fd, local;
+{
+    int speed, x;
+    struct termios tios;
+
+    if (tcgetattr(fd, &tios) < 0) {
+	syslog(LOG_ERR, "tcgetattr: %m");
+	die(1);
+    }
+
+    if (!restore_term)
+	inittermios = tios;
+
+#ifdef CRTSCTS
+    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
+    if (crtscts == 1)
+	tios.c_cflag |= CRTSCTS;
+#else
+    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+#endif	/* CRTSCTS */
+
+    tios.c_cflag |= CS8 | CREAD | HUPCL;
+    if (local || !modem)
+	tios.c_cflag |= CLOCAL;
+    tios.c_iflag = IGNBRK | IGNPAR;
+    tios.c_oflag = 0;
+    tios.c_lflag = 0;
+    tios.c_cc[VMIN] = 1;
+    tios.c_cc[VTIME] = 0;
+
+    if (crtscts == 2) {
+	tios.c_iflag |= IXOFF;
+	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
+	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
+    }
+
+    speed = translate_speed(inspeed);
+    if (speed) {
+	cfsetospeed(&tios, speed);
+	cfsetispeed(&tios, speed);
+    } else {
+	speed = cfgetospeed(&tios);
+	/*
+	 * We can't proceed if the serial port speed is B0,
+	 * since that implies that the serial port is disabled.
+	 */
+	if (speed == B0) {
+	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
+		   devnam);
+	    die(1);
+	}
+    }
+
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
+	syslog(LOG_ERR, "tcsetattr: %m");
+	die(1);
+    }
+
+    baud_rate = baud_rate_of(speed);
+    restore_term = TRUE;
+}
+
+/*
+ * setdtr - control the DTR line on the serial port.
+ * This is called from die(), so it shouldn't call die().
+ */
+setdtr(fd, on)
+int fd, on;
+{
+    int modembits = TIOCM_DTR;
+
+    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
+}
+
+/*
+ * restore_tty - restore the terminal to the saved settings.
+ */
+void
+restore_tty()
+{
+    if (restore_term) {
+	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	    if (errno != ENXIO)
+		syslog(LOG_WARNING, "tcsetattr: %m");
+	restore_term = 0;
     }
 }
 
@@ -187,6 +427,27 @@ void output (int unit, unsigned char *p, int len)
 	die(1);
     }
 }
+
+/*
+ * wait_input - wait until there is data available on fd,
+ * for the length of time specified by *timo (indefinite
+ * if timo is NULL).
+ */
+wait_input(timo)
+    struct timeval *timo;
+{
+    fd_set ready;
+    int n;
+
+    FD_ZERO(&ready);
+    FD_SET(fd, &ready);
+    n = select(fd+1, &ready, NULL, &ready, timo);
+    if (n < 0 && errno != EINTR) {
+	syslog(LOG_ERR, "select: %m");
+	die(1);
+    }
+}
+
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -214,7 +475,7 @@ int read_packet (unsigned char *buf)
  * ppp_send_config - configure the transmit characteristics of
  * the ppp interface.
  */
-void ppp_send_config (int unit,int mtu,u_long asyncmap,int pcomp,int accomp)
+void ppp_send_config (int unit,int mtu,uint32 asyncmap,int pcomp,int accomp)
 {
     u_int x;
     struct ifreq ifr;
@@ -266,7 +527,7 @@ ppp_set_xaccm(unit, accm)
  * ppp_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
-void ppp_recv_config (int unit,int mru,u_long asyncmap,int pcomp,int accomp)
+void ppp_recv_config (int unit,int mru,uint32 asyncmap,int pcomp,int accomp)
 {
     u_int x;
 
@@ -291,6 +552,42 @@ void ppp_recv_config (int unit,int mru,u_long asyncmap,int pcomp,int accomp)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
+}
+
+/*
+ * ccp_test - ask kernel whether a given compression method
+ * is acceptable for use.
+ */
+int
+ccp_test(unit, opt_ptr, opt_len, for_transmit)
+    int unit, opt_len, for_transmit;
+    u_char *opt_ptr;
+{
+    struct ppp_comp_data data;
+
+    data.ptr = opt_ptr;
+    data.length = opt_len;
+    data.transmit = for_transmit;
+    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
+}
+
+/*
+ * ccp_flags_set - inform kernel about the current state of CCP.
+ */
+void
+ccp_flags_set(unit, isopen, isup)
+    int unit, isopen, isup;
+{
+    int x;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	return;
+    }
+    x = isopen? x | SC_CCP_OPEN: x &~ SC_CCP_OPEN;
+    x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 }
 
 /*
@@ -660,7 +957,7 @@ int cifdefaultroute (int unit, int gateway)
  * sifproxyarp - Make a proxy ARP entry for the peer.
  */
 
-int sifproxyarp (int unit, u_long his_adr)
+int sifproxyarp (int unit, uint32 his_adr)
 {
     struct arpreq arpreq;
 
@@ -689,7 +986,7 @@ int sifproxyarp (int unit, u_long his_adr)
  * cifproxyarp - Delete the proxy ARP entry for the peer.
  */
 
-int cifproxyarp (int unit, u_long his_adr)
+int cifproxyarp (int unit, uint32 his_adr)
 {
     struct arpreq arpreq;
   
@@ -709,11 +1006,11 @@ int cifproxyarp (int unit, u_long his_adr)
  * the same subnet as ipaddr.
  */
 
-int get_ether_addr (u_long ipaddr, struct sockaddr *hwaddr)
+int get_ether_addr (uint32 ipaddr, struct sockaddr *hwaddr)
 {
     struct ifreq *ifr, *ifend, *ifp;
     int i;
-    u_long ina, mask;
+    uint32 ina, mask;
     struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;
@@ -793,6 +1090,34 @@ int get_ether_addr (u_long ipaddr, struct sockaddr *hwaddr)
 }
 
 /*
+ * Internal routine to decode the version.modification.patch level
+ */
+
+static void decode_version (char *buf, int *version,
+			    int *modification, int *patch)
+{
+
+  *version      = (int) strtoul (buf, &buf, 10);
+  *modification = 0;
+  *patch        = 0;
+
+  if (*buf == '.') {
+      ++buf;
+      *modification = (int) strtoul (buf, &buf, 10);
+      if (*buf == '.') {
+	  ++buf;
+	  *patch = (int) strtoul (buf, &buf, 10);
+      }
+  }
+
+  if (*buf != '\0') {
+      *version      =
+      *modification =
+      *patch        = 0;
+  }
+}
+
+/*
  * ppp_available - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
@@ -801,15 +1126,71 @@ int ppp_available(void)
 {
     int s, ok;
     struct ifreq ifr;
-    
+    int my_version,     my_modification,     my_patch;
+/*
+ * Open a socket for doing the ioctl operations.
+ */    
     s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0)
-	return 1;		/* can't tell - maybe we're not root */
+	return 0;
     
-    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+/*
+ * Ensure that the hardware address is for PPP and not something else
+ */
+    if (ok != 0)
+        ok = ioctl (s, SIOCGIFHWADDR, (caddr_t) &ifr) >= 0;
+
+    if (ok != 0 && ifr.ifr_hwaddr.sa_family != ARPHRD_PPP)
+        ok = 0;
+/*
+ *  This is the PPP device. Validate the version of the driver at this
+ *  point to ensure that this program will work with the driver.
+ */
+    if (ok != 0) {
+        char   abBuffer [1024];
+	int    size;
+
+	ifr.ifr_data = abBuffer;
+	size = ioctl (s, SIOCDEVPRIVATE, (caddr_t) &ifr);
+	ok   = size >= 0;
+
+	if (ok != 0) {
+	    decode_version (abBuffer,
+			    &driver_version,
+			    &driver_modification,
+			    &driver_patch);
+	}
+    }
+
+    if (ok == 0) {
+        driver_version      =
+        driver_modification =
+        driver_patch        = 0;
+    }
+/*
+ * Validate the version of the driver against the version that we used.
+ */
+    decode_version (PPP_VERSION,
+		    &my_version,
+		    &my_modification,
+		    &my_patch);
+
+    /* The version numbers must match */
+    if (driver_version != my_version)
+        ok = 0;
+      
+    /* The modification levels must be legal */
+    if (driver_modification < my_modification)
+        ok = 0;
+
+    if (ok == 0) {
+	fprintf(stderr, "Sorry - PPP driver version %d.%d.%d is out of date\n",
+		driver_version, driver_modification, driver_patch);
+    }
+
     close(s);
-    
     return ok;
 }
 
