@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.20 1998/02/04 01:42:06 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.21 1998/03/25 03:01:10 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -47,15 +47,22 @@ static char rcsid[] = "$Id: pppstats.c,v 1.20 1998/02/04 01:42:06 paulus Exp $";
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <net/ppp_defs.h>
 
 #ifndef STREAMS
 #include <sys/socket.h>		/* *BSD, Linux, NeXT, Ultrix etc. */
+#ifndef _linux_
 #include <net/if.h>
+#include <net/ppp_defs.h>
 #include <net/if_ppp.h>
+#else
+#include <linux/if.h>
+#include <linux/ppp_defs.h>
+#include <linux/if_ppp.h>
+#endif /* _linux_ */
 
 #else	/* STREAMS */
 #include <sys/stropts.h>	/* SVR4, Solaris 2, SunOS 4, OSF/1, etc. */
+#include <net/ppp_defs.h>
 #include <net/pppio.h>
 
 #endif	/* STREAMS */
