@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.68 1999/03/30 04:22:57 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.69 1999/03/30 06:01:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -323,8 +323,6 @@ main(argc, argv)
 	log_to_fd = 1;		/* default to stdout */
 
     script_setenv("DEVICE", devnam);
-    slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
-    script_setenv("SPEED", numbuf);
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -643,6 +641,9 @@ main(argc, argv)
 	    }
 	    close(i);
 	}
+
+	slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
+	script_setenv("SPEED", numbuf);
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
