@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.12 1994/05/26 06:36:22 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.13 1994/05/27 01:02:14 paulus Exp $";
 #endif
 
 #define SETSID
@@ -466,13 +466,6 @@ main(argc, argv)
 #ifdef _linux_ /* This is a kludge for Linux. FIXME !!! -- later. */
 #undef	FASYNC
 #define FASYNC	0
-    {
-	int sig = SIGIO;
-	if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
-	    syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
-	    die(1);
-	}
-    }
 #endif
 
     if (fcntl(fd, F_SETFL, FNDELAY | FASYNC) == -1) {
