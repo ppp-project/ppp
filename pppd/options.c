@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.14 1994/09/16 02:16:13 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.15 1994/09/16 02:34:52 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -118,6 +118,7 @@ static int setdisconnector __ARGS((char **));
 static int setdomain __ARGS((char **));
 static int setnetmask __ARGS((char **));
 static int setcrtscts __ARGS((void));
+static int setnocrtscts __ARGS((void));
 static int setxonxoff __ARGS((void));
 static int setnodetach __ARGS((void));
 static int setmodem __ARGS((void));
@@ -189,8 +190,8 @@ static struct cmd {
     {"connect", 1, setconnector}, /* A program to set up a connection */
     {"disconnect", 1, setdisconnector},	/* program to disconnect serial dev. */
     {"crtscts", 0, setcrtscts},	/* set h/w flow control */
+    {"-crtscts", 0, setnocrtscts}, /* clear h/w flow control */
     {"xonxoff", 0, setxonxoff},	/* set s/w flow control */
-    {"-crtscts", 0, setxonxoff}, /* another name for xonxoff */
     {"debug", 0, setdebug},	/* Increase debugging level */
     {"kdebug", 1, setkdebug},	/* Enable kernel-level debugging */
     {"domain", 1, setdomain},	/* Add given domain name to hostname*/
@@ -1246,6 +1247,13 @@ static int
 setcrtscts()
 {
     crtscts = 1;
+    return (1);
+}
+
+static int
+setnocrtscts()
+{
+    crtscts = -1;
     return (1);
 }
 
