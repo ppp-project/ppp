@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.42 2002/12/23 23:24:37 fcusack Exp $"
+#define RCSID	"$Id: ccp.c,v 1.43 2002/12/24 00:34:13 fcusack Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -1081,7 +1081,8 @@ ccp_reqci(f, p, lenp, dont_nak)
     ccp_options *ho = &ccp_hisoptions[f->unit];
     ccp_options *ao = &ccp_allowoptions[f->unit];
 #ifdef MPPE
-    bool seen_ci_mppe = 0;
+    bool rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
+				/* CI_MPPE, or due to other options?       */
 #endif
 
     ret = CONFACK;
@@ -1109,7 +1110,6 @@ ccp_reqci(f, p, lenp, dont_nak)
 		    newret = CONFREJ;
 		    break;
 		}
-		seen_ci_mppe = 1;
 		MPPE_CI_TO_OPTS(&p[2], ho->mppe);
 
 		/* Nak if anything unsupported or unknown are set. */
@@ -1196,6 +1196,12 @@ ccp_reqci(f, p, lenp, dont_nak)
 			newret = CONFREJ;
 		}
 
+		/*
+		 * We have accepted MPPE or are willing to negotiate
+		 * MPPE parameters.  A CONFREJ is due to subsequent
+		 * (non-MPPE) processing.
+		 */
+		rej_for_ci_mppe = 0;
 		break;
 #endif /* MPPE */
 	    case CI_DEFLATE:
@@ -1340,7 +1346,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 	    *lenp = retp - p0;
     }
 #ifdef MPPE
-    if (ret == CONFREJ && ao->mppe && !seen_ci_mppe) {
+    if (ret == CONFREJ && ao->mppe && rej_for_ci_mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     }
