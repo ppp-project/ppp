@@ -2371,7 +2371,7 @@ restore_loop(void)
 /*
  * Reconfigure the IP addresses for the demand dial system.
  */
-    ip_demand_conf (0);
+    (void) (ipcp_protent.demand_conf) (0);
   }
 
 /********************************************************************
