@@ -10,7 +10,7 @@
  * - added inflateIncomp and deflateOutputPending
  * - allow strm->next_out to be NULL, meaning discard the output
  *
- * $Id: zlib.c,v 1.10 1998/03/19 04:55:37 paulus Exp $
+ * $Id: zlib.c,v 1.11 1998/09/13 23:37:12 paulus Exp $
  */
 
 /* 
@@ -52,6 +52,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/systm.h>
+#undef u
 #  define HAVE_MEMCPY
 #  define memcpy(d, s, n)	bcopy((s), (d), (n))
 #  define memset(d, v, n)	bzero((d), (n))
