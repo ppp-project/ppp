@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.10 1999/02/26 10:52:07 paulus Exp $
+ * $Id: ppp_comp.c,v 1.11 1999/04/12 06:20:22 paulus Exp $
  */
 
 /*
@@ -105,6 +105,8 @@ int pcmpdevflag = 0;
 struct streamtab ppp_compinfo = {
     &r_init, &w_init, NULL, NULL
 };
+
+int ppp_comp_count;		/* number of module instances in use */
 
 #ifdef __osf__
 
@@ -200,6 +202,7 @@ MOD_OPEN(ppp_comp_open)
 		OPEN_ERROR(ENOSR);
 	cp->thread = thread;
 #endif
+	++ppp_comp_count;
 	qprocson(q);
     }
     return 0;
@@ -225,6 +228,7 @@ MOD_CLOSE(ppp_comp_close)
 	FREE(cp, sizeof(comp_state_t));
 	q->q_ptr = NULL;
 	OTHERQ(q)->q_ptr = NULL;
+	--ppp_comp_count;
     }
     return 0;
 }

@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.9 1999/02/26 10:52:07 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.10 1999/04/12 06:20:21 paulus Exp $
  */
 
 /*
@@ -93,6 +93,8 @@ int phdldevflag = 0;
 struct streamtab ppp_ahdlcinfo = {
     &rinit, &winit, NULL, NULL
 };
+
+int ppp_ahdlc_count;
 
 typedef struct ahdlc_state {
     int flags;
@@ -170,6 +172,7 @@ MOD_OPEN(ahdlc_open)
 	sp->xaccm[0] = ~0;
 	sp->xaccm[3] = 0x60000000;
 	sp->mru = PPP_MRU;
+	++ppp_ahdlc_count;
 	qprocson(q);
     }
     return 0;
@@ -189,6 +192,7 @@ MOD_CLOSE(ahdlc_close)
 	FREE(q->q_ptr, sizeof(ahdlc_state_t));
 	q->q_ptr = NULL;
 	OTHERQ(q)->q_ptr = NULL;
+	--ppp_ahdlc_count;
     }
     return 0;
 }
