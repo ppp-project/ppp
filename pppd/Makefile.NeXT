@@ -2,72 +2,57 @@
 # pppd makefile for NeXT
 #
 # $Orignial: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
-# $Id: Makefile.NeXT,v 1.3 1996/04/04 03:25:04 paulus Exp $
+# $Id: Makefile.NeXT,v 1.4 1997/03/04 03:34:48 paulus Exp $
 #
 
-#ARCHFLAGS = -arch i386 -arch m68k -arch hppa -arch sparc
-#ARCHFLAGS = -arch i386 -arch m68k
 ARCHFLAGS = 
 
 BINDIR = /usr/local/ppp/bin
 MANDIR = /usr/local/ppp/man
 
-PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-NeXT.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
+OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+	auth.o options.o demand.o sys-NeXT.o
 
-PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-NeXT.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
-
-# CC = gcc
-DEBUG_FLAGS = -O -posix $(ARCHFLAGS)
-
-
-#
-# If you use white hardware, uncomment this line to get 
-# around an apparent bug with ioctl.  See sys-NeXT.c for
-# more information.  OK on black, but not necessary.
-# Further, only necessary if you are using the NeXT supplied
-# serial drivers.  The MuX driver works flawlessly (and faster).
-# The new NeXT serial drivers put on NeXTAnswers also work flawlessly.
 #
 # For HPPA and SPARC, define FIXSIGS to get around posix bugs in
 # OS release 3.2.  Problems are supposed to be fixed
 # in release 3.3 (but at least for Sparc don't appear to be).
 #
-# Defining HAS_BROKEN_IOCTL fixes problems with the old
+# Defining -DHAS_BROKEN_IOCTL fixes problems with the old
 # NeXT supplied serial drivers.
 #
-# Defining USE_MS_DNS will add support for the Microsoft
-# DNS Negotation (for servers only).  Thanks to 
-# clameter@hur.fuller.edu (Christoph Lameter) for the patches.
+# Defining -DCHAPMS will enable Eric Rosenquist's extensions for
+# Microsoft's propritary CHAP scheme.  For all the details,
+# see the README.MSCHAP80 file at the top level.
 #
 
 COMPILE_FLAGS = -DNO_DRAND48 \
-	-DDEBUGUPAP -DDEBUGCHAP -DDEBUGLCP -DDEBUGIPCP \
-	-DFIXSIGS -DHAS_BROKEN_IOCTL -DUSE_MS_DNS
+	-DFIXSIGS -DHAS_BROKEN_IOCTL \
+	-DDEBUGUPAP -DDEBUGCHAP -DDEBUGLCP -DDEBUGIPCP
 
+#
+# If you want to use MSCHAP, see the README.MSCHAP80 file.
+# Use required you get a separate DES library.  If this
+# library is installed, uncomment the following.
 
-COPTS = -O
-LIBS =
+#LIBS = -ldes
 
-CFLAGS = -I../NeXT -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+COPTS = $(ARCHFLAGS) -O -posix
+
+CFLAGS = $(COPTS) $(COMPILE_FLAGS) -I..
+
 
 all: pppd
+
+pppd: $(OBJS) 
+	$(CC) $(CFLAGS) -o pppd $(OBJS) $(LIBS)
 
 install:
 	/bin/mkdirs $(MANDIR)/man8 $(BINDIR) 
 	install -c -s -m 4511 -o root -g daemon pppd $(BINDIR)/pppd
 	install -c -m  444 -o root -g wheel pppd.8 $(MANDIR)/man8
 
-pppd: $(PPPDOBJS)
-	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
 
 clean:
-	rm -f $(PPPDOBJS) pppd *~ #* core
-
-depend:
-	cpp -M $(CFLAGS) $(PPPDSRCS) >.depend
-#	makedepend $(CFLAGS) $(PPPDSRCS)
+	rm -f $(OBJS) pppd *.o *~ 
 
