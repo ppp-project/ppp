@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.69 2001/03/12 22:50:01 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.70 2001/04/27 23:13:06 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -131,6 +131,18 @@ void (*pap_logout_hook) __P((void)) = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
 int (*pap_passwd_hook) __P((char *user, char *passwd)) = NULL;
+
+/* Hook for a plugin to say whether it is OK if the peer
+   refuses to authenticate. */
+int (*null_auth_hook) __P((struct wordlist **paddrs,
+			   struct wordlist **popts)) = NULL;
+
+/* A notifier for when the peer has authenticated itself,
+   and we are proceeding to the network phase. */
+struct notifier *auth_up_notifier = NULL;
+
+/* A notifier for when the link goes down. */
+struct notifier *link_down_notifier = NULL;
 
 /*
  * This is used to ensure that we don't start an auth-up/down
@@ -407,6 +419,7 @@ link_down(unit)
     int i;
     struct protent *protp;
 
+    notify(link_down_notifier, 0);
     auth_state = s_down;
     if (auth_script_state == s_up && auth_script_pid == 0) {
 	update_link_stats(unit);
@@ -424,7 +437,7 @@ link_down(unit)
     num_np_open = 0;
     num_np_up = 0;
     if (phase != PHASE_DEAD)
-	new_phase(PHASE_TERMINATE);
+	new_phase(PHASE_ESTABLISH);
 }
 
 /*
@@ -509,6 +522,7 @@ network_phase(unit)
      * If the peer had to authenticate, run the auth-up script now.
      */
     if (go->neg_chap || go->neg_upap) {
+	notify(auth_up_notifier, 0);
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
@@ -1251,18 +1265,28 @@ null_login(unit)
     char secret[MAXWORDLEN];
 
     /*
+     * Check if a plugin wants to handle this.
+     */
+    ret = -1;
+    if (null_auth_hook)
+	ret = (*null_auth_hook)(&addrs, &opts);
+
+    /*
      * Open the file of pap secrets and scan for a suitable secret.
      */
-    filename = _PATH_UPAPFILE;
-    addrs = NULL;
-    f = fopen(filename, "r");
-    if (f == NULL)
-	return 0;
-    check_access(f, filename);
+    if (ret <= 0) {
+	filename = _PATH_UPAPFILE;
+	addrs = NULL;
+	f = fopen(filename, "r");
+	if (f == NULL)
+	    return 0;
+	check_access(f, filename);
 
-    i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
-    ret = i >= 0 && secret[0] == 0;
-    BZERO(secret, sizeof(secret));
+	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
+	ret = i >= 0 && secret[0] == 0;
+	BZERO(secret, sizeof(secret));
+	fclose(f);
+    }
 
     if (ret)
 	set_allowed_addrs(unit, addrs, opts);
@@ -1271,7 +1295,6 @@ null_login(unit)
     if (addrs != 0)
 	free_wordlist(addrs);
 
-    fclose(f);
     return ret;
 }
 
