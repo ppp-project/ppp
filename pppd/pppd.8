@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.57 2001/03/12 22:49:25 paulus Exp $
+.\" $Id: pppd.8,v 1.58 2001/05/23 02:28:42 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -794,7 +794,10 @@ the connection.
 .TP
 .B plugin \fIfilename
 Load the shared library object file \fIfilename\fR as a plugin.  This
-is a privileged option.
+is a privileged option.  If \fIfilename\fR does not contain a slash
+(/), pppd will look in the \fB/usr/lib/pppd/\fIversion\fR directory
+for the plugin, where
+\fIversion\fR is the version number of pppd (for example, 2.4.2).
 .TP
 .B predictor1
 Request that the peer compress frames that it sends using Predictor-1
