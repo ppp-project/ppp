@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.13 1995/05/29 06:34:33 paulus Exp $
+ * $Id: bsd-comp.c,v 1.14 1995/06/23 01:52:17 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -68,6 +68,7 @@
 #endif
 
 #ifdef __osf__
+#include <kern/kalloc.h>
 #ifdef FIRST
 #undef FIRST
 #undef LAST
@@ -75,7 +76,6 @@
 #ifdef FREE
 #undef FREE
 #endif
-#include <kern/kalloc.h>
 #define ALLOCATE(n)	kalloc((n))
 #define FREE(p, n)	kfree((p), (n))
 #endif
