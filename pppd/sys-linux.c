@@ -956,8 +956,8 @@ void set_up_tty(int tty_fd, int local)
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0)
-	if (!ok_error(errno))
+    while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
+	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
 
     baud_rate    = baud_rate_of(speed);
