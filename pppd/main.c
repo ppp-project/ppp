@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.107 2001/05/23 03:39:13 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.108 2001/12/14 02:51:34 mostrows Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -175,6 +175,7 @@ static void add_db_key __P((const char *));
 static void delete_db_key __P((const char *));
 static void cleanup_db __P((void));
 static void handle_events __P((void));
+static void print_link_stats __P((void));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -233,6 +234,7 @@ main(argc, argv)
     struct protent *protp;
     char numbuf[16];
 
+    link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
 
     /*
@@ -473,7 +475,6 @@ main(argc, argv)
 	else
 		notice("Starting negotiation on %s", ppp_devnam);
 	gettimeofday(&start_time, NULL);
-	link_stats_valid = 0;
 	script_unsetenv("CONNECT_TIME");
 	script_unsetenv("BYTES_SENT");
 	script_unsetenv("BYTES_RCVD");
@@ -496,15 +497,7 @@ main(argc, argv)
 	    }
 	}
 
-	/*
-	 * Print connect time and statistics.
-	 */
-	if (link_stats_valid) {
-	    int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
-	    info("Connect time %d.%d minutes.", t/10, t%10);
-	    info("Sent %u bytes, received %u bytes.",
-		 link_stats.bytes_out, link_stats.bytes_in);
-	}
+	print_link_stats();
 
 	/*
 	 * Delete pid file before disestablishing ppp.  Otherwise it
@@ -513,7 +506,7 @@ main(argc, argv)
 	 */
 	if (!demand) {
 	    if (pidfilename[0] != 0
-		&& unlink(pidfilename) < 0 && errno != ENOENT) 
+		&& unlink(pidfilename) < 0 && errno != ENOENT)
 		warn("unable to delete pid file %s: %m", pidfilename);
 	    pidfilename[0] = 0;
 	}
@@ -546,7 +539,7 @@ main(argc, argv)
 
 	if (!demand) {
 	    if (pidfilename[0] != 0
-		&& unlink(pidfilename) < 0 && errno != ENOENT) 
+		&& unlink(pidfilename) < 0 && errno != ENOENT)
 		warn("unable to delete pid file %s: %m", pidfilename);
 	    pidfilename[0] = 0;
 	}
@@ -1021,6 +1014,7 @@ void
 die(status)
     int status;
 {
+	print_link_stats();
     cleanup();
     notify(exitnotify, status);
     syslog(LOG_INFO, "Exit.");
@@ -1041,15 +1035,29 @@ cleanup()
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
-    if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
+    if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT)
 	warn("unable to delete pid file %s: %m", pidfilename);
     pidfilename[0] = 0;
-    if (linkpidfile[0] != 0 && unlink(linkpidfile) < 0 && errno != ENOENT) 
+    if (linkpidfile[0] != 0 && unlink(linkpidfile) < 0 && errno != ENOENT)
 	warn("unable to delete pid file %s: %m", linkpidfile);
     linkpidfile[0] = 0;
 
     if (pppdb != NULL)
 	cleanup_db();
+}
+
+void
+print_link_stats()
+{
+    /*
+     * Print connect time and statistics.
+     */
+    if (link_stats_valid) {
+       int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
+       info("Connect time %d.%d minutes.", t/10, t%10);
+       info("Sent %u bytes, received %u bytes.",
+	    link_stats.bytes_out, link_stats.bytes_in);
+    }
 }
 
 /*
@@ -1138,9 +1146,9 @@ untimeout(func, arg)
     void *arg;
 {
     struct callout **copp, *freep;
-  
+
     MAINDEBUG(("Untimeout %p:%p.", func, arg));
-  
+
     /*
      * Find first matching timeout and remove it from the list.
      */
@@ -1494,7 +1502,7 @@ run_program(prog, args, must_exist, done, arg)
 #ifdef BSD
 	/* Force the priority back to zero if pppd is running higher. */
 	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
-	    warn("can't reset priority to 0: %m"); 
+	    warn("can't reset priority to 0: %m");
 #endif
 
 	/* SysV recommends a second fork at this point. */
