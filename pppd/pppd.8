@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.67 2002/11/02 19:48:13 carlsonj Exp $
+.\" $Id: pppd.8,v 1.68 2002/11/24 11:31:46 etbe Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -984,6 +984,10 @@ Use synchronous HDLC serial encoding instead of asynchronous.
 The device used by pppd with this option must have sync support.
 Currently supports Microgate SyncLink adapters
 under Linux and FreeBSD 2.2.8 and later.
+.TP
+.B unit \fInum
+Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
+connections.
 .TP
 .B updetach
 With this option, pppd will detach from its controlling terminal once
