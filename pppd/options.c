@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.88 2002/09/24 11:35:22 fcusack Exp $"
+#define RCSID	"$Id: options.c,v 1.89 2002/10/27 13:00:13 fcusack Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -602,6 +602,7 @@ process_option(opt, cmd, argv)
     int prio = option_priority;
     option_t *mainopt = opt;
 
+    current_option = opt->name;
     if ((opt->flags & OPT_PRIVFIX) && privileged_option)
 	prio += OPRIO_ROOT;
     while (mainopt->flags & OPT_PRIOSUB)
