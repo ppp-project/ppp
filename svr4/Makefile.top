@@ -1,0 +1,51 @@
+#
+# ppp top level makefile for Solaris 2
+#
+
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+ETCDIR = /etc/ppp
+
+INSTALL= /usr/sbin/install
+
+all:
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+#	cd pppstats; $(MAKE) all
+	cd sol2; $(MAKE) all
+
+install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
+
+install-progs:
+	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+#	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd sol2; $(MAKE) BINDIR=$(BINDIR) install
+
+install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
+	$(ETCDIR)/chap-secrets
+
+$(ETCDIR)/options:
+	if netstat -rn | grep default >/dev/null; then \
+	  cp etc.ppp/options $@; \
+	else cp etc.ppp/options.leaf $@; fi
+	chmod go-w $@
+$(ETCDIR)/pap-secrets:
+	$(INSTALL) -f $(ETCDIR) -m 600 etc.ppp/pap-secrets
+$(ETCDIR)/chap-secrets:
+	$(INSTALL) -f $(ETCDIR) -m 600 etc.ppp/chap-secrets
+
+$(BINDIR):
+	$(INSTALL) -d -m 755 $@
+$(MANDIR)/man8:
+	$(INSTALL) -d -m 755 $@
+$(ETCDIR):
+	$(INSTALL) -d -m 755 $@
+
+clean:
+	rm -f *~
+	cd chat; $(MAKE) clean
+	cd pppd; $(MAKE) clean
+	cd pppstats; $(MAKE) clean
+	cd sol2; $(MAKE) clean
+
