@@ -19,9 +19,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-NeXT.c,v 1.19 1999/08/12 04:25:22 paulus Exp $";
-#endif
+#define RCSID	"$Id: sys-NeXT.c,v 1.20 1999/08/13 06:46:17 paulus Exp $"
 
 #include <stdio.h>
 #include <termios.h>
@@ -57,6 +55,8 @@ static const char rcsid[] = "$Id: sys-NeXT.c,v 1.19 1999/08/12 04:25:22 paulus E
 #include <netinfo/ni.h>
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 static int initdisc = -1;	/* Initial TTY discipline */
 static int initfdflags = -1;	/* Initial file descriptor flags for fd */

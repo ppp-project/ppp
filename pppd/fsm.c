@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: fsm.c,v 1.16 1999/08/12 04:25:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: fsm.c,v 1.17 1999/08/13 06:46:12 paulus Exp $"
 
 /*
  * TODO:
@@ -33,6 +31,8 @@ static const char rcsid[] = "$Id: fsm.c,v 1.16 1999/08/12 04:25:20 paulus Exp $"
 
 #include "pppd.h"
 #include "fsm.h"
+
+static const char rcsid[] = RCSID;
 
 static void fsm_timeout __P((void *));
 static void fsm_rconfreq __P((fsm *, int, u_char *, int));

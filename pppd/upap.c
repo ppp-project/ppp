@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: upap.c,v 1.18 1999/08/12 04:25:25 paulus Exp $";
-#endif
+#define RCSID	"$Id: upap.c,v 1.19 1999/08/13 06:46:21 paulus Exp $"
 
 /*
  * TODO:
@@ -30,6 +28,8 @@ static const char rcsid[] = "$Id: upap.c,v 1.18 1999/08/12 04:25:25 paulus Exp $
 
 #include "pppd.h"
 #include "upap.h"
+
+static const char rcsid[] = RCSID;
 
 static bool hide_password;
 

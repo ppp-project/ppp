@@ -32,9 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: auth.c,v 1.56 1999/08/12 04:11:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: auth.c,v 1.57 1999/08/13 06:46:10 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -77,6 +75,8 @@ static const char rcsid[] = "$Id: auth.c,v 1.56 1999/08/12 04:11:20 paulus Exp $
 #include "cbcp.h"
 #endif
 #include "pathnames.h"
+
+static const char rcsid[] = RCSID;
 
 /* Bits in scan_authfile return value */
 #define NONWILD_SERVER	1

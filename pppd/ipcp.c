@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: ipcp.c,v 1.48 1999/08/12 04:25:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: ipcp.c,v 1.49 1999/08/13 06:46:12 paulus Exp $"
 
 /*
  * TODO:
@@ -38,6 +36,8 @@ static const char rcsid[] = "$Id: ipcp.c,v 1.48 1999/08/12 04:25:20 paulus Exp $
 #include "fsm.h"
 #include "ipcp.h"
 #include "pathnames.h"
+
+static const char rcsid[] = RCSID;
 
 /* global vars */
 ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */

@@ -33,9 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: chap.c,v 1.22 1999/08/12 04:25:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: chap.c,v 1.23 1999/08/13 06:46:11 paulus Exp $"
 
 /*
  * TODO:
@@ -52,6 +50,8 @@ static const char rcsid[] = "$Id: chap.c,v 1.22 1999/08/12 04:25:20 paulus Exp $
 #ifdef CHAPMS
 #include "chap_ms.h"
 #endif
+
+static const char rcsid[] = RCSID;
 
 /*
  * Command-line options.

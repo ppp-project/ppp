@@ -18,9 +18,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: cbcp.c,v 1.9 1999/08/12 04:25:19 paulus Exp $";
-#endif
+#define RCSID	"$Id: cbcp.c,v 1.10 1999/08/13 06:46:10 paulus Exp $"
 
 #include <stdio.h>
 #include <string.h>
@@ -31,6 +29,8 @@ static const char rcsid[] = "$Id: cbcp.c,v 1.9 1999/08/12 04:25:19 paulus Exp $"
 #include "cbcp.h"
 #include "fsm.h"
 #include "lcp.h"
+
+static const char rcsid[] = RCSID;
 
 /*
  * Options.

@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: lcp.c,v 1.43 1999/08/12 04:25:21 paulus Exp $";
-#endif
+#define RCSID	"$Id: lcp.c,v 1.44 1999/08/13 06:46:14 paulus Exp $";
 
 /*
  * TODO:
@@ -34,6 +32,8 @@ static const char rcsid[] = "$Id: lcp.c,v 1.43 1999/08/12 04:25:21 paulus Exp $"
 #include "lcp.h"
 #include "chap.h"
 #include "magic.h"
+
+static const char rcsid[] = RCSID;
 
 /*
  * LCP-related command-line options.

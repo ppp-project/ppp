@@ -20,9 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-ultrix.c,v 1.32 1999/08/12 04:25:24 paulus Exp $";
-#endif
+#define RCSID	"$Id: sys-ultrix.c,v 1.33 1999/08/13 06:46:20 paulus Exp $"
 
 /*
  * TODO:
@@ -51,6 +49,8 @@ static const char rcsid[] = "$Id: sys-ultrix.c,v 1.32 1999/08/12 04:25:24 paulus
 #include <netinet/in.h>
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 static int initdisc = -1;	/* Initial TTY discipline for ppp_fd */
 static int initfdflags = -1;	/* Initial file descriptor flags for ppp_fd */

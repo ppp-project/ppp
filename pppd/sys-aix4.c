@@ -20,9 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-aix4.c,v 1.21 1999/08/12 04:25:22 paulus Exp $";
-#endif
+#define RCSID	"$Id: sys-aix4.c,v 1.22 1999/08/13 06:46:17 paulus Exp $"
 
 /*
  * TODO:
@@ -53,6 +51,8 @@ static const char rcsid[] = "$Id: sys-aix4.c,v 1.21 1999/08/12 04:25:22 paulus E
 #include <netinet/in.h>
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 #ifndef ifr_mtu
 #define ifr_mtu		ifr_metric

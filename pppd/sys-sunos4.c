@@ -25,9 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-sunos4.c,v 1.23 1999/08/12 04:25:24 paulus Exp $";
-#endif
+#define RCSID	"$Id: sys-sunos4.c,v 1.24 1999/08/13 06:46:19 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -66,6 +64,8 @@ static const char rcsid[] = "$Id: sys-sunos4.c,v 1.23 1999/08/12 04:25:24 paulus
 extern void *alloca();
 #endif
 #endif /*sparc*/
+
+static const char rcsid[] = RCSID;
 
 static int	pppfd;
 static int	fdmuxid = -1;

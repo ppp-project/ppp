@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: main.c,v 1.82 1999/08/13 01:57:35 paulus Exp $";
-#endif
+#define RCSID	"$Id: main.c,v 1.83 1999/08/13 06:46:15 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -64,6 +62,8 @@ static const char rcsid[] = "$Id: main.c,v 1.82 1999/08/13 01:57:35 paulus Exp $
 #ifdef AT_CHANGE
 #include "atcp.h"
 #endif
+
+static const char rcsid[] = RCSID;
 
 /* interface vars */
 char ifname[32];		/* Interface name */

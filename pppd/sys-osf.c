@@ -25,9 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-osf.c,v 1.29 1999/08/12 04:25:24 paulus Exp $";
-#endif
+#define RCSID	"$Id: sys-osf.c,v 1.30 1999/08/13 06:46:18 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -60,6 +58,8 @@ static const char rcsid[] = "$Id: sys-osf.c,v 1.29 1999/08/12 04:25:24 paulus Ex
 #include <arpa/inet.h>
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 static int	pppfd;
 static int	fdmuxid = -1;

@@ -20,8 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: sys-bsd.c,v 1.45 1999/08/12 04:25:23 paulus Exp $";
+#define RCSID	"$Id: sys-bsd.c,v 1.46 1999/08/13 06:46:18 paulus Exp $"
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -73,6 +72,8 @@ static const char rcsid[] = "$Id: sys-bsd.c,v 1.45 1999/08/12 04:25:23 paulus Ex
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
+
+static const char rcsid[] = RCSID;
 
 static int initdisc = -1;	/* Initial TTY discipline for ppp_fd */
 static int initfdflags = -1;	/* Initial file descriptor flags for ppp_fd */

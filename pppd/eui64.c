@@ -15,13 +15,14 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: eui64.c,v 1.1 1999/08/13 01:58:42 paulus Exp $
+ * $Id: eui64.c,v 1.2 1999/08/13 06:46:12 paulus Exp $
  */
-#ifndef lint
-static char rcsid[] = "$Id: eui64.c,v 1.1 1999/08/13 01:58:42 paulus Exp $";
-#endif
+
+#define RCSID	"$Id: eui64.c,v 1.2 1999/08/13 06:46:12 paulus Exp $"
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 /*
  * eui64_ntoa - Make an ascii representation of an interface identifier

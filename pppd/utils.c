@@ -16,9 +16,8 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
-#ifndef lint
-static const char rcsid[] = "$Id: utils.c,v 1.7 1999/08/12 04:25:25 paulus Exp $";
-#endif
+
+#define RCSID	"$Id: utils.c,v 1.8 1999/08/13 06:46:22 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -45,6 +44,8 @@ static const char rcsid[] = "$Id: utils.c,v 1.7 1999/08/12 04:25:25 paulus Exp $
 #endif
 
 #include "pppd.h"
+
+static const char rcsid[] = RCSID;
 
 #if defined(SUNOS4)
 extern char *strerror();

@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: options.c,v 1.63 1999/08/13 01:57:36 paulus Exp $";
-#endif
+#define RCSID	"$Id: options.c,v 1.64 1999/08/13 06:46:16 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -56,6 +54,8 @@ static const char rcsid[] = "$Id: options.c,v 1.63 1999/08/13 01:57:36 paulus Ex
 #if defined(ultrix) || defined(NeXT)
 char *strdup __P((char *));
 #endif
+
+static const char rcsid[] = RCSID;
 
 /*
  * Option variables and default values.

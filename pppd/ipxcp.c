@@ -18,9 +18,8 @@
  */
 
 #ifdef IPX_CHANGE
-#ifndef lint
-static const char rcsid[] = "$Id: ipxcp.c,v 1.16 1999/08/12 04:25:21 paulus Exp $";
-#endif
+
+#define RCSID	"$Id: ipxcp.c,v 1.17 1999/08/13 06:46:14 paulus Exp $"
 
 /*
  * TODO:
@@ -39,6 +38,8 @@ static const char rcsid[] = "$Id: ipxcp.c,v 1.16 1999/08/12 04:25:21 paulus Exp 
 #include "ipxcp.h"
 #include "pathnames.h"
 #include "magic.h"
+
+static const char rcsid[] = RCSID;
 
 /* global vars */
 ipxcp_options ipxcp_wantoptions[NUM_PPP];	/* Options that we want to request */

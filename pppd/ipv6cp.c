@@ -21,16 +21,14 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.1 1999/08/13 01:58:43 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.2 1999/08/13 06:46:13 paulus Exp $ 
  *
  *
  * Original version by Inria (www.inria.fr)
  * Modified to match RFC2472 by Tommi Komulainen <Tommi.Komulainen@iki.fi>
  */
 
-#ifndef lint
-static char rcsid[]="$Id: ipv6cp.c,v 1.1 1999/08/13 01:58:43 paulus Exp $";
-#endif
+#define RCSID	"$Id: ipv6cp.c,v 1.2 1999/08/13 06:46:13 paulus Exp $"
 
 /*
  * TODO: 
@@ -55,6 +53,8 @@ static char rcsid[]="$Id: ipv6cp.c,v 1.1 1999/08/13 01:58:43 paulus Exp $";
 #include "ipv6cp.h"
 #include "magic.h"
 #include "pathnames.h"
+
+static const char rcsid[] = RCSID;
 
 /* global vars */
 ipv6cp_options ipv6cp_wantoptions[NUM_PPP];     /* Options that we want to request */

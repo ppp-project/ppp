@@ -17,9 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: demand.c,v 1.11 1999/08/12 04:25:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: demand.c,v 1.12 1999/08/13 06:46:12 paulus Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +42,8 @@ static const char rcsid[] = "$Id: demand.c,v 1.11 1999/08/12 04:25:20 paulus Exp
 #include "fsm.h"
 #include "ipcp.h"
 #include "lcp.h"
+
+static const char rcsid[] = RCSID;
 
 char *frame;
 int framelen;

@@ -31,9 +31,7 @@
  *   You should also use DOMAIN\\USERNAME as described in README.MSCHAP80
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: chap_ms.c,v 1.14 1999/08/12 04:25:20 paulus Exp $";
-#endif
+#define RCSID	"$Id: chap_ms.c,v 1.15 1999/08/13 06:46:12 paulus Exp $"
 
 #ifdef CHAPMS
 
@@ -56,6 +54,8 @@ static const char rcsid[] = "$Id: chap_ms.c,v 1.14 1999/08/12 04:25:20 paulus Ex
 #ifndef USE_CRYPT
 #include <des.h>
 #endif
+
+static const char rcsid[] = RCSID;
 
 typedef struct {
     u_char LANManResp[24];

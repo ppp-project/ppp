@@ -77,11 +77,14 @@
  *		Columbus, OH  43221
  *		(614)451-1883
  *
- *
  */
 
+#ifndef __STDC__
+#define const
+#endif
+
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.23 1999/08/13 01:54:32 paulus Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.24 1999/08/13 06:46:09 paulus Exp $";
 #endif
 
 #include <stdio.h>
