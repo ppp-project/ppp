@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.16 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.17 1995/04/24 05:54:44 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -45,10 +45,12 @@ static char rcsid[] = "$Id: options.c,v 1.16 1994/09/21 06:47:37 paulus Exp $";
 #include "chap.h"
 #include "ccp.h"
 
+#include <net/ppp-comp.h>
+
 #define FALSE	0
 #define TRUE	1
 
-#ifdef ultrix
+#if defined(ultrix) || defined(NeXT)
 char *strdup __P((char *));
 #endif
 
@@ -84,6 +86,12 @@ char	our_name[MAXNAMELEN];	/* Our name for authentication purposes */
 char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 int	usehostname = 0;	/* Use hostname for our_name */
 int	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
+char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
+
+#ifdef _linux_
+int idle_time_limit = 0;
+static int setidle __P((char **));
+#endif
 
 /*
  * Prototypes
@@ -153,9 +161,12 @@ static int setlcpechointv __P((char **));
 static int setlcpechofails __P((char **));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
+static int setipparam __P((char **));
 
 static int number_option __P((char *, long *, int));
 static int readable __P((int fd));
+
+void usage();
 
 /*
  * Valid arguments.
@@ -232,6 +243,10 @@ static struct cmd {
     {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
     {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
     {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
+    {"ipparam", 1, setipparam},		/* set ip script parameter */
+#ifdef _linux_
+    {"idle-disconnect", 1, setidle}, /* seconds for disconnect of idle IP */
+#endif
     {NULL, 0, NULL}
 };
 
@@ -315,6 +330,7 @@ parse_args(argc, argv)
 /*
  * usage - print out a message telling how to use the program.
  */
+void
 usage()
 {
     fprintf(stderr, usage_string, VERSION, PATCHLEVEL, IMPLEMENTATION,
@@ -755,7 +771,7 @@ setmtu(argv)
     if (!number_option(*argv, &mtu, 0))
 	return 0;
     if (mtu < MINMRU || mtu > MAXMRU) {
-	fprintf(stderr, "mtu option value of %d is too %s\n", mtu,
+	fprintf(stderr, "mtu option value of %ld is too %s\n", mtu,
 		(mtu < MINMRU? "small": "large"));
 	return 0;
     }
@@ -819,6 +835,7 @@ reqpap()
 {
     lcp_wantoptions[0].neg_upap = 1;
     auth_required = 1;
+    return 1;
 }
 
 
@@ -908,6 +925,7 @@ setnovjccomp()
 {
     ipcp_wantoptions[0].cflag = 0;
     ipcp_allowoptions[0].cflag = 0;
+    return 1;
 }
 
 
@@ -1011,7 +1029,7 @@ setescape(argv)
 	}
 	p = endp;
 	if (n < 0 || 0x20 <= n && n <= 0x3F || n == 0x5E || n > 0xFF) {
-	    fprintf(stderr, "%s: can't escape character 0x%x\n", n);
+	    fprintf(stderr, "%s: can't escape character 0x%x\n", progname, n);
 	    ret = 0;
 	} else
 	    xmit_accm[0][n >> 5] |= 1 << (n & 0x1F);
@@ -1084,14 +1102,14 @@ setipaddr(arg)
     char *arg;
 {
     struct hostent *hp;
-    char *colon, *index();
+    char *colon;
     u_int32_t local, remote;
     ipcp_options *wo = &ipcp_wantoptions[0];
   
     /*
      * IP address pair separated by ":".
      */
-    if ((colon = index(arg, ':')) == NULL)
+    if ((colon = strchr(arg, ':')) == NULL)
 	return 0;
   
     /*
@@ -1104,7 +1122,7 @@ setipaddr(arg)
 		fprintf(stderr, "unknown host: %s\n", arg);
 		return -1;
 	    } else {
-		local = *(long *)hp->h_addr;
+		local = *(u_int32_t *)hp->h_addr;
 		if (our_name[0] == 0) {
 		    strncpy(our_name, arg, MAXNAMELEN);
 		    our_name[MAXNAMELEN-1] = 0;
@@ -1129,7 +1147,7 @@ setipaddr(arg)
 		fprintf(stderr, "unknown host: %s\n", colon);
 		return -1;
 	    } else {
-		remote = *(long *)hp->h_addr;
+		remote = *(u_int32_t *)hp->h_addr;
 		if (remote_name[0] == 0) {
 		    strncpy(remote_name, colon, MAXNAMELEN);
 		    remote_name[MAXNAMELEN-1] = 0;
@@ -1205,7 +1223,7 @@ setipdefault()
     wo->accept_local = 1;	/* don't insist on this default value */
     if ((hp = gethostbyname(hostname)) == NULL)
 	return;
-    local = *(long *)hp->h_addr;
+    local = *(u_int32_t *)hp->h_addr;
     if (local != 0 && !bad_ip_adrs(local))
 	wo->ouraddr = local;
 }
@@ -1390,79 +1408,92 @@ setlcptimeout(argv)
     return int_option(*argv, &lcp_fsm[0].timeouttime);
 }
 
-static int setlcpterm(argv)
+static int
+setlcpterm(argv)
     char **argv;
 {
     return int_option(*argv, &lcp_fsm[0].maxtermtransmits);
 }
 
-static int setlcpconf(argv)
+static int
+setlcpconf(argv)
     char **argv;
 {
     return int_option(*argv, &lcp_fsm[0].maxconfreqtransmits);
 }
 
-static int setlcpfails(argv)
+static int
+setlcpfails(argv)
     char **argv;
 {
     return int_option(*argv, &lcp_fsm[0].maxnakloops);
 }
 
-static int setipcptimeout(argv)
+static int
+setipcptimeout(argv)
     char **argv;
 {
     return int_option(*argv, &ipcp_fsm[0].timeouttime);
 }
 
-static int setipcpterm(argv)
+static int
+setipcpterm(argv)
     char **argv;
 {
     return int_option(*argv, &ipcp_fsm[0].maxtermtransmits);
 }
 
-static int setipcpconf(argv)
+static int
+setipcpconf(argv)
     char **argv;
 {
     return int_option(*argv, &ipcp_fsm[0].maxconfreqtransmits);
 }
 
-static int setipcpfails(argv)
+static int
+setipcpfails(argv)
     char **argv;
 {
     return int_option(*argv, &lcp_fsm[0].maxnakloops);
 }
 
-static int setpaptimeout(argv)
+static int
+setpaptimeout(argv)
     char **argv;
 {
     return int_option(*argv, &upap[0].us_timeouttime);
 }
 
-static int setpapreqs(argv)
+static int
+setpapreqs(argv)
     char **argv;
 {
     return int_option(*argv, &upap[0].us_maxtransmits);
 }
 
-static int setchaptimeout(argv)
+static int
+setchaptimeout(argv)
     char **argv;
 {
     return int_option(*argv, &chap[0].timeouttime);
 }
 
-static int setchapchal(argv)
+static int
+setchapchal(argv)
     char **argv;
 {
     return int_option(*argv, &chap[0].max_transmits);
 }
 
-static int setchapintv(argv)
+static int
+setchapintv(argv)
     char **argv;
 {
     return int_option(*argv, &chap[0].chal_interval);
 }
 
-static int setbsdcomp(argv)
+static int
+setbsdcomp(argv)
     char **argv;
 {
     int rbits, abits;
@@ -1498,8 +1529,29 @@ static int setbsdcomp(argv)
     return 1;
 }
 
-static int setnobsdcomp()
+static int
+setnobsdcomp()
 {
     ccp_wantoptions[0].bsd_compress = 0;
     ccp_allowoptions[0].bsd_compress = 0;
+    return 1;
 }
+
+static int
+setipparam(argv)
+    char **argv;
+{
+    ipparam = strdup(*argv);
+    if (ipparam == NULL)
+	novm("ipparam string");
+
+    return 1;
+}
+
+#ifdef _linux_
+static int setidle (argv)
+    char **argv;
+{
+    return int_option(*argv, &idle_time_limit);
+}
+#endif
