@@ -4,6 +4,9 @@ but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the
 modules directory).
 
+This version has been tested under Solaris 2.5.1 and Solaris 2.6.
+
+
 Installation.
 *************
 
