@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.27 2002/10/12 01:28:05 fcusack Exp $"
+#define RCSID	"$Id: upap.c,v 1.28 2002/10/12 02:30:21 fcusack Exp $"
 
 /*
  * TODO:
@@ -412,7 +412,7 @@ upap_rauthreq(u, inp, id, len)
 	if (!auth_number()) {
 	    /* We do not want to leak info about the pap result. */
 	    retcode = UPAP_AUTHNAK; /* XXX exit value will be "wrong" */
-	    error("calling number %q is not authorized", remote_number);
+	    warn("calling number %q is not authorized", remote_number);
 	}
     }
 

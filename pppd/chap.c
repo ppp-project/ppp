@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.35 2002/10/12 01:28:05 fcusack Exp $"
+#define RCSID	"$Id: chap.c,v 1.36 2002/10/12 02:30:21 fcusack Exp $"
 
 /*
  * TODO:
@@ -606,7 +606,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 	    if (!auth_number()) {
 		/* We do not want to leak info about the chap result. */
 		code = CHAP_FAILURE; /* XXX exit value will be "wrong" */
-		error("calling number %q is not authorized", remote_number);
+		warn("calling number %q is not authorized", remote_number);
 	    }
 	}
 
