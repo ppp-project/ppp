@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 
-#define RCSID	"$Id: ipxcp.c,v 1.18 1999/08/24 05:31:09 paulus Exp $"
+#define RCSID	"$Id: ipxcp.c,v 1.19 2001/02/22 03:15:20 paulus Exp $"
 
 /*
  * TODO:
@@ -108,7 +108,7 @@ static option_t ipxcp_option_list[] = {
       "Accept peer IPX network number", 1,
       &ipxcp_allowoptions[0].accept_network },
     { "ipx-node", o_special, setipxnode,
-      "Set IPX node number" },
+      "Set IPX node number", OPT_MULTIPART },
     { "ipxcp-accept-local", o_bool, &ipxcp_wantoptions[0].accept_local,
       "Accept our IPX address", 1,
       &ipxcp_allowoptions[0].accept_local },
@@ -253,16 +253,30 @@ setipxnode(argv)
     char **argv;
 {
     char *end;
+    int have_his = 0;
+    u_char our_node[6];
+    u_char his_node[6];
+    static int prio_our, prio_his;
 
-    memset (&ipxcp_wantoptions[0].our_node[0], 0, 6);
-    memset (&ipxcp_wantoptions[0].his_node[0], 0, 6);
+    memset (our_node, 0, 6);
+    memset (his_node, 0, 6);
 
-    end = setipxnodevalue (*argv, &ipxcp_wantoptions[0].our_node[0]);
-    if (*end == ':')
-	end = setipxnodevalue (++end, &ipxcp_wantoptions[0].his_node[0]);
+    end = setipxnodevalue (*argv, our_node);
+    if (*end == ':') {
+	have_his = 1;
+	end = setipxnodevalue (++end, his_node);
+    }
 
     if (*end == '\0') {
         ipxcp_wantoptions[0].neg_node = 1;
+	if (option_priority >= prio_our) {
+	    memcpy(&ipxcp_wantoptions[0].our_node[0], our_node, 6);
+	    prio_our = option_priority;
+	}
+	if (have_his && option_priority >= prio_his) {
+	    memcpy(&ipxcp_wantoptions[0].his_node[0], his_node, 6);
+	    prio_his = option_priority;
+	}
         return 1;
     }
 

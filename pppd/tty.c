@@ -20,7 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.3 2000/07/24 14:58:15 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.4 2001/02/22 03:15:21 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -49,6 +49,8 @@
 #include "fsm.h"
 #include "lcp.h"
 
+static int setdevname __P((char *, char **, int));
+static int setspeed __P((char *, char **, int));
 static int setxonxoff __P((char **));
 static void finish_tty __P((void));
 static int start_charshunt __P((int, int));
@@ -97,25 +99,25 @@ extern int privopen;		/* don't lock, open device as root */
 
 /* option descriptors */
 option_t tty_options[] = {
+    /* device name must be first, or change connect_tty() below! */
+    { "device name", o_wild, (void *) &setdevname,
+      "Serial port device name", OPT_DEVNAM | OPT_PRIVFIX | OPT_NOARG },
+    { "tty speed", o_wild, (void *) &setspeed,
+      "Baud rate for serial port", OPT_NOARG },
     { "lock", o_bool, &lockflag,
       "Lock serial device with UUCP-style lock file", 1 },
     { "nolock", o_bool, &lockflag,
       "Don't lock serial device", OPT_PRIV },
     { "init", o_string, &initializer,
-      "A program to initialize the device",
-      OPT_A2INFO | OPT_PRIVFIX, &initializer_info },
+      "A program to initialize the device", OPT_PRIVFIX },
     { "connect", o_string, &connect_script,
-      "A program to set up a connection",
-      OPT_A2INFO | OPT_PRIVFIX, &connect_script_info },
+      "A program to set up a connection", OPT_PRIVFIX },
     { "disconnect", o_string, &disconnect_script,
-      "Program to disconnect serial device",
-      OPT_A2INFO | OPT_PRIVFIX, &disconnect_script_info },
+      "Program to disconnect serial device", OPT_PRIVFIX },
     { "welcome", o_string, &welcomer,
-      "Script to welcome client",
-      OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
+      "Script to welcome client", OPT_PRIVFIX },
     { "pty", o_string, &ptycommand,
-      "Script to run on pseudo-tty master side",
-      OPT_A2INFO | OPT_PRIVFIX | OPT_DEVNAM, &ptycommand_info },
+      "Script to run on pseudo-tty master side", OPT_PRIVFIX | OPT_DEVNAM },
     { "notty", o_bool, &notty,
       "Input/output is not a tty", OPT_DEVNAM | 1 },
     { "socket", o_string, &pty_socket,
@@ -144,6 +146,77 @@ option_t tty_options[] = {
       "Maximum data rate in bytes/sec (with pty, notty or record option)" },
     { NULL }
 };
+
+
+/*
+ * setspeed - Set the serial port baud rate.
+ * If doit is 0, the call is to check whether this option is
+ * potentially a speed value.
+ */
+static int
+setspeed(arg, argv, doit)
+    char *arg;
+    char **argv;
+    int doit;
+{
+	char *ptr;
+	int spd;
+
+	spd = strtol(arg, &ptr, 0);
+	if (ptr == arg || *ptr != 0 || spd == 0)
+		return 0;
+	if (doit)
+		inspeed = spd;
+	return 1;
+}
+
+
+/*
+ * setdevname - Set the device name.
+ * If doit is 0, the call is to check whether this option is
+ * potentially a device name.
+ */
+static int
+setdevname(cp, argv, doit)
+    char *cp;
+    char **argv;
+    int doit;
+{
+	struct stat statbuf;
+	char dev[MAXPATHLEN];
+
+	if (*cp == 0)
+		return 0;
+
+	if (strncmp("/dev/", cp, 5) != 0) {
+		strlcpy(dev, "/dev/", sizeof(dev));
+		strlcat(dev, cp, sizeof(dev));
+		cp = dev;
+	}
+
+	/*
+	 * Check if there is a character device by this name.
+	 */
+	if (stat(cp, &statbuf) < 0) {
+		if (!doit)
+			return errno != ENOENT;
+		option_error("Couldn't stat %s: %m", cp);
+		return 0;
+	}
+	if (!S_ISCHR(statbuf.st_mode)) {
+		if (doit)
+			option_error("%s is not a character device", cp);
+		return 0;
+	}
+
+	if (doit) {
+		strlcpy(devnam, cp, sizeof(devnam));
+		devstat = statbuf;
+		default_device = 0;
+	}
+  
+	return 1;
+}
 
 static int
 setxonxoff(argv)
@@ -314,12 +387,14 @@ int connect_tty()
 		for (;;) {
 			/* If the user specified the device name, become the
 			   user before opening it. */
-			int err;
-			if (!devnam_info.priv && !privopen)
+			int err, prio;
+
+			prio = privopen? OPRIO_ROOT: tty_options[0].priority;
+			if (prio < OPRIO_ROOT)
 				seteuid(uid);
 			ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
 			err = errno;
-			if (!devnam_info.priv && !privopen)
+			if (prio < OPRIO_ROOT)
 				seteuid(0);
 			if (ttyfd >= 0)
 				break;
@@ -470,6 +545,11 @@ int connect_tty()
 			warn("Welcome script failed");
 	}
 
+	/*
+	 * If we are initiating this connection, wait for a short
+	 * time for something from the peer.  This can avoid bouncing
+	 * our packets off his tty before he has it set up.
+	 */
 	if (connector != NULL || ptycommand != NULL)
 		listen_time = connect_delay;
 

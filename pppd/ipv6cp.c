@@ -90,10 +90,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.11 2000/08/05 06:46:47 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.12 2001/02/22 03:15:16 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.11 2000/08/05 06:46:47 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.12 2001/02/22 03:15:16 paulus Exp $"
 
 /*
  * TODO: 
@@ -175,7 +175,7 @@ static int setifaceid __P((char **arg));
 
 static option_t ipv6cp_option_list[] = {
     { "ipv6", o_special, (void *)setifaceid,
-      "Set interface identifiers for IPV6" },
+      "Set interface identifiers for IPV6", OPT_MULTIPART },
     { "noipv6", o_bool, &ipv6cp_protent.enabled_flag,
       "Disable IPv6 and IPv6CP" },
     { "-ipv6", o_bool, &ipv6cp_protent.enabled_flag,
@@ -271,10 +271,11 @@ static int
 setifaceid(argv)
     char **argv;
 {
-    char *comma, *arg;
+    char *comma, *arg, c;
     ipv6cp_options *wo = &ipv6cp_wantoptions[0];
     struct in6_addr addr;
-    
+    static int prio_local, prio_remote;
+
 #define VALIDID(a) ( (((a).s6_addr32[0] == 0) && ((a).s6_addr32[1] == 0)) && \
 			(((a).s6_addr32[2] != 0) || ((a).s6_addr32[3] != 0)) )
     
@@ -286,16 +287,20 @@ setifaceid(argv)
      * If comma first character, then no local identifier
      */
     if (comma != arg) {
+	c = *comma;
 	*comma = '\0';
 
 	if (inet_pton(AF_INET6, arg, &addr) == 0 || !VALIDID(addr)) {
 	    option_error("Illegal interface identifier (local): %s", arg);
 	    return 0;
 	}
-	
-	eui64_copy(addr.s6_addr32[2], wo->ourid);
-	wo->opt_local = 1;
-	*comma = ',';
+
+	if (option_priority >= prio_local) {
+	    eui64_copy(addr.s6_addr32[2], wo->ourid);
+	    wo->opt_local = 1;
+	    prio_local = option_priority;
+	}
+	*comma = c;
     }
     
     /*
@@ -306,8 +311,11 @@ setifaceid(argv)
 	    option_error("Illegal interface identifier (remote): %s", comma);
 	    return 0;
 	}
-	eui64_copy(addr.s6_addr32[2], wo->hisid);
-	wo->opt_remote = 1;
+	if (option_priority >= prio_remote) {
+	    eui64_copy(addr.s6_addr32[2], wo->hisid);
+	    wo->opt_remote = 1;
+	    prio_remote = option_priority;
+	}
     }
 
     ipv6cp_protent.enabled_flag = 1;

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.56 2000/07/06 11:17:03 paulus Exp $
+ * $Id: pppd.h,v 1.57 2001/02/22 03:15:21 paulus Exp $
  */
 
 /*
@@ -70,6 +70,7 @@ enum opt_type {
 	o_int,
 	o_uint32,
 	o_string,
+	o_wild,
 };
 
 typedef struct {
@@ -81,6 +82,8 @@ typedef struct {
 	void	*addr2;
 	int	upper_limit;
 	int	lower_limit;
+	const char *source;
+	int	priority;
 } option_t;
 
 /* Values for flags */
@@ -97,17 +100,22 @@ typedef struct {
 #define OPT_ZEROOK	0x10000	/* 0 value is OK even if not within limits */
 #define OPT_NOINCR	0x20000	/* value mustn't be increased */
 #define OPT_ZEROINF	0x40000	/* with OPT_NOINCR, 0 == infinity */
-#define OPT_A2INFO	0x100000 /* addr2 -> option_info to update */
+#define OPT_MULTIPART	0x80000	/* optionally sets multiple variables */
 #define OPT_A2COPY	0x200000 /* addr2 -> second location to rcv value */
 #define OPT_ENABLE	0x400000 /* use *addr2 as enable for option */
-#define OPT_PRIVFIX	0x800000 /* can't be overridden if noauth */
-#define OPT_PREPASS	0x1000000 /* do this opt in pre-pass to find device */
+#define OPT_PRIVFIX	0x800000 /* user can't override if set by root */
 #define OPT_INITONLY	0x2000000 /* option can only be set in init phase */
 #define OPT_DEVEQUIV	0x4000000 /* equiv to device name */
-#define OPT_DEVNAM	(OPT_PREPASS | OPT_INITONLY | OPT_DEVEQUIV)
-#define OPT_SEENIT	0x10000000 /* have seen this option already */
+#define OPT_DEVNAM	(OPT_INITONLY | OPT_DEVEQUIV)
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
+
+/* Values for priority */
+#define OPRIO_DEFAULT	0	/* a default value */
+#define OPRIO_CFGFILE	1	/* value from a configuration file */
+#define OPRIO_CMDLINE	2	/* value from the command line */
+#define OPRIO_SECFILE	3	/* value from options in a secrets file */
+#define OPRIO_ROOT	100	/* added to priority if OPT_PRIVFIX && root */
 
 #ifndef GIDSET_TYPE
 #define GIDSET_TYPE	gid_t
@@ -190,7 +198,7 @@ extern bool	log_to_file;	/* log_to_fd is a file */
 extern bool	log_to_specific_fd;	/* log_to_fd was specified by user */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 extern volatile int status;	/* exit status for pppd */
-extern int	devnam_fixed;	/* can no longer change devnam */
+extern bool	devnam_fixed;	/* can no longer change devnam */
 extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
@@ -200,6 +208,8 @@ extern struct notifier *phasechange; /* for notifications of phase changes */
 extern struct notifier *exitnotify;  /* for notification that we're exiting */
 extern struct notifier *sigreceived; /* notification of received signal */
 extern int	listen_time;	/* time to listen first (ms) */
+extern char	*current_option; /* option we're processing now */
+extern int	option_priority; /* priority of current options */
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */
@@ -335,8 +345,8 @@ void detach __P((void));	/* Detach from controlling tty */
 void die __P((int));		/* Cleanup and exit */
 void quit __P((void));		/* like die(1) */
 void novm __P((char *));	/* Say we ran out of memory, and die */
-void timeout __P((void (*func)(void *), void *arg, int t));
-				/* Call func(arg) after t seconds */
+void timeout __P((void (*func)(void *), void *arg, int s, int us));
+				/* Call func(arg) after s.us seconds */
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
 void record_child __P((int, char *, void (*) (void *), void *));
@@ -523,25 +533,8 @@ void option_error __P((char *fmt, ...));
 int int_option __P((char *, int *));
 				/* Simplified number_option for decimal ints */
 void add_options __P((option_t *)); /* Add extra options */
+
 int parse_dotted_ip __P((char *, u_int32_t *));
-
-/*
- * This structure is used to store information about certain
- * options, such as where the option value came from (/etc/ppp/options,
- * command line, etc.) and whether it came from a privileged source.
- */
-
-struct option_info {
-    int	    priv;		/* was value set by sysadmin? */
-    char    *source;		/* where option came from */
-};
-
-extern struct option_info devnam_info;
-extern struct option_info initializer_info;
-extern struct option_info connect_script_info;
-extern struct option_info disconnect_script_info;
-extern struct option_info welcomer_info;
-extern struct option_info ptycommand_info;
 
 /*
  * Hooks to enable plugins to change various things.
@@ -602,7 +595,7 @@ extern void (*ip_choose_hook) __P((u_int32_t *));
  * System dependent definitions for user-level 4.3BSD UNIX implementation.
  */
 
-#define TIMEOUT(r, f, t)	timeout((r), (f), (t))
+#define TIMEOUT(r, f, t)	timeout((r), (f), (t), 0)
 #define UNTIMEOUT(r, f)		untimeout((r), (f))
 
 #define BCOPY(s, d, l)		memcpy(d, s, l)

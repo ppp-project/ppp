@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.55 2000/06/30 04:54:20 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.56 2001/02/22 03:15:16 paulus Exp $"
 
 /*
  * TODO:
@@ -25,6 +25,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -44,6 +45,8 @@ ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */
 ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 ipcp_options ipcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
+
+u_int32_t netmask = 0;		/* IP netmask to set on interface */
 
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 
@@ -103,6 +106,8 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
 static int setvjslots __P((char **));
 static int setdnsaddr __P((char **));
 static int setwinsaddr __P((char **));
+static int setnetmask __P((char **));
+static int setipaddr __P((char *, char **, int));
 
 static option_t ipcp_option_list[] = {
     { "noip", o_bool, &ipcp_protent.enabled_flag,
@@ -119,7 +124,7 @@ static option_t ipcp_option_list[] = {
     { "-vjccomp", o_bool, &ipcp_wantoptions[0].cflag,
       "Disable VJ connection-ID compression", OPT_A2COPY,
       &ipcp_allowoptions[0].cflag },
-    { "vj-max-slots", 1, (void *)setvjslots,
+    { "vj-max-slots", o_special, (void *)setvjslots,
       "Set maximum VJ header slots" },
     { "ipcp-accept-local", o_bool, &ipcp_wantoptions[0].accept_local,
       "Accept peer's address for us", 1 },
@@ -159,6 +164,10 @@ static option_t ipcp_option_list[] = {
       &ipcp_wantoptions[0].proxy_arp },
     { "usepeerdns", o_bool, &usepeerdns,
       "Ask peer for DNS address(es)", 1 },
+    { "netmask", o_special, (void *)setnetmask,
+      "set netmask" },
+    { "IP addresses", o_wild, (void *) &setipaddr,
+      "set local and remote IP addresses", OPT_NOARG | OPT_MULTIPART },
     { NULL }
 };
 
@@ -323,6 +332,140 @@ setwinsaddr(argv)
     ipcp_allowoptions[0].winsaddr[1] = wins;
 
     return (1);
+}
+
+/*
+ * setipaddr - Set the IP address
+ * If doit is 0, the call is to check whether this option is
+ * potentially an IP address specification.
+ */
+static int
+setipaddr(arg, argv, doit)
+    char *arg;
+    char **argv;
+    int doit;
+{
+    struct hostent *hp;
+    char *colon;
+    u_int32_t local, remote;
+    ipcp_options *wo = &ipcp_wantoptions[0];
+    static int prio_local = 0, prio_remote = 0;
+
+    /*
+     * IP address pair separated by ":".
+     */
+    if ((colon = strchr(arg, ':')) == NULL)
+	return 0;
+    if (!doit)
+	return 1;
+  
+    /*
+     * If colon first character, then no local addr.
+     */
+    if (colon != arg && option_priority >= prio_local) {
+	*colon = '\0';
+	if ((local = inet_addr(arg)) == (u_int32_t) -1) {
+	    if ((hp = gethostbyname(arg)) == NULL) {
+		option_error("unknown host: %s", arg);
+		return 0;
+	    }
+	    local = *(u_int32_t *)hp->h_addr;
+	}
+	if (bad_ip_adrs(local)) {
+	    option_error("bad local IP address %s", ip_ntoa(local));
+	    return 0;
+	}
+	if (local != 0)
+	    wo->ouraddr = local;
+	*colon = ':';
+	prio_local = option_priority;
+    }
+  
+    /*
+     * If colon last character, then no remote addr.
+     */
+    if (*++colon != '\0' && option_priority >= prio_remote) {
+	if ((remote = inet_addr(colon)) == (u_int32_t) -1) {
+	    if ((hp = gethostbyname(colon)) == NULL) {
+		option_error("unknown host: %s", colon);
+		return 0;
+	    }
+	    remote = *(u_int32_t *)hp->h_addr;
+	    if (remote_name[0] == 0)
+		strlcpy(remote_name, colon, sizeof(remote_name));
+	}
+	if (bad_ip_adrs(remote)) {
+	    option_error("bad remote IP address %s", ip_ntoa(remote));
+	    return 0;
+	}
+	if (remote != 0)
+	    wo->hisaddr = remote;
+	prio_remote = option_priority;
+    }
+
+    return 1;
+}
+
+/*
+ * setnetmask - set the netmask to be used on the interface.
+ */
+static int
+setnetmask(argv)
+    char **argv;
+{
+    u_int32_t mask;
+    int n;
+    char *p;
+
+    /*
+     * Unfortunately, if we use inet_addr, we can't tell whether
+     * a result of all 1s is an error or a valid 255.255.255.255.
+     */
+    p = *argv;
+    n = parse_dotted_ip(p, &mask);
+
+    mask = htonl(mask);
+
+    if (n == 0 || p[n] != 0 || (netmask & ~mask) != 0) {
+	option_error("invalid netmask value '%s'", *argv);
+	return 0;
+    }
+
+    netmask = mask;
+    return (1);
+}
+
+int
+parse_dotted_ip(p, vp)
+    char *p;
+    u_int32_t *vp;
+{
+    int n;
+    u_int32_t v, b;
+    char *endp, *p0 = p;
+
+    v = 0;
+    for (n = 3;; --n) {
+	b = strtoul(p, &endp, 0);
+	if (endp == p)
+	    return 0;
+	if (b > 255) {
+	    if (n < 3)
+		return 0;
+	    /* accept e.g. 0xffffff00 */
+	    *vp = b;
+	    return endp - p0;
+	}
+	v |= b << (n * 8);
+	p = endp;
+	if (n == 0)
+	    break;
+	if (*p != '.')
+	    return 0;
+	++p;
+    }
+    *vp = v;
+    return p - p0;
 }
 
 
