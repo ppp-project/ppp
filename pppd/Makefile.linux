@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.33 1999/08/24 05:31:08 paulus Exp $
+# $Id: Makefile.linux,v 1.34 1999/09/11 12:08:56 paulus Exp $
 #
 
 # Default installation locations
@@ -46,6 +46,8 @@ HAS_SHADOW=y
 #USE_PAM=y
 #HAVE_INET6=y
 
+PLUGIN=y
+
 INCLUDE_DIRS= -I../include
 
 COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE
@@ -85,6 +87,12 @@ LIBS     := -llock $(LIBS)
 CFLAGS   += -DLOCKLIB=1
 endif
 
+ifdef PLUGIN
+CFLAGS	+= -DPLUGIN
+LDFLAGS	+= -Wl,-E
+LIBS	+= -ldl
+endif
+
 ifdef HAVE_INET6
      PPPDSRCS += ipv6cp.c eui64.c
      HEADERS  += ipv6cp.h eui64.h
@@ -103,7 +111,7 @@ install: pppd
 	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)/man8
 
 pppd: $(PPPDOBJS)
-	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
 
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core

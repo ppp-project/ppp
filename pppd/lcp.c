@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.44 1999/08/13 06:46:14 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.45 1999/09/11 12:08:56 paulus Exp $";
 
 /*
  * TODO:
@@ -336,7 +336,7 @@ lcp_close(unit, reason)
     fsm *f = &lcp_fsm[unit];
 
     if (phase != PHASE_DEAD)
-	phase = PHASE_TERMINATE;
+	new_phase(PHASE_TERMINATE);
     if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
 	/*
 	 * This action is not strictly according to the FSM in RFC1548,

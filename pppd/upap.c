@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.20 1999/08/24 05:29:26 paulus Exp $"
+#define RCSID	"$Id: upap.c,v 1.21 1999/09/11 12:09:00 paulus Exp $"
 
 /*
  * TODO:
@@ -395,8 +395,11 @@ upap_rauthreq(u, inp, id, len)
      * Check the username and password given.
      */
     retcode = check_passwd(u->us_unit, ruser, ruserlen, rpasswd,
-			   rpasswdlen, &msg, &msglen);
+			   rpasswdlen, &msg);
     BZERO(rpasswd, rpasswdlen);
+    msglen = strlen(msg);
+    if (msglen > 255)
+	msglen = 255;
 
     upap_sresp(u, retcode, id, msg, msglen);
 

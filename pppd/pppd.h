@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.47 1999/09/08 01:13:45 masputra Exp $
+ * $Id: pppd.h,v 1.48 1999/09/11 12:08:59 paulus Exp $
  */
 
 /*
@@ -159,6 +159,7 @@ extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
+extern int	link_connect_time; /* time the link was up for */
 extern int	using_pty;	/* using pty as device (notty or pty opt.) */
 extern int	log_to_fd;	/* logging to this fd as well as syslog */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
@@ -200,11 +201,13 @@ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
+extern bool	holdoff_specified; /* true if user gave a holdoff value */
 extern bool	notty;		/* Stdin/out is not a tty */
 extern char	*record_file;	/* File to record chars sent/received */
 extern bool	sync_serial;	/* Device is synchronous serial device */
 extern int	maxfail;	/* Max # of unsuccessful connection attempts */
 extern char	linkname[MAXPATHLEN]; /* logical name for link */
+extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -231,8 +234,10 @@ extern char *option_source;	/* string saying where the option came from */
 #define PHASE_AUTHENTICATE	5
 #define PHASE_CALLBACK		6
 #define PHASE_NETWORK		7
-#define PHASE_TERMINATE		8
-#define PHASE_HOLDOFF		9
+#define PHASE_RUNNING		8
+#define PHASE_TERMINATE		9
+#define PHASE_DISCONNECT	10
+#define PHASE_HOLDOFF		11
 
 /*
  * The following struct gives the addresses of procedures to call
@@ -295,6 +300,7 @@ void reopen_log __P((void));	/* (re)open the connection to syslog */
 void update_link_stats __P((int)); /* Get stats at link termination */
 void script_setenv __P((char *, char *));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
+void new_phase __P((int));	/* signal start of new phase */
 
 /* Procedures exported from utils.c. */
 void log_packet __P((u_char *, int, char *, int));
@@ -332,7 +338,7 @@ void auth_withpeer_success __P((int, int));
 void auth_check_options __P((void));
 				/* check authentication options supplied */
 void auth_reset __P((int));	/* check what secrets we have */
-int  check_passwd __P((int, char *, int, char *, int, char **, int *));
+int  check_passwd __P((int, char *, int, char *, int, char **));
 				/* Check peer-supplied username/password */
 int  get_secret __P((int, char *, char *, char *, int *, int));
 				/* get "secret" for chap */
@@ -444,6 +450,7 @@ void option_error __P((char *fmt, ...));
 				/* Print an error message about an option */
 int int_option __P((char *, int *));
 				/* Simplified number_option for decimal ints */
+void add_options __P((option_t *)); /* Add extra options */
 
 /*
  * This structure is used to store information about certain
@@ -462,6 +469,18 @@ extern struct option_info connector_info;
 extern struct option_info disconnector_info;
 extern struct option_info welcomer_info;
 extern struct option_info ptycommand_info;
+
+/*
+ * Hooks to enable plugins to change various things.
+ */
+extern int (*new_phase_hook) __P((int));
+extern int (*idle_time_hook) __P((struct ppp_idle *));
+extern int (*holdoff_hook) __P((void));
+extern int (*pap_check_hook) __P((void));
+extern int (*pap_auth_hook) __P((char *user, char *passwd, char **msgp,
+				 struct wordlist **paddrs,
+				 struct wordlist **popts));
+extern int (*pap_passwd_hook) __P((char *user, char *passwd));
 
 /*
  * Inline versions of get/put char/short/long.

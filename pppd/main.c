@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.85 1999/08/24 05:59:15 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.86 1999/09/11 12:08:57 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -92,6 +92,8 @@ int prepass = 0;		/* doing prepass to find device name */
 int devnam_fixed;		/* set while in options.ttyxx file */
 volatile int status;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
+int (*holdoff_hook) __P((void)) = NULL;
+int (*new_phase_hook) __P((int)) = NULL;
 
 static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
@@ -215,7 +217,7 @@ main(argc, argv)
     int argc;
     char *argv[];
 {
-    int i, fdflags;
+    int i, fdflags, t;
     struct sigaction sa;
     char *p;
     struct passwd *pw;
@@ -225,7 +227,7 @@ main(argc, argv)
     struct stat statbuf;
     char numbuf[16];
 
-    phase = PHASE_INITIALIZE;
+    new_phase(PHASE_INITIALIZE);
 
     /*
      * Ensure that fds 0, 1, 2 are open, to /dev/null if nowhere else.
@@ -340,6 +342,9 @@ main(argc, argv)
 	option_error("connect script is required for demand-dialling\n");
 	exit(EXIT_OPTION_ERROR);
     }
+    /* default holdoff to 0 if no connect script has been given */
+    if (connector == 0 && !holdoff_specified)
+	holdoff = 0;
 
     if (using_pty) {
 	if (!default_device) {
@@ -521,7 +526,7 @@ main(argc, argv)
 	     * Don't do anything until we see some activity.
 	     */
 	    kill_link = 0;
-	    phase = PHASE_DORMANT;
+	    new_phase(PHASE_DORMANT);
 	    demand_unblock();
 	    add_fd(fd_loop);
 	    for (;;) {
@@ -558,7 +563,7 @@ main(argc, argv)
 	    info("Starting link");
 	}
 
-	phase = PHASE_SERIALCONN;
+	new_phase(PHASE_SERIALCONN);
 
 	/*
 	 * Get a pty master/slave pair if the pty, notty, or record
@@ -786,7 +791,8 @@ main(argc, argv)
 	open_ccp_flag = 0;
 	add_fd(fd_ppp);
 	status = EXIT_NEGOTIATION_FAILED;
-	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
+	new_phase(PHASE_ESTABLISH);
+	while (phase != PHASE_DEAD) {
 	    if (sigsetjmp(sigjmp, 1) == 0) {
 		sigprocmask(SIG_BLOCK, &mask, NULL);
 		if (kill_link || open_ccp_flag || got_sigchld) {
@@ -805,7 +811,7 @@ main(argc, argv)
 		kill_link = 0;
 	    }
 	    if (open_ccp_flag) {
-		if (phase == PHASE_NETWORK) {
+		if (phase == PHASE_NETWORK || phase == PHASE_RUNNING) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
 		    (*ccp_protent.open)(0);
 		}
@@ -857,6 +863,7 @@ main(argc, argv)
 	 */
     disconnect:
 	if (disconnector && !hungup) {
+	    new_phase(PHASE_DISCONNECT);
 	    if (real_ttyfd >= 0)
 		set_up_tty(real_ttyfd, 1);
 	    if (device_script(disconnector, ttyfd, ttyfd, 0) < 0) {
@@ -891,9 +898,12 @@ main(argc, argv)
 	kill_link = 0;
 	if (demand)
 	    demand_discard();
-	if (holdoff > 0 && need_holdoff) {
-	    phase = PHASE_HOLDOFF;
-	    TIMEOUT(holdoff_end, NULL, holdoff);
+	t = need_holdoff? holdoff: 0;
+	if (holdoff_hook)
+	    t = (*holdoff_hook)();
+	if (t > 0) {
+	    new_phase(PHASE_HOLDOFF);
+	    TIMEOUT(holdoff_end, NULL, t);
 	    do {
 		if (sigsetjmp(sigjmp, 1) == 0) {
 		    sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -909,7 +919,7 @@ main(argc, argv)
 		calltimeout();
 		if (kill_link) {
 		    kill_link = 0;
-		    phase = PHASE_DORMANT; /* allow signal to end holdoff */
+		    new_phase(PHASE_DORMANT); /* allow signal to end holdoff */
 		}
 		if (got_sigchld)
 		    reap_kids(0);
@@ -1036,7 +1046,7 @@ static void
 holdoff_end(arg)
     void *arg;
 {
-    phase = PHASE_DORMANT;
+    new_phase(PHASE_DORMANT);
 }
 
 /*
@@ -1117,6 +1127,17 @@ get_input()
     lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
 }
 
+/*
+ * new_phase - signal the start of a new phase of pppd's operation.
+ */
+void
+new_phase(p)
+    int p;
+{
+    phase = p;
+    if (new_phase_hook)
+	(*new_phase_hook)(p);
+}
 
 /*
  * die - clean up state and exit with the specified status.
@@ -1277,7 +1298,7 @@ untimeout(func, arg)
     for (copp = &callout; (freep = *copp); copp = &freep->c_next)
 	if (freep->c_func == func && freep->c_arg == arg) {
 	    *copp = freep->c_next;
-	    (void) free((char *) freep);
+	    free((char *) freep);
 	    break;
 	}
 }
@@ -1766,6 +1787,7 @@ script_setenv(var, value)
 	    }
 	}
     } else {
+	/* no space allocated for script env. ptrs. yet */
 	i = 0;
 	script_env = (char **) malloc(16 * sizeof(char *));
 	if (script_env == 0)

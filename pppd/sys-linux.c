@@ -145,6 +145,9 @@ static int	if_is_up;	/* Interface has been marked up */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static char proxy_arp_dev[16];		/* Device for proxy arp entry */
+static u_int32_t our_old_addr;		/* for detecting address changes */
+static int	dynaddr_set;		/* 1 if ip_dynaddr set */
+static int	looped;			/* 1 if using loop */
 
 static struct utsname utsname;	/* for the kernel version */
 static int kernel_version;
@@ -155,6 +158,8 @@ static int kernel_version;
 #define FLAGS_GOOD (IFF_UP          | IFF_BROADCAST)
 #define FLAGS_MASK (IFF_UP          | IFF_BROADCAST | \
 		    IFF_POINTOPOINT | IFF_LOOPBACK  | IFF_NOARP)
+
+#define SIN_ADDR(x)	(((struct sockaddr_in *) (&(x)))->sin_addr.s_addr)
 
 /* Prototypes for procedures local to this file. */
 static int get_flags (int fd);
@@ -372,7 +377,7 @@ int establish_ppp (int tty_fd)
 /*
  * Demand mode - prime the old ppp device to relinquish the unit.
  */
-    if (!new_style_driver && demand
+    if (!new_style_driver && looped
 	&& ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0)
 	fatal("ioctl(transfer ppp unit): %m(%d)", errno);
 /*
@@ -386,7 +391,7 @@ int establish_ppp (int tty_fd)
  * Find out which interface we were given.
  */
     if (new_style_driver) {
-	if (!demand) {
+	if (!looped) {
 	    /* allocate ourselves a ppp unit */
 	    ifunit = -1;
 	    if (ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit) < 0)
@@ -406,7 +411,7 @@ int establish_ppp (int tty_fd)
 		fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
 	}
 	/* Check that we got the same unit again. */
-	if (demand && x != ifunit)
+	if (looped && x != ifunit)
 	    fatal("transfer_ppp failed: wanted unit %d, got %d", ifunit, x);
 	ifunit = x;
     }
@@ -414,8 +419,9 @@ int establish_ppp (int tty_fd)
 /*
  * Enable debug in the driver if requested.
  */
-    if (!demand)
+    if (!looped)
 	set_kdebugflag (kdebugflag);
+    looped = 0;
 
     set_flags(tty_fd, get_flags(tty_fd) & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
 					    SC_RCV_EVNP | SC_RCV_ODDP));
@@ -470,8 +476,25 @@ void disestablish_ppp(int tty_fd)
 	}
     }
     initfdflags = -1;
-    if (new_style_driver)
+    if (new_style_driver && !looped) {
+	if (ioctl(ppp_dev_fd, PPPIOCDETACH) < 0) {
+	    if (errno == ENOTTY) {
+		/* first version of new driver didn't have PPPIOCDETACH */
+		int flags;
+
+		close(ppp_dev_fd);
+		ppp_dev_fd = open("/dev/ppp", O_RDWR);
+		if (ppp_dev_fd < 0)
+		    fatal("Couldn't reopen /dev/ppp: %m");
+		flags = fcntl(ppp_dev_fd, F_GETFL);
+		if (flags == -1
+		    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
+		    warn("Couldn't set /dev/ppp to nonblock: %m");
+	    } else
+		error("Couldn't release PPP unit: %m");
+	}
 	set_ppp_fd(-1);
+    }
 }
 
 /********************************************************************
@@ -1207,14 +1230,9 @@ static int read_route_table(struct rtentry *rt)
 	p = NULL;
     }
 
-    ((struct sockaddr_in *) &rt->rt_dst)->sin_addr.s_addr =
-	strtoul(cols[route_dest_col], NULL, 16);
-
-    ((struct sockaddr_in *) &rt->rt_gateway)->sin_addr.s_addr =
-	strtoul(cols[route_gw_col], NULL, 16);
-
-    ((struct sockaddr_in *) &rt->rt_genmask)->sin_addr.s_addr =
-	strtoul(cols[route_mask_col], NULL, 16);
+    SIN_ADDR(rt->rt_dst) = strtoul(cols[route_dest_col], NULL, 16);
+    SIN_ADDR(rt->rt_gateway) = strtoul(cols[route_gw_col], NULL, 16);
+    SIN_ADDR(rt->rt_genmask) = strtoul(cols[route_mask_col], NULL, 16);
 
     rt->rt_flags = (short) strtoul(cols[route_flags_col], NULL, 16);
     rt->rt_dev   = cols[route_dev_col];
@@ -1238,7 +1256,9 @@ static int defaultroute_exists (struct rtentry *rt)
         if ((rt->rt_flags & RTF_UP) == 0)
 	    continue;
 
-        if (((struct sockaddr_in *) (&rt->rt_dst))->sin_addr.s_addr == 0L) {
+	if (kernel_version > KVERSION(2,1,0) && SIN_ADDR(rt->rt_genmask) != 0)
+	    continue;
+        if (SIN_ADDR(rt->rt_dst) == 0L) {
 	    result = 1;
 	    break;
 	}
@@ -1266,8 +1286,7 @@ int have_route_to(u_int32_t addr)
     while (read_route_table(&rt)) {
 	if ((rt.rt_flags & RTF_UP) == 0 || strcmp(rt.rt_dev, ifname) == 0)
 	    continue;
-	if ((addr & ((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr)
-	    == ((struct sockaddr_in *)&rt.rt_dst)->sin_addr.s_addr) {
+	if ((addr & SIN_ADDR(rt.rt_genmask)) == SIN_ADDR(rt.rt_dst)) {
 	    result = 1;
 	    break;
 	}
@@ -1287,10 +1306,9 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     struct rtentry rt;
 
     if (defaultroute_exists(&rt) && strcmp(rt.rt_dev, ifname) != 0) {
-	struct in_addr old_gateway =
-	  ((struct sockaddr_in *) (&rt.rt_gateway))-> sin_addr;
+	u_int32_t old_gateway = SIN_ADDR(rt.rt_gateway);
 
-	if (old_gateway.s_addr != gateway)
+	if (old_gateway != gateway)
 	    error("not replacing existing default route to %s [%I]",
 		  rt.rt_dev, old_gateway);
 	return 0;
@@ -1302,10 +1320,10 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 
     if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+	SIN_ADDR(rt.rt_genmask) = 0L;
     }
 
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
+    SIN_ADDR(rt.rt_gateway) = gateway;
     
     rt.rt_flags = RTF_UP | RTF_GATEWAY;
     if (ioctl(sock_fd, SIOCADDRT, &rt) < 0) {
@@ -1335,10 +1353,10 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 
     if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
+	SIN_ADDR(rt.rt_genmask) = 0L;
     }
 
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
+    SIN_ADDR(rt.rt_gateway) = gateway;
     
     rt.rt_flags = RTF_UP | RTF_GATEWAY;
     if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH) {
@@ -1366,7 +1384,7 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 	memset (&arpreq, '\0', sizeof(arpreq));
     
 	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
-	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
+	SIN_ADDR(arpreq.arp_pa) = his_adr;
 	arpreq.arp_flags = ATF_PERM | ATF_PUBL;
 /*
  * Get the hardware address of an interface on the same subnet
@@ -1387,12 +1405,15 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 	proxy_arp_addr = his_adr;
 	has_proxy_arp = 1;
 
-	forw_path = path_to_procfs("/sys/net/ipv4/ip_forward");
-	if (forw_path != 0) {
-	    int fd = open(forw_path, O_WRONLY);
-	    if (fd >= 0) {
-		write(fd, "1", 1);
-		close(fd);
+	if (tune_kernel) {
+	    forw_path = path_to_procfs("/sys/net/ipv4/ip_forward");
+	    if (forw_path != 0) {
+		int fd = open(forw_path, O_WRONLY);
+		if (fd >= 0) {
+		    if (write(fd, "1", 1) != 1)
+			error("Couldn't enable IP forwarding: %m");
+		    close(fd);
+		}
 	    }
 	}
     }
@@ -1413,7 +1434,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
 	has_proxy_arp = 0;
 	memset (&arpreq, '\0', sizeof(arpreq));
 	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
-	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
+	SIN_ADDR(arpreq.arp_pa) = his_adr;
 	arpreq.arp_flags = ATF_PERM | ATF_PUBL;
 	strlcpy(arpreq.arp_dev, proxy_arp_dev, sizeof(arpreq.arp_dev));
 
@@ -1460,7 +1481,7 @@ static int get_ether_addr (u_int32_t ipaddr,
     ifend = ifs + (ifc.ifc_len / sizeof(struct ifreq));
     for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
-	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	    ina = SIN_ADDR(ifr->ifr_addr);
 	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
             SYSDEBUG ((LOG_DEBUG, "proxy arp: examining interface %s",
 			ifreq.ifr_name));
@@ -1479,7 +1500,7 @@ static int get_ether_addr (u_int32_t ipaddr,
 	    if (ioctl(sock_fd, SIOCGIFNETMASK, &ifreq) < 0)
 	        continue;
 
-	    mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
+	    mask = SIN_ADDR(ifreq.ifr_addr);
 	    SYSDEBUG ((LOG_DEBUG, "proxy arp: interface addr %s mask %lx",
 			ip_ntoa(ina), ntohl(mask)));
 
@@ -1572,7 +1593,7 @@ u_int32_t GetMask (u_int32_t addr)
  */
 	if (ifr->ifr_addr.sa_family != AF_INET)
 	    continue;
-	ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	ina = SIN_ADDR(ifr->ifr_addr);
 	if (((ntohl(ina) ^ addr) & nmask) != 0)
 	    continue;
 /*
@@ -1589,7 +1610,7 @@ u_int32_t GetMask (u_int32_t addr)
  */
 	if (ioctl(sock_fd, SIOCGIFNETMASK, &ifreq) < 0)
 	    continue;
-	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
+	mask |= SIN_ADDR(ifreq.ifr_addr);
 	break;
     }
     return mask;
@@ -1973,7 +1994,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Set our IP address
  */
-    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = our_adr;
+    SIN_ADDR(ifr.ifr_addr) = our_adr;
     if (ioctl(sock_fd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	if (errno != EEXIST) {
 	    if (! ok_error (errno))
@@ -1987,7 +2008,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Set the gateway address
  */
-    ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = his_adr;
+    SIN_ADDR(ifr.ifr_dstaddr) = his_adr;
     if (ioctl(sock_fd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
 	    error("ioctl(SIOCSIFDSTADDR): %m(%d)", errno); 
@@ -2000,7 +2021,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     if (kernel_version >= KVERSION(2,1,16))
 	net_mask = ~0L;
     if (net_mask != 0) {
-	((struct sockaddr_in *) &ifr.ifr_netmask)->sin_addr.s_addr = net_mask;
+	SIN_ADDR(ifr.ifr_netmask) = net_mask;
 	if (ioctl(sock_fd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
 		error("ioctl(SIOCSIFNETMASK): %m(%d)", errno); 
@@ -2015,13 +2036,13 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 	SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 	rt.rt_dev = ifname;
 
-	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0L;
-	((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
+	SIN_ADDR(rt.rt_gateway) = 0L;
+	SIN_ADDR(rt.rt_dst)     = his_adr;
 	rt.rt_flags = RTF_UP | RTF_HOST;
 
 	if (kernel_version > KVERSION(2,1,0)) {
 	    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-	    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
+	    SIN_ADDR(rt.rt_genmask) = -1L;
 	}
 
 	if (ioctl(sock_fd, SIOCADDRT, &rt) < 0) {
@@ -2030,6 +2051,24 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 	    return (0);
 	}
     }
+
+    /* set ip_dynaddr in demand mode if address changes */
+    if (demand && tune_kernel && !dynaddr_set
+	&& our_old_addr && our_old_addr != our_adr) {
+	/* set ip_dynaddr if possible */
+	char *path;
+	int fd;
+
+	path = path_to_procfs("/sys/net/ipv4/ip_dynaddr");
+	if (path != 0 && (fd = open(path, O_WRONLY)) >= 0) {
+	    if (write(fd, "1", 1) != 1)
+		error("Couldn't enable dynamic IP addressing: %m");
+	    close(fd);
+	}
+	dynaddr_set = 1;	/* only 1 attempt */
+    }
+    our_old_addr = 0;
+
     return 1;
 }
 
@@ -2054,13 +2093,13 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 	SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 	rt.rt_dev = ifname;
 
-	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = 0;
-	((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
+	SIN_ADDR(rt.rt_gateway) = 0;
+	SIN_ADDR(rt.rt_dst)     = his_adr;
 	rt.rt_flags = RTF_UP | RTF_HOST;
 
 	if (kernel_version > KVERSION(2,1,0)) {
 	    SET_SA_FAMILY (rt.rt_genmask, AF_INET);
-	    ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
+	    SIN_ADDR(rt.rt_genmask) = -1L;
 	}
 
 	if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH) {
@@ -2081,6 +2120,8 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 	    return 0;
 	}
     }
+
+    our_old_addr = our_adr;
 
     return 1;
 }
@@ -2251,6 +2292,7 @@ open_ppp_loopback(void)
 {
     int flags;
 
+    looped = 1;
     if (new_style_driver) {
 	/* allocate ourselves a ppp unit */
 	ifunit = -1;
@@ -2309,6 +2351,7 @@ open_ppp_loopback(void)
 void
 restore_loop(void)
 {
+    looped = 1;
     if (new_style_driver) {
 	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
 	return;
@@ -2335,11 +2378,9 @@ sifnpmode(u, proto, mode)
     npi.protocol = proto;
     npi.mode     = mode;
     if (ioctl(ppp_dev_fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
-	if (! ok_error (errno)) {
+	if (! ok_error (errno))
 	    error("ioctl(PPPIOCSNPMODE, %d, %d): %m (%d)",
 		   proto, mode, errno);
-	    error("ppp_dev_fd=%d slave_fd=%d\n", ppp_dev_fd, slave_fd);
-	}
 	return 0;
     }
     return 1;
@@ -2466,7 +2507,6 @@ sys_check_options(void)
  * Disable the IPX protocol if the support is not present in the kernel.
  */
     char *path;
-    int fd;
 
     if (ipxcp_protent.enabled_flag) {
 	struct stat stat_buf;
@@ -2482,14 +2522,6 @@ sys_check_options(void)
 		     "version %d.%d.%d", driver_version, driver_modification,
 		     driver_patch);
 	return 0;
-    }
-    if (demand) {
-	/* set ip_dynaddr if possible */
-	path = path_to_procfs("/sys/net/ipv4/ip_dynaddr");
-	if (path != 0 && (fd = open(path, O_WRONLY)) >= 0) {
-	    write(fd, "1", 1);
-	    close(fd);
-	}
     }
     return 1;
 }

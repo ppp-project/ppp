@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.65 1999/09/08 01:13:45 masputra Exp $"
+#define RCSID	"$Id: options.c,v 1.66 1999/09/11 12:08:58 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -34,6 +34,9 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#ifdef PLUGIN
+#include <dlfcn.h>
+#endif
 #ifdef PPP_FILTER
 #include <pcap.h>
 #include <pcap-int.h>	/* XXX: To get struct pcap */
@@ -88,6 +91,7 @@ bool	demand = 0;		/* do dial-on-demand */
 char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
+bool	holdoff_specified;	/* true if a holdoff value has been given */
 bool	notty = 0;		/* Stdin/out is not a tty */
 char	*record_file = NULL;	/* File to record chars sent/received */
 int	using_pty = 0;
@@ -95,6 +99,7 @@ bool	sync_serial = 0;	/* Device is synchronous serial device */
 int	log_to_fd = 1;		/* send log messages to this fd too */
 int	maxfail = 10;		/* max # of unsuccessful connection attempts */
 char	linkname[MAXPATHLEN];	/* logical name for link */
+bool	tune_kernel;		/* may alter kernel settings */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -134,17 +139,29 @@ static int showversion __P((char **));
 static int showhelp __P((char **));
 static void usage __P((void));
 static int setlogfile __P((char **));
+#ifdef PLUGIN
+static int loadplugin __P((char **));
+#endif
 
 #ifdef PPP_FILTER
 static int setpassfilter __P((char **));
 static int setactivefilter __P((char **));
 #endif
 
-
 static option_t *find_option __P((char *name));
 static int process_option __P((option_t *, char **));
 static int n_arguments __P((option_t *));
 static int number_option __P((char *, u_int32_t *, int));
+
+/*
+ * Structure to store extra lists of options.
+ */
+struct option_list {
+    option_t *options;
+    struct option_list *next;
+};
+
+static struct option_list *extra_options = NULL;
 
 /*
  * Valid arguments.
@@ -246,6 +263,14 @@ option_t general_options[] = {
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
     { "maxfail", o_int, &maxfail,
       "Maximum number of unsuccessful connection attempts to allow" },
+    { "ktune", o_bool, &tune_kernel,
+      "Alter kernel settings as necessary", 1 },
+    { "noktune", o_bool, &tune_kernel,
+      "Don't alter kernel settings", 0 },
+#ifdef PLUGIN
+    { "plugin", o_special, loadplugin,
+      "Load a plug-in module into pppd", OPT_PRIV },
+#endif
 
 #ifdef PPP_FILTER
     { "pdebug", o_int, &dflag,
@@ -324,7 +349,8 @@ parse_args(argc, argv)
 	 */
 	if ((ret = setdevname(arg)) == 0
 	    && (ret = setspeed(arg)) == 0
-	    && (ret = setipaddr(arg)) == 0) {
+	    && (ret = setipaddr(arg)) == 0
+	    && !prepass) {
 	    option_error("unrecognized option '%s'", arg);
 	    usage();
 	    return 0;
@@ -585,8 +611,13 @@ find_option(name)
     char *name;
 {
     option_t *opt;
+    struct option_list *list;
     int i;
 
+    for (list = extra_options; list != NULL; list = list->next)
+	for (opt = list->options; opt->name != NULL; ++opt)
+	    if (strcmp(name, opt->name) == 0)
+		return opt;
     for (opt = general_options; opt->name != NULL; ++opt)
 	if (strcmp(name, opt->name) == 0)
 	    return opt;
@@ -741,6 +772,23 @@ n_arguments(opt)
 {
     return (opt->type == o_bool || opt->type == o_special_noarg
 	    || (opt->flags & OPT_NOARG))? 0: 1;
+}
+
+/*
+ * add_options - add a list of options to the set we grok.
+ */
+void
+add_options(opt)
+    option_t *opt;
+{
+    struct option_list *list;
+
+    list = malloc(sizeof(*list));
+    if (list == 0)
+	novm("option list entry");
+    list->options = opt;
+    list->next = extra_options;
+    extra_options = list;
 }
 
 /*
@@ -1274,6 +1322,8 @@ setspeed(arg)
     char *ptr;
     int spd;
 
+    if (prepass)
+	return 1;
     spd = strtol(arg, &ptr, 0);
     if (ptr == arg || *ptr != 0 || spd == 0)
 	return 0;
@@ -1488,3 +1538,33 @@ setlogfile(argv)
     log_to_file = 1;
     return 1;
 }
+
+#ifdef PLUGIN
+static int
+loadplugin(argv)
+    char **argv;
+{
+    char *arg = *argv;
+    void *handle;
+    const char *err;
+    void (*init) __P((void));
+
+    handle = dlopen(arg, RTLD_GLOBAL | RTLD_NOW);
+    if (handle == 0) {
+	err = dlerror();
+	if (err != 0)
+	    option_error("%s", err);
+	option_error("Couldn't load plugin %s", arg);
+	return 0;
+    }
+    init = dlsym(handle, "plugin_init");
+    if (init == 0) {
+	option_error("%s has no initialization entry point", arg);
+	dlclose(handle);
+	return 0;
+    }
+    info("Plugin %s loaded.", arg);
+    (*init)();
+    return 1;
+}
+#endif /* PLUGIN */
