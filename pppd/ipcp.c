@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.38 1999/03/12 06:07:17 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.39 1999/03/16 03:12:03 paulus Exp $";
 #endif
 
 /*
@@ -27,7 +27,6 @@ static char rcsid[] = "$Id: ipcp.c,v 1.38 1999/03/12 06:07:17 paulus Exp $";
 
 #include <stdio.h>
 #include <string.h>
-#include <syslog.h>
 #include <netdb.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -149,7 +148,7 @@ static option_t ipcp_option_list[] = {
       "disable proxyarp option", OPT_A2COPY,
       &ipcp_wantoptions[0].proxy_arp },
     { "usepeerdns", o_bool, &usepeerdns,
-      "Ask peer for DNS address(es)" },
+      "Ask peer for DNS address(es)", 1 },
     { NULL }
 };
 
@@ -225,13 +224,7 @@ u_int32_t ipaddr;
 {
     static char b[64];
 
-    ipaddr = ntohl(ipaddr);
-
-    sprintf(b, "%d.%d.%d.%d",
-	    (u_char)(ipaddr >> 24),
-	    (u_char)(ipaddr >> 16),
-	    (u_char)(ipaddr >> 8),
-	    (u_char)(ipaddr));
+    slprintf(b, sizeof(b), "%I", ipaddr);
     return b;
 }
 
@@ -347,9 +340,6 @@ ipcp_init(unit)
     wo->maxslotindex = MAX_STATES - 1; /* really max index */
     wo->cflag = 1;
 
-    wo->req_dns1 = usepeerdns;	/* Request DNS addresses from the peer */
-    wo->req_dns2 = usepeerdns;
-
 
     /* max slots and slot-id compression are currently hardwired in */
     /* ppp_if.c to 16 and 1, this needs to be changed (among other */
@@ -455,6 +445,8 @@ ipcp_resetci(f)
 	wo->accept_local = 1;
     if (wo->hisaddr == 0)
 	wo->accept_remote = 1;
+    wo->req_dns1 = usepeerdns;	/* Request DNS addresses from the peer */
+    wo->req_dns2 = usepeerdns;
     ipcp_gotoptions[f->unit] = *wo;
     cis_received[f->unit] = 0;
 }
@@ -667,7 +659,7 @@ ipcp_ackci(f, p, len)
     return (1);
 
 bad:
-    IPCPDEBUG((LOG_INFO, "ipcp_ackci: received bad Ack!"));
+    IPCPDEBUG(("ipcp_ackci: received bad Ack!"));
     return (0);
 }
 
@@ -757,13 +749,9 @@ ipcp_nakci(f, p, len)
     NAKCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), neg_addr, go->old_addrs,
 	      if (go->accept_local && ciaddr1) { /* Do we know our address? */
 		  try.ouraddr = ciaddr1;
-		  IPCPDEBUG((LOG_INFO, "local IP address %s",
-			     ip_ntoa(ciaddr1)));
 	      }
 	      if (go->accept_remote && ciaddr2) { /* Does he know his? */
 		  try.hisaddr = ciaddr2;
-		  IPCPDEBUG((LOG_INFO, "remote IP address %s",
-			     ip_ntoa(ciaddr2)));
 	      }
 	      );
 
@@ -798,13 +786,11 @@ ipcp_nakci(f, p, len)
 
     NAKCIDNS(CI_MS_DNS1, req_dns1,
 	    try.dnsaddr[0] = cidnsaddr;
-	    IPCPDEBUG((LOG_INFO, "Received DNS address %s", ip_ntoa(cidnsaddr)));
 	    try.req_dns1 = 0;
 	    );
 
     NAKCIDNS(CI_MS_DNS2, req_dns2,
 	    try.dnsaddr[1] = cidnsaddr;
-	    IPCPDEBUG((LOG_INFO, "Received DNS address %s", ip_ntoa(cidnsaddr)));
 	    try.req_dns2 = 0;
 	    );
 
@@ -873,7 +859,7 @@ ipcp_nakci(f, p, len)
     return 1;
 
 bad:
-    IPCPDEBUG((LOG_INFO, "ipcp_nakci: received bad Nak!"));
+    IPCPDEBUG(("ipcp_nakci: received bad Nak!"));
     return 0;
 }
 
@@ -985,7 +971,7 @@ ipcp_rejci(f, p, len)
     return 1;
 
 bad:
-    IPCPDEBUG((LOG_INFO, "ipcp_rejci: received bad Reject!"));
+    IPCPDEBUG(("ipcp_rejci: received bad Reject!"));
     return 0;
 }
 
@@ -1038,7 +1024,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	if (l < 2 ||			/* Not enough data for CI header or */
 	    p[1] < 2 ||			/*  CI length too small or */
 	    p[1] > l) {			/*  CI length too big? */
-	    IPCPDEBUG((LOG_INFO, "ipcp_reqci: bad CI length!"));
+	    IPCPDEBUG(("ipcp_reqci: bad CI length!"));
 	    orc = CONFREJ;		/* Reject bad CI */
 	    cilen = l;			/* Reject till end of packet */
 	    l = 0;			/* Don't loop again */
@@ -1051,7 +1037,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 
 	switch (citype) {		/* Check CI type */
 	case CI_ADDRS:
-	    IPCPDEBUG((LOG_INFO, "ipcp: received ADDRS "));
 	    if (!ao->neg_addr ||
 		cilen != CILEN_ADDRS) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1066,7 +1051,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	     */
 	    GETLONG(tl, p);		/* Parse source address (his) */
 	    ciaddr1 = htonl(tl);
-	    IPCPDEBUG((LOG_INFO, "(%s:", ip_ntoa(ciaddr1)));
 	    if (ciaddr1 != wo->hisaddr
 		&& (ciaddr1 == 0 || !wo->accept_remote)) {
 		orc = CONFNAK;
@@ -1090,7 +1074,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	     */
 	    GETLONG(tl, p);		/* Parse desination address (ours) */
 	    ciaddr2 = htonl(tl);
-	    IPCPDEBUG((LOG_INFO, "%s)", ip_ntoa(ciaddr2)));
 	    if (ciaddr2 != wo->ouraddr) {
 		if (ciaddr2 == 0 || !wo->accept_local) {
 		    orc = CONFNAK;
@@ -1111,8 +1094,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	    break;
 
 	case CI_ADDR:
-	    IPCPDEBUG((LOG_INFO, "ipcp: received ADDR "));
-
 	    if (!ao->neg_addr ||
 		cilen != CILEN_ADDR) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1127,7 +1108,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	     */
 	    GETLONG(tl, p);	/* Parse source address (his) */
 	    ciaddr1 = htonl(tl);
-	    IPCPDEBUG((LOG_INFO, "(%s)", ip_ntoa(ciaddr1)));
 	    if (ciaddr1 != wo->hisaddr
 		&& (ciaddr1 == 0 || !wo->accept_remote)) {
 		orc = CONFNAK;
@@ -1153,7 +1133,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	case CI_MS_DNS2:
 	    /* Microsoft primary or secondary DNS request */
 	    d = citype == CI_MS_DNS2;
-	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS%d Request ", d+1));
 
 	    /* If we do not have a DNS address then we cannot send it */
 	    if (ao->dnsaddr[d] == 0 ||
@@ -1174,7 +1153,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	case CI_MS_WINS2:
 	    /* Microsoft primary or secondary WINS request */
 	    d = citype == CI_MS_WINS2;
-	    IPCPDEBUG((LOG_INFO, "ipcp: received WINS%d Request ", d+1));
 
 	    /* If we do not have a DNS address then we cannot send it */
 	    if (ao->winsaddr[d] == 0 ||
@@ -1192,14 +1170,12 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
             break;
 	
 	case CI_COMPRESSTYPE:
-	    IPCPDEBUG((LOG_INFO, "ipcp: received COMPRESSTYPE "));
 	    if (!ao->neg_vj ||
 		(cilen != CILEN_VJ && cilen != CILEN_COMPRESS)) {
 		orc = CONFREJ;
 		break;
 	    }
 	    GETSHORT(cishort, p);
-	    IPCPDEBUG((LOG_INFO, "(%d)", cishort));
 
 	    if (!(cishort == IPCP_VJ_COMP ||
 		  (cishort == IPCP_VJ_COMP_OLD && cilen == CILEN_COMPRESS))) {
@@ -1239,10 +1215,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	    orc = CONFREJ;
 	    break;
 	}
-
 endswitch:
-	IPCPDEBUG((LOG_INFO, " (%s)\n", CODENAME(orc)));
-
 	if (orc == CONFACK &&		/* Good CI */
 	    rc != CONFACK)		/*  but prior CI wasnt? */
 	    continue;			/* Don't send this one */
@@ -1295,7 +1268,7 @@ endswitch:
     }
 
     *len = ucp - inp;			/* Compute output length */
-    IPCPDEBUG((LOG_INFO, "ipcp: returning Configure-%s", CODENAME(rc)));
+    IPCPDEBUG(("ipcp: returning Configure-%s", CODENAME(rc)));
     return (rc);			/* Return final code */
 }
 
@@ -1365,8 +1338,8 @@ ip_demand_conf(u)
 	if (sifproxyarp(u, wo->hisaddr))
 	    proxy_arp_set[u] = 1;
 
-    syslog(LOG_NOTICE, "local  IP address %s", ip_ntoa(wo->ouraddr));
-    syslog(LOG_NOTICE, "remote IP address %s", ip_ntoa(wo->hisaddr));
+    notice("local  IP address %I", wo->ouraddr);
+    notice("remote IP address %I", wo->hisaddr);
 
     return 1;
 }
@@ -1386,8 +1359,7 @@ ipcp_up(f)
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     ipcp_options *wo = &ipcp_wantoptions[f->unit];
 
-    np_up(f->unit, PPP_IP);
-    IPCPDEBUG((LOG_INFO, "ipcp: up"));
+    IPCPDEBUG(("ipcp: up"));
 
     /*
      * We must have a non-zero IP address for both ends of the link.
@@ -1396,12 +1368,12 @@ ipcp_up(f)
 	ho->hisaddr = wo->hisaddr;
 
     if (ho->hisaddr == 0) {
-	syslog(LOG_ERR, "Could not determine remote IP address");
+	error("Could not determine remote IP address");
 	ipcp_close(f->unit, "Could not determine remote IP address");
 	return;
     }
     if (go->ouraddr == 0) {
-	syslog(LOG_ERR, "Could not determine local IP address");
+	error("Could not determine local IP address");
 	ipcp_close(f->unit, "Could not determine local IP address");
 	return;
     }
@@ -1421,8 +1393,7 @@ ipcp_up(f)
      * Check that the peer is allowed to use the IP address it wants.
      */
     if (!auth_ip_addr(f->unit, ho->hisaddr)) {
-	syslog(LOG_ERR, "Peer is not authorized to use remote address %s",
-	       ip_ntoa(ho->hisaddr));
+	error("Peer is not authorized to use remote address %I", ho->hisaddr);
 	ipcp_close(f->unit, "Unauthorized remote IP address");
 	return;
     }
@@ -1438,15 +1409,13 @@ ipcp_up(f)
     if (demand) {
 	if (go->ouraddr != wo->ouraddr || ho->hisaddr != wo->hisaddr) {
 	    if (go->ouraddr != wo->ouraddr) {
-		syslog(LOG_WARNING, "Local IP address changed to %s",
-		       ip_ntoa(go->ouraddr));
+		warn("Local IP address changed to %I", go->ouraddr);
 		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr));
 		wo->ouraddr = go->ouraddr;
 	    } else
 		script_unsetenv("OLDIPLOCAL");
 	    if (ho->hisaddr != wo->hisaddr) {
-		syslog(LOG_WARNING, "Remote IP address changed to %s",
-		       ip_ntoa(ho->hisaddr));
+		warn("Remote IP address changed to %I", ho->hisaddr);
 		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr));
 		wo->hisaddr = ho->hisaddr;
 	    } else
@@ -1456,7 +1425,8 @@ ipcp_up(f)
 	    /* Set the interface to the new addresses */
 	    mask = GetMask(go->ouraddr);
 	    if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
-		IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
+		if (debug)
+		    warn("Interface configuration failed");
 		ipcp_close(f->unit, "Interface configuration failed");
 		return;
 	    }
@@ -1483,7 +1453,8 @@ ipcp_up(f)
 
 #if !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
 	if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
-	    IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
+	    if (debug)
+		warn("Interface configuration failed");
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
@@ -1491,14 +1462,16 @@ ipcp_up(f)
 
 	/* bring the interface up for IP */
 	if (!sifup(f->unit)) {
-	    IPCPDEBUG((LOG_WARNING, "sifup failed"));
+	    if (debug)
+		warn("Interface failed to come up");
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
 
 #if (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
 	if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
-	    IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
+	    if (debug)
+		warn("Interface configuration failed");
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
@@ -1515,11 +1488,15 @@ ipcp_up(f)
 	    if (sifproxyarp(f->unit, ho->hisaddr))
 		proxy_arp_set[f->unit] = 1;
 
-	syslog(LOG_NOTICE, "local  IP address %s", ip_ntoa(go->ouraddr));
-	syslog(LOG_NOTICE, "remote IP address %s", ip_ntoa(ho->hisaddr));
-	syslog(LOG_NOTICE, "primary   DNS address %s", ip_ntoa(go->dnsaddr[0]));
-	syslog(LOG_NOTICE, "secondary DNS address %s", ip_ntoa(go->dnsaddr[1]));
+	notice("local  IP address %I", go->ouraddr);
+	notice("remote IP address %I", ho->hisaddr);
+	if (go->dnsaddr[0])
+	    notice("primary   DNS address %I", go->dnsaddr[0]);
+	if (go->dnsaddr[1])
+	    notice("secondary DNS address %I", go->dnsaddr[1]);
     }
+
+    np_up(f->unit, PPP_IP);
 
     /*
      * Execute the ip-up script, like this:
@@ -1542,7 +1519,7 @@ static void
 ipcp_down(f)
     fsm *f;
 {
-    IPCPDEBUG((LOG_INFO, "ipcp: down"));
+    IPCPDEBUG(("ipcp: down"));
     np_down(f->unit, PPP_IP);
     sifvjcomp(f->unit, 0, 0, 0);
 
@@ -1663,7 +1640,7 @@ create_resolv(peerdns1, peerdns2)
 
     f = fopen(_PATH_RESOLV, "w");
     if (f == NULL) {
-	syslog(LOG_ERR, "Failed to create %s: %m", _PATH_RESOLV);
+	error("Failed to create %s: %m", _PATH_RESOLV);
 	return;
     }
 
@@ -1674,7 +1651,7 @@ create_resolv(peerdns1, peerdns2)
 	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns2));
 
     if (ferror(f))
-	syslog(LOG_ERR, "Write failed to %s: %m", _PATH_RESOLV);
+	error("Write failed to %s: %m", _PATH_RESOLV);
 
     fclose(f);
 }
