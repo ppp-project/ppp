@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 990806==
+ *  ==FILEVERSION 990813==
  *
  *  NOTE TO MAINTAINERS:
  *   If you modify this file at all, please set the above date.
@@ -135,4 +135,4 @@ struct ppp {
 };
 
 #define PPP_MAGIC	0x5002
-#define PPP_VERSION	"2.3.7"
+#define PPP_VERSION	"2.3.9"
