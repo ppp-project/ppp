@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.41 2001/03/08 05:00:35 paulus Exp $
+# $Id: Makefile.linux,v 1.42 2001/05/23 03:39:50 paulus Exp $
 #
 
 # Default installation locations
@@ -20,7 +20,7 @@ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 all: pppd
 
 #
-# include dependancies if present and backup if as a header file
+# include dependencies if present
 ifeq (.depend,$(wildcard .depend))
 include .depend
 endif
