@@ -1,8 +1,10 @@
 #
 # ppp top level makefile for Solaris 2
 #
+# $Id: Makefile.top,v 1.2 1995/06/01 02:23:09 paulus Exp $
+#
 
-BINDIR = /usr/local/etc
+BINDIR = /usr/local/bin
 MANDIR = /usr/local/man
 ETCDIR = /etc/ppp
 
@@ -11,16 +13,16 @@ INSTALL= /usr/sbin/install
 all:
 	cd chat; $(MAKE) all
 	cd pppd; $(MAKE) all
-#	cd pppstats; $(MAKE) all
-	cd sol2; $(MAKE) all
+	cd pppstats; $(MAKE) all
+	cd svr4; $(MAKE) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
 
 install-progs:
 	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
 	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
-#	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
-	cd sol2; $(MAKE) BINDIR=$(BINDIR) install
+	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd svr4; $(MAKE) BINDIR=$(BINDIR) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets
@@ -47,5 +49,5 @@ clean:
 	cd chat; $(MAKE) clean
 	cd pppd; $(MAKE) clean
 	cd pppstats; $(MAKE) clean
-	cd sol2; $(MAKE) clean
+	cd svr4; $(MAKE) clean
 
