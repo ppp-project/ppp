@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.7 1995/10/27 03:52:56 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.8 1995/12/11 05:18:39 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -1143,10 +1143,12 @@ get_hw_addr(name, hwaddr)
 
     adrlen = reply.prim.info_ack.dl_addr_length;
     adrp = (unsigned char *)&reply + reply.prim.info_ack.dl_addr_offset;
+#if DL_CURRENT_VERSION >= 2
     if (reply.prim.info_ack.dl_sap_length < 0)
 	adrlen += reply.prim.info_ack.dl_sap_length;
     else
 	adrp += reply.prim.info_ack.dl_sap_length;
+#endif
     hwaddr->sa_family = AF_UNSPEC;
     memcpy(hwaddr->sa_data, adrp, adrlen);
 
