@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.43 1999/08/12 04:22:53 paulus Exp $
+ * $Id: pppd.h,v 1.44 1999/08/13 01:57:37 paulus Exp $
  */
 
 /*
@@ -200,6 +200,7 @@ extern bool	notty;		/* Stdin/out is not a tty */
 extern char	*record_file;	/* File to record chars sent/received */
 extern bool	sync_serial;	/* Device is synchronous serial device */
 extern int	maxfail;	/* Max # of unsuccessful connection attempts */
+extern char	linkname[MAXPATHLEN]; /* logical name for link */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */

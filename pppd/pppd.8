@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.43 1999/08/12 04:22:53 paulus Exp $
+.\" $Id: pppd.8,v 1.44 1999/08/13 01:57:36 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -425,6 +425,13 @@ Set the maximum number of LCP terminate-request transmissions to
 .B lcp-restart \fIn
 Set the LCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
+.TP
+.B linkname \fIname\fR
+Sets the logical name of the link to \fIname\fR.  Pppd will create a
+file named \fBppp-\fIname\fB.pid\fR in /var/run (or /etc/ppp on some
+systems) containing its process ID.  This can be useful in determining
+which instance of pppd is responsible for the link to a given peer
+system.  This is a privileged option.
 .TP
 .B local
 Don't use the modem control lines.  With this option, pppd will ignore
@@ -1214,6 +1221,9 @@ connection.
 .B BYTES_RCVD
 The number of bytes received (at the level of the serial port) during
 the connection.
+.TP
+.B LINKNAME
+The logical name of the link, set with the \fIlinkname\fR option.
 .P
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
@@ -1277,6 +1287,10 @@ script.
 .TP
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.
+.TP
+.B /var/run/ppp-\fIname\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp-\fIname\fB.pid \fR(others)
+Process-ID for pppd process for logical link \fIname\fR (see the
+\fIlinkname\fR option).
 .TP
 .B /etc/ppp/pap-secrets
 Usernames, passwords and IP addresses for PAP authentication.  This

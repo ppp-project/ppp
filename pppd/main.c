@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static const char rcsid[] = "$Id: main.c,v 1.81 1999/08/12 04:17:07 paulus Exp $";
+static const char rcsid[] = "$Id: main.c,v 1.82 1999/08/13 01:57:35 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -72,6 +72,7 @@ int ifunit;			/* Interface unit number */
 char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
+static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
 static char ppp_devnam[MAXPATHLEN]; /* name of PPP tty (maybe ttypx) */
 static uid_t uid;		/* Our real user-id */
 static int conn_running;	/* we have a [dis]connector running */
@@ -144,6 +145,7 @@ static struct subprocess *children;
 /* Prototypes for procedures local to this file. */
 
 static void create_pidfile __P((void));
+static void create_linkpidfile __P((void));
 static void cleanup __P((void));
 static void close_tty __P((void));
 static void get_input __P((void));
@@ -471,6 +473,8 @@ main(argc, argv)
     signal(SIGPIPE, SIG_IGN);
 
     waiting = 0;
+
+    create_linkpidfile();
 
     /*
      * If we're doing dial-on-demand, set up the interface now.
@@ -854,7 +858,7 @@ main(argc, argv)
 	if (!demand) {
 	    if (pidfilename[0] != 0
 		&& unlink(pidfilename) < 0 && errno != ENOENT) 
-		warn("unable to delete pid file: %m");
+		warn("unable to delete pid file %s: %m", pidfilename);
 	    pidfilename[0] = 0;
 	}
 
@@ -935,9 +939,11 @@ detach()
     close(2);
     detached = 1;
     log_to_fd = -1;
-    /* update pid file if it has been written already */
+    /* update pid files if they have been written already */
     if (pidfilename[0])
 	create_pidfile();
+    if (linkpidfile[0])
+	create_linkpidfile();
 }
 
 /*
@@ -974,6 +980,29 @@ create_pidfile()
     }
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
     script_setenv("PPPD_PID", numbuf);
+    if (linkpidfile[0])
+	create_linkpidfile();
+}
+
+static void
+create_linkpidfile()
+{
+    FILE *pidfile;
+
+    if (linkname[0] == 0)
+	return;
+    slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
+	     _PATH_VARRUN, linkname);
+    if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
+	fprintf(pidfile, "%d\n", getpid());
+	if (pidfilename[0])
+	    fprintf(pidfile, "%s\n", ifname);
+	(void) fclose(pidfile);
+    } else {
+	error("Failed to create pid file %s: %m", linkpidfile);
+	linkpidfile[0] = 0;
+    }
+    script_setenv("LINKNAME", linkname);
 }
 
 /*
@@ -1092,8 +1121,11 @@ cleanup()
 	close_tty();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
-	warn("unable to delete pid file: %m");
+	warn("unable to delete pid file %s: %m", pidfilename);
     pidfilename[0] = 0;
+    if (linkpidfile[0] != 0 && unlink(linkpidfile) < 0 && errno != ENOENT) 
+	warn("unable to delete pid file %s: %m", linkpidfile);
+    linkpidfile[0] = 0;
 
     if (locked)
 	unlock();

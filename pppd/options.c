@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static const char rcsid[] = "$Id: options.c,v 1.62 1999/08/12 04:25:10 paulus Exp $";
+static const char rcsid[] = "$Id: options.c,v 1.63 1999/08/13 01:57:36 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -94,6 +94,7 @@ int	using_pty = 0;
 bool	sync_serial = 0;	/* Device is synchronous serial device */
 int	log_to_fd = 1;		/* send log messages to this fd too */
 int	maxfail = 10;		/* max # of unsuccessful connection attempts */
+char	linkname[MAXPATHLEN];	/* logical name for link */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -240,6 +241,9 @@ option_t general_options[] = {
     { "nologfd", o_int, &log_to_fd,
       "Don't send log messages to any file descriptor",
       OPT_NOARG | OPT_VAL(-1) },
+    { "linkname", o_string, linkname,
+      "Set logical name for link",
+      OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
     { "maxfail", o_int, &maxfail,
       "Maximum number of unsuccessful connection attempts to allow" },
 
