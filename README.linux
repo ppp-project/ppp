@@ -82,8 +82,10 @@ The pppd program comes from the free distribution of PPP for Suns and
 Chris Torek.
 
 Jim Freeman added the code to support a ppp module and to dynamically
-extend the number of ppp devices. The Space.c module should not have
-any devices defined for this logic to work.
+extend the number of ppp devices. All ppp devices listed in the Space.c
+will be unlinked when the kernel is loaded. This feature makes the use
+of '16 channel' support obsolete.
+
 
 
 CHANGES FROM THE PREVIOUS VERSION
@@ -136,6 +138,7 @@ CHANGES FROM THE PREVIOUS VERSION
   devices, it will remain at that level until you next reload the kernel.
 
 
+
 FUTURE PLANS
 
 The IPX support is still minimal. There is code which will only work with
@@ -143,6 +146,7 @@ the 1.3 version of the networking software. The pppd process will still
 require changes to support the IPXCP and a change to the driver to properly
 enable/disable the IPX frames. Jim Freeman is reportily working on the IPX
 support.
+
 
 
 INSTALLATION
@@ -171,8 +175,8 @@ joining the PPP channel of linux-activists:
       You can send to the list by mailing to
       linux-ppp@vger.rutgers.edu. This is a majordomo mailing list and
       is unlike the earlier version on hut.fi. There is no magic header
-      required for this list. In addition, it is mirrored to the usenet
-      group linux.act.ppp. You may choose to read the few messages posted
+      required for this list. In addition, it is gated to the usenet
+      group linux.dev.ppp. You may choose to read the few messages posted
       there.
 
 Usenet News Groups
@@ -278,6 +282,13 @@ not work with the older kernel driver. If you don't know how to build
 a kernel, then you should read the README file in the kernel source
 directory.
 
+If you wish module support then you need to have the 'modules-1.1.87'
+package installed as the minimum version. Earlier versions of the module
+support will not work properly.
+
+Instructions on building the kernel with modules are given in the
+README.modules in the kernel source directory.
+
 4. Build the programs.
 
 The programs are built next. The command to build the programs is fairly
@@ -302,6 +313,30 @@ file 'linux/Makefile.linux'.
 
 After building the new kernel, you will need to actually use it. Reboot
 the Linux system and you may then use the new pppd program.
+
+7. Load optional modules.
+
+If you are using loadable modules for the ppp or bsd compression then
+you must load them after the kernel has been started. The following
+relative order must be maintained.
+
+Sequence    Module      Description
+   1        slhc.o      VJ header compression
+   2        ppp.o       PPP driver
+   3        bsd_comp.o  BSD compression for PPP's compression protocol.
+
+You may elect not to load the BSD compression module if you desire. There
+is a controversy regarding a Motorola software patent and while it is
+believed that this code does not infringe upon the patent, it is however
+an optional component.
+
+In addition, if memory is a premium, do not run the BSD compression. It
+may take large amounts of memory (up to 2.6 meg) for high compression
+lengths to hold the compression dictionaries.
+
+Without the BSD compression module, the PPP driver will not accept PPP's
+compression control protocol for BSD compression.
+
 
 
 GENERAL NETWORK CONFIGURATION
@@ -364,6 +399,7 @@ you get connected with PPP, you can reach hosts whose full names are
 the names 'hillarypc' and 'chelseapc'.  You can probably find out the
 right domain name to use and the IP numbers of nameservers from
 whoever's providing your PPP link.
+
 
 
 CONNECTING TO A PPP SERVER
@@ -651,6 +687,7 @@ is to use ifconfig ppp0 to get the interface address and then edit
 /etc/hosts appropriately.
 
 
+
 SETTING UP A MACHINE FOR INCOMING PPP CONNECTIONS
 
 Suppose you want to permit another machine to call yours up and start
@@ -738,6 +775,7 @@ this means that chelseapc can communicate just as if it was directly
 connected to the Ethernet.
 
 
+
 SETTING UP A MACHINE FOR INCOMING PPP CONNECTIONS WITH DYNAMIC IP
 
 The use of dynamic IP assignments is not much different from that
@@ -811,6 +849,11 @@ the ppp user into that group, along with the binaries for pppd and pppstats.
 Then you may secure the binaries so that they are executable from the owner
 (which should be root) and the group only. All other users would be denied
 all access to the files and executables.
+
+d) Prevent the motd file from being sent to the ppp user.
+touch ~ppp/.hushlogin
+chown root ~ppp/.hushlogin
+chmod 444  ~ppp/.hushlogin
 
 
 ADDITIONAL INFORMATION

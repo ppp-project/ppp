@@ -52,16 +52,16 @@
 #include "ipcp.h"
 
 static int initdisc = -1;	/* Initial TTY discipline */
-static int prev_kdebugflag = 0;
-
-static int restore_term;		/* 1 => we've munged the terminal */
-static struct termios inittermios;	/* Initial TTY termios */
-
-int sockfd;			/* socket for doing interface ioctls */
-
+static int prev_kdebugflag     = 0;
+static int has_default_route   = 0;
+static int has_proxy_arp       = 0;
 static int driver_version      = 0;
 static int driver_modification = 0;
 static int driver_patch        = 0;
+static int restore_term        = 0;	/* 1 => we've munged the terminal */
+static struct termios inittermios;	/* Initial TTY termios */
+
+int sockfd;			/* socket for doing interface ioctls */
 
 static char *lock_file;
 
@@ -81,10 +81,17 @@ static char *lock_file;
     addr.sa_family = (family);
 
 /*
+ * Determine if the PPP connection should still be present.
+ */
+
+extern int hungup;
+#define still_ppp() (hungup == 0)
+
+/*
  * Functions to read and set the flags value in the device driver
  */
 
-int get_flags (void)
+static int get_flags (void)
   {    
     int flags;
 
@@ -98,9 +105,10 @@ int get_flags (void)
     return flags;
   }
 
-void set_flags (int flags)
+static void set_flags (int flags)
   {    
     MAINDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
+
     if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS, %x): %m", flags);
@@ -221,6 +229,15 @@ void disestablish_ppp(void)
   {
     int x;
     char *s;
+/*
+ * If this is no longer PPP mode then there is nothing that can be done
+ * about restoring the previous mode.
+ */
+    if (!still_ppp())
+      {
+	initdisc = -1;
+	return;
+      }
 /*
  * Check whether the link seems not to be 8-bit clean.
  */
@@ -365,7 +382,7 @@ int translate_speed (int bps)
   {
     struct speed *speedp;
 
-    if (bps == 0)
+    if (bps != 0)
       {
 	for (speedp = speeds; speedp->speed_int; speedp++)
 	  {
@@ -521,7 +538,7 @@ void restore_tty (void)
 	
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	  {
-	    if (errno != ENXIO)
+	    if (errno != EIO)
 	      {
 		syslog(LOG_WARNING, "tcsetattr: %m");
 	      }
@@ -606,6 +623,17 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     struct ifreq ifr;
   
     MAINDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
+/*
+ * If we were called because the link has gone down then there is nothing
+ * which may be done. Just return without incident.
+ */
+    if (!still_ppp())
+      {
+	return;
+      }
+/*
+ * Set the MTU and other parameters for the ppp device
+ */
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
 
@@ -653,6 +681,17 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
     u_int x;
 
     MAINDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
+/*
+ * If we were called because the link has gone down then there is nothing
+ * which may be done. Just return without incident.
+ */
+    if (!still_ppp())
+      {
+	return;
+      }
+/*
+ * Set the receiver parameters
+ */
     if (ioctl(fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
@@ -692,10 +731,13 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 
 void ccp_flags_set (int unit, int isopen, int isup)
   {
-    int x = get_flags();
-    x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
-    x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
-    set_flags (x);
+    if (still_ppp())
+      {
+	int x = get_flags();
+	x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
+	x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
+	set_flags (x);
+      }
   }
 
 /*
@@ -1061,22 +1103,26 @@ int sifdefaultroute (int unit, int gateway)
   {
     struct rtentry rt;
 
-    if (defaultroute_exists())
+    if (has_default_route == 0)
       {
-        return 0;
-      }
+	if (defaultroute_exists())
+	  {
+	    return 0;
+	  }
 
-    memset (&rt, '\0', sizeof (rt));
-    SET_SA_FAMILY (rt.rt_dst,     AF_INET);
-    SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
+	memset (&rt, '\0', sizeof (rt));
+	SET_SA_FAMILY (rt.rt_dst,     AF_INET);
+	SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
-    rt.rt_flags = RTF_UP | RTF_GATEWAY;
-    if (ioctl(sockfd, SIOCADDRT, &rt) < 0)
-      {
-	syslog (LOG_ERR, "default route ioctl(SIOCADDRT): %m");
-	return 0;
+	rt.rt_flags = RTF_UP | RTF_GATEWAY;
+	if (ioctl(sockfd, SIOCADDRT, &rt) < 0)
+	  {
+	    syslog (LOG_ERR, "default route ioctl(SIOCADDRT): %m");
+	    return 0;
+	  }
       }
+    has_default_route = 1;
     return 1;
   }
 
@@ -1087,17 +1133,24 @@ int sifdefaultroute (int unit, int gateway)
 int cifdefaultroute (int unit, int gateway)
   {
     struct rtentry rt;
-  
-    SET_SA_FAMILY (rt.rt_dst,     AF_INET);
-    SET_SA_FAMILY (rt.rt_gateway, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
-    
-    rt.rt_flags = RTF_UP | RTF_GATEWAY;
-    if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
+
+    if (has_default_route)
       {
-	syslog (LOG_ERR, "default route ioctl(SIOCDELRT): %m");
-	return 0;
+	SET_SA_FAMILY (rt.rt_dst,     AF_INET);
+	SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
+    
+	rt.rt_flags = RTF_UP | RTF_GATEWAY;
+	if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
+	  {
+	    if (errno != ENOENT || still_ppp())
+	      {
+		syslog (LOG_ERR, "default route ioctl(SIOCDELRT): %m");
+		return 0;
+	      }
+	  }
       }
+    has_default_route = 0;
     return 1;
   }
 
@@ -1109,26 +1162,31 @@ int sifproxyarp (int unit, u_int32_t his_adr)
   {
     struct arpreq arpreq;
 
-    memset (&arpreq, '\0', sizeof(arpreq));
+    if (has_proxy_arp == 0)
+      {
+	memset (&arpreq, '\0', sizeof(arpreq));
 /*
  * Get the hardware address of an interface on the same subnet
  * as our local address.
  */
-    if (!get_ether_addr(his_adr, &arpreq.arp_ha))
-      {
-	syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
-	return 0;
-      }
+	if (!get_ether_addr(his_adr, &arpreq.arp_ha))
+	  {
+	    syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
+	    return 0;
+	  }
     
-    SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
-    ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
-    arpreq.arp_flags = ATF_PERM | ATF_PUBL;
-    
-    if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0)
-      {
-	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
-	return 0;
+	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
+	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
+	arpreq.arp_flags = ATF_PERM | ATF_PUBL;
+	
+	if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0)
+	  {
+	    syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
+	    return 0;
+	  }
       }
+
+    has_proxy_arp = 1;
     return 1;
   }
 
@@ -1139,16 +1197,20 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 int cifproxyarp (int unit, u_int32_t his_adr)
   {
     struct arpreq arpreq;
-  
-    memset (&arpreq, '\0', sizeof(arpreq));
-    SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
-    
-    ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
-    if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0)
+
+    if (has_proxy_arp == 1)
       {
-	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
-	return 0;
+	memset (&arpreq, '\0', sizeof(arpreq));
+	SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
+    
+	((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
+	if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0)
+	  {
+	    syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
+	    return 0;
+	  }
       }
+    has_proxy_arp = 0;
     return 1;
   }
      
@@ -1192,7 +1254,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 			ifreq.ifr_name));
 /*
  * Check that the interface is up, and not point-to-point
- * or loopback.
+ * nor loopback.
  */
 	    if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	      {
@@ -1232,6 +1294,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 /*
  * Now get the hardware address.
  */
+#if 0  /* old code */
     if (ioctl (sockfd, SIOCGIFHWADDR, &ifreq) < 0)
       {
         syslog(LOG_ERR, "SIOCGIFHWADDR(%s): %m", ifreq.ifr_name);
@@ -1249,6 +1312,29 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 		(int) ((unsigned char *) &hwaddr->sa_data)[3],
 		(int) ((unsigned char *) &hwaddr->sa_data)[4],
 		(int) ((unsigned char *) &hwaddr->sa_data)[5]));
+#else  /* the 'proper' code */
+    memset (&ifreq.ifr_hwaddr, 0, sizeof (struct sockaddr));
+    if (ioctl (sockfd, SIOCGIFHWADDR, &ifreq) < 0)
+      {
+        syslog(LOG_ERR, "SIOCGIFHWADDR(%s): %m", ifreq.ifr_name);
+        return 0;
+      }
+
+    memcpy (hwaddr,
+	    &ifreq.ifr_hwaddr,
+	    sizeof (struct sockaddr));
+
+    MAINDEBUG ((LOG_DEBUG,
+	   "proxy arp: found hwaddr %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		(int) ((unsigned char *) &hwaddr->sa_data)[0],
+		(int) ((unsigned char *) &hwaddr->sa_data)[1],
+		(int) ((unsigned char *) &hwaddr->sa_data)[2],
+		(int) ((unsigned char *) &hwaddr->sa_data)[3],
+		(int) ((unsigned char *) &hwaddr->sa_data)[4],
+		(int) ((unsigned char *) &hwaddr->sa_data)[5],
+		(int) ((unsigned char *) &hwaddr->sa_data)[6],
+		(int) ((unsigned char *) &hwaddr->sa_data)[7]));
+#endif
     return 1;
   }
 
@@ -1315,7 +1401,7 @@ u_int32_t GetMask (u_int32_t addr)
 	    continue;
 	  }
 /*
- * Check that the interface is up, and not point-to-point or loopback.
+ * Check that the interface is up, and not point-to-point nor loopback.
  */
 	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
@@ -1337,7 +1423,6 @@ u_int32_t GetMask (u_int32_t addr)
 	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
 	break;
       }
-
     return mask;
   }
 
@@ -1348,7 +1433,6 @@ u_int32_t GetMask (u_int32_t addr)
 static void decode_version (char *buf, int *version,
 			    int *modification, int *patch)
   {
-
     *version      = (int) strtoul (buf, &buf, 10);
     *modification = 0;
     *patch        = 0;
@@ -1439,7 +1523,9 @@ int ppp_available(void)
   {
     int s, ok;
     struct ifreq ifr;
-    int my_version,     my_modification,     my_patch;
+    char   abBuffer [1024];
+    int    size;
+    int    my_version, my_modification, my_patch;
 /*
  * Open a socket for doing the ioctl operations.
  */    
@@ -1476,26 +1562,25 @@ int ppp_available(void)
       {
         ok = 0;
       }
+
+    if (!ok)
+      {
+	return 0;
+      }
 /*
  *  This is the PPP device. Validate the version of the driver at this
  *  point to ensure that this program will work with the driver.
  */
+    ifr.ifr_data = abBuffer;
+    size = ioctl (s, SIOCGPPPVER, (caddr_t) &ifr);
+    ok   = size >= 0;
+
     if (ok)
       {
-        char   abBuffer [1024];
-	int    size;
-
-	ifr.ifr_data = abBuffer;
-	size = ioctl (s, SIOCGPPPVER, (caddr_t) &ifr);
-	ok   = size >= 0;
-
-	if (ok)
-	  {
-	    decode_version (abBuffer,
-			    &driver_version,
-			    &driver_modification,
-			    &driver_patch);
-	  }
+	decode_version (abBuffer,
+			&driver_version,
+			&driver_modification,
+			&driver_patch);
       }
     
     if (!ok)
@@ -1535,6 +1620,10 @@ int ppp_available(void)
     close(s);
     return ok;
   }
+
+/*
+ * Update the wtmp file with the appropriate user name and tty device.
+ */
 
 int logwtmp (char *line, char *name, char *host)
   {
