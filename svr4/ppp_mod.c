@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_mod.c,v 1.1 1995/12/11 05:21:05 paulus Exp $
+ * $Id: ppp_mod.c,v 1.2 1996/01/18 03:27:36 paulus Exp $
  */
 
 /*
@@ -81,7 +81,7 @@ static struct dev_ops ppp_ops = {
 
 static struct modldrv modldrv = {
     &mod_driverops,			/* says this is a pseudo driver */
-    "PPP-2.2 multiplexing driver",
+    "PPP-2.3 multiplexing driver",
     &ppp_ops				/* driver ops */
 };
 
