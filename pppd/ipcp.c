@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.11 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.12 1994/10/10 01:59:17 paulus Exp $";
 #endif
 
 /*
@@ -493,7 +493,7 @@ ipcp_nakci(f, p, len)
      * Accept the peer's idea of {our,his} address, if different
      * from our idea, only if the accept_{local,remote} flag is set.
      */
-    NAKCIADDR(CI_ADDR, neg_addr, go->old_addrs,
+    NAKCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), neg_addr, go->old_addrs,
 	      if (go->accept_local && ciaddr1) { /* Do we know our address? */
 		  try.ouraddr = ciaddr1;
 		  IPCPDEBUG((LOG_INFO, "local IP address %s",
