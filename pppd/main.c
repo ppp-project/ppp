@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.95 2000/04/15 10:10:24 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.96 2000/04/21 01:27:17 masputra Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -225,6 +225,14 @@ struct protent *protocols[] = {
 #endif
     NULL
 };
+
+/*
+ * If PPP_DRV_NAME is not defined, use the legacy "ppp" as the
+ * device name.
+ */
+#if !defined(PPP_DRV_NAME)
+#define PPP_DRV_NAME	"ppp"
+#endif /* !defined(PPP_DRV_NAME) */
 
 int
 main(argc, argv)
@@ -1015,7 +1023,7 @@ set_ifunit(iskey)
     int iskey;
 {
     info("Using interface ppp%d", ifunit);
-    slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
+    slprintf(ifname, sizeof(ifname), PPP_DRV_NAME "%d", ifunit);
     script_setenv("IFNAME", ifname, iskey);
     if (iskey) {
 	create_pidfile();	/* write pid to file */
