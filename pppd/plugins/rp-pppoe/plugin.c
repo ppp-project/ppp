@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.10 2004/01/13 04:03:58 paulus Exp $";
+"$Id: plugin.c,v 1.11 2004/10/24 23:06:31 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -80,7 +80,7 @@ static option_t Options[] = {
       "Be verbose about discovered access concentrators"},
     { NULL }
 };
-int (*OldDevnameHook)(char *cmd, char **argv, int doit) = NULL;
+
 static PPPoEConnection *conn = NULL;
 
 /**********************************************************************
@@ -283,9 +283,9 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     if (strlen(cmd) > 4 && !strncmp(cmd, "nic-", 4)) {
 	/* Strip off "nic-" */
 	cmd += 4;
-    } else if (strlen(cmd) < 4 || (strncmp(cmd, "eth", 3) &&
-		strncmp(cmd, "nas", 3) && strncmp(cmd, "tap", 3))) {
-	if (OldDevnameHook) return OldDevnameHook(cmd, argv, doit);
+    } else if (strlen(cmd) < 4
+	       || (strncmp(cmd, "eth", 3) && strncmp(cmd, "nas", 3)
+		   && strncmp(cmd, "tap", 3) && strncmp(cmd, "br", 2))) {
 	return 0;
     }
 
@@ -343,7 +343,6 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
 	return 1;
     }
 
-    if (OldDevnameHook) r = OldDevnameHook(cmd, argv, doit);
     return r;
 }
 
