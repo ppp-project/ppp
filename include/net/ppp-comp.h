@@ -24,9 +24,13 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.5 1994/12/05 00:33:33 paulus Exp $
+ * $Id: ppp-comp.h,v 1.6 1995/04/24 02:41:37 paulus Exp $
  */
 
+#ifndef _NET_PPP_COMP_H
+#define _NET_PPP_COMP_H
+
+#ifdef PACKETPTR
 /*
  * Structure giving methods for compression/decompression.
  */
@@ -39,7 +43,7 @@ struct compressor {
 	void	(*comp_free) __P((void *state));
 	/* Initialize a compressor */
 	int	(*comp_init) __P((void *state, u_char *options, int opt_len,
-				  int unit, int debug));
+				  int unit, int hdrlen, int debug));
 	/* Reset a compressor */
 	void	(*comp_reset) __P((void *state));
 	/* Compress a packet */
@@ -65,6 +69,7 @@ struct compressor {
 	/* Return decompression statistics */
 	void	(*decomp_stat) __P((void *state, struct compstat *stats));
 };
+#endif /* PACKETPTR */
 
 /*
  * Return values for decompress routine.
@@ -105,3 +110,19 @@ struct compressor {
 #define CCP_OPT_LENGTH(dp)	((dp)[1])
 #define CCP_OPT_MINLEN		2
 
+/*
+ * Definitions for BSD-Compress.
+ */
+#define CI_BSD_COMPRESS		21	/* config. option for BSD-Compress */
+#define CILEN_BSD_COMPRESS	3	/* length of config. option */
+
+/* Macros for handling the 3rd byte of the BSD-Compress config option. */
+#define BSD_NBITS(x)		((x) & 0x1F)	/* number of bits requested */
+#define BSD_VERSION(x)		((x) >> 5)	/* version of option format */
+#define BSD_CURRENT_VERSION	1		/* current version number */
+#define BSD_MAKE_OPT(v, n)	(((v) << 5) | (n))
+
+#define BSD_MIN_BITS		9	/* smallest code size supported */
+#define BSD_MAX_BITS		15	/* largest code size supported */
+
+#endif /* _NET_PPP_COMP_H */
