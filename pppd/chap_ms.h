@@ -27,7 +27,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: chap_ms.h,v 1.10 2003/06/11 23:56:26 paulus Exp $
+ * $Id: chap_ms.h,v 1.11 2004/11/04 12:00:07 paulus Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -94,7 +94,16 @@ void ChapMS2 __P((u_char *, u_char *, char *, char *, int,
 		  MS_Chap2Response *, u_char[MS_AUTH_RESPONSE_LENGTH+1], int));
 #ifdef MPPE
 void mppe_set_keys __P((u_char *, u_char[MD4_SIGNATURE_SIZE]));
+void mppe_set_keys2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
+		    u_char NTResponse[24], int IsServer);
 #endif
+
+void	ChallengeHash __P((u_char[16], u_char *, char *, u_char[8]));
+
+void GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
+			u_char NTResponse[24], u_char PeerChallenge[16],
+			u_char *rchallenge, char *username,
+			u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1]);
 
 void chapms_init(void);
 

@@ -12,7 +12,7 @@ LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 SUBDIRS := rp-pppoe
 # Uncomment the next line to include the radius authentication plugin
 # SUBDIRS += radius
-PLUGINS := minconn.so passprompt.so passwordfd.so
+PLUGINS := minconn.so passprompt.so passwordfd.so winbind.so
 
 # include dependencies if present
 ifeq (.depend,$(wildcard .depend))
