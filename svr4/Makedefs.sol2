@@ -1,0 +1,54 @@
+#
+# Generic make definitions for Solaris 2
+#
+# $Id: Makedefs.sol2,v 1.1 1999/09/15 22:10:16 masputra Exp $
+#
+
+include Makedefs
+
+CPPFLAGS	= -D_KERNEL -DSVR4 -DSOL2 -I../include -DPRIOQ -DDEBUG
+CFLAGS		= $(CPPFLAGS) $(COPTS)
+
+# lint-specific variables
+LINT            = lint
+LINT32OPT       =
+LINT64OPT       = -Xarch=v9 -errchk=longptr64
+
+LINTTAGS_32     =
+LINTTAGS_32     += -erroff=E_BAD_PTR_CAST_ALIGN
+LINTTAGS_32     += -erroff=E_SUPPRESSION_DIRECTIVE_UNUSED
+LINTTAGS_32     += -erroff=E_SUSPICIOUS_COMPARISON
+LINTTAGS_32     += -erroff=E_CAST_UINT_TO_SIGNED_INT
+LINTTAGS_32     += -erroff=E_PASS_UINT_TO_SIGNED_INT
+LINTTAGS_32     += -erroff=E_INVALID_ANNOTATION_NAME
+LINTTAGS_32     += -erroff=E_FUNC_ARG_UNUSED
+
+# Selectively disable certain noisy lint errors
+LENIENT_LINTTAGS =
+LENIENT_LINTTAGS += -erroff=E_CAST_INT_TO_SMALL_INT
+LENIENT_LINTTAGS += -erroff=E_CAST_INT_CONST_TO_SMALL_INT
+LENIENT_LINTTAGS += -erroff=E_CAST_TO_PTR_FROM_INT
+LENIENT_LINTTAGS += -erroff=E_ASSIGN_INT_TO_SMALL_INT
+LENIENT_LINTTAGS += -erroff=E_ASSIGN_INT_FROM_BIG_CONST
+LENIENT_LINTTAGS += -erroff=E_CONST_PROMOTED_UNSIGNED_LL
+LENIENT_LINTTAGS += -erroff=E_CONST_PROMOTED_LONG_LONG
+LENIENT_LINTTAGS += -erroff=E_CONST_TRUNCATED_BY_ASSIGN
+LENIENT_LINTTAGS += -erroff=E_PASS_INT_FROM_BIG_CONST
+LENIENT_LINTTAGS += -erroff=E_COMP_INT_WITH_LARGE_INT
+LENIENT_LINTTAGS += -erroff=E_ASSIGN_UINT_TO_SIGNED_INT
+# These last three are still noisy but a bit more useful.
+# They shouldn't be used on new code.
+LENIENT_LINTTAGS += -erroff=E_ASSIGN_NARROW_CONV
+LENIENT_LINTTAGS += -erroff=E_PASS_INT_TO_SMALL_INT
+LENIENT_LINTTAGS += -erroff=E_PTR_CONV_LOSES_BITS
+
+LINTTAGS_64     = $(LINTTAGS_32)
+# comment out next line to turn on pedantic 64-bit error checking
+LINTTAGS_64     += $(LENIENT_LINTTAGS)
+
+LINTFLAGS64     = -Xa -nsxmuF -errtags=yes $(LINT64OPT) $(LINTTAGS_64)
+LINT64.c        = $(LINT) -c $(LINTFLAGS64) $(CPPFLAGS)
+
+LINTFLAGS32     = -Xa -nsxmuF -errtags=yes $(LINT32OPT) $(LINTTAGS_32)
+LINT32.c        = $(LINT) -c $(LINTFLAGS32) $(CPPFLAGS)
+

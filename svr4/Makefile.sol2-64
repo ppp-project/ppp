@@ -1,19 +1,23 @@
 #
 # Makefile for 64-bit STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2-64,v 1.1 1999/09/13 20:57:54 masputra Exp $
+# $Id: Makefile.sol2-64,v 1.2 1999/09/15 22:10:16 masputra Exp $
 #
 
-include Makedefs
+include Makedefs.sol2
 
-COPTS += -xarch=v9
-LP64DIR = sparcv9
-STD_MAKE = Makefile.sol2
+# Sun's cc flag for LP64 compilation / linkage
+COPTS 		+= -xarch=v9
 
-CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I../include -DPRIOQ -DDEBUG $(COPTS)
+# subdirectory where 64-bit objects / binaries will be placed
+LP64DIR		= sparcv9
 
-COMP_OBJS =	$(LP64DIR)/ppp_comp.o $(LP64DIR)/bsd-comp.o $(LP64DIR)/deflate.o	\
-		$(LP64DIR)/zlib.o $(LP64DIR)/vjcompress.o $(LP64DIR)/ppp_comp_mod.o
+# Name of legacy Makefile (for 32-bit binaries)
+STD_MAKE	= Makefile.sol2
+
+COMP_OBJS	= $(LP64DIR)/ppp_comp.o $(LP64DIR)/bsd-comp.o \
+		$(LP64DIR)/deflate.o $(LP64DIR)/zlib.o $(LP64DIR)/vjcompress.o \
+		$(LP64DIR)/ppp_comp_mod.o
 
 all:	std_objs $(LP64DIR) ppp ppp_ahdl ppp_comp
 
@@ -65,6 +69,16 @@ install:
 	  echo clone:ppp 0644 root sys >>/etc/minor_perm; fi
 	/usr/sbin/rem_drv ppp 2>/dev/null || true
 	/usr/sbin/add_drv ppp
+
+SRCS	= ../modules/ppp.c ppp_mod.c ../modules/ppp_ahdlc.c ppp_ahdlc_mod.c \
+	../modules/ppp_comp.c ../modules/bsd-comp.c ../modules/deflate.c \
+	../common/zlib.c ../modules/vjcompress.c ppp_comp_mod.c
+
+lint:
+	$(LINT64.c) $(SRCS)
+
+lint-32:
+	$(LINT32.c) $(SRCS)
 
 clean:
 	$(MAKE) -f $(STD_MAKE) clean

@@ -1,12 +1,10 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.14 1999/09/13 20:57:54 masputra Exp $
+# $Id: Makefile.sol2,v 1.15 1999/09/15 22:10:16 masputra Exp $
 #
 
-include Makedefs
-
-CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I../include -DPRIOQ -DDEBUG $(COPTS)
+include Makedefs.sol2
 
 COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 	ppp_comp_mod.o
@@ -47,6 +45,13 @@ install: all
 	  echo clone:ppp 0644 root sys >>/etc/minor_perm; fi
 	/usr/sbin/rem_drv ppp 2>/dev/null || true
 	/usr/sbin/add_drv ppp
+
+SRCS	= ../modules/ppp.c ppp_mod.c ../modules/ppp_ahdlc.c ppp_ahdlc_mod.c \
+	../modules/ppp_comp.c ../modules/bsd-comp.c ../modules/deflate.c \
+	../common/zlib.c ../modules/vjcompress.c ppp_comp_mod.c
+
+lint:
+	$(LINT32.c) $(SRCS)
 
 clean:
 	rm -f ppp ppp_comp ppp_ahdl *.o *~ core
