@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.60 2001/04/27 23:16:13 paulus Exp $
+ * $Id: pppd.h,v 1.61 2001/05/23 02:28:14 paulus Exp $
  */
 
 /*
@@ -502,6 +502,8 @@ int  get_pty __P((int *, int *, char *, int));	/* Get pty master/slave */
 int  open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
 int  tty_establish_ppp __P((int));  /* Turn serial port into a ppp interface */
 void tty_disestablish_ppp __P((int)); /* Restore port to normal operation */
+void generic_disestablish_ppp __P((int dev_fd)); /* Restore device setting */
+int  generic_establish_ppp __P((int dev_fd)); /* Make a ppp interface */
 void make_new_bundle __P((int, int, int, int)); /* Create new bundle */
 int  bundle_attach __P((int));	/* Attach link to existing bundle */
 void cfg_bundle __P((int, int, int, int)); /* Configure existing bundle */

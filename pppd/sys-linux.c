@@ -141,7 +141,7 @@ static int driver_is_old       = 0;
 static int restore_term        = 0;	/* 1 => we've munged the terminal */
 static struct termios inittermios;	/* Initial TTY termios */
 
-static int new_style_driver = 0;
+int new_style_driver = 0;
 
 static char loop_name[20];
 static unsigned char inbuf[512]; /* buffer for chars read from loopback */
@@ -235,7 +235,7 @@ static int get_flags (int fd)
 	if ( ok_error (errno) )
 	    flags = 0;
 	else
-	    fatal("ioctl(PPPIOCGFLAGS): %m");
+	    fatal("ioctl(PPPIOCGFLAGS): %m (line %d)", __LINE__);
     }
 
     SYSDEBUG ((LOG_DEBUG, "get flags = %x\n", flags));
@@ -250,7 +250,7 @@ static void set_flags (int fd, int flags)
 
     if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0) {
 	if (! ok_error (errno) )
-	    fatal("ioctl(PPPIOCSFLAGS, %x): %m", flags, errno);
+	    fatal("ioctl(PPPIOCSFLAGS, %x): %m (line %d)", flags, errno, __LINE__);
     }
 }
 
@@ -343,7 +343,7 @@ static int set_kdebugflag (int requested_level)
 	return 1;
     if (ioctl(ppp_dev_fd, PPPIOCSDEBUG, &requested_level) < 0) {
 	if ( ! ok_error (errno) )
-	    error("ioctl(PPPIOCSDEBUG): %m");
+	    error("ioctl(PPPIOCSDEBUG): %m (line %d)", __LINE__);
 	return (0);
     }
     SYSDEBUG ((LOG_INFO, "set kernel debugging level to %d",
@@ -358,8 +358,7 @@ static int set_kdebugflag (int requested_level)
 
 int tty_establish_ppp (int tty_fd)
 {
-    int x;
-    int fd = -1;
+    int ret_fd;
 
 /*
  * Ensure that the tty device is in exclusive mode.
@@ -373,7 +372,7 @@ int tty_establish_ppp (int tty_fd)
  */
     if (!new_style_driver && looped
 	&& ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0) {
-	error("ioctl(transfer ppp unit): %m");
+	error("ioctl(transfer ppp unit): %m, line %d", __LINE__);
 	return -1;
     }
 /*
@@ -391,11 +390,36 @@ int tty_establish_ppp (int tty_fd)
 	}
     }
 
+    ret_fd = generic_establish_ppp(tty_fd);
+
+#define SC_RCVB	(SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP)
+#define SC_LOGB	(SC_DEBUG | SC_LOG_INPKT | SC_LOG_OUTPKT | SC_LOG_RAWIN \
+		 | SC_LOG_FLUSH)
+
+    if (ret_fd >= 0) {
+	set_flags(ppp_fd, ((get_flags(ppp_fd) & ~(SC_RCVB | SC_LOGB))
+			   | ((kdebugflag * SC_DEBUG) & SC_LOGB)));
+    } else {
+	if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0 && !ok_error(errno))
+	    warn("Couldn't reset tty to normal line discipline: %m");
+    }
+
+    return ret_fd;
+}
+
+/********************************************************************
+ *
+ * generic_establish_ppp - Turn the fd into a ppp interface.
+ */
+int generic_establish_ppp (int fd)
+{
+    int x;
+
     if (new_style_driver) {
 	/* Open another instance of /dev/ppp and connect the channel to it */
 	int flags;
 
-	if (ioctl(tty_fd, PPPIOCGCHAN, &chindex) == -1) {
+	if (ioctl(fd, PPPIOCGCHAN, &chindex) == -1) {
 	    error("Couldn't get channel number: %m");
 	    goto err;
 	}
@@ -439,11 +463,11 @@ int tty_establish_ppp (int tty_fd)
 	/*
 	 * Old-style driver: find out which interface we were given.
 	 */
-	set_ppp_fd (tty_fd);
-	if (ioctl(tty_fd, PPPIOCGUNIT, &x) < 0) {	
+	set_ppp_fd (fd);
+	if (ioctl(fd, PPPIOCGUNIT, &x) < 0) {
 	    if (ok_error (errno))
 		goto err;
-	    fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
+	    fatal("ioctl(PPPIOCGUNIT): %m (line %d)", __LINE__);
 	}
 	/* Check that we got the same unit again. */
 	if (looped && x != ifunit)
@@ -453,9 +477,9 @@ int tty_establish_ppp (int tty_fd)
 	/*
 	 * Fetch the initial file flags and reset blocking mode on the file.
 	 */
-	initfdflags = fcntl(tty_fd, F_GETFL);
+	initfdflags = fcntl(fd, F_GETFL);
 	if (initfdflags == -1 ||
-	    fcntl(tty_fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	    fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
 	    if ( ! ok_error (errno))
 		warn("Couldn't set device to non-blocking mode: %m");
 	}
@@ -469,13 +493,6 @@ int tty_establish_ppp (int tty_fd)
     if (!looped)
 	set_kdebugflag (kdebugflag);
 
-#define SC_RCVB	(SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP)
-#define SC_LOGB	(SC_DEBUG | SC_LOG_INPKT | SC_LOG_OUTPKT | SC_LOG_RAWIN \
-		 | SC_LOG_FLUSH)
-
-    set_flags(ppp_fd, ((get_flags(ppp_fd) & ~(SC_RCVB | SC_LOGB))
-		       | ((kdebugflag * SC_DEBUG) & SC_LOGB)));
-
     SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
 
@@ -484,15 +501,12 @@ int tty_establish_ppp (int tty_fd)
  err_close:
     close(fd);
  err:
-    if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0 && !ok_error(errno))
-	warn("Couldn't reset tty to normal line discipline: %m");
     return -1;
 }
 
 /********************************************************************
  *
- * tty_disestablish_ppp - Restore the serial port to normal operation,
- * and reconnect the ppp unit to the loopback if in demand mode.
+ * tty_disestablish_ppp - Restore the serial port to normal operation.
  * This shouldn't call die() because it's called from die().
  */
 
@@ -509,12 +523,12 @@ void tty_disestablish_ppp(int tty_fd)
  */
 	if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0) {
 	    if ( ! ok_error (errno))
-		error("ioctl(TIOCSETD, N_TTY): %m");
+		error("ioctl(TIOCSETD, N_TTY): %m (line %d)", __LINE__);
 	}
 	
 	if (ioctl(tty_fd, TIOCNXCL, 0) < 0) {
 	    if ( ! ok_error (errno))
-		warn("ioctl(TIOCNXCL): %m(%d)", errno);
+		warn("ioctl(TIOCNXCL): %m (line %d)", __LINE__);
 	}
 
 	/* Reset non-blocking mode on fd. */
@@ -525,6 +539,17 @@ void tty_disestablish_ppp(int tty_fd)
     }
     initfdflags = -1;
 
+    generic_disestablish_ppp(tty_fd);
+}
+
+/********************************************************************
+ *
+ * generic_disestablish_ppp - Restore device components to normal
+ * operation, and reconnect the ppp unit to the loopback if in demand
+ * mode.  This shouldn't call die() because it's called from die().
+ */
+void generic_disestablish_ppp(int dev_fd)
+{
     if (new_style_driver) {
 	close(ppp_fd);
 	ppp_fd = -1;
@@ -811,7 +836,7 @@ void set_up_tty(int tty_fd, int local)
     setdtr(tty_fd, 1);
     if (tcgetattr(tty_fd, &tios) < 0) {
 	if (!ok_error(errno))
-	    fatal("tcgetattr: %m(%d)", errno);
+	    fatal("tcgetattr: %m (line %d)", __LINE__);
 	return;
     }
     
@@ -866,7 +891,7 @@ void set_up_tty(int tty_fd, int local)
 
     if (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0)
 	if (!ok_error(errno))
-	    fatal("tcsetattr: %m");
+	    fatal("tcsetattr: %m (line %d)", __LINE__);
     
     baud_rate    = baud_rate_of(speed);
     restore_term = 1;
@@ -905,7 +930,7 @@ void restore_tty (int tty_fd)
 	
 	if (tcsetattr(tty_fd, TCSAFLUSH, &inittermios) < 0) {
 	    if (! ok_error (errno))
-		warn("tcsetattr: %m");
+		warn("tcsetattr: %m (line %d)", __LINE__);
 	}
     }
 }
@@ -957,7 +982,7 @@ void wait_input(struct timeval *timo)
     exc = in_fds;
     n = select(max_in_fd + 1, &ready, NULL, &exc, timo);
     if (n < 0 && errno != EINTR)
-	fatal("select: %m(%d)", errno);
+	fatal("select: %m");
 }
 
 /*
@@ -1060,7 +1085,7 @@ netif_set_mtu(int unit, int mtu)
     ifr.ifr_mtu = mtu;
 	
     if (ifunit >= 0 && ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
-	fatal("ioctl(SIOCSIFMTU): %m");
+	error("ioctl(SIOCSIFMTU): %m (line %d)", __LINE__);
 }
 
 /********************************************************************
@@ -1082,7 +1107,7 @@ void tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	if (!ok_error(errno))
-	    fatal("ioctl(PPPIOCSASYNCMAP): %m(%d)", errno);
+	    fatal("ioctl(PPPIOCSASYNCMAP): %m (line %d)", __LINE__);
 	return;
     }
     
@@ -1107,7 +1132,7 @@ void tty_set_xaccm (ext_accm accm)
 	return;
     if (ioctl(ppp_fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY) {
 	if ( ! ok_error (errno))
-	    warn("ioctl(set extended ACCM): %m(%d)", errno);
+	    warn("ioctl(set extended ACCM): %m (line %d)", __LINE__);
     }
 }
 
@@ -1131,7 +1156,7 @@ void tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
  */
     if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
 	if ( ! ok_error (errno))
-	    error("ioctl(PPPIOCSMRU): %m(%d)", errno);
+	    error("ioctl(PPPIOCSMRU): %m (line %d)", __LINE__);
     }
     if (new_style_driver && ifunit >= 0
 	&& ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
@@ -1140,7 +1165,7 @@ void tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
     SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	if (!ok_error(errno))
-	    error("ioctl(PPPIOCSRASYNCMAP): %m(%d)", errno);
+	    error("ioctl(PPPIOCSRASYNCMAP): %m (line %d)", __LINE__);
     }
 }
 
@@ -1498,7 +1523,7 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     rt.rt_flags = RTF_UP | RTF_GATEWAY;
     if (ioctl(sock_fd, SIOCADDRT, &rt) < 0) {
 	if ( ! ok_error ( errno ))
-	    error("default route ioctl(SIOCADDRT): %m(%d)", errno);
+	    error("default route ioctl(SIOCADDRT): %m");
 	return 0;
     }
 
@@ -1532,7 +1557,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH) {
 	if (still_ppp()) {
 	    if ( ! ok_error ( errno ))
-		error("default route ioctl(SIOCDELRT): %m (%d)", errno);
+		error("default route ioctl(SIOCDELRT): %m");
 	    return 0;
 	}
     }
@@ -1569,7 +1594,7 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 
 	if (ioctl(sock_fd, SIOCSARP, (caddr_t)&arpreq) < 0) {
 	    if ( ! ok_error ( errno ))
-		error("ioctl(SIOCSARP): %m(%d)", errno);
+		error("ioctl(SIOCSARP): %m");
 	    return 0;
 	}
 	proxy_arp_addr = his_adr;
@@ -1610,7 +1635,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
 
 	if (ioctl(sock_fd, SIOCDARP, (caddr_t)&arpreq) < 0) {
 	    if ( ! ok_error ( errno ))
-		warn("ioctl(SIOCDARP): %m(%d)", errno);
+		warn("ioctl(SIOCDARP): %m");
 	    return 0;
 	}
     }
@@ -1638,7 +1663,7 @@ static int get_ether_addr (u_int32_t ipaddr,
     ifc.ifc_req = ifs;
     if (ioctl(sock_fd, SIOCGIFCONF, &ifc) < 0) {
 	if ( ! ok_error ( errno ))
-	    error("ioctl(SIOCGIFCONF): %m(%d)", errno);
+	    error("ioctl(SIOCGIFCONF): %m (line %d)", __LINE__);
 	return 0;
     }
 
@@ -1696,7 +1721,7 @@ static int get_ether_addr (u_int32_t ipaddr,
  */
     memset (&ifreq.ifr_hwaddr, 0, sizeof (struct sockaddr));
     if (ioctl (sock_fd, SIOCGIFHWADDR, &ifreq) < 0) {
-        error("SIOCGIFHWADDR(%s): %m(%d)", ifreq.ifr_name, errno);
+        error("SIOCGIFHWADDR(%s): %m", ifreq.ifr_name);
         return 0;
     }
 
@@ -1784,7 +1809,7 @@ u_int32_t GetMask (u_int32_t addr)
     ifc.ifc_req = ifs;
     if (ioctl(sock_fd, SIOCGIFCONF, &ifc) < 0) {
 	if ( ! ok_error ( errno ))
-	    warn("ioctl(SIOCGIFCONF): %m(%d)", errno);
+	    warn("ioctl(SIOCGIFCONF): %m (line %d)", __LINE__);
 	return mask;
     }
     
@@ -1871,7 +1896,7 @@ ppp_registered(void)
      * Try to put the device into the PPP discipline.
      */
     if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0) {
-	error("ioctl(TIOCSETD(PPP)): %m(%d)", errno);
+	error("ioctl(TIOCSETD(PPP)): %m (line %d)", __LINE__);
     } else
 	ret = 1;
     
@@ -2117,7 +2142,7 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
     if (vjcomp) {
         if (ioctl (ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 	    if (! ok_error (errno))
-		error("ioctl(PPPIOCSMAXCID): %m(%d)", errno);
+		error("ioctl(PPPIOCSMAXCID): %m (line %d)", __LINE__);
 	    vjcomp = 0;
 	}
     }
@@ -2142,14 +2167,14 @@ int sifup(int u)
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl (SIOCGIFFLAGS): %m(%d)", errno);
+	    error("ioctl (SIOCGIFFLAGS): %m (line %d)", __LINE__);
 	return 0;
     }
 
     ifr.ifr_flags |= (IFF_UP | IFF_POINTOPOINT);
     if (ioctl(sock_fd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl(SIOCSIFFLAGS): %m(%d)", errno);
+	    error("ioctl(SIOCSIFFLAGS): %m (line %d)", __LINE__);
 	return 0;
     }
     if_is_up++;
@@ -2174,7 +2199,7 @@ int sifdown (int u)
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl (SIOCGIFFLAGS): %m(%d)", errno);
+	    error("ioctl (SIOCGIFFLAGS): %m (line %d)", __LINE__);
 	return 0;
     }
 
@@ -2182,7 +2207,7 @@ int sifdown (int u)
     ifr.ifr_flags |= IFF_POINTOPOINT;
     if (ioctl(sock_fd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl(SIOCSIFFLAGS): %m(%d)", errno);
+	    error("ioctl(SIOCSIFFLAGS): %m (line %d)", __LINE__);
 	return 0;
     }
     return 1;
@@ -2214,7 +2239,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     if (ioctl(sock_fd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	if (errno != EEXIST) {
 	    if (! ok_error (errno))
-		error("ioctl(SIOCSIFADDR): %m(%d)", errno);
+		error("ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
 	}
         else {
 	    warn("ioctl(SIOCSIFADDR): Address already exists");
@@ -2227,7 +2252,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     SIN_ADDR(ifr.ifr_dstaddr) = his_adr;
     if (ioctl(sock_fd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl(SIOCSIFDSTADDR): %m(%d)", errno); 
+	    error("ioctl(SIOCSIFDSTADDR): %m (line %d)", __LINE__); 
 	return (0);
     } 
 /*
@@ -2240,7 +2265,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 	SIN_ADDR(ifr.ifr_netmask) = net_mask;
 	if (ioctl(sock_fd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
-		error("ioctl(SIOCSIFNETMASK): %m(%d)", errno); 
+		error("ioctl(SIOCSIFNETMASK): %m (line %d)", __LINE__); 
 	    return (0);
 	} 
     }
@@ -2263,7 +2288,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 
 	if (ioctl(sock_fd, SIOCADDRT, &rt) < 0) {
 	    if (! ok_error (errno))
-		error("ioctl(SIOCADDRT) device route: %m(%d)", errno);
+		error("ioctl(SIOCADDRT) device route: %m (line %d)", __LINE__);
 	    return (0);
 	}
     }
@@ -2320,7 +2345,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 
 	if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH) {
 	    if (still_ppp() && ! ok_error (errno))
-		error("ioctl(SIOCDELRT) device route: %m(%d)", errno);
+		error("ioctl(SIOCDELRT) device route: %m (line %d)", __LINE__);
 	    return (0);
 	}
     }
@@ -2332,7 +2357,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
     
     if (ioctl(sock_fd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno)) {
-	    error("ioctl(SIOCSIFADDR): %m(%d)", errno);
+	    error("ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
 	    return 0;
 	}
     }
@@ -2361,7 +2386,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     memset(&ifr, 0, sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {
-	error("sif6addr: ioctl(SIOCGIFINDEX): %m (%d)", errno);
+	error("sif6addr: ioctl(SIOCGIFINDEX): %m (line %d)", __LINE__);
 	return 0;
     }
     
@@ -2372,7 +2397,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     ifr6.ifr6_prefixlen = 10;
 
     if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
-	error("sif6addr: ioctl(SIOCSIFADDR): %m (%d)", errno);
+	error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
 	return 0;
     }
     
@@ -2385,7 +2410,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     rt6.rtmsg_metric = 1;
     
     if (ioctl(sock6_fd, SIOCADDRT, &rt6) < 0) {
-	error("sif6addr: ioctl(SIOCADDRT): %m (%d)", errno);
+	error("sif6addr: ioctl(SIOCADDRT): %m (line %d)", __LINE__);
 	return 0;
     }
 
@@ -2410,7 +2435,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     memset(&ifr, 0, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {
-	error("cif6addr: ioctl(SIOCGIFINDEX): %m (%d)", errno);
+	error("cif6addr: ioctl(SIOCGIFINDEX): %m (line %d)", __LINE__);
 	return 0;
     }
     
@@ -2422,7 +2447,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     if (ioctl(sock6_fd, SIOCDIFADDR, &ifr6) < 0) {
 	if (errno != EADDRNOTAVAIL) {
 	    if (! ok_error (errno))
-		error("cif6addr: ioctl(SIOCDIFADDR): %m (%d)", errno);
+		error("cif6addr: ioctl(SIOCDIFADDR): %m (line %d)", __LINE__);
 	}
         else {
 	    warn("cif6addr: ioctl(SIOCDIFADDR): No such address");
@@ -2538,20 +2563,20 @@ open_ppp_loopback(void)
     flags = fcntl(master_fd, F_GETFL);
     if (flags == -1 ||
 	fcntl(master_fd, F_SETFL, flags | O_NONBLOCK) == -1)
-	warn("couldn't set master loopback to nonblock: %m(%d)", errno);
+	warn("couldn't set master loopback to nonblock: %m");
 
     flags = fcntl(ppp_fd, F_GETFL);
     if (flags == -1 ||
 	fcntl(ppp_fd, F_SETFL, flags | O_NONBLOCK) == -1)
-	warn("couldn't set slave loopback to nonblock: %m(%d)", errno);
+	warn("couldn't set slave loopback to nonblock: %m");
 
     if (ioctl(ppp_fd, TIOCSETD, &ppp_disc) < 0)
-	fatal("ioctl(TIOCSETD): %m(%d)", errno);
+	fatal("ioctl(TIOCSETD): %m (line %d)", __LINE__);
 /*
  * Find out which interface we were given.
  */
     if (ioctl(ppp_fd, PPPIOCGUNIT, &ifunit) < 0)
-	fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
+	fatal("ioctl(PPPIOCGUNIT): %m (line %d)", __LINE__);
 /*
  * Enable debug in the driver if requested.
  */
@@ -2577,8 +2602,7 @@ sifnpmode(u, proto, mode)
     npi.mode     = mode;
     if (ioctl(ppp_dev_fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
 	if (! ok_error (errno))
-	    error("ioctl(PPPIOCSNPMODE, %d, %d): %m (%d)",
-		   proto, mode, errno);
+	    error("ioctl(PPPIOCSNPMODE, %d, %d): %m", proto, mode);
 	return 0;
     }
     return 1;
@@ -2602,7 +2626,7 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
     skfd = socket (AF_IPX, SOCK_DGRAM, 0);
     if (skfd < 0) { 
 	if (! ok_error (errno))
-	    dbglog("socket(AF_IPX): %m (%d)", errno);
+	    dbglog("socket(AF_IPX): %m (line %d)", __LINE__);
 	result = 0;
     }
     else {
@@ -2622,7 +2646,7 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
 	    result = 0;
 	    if (errno != EEXIST) {
 		if (! ok_error (errno))
-		    dbglog("ioctl(SIOCSIFADDR, CRTITF): %m (%d)", errno);
+		    dbglog("ioctl(SIOCSIFADDR, CRTITF): %m (line %d)", __LINE__);
 	    }
 	    else {
 		warn("ioctl(SIOCSIFADDR, CRTITF): Address already exists");
@@ -2653,7 +2677,7 @@ int cipxfaddr (int unit)
     skfd = socket (AF_IPX, SOCK_DGRAM, 0);
     if (skfd < 0) { 
 	if (! ok_error (errno))
-	    dbglog("socket(AF_IPX): %m (%d)", errno);
+	    dbglog("socket(AF_IPX): %m (line %d)", __LINE__);
 	result = 0;
     }
     else {
@@ -2668,7 +2692,7 @@ int cipxfaddr (int unit)
  */
 	if (ioctl(skfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
-		info("ioctl(SIOCSIFADDR, IPX_DLTITF): %m (%d)", errno);
+		info("ioctl(SIOCSIFADDR, IPX_DLTITF): %m (line %d)", __LINE__);
 	    result = 0;
 	}
 	close (skfd);
