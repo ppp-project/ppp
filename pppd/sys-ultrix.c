@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.2 1994/05/06 04:48:21 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.3 1994/05/24 11:26:21 paulus Exp $";
 #endif
 
 /*
@@ -615,4 +615,46 @@ char *strdup( in ) char *in;
   if(! (dup = (char *) malloc( strlen( in ) +1 ))) return NULL;
   (void) strcpy( dup, in );
   return dup;
+}
+
+/*
+ * This logwtmp() implementation is subject to the following copyright:
+ *
+ * Copyright (c) 1988 The Regents of the University of California.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms are permitted
+ * provided that the above copyright notice and this paragraph are
+ * duplicated in all such forms and that any documentation,
+ * advertising materials, and other materials related to such
+ * distribution and use acknowledge that the software was developed
+ * by the University of California, Berkeley.  The name of the
+ * University may not be used to endorse or promote products derived
+ * from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+#define	WTMPFILE	"/usr/adm/wtmp"
+
+int
+logwtmp(line, name, host)
+    char *line, *name, *host;
+{
+    int fd;
+    struct stat buf;
+    struct utmp ut;
+
+    if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
+	return;
+    if (!fstat(fd, &buf)) {
+	(void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+	(void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+	(void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+	(void)time(&ut.ut_time);
+	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
+	    (void)ftruncate(fd, buf.st_size);
+    }
+    close(fd);
 }

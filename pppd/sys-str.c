@@ -26,6 +26,10 @@
 #include <errno.h>
 #include <syslog.h>
 #include <fcntl.h>
+#include <string.h>
+#include <time.h>
+#include <file.h>
+#include <utmp.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -551,7 +555,7 @@ cifproxyarp(unit, hisaddr)
  * get_ether_addr - get the hardware address of an interface on the
  * the same subnet as ipaddr.  Code borrowed from myetheraddr.c
  * in the cslip-2.6 distribution, which is subject to the following
- * copyright notice:
+ * copyright notice (which also applies to logwtmp below):
  *
  * Copyright (c) 1990, 1992 The Regents of the University of California.
  * All rights reserved.
@@ -692,4 +696,27 @@ get_ether_addr(ipaddr, hwaddr)
 
     /* couldn't find one */
     return 0;
+}
+
+#define	WTMPFILE	"/usr/adm/wtmp"
+
+int
+logwtmp(line, name, host)
+    char *line, *name, *host;
+{
+    int fd;
+    struct stat buf;
+    struct utmp ut;
+
+    if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
+	return;
+    if (!fstat(fd, &buf)) {
+	(void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+	(void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+	(void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+	(void)time(&ut.ut_time);
+	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
+	    (void)ftruncate(fd, buf.st_size);
+    }
+    close(fd);
 }
