@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.2 1995/12/19 02:04:40 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.3 1996/01/01 23:06:37 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -75,6 +75,8 @@ static struct termios inittermios;
 static struct winsize wsinfo;	/* Initial window size info */
 static pid_t	parent_pid;	/* PID of our parent */
 
+extern u_char	inpacket_buf[];	/* borrowed from main.c */
+
 static int	link_mtu, link_mru;
 
 #define NMODULES	32
@@ -98,6 +100,8 @@ static int strioctl __P((int, int, void *, int, int));
 void
 sys_init()
 {
+    int x;
+
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
@@ -116,84 +120,10 @@ sys_init()
      * parent process.
      */
     parent_pid = getppid();
-}
 
-/*
- * sys_cleanup - restore any system state we modified before exiting:
- * mark the interface down, delete default route and/or proxy arp entry.
- * This should call die() because it's called from die().
- */
-void
-sys_cleanup()
-{
-    struct ifreq ifr;
-
-    if (if_is_up)
-	sifdown(0);
-    if (default_route_gateway)
-	cifdefaultroute(0, default_route_gateway);
-    if (proxy_arp_addr)
-	cifproxyarp(0, proxy_arp_addr);
-}
-
-/*
- * daemon - Detach us from controlling terminal session.
- */
-int
-daemon(nochdir, noclose)
-    int nochdir, noclose;
-{
-    int pid;
-
-    if ((pid = fork()) < 0)
-	return -1;
-    if (pid != 0)
-	exit(0);		/* parent dies */
-    setsid();
-    if (!nochdir)
-	chdir("/");
-    if (!noclose) {
-	fclose(stdin);		/* don't need stdin, stdout, stderr */
-	fclose(stdout);
-	fclose(stderr);
-    }
-    return 0;
-}
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
-
-/*
- * ppp_available - check whether the system has any ppp interfaces
- */
-int
-ppp_available()
-{
-    struct stat buf;
-
-    return stat("/dev/ppp", &buf) >= 0;
-}
-
-/*
- * establish_ppp - Turn the serial port into a ppp interface.
- */
-void
-establish_ppp()
-{
-    int i, x;
-    struct ifreq ifr;
-
+    /*
+     * Open the ppp device.
+     */
     pppfd = open("/dev/ppp", O_RDWR | O_NONBLOCK, 0);
     if (pppfd < 0) {
 	syslog(LOG_ERR, "Can't open /dev/ppp: %m");
@@ -243,6 +173,101 @@ establish_ppp()
 	syslog(LOG_ERR, "Couldn't bind ppp interface to IP SAP: %m");
 	die(1);
     }
+}
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void
+sys_cleanup()
+{
+    if (if_is_up)
+	sifdown(0);
+    if (default_route_gateway)
+	cifdefaultroute(0, default_route_gateway);
+    if (proxy_arp_addr)
+	cifproxyarp(0, proxy_arp_addr);
+}
+
+/*
+ * sys_close - Clean up in a child process before execing.
+ */
+void
+sys_close()
+{
+    close(iffd);
+    close(pppfd);
+    close(sockfd);
+    closelog();
+}
+
+/*
+ * sys_check_options - check the options that the user specified
+ */
+void
+sys_check_options()
+{
+}
+
+
+/*
+ * daemon - Detach us from controlling terminal session.
+ */
+int
+daemon(nochdir, noclose)
+    int nochdir, noclose;
+{
+    int pid;
+
+    if ((pid = fork()) < 0)
+	return -1;
+    if (pid != 0)
+	exit(0);		/* parent dies */
+    setsid();
+    if (!nochdir)
+	chdir("/");
+    if (!noclose) {
+	fclose(stdin);		/* don't need stdin, stdout, stderr */
+	fclose(stdout);
+	fclose(stderr);
+    }
+    return 0;
+}
+
+/*
+ * note_debug_level - note a change in the debug level.
+ */
+void
+note_debug_level()
+{
+    if (debug) {
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+    } else {
+	setlogmask(LOG_UPTO(LOG_WARNING));
+    }
+}
+
+/*
+ * ppp_available - check whether the system has any ppp interfaces
+ */
+int
+ppp_available()
+{
+    struct stat buf;
+
+    return stat("/dev/ppp", &buf) >= 0;
+}
+
+/*
+ * establish_ppp - Turn the serial port into a ppp interface.
+ */
+void
+establish_ppp(fd)
+    int fd;
+{
+    int i;
 
     /* Pop any existing modules off the tty stream. */
     for (i = 0;; ++i)
@@ -266,21 +291,25 @@ establish_ppp()
 	syslog(LOG_ERR, "Can't link tty to PPP mux: %m");
 	die(1);
     }
+}
 
-    do {
-	char buf[PPP_MRU];
-
-	i = read(fd, buf, PPP_MRU);
-	syslog(LOG_DEBUG, "read %d bytes from fd", i);
-    } while (i > 0);
+/*
+ * restore_loop - reattach the ppp unit to the loopback.
+ * This doesn't need to do anything because disestablish_ppp does it.
+ */
+void
+restore_loop()
+{
 }
 
 /*
  * disestablish_ppp - Restore the serial port to normal operation.
- * This shouldn't call die() because it's called from die().
+ * It attempts to reconstruct the stream with the previously popped
+ * modules.  This shouldn't call die() because it's called from die().
  */
 void
-disestablish_ppp()
+disestablish_ppp(fd)
+    int fd;
 {
     int i;
 
@@ -311,6 +340,38 @@ disestablish_ppp()
 	     */
 	    kill(parent_pid, SIGHUP);
 	}
+    }
+}
+
+/*
+ * Check whether the link seems not to be 8-bit clean.
+ */
+void
+clean_check()
+{
+    int x;
+    char *s;
+
+    if (strioctl(pppfd, PPPIO_GCLEAN, &x, 0, sizeof(x)) < 0)
+	return;
+    s = NULL;
+    switch (~x) {
+    case RCV_B7_0:
+	s = "bit 7 set to 1";
+	break;
+    case RCV_B7_1:
+	s = "bit 7 set to 0";
+	break;
+    case RCV_EVNP:
+	s = "odd parity";
+	break;
+    case RCV_ODDP:
+	s = "even parity";
+	break;
+    }
+    if (s != NULL) {
+	syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
+	syslog(LOG_WARNING, "All received characters had %s", s);
     }
 }
 
@@ -497,7 +558,8 @@ set_up_tty(fd, local)
  * restore_tty - restore the terminal to the saved settings.
  */
 void
-restore_tty()
+restore_tty(fd)
+    int fd;
 {
     if (restore_term) {
 	if (!default_device) {
@@ -531,6 +593,16 @@ int fd, on;
 }
 
 /*
+ * open_loopback - open the device we use for getting packets
+ * in demand mode.  Under Solaris 2, we use our existing fd
+ * to the ppp driver.
+ */
+void
+open_ppp_loopback()
+{
+}
+
+/*
  * output - Output PPP packet.
  */
 void
@@ -548,17 +620,19 @@ output(unit, p, len)
 
     data.len = len;
     data.buf = (caddr_t) p;
+    retries = 4;
     while (putmsg(pppfd, NULL, &data, 0) < 0) {
 	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
 	    if (errno != ENXIO)
 		syslog(LOG_ERR, "Couldn't send packet: %m");
 	    break;
 	}
-	pfd.fd = fd;
+	pfd.fd = pppfd;
 	pfd.events = POLLOUT;
 	poll(&pfd, 1, 250);	/* wait for up to 0.25 seconds */
     }
 }
+
 
 /*
  * wait_input - wait until there is data available on fd,
@@ -580,6 +654,34 @@ wait_input(timo)
 	die(1);
     }
 }
+
+/*
+ * wait_loop_output - wait until there is data available on the
+ * loopback, for the length of time specified by *timo (indefinite
+ * if timo is NULL).
+ */
+wait_loop_output(timo)
+    struct timeval *timo;
+{
+    wait_input(timo);
+}
+
+/*
+ * wait_time - wait for a given length of time or until a
+ * signal is received.
+ */
+wait_time(timo)
+    struct timeval *timo;
+{
+    int n;
+
+    n = select(0, NULL, NULL, NULL, timo);
+    if (n < 0 && errno != EINTR) {
+	syslog(LOG_ERR, "select: %m");
+	die(1);
+    }
+}
+
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -616,6 +718,24 @@ read_packet(buf)
 	    syslog(LOG_DEBUG, "got ctrl msg len=%d", ctrl.len);
 
     }
+}
+
+/*
+ * get_loop_output - get outgoing packets from the ppp device,
+ * and detect when we want to bring the real link up.
+ * Return value is 1 if we need to bring up the link, 0 otherwise.
+ */
+int
+get_loop_output()
+{
+    int len;
+    int rv = 0;
+
+    while ((len = read_packet(inpacket_buf)) > 0) {
+	if (loop_frame(inpacket_buf, len))
+	    rv = 1;
+    }
+    return rv;
 }
 
 /*
@@ -721,6 +841,18 @@ ccp_flags_set(unit, isopen, isup)
 }
 
 /*
+ * get_idle_time - return how long the link has been idle.
+ */
+int
+get_idle_time(u, ip)
+    int u;
+    struct ppp_idle *ip;
+{
+    return strioctl(pppfd, PPPIO_GIDLE, ip, 0, sizeof(struct ppp_idle)) >= 0;
+}
+
+
+/*
  * ccp_fatal_error - returns 1 if decompression was disabled as a
  * result of an error detected after decompression of a packet,
  * 0 otherwise.  This is necessary because of patent nonsense.
@@ -814,6 +946,26 @@ sifdown(u)
 	}
     }
     if_is_up = 0;
+    return 1;
+}
+
+/*
+ * sifnpmode - Set the mode for handling packets for a given NP.
+ */
+int
+sifnpmode(u, proto, mode)
+    int u;
+    int proto;
+    enum NPmode mode;
+{
+    int npi[2];
+
+    npi[0] = proto;
+    npi[1] = (int) mode;
+    if (strioctl(pppfd, PPPIO_NPMODE, &npi, 2 * sizeof(int), 0) < 0) {
+	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
+	return 0;
+    }
     return 1;
 }
 
