@@ -36,7 +36,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.8 1995/05/02 05:51:22 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.9 1995/06/01 02:23:39 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -44,28 +44,29 @@ static char rcsid[] = "$Id: pppstats.c,v 1.8 1995/05/02 05:51:22 paulus Exp $";
 #include <nlist.h>
 #include <stdio.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/param.h>
-#include <sys/mbuf.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/file.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/ip_var.h>
 
 #include <net/ppp_defs.h>
 
-#ifndef STREAMS
-#include <net/if_ppp.h>
-#endif
+#ifdef __svr4__
+#include <sys/stropts.h>
+#include <net/pppio.h>		/* SVR4, Solaris 2, etc. */
 
-#ifdef STREAMS
+#else
+#include <sys/socket.h>
+#include <net/if.h>
+
+#ifndef STREAMS
+#include <net/if_ppp.h>		/* BSD, Linux, NeXT, etc. */
+
+#else				/* SunOS 4, AIX 4, OSF/1, etc. */
 #define PPP_STATS	1	/* should be defined iff it is in ppp_if.c */
 #include <sys/stream.h>
 #include <net/ppp_str.h>
+#endif
 #endif
 
 int	vflag, rflag, cflag;
@@ -117,10 +118,21 @@ main(argc, argv)
 	usage();
     }
 
+#ifdef __svr4__
+    if ((s = open("/dev/ppp", O_RDONLY)) < 0) {
+	perror("pppstats: Couldn't open /dev/ppp: ");
+	exit(1);
+    }
+    if (strioctl(s, PPPIO_ATTACH, &unit, sizeof(int), 0) < 0) {
+	fprintf(stderr, "pppstats: ppp%d is not available\n", unit);
+	exit(1);
+    }
+#else
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	perror("couldn't create IP socket");
 	exit(1);
     }
+#endif
     intpr();
     exit(0);
 }
@@ -131,8 +143,8 @@ usage()
     exit(1);
 }
 
-#define V(offset) (line % 20? req.stats.offset - osc.offset: req.stats.offset)
-#define W(offset) (line % 20? creq.stats.offset - csc.offset: creq.stats.offset)
+#define V(offset) (line % 20? cur.offset - old.offset: cur.offset)
+#define W(offset) (line % 20? ccs.offset - ocs.offset: ccs.offset)
 
 #define CRATE(comp, inc, unc)	((unc) == 0? 0.0: \
 				 1.0 - (double)((comp) + (inc)) / (unc))
@@ -146,36 +158,18 @@ usage()
 intpr()
 {
     register int line = 0;
-    int oldmask;
-    struct ifpppstatsreq req;
-    struct ifpppcstatsreq creq;
-    struct ppp_stats osc;
-    struct ppp_comp_stats csc;
+    sigset_t oldmask, mask;
+    struct ppp_stats cur, old;
+    struct ppp_comp_stats ccs, ocs;
 
-    bzero(&osc, sizeof(osc));
-    bzero(&csc, sizeof(csc));
+    memset(&old, 0, sizeof(old));
+    memset(&ocs, 0, sizeof(ocs));
 
-    sprintf(req.ifr_name, "ppp%d", unit);
-    sprintf(creq.ifr_name, "ppp%d", unit);
     while (1) {
-	if (ioctl(s, SIOCGPPPSTATS, &req) < 0) {
-	    if (errno == ENOTTY)
-		fprintf(stderr, "pppstats: kernel support missing\n");
-	    else
-		perror("ioctl(SIOCGPPPSTATS)");
-	    exit(1);
-	}
-	if ((cflag || rflag) && ioctl(s, SIOCGPPPCSTATS, &creq) < 0) {
-	    if (errno == ENOTTY) {
-		fprintf(stderr, "pppstats: no kernel compression support\n");
-		if (cflag)
-		    exit(1);
-		rflag = 0;
-	    } else {
-		perror("ioctl(SIOCGPPPCSTATS)");
-		exit(1);
-	    }
-	}
+	get_ppp_stats(&cur);
+	if (cflag || rflag)
+	    get_ppp_cstats(&ccs);
+
 	(void)signal(SIGALRM, catchalarm);
 	signalled = 0;
 	(void)alarm(interval);
@@ -206,8 +200,8 @@ intpr()
 		    printf("   %6.6s %6.6s", "ratio", "ubyte");
 		putchar('\n');
 	    }
-	    bzero(&osc, sizeof(osc));
-	    bzero(&csc, sizeof(csc));
+	    memset(&old, 0, sizeof(old));
+	    memset(&ocs, 0, sizeof(ocs));
 	}
 	
 	if (cflag) {
@@ -263,16 +257,19 @@ intpr()
 	line++;
 	if (interval == 0)
 	    exit(0);
-    
-	oldmask = sigblock(sigmask(SIGALRM));
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGALRM);
+	sigprocmask(SIG_BLOCK, &mask, &oldmask);
 	if (! signalled) {
-	    sigpause(0);
+	    sigemptyset(&mask);
+	    sigsuspend(&mask);
 	}
-	sigsetmask(oldmask);
+	sigprocmask(SIG_SETMASK, &oldmask, NULL);
 	signalled = 0;
 	(void)alarm(interval);
-	osc = req.stats;
-	csc = creq.stats;
+	old = cur;
+	ocs = ccs;
     }
 }
 
@@ -285,3 +282,89 @@ void catchalarm(arg)
 {
     signalled = 1;
 }
+
+#ifndef __svr4__
+get_ppp_stats(curp)
+    struct ppp_stats *curp;
+{
+    struct ifpppstatsreq req;
+
+    sprintf(req.ifr_name, "ppp%d", unit);
+    if (ioctl(s, SIOCGPPPSTATS, &req) < 0) {
+	if (errno == ENOTTY)
+	    fprintf(stderr, "pppstats: kernel support missing\n");
+	else
+	    perror("ioctl(SIOCGPPPSTATS)");
+	exit(1);
+    }
+    *curp = req.stats;
+}
+
+get_ppp_cstats(csp)
+    struct ppp_comp_stats *csp;
+{
+    struct ifpppcstatsreq creq;
+
+    sprintf(creq.ifr_name, "ppp%d", unit);
+    if (ioctl(s, SIOCGPPPCSTATS, &creq) < 0) {
+	if (errno == ENOTTY) {
+	    fprintf(stderr, "pppstats: no kernel compression support\n");
+	    if (cflag)
+		exit(1);
+	    rflag = 0;
+	} else {
+	    perror("ioctl(SIOCGPPPCSTATS)");
+	    exit(1);
+	}
+    }
+    *csp = creq.stats;
+}
+
+#else	/* __svr4__ */
+get_ppp_stats(curp)
+    struct ppp_stats *curp;
+{
+    if (strioctl(s, PPPIO_GETSTAT, curp, 0, sizeof(*curp)) < 0) {
+	if (errno == EINVAL)
+	    fprintf(stderr, "pppstats: kernel support missing\n");
+	else
+	    perror("pppstats: Couldn't get statistics");
+	exit(1);
+    }
+}
+
+get_ppp_cstats(csp)
+    struct ppp_comp_stats *csp;
+{
+    if (strioctl(s, PPPIO_GETCSTAT, csp, 0, sizeof(*csp)) < 0) {
+	if (errno == ENOTTY) {
+	    fprintf(stderr, "pppstats: no kernel compression support\n");
+	    if (cflag)
+		exit(1);
+	    rflag = 0;
+	} else {
+	    perror("pppstats: Couldn't get compression statistics");
+	    exit(1);
+	}
+    }
+}
+
+int
+strioctl(fd, cmd, ptr, ilen, olen)
+    int fd, cmd, ilen, olen;
+    char *ptr;
+{
+    struct strioctl str;
+
+    str.ic_cmd = cmd;
+    str.ic_timout = 0;
+    str.ic_len = ilen;
+    str.ic_dp = ptr;
+    if (ioctl(fd, I_STR, &str) == -1)
+	return -1;
+    if (str.ic_len != olen)
+	fprintf(stderr, "strioctl: expected %d bytes, got %d for cmd %x\n",
+	       olen, str.ic_len, cmd);
+    return 0;
+}
+#endif /* __svr4__ */
