@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.8 1998/05/04 06:11:50 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.9 1999/02/26 10:52:07 paulus Exp $
  */
 
 /*
@@ -93,8 +93,6 @@ int phdldevflag = 0;
 struct streamtab ppp_ahdlcinfo = {
     &rinit, &winit, NULL, NULL
 };
-
-int ppp_ahdlc_count;
 
 typedef struct ahdlc_state {
     int flags;
@@ -172,7 +170,6 @@ MOD_OPEN(ahdlc_open)
 	sp->xaccm[0] = ~0;
 	sp->xaccm[3] = 0x60000000;
 	sp->mru = PPP_MRU;
-	++ppp_ahdlc_count;
 	qprocson(q);
     }
     return 0;
@@ -190,7 +187,8 @@ MOD_CLOSE(ahdlc_close)
 	    state->cur_frame = 0;
 	}
 	FREE(q->q_ptr, sizeof(ahdlc_state_t));
-	--ppp_ahdlc_count;
+	q->q_ptr = NULL;
+	OTHERQ(q)->q_ptr = NULL;
     }
     return 0;
 }
@@ -207,6 +205,12 @@ ahdlc_wput(q, mp)
     struct ppp_stats *psp;
 
     state = (ahdlc_state_t *) q->q_ptr;
+    if (state == 0) {
+	DPRINT("state == 0 in ahdlc_wput\n");
+	freemsg(mp);
+	return 0;
+    }
+
     switch (mp->b_datap->db_type) {
     case M_DATA:
 	/*
@@ -326,6 +330,7 @@ ahdlc_wput(q, mp)
     default:
 	putnext(q, mp);
     }
+
     return 0;
 }
 
@@ -338,6 +343,13 @@ ahdlc_rput(q, mp)
     uchar_t *cp;
     ahdlc_state_t *state;
 
+    state = (ahdlc_state_t *) q->q_ptr;
+    if (state == 0) {
+	DPRINT("state == 0 in ahdlc_rput\n");
+	freemsg(mp);
+	return 0;
+    }
+
     switch (mp->b_datap->db_type) {
     case M_DATA:
 	unstuff_chars(q, mp);
@@ -345,7 +357,6 @@ ahdlc_rput(q, mp)
 	break;
 
     case M_HANGUP:
-	state = (ahdlc_state_t *) q->q_ptr;
 	if (state->cur_frame != 0) {
 	    /* XXX would like to send this up for debugging */
 	    freemsg(state->cur_frame);

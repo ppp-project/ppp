@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.15 1998/05/04 06:11:35 paulus Exp $
+ * $Id: ppp.c,v 1.16 1999/02/26 10:52:06 paulus Exp $
  */
 
 /*
@@ -51,6 +51,7 @@
 #include <sys/dlpi.h>
 #include <sys/ddi.h>
 #ifdef SOL2
+#include <sys/ksynch.h>
 #include <sys/kstat.h>
 #include <sys/sunddi.h>
 #else
@@ -89,6 +90,61 @@
 
 extern time_t time;
 
+#ifdef SOL2
+/*
+ * We use this reader-writer lock to ensure that the lower streams
+ * stay connected to the upper streams while the lower-side put and
+ * service procedures are running.  Essentially it is an existence
+ * lock for the upper stream associated with each lower stream.
+ */
+krwlock_t ppp_lower_lock;
+#define LOCK_LOWER_W	rw_enter(&ppp_lower_lock, RW_WRITER)
+#define LOCK_LOWER_R	rw_enter(&ppp_lower_lock, RW_READER)
+#define TRYLOCK_LOWER_R	rw_tryenter(&ppp_lower_lock, RW_READER)
+#define UNLOCK_LOWER	rw_exit(&ppp_lower_lock)
+
+#define MT_ENTER(x)	mutex_enter(x)
+#define MT_EXIT(x)	mutex_exit(x)
+
+/*
+ * Notes on multithreaded implementation for Solaris 2:
+ *
+ * We use an inner perimeter around each queue pair and an outer
+ * perimeter around the whole driver.  The inner perimeter is
+ * entered exclusively for all entry points (open, close, put,
+ * service).  The outer perimeter is entered exclusively for open
+ * and close and shared for put and service.  This is all done for
+ * us by the streams framework.
+ *
+ * I used to think that the perimeters were entered for the lower
+ * streams' put and service routines as well as for the upper streams'.
+ * Because of problems experienced by people, and after reading the
+ * documentation more closely, I now don't think that is true.  So we
+ * now use ppp_lower_lock to give us an existence guarantee on the
+ * upper stream controlling each lower stream.
+ *
+ * Shared entry to the outer perimeter protects the existence of all
+ * the upper streams and their upperstr_t structures, and guarantees
+ * that the following fields of any upperstr_t won't change:
+ * nextmn, next, nextppa.  It guarantees that the lowerq field of an
+ * upperstr_t won't go from non-zero to zero, that the global `ppas'
+ * won't change and that the no lower stream will get unlinked.
+ *
+ * Shared (reader) access to ppa_lower_lock guarantees that no lower
+ * stream will be unlinked and that the lowerq field of all upperstr_t
+ * structures won't change.
+ */
+
+#else /* SOL2 */
+#define LOCK_LOWER_W	0
+#define LOCK_LOWER_R	0
+#define TRYLOCK_LOWER_R	1
+#define UNLOCK_LOWER	0
+#define MUTEX_ENTER(x)	0
+#define MUTEX_EXIT(x)	0
+
+#endif /* SOL2 */
+
 /*
  * Private information; one per upper stream.
  */
@@ -104,6 +160,8 @@ typedef struct upperstr {
     struct upperstr *next;	/* next stream for this ppa */
     uint ioc_id;		/* last ioctl ID for this stream */
     enum NPmode npmode;		/* what to do with packets on this SAP */
+    unsigned char rblocked;	/* flow control has blocked upper read strm */
+	/* N.B. rblocked is only changed by control stream's put/srv procs */
     /*
      * There is exactly one control stream for each PPA.
      * The following fields are only used for control streams.
@@ -117,6 +175,7 @@ typedef struct upperstr {
     time_t last_sent;		/* time last NP packet sent */
     time_t last_recv;		/* time last NP packet rcvd */
 #ifdef SOL2
+    kmutex_t stats_lock;	/* lock for stats updates */
     kstat_t *kstats;		/* stats for netstat */
 #endif /* SOL2 */
 #ifdef LACHTCP
@@ -132,6 +191,7 @@ typedef struct upperstr {
 #define US_BLOCKED	4	/* flow ctrl has blocked lower write stream */
 #define US_LASTMOD	8	/* no PPP modules below us */
 #define US_DBGLOG	0x10	/* log various occurrences */
+#define US_RBLOCKED	0x20	/* flow ctrl has blocked upper read stream */
 
 
 #ifdef PRIOQ
@@ -172,6 +232,7 @@ static int pppclose __P((queue_t *, int, cred_t *));
 static int pppopen __P((queue_t *, int, int, int));
 static int pppclose __P((queue_t *, int));
 #endif /* SVR4 */
+static int pppurput __P((queue_t *, mblk_t *));
 static int pppuwput __P((queue_t *, mblk_t *));
 static int pppursrv __P((queue_t *));
 static int pppuwsrv __P((queue_t *));
@@ -188,6 +249,7 @@ static int send_data __P((mblk_t *, upperstr_t *));
 static void new_ppa __P((queue_t *, mblk_t *));
 static void attach_ppa __P((queue_t *, mblk_t *));
 static void detach_ppa __P((queue_t *, mblk_t *));
+static void detach_lower __P((queue_t *, mblk_t *));
 static void debug_dump __P((queue_t *, mblk_t *));
 static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
@@ -205,7 +267,7 @@ static struct module_info ppp_info = {
 };
 
 static struct qinit pppurint = {
-    NULL, pppursrv, pppopen, pppclose, NULL, &ppp_info, NULL
+    pppurput, pppursrv, pppopen, pppclose, NULL, &ppp_info, NULL
 };
 
 static struct qinit pppuwint = {
@@ -366,6 +428,9 @@ pppopen(q, dev, oflag, sflag)
     q->q_ptr = (caddr_t) up;
     WR(q)->q_ptr = (caddr_t) up;
     noenable(WR(q));
+#ifdef SOL2
+    mutex_init(&up->stats_lock, NULL, MUTEX_DRIVER, NULL);
+#endif
     ++ppp_count;
 
     qprocson(q);
@@ -401,6 +466,17 @@ pppclose(q, flag)
 #ifdef LACHTCP
 	struct ifstats *ifp, *pifp;
 #endif
+	if (up->lowerq != 0) {
+	    /* Gack! the lower stream should have be unlinked earlier! */
+	    cmn_err(CE_WARN, "ppp%d: lower stream still connected on close?\n",
+		    up->mn);
+	    LOCK_LOWER_W;
+	    up->lowerq->q_ptr = 0;
+	    RD(up->lowerq)->q_ptr = 0;
+	    up->lowerq = 0;
+	    UNLOCK_LOWER;
+	}
+
 	/*
 	 * This stream represents a PPA:
 	 * For all streams attached to the PPA, clear their
@@ -451,6 +527,7 @@ pppclose(q, flag)
 #ifdef SOL2
     if (up->kstats)
 	kstat_delete(up->kstats);
+    mutex_destroy(&up->stats_lock);
 #endif
 
     q->q_ptr = NULL;
@@ -552,20 +629,21 @@ pppuwput(q, mp)
 		break;
 	    }
 	    lb = (struct linkblk *) mp->b_cont->b_rptr;
-	    us->lowerq = lq = lb->l_qbot;
+	    lq = lb->l_qbot;
 	    if (lq == 0) {
 		DPRINT1("pppuwput/%d: ioctl I_LINK l_qbot = 0!\n", us->mn);
 		break;
 	    }
-	    lq->q_ptr = (caddr_t) us;
-	    RD(lq)->q_ptr = (caddr_t) us;
-	    noenable(RD(lq));
-	    flushq(RD(lq), FLUSHALL);
+	    LOCK_LOWER_W;
+	    us->lowerq = lq;
+	    lq->q_ptr = (caddr_t) q;
+	    RD(lq)->q_ptr = (caddr_t) us->q;
+	    UNLOCK_LOWER;
 	    iop->ioc_count = 0;
 	    error = 0;
 	    us->flags &= ~US_LASTMOD;
 	    /* Unblock upper streams which now feed this lower stream. */
-	    qenable(lq);
+	    qenable(q);
 	    /* Send useful information down to the modules which
 	       are now linked below us. */
 	    putctl2(lq, M_CTL, PPPCTL_UNIT, us->ppa_id);
@@ -598,11 +676,9 @@ pppuwput(q, mp)
 		break;
 	    }
 #endif
-	    us->lowerq = 0;
 	    iop->ioc_count = 0;
-	    error = 0;
-	    /* Unblock streams which now feed back up the control stream. */
-	    qenable(us->q);
+	    qwriter(q, mp, detach_lower, PERIM_OUTER);
+	    error = -1;
 	    break;
 
 	case PPPIO_NEWPPA:
@@ -765,11 +841,9 @@ pppuwput(q, mp)
 		    DPRINT2("ppp/%d: no stream for sap %x\n", us->mn, sap);
 		break;
 	    }
+	    /* XXX possibly should use qwriter here */
 	    nps->npmode = (enum NPmode) ((int *)mp->b_cont->b_rptr)[1];
-	    if (nps->npmode == NPMODE_DROP || nps->npmode == NPMODE_ERROR)
-		flushq(WR(nps->q), FLUSHDATA);
-	    else if (nps->npmode == NPMODE_PASS && qsize(WR(nps->q)) > 0
-		     && (nps->flags & US_BLOCKED) == 0)
+	    if (nps->npmode != NPMODE_QUEUE && (nps->flags & US_BLOCKED) != 0)
 		qenable(WR(nps->q));
 	    iop->ioc_count = 0;
 	    error = 0;
@@ -989,10 +1063,14 @@ dlpi_request(q, mp, us)
 	info->dl_max_sdu = us->ppa? us->ppa->mtu: PPP_MAXMTU;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(uint);
+#if 0
 #ifdef DL_OTHER
 	info->dl_mac_type = DL_OTHER;
 #else
 	info->dl_mac_type = DL_HDLC;	/* a lie */
+#endif
+#else
+	info->dl_mac_type = DL_ETHER;	/* a bigger lie */
 #endif
 	info->dl_current_state = us->state;
 	info->dl_service_mode = DL_CLDLS;
@@ -1334,6 +1412,12 @@ pass_packet(us, mp, outbound)
     return pass;
 }
 
+/*
+ * We have some data to send down to the lower stream (or up the
+ * control stream, if we don't have a lower stream attached).
+ * Returns 1 if the message was dealt with, 0 if it wasn't able
+ * to be sent on and should therefore be queued up.
+ */
 static int
 send_data(mp, us)
     mblk_t *mp;
@@ -1366,13 +1450,19 @@ send_data(mp, us)
 	}
     } else {
         if (bcanputnext(ppa->lowerq, mp->b_band)) {
+	    MT_ENTER(&ppa->stats_lock);
+	    ppa->stats.ppp_opackets++;
+	    ppa->stats.ppp_obytes += msgdsize(mp);
+#ifdef INCR_OPACKETS
+	    INCR_OPACKETS(ppa);
+#endif
+	    MT_EXIT(&ppa->stats_lock);
 	    /*
-	     * The lower write queue's put procedure just updates counters
-	     * and does a putnext.  We call it so that on SMP systems, we
-	     * enter the lower queues' perimeter so that the counter
-	     * updates are serialized.
+	     * The lower queue is only ever detached while holding an
+	     * exclusive lock on the whole driver.  So we can be confident
+	     * that the lower queue is still there.
 	     */
-	    put(ppa->lowerq, mp);
+	    putnext(ppa->lowerq, mp);
 	    return 1;
 	}
     }
@@ -1390,16 +1480,21 @@ new_ppa(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    upperstr_t *us, **usp;
+    upperstr_t *us, *up, **usp;
     int ppa_id;
+
+    us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("new_ppa: q_ptr = 0!\n");
+	return;
+    }
 
     usp = &ppas;
     ppa_id = 0;
-    while ((us = *usp) != 0 && ppa_id == us->ppa_id) {
+    while ((up = *usp) != 0 && ppa_id == up->ppa_id) {
 	++ppa_id;
-	usp = &us->nextppa;
+	usp = &up->nextppa;
     }
-    us = (upperstr_t *) q->q_ptr;
     us->ppa_id = ppa_id;
     us->ppa = us;
     us->next = 0;
@@ -1450,6 +1545,11 @@ attach_ppa(q, mp)
     upperstr_t *us, *t;
 
     us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("attach_ppa: q_ptr = 0!\n");
+	return;
+    }
+
 #ifndef NO_DLPI
     us->state = DL_UNBOUND;
 #endif
@@ -1475,6 +1575,11 @@ detach_ppa(q, mp)
     upperstr_t *us, *t;
 
     us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("detach_ppa: q_ptr = 0!\n");
+	return;
+    }
+
     for (t = us->ppa; t->next != 0; t = t->next)
 	if (t->next == us) {
 	    t->next = us->next;
@@ -1488,16 +1593,63 @@ detach_ppa(q, mp)
 #endif
 }
 
+/*
+ * We call this with qwriter in order to give the upper queue procedures
+ * the guarantee that the lower queue is not going to go away while
+ * they are executing.
+ */
+static void
+detach_lower(q, mp)
+    queue_t *q;
+    mblk_t *mp;
+{
+    upperstr_t *us;
+
+    us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("detach_lower: q_ptr = 0!\n");
+	return;
+    }
+
+    LOCK_LOWER_W;
+    us->lowerq->q_ptr = 0;
+    RD(us->lowerq)->q_ptr = 0;
+    us->lowerq = 0;
+    UNLOCK_LOWER;
+
+    /* Unblock streams which now feed back up the control stream. */
+    qenable(us->q);
+
+    mp->b_datap->db_type = M_IOCACK;
+    qreply(q, mp);
+}
+
 static int
 pppuwsrv(q)
     queue_t *q;
 {
-    upperstr_t *us;
-    struct lowerstr *ls;
-    queue_t *lwq;
+    upperstr_t *us, *as;
     mblk_t *mp;
 
     us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("pppuwsrv: q_ptr = 0!\n");
+	return 0;
+    }
+
+    /*
+     * If this is a control stream, then this service procedure
+     * probably got enabled because of flow control in the lower
+     * stream being enabled (or because of the lower stream going
+     * away).  Therefore we enable the service procedure of all
+     * attached upper streams.
+     */
+    if (us->flags & US_CONTROL) {
+	for (as = us->next; as != 0; as = as->next)
+	    qenable(WR(as->q));
+    }
+
+    /* Try to send on any data queued here. */
     us->flags &= ~US_BLOCKED;
     while ((mp = getq(q)) != 0) {
 	if (!send_data(mp, us)) {
@@ -1505,24 +1657,16 @@ pppuwsrv(q)
 	    break;
 	}
     }
+
     return 0;
 }
 
+/* should never get called... */
 static int
 ppplwput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    upperstr_t *ppa;
-
-    ppa = (upperstr_t *) q->q_ptr;
-    if (ppa != 0) {		/* why wouldn't it? */
-	ppa->stats.ppp_opackets++;
-	ppa->stats.ppp_obytes += msgdsize(mp);
-#ifdef INCR_OPACKETS
-	INCR_OPACKETS(ppa);
-#endif
-    }
     putnext(q, mp);
     return 0;
 }
@@ -1531,16 +1675,144 @@ static int
 ppplwsrv(q)
     queue_t *q;
 {
-    upperstr_t *us;
+    queue_t *uq;
 
     /*
      * Flow control has back-enabled this stream:
-     * enable the write service procedures of all upper
-     * streams feeding this lower stream.
+     * enable the upper write service procedure for
+     * the upper control stream for this lower stream.
      */
-    for (us = (upperstr_t *) q->q_ptr; us != NULL; us = us->next)
-	if (us->flags & US_BLOCKED)
-	    qenable(WR(us->q));
+    LOCK_LOWER_R;
+    uq = (queue_t *) q->q_ptr;
+    if (uq != 0)
+	qenable(uq);
+    UNLOCK_LOWER;
+    return 0;
+}
+
+/*
+ * This should only get called for control streams.
+ */
+static int
+pppurput(q, mp)
+    queue_t *q;
+    mblk_t *mp;
+{
+    upperstr_t *ppa, *us;
+    queue_t *uq;
+    int proto, len;
+    mblk_t *np;
+    struct iocblk *iop;
+
+    ppa = (upperstr_t *) q->q_ptr;
+    if (ppa == 0) {
+	DPRINT("pppurput: q_ptr = 0!\n");
+	return 0;
+    }
+
+    switch (mp->b_datap->db_type) {
+    case M_CTL:
+	MT_ENTER(&ppa->stats_lock);
+	switch (*mp->b_rptr) {
+	case PPPCTL_IERROR:
+#ifdef INCR_IERRORS
+	    INCR_IERRORS(ppa);
+#endif
+	    ppa->stats.ppp_ierrors++;
+	    break;
+	case PPPCTL_OERROR:
+#ifdef INCR_OERRORS
+	    INCR_OERRORS(ppa);
+#endif
+	    ppa->stats.ppp_oerrors++;
+	    break;
+	}
+	MT_EXIT(&ppa->stats_lock);
+	freemsg(mp);
+	break;
+
+    case M_IOCACK:
+    case M_IOCNAK:
+	/*
+	 * Attempt to match up the response with the stream
+	 * that the request came from.
+	 */
+	iop = (struct iocblk *) mp->b_rptr;
+	for (us = ppa; us != 0; us = us->next)
+	    if (us->ioc_id == iop->ioc_id)
+		break;
+	if (us == 0)
+	    freemsg(mp);
+	else
+	    putnext(us->q, mp);
+	break;
+
+    case M_HANGUP:
+	/*
+	 * The serial device has hung up.  We don't want to send
+	 * the M_HANGUP message up to pppd because that will stop
+	 * us from using the control stream any more.  Instead we
+	 * send a zero-length message as an end-of-file indication.
+	 */
+	freemsg(mp);
+	mp = allocb(1, BPRI_HI);
+	if (mp == 0) {
+	    DPRINT1("ppp/%d: couldn't allocate eof message!\n", ppa->mn);
+	    break;
+	}
+	putnext(ppa->q, mp);
+	break;
+
+    default:
+	if (mp->b_datap->db_type == M_DATA) {
+	    len = msgdsize(mp);
+	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN) {
+		PULLUP(mp, PPP_HDRLEN);
+		if (mp == 0) {
+		    DPRINT1("ppp_urput: msgpullup failed (len=%d)\n", len);
+		    break;
+		}
+	    }
+	    MT_ENTER(&ppa->stats_lock);
+	    ppa->stats.ppp_ipackets++;
+	    ppa->stats.ppp_ibytes += len;
+#ifdef INCR_IPACKETS
+	    INCR_IPACKETS(ppa);
+#endif
+	    MT_EXIT(&ppa->stats_lock);
+
+	    proto = PPP_PROTOCOL(mp->b_rptr);
+	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
+		/*
+		 * A data packet for some network protocol.
+		 * Queue it on the upper stream for that protocol.
+		 * XXX could we just putnext it?  (would require thought)
+		 * The rblocked flag is there to ensure that we keep
+		 * messages in order for each network protocol.
+		 */
+		if (!pass_packet(us, mp, 0))
+		    break;
+		if (!us->rblocked && !canput(us->q))
+		    us->rblocked = 1;
+		if (!us->rblocked)
+		    putq(us->q, mp);
+		else
+		    putq(q, mp);
+		break;
+	    }
+	}
+	/*
+	 * A control frame, a frame for an unknown protocol,
+	 * or some other message type.
+	 * Send it up to pppd via the control stream.
+	 */
+	if (queclass(mp) == QPCTL || canputnext(ppa->q))
+	    putnext(ppa->q, mp);
+	else
+	    putq(q, mp);
+	break;
+    }
+
     return 0;
 }
 
@@ -1556,6 +1828,11 @@ pppursrv(q)
     int proto;
 
     us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("pppursrv: q_ptr = 0!\n");
+	return 0;
+    }
+
     if (us->flags & US_CONTROL) {
 	/*
 	 * A control stream.
@@ -1570,6 +1847,44 @@ pppursrv(q)
 		as = as->next;
 	    } while (as != 0);
 	}
+
+	/*
+	 * Messages get queued on this stream's read queue if they
+	 * can't be queued on the read queue of the attached stream
+	 * that they are destined for.  This is for flow control -
+	 * when this queue fills up, the lower read put procedure will
+	 * queue messages there and the flow control will propagate
+	 * down from there.
+	 */
+	while ((mp = getq(q)) != 0) {
+	    proto = PPP_PROTOCOL(mp->b_rptr);
+	    if (proto < 0x8000 && (as = find_dest(us, proto)) != 0) {
+		if (!canput(as->q))
+		    break;
+		putq(as->q, mp);
+	    } else {
+		if (!canputnext(q))
+		    break;
+		putnext(q, mp);
+	    }
+	}
+	if (mp) {
+	    putbq(q, mp);
+	} else {
+	    /* can now put stuff directly on network protocol streams again */
+	    for (as = us->next; as != 0; as = as->next)
+		as->rblocked = 0;
+	}
+
+	/*
+	 * If this stream has a lower stream attached,
+	 * enable the read queue's service routine.
+	 * XXX we should really only do this if the queue length
+	 * has dropped below the low-water mark.
+	 */
+	if (us->lowerq != 0)
+	    qenable(RD(us->lowerq));
+		
     } else {
 	/*
 	 * A network protocol stream.  Put a DLPI header on each
@@ -1614,16 +1929,15 @@ pppursrv(q)
 	    putnext(q, mp);
 #endif /* NO_DLPI */
 	}
+	/*
+	 * Now that we have consumed some packets from this queue,
+	 * enable the control stream's read service routine so that we
+	 * can process any packets for us that might have got queued
+	 * there for flow control reasons.
+	 */
+	if (us->ppa)
+	    qenable(us->ppa->q);
     }
-
-    /*
-     * If this stream is attached to a PPA with a lower queue pair,
-     * enable the read queue's service routine if it has data queued.
-     * XXX there is a possibility that packets could get out of order
-     * if ppplrput now runs before ppplrsrv.
-     */
-    if (us->ppa != 0 && us->ppa->lowerq != 0)
-	qenable(RD(us->ppa->lowerq));
 
     return 0;
 }
@@ -1641,124 +1955,51 @@ find_dest(ppa, proto)
     return us;
 }
 
+/*
+ * We simply put the message on to the associated upper control stream
+ * (either here or in ppplrsrv).  That way we enter the perimeters
+ * before looking through the list of attached streams to decide which
+ * stream it should go up.
+ */
 static int
 ppplrput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    upperstr_t *ppa, *us;
     queue_t *uq;
-    int proto, len;
-    mblk_t *np;
-    struct iocblk *iop;
 
-    ppa = (upperstr_t *) q->q_ptr;
-    if (ppa == 0) {
-	DPRINT1("ppplrput: q = %x, ppa = 0??\n", q);
+    /*
+     * If we can't get the lower lock straight away, queue this one
+     * rather than blocking, to avoid the possibility of deadlock.
+     */
+    if (!TRYLOCK_LOWER_R) {
+	putq(q, mp);
+	return 0;
+    }
+
+    /*
+     * Check that we're still connected to the driver.
+     */
+    uq = (queue_t *) q->q_ptr;
+    if (uq == 0) {
+	UNLOCK_LOWER;
+	DPRINT1("ppplrput: q = %x, uq = 0??\n", q);
 	freemsg(mp);
 	return 0;
     }
-    switch (mp->b_datap->db_type) {
-    case M_FLUSH:
-	if (*mp->b_rptr & FLUSHW) {
-	    *mp->b_rptr &= ~FLUSHR;
-	    qreply(q, mp);
-	} else
-	    freemsg(mp);
-	break;
 
-    case M_CTL:
-	switch (*mp->b_rptr) {
-	case PPPCTL_IERROR:
-#ifdef INCR_IERRORS
-	    INCR_IERRORS(ppa);
-#endif
-	    ppa->stats.ppp_ierrors++;
-	    break;
-	case PPPCTL_OERROR:
-#ifdef INCR_OERRORS
-	    INCR_OERRORS(ppa);
-#endif
-	    ppa->stats.ppp_oerrors++;
-	    break;
-	}
-	freemsg(mp);
-	break;
+    /*
+     * Try to forward the message to the put routine for the upper
+     * control stream for this lower stream.
+     * If there are already messages queued here, queue this one so
+     * they don't get out of order.
+     */
+    if (queclass(mp) == QPCTL || (qsize(q) == 0 && canput(uq)))
+	put(uq, mp);
+    else
+	putq(q, mp);
 
-    case M_IOCACK:
-    case M_IOCNAK:
-	/*
-	 * Attempt to match up the response with the stream
-	 * that the request came from.
-	 */
-	iop = (struct iocblk *) mp->b_rptr;
-	for (us = ppa; us != 0; us = us->next)
-	    if (us->ioc_id == iop->ioc_id)
-		break;
-	if (us == 0)
-	    freemsg(mp);
-	else
-	    putnext(us->q, mp);
-	break;
-
-    case M_HANGUP:
-	/*
-	 * The serial device has hung up.  We don't want to send
-	 * the M_HANGUP message up to pppd because that will stop
-	 * us from using the control stream any more.  Instead we
-	 * send a zero-length message as an end-of-file indication.
-	 */
-	freemsg(mp);
-	mp = allocb(1, BPRI_HI);
-	if (mp == 0) {
-	    DPRINT1("ppp/%d: couldn't allocate eof message!\n", ppa->mn);
-	    break;
-	}
-	putnext(ppa->q, mp);
-	break;
-
-    default:
-	if (mp->b_datap->db_type == M_DATA) {
-	    len = msgdsize(mp);
-	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN) {
-		PULLUP(mp, PPP_HDRLEN);
-		if (mp == 0) {
-		    DPRINT1("ppp_lrput: msgpullup failed (len=%d)\n", len);
-		    break;
-		}
-	    }
-	    ppa->stats.ppp_ipackets++;
-	    ppa->stats.ppp_ibytes += len;
-#ifdef INCR_IPACKETS
-	    INCR_IPACKETS(ppa);
-#endif
-	    proto = PPP_PROTOCOL(mp->b_rptr);
-	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
-		/*
-		 * A data packet for some network protocol.
-		 * Queue it on the upper stream for that protocol.
-		 */
-		if (!pass_packet(us, mp, 0))
-		    break;
-		if (canput(us->q))
-		    putq(us->q, mp);
-		else
-		    putq(q, mp);
-		break;
-	    }
-	}
-	/*
-	 * A control frame, a frame for an unknown protocol,
-	 * or some other message type.
-	 * Send it up to pppd via the control stream.
-	 */
-	if (queclass(mp) == QPCTL || canputnext(ppa->q))
-	    putnext(ppa->q, mp);
-	else
-	    putq(q, mp);
-	break;
-    }
-
+    UNLOCK_LOWER;
     return 0;
 }
 
@@ -1767,32 +2008,30 @@ ppplrsrv(q)
     queue_t *q;
 {
     mblk_t *mp;
-    upperstr_t *ppa, *us;
-    int proto;
+    queue_t *uq;
 
     /*
-     * Packets only get queued here for flow control reasons.
+     * Packets get queued here for flow control reasons
+     * or if the lrput routine couldn't get the lower lock
+     * without blocking.
      */
-    ppa = (upperstr_t *) q->q_ptr;
+    LOCK_LOWER_R;
+    uq = (queue_t *) q->q_ptr;
+    if (uq == 0) {
+	UNLOCK_LOWER;
+	flushq(q, FLUSHALL);
+	DPRINT1("ppplrsrv: q = %x, uq = 0??\n", q);
+	return 0;
+    }
     while ((mp = getq(q)) != 0) {
-	if (mp->b_datap->db_type == M_DATA
-	    && (proto = PPP_PROTOCOL(mp->b_rptr)) < 0x8000
-	    && (us = find_dest(ppa, proto)) != 0) {
-	    if (canput(us->q))
-		putq(us->q, mp);
-	    else {
-		putbq(q, mp);
-		break;
-	    }
-	} else {
-	    if (canputnext(ppa->q))
-		putnext(ppa->q, mp);
-	    else {
-		putbq(q, mp);
-		break;
-	    }
+	if (queclass(mp) == QPCTL || canput(uq))
+	    put(uq, mp);
+	else {
+	    putbq(q, mp);
+	    break;
 	}
     }
+    UNLOCK_LOWER;
     return 0;
 }
 

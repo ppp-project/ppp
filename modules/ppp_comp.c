@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.9 1998/03/24 23:52:37 paulus Exp $
+ * $Id: ppp_comp.c,v 1.10 1999/02/26 10:52:07 paulus Exp $
  */
 
 /*
@@ -105,8 +105,6 @@ int pcmpdevflag = 0;
 struct streamtab ppp_compinfo = {
     &r_init, &w_init, NULL, NULL
 };
-
-int ppp_comp_count;		/* number of module instances in use */
 
 #ifdef __osf__
 
@@ -190,20 +188,19 @@ MOD_OPEN(ppp_comp_open)
 	cp = (comp_state_t *) ALLOC_SLEEP(sizeof(comp_state_t));
 	if (cp == NULL)
 	    OPEN_ERROR(ENOSR);
-	WR(q)->q_ptr = q->q_ptr = (caddr_t) cp;
 	bzero((caddr_t)cp, sizeof(comp_state_t));
+	WR(q)->q_ptr = q->q_ptr = (caddr_t) cp;
 	cp->mru = PPP_MRU;
 	cp->mtu = PPP_MTU;
 	cp->xstate = NULL;
 	cp->rstate = NULL;
 	vj_compress_init(&cp->vj_comp, -1);
-	++ppp_comp_count;
-	qprocson(q);
 #ifdef __osf__
 	if (!(thread = kernel_thread_w_arg(first_task, ppp_comp_alloc, (void *)cp)))
 		OPEN_ERROR(ENOSR);
 	cp->thread = thread;
 #endif
+	qprocson(q);
     }
     return 0;
 }
@@ -228,7 +225,6 @@ MOD_CLOSE(ppp_comp_close)
 	FREE(cp, sizeof(comp_state_t));
 	q->q_ptr = NULL;
 	OTHERQ(q)->q_ptr = NULL;
-	--ppp_comp_count;
     }
     return 0;
 }
@@ -326,6 +322,12 @@ ppp_comp_wput(q, mp)
     int nxslots, nrslots;
 
     cp = (comp_state_t *) q->q_ptr;
+    if (cp == 0) {
+	DPRINT("cp == 0 in ppp_comp_wput\n");
+	freemsg(mp);
+	return 0;
+    }
+
     switch (mp->b_datap->db_type) {
 
     case M_DATA:
@@ -584,6 +586,8 @@ ppp_comp_wput(q, mp)
     default:
 	putnext(q, mp);
     }
+
+    return 0;
 }
 
 static int
@@ -597,15 +601,21 @@ ppp_comp_wsrv(q)
     unsigned char *vjhdr, *dp;
 
     cp = (comp_state_t *) q->q_ptr;
+    if (cp == 0) {
+	DPRINT("cp == 0 in ppp_comp_wsrv\n");
+	return 0;
+    }
+
     while ((mp = getq(q)) != 0) {
 	/* assert(mp->b_datap->db_type == M_DATA) */
 #ifdef PRIOQ
-        if (!bcanputnext(q,mp->b_band)) {
+        if (!bcanputnext(q,mp->b_band))
 #else
-        if (!canputnext(q)) {
+        if (!canputnext(q))
 #endif PRIOQ
+	{
 	    putbq(q, mp);
-	    return;
+	    break;
 	}
 
 	/*
@@ -705,6 +715,8 @@ ppp_comp_wsrv(q)
 	cp->stats.ppp_obytes += msgdsize(mp);
 	putnext(q, mp);
     }
+
+    return 0;
 }
 
 static int
@@ -717,6 +729,12 @@ ppp_comp_rput(q, mp)
     struct ppp_stats *psp;
 
     cp = (comp_state_t *) q->q_ptr;
+    if (cp == 0) {
+	DPRINT("cp == 0 in ppp_comp_rput\n");
+	freemsg(mp);
+	return 0;
+    }
+
     switch (mp->b_datap->db_type) {
 
     case M_DATA:
@@ -755,6 +773,8 @@ ppp_comp_rput(q, mp)
     default:
 	putnext(q, mp);
     }
+
+    return 0;
 }
 
 static int
@@ -769,11 +789,16 @@ ppp_comp_rsrv(q)
     u_int iphlen;
 
     cp = (comp_state_t *) q->q_ptr;
+    if (cp == 0) {
+	DPRINT("cp == 0 in ppp_comp_rsrv\n");
+	return 0;
+    }
+
     while ((mp = getq(q)) != 0) {
 	/* assert(mp->b_datap->db_type == M_DATA) */
 	if (!canputnext(q)) {
 	    putbq(q, mp);
-	    return;
+	    break;
 	}
 
 	len = msgdsize(mp);
@@ -995,6 +1020,8 @@ ppp_comp_rsrv(q)
 	cp->stats.ppp_ierrors++;
 	putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
     }
+
+    return 0;
 }
 
 /*
