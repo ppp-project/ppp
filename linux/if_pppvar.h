@@ -93,7 +93,7 @@ struct ppp {
 	__s32		magic;		/* magic value for structure	*/
 
 	/* Bitmapped flag fields. */
-	__u8		inuse;		/* are we allocated?		*/
+	__u32		inuse;		/* are we allocated?		*/
 	__u8		escape;		/* 0x20 if prev char was PPP_ESC*/
 	__u8		toss;		/* toss this frame		*/
 
