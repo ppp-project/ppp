@@ -1,4 +1,4 @@
-#	$Id: Makefile.linux,v 1.12 2004/10/31 21:27:24 paulus Exp $
+#	$Id: Makefile.linux,v 1.13 2004/11/03 11:51:47 paulus Exp $
 
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
@@ -10,7 +10,7 @@ CDEF3=	-UNO_SLEEP			# Use the usleep function
 CDEF4=	-DFNDELAY=O_NDELAY		# Old name value
 CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4)
 
-COPTS=	-O2 -g -pipe $(CDEFS)
+COPTS=	-O2 -g -pipe
 CFLAGS=	$(COPTS) $(CDEFS)
 
 INSTALL= install
