@@ -1,5 +1,5 @@
 CC	= gcc
-CFLAGS	= -g -O2 -I.. -I../../include
+CFLAGS	= -g -O2 -I.. -I../../include -fPIC
 LDFLAGS	= -shared
 
 all:	minconn.so passprompt.so
