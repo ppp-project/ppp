@@ -40,7 +40,7 @@
 /*
  * This version is for use with STREAMS under SunOS 4.x.
  *
- * $Id: bsd-comp.c,v 1.6 1994/10/24 04:28:14 paulus Exp $
+ * $Id: bsd-comp.c,v 1.7 1994/11/30 05:29:36 paulus Exp $
  */
 
 #include <sys/param.h>
@@ -98,6 +98,7 @@ struct bsd_db {
     u_char  debug;
     u_char  unit;
     u_short seqno;			/* sequence number of next packet */
+    u_int   hdrlen;			/* header length to preallocate */
     u_int   mru;
     u_int   maxmaxcode;			/* largest valid code */
     u_int   max_ent;			/* largest code in use */
@@ -144,7 +145,7 @@ static void	bsd_free __P((void *state));
 static int	bsd_comp_init __P((void *state, u_char *options, int opt_len,
 				   int unit, int debug));
 static int	bsd_decomp_init __P((void *state, u_char *options, int opt_len,
-				     int unit, int mru, int debug));
+				     int unit, int hdrlen, int mru, int debug));
 static int	bsd_compress __P((void *state, mblk_t **mret,
 				  mblk_t *mp, int slen, int maxolen));
 static void	bsd_incomp __P((void *state, mblk_t *dmsg));
@@ -407,10 +408,10 @@ bsd_decomp_alloc(options, opt_len)
  * Initialize the database.
  */
 static int
-bsd_init(db, options, opt_len, unit, mru, debug, decomp)
+bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
     struct bsd_db *db;
     u_char *options;
-    int opt_len, unit, mru, debug, decomp;
+    int opt_len, unit, hdrlen, mru, debug, decomp;
 {
     int i;
 
@@ -432,6 +433,7 @@ bsd_init(db, options, opt_len, unit, mru, debug, decomp)
     }
 
     db->unit = unit;
+    db->hdrlen = hdrlen;
     db->mru = mru;
     if (debug)
 	db->debug = 1;
@@ -448,17 +450,17 @@ bsd_comp_init(state, options, opt_len, unit, debug)
     int opt_len, unit, debug;
 {
     return bsd_init((struct bsd_db *) state, options, opt_len,
-		    unit, 0, debug, 0);
+		    unit, 0, 0, debug, 0);
 }
 
 static int
-bsd_decomp_init(state, options, opt_len, unit, mru, debug)
+bsd_decomp_init(state, options, opt_len, unit, hdrlen, mru, debug)
     void *state;
     u_char *options;
-    int opt_len, unit, mru, debug;
+    int opt_len, unit, hdrlen, mru, debug;
 {
     return bsd_init((struct bsd_db *) state, options, opt_len,
-		    unit, mru, debug, 1);
+		    unit, hdrlen, mru, debug, 1);
 }
 
 
@@ -881,9 +883,10 @@ bsd_decompress(state, cmsg, dmpp)
     /*
      * Allocate one message block to start with.
      */
-    if ((dmsg = allocb(DECOMP_CHUNK, BPRI_MED)) == NULL)
+    if ((dmsg = allocb(DECOMP_CHUNK + db->hdrlen, BPRI_MED)) == NULL)
 	return DECOMP_ERROR;
     mret = dmsg;
+    dmsg->b_wptr += db->hdrlen;
     dmsg->b_rptr = wptr = dmsg->b_wptr;
 
     /* Fill in the ppp header, but not the last byte of the protocol
