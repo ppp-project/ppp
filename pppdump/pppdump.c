@@ -11,6 +11,7 @@
  */
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/types.h>
 #include "ppp_defs.h"
 #include "ppp-comp.h"
@@ -20,6 +21,10 @@ int pppmode;
 int reverse;
 int decompress;
 int mru = 1500;
+int abs_times;
+time_t start_time;
+int start_time_tenths;
+int tot_sent, tot_rcvd;
 
 extern int optind;
 extern char *optarg;
@@ -32,7 +37,7 @@ main(ac, av)
     char *p;
     FILE *f;
 
-    while ((i = getopt(ac, av, "hprdm:")) != -1) {
+    while ((i = getopt(ac, av, "hprdm:a")) != -1) {
 	switch (i) {
 	case 'h':
 	    hexmode = 1;
@@ -49,8 +54,11 @@ main(ac, av)
 	case 'm':
 	    mru = atoi(optarg);
 	    break;
+	case 'a':
+	    abs_times = 1;
+	    break;
 	default:
-	    fprintf(stderr, "Usage: %s [-h | -p[d]] [-r] [-m mru] [file ...]\n", av[0]);
+	    fprintf(stderr, "Usage: %s [-h | -p[d]] [-r] [-m mru] [-a] [file ...]\n", av[0]);
 	    exit(1);
 	}
     }
@@ -73,14 +81,12 @@ main(ac, av)
     exit(0);
 }
 
-
 dumplog(f)
     FILE *f;
 {
     int c, n, k, col;
     int nb, c2;
     unsigned char buf[16];
-    time_t t;
 
     while ((c = getc(f)) != EOF) {
 	switch (c) {
@@ -92,6 +98,7 @@ dumplog(f)
 	    col = 6;
 	    n = getc(f);
 	    n = (n << 8) + getc(f);
+	    *(c==1? &tot_sent: &tot_rcvd) += n;
 	    nb = 0;
 	    for (; n > 0; --n) {
 		c = getc(f);
@@ -148,19 +155,8 @@ dumplog(f)
 	    break;
 	case 5:
 	case 6:
-	    n = getc(f);
-	    if (c == 5) {
-		for (c = 3; c > 0; --c)
-		    n = (n << 8) + getc(f);
-	    }
-	    printf("time %.1fs\n", (double) n / 10);
-	    break;
 	case 7:
-	    t = getc(f);
-	    t = (t << 8) + getc(f);
-	    t = (t << 8) + getc(f);
-	    t = (t << 8) + getc(f);
-	    printf("start %s", ctime(&t));
+	    show_time(f, c);
 	    break;
 	default:
 	    printf("?%.2x\n");
@@ -234,7 +230,6 @@ dumpppp(f)
     unsigned char *d;
     unsigned short fcs;
     struct pkt *pkt;
-    time_t t;
 
     spkt.cnt = rpkt.cnt = 0;
     spkt.esc = rpkt.esc = 0;
@@ -248,6 +243,7 @@ dumpppp(f)
 	    pkt = c==1? &spkt: &rpkt;
 	    n = getc(f);
 	    n = (n << 8) + getc(f);
+	    *(c==1? &tot_sent: &tot_rcvd) += n;
 	    for (; n > 0; --n) {
 		c = getc(f);
 		switch (c) {
@@ -388,19 +384,8 @@ dumpppp(f)
 	    break;
 	case 5:
 	case 6:
-	    n = getc(f);
-	    if (c == 5) {
-		for (c = 3; c > 0; --c)
-		    n = (n << 8) + getc(f);
-	    }
-	    printf("time %.1fs\n", (double) n / 10);
-	    break;
 	case 7:
-	    t = getc(f);
-	    t = (t << 8) + getc(f);
-	    t = (t << 8) + getc(f);
-	    t = (t << 8) + getc(f);
-	    printf("start %s", ctime(&t));
+	    show_time(f, c);
 	    break;
 	default:
 	    printf("?%.2x\n");
@@ -473,5 +458,41 @@ handle_ccp(cp, dp, len)
 	    }
 	}
 	break;
+    }
+}
+
+show_time(f, c)
+    FILE *f;
+    int c;
+{
+    time_t t;
+    int n;
+    struct tm *tm;
+
+    if (c == 7) {
+	t = getc(f);
+	t = (t << 8) + getc(f);
+	t = (t << 8) + getc(f);
+	t = (t << 8) + getc(f);
+	printf("start %s", ctime(&t));
+	start_time = t;
+	start_time_tenths = 0;
+	tot_sent = tot_rcvd = 0;
+    } else {
+	n = getc(f);
+	if (c == 5) {
+	    for (c = 3; c > 0; --c)
+		n = (n << 8) + getc(f);
+	}
+	if (abs_times) {
+	    n += start_time_tenths;
+	    start_time += n / 10;
+	    start_time_tenths = n % 10;
+	    tm = localtime(&start_time);
+	    printf("time  %.2d:%.2d:%.2d.%d", tm->tm_hour, tm->tm_min,
+		   tm->tm_sec, start_time_tenths);
+	    printf("  (sent %d, rcvd %d)\n", tot_sent, tot_rcvd);
+	} else
+	    printf("time  %.1fs\n", (double) n / 10);
     }
 }
