@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.26 1999/03/16 22:53:48 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.27 1999/03/19 01:29:50 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -834,7 +834,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 
     /* set the MTU for IP as well */
     memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_metric = link_mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
 	error("Couldn't set IP MTU: %m");
@@ -1016,7 +1016,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface up (get): %m");
 	return 0;
@@ -1041,7 +1041,7 @@ sifdown(u)
 
     if (ipmuxid < 0)
 	return 1;
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface down (get): %m");
 	return 0;
@@ -1089,7 +1089,7 @@ sifaddr(u, o, h, m)
     int ret = 1;
 
     memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = m;
     if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
@@ -1301,7 +1301,7 @@ get_ether_addr(ipaddr, hwaddr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(ipfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags &
@@ -1550,7 +1550,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(ipfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1579,9 +1579,9 @@ logwtmp(line, name, host)
 
     if (name[0] != 0) {
 	/* logging in */
-	strlcpy(utmpx.ut_user, sizeof(utmpx.ut_user), name);
-	strlcpy(utmpx.ut_id, sizeof(utmpx.ut_id), ifname);
-	strlcpy(utmpx.ut_line, sizeof(utmpx.ut_line), line);
+	strlcpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
+	strlcpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
+	strlcpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
 	utmpx.ut_pid = getpid();
 	utmpx.ut_type = USER_PROCESS;
     } else {

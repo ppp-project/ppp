@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.38 1999/03/16 22:53:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.39 1999/03/19 01:29:44 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -131,7 +131,7 @@ sys_cleanup()
     struct ifreq ifr;
 
     if (if_is_up) {
-	strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
 	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
 	    ifr.ifr_flags &= ~IFF_UP;
@@ -188,7 +188,7 @@ ppp_available()
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	return 1;		/* can't tell */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
+    strlcpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
     close(s);
 
@@ -668,7 +668,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     u_int x;
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
     if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m");
@@ -852,7 +852,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
@@ -903,7 +903,7 @@ sifdown(u)
     ioctl(ppp_fd, PPPIOCSNPMODE, (caddr_t) &npi);
     /* ignore errors, because ppp_fd might have been closed by now. */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
@@ -938,7 +938,7 @@ sifaddr(u, o, h, m)
     struct ifaliasreq ifra;
     struct ifreq ifr;
 
-    strlcpy(ifra.ifra_name, sizeof(ifra.ifra_name), ifname);
+    strlcpy(ifra.ifra_name, ifname, sizeof(ifra.ifra_name));
     SET_SA_FAMILY(ifra.ifra_addr, AF_INET);
     ((struct sockaddr_in *) &ifra.ifra_addr)->sin_addr.s_addr = o;
     SET_SA_FAMILY(ifra.ifra_broadaddr, AF_INET);
@@ -949,7 +949,7 @@ sifaddr(u, o, h, m)
     } else
 	BZERO(&ifra.ifra_mask, sizeof(ifra.ifra_mask));
     BZERO(&ifr, sizeof(ifr));
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCDIFADDR, (caddr_t) &ifr) < 0) {
 	if (errno != EADDRNOTAVAIL)
 	    warn("Couldn't remove interface address: %m");
@@ -978,7 +978,7 @@ cifaddr(u, o, h)
     struct ifaliasreq ifra;
 
     ifaddrs[0] = 0;
-    strlcpy(ifra.ifra_name, sizeof(ifra.ifra_name), ifname);
+    strlcpy(ifra.ifra_name, ifname, sizeof(ifra.ifra_name));
     SET_SA_FAMILY(ifra.ifra_addr, AF_INET);
     ((struct sockaddr_in *) &ifra.ifra_addr)->sin_addr.s_addr = o;
     SET_SA_FAMILY(ifra.ifra_broadaddr, AF_INET);
@@ -1256,7 +1256,7 @@ get_ether_addr(ipaddr, hwaddr)
 	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	    /*
 	     * Check that the interface is up, and not point-to-point
 	     * or loopback.
@@ -1355,7 +1355,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.20 1999/03/16 22:53:48 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.21 1999/03/19 01:29:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -223,19 +223,6 @@ daemon(nochdir, noclose)
 	fclose(stderr);
     }
     return 0;
-}
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
 }
 
 /*
@@ -1081,7 +1068,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface up (get): %m");
 	return 0;
@@ -1104,7 +1091,7 @@ sifdown(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface down (get): %m");
 	return 0;
@@ -1167,7 +1154,7 @@ sifaddr(u, o, h, m)
     /* flush old address, if any
      */
     bzero(&ifr, sizeof (ifr));
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if ((ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0)
@@ -1177,7 +1164,7 @@ sifaddr(u, o, h, m)
     }
 
     bzero(&addreq, sizeof (addreq));
-    strlcpy(addreq.ifra_name, sizeof (addreq.ifra_name), ifname);
+    strlcpy(addreq.ifra_name, ifname, sizeof (addreq.ifra_name));
     SET_SA_FAMILY(addreq.ifra_addr, AF_INET);
     SET_SA_FAMILY(addreq.ifra_broadaddr, AF_INET);
     ((struct sockaddr_in *)&addreq.ifra_addr)->sin_addr.s_addr = o;
@@ -1222,7 +1209,7 @@ cifaddr(u, o, h)
     ifaddrs[0] = 0;
     ifaddrs[1] = 0;
     bzero(&ifr, sizeof (ifr));
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0) {
@@ -1372,7 +1359,7 @@ get_ether_addr(ipaddr, hwaddr)
              * Check that the interface is up, and not point-to-point
              * or loopback.
              */
-            strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+            strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
             if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
                 continue;
             if ((ifreq.ifr_flags &
@@ -1401,7 +1388,7 @@ get_ether_addr(ipaddr, hwaddr)
 	return 0;
     info("found interface %s for proxy arp", ifr->ifr_name);
 
-    strlcpy(ifdevreq.ifr_name, sizeof(ifdevreq.ifr_name), ifr->ifr_name);
+    strlcpy(ifdevreq.ifr_name, ifr->ifr_name, sizeof(ifdevreq.ifr_name));
 
     if (ioctl(sockfd, (int)SIOCRPHYSADDR, &ifdevreq) < 0) {
         perror("ioctl(SIOCRPHYSADDR)");
@@ -1426,9 +1413,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
-	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
-	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);
@@ -1485,7 +1472,7 @@ GetMask(addr)
 	    /*
 	     * Check that the interface is up, and not point-to-point or loopback.
 	     */
-	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	    if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	        continue;
 	    if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))

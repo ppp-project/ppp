@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.27 1999/03/16 22:53:49 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.28 1999/03/19 01:29:51 paulus Exp $";
 #endif
 
 /*
@@ -91,10 +91,8 @@ void
 sys_init()
 {
     /* Get an internet socket for doing socket ioctl's on. */
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	error("Couldn't create IP socket: %m");
-	die(1);
-    }
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	fatal("Couldn't create IP socket: %m");
 
     FD_ZERO(&in_fds);
     max_in_fd = 0;
@@ -103,7 +101,7 @@ sys_init()
 /*
  * sys_cleanup - restore any system state we modified before exiting:
  * mark the interface down, delete default route and/or proxy arp entry.
- * This should call die() because it's called from die().
+ * This shouldn't call die() because it's called from die().
  */
 void
 sys_cleanup()
@@ -111,7 +109,7 @@ sys_cleanup()
     struct ifreq ifr;
 
     if (if_is_up) {
-	strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
 	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
 	    ifr.ifr_flags &= ~IFF_UP;
@@ -191,7 +189,7 @@ ppp_available()
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	return 1;		/* can't tell */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
+    strlcpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
     close(s);
 
@@ -215,22 +213,16 @@ establish_ppp(fd)
     /*
      * Save the old line discipline of fd, and set it to PPP.
      */
-    if (ioctl(fd, TIOCGETD, &initdisc) < 0) {
-	error("ioctl(TIOCGETD): %m");
-	die(1);
-    }
-    if (ioctl(fd, TIOCSETD, &pppdisc) < 0) {
-	error("ioctl(TIOCSETD): %m");
-	die(1);
-    }
+    if (ioctl(fd, TIOCGETD, &initdisc) < 0)
+	fatal("ioctl(TIOCGETD): %m");
+    if (ioctl(fd, TIOCSETD, &pppdisc) < 0)
+	fatal("ioctl(TIOCSETD): %m");
 
     /*
      * Find out which interface we were given.
      */
-    if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {	
-	error("ioctl(PPPIOCGUNIT): %m");
-	die(1);
-    }
+    if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {
+	fatal("ioctl(PPPIOCGUNIT): %m");
 
     ppp_fd = fd;
 
@@ -443,10 +435,8 @@ set_up_tty(fd, local)
     int speed, x;
     struct termios tios;
 
-    if (tcgetattr(fd, &tios) < 0) {
-	error("tcgetattr: %m");
-	die(1);
-    }
+    if (tcgetattr(fd, &tios) < 0)
+	fatal("tcgetattr: %m");
 
     if (!restore_term) {
 	inittermios = tios;
@@ -486,17 +476,12 @@ set_up_tty(fd, local)
 	 * We can't proceed if the serial port speed is B0,
 	 * since that implies that the serial port is disabled.
 	 */
-	if (speed == B0) {
-	    error("Baud rate for %s is 0; need explicit baud rate",
-		   devnam);
-	    die(1);
-	}
+	if (speed == B0)
+	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
-	error("tcsetattr: %m");
-	die(1);
-    }
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+	fatal("tcsetattr: %m");
 
     x = 0;
     if (ioctl(fd, (crtscts > 0 || modem)? TIOCMODEM: TIOCNMODEM, &x) < 0)
@@ -505,7 +490,7 @@ set_up_tty(fd, local)
 	warn("TIOC(N)CAR: %m");
 
     baud_rate = inspeed = baud_rate_of(speed);
-    restore_term = TRUE;
+    restore_term = 1;
 }
 
 /*
@@ -529,7 +514,7 @@ restore_tty(fd)
 	    if (errno != ENXIO)
 		warn("tcsetattr: %m");
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
-	restore_term = FALSE;
+	restore_term = 0;
     }
 }
 
@@ -641,10 +626,8 @@ wait_time(timo)
     int n;
 
     n = select(0, NULL, NULL, NULL, timo);
-    if (n < 0 && errno != EINTR) {
-	error("select: %m");
-	die(1);
-    }
+    if (n < 0 && errno != EINTR)
+	fatal("select: %m");
 }
 #endif
 
@@ -660,8 +643,7 @@ read_packet(buf)
     if ((len = read(ttyfd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
 	if (errno == EWOULDBLOCK || errno == EINTR)
 	    return -1;
-	error("read(fd): %m");
-	die(1);
+	fatal("read(fd): %m");
     }
     return len;
 }
@@ -691,26 +673,18 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 {
     u_int x;
 
-    if (ioctl(ppp_fd, PPPIOCSMTU, &mtu) < 0) {
-	error("ioctl(PPPIOCSMTU): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCSMTU, &mtu) < 0)
+	fatal("ioctl(PPPIOCSMTU): %m");
 
-    if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	error("ioctl(PPPIOCSASYNCMAP): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
+	fatal("ioctl(PPPIOCSASYNCMAP): %m");
 
-    if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	error("ioctl (PPPIOCGFLAGS): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0)
+	fatal("ioctl (PPPIOCGFLAGS): %m");
     x = pcomp? x | SC_COMP_PROT: x &~ SC_COMP_PROT;
     x = accomp? x | SC_COMP_AC: x &~ SC_COMP_AC;
-    if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	error("ioctl(PPPIOCSFLAGS): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+	fatal("ioctl(PPPIOCSFLAGS): %m");
 }
 
 
@@ -739,23 +713,15 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 {
     int x;
 
-    if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
-	error("ioctl(PPPIOCSMRU): %m");
-	quit();
-    }
-    if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	error("ioctl(PPPIOCSRASYNCMAP): %m");
-	quit();
-    }
-    if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	error("ioctl (PPPIOCGFLAGS): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+	fatal("ioctl(PPPIOCSMRU): %m");
+    if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0)
+	fatal("ioctl(PPPIOCSRASYNCMAP): %m");
+    if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0)
+	fatal("ioctl (PPPIOCGFLAGS): %m");
     x = !accomp? x | SC_REJ_COMP_AC: x &~ SC_REJ_COMP_AC;
-    if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	error("ioctl(PPPIOCSFLAGS): %m");
-	quit();
-    }
+    if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+	fatal("ioctl(PPPIOCSFLAGS): %m");
 }
 
 /*
@@ -863,7 +829,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
@@ -914,7 +880,7 @@ sifdown(u)
     ioctl(ppp_fd, PPPIOCSNPMODE, (caddr_t) &npi);
     /* ignore errors, because ppp_fd might have been closed by now. */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
@@ -949,7 +915,7 @@ sifaddr(u, o, h, m)
     struct ifreq ifr;
 
     ret = 1;
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     if (m != 0) {
         ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
@@ -1131,7 +1097,7 @@ get_ether_addr(ipaddr, hwaddr)
 	    ((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
         if (ifr->ifr_addr.sa_family == AF_INET) {
             ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-            strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+            strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
             /*
              * Check that the interface is up, and not point-to-point
              * or loopback.
@@ -1162,7 +1128,7 @@ get_ether_addr(ipaddr, hwaddr)
     /*
      * Grab the physical address for this interface.
      */
-    strlcpy(ifdevea.ifr_name, sizeof(ifdevea.ifr_name), ifr->ifr_name);
+    strlcpy(ifdevea.ifr_name, ifr->ifr_name, sizeof(ifdevea.ifr_name));
     if (ioctl(sockfd, SIOCRPHYSADDR, &ifdevea) < 0) {
 	error("Couldn't get h/w address for %s: %m", ifr->ifr_name);
 	return 0;
@@ -1223,7 +1189,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1309,9 +1275,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
-	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
-	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.15 1999/03/16 22:53:48 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.16 1999/03/19 01:29:47 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -729,7 +729,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 
     /* set mtu for ip as well */
     memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_metric = link_mtu;
     if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
 	error("Couldn't set IP MTU: %m");
@@ -880,7 +880,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface up (get): %m");
 	return 0;
@@ -903,7 +903,7 @@ sifdown(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface down (get): %m");
 	return 0;
@@ -952,7 +952,7 @@ sifaddr(u, o, h, m)
     struct ifreq ifr;
 
     memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = m;
     if (ioctl(sockfd, SIOCSIFNETMASK, &ifr) < 0) {
@@ -1141,7 +1141,7 @@ get_ether_addr(ipaddr, hwaddr)
              * Check that the interface is up, and not point-to-point
              * or loopback.
              */
-            strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+            strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
             if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
                 continue;
             if ((ifreq.ifr_flags &
@@ -1174,7 +1174,7 @@ get_ether_addr(ipaddr, hwaddr)
 	error("Couldn't open /dev/nit: %m");
 	return 0;
     }
-    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
     if (ioctl(nit_fd, NIOCBIND, &ifreq) < 0
 	|| ioctl(nit_fd, SIOCGIFADDR, &ifreq) < 0) {
 	error("Couldn't get hardware address for %s: %m",
@@ -1214,9 +1214,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
-	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
-	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);
@@ -1274,7 +1274,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))

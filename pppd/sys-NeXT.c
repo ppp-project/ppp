@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.14 1999/03/16 22:53:46 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.15 1999/03/19 01:29:40 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -125,7 +125,7 @@ sys_cleanup()
     struct ifreq ifr;
 
     if (if_is_up) {
-	strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
 	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
 	    ifr.ifr_flags &= ~IFF_UP;
@@ -142,20 +142,6 @@ sys_cleanup()
 }
 
 /*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	info("Debug turned ON, Level %d", debug);
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
-
-/*
  * ppp_available - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
@@ -169,7 +155,7 @@ ppp_available()
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	return 1;		/* can't tell - maybe we're not root */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
+    strlcpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
     close(s);
 
@@ -603,7 +589,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     u_int x;
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
     if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m");
@@ -754,7 +740,7 @@ sifup(u)
     u_int x;
     struct npioctl npi;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
@@ -805,7 +791,7 @@ sifdown(u)
     /* ignore errors, because ttyfd might have been closed by now. */
 
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
@@ -840,7 +826,7 @@ sifaddr(u, o, h, m)
     struct ifreq ifr;
 
     ret = 1;
-    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
@@ -1029,7 +1015,7 @@ get_ether_addr(ipaddr, hwaddr)
 		((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	    /*
 	     * Check that the interface is up, and not point-to-point
 	     * or loopback.
@@ -1102,7 +1088,7 @@ ether_by_host(hostname, etherptr)
     /*
      * Now we can convert the returned string into an ethernet address.
      */
-    strlcpy(path, sizeof(path), val.ni_namelist_val[0]);
+    strlcpy(path, val.ni_namelist_val[0], sizeof(path));
     ni_free(conn);
     if ((thisptr = (struct ether_addr*)ether_aton(path)) == NULL)
 	return 1;
@@ -1162,7 +1148,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1258,9 +1244,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
-	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
-	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);

@@ -146,6 +146,8 @@ static int defaultroute_exists (struct rtentry *rt);
 static int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr,
 			   char *name);
 static void decode_version (char *buf, int *version, int *mod, int *patch);
+static int set_kdebugflag(int level);
+static int ppp_registered(void);
 
 extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
@@ -251,7 +253,7 @@ void sys_init(void)
  *
  * sys_cleanup - restore any system state we modified before exiting:
  * mark the interface down, delete default route and/or proxy arp entry.
- * This should call die() because it's called from die().
+ * This shouldn't call die() because it's called from die().
  */
 
 void sys_cleanup(void)
@@ -285,26 +287,10 @@ sys_close(void)
 
 /********************************************************************
  *
- * note_debug_level - note a change in the debug level.
- */
-
-void note_debug_level (void)
-{
-    if (debug) {
-	SYSDEBUG ((LOG_INFO, "Debug turned ON, Level %d", debug));
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    }
-    else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
-}
-
-/********************************************************************
- *
  * set_kdebugflag - Define the debugging level for the kernel
  */
 
-int set_kdebugflag (int requested_level)
+static int set_kdebugflag (int requested_level)
 {
     if (ioctl(ppp_fd, PPPIOCSDEBUG, &requested_level) < 0) {
 	if ( ! ok_error (errno) )
@@ -660,7 +646,7 @@ void set_up_tty(int tty_fd, int local)
 	    fatal("tcsetattr: %m");
     
     baud_rate    = baud_rate_of(speed);
-    restore_term = TRUE;
+    restore_term = 1;
 }
 
 /********************************************************************
@@ -859,7 +845,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
  * Set the MTU and other parameters for the ppp device
  */
     memset (&ifr, '\0', sizeof (ifr));
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
 	
     if (ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
@@ -1020,7 +1006,7 @@ static int path_to_procfs (void)
     fp = fopen(MOUNTED, "r");
     if (fp == NULL) {
 	/* Default the mount location of /proc */
-	strlcpy (route_buffer, sizeof (route_buffer), "/proc");
+	strlcpy (route_buffer, "/proc", sizeof (route_buffer));
 	return 1;
     }
 
@@ -1034,7 +1020,7 @@ static int path_to_procfs (void)
     if (mntent == 0)
 	return 0;
 
-    strlcpy(route_buffer, sizeof (route_buffer), mntent->mnt_dir);
+    strlcpy(route_buffer, mntent->mnt_dir, sizeof (route_buffer));
     return 1;
 }
 
@@ -1049,7 +1035,7 @@ static char *path_to_route (void)
 	error("proc file system not mounted");
 	return 0;
     }
-    strlcat (route_buffer, sizeof(route_buffer), "/net/route");
+    strlcat (route_buffer, "/net/route", sizeof(route_buffer));
     return (route_buffer);
 }
 
@@ -1386,7 +1372,7 @@ static int get_ether_addr (u_int32_t ipaddr,
     for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
             SYSDEBUG ((LOG_DEBUG, "proxy arp: examining interface %s",
 			ifreq.ifr_name));
 /*
@@ -1497,7 +1483,7 @@ u_int32_t GetMask (u_int32_t addr)
 /*
  * Check that the interface is up, and not point-to-point nor loopback.
  */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sock_fd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	
@@ -1547,7 +1533,7 @@ static void decode_version (char *buf, int *version,
  * Procedure to determine if the PPP line discipline is registered.
  */
 
-int
+static int
 ppp_registered(void)
 {
     int local_fd;
@@ -1615,7 +1601,7 @@ int ppp_available(void)
     if (s < 0)
 	return 0;
     
-    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
+    strlcpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 /*
  * If the device did not exist then attempt to create one by putting the
@@ -1624,7 +1610,7 @@ int ppp_available(void)
  */
     if (!ok) {
 	if (ppp_registered()) {
-	    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
+	    strlcpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
 	    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 	}
     }
@@ -1727,10 +1713,10 @@ void logwtmp (const char *line, const char *name, const char *host)
 	memset(&ut, 0, sizeof(ut));
 
     if (ut.ut_id[0] == 0)
-	strlcpy(ut.ut_id, sizeof(ut.ut_id), line + 3);
+	strlcpy(ut.ut_id, line + 3, sizeof(ut.ut_id));
 	
-    strlcpy(ut.ut_user, sizeof(ut.ut_user), name);
-    strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
+    strlcpy(ut.ut_user, name, sizeof(ut.ut_user));
+    strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
 
     time(&ut.ut_time);
 
@@ -1739,7 +1725,7 @@ void logwtmp (const char *line, const char *name, const char *host)
 
     /* Insert the host name if one is supplied */
     if (*host)
-	strlcpy (ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy (ut.ut_host, host, sizeof(ut.ut_host));
 
     /* Insert the IP address of the remote system if IP is enabled */
     if (ipcp_protent.enabled_flag && ipcp_hisoptions[0].neg_addr)
@@ -1939,7 +1925,7 @@ int sifup (int u)
     struct ifreq ifr;
 
     memset (&ifr, '\0', sizeof (ifr));
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
 	    error("ioctl (SIOCGIFFLAGS): %m(%d)", errno);
@@ -1968,7 +1954,7 @@ int sifdown (int u)
     if_is_up = 0;
 
     memset (&ifr, '\0', sizeof (ifr));
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
 	    error("ioctl (SIOCGIFFLAGS): %m(%d)", errno);
@@ -2003,7 +1989,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     SET_SA_FAMILY (ifr.ifr_dstaddr, AF_INET); 
     SET_SA_FAMILY (ifr.ifr_netmask, AF_INET); 
 
-    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy (ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
 /*
  *  Set our IP address
  */
@@ -2240,7 +2226,7 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
     }
     else {
 	memset (&ifr, '\0', sizeof (ifr));
-	strlcpy (ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy (ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 
 	memcpy (sipx->sipx_node, node, IPX_NODE_LEN);
 	sipx->sipx_family  = AF_IPX;
@@ -2291,7 +2277,7 @@ int cipxfaddr (int unit)
     }
     else {
 	memset (&ifr, '\0', sizeof (ifr));
-	strlcpy (ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy (ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 
 	sipx->sipx_type    = IPX_FRAME_ETHERII;
 	sipx->sipx_action  = IPX_DLTITF;
@@ -2365,7 +2351,7 @@ sys_check_options(void)
  */
     while (ipxcp_protent.enabled_flag) {
         if (path_to_procfs()) {
-	    strlcat (route_buffer, sizeof(route_buffer), "/net/ipx_interface");
+	    strlcat (route_buffer, "/net/ipx_interface", sizeof(route_buffer));
 	    if (lstat (route_buffer, &stat_buf) >= 0)
 		break;
 	}

@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.17 1999/03/16 22:53:46 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.18 1999/03/19 01:29:40 paulus Exp $";
 #endif
 
 /*
@@ -111,7 +111,7 @@ sys_cleanup()
     struct ifreq ifr;
 
     if (if_is_up) {
-	strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
+	strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
 	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
 	    ifr.ifr_flags &= ~IFF_UP;
@@ -664,7 +664,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int c;
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
     if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m");
@@ -805,7 +805,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
@@ -857,7 +857,7 @@ sifdown(u)
     ioctl(ttyfd, SIOCSETNPMODE, &npi);
     /* ignore errors, because ttyfd might have been closed by now. */
 
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
         error("ioctl (SIOCGIFFLAGS): %m");
         rv = 0;
@@ -891,7 +891,7 @@ sifaddr(u, o, h, m)
     struct ifreq ifr;
 
     ret = 1;
-    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     if (m != 0) {
         info("Setting interface mask to %s\n", ip_ntoa(m));
@@ -1259,7 +1259,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
+	strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1289,9 +1289,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
-	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
-	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
+	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);
