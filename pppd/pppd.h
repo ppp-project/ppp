@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.30 1999/03/16 02:51:06 paulus Exp $
+ * $Id: pppd.h,v 1.31 1999/03/16 22:54:43 paulus Exp $
  */
 
 /*
@@ -212,6 +212,7 @@ struct protent {
     void (*datainput) __P((int unit, u_char *pkt, int len));
     bool enabled_flag;		/* 0 iff protocol is disabled */
     char *name;			/* Text name of protocol */
+    char *data_name;		/* Text name of corresponding data protocol */
     option_t *options;		/* List of command-line options */
     /* Check requested options, assign defaults */
     void (*check_options) __P((void));

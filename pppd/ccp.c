@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.25 1999/03/16 03:15:12 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.26 1999/03/16 22:54:38 paulus Exp $";
 #endif
 
 #include <stdlib.h>
@@ -107,6 +107,7 @@ struct protent ccp_protent = {
     ccp_datainput,
     1,
     "CCP",
+    "Compressed",
     ccp_option_list,
     NULL,
     NULL,

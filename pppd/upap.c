@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.14 1999/03/16 03:15:15 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.15 1999/03/16 22:54:43 paulus Exp $";
 #endif
 
 /*
@@ -72,6 +72,7 @@ struct protent pap_protent = {
     NULL,
     1,
     "PAP",
+    NULL,
     pap_option_list,
     NULL,
     NULL,

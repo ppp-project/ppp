@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.11 1999/03/16 04:00:53 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.12 1999/03/16 22:54:39 paulus Exp $";
 #endif
 
 /*
@@ -157,6 +157,7 @@ struct protent ipxcp_protent = {
     NULL,
     0,
     "IPXCP",
+    "IPX",
     ipxcp_option_list,
     NULL,
     NULL,

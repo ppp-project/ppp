@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.40 1999/03/16 04:00:53 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.41 1999/03/16 22:54:38 paulus Exp $";
 #endif
 
 /*
@@ -183,6 +183,7 @@ struct protent ipcp_protent = {
     NULL,
     1,
     "IPCP",
+    "IP",
     ipcp_option_list,
     ip_check_options,
     ip_demand_conf,

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.60 1999/03/16 03:14:50 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.61 1999/03/16 22:54:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -614,6 +614,8 @@ main(argc, argv)
 		info("Serial link disconnected.");
 	    }
 	}
+	if (!hungup)
+	    lcp_lowerdown(0);
 
     fail:
 	if (ttyfd >= 0)
@@ -1389,7 +1391,6 @@ format_packet(p, len, printer, arg)
 {
     int i, n;
     u_short proto;
-    u_char x;
     struct protent *protp;
 
     if (len >= PPP_HDRLEN && p[0] == PPP_ALLSTATIONS && p[1] == PPP_UI) {
@@ -1406,16 +1407,25 @@ format_packet(p, len, printer, arg)
 	    p += n;
 	    len -= n;
 	} else {
-	    printer(arg, "[proto=0x%x]", proto);
+	    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+		if (proto == (protp->protocol & ~0x8000))
+		    break;
+	    if (protp != 0 && protp->data_name != 0) {
+		printer(arg, "[%s data]", protp->data_name);
+		if (len > 8)
+		    printer(arg, "%.8B ...", p);
+		else
+		    printer(arg, "%.*B", len, p);
+		len = 0;
+	    } else
+		printer(arg, "[proto=0x%x]", proto);
 	}
     }
 
-    for (i = 0; i < len && i < 32; ++i) {
-	GETCHAR(x, p);
-	printer(arg, " %.2x", x);
-    }
-    if (i < len)
-	printer(arg, " ...");
+    if (len > 32)
+	printer(arg, "%.32B ...", p);
+    else
+	printer(arg, "%.*B", len, p);
 }
 
 static void

@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.19 1999/03/16 03:15:13 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.20 1999/03/16 22:54:38 paulus Exp $";
 #endif
 
 /*
@@ -94,6 +94,7 @@ struct protent chap_protent = {
     NULL,
     1,
     "CHAP",
+    NULL,
     chap_option_list,
     NULL,
     NULL,

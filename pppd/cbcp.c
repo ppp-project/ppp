@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.5 1999/03/16 02:58:01 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.6 1999/03/16 22:54:38 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -69,6 +69,7 @@ struct protent cbcp_protent = {
     NULL,
     0,
     "CBCP",
+    NULL,
     cbcp_option_list,
     NULL,
     NULL,

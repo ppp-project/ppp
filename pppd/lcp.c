@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.35 1999/03/16 02:47:00 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.36 1999/03/16 22:54:41 paulus Exp $";
 #endif
 
 /*
@@ -192,6 +192,7 @@ struct protent lcp_protent = {
     NULL,
     1,
     "LCP",
+    NULL,
     lcp_option_list,
     NULL,
     NULL,
