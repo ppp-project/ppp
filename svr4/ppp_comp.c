@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.3 1995/05/29 06:43:50 paulus Exp $
+ * $Id: ppp_comp.c,v 1.4 1995/07/11 06:42:27 paulus Exp $
  */
 
 /*
@@ -406,7 +406,7 @@ static int
 ppp_comp_wsrv(q)
     queue_t *q;
 {
-    mblk_t *mp, *cmp, *np;
+    mblk_t *mp, *cmp = NULL, *np;
     comp_state_t *cp;
     int len, proto, type;
     struct ip *ip;
@@ -558,7 +558,7 @@ ppp_comp_rsrv(q)
     queue_t *q;
 {
     int proto, rv, i;
-    mblk_t *mp, *dmp, *np;
+    mblk_t *mp, *dmp = NULL, *np;
     uchar_t *dp, *iphdr;
     comp_state_t *cp;
     int len, hlen, vjlen, iphlen;
@@ -644,26 +644,25 @@ ppp_comp_rsrv(q)
 		&& (cp->flags & CCP_DECOMP_RUN) && cp->rstate
 		&& (cp->flags & CCP_ERR) == 0) {
 		rv = (*cp->rcomp->decompress)(cp->rstate, mp, &dmp);
-		if (dmp != NULL) {
+		switch (rv) {
+		case DECOMP_OK:
 		    freemsg(mp);
 		    mp = dmp;
-		} else {
-		    switch (rv) {
-		    case DECOMP_OK:
-			/* no error, but no packet returned */
-			freemsg(mp);
+		    if (mp == NULL) {
+			/* no error, but no packet returned either. */
 			continue;
-		    case DECOMP_ERROR:
-			cp->flags |= CCP_ERROR;
-			++cp->stats.ppp_ierrors;
-			putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
-			break;
-		    case DECOMP_FATALERROR:
-			cp->flags |= CCP_FATALERROR;
-			++cp->stats.ppp_ierrors;
-			putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
-			break;
 		    }
+		    break;
+		case DECOMP_ERROR:
+		    cp->flags |= CCP_ERROR;
+		    ++cp->stats.ppp_ierrors;
+		    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
+		    break;
+		case DECOMP_FATALERROR:
+		    cp->flags |= CCP_FATALERROR;
+		    ++cp->stats.ppp_ierrors;
+		    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
+		    break;
 		}
 	    }
 	} else if (cp->rstate && (cp->flags & CCP_DECOMP_RUN)) {
