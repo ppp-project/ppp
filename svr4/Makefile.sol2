@@ -1,10 +1,16 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.7 1996/07/01 01:24:07 paulus Exp $
+# $Id: Makefile.sol2,v 1.8 1996/09/14 05:12:02 paulus Exp $
 #
 
-CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I.. -O -Xa -w -DDEBUG
+COPTS = -Xa -w
+
+# If you prefer to use gcc...
+#CC = gcc
+#COPTS =
+
+CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I.. -O $(COPTS) -DDEBUG
 
 all:	ppp ppp_ahdl ppp_comp
 

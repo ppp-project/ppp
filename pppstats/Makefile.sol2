@@ -1,6 +1,6 @@
 #
 # pppstats Makefile for SVR4 systems
-# $Id: Makefile.sol2,v 1.4 1996/08/28 06:43:06 paulus Exp $
+# $Id: Makefile.sol2,v 1.5 1996/09/14 05:12:45 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
@@ -12,7 +12,7 @@ INSTALL = /usr/sbin/install
 #COPTS = -g -O
 
 # For sun c
-COPTS = -g -Xa
+COPTS = -O -Xa
 
 CFLAGS = -I.. $(COPTS) -DSTREAMS
 
