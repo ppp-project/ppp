@@ -17,6 +17,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <errno.h>
+#include <signal.h>
 #include <netinet/in.h>
 
 #include "pppd.h"
@@ -31,6 +33,8 @@ extern TDB_CONTEXT *pppdb;
 extern char db_key[];
 
 static int get_default_epdisc __P((struct epdisc *));
+static int parse_num __P((char *str, const char *key, int *valp));
+static int owns_unit __P((TDB_DATA pid, int unit));
 
 #define set_ip_epdisc(ep, addr) do {	\
 	ep->length = 4;			\
@@ -45,7 +49,8 @@ static int get_default_epdisc __P((struct epdisc *));
 	 || ((addr) & 0xfff00000) == 0xac100000		/* 172.16.x.x */  \
 	 || ((addr) & 0xffff0000) == 0xc0a80000)	/* 192.168.x.x */
 
-#ifdef HAVE_MULTILINK
+#define process_exists(n)	(kill(0, (n)) == 0 || errno != ESRCH)
+
 void
 mp_check_options()
 {
@@ -67,13 +72,11 @@ mp_check_options()
 		/* get a default endpoint value */
 		wo->neg_endpoint = get_default_epdisc(&wo->endpoint);
 		if (wo->neg_endpoint)
-			info("using default endpoint %s",
-			     epdisc_to_str(&wo->endpoint));
+			dbglog("using default endpoint %s",
+			       epdisc_to_str(&wo->endpoint));
 	}
 }
-#endif /* HAVE_MULTILINK */
 
-#ifdef HAVE_MULTILINK
 /*
  * Make a new bundle or join us to an existing bundle
  * if we are doing multilink.
@@ -83,9 +86,9 @@ mp_join_bundle()
 {
 	lcp_options *go = &lcp_gotoptions[0];
 	lcp_options *ho = &lcp_hisoptions[0];
-	int unit;
-	int i, l;
-	char *p, *endp;
+	int unit, pppd_pid;
+	int l;
+	char *p;
 	TDB_DATA key, pid, rec;
 
 	if (!go->neg_mrru || !ho->neg_mrru) {
@@ -122,38 +125,39 @@ mp_join_bundle()
 			      epdisc_to_str(&ho->endpoint));
 	if (bundle_name)
 		p += slprintf(p, bundle_id+l-p, "/%v", bundle_name);
-	info("bundle_id = %s", bundle_id+7);
+	dbglog("bundle_id = %s", bundle_id+7);
 
 	/*
 	 * Check if the bundle ID is already in the database.
 	 */
 	unit = -1;
+	pppd_pid = -1;
 	key.dptr = bundle_id;
 	key.dsize = p - bundle_id;
+	tdb_writelock(pppdb);
 	pid = tdb_fetch(pppdb, key);
 	if (pid.dptr != NULL) {
 		/* bundle ID exists, see if the pppd record still exists */
 		rec = tdb_fetch(pppdb, pid);
 		if (rec.dptr != NULL) {
 			/* it is, parse the interface number */
-			p = strstr(rec.dptr, "IFNAME=ppp");
-			if (p != 0) {
-				p += 10;	/* skip to unit number */
-				i = strtol(p, &endp, 10);
-				if (endp != p && (*endp == 0 || *endp == ';'))
-					unit = i;
-			}
+			parse_num(rec.dptr, "IFNAME=ppp", &unit);
+			/* check the pid value */
+			parse_num(rec.dptr, "PPPD_PID=", &pppd_pid);
+			if (!process_exists(pppd_pid) || !owns_unit(pid, unit))
+				unit = -1;
 			free(rec.dptr);
 		}
 		free(pid.dptr);
 	}
 
 	if (unit >= 0) {
-		/* attach to existing unit */
+		/* attach to existing unit, if the pid still exists */
 		if (bundle_attach(unit)) {
-			info("attached link to interface %d", ifunit);
+			dbglog("attached link to interface %d", ifunit);
 			set_ifunit(0);
 			script_setenv("BUNDLE", bundle_id + 7, 0);
+			tdb_writeunlock(pppdb);
 			return 1;
 		}
 		/* attach failed because bundle doesn't exist */
@@ -163,11 +167,55 @@ mp_join_bundle()
 	make_new_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
 	set_ifunit(1);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
+	tdb_writeunlock(pppdb);
 	return 0;
 }
-#endif /* HAVE_MULTILINK */
 
-#ifdef /* HAVE_MULTILINK */
+static int
+parse_num(str, key, valp)
+     char *str;
+     const char *key;
+     int *valp;
+{
+	char *p, *endp;
+	int i;
+
+	p = strstr(str, key);
+	if (p != 0) {
+		p += strlen(key);
+		i = strtol(p, &endp, 10);
+		if (endp != p && (*endp == 0 || *endp == ';')) {
+			*valp = i;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Check whether the pppd identified by `key' still owns ppp unit `unit'.
+ */
+static int
+owns_unit(key, unit)
+     TDB_DATA key;
+     int unit;
+{
+	char ifkey[32];
+	TDB_DATA kd, vd;
+	int ret = 0;
+
+	slprintf(ifkey, sizeof(ifkey), "IFNAME=ppp%d", unit);
+	kd.dptr = ifkey;
+	kd.dsize = strlen(ifkey);
+	vd = tdb_fetch(pppdb, kd);
+	if (vd.dptr != NULL) {
+		ret = vd.dsize == key.dsize
+			&& memcmp(vd.dptr, key.dptr, vd.dsize) == 0;
+		free(vd.dptr);
+	}
+	return ret;
+}
+
 static int
 get_default_epdisc(ep)
      struct epdisc *ep;
@@ -200,7 +248,6 @@ get_default_epdisc(ep)
 
 	return 0;
 }
-#endif /* HAVE_MULTILINK */
 
 /*
  * epdisc_to_str - make a printable string from an endpoint discriminator.
@@ -252,7 +299,6 @@ epdisc_to_str(ep)
 	return str;
 }
 
-#ifdef HAVE_MULTILINK
 static int hexc_val(int c)
 {
 	if (c >= 'a')
@@ -261,9 +307,7 @@ static int hexc_val(int c)
 		return c - 'A' + 10;
 	return c - '0';
 }
-#endif /* HAVE_MULTILINK */
 
-#ifdef HAVE_MULTILINK
 int
 str_to_epdisc(ep, str)
      struct epdisc *ep;
@@ -332,5 +376,4 @@ str_to_epdisc(ep, str)
 	dbglog("str_to_epdisc -> %s", epdisc_to_str(ep));
 	return 1;
 }
-#endif /* HAVE_MULTILINK */
 

@@ -1846,35 +1846,34 @@ int ppp_available(void)
     sscanf(utsname.release, "%d.%d.%d", &osmaj, &osmin, &ospatch);
     kernel_version = KVERSION(osmaj, osmin, ospatch);
 
-    if (kernel_version >= KVERSION(2,3,13)) {
-	fd = open("/dev/ppp", O_RDWR);
+    fd = open("/dev/ppp", O_RDWR);
 #if 0
-	if (fd < 0 && errno == ENOENT) {
-	    /* try making it and see if that helps. */
-	    if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
-		      makedev(108, 0)) >= 0) {
-		fd = open("/dev/ppp", O_RDWR);
-		if (fd >= 0)
-		    info("Created /dev/ppp device node");
-		else
-		    unlink("/dev/ppp");	/* didn't work, undo the mknod */
-	    } else if (errno == EEXIST) {
-		fd = open("/dev/ppp", O_RDWR);
-	    }
+    if (fd < 0 && errno == ENOENT) {
+	/* try making it and see if that helps. */
+	if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
+		  makedev(108, 0)) >= 0) {
+	    fd = open("/dev/ppp", O_RDWR);
+	    if (fd >= 0)
+		info("Created /dev/ppp device node");
+	    else
+		unlink("/dev/ppp");	/* didn't work, undo the mknod */
+	} else if (errno == EEXIST) {
+	    fd = open("/dev/ppp", O_RDWR);
 	}
-#endif /* 0 */
-	if (fd >= 0) {
-	    new_style_driver = 1;
-
-	    /* XXX should get from driver */
-	    driver_version = 2;
-	    driver_modification = 4;
-	    driver_patch = 0;
-	    close(fd);
-	    return 1;
-	}
-	return 0;
     }
+#endif /* 0 */
+    if (fd >= 0) {
+	new_style_driver = 1;
+
+	/* XXX should get from driver */
+	driver_version = 2;
+	driver_modification = 4;
+	driver_patch = 0;
+	close(fd);
+	return 1;
+    }
+    if (kernel_version >= KVERSION(2,3,13))
+	return 0;
 
 /*
  * Open a socket for doing the ioctl operations.
@@ -2671,8 +2670,8 @@ sys_check_options(void)
 	return 0;
     }
     if (multilink && !new_style_driver) {
-	option_error("multilink is not supported by the kernel driver");
-	return 0;
+	warn("Warning: multilink is not supported by the kernel driver");
+	multilink = 0;
     }
     return 1;
 }

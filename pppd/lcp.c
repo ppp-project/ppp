@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.50 2000/04/05 00:58:28 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.51 2000/04/13 12:05:57 paulus Exp $";
 
 /*
  * TODO:
@@ -1955,6 +1955,7 @@ lcp_printpkt(p, plen, printer, arg)
 		}
 		break;
 	    case CI_EPDISC:
+#ifdef HAVE_MULTILINK
 		if (olen >= CILEN_CHAR) {
 		    struct epdisc epd;
 		    p += 2;
@@ -1968,6 +1969,9 @@ lcp_printpkt(p, plen, printer, arg)
 		    }
 		    printer(arg, "endpoint [%s]", epdisc_to_str(&epd));
 		}
+#else
+		printer(arg, "endpoint");
+#endif
 		break;
 	    }
 	    while (p < optend) {

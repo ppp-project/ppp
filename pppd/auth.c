@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.63 2000/04/04 07:06:49 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.64 2000/04/13 12:05:57 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -511,9 +511,13 @@ start_networks()
     new_phase(PHASE_NETWORK);
 
 #ifdef HAVE_MULTILINK
-    if (multilink)
-	if (mp_join_bundle())
+    if (multilink) {
+	if (mp_join_bundle()) {
+	    if (updetach && !nodetach)
+		detach();
 	    return;
+	}
+    }
 #endif /* HAVE_MULTILINK */
 
 #if 0

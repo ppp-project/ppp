@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.92 2000/04/04 07:06:51 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.93 2000/04/13 12:05:59 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -179,6 +179,7 @@ static void record_child __P((int, char *, void (*) (void *), void *));
 static void update_db_entry __P((void));
 static void add_db_key __P((const char *));
 static void delete_db_key __P((const char *));
+static void cleanup_db __P((void));
 static int open_socket __P((char *));
 static int start_charshunt __P((int, int));
 static void charshunt_done __P((void *));
@@ -416,7 +417,7 @@ main(argc, argv)
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
-    pppdb = tdb_open(_PATH_PPPDB, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644);
+    pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
 	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
 	update_db_entry();
@@ -448,6 +449,8 @@ main(argc, argv)
 
     if (devnam[0])
 	script_setenv("DEVICE", devnam, 1);
+    slprintf(numbuf, sizeof(numbuf), "%d", getpid());
+    script_setenv("PPPD_PID", numbuf, 1);
 
     setup_signals();
 
@@ -462,8 +465,10 @@ main(argc, argv)
 	/*
 	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
+	tdb_writelock(pppdb);
 	fd_loop = open_ppp_loopback();
 	set_ifunit(1);
+	tdb_writeunlock(pppdb);
 
 	/*
 	 * Configure the interface and mark it up, etc.
@@ -720,14 +725,17 @@ main(argc, argv)
 	}
 
 	/* set up the serial device as a ppp interface */
+	tdb_writelock(pppdb);
 	fd_ppp = establish_ppp(ttyfd);
 	if (fd_ppp < 0) {
+	    tdb_writeunlock(pppdb);
 	    status = EXIT_FATAL_ERROR;
 	    goto disconnect;
 	}
 
 	if (!demand && ifunit >= 0)
 	    set_ifunit(1);
+	tdb_writeunlock(pppdb);
 
 	/*
 	 * Start opening the connection and wait for
@@ -822,6 +830,8 @@ main(argc, argv)
 	fd_ppp = -1;
 	if (!hungup)
 	    lcp_lowerdown(0);
+	if (!demand)
+	    script_unsetenv("IFNAME");
 
 	/*
 	 * Run disconnector script, if requested.
@@ -1018,6 +1028,7 @@ void
 detach()
 {
     int pid;
+    char numbuf[16];
 
     if (detached)
 	return;
@@ -1037,12 +1048,15 @@ detach()
     close(1);
     close(2);
     detached = 1;
-    log_to_fd = -1;
+    if (!log_to_file && !log_to_specific_fd)
+	log_to_fd = -1;
     /* update pid files if they have been written already */
     if (pidfilename[0])
 	create_pidfile();
     if (linkpidfile[0])
 	create_linkpidfile();
+    slprintf(numbuf, sizeof(numbuf), "%d", getpid());
+    script_setenv("PPPD_PID", numbuf, 1);
 }
 
 /*
@@ -1066,7 +1080,6 @@ static void
 create_pidfile()
 {
     FILE *pidfile;
-    char numbuf[16];
 
     slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
 	     _PATH_VARRUN, ifname);
@@ -1077,8 +1090,6 @@ create_pidfile()
 	error("Failed to create pid file %s: %m", pidfilename);
 	pidfilename[0] = 0;
     }
-    slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf, 1);
 }
 
 static void
@@ -1088,6 +1099,7 @@ create_linkpidfile()
 
     if (linkname[0] == 0)
 	return;
+    script_setenv("LINKNAME", linkname, 1);
     slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
 	     _PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
@@ -1099,7 +1111,6 @@ create_linkpidfile()
 	error("Failed to create pid file %s: %m", linkpidfile);
 	linkpidfile[0] = 0;
     }
-    script_setenv("LINKNAME", linkname, 1);
 }
 
 /*
@@ -1327,13 +1338,8 @@ cleanup()
     if (locked)
 	unlock();
 
-    if (pppdb != NULL) {
-	TDB_DATA key;
-
-	key.dptr = db_key;
-	key.dsize = strlen(db_key);
-	tdb_delete(pppdb, key);
-    }
+    if (pppdb != NULL)
+	cleanup_db();
 }
 
 /*
@@ -1934,21 +1940,23 @@ script_setenv(var, value, iskey)
     int i;
     char *p, *newstring;
 
-    newstring = (char *) malloc(vl);
+    newstring = (char *) malloc(vl+1);
     if (newstring == 0)
 	return;
+    *newstring++ = iskey;
     slprintf(newstring, vl, "%s=%s", var, value);
 
     /* check if this variable is already set */
     if (script_env != 0) {
 	for (i = 0; (p = script_env[i]) != 0; ++i) {
 	    if (strncmp(p, var, varl) == 0 && p[varl] == '=') {
-		if (iskey && pppdb != NULL) {
+		if (p[-1] && pppdb != NULL)
 		    delete_db_key(p);
-		    add_db_key(newstring);
-		}
-		free(p);
+		free(p-1);
 		script_env[i] = newstring;
+		if (iskey && pppdb != NULL)
+		    add_db_key(newstring);
+		update_db_entry();
 		return;
 	    }
 	}
@@ -1998,7 +2006,9 @@ script_unsetenv(var)
 	return;
     for (i = 0; (p = script_env[i]) != 0; ++i) {
 	if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
-	    free(p);
+	    if (p[-1] && pppdb != NULL)
+		delete_db_key(p);
+	    free(p-1);
 	    while ((script_env[i] = script_env[i+1]) != 0)
 		++i;
 	    break;
@@ -2068,6 +2078,24 @@ delete_db_key(str)
     key.dptr = (char *) str;
     key.dsize = strlen(str);
     tdb_delete(pppdb, key);
+}
+
+/*
+ * cleanup_db - delete all the entries we put in the database.
+ */
+static void
+cleanup_db()
+{
+    TDB_DATA key;
+    int i;
+    char *p;
+
+    key.dptr = db_key;
+    key.dsize = strlen(db_key);
+    tdb_delete(pppdb, key);
+    for (i = 0; (p = script_env[i]) != 0; ++i)
+	if (p[-1])
+	    delete_db_key(p);
 }
 
 /*
