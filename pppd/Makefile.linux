@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.18 1996/10/08 06:42:41 paulus Exp $
+# $Id: Makefile.linux,v 1.19 1997/03/04 03:35:05 paulus Exp $
 #
 
 # Default installation locations
@@ -28,7 +28,7 @@ endif
 #
 COPTS = -O2 # -g
 VER = 2.3.0
-LIBS = -lc -lbsd
+LIBS = -lcrypt -lbsd
 
 # The INCLUDE_DIRS must include the standard headers before the local
 # ones. If you just had -I.. then the order would be reversed. So, use
@@ -55,6 +55,12 @@ endif
 ifdef USE_PAM
 CFLAGS   += -DUSE_PAM
 LIBS     := -lpam -ldl $(LIBS)
+endif
+
+# Lock library binary for Linux is included in 'linux' subdirectory.
+ifdef LOCKLIB
+LIBS     := -llock $(LIBS)
+CFLAGS   += -DLOCKLIB=1
 endif
 
 install: pppd
