@@ -507,3 +507,47 @@ AIX 4.x, but who is no longer able to maintain it.  And apparently AIX
 
 IRIX includes a good PPP implementation in the standard distribution,
 as far as I know.
+
+
+------------------------------------------------------------------------
+
+Q: Under SunOS 4, when I try to modload the ppp modules, I get the
+message "can't open /dev/vd: No such device".
+
+A: First check in /dev that there is an entry like this:
+
+crw-r--r--  1  root         57,   0 Oct 2  1991 vd
+
+If not, make one (mknod /dev/vd c 57 0).  If the problem still exists,
+probably your kernel has been configured without the vd driver
+included.  The vd driver is needed for loadable module support.
+
+First, identify the config file that was used.  When you boot your
+machine, or if you run /etc/dmesg, you'll see a line that looks
+something like this:
+
+SunOS Release 4.1.3_U1 (CAP_XBOX) #7: Thu Mar 21 15:31:56 EST 1996
+			^^^^^^^^
+			this is the config file name
+
+The config file will be in the /sys/`arch -k`/conf directory (arch -k
+should return sun4m for a SparcStation 10, sun3x for a Sun 3/80,
+etc.).  Look in there for a line saying "options VDDRV".  If that line
+isn't present (or is commented out), add it (or uncomment it).
+
+You then need to rebuild the kernel as described in the SunOS
+manuals.  Basically you need to run config and make like this:
+
+	/usr/etc/config CAP_XBOX
+	cd ../CAP_XBOX
+	make
+
+(replacing the string CAP_XBOX by the name of the config file for your
+kernel, of course).
+
+Then copy the new kernel to /:
+
+	mv /vmunix /vmunix.working
+	cp vmunix /
+
+and reboot.  Modload should then work.
