@@ -2117,7 +2117,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 
 /*
  * get_pty - get a pty master/slave pair and chown the slave side
- * to the uid given.  Assumes slave_name points to >= 12 bytes of space.
+ * to the uid given.  Assumes slave_name points to >= 16 bytes of space.
  */
 int
 get_pty(master_fdp, slave_fdp, slave_name, uid)
@@ -2126,31 +2126,56 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
     char *slave_name;
     int uid;
 {
-    int i, mfd, sfd;
-    char pty_name[12];
+    int i, mfd, sfd = -1;
+    char pty_name[16];
     struct termios tios;
 
-    sfd = -1;
-    for (i = 0; i < 64; ++i) {
-	slprintf(pty_name, sizeof(pty_name), "/dev/pty%c%x",
-		 'p' + i / 16, i % 16);
-	mfd = open(pty_name, O_RDWR, 0);
-	if (mfd >= 0) {
-	    pty_name[5] = 't';
-	    sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
-	    if (sfd >= 0)
-		break;
-	    close(mfd);
+#ifdef TIOCGPTN
+    /*
+     * Try the unix98 way first.
+     */
+    mfd = open("/dev/ptmx", O_RDWR);
+    if (mfd >= 0) {
+	int ptn;
+	if (ioctl(mfd, TIOCGPTN, &ptn) >= 0) {
+	    slprintf(pty_name, sizeof(pty_name), "/dev/pts/%d", ptn);
+	    chmod(pty_name, S_IRUSR | S_IWUSR);
+#ifdef TIOCSPTLCK
+	    ptn = 0;
+	    if (ioctl(mfd, TIOCSPTLCK, &ptn) < 0)
+		warn("Couldn't unlock pty slave %s: %m", pty_name);
+#endif
+	    if ((sfd = open(pty_name, O_RDWR)) < 0)
+		warn("Couldn't open pty slave %s: %m", pty_name);
 	}
     }
+#endif /* TIOCGPTN */
+
+    if (sfd < 0) {
+	/* the old way - scan through the pty name space */
+	for (i = 0; i < 64; ++i) {
+	    slprintf(pty_name, sizeof(pty_name), "/dev/pty%c%x",
+		     'p' + i / 16, i % 16);
+	    mfd = open(pty_name, O_RDWR, 0);
+	    if (mfd >= 0) {
+		pty_name[5] = 't';
+		sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
+		if (sfd >= 0) {
+		    fchown(sfd, uid, -1);
+		    fchmod(sfd, S_IRUSR | S_IWUSR);
+		    break;
+		}
+		close(mfd);
+	    }
+	}
+    }
+
     if (sfd < 0)
 	return 0;
 
-    strlcpy(slave_name, pty_name, 12);
+    strlcpy(slave_name, pty_name, 16);
     *master_fdp = mfd;
     *slave_fdp = sfd;
-    fchown(sfd, uid, -1);
-    fchmod(sfd, S_IRUSR | S_IWUSR);
     if (tcgetattr(sfd, &tios) == 0) {
 	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
 	tios.c_cflag |= CS8 | CREAD;
