@@ -1,18 +1,18 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.1 1994/05/24 11:29:16 paulus Exp $
+# $Id: Makefile.linux,v 1.2 1994/05/24 11:31:54 paulus Exp $
 #
 
 BINDIR = /usr/etc
 MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
-	auth.c options.c lock.c sys-linux.c logwtmp.c
+	auth.c options.c lock.c sys-linux.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
-	auth.o options.o lock.o sys-linux.o logwtmp.o
+	auth.o options.o lock.o sys-linux.o
 
 all: pppd
 
