@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.75 1999/04/12 06:44:42 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.76 1999/04/16 11:35:06 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -77,7 +77,6 @@ char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char ppp_devnam[MAXPATHLEN]; /* name of PPP tty (maybe ttypx) */
-static pid_t pid;		/* Our pid */
 static uid_t uid;		/* Our real user-id */
 static int conn_running;	/* we have a [dis]connector running */
 
@@ -220,6 +219,18 @@ main(argc, argv)
     phase = PHASE_INITIALIZE;
     log_to_fd = -1;
 
+    /*
+     * Ensure that fds 0, 1, 2 are open, to /dev/null if nowhere else.
+     * This way we can close 0, 1, 2 in detach() without clobbering
+     * a fd that we are using.
+     */
+    if ((i = open("/dev/null", O_RDWR)) >= 0) {
+	while (0 <= i && i <= 2)
+	    i = dup(i);
+	if (i >= 0)
+	    close(i);
+    }
+
     script_env = NULL;
 
     /* Initialize syslog facilities */
@@ -342,7 +353,6 @@ main(argc, argv)
      */
     if (!nodetach && !updetach)
 	detach();
-    pid = getpid();
     p = getlogin();
     if (p == NULL) {
 	pw = getpwuid(uid);
@@ -469,7 +479,7 @@ main(argc, argv)
 	    for (;;) {
 		if (sigsetjmp(sigjmp, 1) == 0) {
 		    sigprocmask(SIG_BLOCK, &mask, NULL);
-		    if (kill_link) {
+		    if (kill_link || got_sigchld) {
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
 		    } else {
 			waiting = 1;
@@ -701,7 +711,7 @@ main(argc, argv)
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
 	    if (sigsetjmp(sigjmp, 1) == 0) {
 		sigprocmask(SIG_BLOCK, &mask, NULL);
-		if (kill_link || open_ccp_flag) {
+		if (kill_link || open_ccp_flag || got_sigchld) {
 		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
 		} else {
 		    waiting = 1;
@@ -800,7 +810,7 @@ main(argc, argv)
 	    do {
 		if (sigsetjmp(sigjmp, 1) == 0) {
 		    sigprocmask(SIG_BLOCK, &mask, NULL);
-		    if (kill_link) {
+		    if (kill_link || got_sigchld) {
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
 		    } else {
 			waiting = 1;
@@ -859,12 +869,11 @@ detach()
     }
     setsid();
     chdir("/");
-    close(0);			/* XXX we should make sure that none */
-    close(1);			/* of the fds we need are <= 2 */
+    close(0);
+    close(1);
     close(2);
     detached = 1;
     log_to_fd = -1;
-    pid = getpid();
     /* update pid file if it has been written already */
     if (pidfilename[0])
 	create_pidfile();
@@ -896,13 +905,13 @@ create_pidfile()
     slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
 	     _PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
-	fprintf(pidfile, "%d\n", pid);
+	fprintf(pidfile, "%d\n", getpid());
 	(void) fclose(pidfile);
     } else {
 	error("Failed to create pid file %s: %m", pidfilename);
 	pidfilename[0] = 0;
     }
-    slprintf(numbuf, sizeof(numbuf), "%d", pid);
+    slprintf(numbuf, sizeof(numbuf), "%d", getpid());
     script_setenv("PPPD_PID", numbuf);
 }
 
@@ -1495,7 +1504,7 @@ run_program(prog, args, must_exist, done, arg)
     }
 
     if (debug)
-	dbglog("Script %s started; pid = %d", prog, pid);
+	dbglog("Script %s started (pid %d)", prog, pid);
     record_child(pid, prog, done, arg);
 
     return pid;
