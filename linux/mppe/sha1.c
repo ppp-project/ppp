@@ -19,7 +19,7 @@
 #if defined(__linux__)
 #include <asm/byteorder.h>
 #include <linux/string.h>
-#else if defined(__solaris__)
+#elif defined(__solaris__)
 #include <sys/isa_defs.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
