@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.20 1999/09/08 01:11:15 masputra Exp $
+ * $Id: ppp.c,v 1.21 1999/09/15 23:49:05 masputra Exp $
  */
 
 /*
@@ -255,7 +255,9 @@ static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
 static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
+#ifdef FILTER_PACKETS
 static int ip_hard_filter __P((upperstr_t *ppa, mblk_t *mp, int outbound));
+#endif /* FILTER_PACKETS */
 
 #define PPP_ID 0xb1a6
 static struct module_info ppp_info = {
@@ -556,7 +558,7 @@ pppuwput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    upperstr_t *us, *usnext, *ppa, *os, *nps;
+    upperstr_t *us, *ppa, *nps;
     struct iocblk *iop;
     struct linkblk *lb;
 #ifdef LACHTCP
@@ -567,7 +569,6 @@ pppuwput(q, mp)
     int error, n, sap;
     mblk_t *mq;
     struct ppp_idle *pip;
-    int len;
 #ifdef PRIOQ
     queue_t *tlq;
 #endif	/* PRIOQ */
@@ -1042,7 +1043,7 @@ dlpi_request(q, mp, us)
     int size = mp->b_wptr - mp->b_rptr;
     mblk_t *reply, *np;
     upperstr_t *ppa, *os;
-    int sap, *ip, len;
+    int sap, len;
     dl_info_ack_t *info;
     dl_bind_ack_t *ackp;
 
@@ -1435,7 +1436,6 @@ send_data(mp, us)
     mblk_t *mp;
     upperstr_t *us;
 {
-    queue_t *q;
     upperstr_t *ppa;
 
     if ((us->flags & US_BLOCKED) || us->npmode == NPMODE_QUEUE)
@@ -1447,7 +1447,7 @@ send_data(mp, us)
 	freemsg(mp);
 	return 1;
     }
-    if ((q = ppa->lowerq) == 0) {
+    if (ppa->lowerq == 0) {
 	/* try to send it up the control stream */
         if (bcanputnext(ppa->q, mp->b_band)) {
 	    /*
@@ -1711,9 +1711,7 @@ pppurput(q, mp)
     mblk_t *mp;
 {
     upperstr_t *ppa, *us;
-    queue_t *uq;
     int proto, len;
-    mblk_t *np;
     struct iocblk *iop;
 
     ppa = (upperstr_t *) q->q_ptr;

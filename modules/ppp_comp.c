@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.11 1999/04/12 06:20:22 paulus Exp $
+ * $Id: ppp_comp.c,v 1.12 1999/09/15 23:49:06 masputra Exp $
  */
 
 /*
@@ -598,7 +598,7 @@ static int
 ppp_comp_wsrv(q)
     queue_t *q;
 {
-    mblk_t *mp, *cmp = NULL, *np;
+    mblk_t *mp, *cmp = NULL;
     comp_state_t *cp;
     int len, proto, type, hlen, code;
     struct ip *ip;

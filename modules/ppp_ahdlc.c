@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.10 1999/04/12 06:20:21 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.11 1999/09/15 23:49:05 masputra Exp $
  */
 
 /*
@@ -343,8 +343,6 @@ ahdlc_rput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    mblk_t *np;
-    uchar_t *cp;
     ahdlc_state_t *state;
 
     state = (ahdlc_state_t *) q->q_ptr;
@@ -387,13 +385,11 @@ stuff_frame(q, mp)
     mblk_t *mp;
 {
     ahdlc_state_t *state;
-    int ilen, olen, c, extra, i, code;
+    int ilen, olen, c, extra, code;
     mblk_t *omsg, *op, *np;
     uchar_t *sp, *sp0, *dp, *dp0, *spend;
     ushort_t fcs;
     u_int32_t *xaccm, lcp_xaccm[8];
-    static uchar_t lcphdr[PPP_HDRLEN] = { 0xff, 0x03, 0xc0, 0x21 };
-    uchar_t ppphdr[PPP_HDRLEN];
 
     state = (ahdlc_state_t *) q->q_ptr;
     ilen = msgdsize(mp);
@@ -570,7 +566,7 @@ unstuff_chars(q, mp)
     ahdlc_state_t *state;
     mblk_t *om;
     uchar_t *cp, *cpend, *dp, *dp0;
-    int c, len, extra, offset;
+    int c, len, extra;
     ushort_t fcs;
 
     state = (ahdlc_state_t *) q->q_ptr;
