@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.9 1995/10/27 03:40:12 paulus Exp $
+ * $Id: pppd.h,v 1.10 1995/12/18 03:47:21 paulus Exp $
  */
 
 /*
@@ -73,6 +73,7 @@ extern int	lockflag;	/* Create lock file to lock the serial dev */
 extern int	nodetach;	/* Don't detach from controlling tty */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
+extern int	maxconnect;	/* maximum number of seconds for a connection */
 extern char	user[];		/* Username for PAP */
 extern char	passwd[];	/* Password for PAP */
 extern int	auth_required;	/* Peer is required to authenticate */
@@ -96,6 +97,28 @@ extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 #define PHASE_AUTHENTICATE	2
 #define PHASE_NETWORK		3
 #define PHASE_TERMINATE		4
+
+/*
+ * The following struct gives the addresses of procedures to call
+ * for a particular protocol.
+ */
+struct protent {
+    u_short protocol;		/* PPP protocol number */
+    void (*init)();		/* Initialization procedure */
+    void (*input)();		/* Process a received packet */
+    void (*protrej)();		/* Process a received protocol-reject */
+    void (*lowerup)();		/* Lower layer has come up */
+    void (*lowerdown)();	/* Lower layer has gone down */
+    void (*open)();		/* Open the protocol */
+    void (*close)();		/* Close the protocol */
+    int  (*printpkt)();		/* Print a packet in readable form */
+    void (*datainput)();	/* Process a received data packet */
+    int  enabled_flag;		/* 0 iff protocol is disabled */
+    char *name;			/* Text name of protocol */
+};
+
+/* Table of pointers to supported protocols */
+extern struct protent *protocols[];
 
 /*
  * Prototypes.
