@@ -49,7 +49,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.39 2003/02/16 22:32:14 paulus Exp $"
+#define RCSID	"$Id: chap.c,v 1.40 2003/05/12 07:47:06 fcusack Exp $"
 
 /*
  * TODO:
@@ -810,7 +810,9 @@ ChapReceiveFailure(cstate, inp, id, len)
     u_char id;
     int len;
 {
+#ifdef CHAPMS
     u_char *msg;
+#endif
     u_char *p = inp;
 
     if (cstate->clientstate != CHAPCS_RESPONSE) {
@@ -898,7 +900,9 @@ ChapReceiveFailure(cstate, inp, id, len)
     /*
      * Print message.
      */
+#ifdef CHAPMS
 print_msg:
+#endif
     if (len > 0 && p != NULL)
 	PRINTMSG(p, len);
 
@@ -955,7 +959,7 @@ ChapSendStatus(cstate, code)
     int code;
 {
     u_char *outp;
-    int i, outlen, msglen;
+    int outlen, msglen;
     char msg[256];
     char *p, *q;
 
@@ -1023,6 +1027,8 @@ ChapSendStatus(cstate, code)
 	     * Basically, this whole bit is useless code, even the small
 	     * implementation here is only because of overspecification.
 	     */
+	    int i;
+
 	    slprintf(p, q - p, "E=691 R=1 C=");
 	    p += 12;
 	    for (i = 0; i < cstate->chal_len; i++)
@@ -1035,7 +1041,9 @@ ChapSendStatus(cstate, code)
 
 	slprintf(p, q - p, "I don't like you.  Go 'way.");
     }
+#ifdef CHAPMS
 msgdone:
+#endif
     msglen = strlen(msg);
 
     outlen = CHAP_HEADERLEN + msglen;
