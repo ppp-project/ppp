@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.8 1999/03/16 03:15:14 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.9 1999/03/19 01:21:28 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -62,6 +62,7 @@ struct packet *pend_q;
 struct packet *pend_qtail;
 
 static int active_packet __P((unsigned char *, int));
+static int loop_frame __P((unsigned char *, int));
 
 /*
  * demand_conf - configure the interface for doing dial-on-demand.
@@ -254,7 +255,7 @@ loop_chars(p, n)
  * We apply the active_filter to see if we want this packet to
  * bring up the link.
  */
-int
+static int
 loop_frame(frame, len)
     unsigned char *frame;
     int len;
