@@ -1,0 +1,45 @@
+#
+# pppstats makefile
+# $Id: Makefile.NeXT,v 1.1 1995/08/10 06:48:39 paulus Exp $
+#
+
+ARCHFLAGS = -arch i386 -arch m68k
+BINDIR = /usr/local/ppp/bin
+MANDIR = /usr/local/ppp/man
+
+PPPSTATSRCS = pppstats.c
+PPPSTATOBJS = pppstats.o
+
+#CC = gcc
+
+COPTS = -O -posix $(ARCHFLAGS)
+COMPILE_FLAGS = 
+LIBS = 
+
+#
+# The VJC/PPP_COMPRESS flag is required to ensure correct sizing of
+# some of the structures
+#
+CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS) #-DVJC -DPPP_COMPRESS -DDECOMP_OUT
+
+all: pppstats
+
+install:
+	/bin/mkdirs $(BINDIR) $(MANDIR)/man8
+	install -c -s -m 555 -o root -g daemon pppstats $(BINDIR)/pppstats
+	install -c -m 444 -o root -g wheel pppstats.8 $(MANDIR)/man8
+
+
+pppstats: $(PPPSTATSRCS)
+	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
+
+clean:
+	rm -f pppstats *~ #* core
+
+depend:
+	cpp -M $(CFLAGS) $(PPPSTATSRCS) >.depend
+#	makedepend $(CFLAGS) $(PPPSTATSRCS)
+
+saber_pppstats:
+	#setopt load_flags $(CFLAGS)
+	#load $(PPPSTATSRCS)

@@ -1,0 +1,43 @@
+#
+# Makefile for chat on NeXTs
+# 
+# $Id: Makefile.NeXT,v 1.1 1995/08/10 06:48:28 paulus Exp $
+#
+
+ARCHFLAGS = -arch i386 -arch m68k
+BINDIR = /usr/local/ppp/bin
+MANDIR = /usr/local/ppp/man
+
+CFLAGS=	-O -posix $(ARCHFLAGS)
+
+SRCS =	 chat.c
+OBJS =	 chat.o
+
+MANPAGES = chat.8
+
+
+#
+# Load dependencies
+#
+all:	chat
+
+chat:	$(OBJS)
+	$(CC) -o chat $(CFLAGS) $(OBJS)
+
+install:
+	/bin/mkdirs $(MANDIR)/man8 $(BINDIR) 
+	install -c -s -m 555 -o root -g wheel chat $(BINDIR)/chat
+	install -c -m 444 -o root -g wheel chat.8 $(MANDIR)/man8
+
+clean:
+	rm -f *~ *.o chat .depend
+
+depend:
+	cc -M $(CFLAGS) $(SRCS) > .depend
+
+#.depend:	$(SRCS)
+#	@echo Check dependencies if needed
+
+#	cc -M $(CFLAGS) $(SRCS) > .depend
+
+#include	.depend
