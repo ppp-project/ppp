@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.28 1996/01/18 03:22:22 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.29 1996/01/18 03:35:38 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -518,21 +518,22 @@ options_from_user()
 int
 options_for_tty()
 {
-    char *dev, *path;
+    char *dev, *path, *p;
     int ret;
 
-    dev = strrchr(devnam, '/');
-    if (dev == NULL)
-	dev = devnam;
-    else
-	++dev;
+    dev = devnam;
+    if (strncmp(dev, "/dev/", 5) == 0)
+	dev += 5;
     if (strcmp(dev, "tty") == 0)
 	return 1;		/* don't look for /etc/ppp/options.tty */
     path = malloc(strlen(_PATH_TTYOPT) + strlen(dev) + 1);
     if (path == NULL)
 	novm("tty init file name");
     strcpy(path, _PATH_TTYOPT);
-    strcat(path, dev);
+    /* Turn slashes into dots, for Solaris case (e.g. /dev/term/a) */
+    for (p = path + strlen(path); *dev != 0; ++dev)
+	*p++ = (*dev == '/'? '.': *dev);
+    *p = 0;
     ret = options_from_file(path, 0, 0);
     free(path);
     return ret;
