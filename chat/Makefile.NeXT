@@ -1,17 +1,18 @@
 #
 # Makefile for chat on NeXTs
 # 
-# $Id: Makefile.NeXT,v 1.2 1997/03/04 03:45:38 paulus Exp $
+# $Id: Makefile.NeXT,v 1.3 1998/03/24 23:57:45 paulus Exp $
 #
 
 ARCHFLAGS = 
 BINDIR = /usr/local/ppp/bin
 MANDIR = /usr/local/ppp/man
 
-CFLAGS=	-O -posix $(ARCHFLAGS)
+CFLAGS=	-O -D_POSIX_SOURCE $(ARCHFLAGS)
 
 SRCS =	 chat.c
 OBJS =	 chat.o
+LIBS =   ../libposix/libposix.o
 
 MANPAGES = chat.8
 
@@ -22,7 +23,7 @@ MANPAGES = chat.8
 all:	chat
 
 chat:	$(OBJS)
-	$(CC) -o chat $(CFLAGS) $(OBJS)
+	$(CC) -o chat $(CFLAGS) $(OBJS) $(LIBS)
 
 install:
 	/bin/mkdirs $(MANDIR)/man8 $(BINDIR) 
