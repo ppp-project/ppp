@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ccp.h,v 1.2 1994/09/21 06:47:37 paulus Exp $
+ * $Id: ccp.h,v 1.3 1994/10/18 02:07:33 paulus Exp $
  */
 
 /*
@@ -39,7 +39,7 @@
 #define RESETACK	15
 
 typedef struct ccp_options {
-    u_short bsd_compress: 1;	/* do BSD Compress? */
+    u_int bsd_compress: 1;	/* do BSD Compress? */
     u_short bsd_bits;		/* # bits/code for BSD Compress */
 } ccp_options;
 
