@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.15 1996/08/28 06:43:30 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.16 1996/09/14 05:13:25 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -70,6 +70,11 @@ int	s;			/* socket or /dev/ppp file descriptor */
 int	signalled;		/* set if alarm goes off "early" */
 char	*progname;
 char	*interface;
+
+#if defined(SUNOS4)
+extern int optind;
+extern char *optarg;
+#endif
 
 void
 usage()
