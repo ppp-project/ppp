@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.68 2001/03/08 05:11:10 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.69 2001/03/12 22:50:01 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1605,8 +1605,15 @@ set_allowed_addrs(unit, addrs, opts)
      * which is a single host, then use that if we find one.
      */
     if (suggested_ip != 0
-	&& (wo->hisaddr == 0 || !auth_ip_addr(unit, wo->hisaddr)))
+	&& (wo->hisaddr == 0 || !auth_ip_addr(unit, wo->hisaddr))) {
 	wo->hisaddr = suggested_ip;
+	/*
+	 * Do we insist on this address?  No, if there are other
+	 * addresses authorized than the suggested one.
+	 */
+	if (n > 1)
+	    wo->accept_remote = 1;
+    }
 }
 
 /*
