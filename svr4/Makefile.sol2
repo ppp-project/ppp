@@ -1,10 +1,12 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.17 1999/09/15 23:51:56 masputra Exp $
+# $Id: Makefile.sol2,v 1.18 1999/09/21 20:37:20 masputra Exp $
 #
 
 include Makedefs.sol2
+
+COPTS += -xO2 -xspace -W0,-Lt
 
 COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 	ppp_comp_mod.o
@@ -57,7 +59,7 @@ SRCS	= ../modules/ppp.c ppp_mod.c ../modules/ppp_ahdlc.c ppp_ahdlc_mod.c \
 	../common/zlib.c ../modules/vjcompress.c ppp_comp_mod.c
 
 lint:
-	$(LINT32.c) $(SRCS)
+	$(LINT32) $(SRCS)
 
 clean:
 	rm -f ppp ppp_comp ppp_ahdl *.o *~ core

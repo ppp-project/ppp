@@ -1,13 +1,13 @@
 #
 # Makefile for 64-bit STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2-64,v 1.2 1999/09/15 22:10:16 masputra Exp $
+# $Id: Makefile.sol2-64,v 1.3 1999/09/21 20:37:20 masputra Exp $
 #
 
 include Makedefs.sol2
 
 # Sun's cc flag for LP64 compilation / linkage
-COPTS 		+= -xarch=v9
+COPTS 		+= -xchip=ultra -xarch=v9 -Wc,-xcode=abs32 -Wc,-Qiselect-regsym=0 -xO3 -xspace -W0,-Lt
 
 # subdirectory where 64-bit objects / binaries will be placed
 LP64DIR		= sparcv9
@@ -75,10 +75,10 @@ SRCS	= ../modules/ppp.c ppp_mod.c ../modules/ppp_ahdlc.c ppp_ahdlc_mod.c \
 	../common/zlib.c ../modules/vjcompress.c ppp_comp_mod.c
 
 lint:
-	$(LINT64.c) $(SRCS)
+	$(LINT64) $(SRCS)
 
 lint-32:
-	$(LINT32.c) $(SRCS)
+	$(LINT32) $(SRCS)
 
 clean:
 	$(MAKE) -f $(STD_MAKE) clean
