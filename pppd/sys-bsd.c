@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.14 1994/10/22 11:50:36 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.15 1994/10/23 11:45:47 paulus Exp $";
 #endif
 
 /*
@@ -502,6 +502,10 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 /*
  * sifup - Config the interface up and enable IP packets to pass.
  */
+#ifndef SC_ENABLE_IP
+#define SC_ENABLE_IP	0x100	/* compat for old versions of kernel code */
+#endif
+
 int
 sifup(u)
     int u;
@@ -907,7 +911,7 @@ get_ether_addr(ipaddr, hwaddr)
      */
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
     for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
-	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len) {
+	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
 	    strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
