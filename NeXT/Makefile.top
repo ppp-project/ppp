@@ -1,0 +1,199 @@
+
+# ppp top level makefile for NeXT systems
+#
+# $Id: Makefile.top,v 1.1 1995/12/18 03:29:52 paulus Exp $
+#
+
+BINDIR = /usr/local/ppp/bin
+MANDIR = /usr/local/ppp/man
+ETCDIR = /etc/ppp
+#ARCHFLAGS = -arch i386 -arch m68k -arch hppa -arch sparc
+#ARCHFLAGS = -arch i386 -arch m68k
+#ARCHFLAGS = -arch i386
+ARCHFLAGS =
+
+all:
+	cd chat; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
+	cd pppstats; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
+	cd pppd; $(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" all
+	cd NeXT; $(MAKE) ARCHFLAGS="$(ARCHFLAGS)" all
+
+install: 
+	cd chat; \
+	$(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppstats; \
+	$(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppd; \
+	$(MAKE) -f Makefile.NeXT ARCHFLAGS="$(ARCHFLAGS)" BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd NeXT; \
+	$(MAKE) ARCHFLAGS="$(ARCHFLAGS)" BINDIR=$(BINDIR) ETCDIR=$(ETCDIR) install
+
+clean: 
+	rm -f *~
+	(cd chat; $(MAKE) -f Makefile.NeXT clean)
+	(cd pppstats; $(MAKE) -f Makefile.NeXT clean)
+	(cd pppd; $(MAKE) -f Makefile.NeXT clean)
+	(cd NeXT; $(MAKE) clean)
+
+
+
+NEXTTOP = \
+	README.NeXT			\
+	${NULL}
+
+NEXTPPPD = \
+	pppd/Makefile.NeXT			\
+	pppd/ipcp.c				\
+	pppd/ipcp.h				\
+	pppd/options.c				\
+	pppd/sys-NeXT.c				\
+	${NULL}
+
+NEXTNET = \
+	${NULL}
+
+
+#
+# Currently not supported
+#
+NEXTPPPEXC = \
+	pppexclude/Makefile.NeXT		\
+	pppexclude/pppipexclude.8		\
+	pppexclude/pppipexclude.c		\
+	${NULL}
+
+NEXTSTATS = \
+	pppstats/Makefile.NeXT			\
+	${NULL}
+
+NEXTCHAT = \
+	chat/Makefile.NeXT			\
+	chat/chat.c.3.2				\
+	${NULL}
+
+NEXTLKS = \
+	NeXT/INSTALL				\
+	NeXT/Load_Commands.sect			\
+	NeXT/Makefile				\
+	NeXT/Makefile.top			\
+        NeXT/NeXT_Version			\
+	NeXT/README.NeXT			\
+	NeXT/TODO.NeXT				\
+	NeXT/Unload_Commands.sect		\
+	NeXT/bsd-comp.c 			\
+	NeXT/if_ppp.c				\
+	NeXT/if_pppvar.h			\
+	NeXT/inlines.h				\
+	NeXT/linedisc.h				\
+	NeXT/nbq.h				\
+	NeXT/netbuf.h				\
+	NeXT/ppp_tty.c				\
+	NeXT/random.c				\
+	NeXT/random.h				\
+	NeXT/spl.h				\
+	NeXT/vjcompress.c			\
+	${NULL}
+
+NEXTHPPA = \
+	NeXT/hppa/README.hppa			\
+	NeXT/hppa/hppaSerialPatch.tar.gz	\
+	$(NULL}
+
+NEXTMACH = \
+	NeXT/mach/features.h			\
+	$(NULL}
+
+
+NEXTBPF = \
+	NeXT/bpf/Load_Commands.sect	\
+	NeXT/bpf/Makefile		\
+	NeXT/bpf/NeXT_Support.c		\
+	NeXT/bpf/README.NeXT		\
+	NeXT/bpf/Unload_Commands.sect	\
+	NeXT/bpf/bpf.4			\
+	NeXT/bpf/bpf.c			\
+	NeXT/bpf/bpf.h			\
+	NeXT/bpf/bpf_compat.h		\
+	NeXT/bpf/bpf_filter.c		\
+	NeXT/bpf/bpfdesc.h		\
+	NeXT/bpf/netbuf.h		\
+	NeXT/bpf/promisc.c		\
+	NeXT/bpf/spl.h			\
+	${NULL}
+
+NEXTEXAMP = \
+	Examples/NXHosting_with_PPP	\
+	Examples/Persistent_Connection	\
+	Examples/README			\
+	Examples/flow-control-hints	\
+	Examples/ip-down.example	\
+	Examples/ip-up.example		\
+	Examples/options		\
+	Examples/pdial			\
+	Examples/ppp_multiple_hosts.tar.gz	\
+	Examples/pppdown		\
+	Examples/pppkill.c		\
+	Examples/pppup.annex		\
+	Examples/pppup.direct		\
+	Examples/pppup.portmaster	\
+	Examples/pppup.remote		\
+	Examples/pppup.zyxel		\
+	Examples/rc.ppp			\
+	Examples/redial.sh		\
+	${NULL}
+
+
+NEXTPORT = \
+	   ${NEXTTOP}			\
+	   ${NEXTPPPD}			\
+	   ${NEXTSTATS}			\
+	   ${NEXTCHAT}			\
+	   ${NEXTLKS}			\
+	   ${NEXTHPPA}			\
+	   ${NEXTMACH}			\
+	   ${NEXTBPF}			\
+	   ${NEXTEXAMP}			\
+	   ${NULL}
+
+
+
+#
+#  The idea is to make for easy distribution of new port material.
+#  Just make sure all relevant files appear in the lists above,
+#  then:
+#    1) Update the file ./NeXT_Version with a new number
+#    2) go to the top level directory and type 'make portdist'.
+#       You should get a nice tared/compressed file that is ready for
+#       the archive. 
+#
+
+
+portdist: 
+	echo NeXT-ppp2.2-`sed -e '/version_string/!d' \
+             -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q ./NeXT/NeXT_Version` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	mkdir `cat .fname`/pppd
+	mkdir `cat .fname`/chat
+	mkdir `cat .fname`/NeXT
+	mkdir `cat .fname`/NeXT/hppa
+	mkdir `cat .fname`/NeXT/mach
+	mkdir `cat .fname`/NeXT/bpf
+	mkdir `cat .fname`/pppstats
+	mkdir `cat .fname`/Examples
+	-ln $(NEXTTOP) `cat .fname`
+	-ln $(NEXTPPPD) `cat .fname`/pppd
+	-ln $(NEXTCHAT) `cat .fname`/chat
+	-ln $(NEXTLKS) `cat .fname`/NeXT
+	-ln $(NEXTHPPA) `cat .fname`/NeXT/hppa
+	-ln $(NEXTMACH) `cat .fname`/NeXT/mach
+	-ln $(NEXTBPF) `cat .fname`/NeXT/bpf
+	-ln $(NEXTSTATS) `cat .fname`/pppstats
+	-ln $(NEXTEXAMP) `cat .fname`/Examples
+	for file in $(NEXTPORT); do \
+		test -r `cat .fname`/$$file || cp -p $$file `cat .fname`; \
+	done
+	(cd `cat .fname`;tar chf - '.' | gzip --best > ../`cat ../.fname`.tar.gz)
+	rm -rf `cat .fname` .fname
+
+.PHONY: dialppp portdist

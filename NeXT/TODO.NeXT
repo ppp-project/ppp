@@ -1,0 +1,42 @@
+#
+#  $Id: TODO.NeXT,v 1.1 1995/12/18 03:29:55 paulus Exp $
+#
+
+* FAQ on IPCP failure because of AUTH
+
+* FAQ on shell chat scripts and special characters
+
+* Add /dev/bpf* in installation docs
+
+* Check persist option
+
+* Fix installer to recognize other installation.
+
+* Add threads to LKS.
+
+* NUM_PPP in pppd/pppd.h and Makefile are different
+
+* Unify NBPFILTER symbol
+
+* Better Load support for BPF.  Figure out how to support
+  NeXT (moto) with driverkit stuff.
+
+* Verify 1500 minimum
+
+* Limit resources for runaway UDP.
+
+* Better support for getting/releasing netbufs.
+
+* >Jan 10 21:41:46 beatty pppd[1427]: rcvd [IPCP ConfNak id=0x1 <addr 129.38.252.150> <compress VJ 0f 00>]
+
+* Break up installer into Smaller packages
+
+* Fix with VirtModem
+
+* If the dialing program fails to get a line, but returns success,
+  then ppp will report that it could not determine the ip address,
+  and not notice the "received own echo reply" condition.
+
+* Look into stack overflow as cause of kernel panics.
+
+* Use kget inside interrupt handler.

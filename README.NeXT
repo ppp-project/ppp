@@ -1,5 +1,5 @@
 #
-#  $Id: README.NeXT,v 1.1 1995/08/10 06:48:23 paulus Exp $
+#  $Id: README.NeXT,v 1.2 1995/12/18 03:29:36 paulus Exp $
 #
 
 This distribution contains a port of PPP-2.2 for NeXT.  The full
@@ -26,6 +26,30 @@ See the file ./README for general information regarding PPP-2.2 for
 See the file ./SETUP for general setup information for all computer systems.
 See the file ./NeXT/INSTALL for NeXT Specific installation instructions.
 See the file ./NeXT/README.NeXT for bugs.
+
+New to release 0.4.6 (LKS version 4.14)
+=======================================
+
+ * Added a kernel optimization that will reduce the 
+   interrupt load on the CPU.  This optimization will
+   only work if you use the latest serial drivers supplied
+   by NeXT.  You can get these drivers off of NeXTAnswers.
+   The optimization will not work if you use the Mux serial
+   driver.  I believe that this optimization will solve many
+   of the kernel panics that people have reported.
+
+ * Added support for Microsoft's extended DNS negotiation.
+   This will only be of use for people who server PPP clients
+   using Win95, TechSmith Corporation's Foray PPP client 
+   (http://www.techsmith.com) for WFWG 3.11, or others whose
+   client supports this mechanism. Thanks to
+   clameter@hur.fuller.edu (Christoph Lameter) for supplying the
+   patches.  This patch is totally untested since I don't serve 
+   any clients, and if I did I wouldn't admit to running a 
+   MicroSloth operating system.
+
+ * Various minor fixes to documentation and examples.
+
 
 New to release 0.4.5 (LKS version 4.9 release1)
 ======================================

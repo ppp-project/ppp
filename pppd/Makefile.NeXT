@@ -2,11 +2,13 @@
 # pppd makefile for NeXT
 #
 # $Orignial: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
-# $Id: Makefile.NeXT,v 1.1 1995/08/10 06:48:33 paulus Exp $
+# $Id: Makefile.NeXT,v 1.2 1995/12/18 03:30:45 paulus Exp $
 #
 
-ARCHFLAGS = -arch i386 -arch m68k -arch hppa -arch sparc
+#ARCHFLAGS = -arch i386 -arch m68k -arch hppa -arch sparc
 #ARCHFLAGS = -arch i386 -arch m68k
+ARCHFLAGS = 
+
 BINDIR = /usr/local/ppp/bin
 MANDIR = /usr/local/ppp/man
 
@@ -35,11 +37,17 @@ DEBUG_FLAGS = -O -posix $(ARCHFLAGS)
 # OS release 3.2.  Problems are supposed to be fixed
 # in release 3.3 (but at least for Sparc don't appear to be).
 #
+# Defining HAS_BROKEN_IOCTL fixes problems with the old
+# NeXT supplied serial drivers.
+#
+# Defining USE_MS_DNS will add support for the Microsoft
+# DNS Negotation (for servers only).  Thanks to 
+# clameter@hur.fuller.edu (Christoph Lameter) for the patches.
 #
 
-COMPILE_FLAGS = -DNO_DRAND48 -DHAS_BROKEN_IOCTL \
+COMPILE_FLAGS = -DNO_DRAND48 \
 	-DDEBUGUPAP -DDEBUGCHAP -DDEBUGLCP -DDEBUGIPCP \
-	-DFIXSIGS
+	-DFIXSIGS -DHAS_BROKEN_IOCTL -DUSE_MS_DNS
 
 
 COPTS = -O

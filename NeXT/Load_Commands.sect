@@ -1,0 +1,5 @@
+# Associate ports with proc/arg
+
+CALL		pppattach		0
+WIRE
+START

@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.2 1995/10/27 03:44:56 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.3 1995/12/18 03:30:47 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -332,6 +332,12 @@ struct speed {
 #ifdef B57600
     { 57600, B57600 },
 #endif
+/*
+#ifndef B115200
+#warning Defining B115200
+#define B115200 20
+#endif
+*/
 #ifdef B115200
     { 115200, B115200 },
 #endif
@@ -399,6 +405,7 @@ set_up_tty(fd, local)
     tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (local || !modem)
 	tios.c_cflag |= CLOCAL;
+
     tios.c_iflag = IGNBRK | IGNPAR;
     tios.c_oflag = 0;
     tios.c_lflag = 0;
