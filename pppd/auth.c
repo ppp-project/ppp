@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.18 1995/10/27 03:39:53 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.19 1995/12/11 05:17:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -391,7 +391,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     f = fopen(filename, "r");
     if (f == NULL) {
 	if (!uselogin) {
-	    syslog(LOG_ERR, "Can't open upap password file %s: %m", filename);
+	    syslog(LOG_ERR, "Can't open PAP password file %s: %m", filename);
 	    ret = UPAP_AUTHNAK;
 	}
 
@@ -400,7 +400,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0
 	    || (secret[0] != 0 && (cryptpap || strcmp(passwd, secret) != 0)
 		&& strcmp(crypt(passwd, secret), secret) != 0)) {
-	    syslog(LOG_WARNING, "upap authentication failure for %s", user);
+	    syslog(LOG_WARNING, "PAP authentication failure for %s", user);
 	    ret = UPAP_AUTHNAK;
 	}
 	fclose(f);
@@ -409,7 +409,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     if (uselogin && ret == UPAP_AUTHACK) {
 	ret = login(user, passwd, msg, msglen);
 	if (ret == UPAP_AUTHNAK) {
-	    syslog(LOG_WARNING, "upap login failure for %s", user);
+	    syslog(LOG_WARNING, "PAP login failure for %s", user);
 	}
     }
 
