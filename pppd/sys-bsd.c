@@ -20,9 +20,8 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: sys-bsd.c,v 1.46 1999/08/13 06:46:18 paulus Exp $"
+#define RCSID	"$Id: sys-bsd.c,v 1.47 2000/04/13 12:04:23 paulus Exp $"
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
-#endif
 
 /*
  * TODO:
