@@ -1,26 +1,29 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.1 1995/10/27 03:58:30 paulus Exp $
+# $Id: Makefile.sol2,v 1.2 1995/12/11 05:19:29 paulus Exp $
 #
 
-# Note: Sun cc doesn't predefine svr4 or __svr4__, but gcc does
-
-CFLAGS= -D_KERNEL -Dsvr4 -I.. -O
-#CC=	gcc
+CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I.. -O -Xa
 
 all:	ppp ppp_ahdl ppp_comp
 
-ppp:	ppp.o
-	ld -r -o $@ ppp.o
+ppp:	ppp.o ppp_mod.o
+	ld -r -o $@ ppp.o ppp_mod.o
 
-ppp_ahdl: ppp_ahdlc.o
-	ld -r -o $@ ppp_ahdlc.o
+ppp_ahdl: ppp_ahdlc.o ppp_ahdlc_mod.o
+	ld -r -o $@ ppp_ahdlc.o ppp_ahdlc_mod.o
 
-ppp_comp: ppp_comp.o bsd-comp.o vjcompress.o
-	ld -r -o $@ ppp_comp.o bsd-comp.o vjcompress.o
+ppp_comp: ppp_comp.o bsd-comp.o vjcompress.o ppp_comp_mod.o
+	ld -r -o $@ ppp_comp.o bsd-comp.o vjcompress.o ppp_comp_mod.o
 
 bsd-comp.o: ../modules/bsd-comp.c
+	$(CC) $(CFLAGS) -c $?
+ppp.o:	../modules/ppp.c
+	$(CC) $(CFLAGS) -c $?
+ppp_ahdlc.o: ../modules/ppp_ahdlc.c
+	$(CC) $(CFLAGS) -c $?
+ppp_comp.o: ../modules/ppp_comp.c
 	$(CC) $(CFLAGS) -c $?
 vjcompress.o: ../modules/vjcompress.c
 	$(CC) $(CFLAGS) -c $?
