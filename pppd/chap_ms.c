@@ -31,7 +31,7 @@
  *   You should also use DOMAIN\\USERNAME as described in README.MSCHAP80
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.15 1999/08/13 06:46:12 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.16 2002/03/01 14:39:18 dfs Exp $"
 
 #ifdef CHAPMS
 
@@ -56,14 +56,6 @@
 #endif
 
 static const char rcsid[] = RCSID;
-
-typedef struct {
-    u_char LANManResp[24];
-    u_char NTResp[24];
-    u_char UseNT;		/* If 1, ignore the LANMan response field */
-} MS_ChapResponse;
-/* We use MS_CHAP_RESPONSE_LEN, rather than sizeof(MS_ChapResponse),
-   in case this struct gets padded. */
 
 
 static void	ChallengeResponse __P((u_char *, u_char *, u_char *));

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.65 2002/02/12 20:07:09 dfs Exp $
+ * $Id: pppd.h,v 1.66 2002/03/01 14:39:18 dfs Exp $
  */
 
 /*
@@ -86,6 +86,7 @@ typedef struct {
 	const char *source;
 	short int priority;
 	short int winner;
+	void	*addr3;
 } option_t;
 
 /* Values for flags */
@@ -102,6 +103,7 @@ typedef struct {
 #define OPT_ZEROOK	0x10000	/* 0 value is OK even if not within limits */
 #define OPT_HIDE	0x10000	/* for o_string, print value as ?????? */
 #define OPT_A2LIST	0x10000 /* for o_special, keep list of values */
+#define OPT_A2CLRB	0x10000 /* o_bool, clr val bits in *(u_char *)addr2 */
 #define OPT_NOINCR	0x20000	/* value mustn't be increased */
 #define OPT_ZEROINF	0x40000	/* with OPT_NOINCR, 0 == infinity */
 #define OPT_PRIO	0x80000	/* process option priorities for this option */
@@ -117,6 +119,7 @@ typedef struct {
 #define OPT_A2PRINTER	0x10000000 /* *addr2 is a fn for printing option */
 #define OPT_A2STRVAL	0x20000000 /* *addr2 points to current string value */
 #define OPT_NOPRINT	0x40000000 /* don't print this option at all */
+#define OPT_A3OR  	0x80000000 /* addr3 -> third location to rcv | value */
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
 
@@ -806,6 +809,10 @@ extern void (*snoop_send_hook) __P((unsigned char *p, int len));
 #endif
 #ifndef MAX
 #define MAX(a, b)	((a) > (b)? (a): (b))
+#endif
+
+#ifndef offsetof
+#define offsetof(type, member) ((size_t) &((type *)0)->member)
 #endif
 
 #endif /* __PPP_H__ */

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.57 2001/03/08 05:11:14 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.58 2002/03/01 14:39:18 dfs Exp $"
 
 /*
  * TODO:
@@ -327,7 +327,6 @@ lcp_init(unit)
     wo->neg_mru = 1;
     wo->mru = DEFMRU;
     wo->neg_asyncmap = 1;
-    wo->chap_mdtype = CHAP_DIGEST_MD5;
     wo->neg_magicnumber = 1;
     wo->neg_pcompression = 1;
     wo->neg_accompression = 1;
@@ -337,7 +336,7 @@ lcp_init(unit)
     ao->mru = MAXMRU;
     ao->neg_asyncmap = 1;
     ao->neg_chap = 1;
-    ao->chap_mdtype = CHAP_DIGEST_MD5;
+    ao->chap_mdtype = MDTYPE_ALL;
     ao->neg_upap = 1;
     ao->neg_magicnumber = 1;
     ao->neg_pcompression = 1;
@@ -679,10 +678,10 @@ lcp_addci(f, ucp, lenp)
     }
 #define ADDCICHAP(opt, neg, val, digest) \
     if (neg) { \
-	PUTCHAR(opt, ucp); \
+	PUTCHAR((opt), ucp); \
 	PUTCHAR(CILEN_CHAP, ucp); \
-	PUTSHORT(val, ucp); \
-	PUTCHAR(digest, ucp); \
+	PUTSHORT((val), ucp); \
+	PUTCHAR((digest), ucp); \
     }
 #define ADDCILONG(opt, neg, val) \
     if (neg) { \
@@ -716,7 +715,7 @@ lcp_addci(f, ucp, lenp)
     ADDCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
     ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
 	      go->asyncmap);
-    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP,CHAP_DIGEST(go->chap_mdtype));
     ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ADDCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
@@ -802,13 +801,13 @@ lcp_ackci(f, p, len)
 	GETCHAR(citype, p); \
 	GETCHAR(cilen, p); \
 	if (cilen != CILEN_CHAP || \
-	    citype != opt) \
+	    citype != (opt)) \
 	    goto bad; \
 	GETSHORT(cishort, p); \
-	if (cishort != val) \
+	if (cishort != (val)) \
 	    goto bad; \
 	GETCHAR(cichar, p); \
-	if (cichar != digest) \
+	if (cichar != (digest)) \
 	  goto bad; \
     }
 #define ACKCILONG(opt, neg, val) \
@@ -863,7 +862,7 @@ lcp_ackci(f, p, len)
     ACKCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
     ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
 	      go->asyncmap);
-    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP,CHAP_DIGEST(go->chap_mdtype));
     ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ACKCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
@@ -1035,7 +1034,7 @@ lcp_nakci(f, p, len)
 	no.neg_chap = go->neg_chap;
 	no.neg_upap = go->neg_upap;
 	INCPTR(2, p);
-        GETSHORT(cishort, p);
+	GETSHORT(cishort, p);
 	if (cishort == PPP_PAP && cilen == CILEN_SHORT) {
 	    /*
 	     * If we were asking for CHAP, they obviously don't want to do it.
@@ -1050,18 +1049,25 @@ lcp_nakci(f, p, len)
 	    GETCHAR(cichar, p);
 	    if (go->neg_chap) {
 		/*
-		 * We were asking for CHAP/MD5; they must want a different
-		 * algorithm.  If they can't do MD5, we can ask for M$-CHAP
-		 * if we support it, otherwise we'll have to stop
-		 * asking for CHAP.
+		 * We were asking for our preferred algorithm, they must
+		 * want something different.
 		 */
-		if (cichar != go->chap_mdtype) {
-#ifdef CHAPMS
-		    if (cichar == CHAP_MICROSOFT)
-			go->chap_mdtype = CHAP_MICROSOFT;
-		    else
-#endif /* CHAPMS */
-			try.neg_chap = 0;
+		if (cichar != CHAP_DIGEST(go->chap_mdtype)) {
+		    if (CHAP_CANDIGEST(go->chap_mdtype, cichar)) {
+			/* Use their suggestion if we support it ... */
+			go->chap_mdtype = CHAP_MDTYPE_D(cichar);
+		    } else {
+			/* ... otherwise, try our next-preferred algorithm. */
+			go->chap_mdtype &= ~(CHAP_MDTYPE(go->chap_mdtype));
+			if (go->chap_mdtype == MDTYPE_NONE) /* out of algos */
+			    try.neg_chap = 0;
+		    }
+		} else {
+		    /*
+		     * Whoops, they Nak'd our algorithm of choice
+		     * but then suggested it back to us.
+		     */
+		    goto bad;
 		}
 	    } else {
 		/*
@@ -1304,7 +1310,7 @@ lcp_rejci(f, p, len)
 	GETSHORT(cishort, p); \
 	GETCHAR(cichar, p); \
 	/* Check rejected value. */ \
-	if (cishort != val || cichar != digest) \
+	if ((cishort != (val)) || (cichar != (digest))) \
 	    goto bad; \
 	try.neg = 0; \
 	try.neg_upap = 0; \
@@ -1370,7 +1376,7 @@ lcp_rejci(f, p, len)
 
     REJCISHORT(CI_MRU, neg_mru, go->mru);
     REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
-    REJCICHAP(CI_AUTHTYPE, neg_chap, PPP_CHAP, go->chap_mdtype);
+    REJCICHAP(CI_AUTHTYPE, neg_chap, PPP_CHAP, CHAP_DIGEST(go->chap_mdtype));
     if (!go->neg_chap) {
 	REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
     }
@@ -1527,7 +1533,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     * for UPAP, then we will reject the second request.
 	     * Whether we end up doing CHAP or UPAP depends then on
 	     * the ordering of the CIs in the peer's Configure-Request.
-	     */
+             */
 
 	    if (cishort == PPP_PAP) {
 		if (ho->neg_chap ||	/* we've already accepted CHAP */
@@ -1541,9 +1547,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		    PUTCHAR(CI_AUTHTYPE, nakp);
 		    PUTCHAR(CILEN_CHAP, nakp);
 		    PUTSHORT(PPP_CHAP, nakp);
-		    PUTCHAR(ao->chap_mdtype, nakp);
-		    /* XXX if we can do CHAP_MICROSOFT as well, we should
-		       probably put in another option saying so */
+		    PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakp);
 		    break;
 		}
 		ho->neg_upap = 1;
@@ -1563,20 +1567,20 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		    PUTSHORT(PPP_PAP, nakp);
 		    break;
 		}
-		GETCHAR(cichar, p);	/* get digest type*/
-		if (cichar != CHAP_DIGEST_MD5
-#ifdef CHAPMS
-		    && cichar != CHAP_MICROSOFT
-#endif
-		    ) {
+		GETCHAR(cichar, p);	/* get digest type */
+		if (!(CHAP_CANDIGEST(ao->chap_mdtype, cichar))) {
+		    /*
+		     * We can't/won't do the requested type,
+		     * suggest something else.
+		     */
 		    orc = CONFNAK;
 		    PUTCHAR(CI_AUTHTYPE, nakp);
 		    PUTCHAR(CILEN_CHAP, nakp);
 		    PUTSHORT(PPP_CHAP, nakp);
-		    PUTCHAR(ao->chap_mdtype, nakp);
+		    PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakp);
 		    break;
 		}
-		ho->chap_mdtype = cichar; /* save md type */
+		ho->chap_mdtype = CHAP_MDTYPE_D(cichar); /* save md type */
 		ho->neg_chap = 1;
 		break;
 	    }
@@ -1591,7 +1595,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    if (ao->neg_chap) {
 		PUTCHAR(CILEN_CHAP, nakp);
 		PUTSHORT(PPP_CHAP, nakp);
-		PUTCHAR(ao->chap_mdtype, nakp);
+		PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakp);
 	    } else {
 		PUTCHAR(CILEN_SHORT, nakp);
 		PUTSHORT(PPP_PAP, nakp);

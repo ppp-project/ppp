@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.73 2002/01/22 16:02:58 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.74 2002/03/01 14:39:18 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -169,6 +169,11 @@ bool uselogin = 0;		/* Use /etc/passwd for checking PAP */
 bool cryptpap = 0;		/* Passwords in pap-secrets are encrypted */
 bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
 bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
+#ifdef CHAPMS
+bool refuse_mschap = 0;		/* Don't wanna auth. ourselves with MS-CHAP */
+#else
+bool refuse_mschap = 1;		/* Don't wanna auth. ourselves with MS-CHAP */
+#endif
 bool usehostname = 0;		/* Use hostname for our_name */
 bool auth_required = 0;		/* Always require authentication from peer */
 bool allow_any_ip = 0;		/* Allow peer to use any IP address */
@@ -218,30 +223,53 @@ option_t auth_options[] = {
     { "auth", o_bool, &auth_required,
       "Require authentication from peer", OPT_PRIO | 1 },
     { "noauth", o_bool, &auth_required,
-      "Don't require peer to authenticate", OPT_PRIOSUB | OPT_PRIV,
+      "Don't require peer to authenticate", OPT_PRIOSUB | OPT_PRIV | OPT_A2COPY,
       &allow_any_ip },
     { "require-pap", o_bool, &lcp_wantoptions[0].neg_upap,
       "Require PAP authentication from peer",
-      OPT_PRIOSUB | 1, &auth_required },
+      OPT_PRIOSUB | OPT_A2COPY | 1, &auth_required },
     { "+pap", o_bool, &lcp_wantoptions[0].neg_upap,
       "Require PAP authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | 1, &auth_required },
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | 1, &auth_required },
     { "require-chap", o_bool, &lcp_wantoptions[0].neg_chap,
       "Require CHAP authentication from peer",
-      OPT_PRIOSUB | 1, &auth_required },
+      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MD5,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
     { "+chap", o_bool, &lcp_wantoptions[0].neg_chap,
       "Require CHAP authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | 1, &auth_required },
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MD5,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+#ifdef CHAPMS
+    { "require-mschap", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require MS-CHAP authentication from peer",
+      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+    { "+mschap", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require MS-CHAP authentication from peer",
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT,
+      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+#endif
 
     { "refuse-pap", o_bool, &refuse_pap,
       "Don't agree to auth to peer with PAP", 1 },
     { "-pap", o_bool, &refuse_pap,
       "Don't allow PAP authentication with peer", OPT_ALIAS | 1 },
-
     { "refuse-chap", o_bool, &refuse_chap,
-      "Don't agree to auth to peer with CHAP", 1 },
+      "Don't agree to auth to peer with CHAP", OPT_A2CLRB | MDTYPE_MD5,
+      &lcp_allowoptions[0].chap_mdtype },
     { "-chap", o_bool, &refuse_chap,
-      "Don't allow CHAP authentication with peer", OPT_ALIAS | 1 },
+      "Don't allow CHAP authentication with peer",
+      OPT_ALIAS | OPT_A2CLRB | MDTYPE_MD5,
+      &lcp_allowoptions[0].chap_mdtype },
+#ifdef CHAPMS
+    { "refuse-mschap", o_bool, &refuse_mschap,
+      "Don't agree to auth to peer with MS-CHAP", OPT_A2CLRB | MDTYPE_MICROSOFT,
+      &lcp_allowoptions[0].chap_mdtype },
+    { "-mschap", o_bool, &refuse_mschap,
+      "Don't allow MS-CHAP authentication with peer",
+      OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT,
+      &lcp_allowoptions[0].chap_mdtype },
+#endif
 
     { "name", o_string, our_name,
       "Set local name for authentication",
@@ -466,12 +494,12 @@ link_established(unit)
 	    && protp->lowerup != NULL)
 	    (*protp->lowerup)(unit);
 
-    if (auth_required && !(go->neg_chap || go->neg_upap)) {
+    if (auth_required && !(go->neg_upap || go->neg_chap)) {
 	/*
 	 * We wanted the peer to authenticate itself, and it refused:
 	 * if we have some address(es) it can use without auth, fine,
 	 * otherwise treat it as though it authenticated with PAP using
-	 * a username * of "" and a password of "".  If that's not OK,
+	 * a username of "" and a password of "".  If that's not OK,
 	 * boot it out.
 	 */
 	if (noauth_addrs != NULL) {
@@ -488,14 +516,14 @@ link_established(unit)
     used_login = 0;
     auth = 0;
     if (go->neg_chap) {
-	ChapAuthPeer(unit, our_name, go->chap_mdtype);
+	ChapAuthPeer(unit, our_name, CHAP_DIGEST(go->chap_mdtype));
 	auth |= CHAP_PEER;
     } else if (go->neg_upap) {
 	upap_authpeer(unit);
 	auth |= PAP_PEER;
     }
     if (ho->neg_chap) {
-	ChapAuthWithPeer(unit, user, ho->chap_mdtype);
+	ChapAuthWithPeer(unit, user, CHAP_DIGEST(ho->chap_mdtype));
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
 	if (passwd[0] == 0) {
@@ -834,11 +862,11 @@ auth_check_options()
     if (auth_required) {
 	allow_any_ip = 0;
 	if (!wo->neg_chap && !wo->neg_upap) {
-	    wo->neg_chap = 1;
+	    wo->neg_chap = 1; wo->chap_mdtype = MDTYPE_ALL;
 	    wo->neg_upap = 1;
 	}
     } else {
-	wo->neg_chap = 0;
+	wo->neg_chap = 0; wo->chap_mdtype = MDTYPE_NONE;
 	wo->neg_upap = 0;
     }
 
@@ -848,7 +876,7 @@ auth_check_options()
      */
     lacks_ip = 0;
     can_auth = wo->neg_upap && (uselogin || have_pap_secret(&lacks_ip));
-    if (!can_auth && wo->neg_chap) {
+    if (!can_auth && (wo->neg_chap)) {
 	can_auth = have_chap_secret((explicit_remote? remote_name: NULL),
 				    our_name, 1, &lacks_ip);
     }
@@ -889,7 +917,7 @@ auth_reset(unit)
     lcp_options *ao = &lcp_allowoptions[0];
 
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
-    ao->neg_chap = !refuse_chap
+    ao->neg_chap = (!refuse_chap || !refuse_mschap)
 	&& (passwd[0] != 0
 	    || have_chap_secret(user, (explicit_remote? remote_name: NULL),
 				0, NULL));

@@ -30,7 +30,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap.h,v 1.9 2002/01/22 16:02:58 dfs Exp $
+ * $Id: chap.h,v 1.10 2002/03/01 14:39:18 dfs Exp $
  */
 
 #ifndef __CHAP_INCLUDE__
@@ -45,7 +45,42 @@
 #define CHAP_DIGEST_MD5		5	/* use MD5 algorithm */
 #define MD5_SIGNATURE_SIZE	16	/* 16 bytes in a MD5 message digest */
 #define CHAP_MICROSOFT		0x80	/* use Microsoft-compatible alg. */
-#define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
+
+/*
+ * Digest type and selection.
+ */
+
+/* bitmask of supported algorithms */
+#define MDTYPE_MD5		0x1
+#define MDTYPE_MICROSOFT	0x2
+
+#ifdef CHAPMS
+#define MDTYPE_ALL (MDTYPE_MD5 | MDTYPE_MICROSOFT)
+#else
+#define MDTYPE_ALL (MDTYPE_MD5)
+#endif
+#define MDTYPE_NONE 0
+
+/* Return the digest alg. ID for the most preferred digest type. */
+#define CHAP_DIGEST(mdtype) \
+    ((mdtype) & MDTYPE_MD5)? CHAP_DIGEST_MD5: \
+    ((mdtype) & MDTYPE_MICROSOFT)? CHAP_MICROSOFT: \
+    0
+
+/* Return the bit flag (lsb set) for our most preferred digest type. */
+#define CHAP_MDTYPE(mdtype) ((mdtype) ^ ((mdtype) - 1)) & (mdtype)
+
+/* Return the bit flag for a given digest algorithm ID. */
+#define CHAP_MDTYPE_D(digest) \
+    ((digest) == CHAP_DIGEST_MD5)? MDTYPE_MD5: \
+    ((digest) == CHAP_MICROSOFT)? MDTYPE_MICROSOFT: \
+    0
+
+/* Can we do the requested digest? */
+#define CHAP_CANDIGEST(mdtype, digest) \
+    ((digest) == CHAP_DIGEST_MD5)? (mdtype) & MDTYPE_MD5: \
+    ((digest) == CHAP_MICROSOFT)? (mdtype) & MDTYPE_MICROSOFT: \
+    0
 
 #define CHAP_CHALLENGE		1
 #define CHAP_RESPONSE		2

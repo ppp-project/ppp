@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.2 2002/02/27 15:51:19 dfs Exp $
+ * $Id: radiusclient.h,v 1.3 2002/03/01 14:39:19 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -379,8 +379,10 @@ VALUE_PAIR *rc_avpair_readin __P((FILE *));
 void rc_buildreq __P((SEND_DATA *, int, char *, unsigned short, int, int));
 unsigned char rc_get_seqnbr __P((void));
 int rc_auth __P((UINT4, VALUE_PAIR *, VALUE_PAIR **, char *));
+int rc_auth_using_server __P((SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **, char *));
 int rc_auth_proxy __P((VALUE_PAIR *, VALUE_PAIR **, char *));
 int rc_acct __P((UINT4, VALUE_PAIR *));
+int rc_acct_using_server __P((SERVER *, UINT4, VALUE_PAIR *));
 int rc_acct_proxy __P((VALUE_PAIR *));
 int rc_check __P((char *, unsigned short, char *));
 

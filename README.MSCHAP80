@@ -1,10 +1,11 @@
-PPP Client Support for Microsoft's CHAP-80
-==========================================
+PPP Support for Microsoft's CHAP-80
+===================================
 
 Eric Rosenquist          rosenqui@strataware.com
 (updated by Paul Mackerras)
 (updated by Al Longyear)
 (updated by Farrell Woods)
+(updated by Frank Cusack)
 
 INTRODUCTION
 
@@ -16,7 +17,7 @@ by a bogus client to gain access to the server just as easily as if
 the password were stored in cleartext.)  The details of the Microsoft
 extensions can be found in the document:
 
-    <ftp://ftp.microsoft.com/developr/rfc/chapexts.txt>
+    <http://www.ietf.org/rfc/rfc2433.txt>
 
 In short, MS-CHAP is identified as <auth chap 80> since the hex value
 of 80 is used to designate Microsoft's scheme.  Standard PPP CHAP uses
@@ -35,12 +36,7 @@ MS-CHAP by NAKing it:
 Windows NT Server systems are often configured to "Accept only
 Microsoft Authentication" (this is intended to enhance security).  Up
 until now, that meant that you couldn't use this version of PPPD to
-connect to such a system.  I've managed to get a client-only
-implementation of MS-CHAP working; it will authenticate itself to
-another system using MS-CHAP, but if you're using PPPD as a dial-in
-server, you won't be able to use MS-CHAP to authenticate the clients.
-This would not be a lot of extra work given that the framework is in
-place, but I didn't need it myself so I didn't implement it.
+connect to such a system.
 
 
 BUILDING THE PPPD
@@ -275,10 +271,5 @@ to be used in chap-secrets in place of the password.  The code to do this
 could quite easily be lifted from chap_ms.c (you have to convert the
 password to Unicode before hashing it).  The chap_ms.c file would also have
 to be changed to recognize a password hash (16 binary bytes == 32 ASCII hex
-characters) and skip the hashing stage.
-
-A server implementation would allow MS-CHAP to be used with Windows NT and
-Windows 95 clients for enhanced security.  Some new command-line options
-would be required, as would code to generate the Challenge packet and
-verify the response.  Most of the helper functions are in place, so this
-shouldn't be too hard for someone to add.
+characters) and skip the hashing stage.  This would have no real security
+value as the hash is plaintext-equivalent.

@@ -1,5 +1,5 @@
 /*
- * $Id: buildreq.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: buildreq.c,v 1.2 2002/03/01 14:39:19 dfs Exp $
  *
  * Copyright (C) 1995,1997 Lars Fenneberg
  *
@@ -122,11 +122,36 @@ unsigned char rc_get_seqnbr(void)
 int rc_auth(UINT4 client_port, VALUE_PAIR *send, VALUE_PAIR **received,
 	    char *msg)
 {
+    SERVER *authserver = rc_conf_srv("authserver");
+
+    if (!authserver) {
+	return (ERROR_RC);
+    }
+    return rc_auth_using_server(authserver, client_port, send, received, msg);
+}
+
+/*
+ * Function: rc_auth_using_server
+ *
+ * Purpose: Builds an authentication request for port id client_port
+ *	    with the value_pairs send and submits it to a server.  You
+ *          explicitly supply a server list.
+ *
+ * Returns: received value_pairs in received, messages from the server in msg
+ *	    and 0 on success, negative on failure as return value
+ *
+ */
+
+int rc_auth_using_server(SERVER *authserver,
+			 UINT4 client_port,
+			 VALUE_PAIR *send,
+			 VALUE_PAIR **received,
+			 char *msg)
+{
 	SEND_DATA       data;
 	UINT4		client_id;
 	int		result;
 	int		i;
-	SERVER		*authserver = rc_conf_srv("authserver");
 	int		timeout = rc_conf_int("radius_timeout");
 	int		retries = rc_conf_int("radius_retries");
 
@@ -215,16 +240,18 @@ int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg)
 
 
 /*
- * Function: rc_acct
+ * Function: rc_acct_using_server
  *
  * Purpose: Builds an accounting request for port id client_port
- *	    with the value_pairs send
+ *	    with the value_pairs send.  You explicitly supply server list.
  *
  * Remarks: NAS-IP-Address, NAS-Port and Acct-Delay-Time get filled
  *	    in by this function, the rest has to be supplied.
  */
 
-int rc_acct(UINT4 client_port, VALUE_PAIR *send)
+int rc_acct_using_server(SERVER *acctserver,
+			 UINT4 client_port,
+			 VALUE_PAIR *send)
 {
 	SEND_DATA       data;
 	VALUE_PAIR	*adt_vp;
@@ -233,7 +260,6 @@ int rc_acct(UINT4 client_port, VALUE_PAIR *send)
 	time_t		start_time, dtime;
 	char		msg[4096];
 	int		i;
-	SERVER		*acctserver = rc_conf_srv("acctserver");
 	int		timeout = rc_conf_int("radius_timeout");
 	int		retries = rc_conf_int("radius_retries");
 
@@ -286,6 +312,24 @@ int rc_acct(UINT4 client_port, VALUE_PAIR *send)
 	rc_avpair_free(data.receive_pairs);
 
 	return result;
+}
+
+/*
+ * Function: rc_acct
+ *
+ * Purpose: Builds an accounting request for port id client_port
+ *	    with the value_pairs send
+ *
+ * Remarks: NAS-IP-Address, NAS-Port and Acct-Delay-Time get filled
+ *	    in by this function, the rest has to be supplied.
+ */
+
+int rc_acct(UINT4 client_port, VALUE_PAIR *send)
+{
+    SERVER *acctserver = rc_conf_srv("acctserver");
+    if (!acctserver) return (ERROR_RC);
+
+    return rc_acct_using_server(acctserver, client_port, send);
 }
 
 /*

@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.2 2002/02/08 17:28:31 dfs Exp $";
+"$Id: radius.c,v 1.3 2002/03/01 14:39:18 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -61,9 +61,6 @@ static int radius_init(char *msg);
 static int get_client_port(char *ifname);
 static int radius_allowed_address(u_int32_t addr);
 
-void (*radius_attributes_hook)(VALUE_PAIR *) = NULL;
-void (*radius_pre_auth_hook)(char const *user) = NULL;
-
 #ifndef MAXSESSIONID
 #define MAXSESSIONID 32
 #endif
@@ -80,7 +77,17 @@ struct radius_state {
     char config_file[MAXPATHLEN];
     char session_id[MAXSESSIONID + 1];
     time_t start_time;
+    SERVER *authserver;		/* Authentication server to use */
+    SERVER *acctserver;		/* Accounting server to use */
 };
+
+void (*radius_attributes_hook)(VALUE_PAIR *) = NULL;
+
+/* The pre_auth_hook MAY set authserver and acctserver if it wants.
+   In that case, they override the values in the radiusclient.conf file */
+void (*radius_pre_auth_hook)(char const *user,
+			     SERVER **authserver,
+			     SERVER **acctserver) = NULL;
 
 static struct radius_state rstate;
 
@@ -189,7 +196,9 @@ radius_pap_auth(char *user,
     make_username_realm(user);
 
     if (radius_pre_auth_hook) {
-	radius_pre_auth_hook(rstate.user);
+	radius_pre_auth_hook(rstate.user,
+			     &rstate.authserver,
+			     &rstate.acctserver);
     }
 
     send = NULL;
@@ -212,7 +221,13 @@ radius_pap_auth(char *user,
 		       VENDOR_NONE);
     }
 
-    result = rc_auth(rstate.client_port, send, &received, radius_msg);
+    if (rstate.authserver) {
+	result = rc_auth_using_server(rstate.authserver,
+				      rstate.client_port, send,
+				      &received, radius_msg);
+    } else {
+	result = rc_auth(rstate.client_port, send, &received, radius_msg);
+    }
 
     if (result == OK_RC) {
 	if (radius_setparams(received, radius_msg) < 0) {
@@ -268,7 +283,9 @@ radius_chap_auth(char *user,
 	make_username_realm(user);
 	rstate.client_port = get_client_port (ifname);
 	if (radius_pre_auth_hook) {
-	    radius_pre_auth_hook(rstate.user);
+	    radius_pre_auth_hook(rstate.user,
+				 &rstate.authserver,
+				 &rstate.acctserver);
 	}
     }
 
@@ -298,7 +315,13 @@ radius_chap_auth(char *user,
      * make authentication with RADIUS server
      */
 
-    result = rc_auth (rstate.client_port, send, &received, radius_msg);
+    if (rstate.authserver) {
+	result = rc_auth_using_server(rstate.authserver,
+				      rstate.client_port, send,
+				      &received, radius_msg);
+    } else {
+	result = rc_auth(rstate.client_port, send, &received, radius_msg);
+    }
 
     if (result == OK_RC) {
 	if (!rstate.done_chap_once) {
@@ -474,7 +497,12 @@ radius_acct_start(void)
     av_type = htonl(hisaddr);
     rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
 
-    result = rc_acct(rstate.client_port, send);
+    if (rstate.acctserver) {
+	result = rc_acct_using_server(rstate.acctserver,
+				      rstate.client_port, send);
+    } else {
+	result = rc_acct(rstate.client_port, send);
+    }
 
     rc_avpair_free(send);
 
@@ -561,7 +589,13 @@ radius_acct_stop(void)
     av_type = htonl(hisaddr);
     rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
 
-    result = rc_acct(rstate.client_port, send);
+    if (rstate.acctserver) {
+	result = rc_acct_using_server(rstate.acctserver,
+				      rstate.client_port, send);
+    } else {
+	result = rc_acct(rstate.client_port, send);
+    }
+
     if (result != OK_RC) {
 	/* RADIUS server could be down so make this a warning */
 	syslog(LOG_WARNING,

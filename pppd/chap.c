@@ -1,5 +1,5 @@
 /*
- * chap.c - Challenge Handshake Authentication Protocol.
+ * chap_ms.c - Challenge Handshake Authentication Protocol.
  *
  * Copyright (c) 1993 The Australian National University.
  * All rights reserved.
@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.26 2002/01/22 16:02:58 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.27 2002/03/01 14:39:18 dfs Exp $"
 
 /*
  * TODO:
@@ -579,19 +579,47 @@ ChapReceiveResponse(cstate, inp, id, len)
 	    /*  generate MD based on negotiated type */
 	    switch (cstate->chal_type) {
 
-	    case CHAP_DIGEST_MD5:		/* only MD5 is defined for now */
+	    case CHAP_DIGEST_MD5:
 		if (remmd_len != MD5_SIGNATURE_SIZE)
-		    break;			/* it's not even the right length */
+		    break;			/* not even the right length */
 		MD5Init(&mdContext);
 		MD5Update(&mdContext, &cstate->chal_id, 1);
 		MD5Update(&mdContext, secret, secret_len);
 		MD5Update(&mdContext, cstate->challenge, cstate->chal_len);
 		MD5Final(hash, &mdContext);
 
-		/* compare local and remote MDs and send the appropriate status */
+		/* compare MDs and send the appropriate status */
 		if (memcmp (hash, remmd, MD5_SIGNATURE_SIZE) == 0)
 		    code = CHAP_SUCCESS;	/* they are the same! */
 		break;
+
+#ifdef CHAPMS
+	    case CHAP_MICROSOFT:
+	    {
+		int response_offset, response_size;
+
+		if (remmd_len != MS_CHAP_RESPONSE_LEN)
+		    break;			/* not even the right length */
+		ChapMS(cstate, cstate->challenge, cstate->chal_len,
+		       secret, secret_len);
+
+		/* Determine which part of response to verify against */
+		if ((u_char *) (remmd + offsetof(MS_ChapResponse, UseNT))) {
+		    response_offset = offsetof(MS_ChapResponse, NTResp);
+		    response_size = sizeof(((MS_ChapResponse *) remmd)->NTResp);
+		} else {
+		    response_offset = offsetof(MS_ChapResponse, LANManResp);
+		    response_size =
+			sizeof(((MS_ChapResponse *) remmd)->LANManResp);
+		}
+
+		/* compare MDs and send the appropriate status */
+		if (memcmp(cstate->response + response_offset,
+		    remmd + response_offset, response_size) == 0)
+		    code = CHAP_SUCCESS;	/* they are the same! */
+		break;
+	    }
+#endif /* CHAPMS */
 
 	    default:
 		CHAPDEBUG(("unknown digest type %d", cstate->chal_type));
@@ -759,15 +787,33 @@ static void
 ChapGenChallenge(cstate)
     chap_state *cstate;
 {
-    int chal_len;
+    int chal_len = 0; /* Avoid compiler warning */
     u_char *ptr = cstate->challenge;
     int i;
 
-    /* pick a random challenge length between MIN_CHALLENGE_LENGTH and
-       MAX_CHALLENGE_LENGTH */
-    chal_len =  (unsigned) ((drand48() *
-			     (MAX_CHALLENGE_LENGTH - MIN_CHALLENGE_LENGTH)) +
-			    MIN_CHALLENGE_LENGTH);
+    switch (cstate->chal_type) {
+    case CHAP_DIGEST_MD5:
+	/*
+	 * pick a random challenge length between MIN_CHALLENGE_LENGTH and
+	 * MAX_CHALLENGE_LENGTH
+	 */
+	chal_len = (unsigned) ((drand48() *
+				(MAX_CHALLENGE_LENGTH - MIN_CHALLENGE_LENGTH)) +
+				MIN_CHALLENGE_LENGTH);
+	break;
+
+#ifdef CHAPMS
+    case CHAP_MICROSOFT:
+	/* MS-CHAP is fixed to an 8 octet challenge. */
+	chal_len = 8;
+	break;
+#endif
+    default:
+	fatal("ChapGenChallenge: Unsupported challenge type %d",
+	      (int) cstate->chal_type);
+	break;
+    }
+
     cstate->chal_len = chal_len;
     cstate->chal_id = ++cstate->id;
     cstate->chal_transmits = 0;

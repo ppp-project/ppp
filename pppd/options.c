@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.81 2002/01/11 18:11:51 etbe Exp $"
+#define RCSID	"$Id: options.c,v 1.82 2002/03/01 14:39:18 dfs Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -623,6 +623,12 @@ process_option(opt, cmd, argv)
 	*(bool *)(opt->addr) = v;
 	if (opt->addr2 && (opt->flags & OPT_A2COPY))
 	    *(bool *)(opt->addr2) = v;
+	else if (opt->addr2 && (opt->flags & OPT_A2CLR))
+	    *(bool *)(opt->addr2) = 0;
+	else if (opt->addr2 && (opt->flags & OPT_A2CLRB))
+	    *(u_char *)(opt->addr2) &= ~v;
+	if (opt->addr3 && (opt->flags & OPT_A3OR))
+	    *(u_char *)(opt->addr3) |= v;
 	break;
 
     case o_int:

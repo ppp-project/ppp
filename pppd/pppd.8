@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.59 2002/01/11 18:04:37 etbe Exp $
+.\" $Id: pppd.8,v 1.60 2002/03/01 14:39:18 dfs Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -853,12 +853,20 @@ to \fIname\fR.
 With this option, pppd will not agree to authenticate itself to the
 peer using CHAP.
 .TP
+.B refuse-mschap
+With this option, pppd will not agree to authenticate itself to the
+peer using MS-CHAP.
+.TP
 .B refuse-pap
 With this option, pppd will not agree to authenticate itself to the
 peer using PAP.
 .TP
 .B require-chap
 Require the peer to authenticate itself using CHAP [Challenge
+Handshake Authentication Protocol] authentication.
+.TP
+.B require-mschap
+Require the peer to authenticate itself using MS-CHAP [Microsft Challenge
 Handshake Authentication Protocol] authentication.
 .TP
 .B require-pap
@@ -1012,7 +1020,7 @@ pppd will not agree to authenticate itself with a particular protocol
 if it has no secrets which could be used to do so.
 .LP
 Pppd stores secrets for use in authentication in secrets
-files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP).
+files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP/MS-CHAP).
 Both secrets files have the same format.  The secrets files can
 contain secrets for pppd to use in authenticating itself to other
 systems, as well as secrets for pppd to use when authenticating other
@@ -1500,7 +1508,7 @@ file should be owned by root and not readable or writable by any other
 user.  Pppd will log a warning if this is not the case.
 .TP
 .B /etc/ppp/chap-secrets
-Names, secrets and IP addresses for CHAP authentication.  As for
+Names, secrets and IP addresses for CHAP/MS-CHAP authentication.  As for
 /etc/ppp/pap-secrets, this file should be owned by root and not
 readable or writable by any other user.  Pppd will log a warning if
 this is not the case.
