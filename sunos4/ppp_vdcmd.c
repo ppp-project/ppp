@@ -37,7 +37,7 @@ ppp_vdcmd(fun, vdp, vdi, vds)
 	 * for us.  Oh well...
 	 */
 	for (maj = 1; maj < nchrdev; ++maj)
-	    if (cdevsw[maj].d_open == &vd_unuseddev)
+	    if (cdevsw[maj].d_open == vd_unuseddev)
 		break;
 	if (maj >= nchrdev)
 	    return ENODEV;
