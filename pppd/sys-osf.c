@@ -26,9 +26,10 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.15 1999/03/08 01:46:22 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.16 1999/03/08 04:49:12 paulus Exp $";
 #endif
 
+#define _SOCKADDR_LEN
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -50,12 +51,15 @@ static char rcsid[] = "$Id: sys-osf.c,v 1.15 1999/03/08 01:46:22 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/poll.h>
+#include <sys/ioctl.h>
 #include <net/if.h>
+#include <net/if_dl.h>
 #include <net/if_arp.h>
 #include <net/route.h>
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 
@@ -1213,6 +1217,7 @@ cifaddr(u, o, h)
     struct ifreq ifr;
 
     ifaddrs[0] = 0;
+    ifaddrs[1] = 0;
     bzero(&ifr, sizeof (ifr));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
@@ -1501,13 +1506,66 @@ GetMask(addr)
 
 /*
  * have_route_to - determine if the system has any route to
- * a given IP address.
+ * a given IP address.  `addr' is in network byte order.
  * For demand mode to work properly, we have to ignore routes
  * through our own interface.
  */
 int have_route_to(u_int32_t addr)
 {
-    return -1;
+	char buf[sizeof(struct rt_msghdr) + (sizeof(struct sockaddr_in))];
+	int status;
+	int s, n;
+	struct rt_msghdr *rtm;
+	struct sockaddr_in *sin;
+	int msglen = sizeof(*rtm) + (sizeof(*sin)) ;
+	char msg[2048];
+
+	rtm = (struct rt_msghdr *)buf;
+	memset(rtm, 0, msglen);
+	rtm->rtm_msglen = msglen;
+	rtm->rtm_version = RTM_VERSION;
+	rtm->rtm_type = RTM_GET;
+	rtm->rtm_addrs = RTA_DST;
+	/* rtm->rtm_addrs, rtm_flags  should be set on output */
+
+	sin = (struct sockaddr_in *)((u_char *)rtm + sizeof(*rtm));
+	sin->sin_len = sizeof(*sin);
+	sin->sin_family = AF_INET;
+	sin->sin_addr.s_addr = addr;
+
+        status = 0;
+
+	if ((s = socket(PF_ROUTE, SOCK_RAW, 0)) < 0)
+		return -1;
+	if (write(s, (char *)rtm, msglen) != msglen) {
+		close(s);
+		return status == ESRCH? 0: -1;
+	}
+
+	n = read(s, msg, 2048);
+	close(s);
+	if (n <= 0)
+		return -1;
+
+	rtm = (struct rt_msghdr *) msg;
+	if (rtm->rtm_version != RTM_VERSION)
+		return -1;
+
+	/* here we try to work out if the route is through our own interface */
+	cp = (char *)(rtm + 1);
+	if (rtm->rtm_addrs & RTA_DST) {
+		struct sockaddr *sa = (struct sockaddr *) cp;
+		cp = (char *)(((unsigned long)cp + sa->sa_len
+			       + sizeof(long) - 1) & ~(sizeof(long) - 1));
+	}
+	if (rtm->rtm_addrs & RTA_GATEWAY) {
+		sin = (struct sockaddr_in *) cp;
+		if (sin->sin_addr.s_addr == ifaddrs[0]
+		    || sin->sin_addr.s_addr == ifaddrs[1])
+			return 0; 	/* route is through our interface */
+	}
+
+	return 1;
 }
 
 static int
