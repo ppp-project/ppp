@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.32 2001/03/08 05:11:11 paulus Exp $"
+#define RCSID	"$Id: ccp.c,v 1.33 2002/03/06 15:00:30 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -85,7 +85,7 @@ static option_t ccp_option_list[] = {
       &ccp_allowoptions[0].deflate_draft },
 
     { "predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
-      "request Predictor-1", 1, &ccp_allowoptions[0].predictor_1, OPT_PRIO },
+      "request Predictor-1", OPT_PRIO | 1 },
     { "nopredictor1", o_bool, &ccp_wantoptions[0].predictor_1,
       "don't allow Predictor-1", OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].predictor_1 },
