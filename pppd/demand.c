@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.7 1997/11/27 06:08:26 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.8 1999/03/16 03:15:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -26,7 +26,6 @@ static char rcsid[] = "$Id: demand.c,v 1.7 1997/11/27 06:08:26 paulus Exp $";
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <syslog.h>
 #include <netdb.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -262,7 +261,7 @@ loop_frame(frame, len)
 {
     struct packet *pkt;
 
-    /* log_packet(frame, len, "from loop: ", LOG_DEBUG); */
+    /* dbglog("from loop: %P", frame, len); */
     if (len < PPP_HDRLEN)
 	return 0;
     if ((PPP_PROTOCOL(frame) & 0x8000) != 0)

@@ -33,14 +33,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.45 1999/03/12 06:07:14 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.46 1999/03/16 03:15:12 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <pwd.h>
 #include <grp.h>
 #include <string.h>
@@ -298,7 +297,7 @@ link_terminated(unit)
     if (logged_in)
 	plogout();
     phase = PHASE_DEAD;
-    syslog(LOG_NOTICE, "Connection terminated.");
+    notice("Connection terminated.");
 }
 
 /*
@@ -359,7 +358,7 @@ link_established(unit)
 	 * of "" and a password of "".  If that's not OK, boot it out.
 	 */
 	if (!wo->neg_upap || !null_login(unit)) {
-	    syslog(LOG_WARNING, "peer refused to authenticate");
+	    warn("peer refused to authenticate: terminating link");
 	    lcp_close(unit, "peer refused to authenticate");
 	    return;
 	}
@@ -381,7 +380,7 @@ link_established(unit)
 	if (passwd[0] == 0) {
 	    passwd_from_file = 1;
 	    if (!get_pap_passwd(passwd))
-		syslog(LOG_ERR, "No secret found for PAP login");
+		error("No secret found for PAP login");
 	}
 	upap_authwithpeer(unit, user, passwd);
 	auth |= PAP_WITHPEER;
@@ -472,8 +471,7 @@ auth_peer_success(unit, protocol, name, namelen)
 	bit = PAP_PEER;
 	break;
     default:
-	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
-	       protocol);
+	warn("auth_peer_success: unknown protocol %x", protocol);
 	return;
     }
 
@@ -529,8 +527,7 @@ auth_withpeer_success(unit, protocol)
 	bit = PAP_WITHPEER;
 	break;
     default:
-	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
-	       protocol);
+	warn("auth_withpeer_success: unknown protocol %x", protocol);
 	bit = 0;
     }
 
@@ -616,7 +613,7 @@ check_idle(arg)
     itime = MIN(idle.xmit_idle, idle.recv_idle);
     if (itime >= idle_time_limit) {
 	/* link is idle: shut it down. */
-	syslog(LOG_INFO, "Terminating connection due to lack of activity.");
+	info("Terminating connection due to lack of activity.");
 	lcp_close(0, "Link inactive");
     } else {
 	TIMEOUT(check_idle, NULL, idle_time_limit - itime);
@@ -630,7 +627,7 @@ static void
 connect_time_expired(arg)
     void *arg;
 {
-    syslog(LOG_INFO, "Connect time expired");
+    info("Connect time expired");
     lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
@@ -766,7 +763,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     ret = UPAP_AUTHACK;
     f = fopen(filename, "r");
     if (f == NULL) {
-	syslog(LOG_ERR, "Can't open PAP password file %s: %m", filename);
+	error("Can't open PAP password file %s: %m", filename);
 	ret = UPAP_AUTHNAK;
 
     } else {
@@ -776,7 +773,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 			  secret, &addrs, filename) < 0
 	    || (secret[0] != 0 && (cryptpap || strcmp(passwd, secret) != 0)
 		&& strcmp(crypt(passwd, secret), secret) != 0)) {
-	    syslog(LOG_WARNING, "PAP authentication failure for %s", user);
+	    warn("PAP authentication failure for %s", user);
 	    ret = UPAP_AUTHNAK;
 	}
 	fclose(f);
@@ -785,7 +782,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     if (uselogin && ret == UPAP_AUTHACK) {
 	ret = plogin(user, passwd, msg, msglen);
 	if (ret == UPAP_AUTHNAK) {
-	    syslog(LOG_WARNING, "PAP login failure for %s", user);
+	    warn("PAP login failure for %s", user);
 	}
     }
 
@@ -799,8 +796,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 	 * On 10'th, drop the connection.
 	 */
 	if (attempts++ >= 10) {
-	    syslog(LOG_WARNING, "%d LOGIN FAILURES ON %s, %s",
-		   attempts, devnam, user);
+	    warn("%d LOGIN FAILURES ON %s, %s", attempts, devnam, user);
 	    quit();
 	}
 	if (attempts > 3)
@@ -979,7 +975,7 @@ plogin(user, passwd, msg, msglen)
 	    || ((spwd->sp_max >= 0 && spwd->sp_max < 10000)
 		&& spwd->sp_lstchg >= 0
 		&& now >= spwd->sp_lstchg + spwd->sp_max)) {
-	    syslog(LOG_WARNING, "Password for %s has expired", user);
+	    warn("Password for %s has expired", user);
 	    return (UPAP_AUTHNAK);
 	}
 	pw->pw_passwd = spwd->sp_pwdp;
@@ -1026,7 +1022,7 @@ plogin(user, passwd, msg, msglen)
 
 #endif /* #ifdef USE_PAM */
 
-    syslog(LOG_INFO, "user %s logged in", user);
+    info("user %s logged in", user);
     logged_in = TRUE;
 
     return (UPAP_AUTHACK);
@@ -1234,7 +1230,7 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 
     f = fopen(filename, "r");
     if (f == NULL) {
-	syslog(LOG_ERR, "Can't open chap secret file %s: %m", filename);
+	error("Can't open chap secret file %s: %m", filename);
 	return 0;
     }
     check_access(f, filename);
@@ -1250,7 +1246,7 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 
     len = strlen(secbuf);
     if (len > MAXSECRETLEN) {
-	syslog(LOG_ERR, "Secret for %s on %s is too long", client, server);
+	error("Secret for %s on %s is too long", client, server);
 	len = MAXSECRETLEN;
     }
     BCOPY(secbuf, secret, len);
@@ -1351,9 +1347,8 @@ ip_addr_check(addr, addrs)
 
 	    bit_count = (int) strtol (ptr_mask+1, (char **) 0, 10);
 	    if (bit_count <= 0 || bit_count > 32) {
-		syslog (LOG_WARNING,
-			"invalid address length %s in auth. address list",
-			ptr_mask);
+		warn("invalid address length %v in auth. address list",
+		     ptr_mask);
 		continue;
 	    }
 	    *ptr_mask = '\0';
@@ -1386,9 +1381,7 @@ ip_addr_check(addr, addrs)
 	    *ptr_mask = '/';
 
 	if (a == (u_int32_t)-1L)
-	    syslog (LOG_WARNING,
-		    "unknown host %s in auth. address list",
-		    addrs->word);
+	    warn("unknown host %s in auth. address list", addrs->word);
 	else
 	    /* Here a and addr are in network byte order,
 	       and mask is in host order. */
@@ -1423,9 +1416,10 @@ check_access(f, filename)
     struct stat sbuf;
 
     if (fstat(fileno(f), &sbuf) < 0) {
-	syslog(LOG_WARNING, "cannot stat secret file %s: %m", filename);
+	warn("cannot stat secret file %s: %m", filename);
     } else if ((sbuf.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
-	syslog(LOG_WARNING, "Warning - secret file %s has world and/or group access", filename);
+	warn("Warning - secret file %s has world and/or group access",
+	     filename);
     }
 }
 
@@ -1618,10 +1612,10 @@ auth_script(script)
     if ((pw = getpwuid(getuid())) != NULL && pw->pw_name != NULL)
 	user_name = pw->pw_name;
     else {
-	sprintf(struid, "%d", getuid());
+	slprintf(struid, sizeof(struid), "%d", getuid());
 	user_name = struid;
     }
-    sprintf(strspeed, "%d", baud_rate);
+    slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
 
     argv[0] = script;
     argv[1] = ifname;

@@ -26,14 +26,11 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.24 1999/03/12 06:07:14 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.25 1999/03/16 03:15:12 paulus Exp $";
 #endif
 
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -359,7 +356,7 @@ ccp_input(unit, p, len)
     oldstate = f->state;
     fsm_input(f, p, len);
     if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED)
-	syslog(LOG_NOTICE, "Compression disabled by peer.");
+	notice("Compression disabled by peer.");
 
     /*
      * If we get a terminate-ack and we're not asking for compression,
@@ -993,27 +990,28 @@ method_name(opt, opt2)
     case CI_DEFLATE:
     case CI_DEFLATE_DRAFT:
 	if (opt2 != NULL && opt2->deflate_size != opt->deflate_size)
-	    sprintf(result, "Deflate%s (%d/%d)",
-		    (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
-		    opt->deflate_size, opt2->deflate_size);
+	    slprintf(result, sizeof(result), "Deflate%s (%d/%d)",
+		     (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
+		     opt->deflate_size, opt2->deflate_size);
 	else
-	    sprintf(result, "Deflate%s (%d)",
-		    (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
-		    opt->deflate_size);
+	    slprintf(result, sizeof(result), "Deflate%s (%d)",
+		     (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
+		     opt->deflate_size);
 	break;
     case CI_BSD_COMPRESS:
 	if (opt2 != NULL && opt2->bsd_bits != opt->bsd_bits)
-	    sprintf(result, "BSD-Compress (%d/%d)", opt->bsd_bits,
-		    opt2->bsd_bits);
+	    slprintf(result, sizeof(result), "BSD-Compress (%d/%d)",
+		     opt->bsd_bits, opt2->bsd_bits);
 	else
-	    sprintf(result, "BSD-Compress (%d)", opt->bsd_bits);
+	    slprintf(result, sizeof(result), "BSD-Compress (%d)",
+		     opt->bsd_bits);
 	break;
     case CI_PREDICTOR_1:
 	return "Predictor 1";
     case CI_PREDICTOR_2:
 	return "Predictor 2";
     default:
-	sprintf(result, "Method %d", opt->method);
+	slprintf(result, sizeof(result), "Method %d", opt->method);
     }
     return result;
 }
@@ -1033,19 +1031,16 @@ ccp_up(f)
     if (ANY_COMPRESS(*go)) {
 	if (ANY_COMPRESS(*ho)) {
 	    if (go->method == ho->method) {
-		syslog(LOG_NOTICE, "%s compression enabled",
-		       method_name(go, ho));
+		notice("%s compression enabled", method_name(go, ho));
 	    } else {
 		strlcpy(method1, sizeof(method1), method_name(go, NULL));
-		syslog(LOG_NOTICE, "%s / %s compression enabled",
+		notice("%s / %s compression enabled",
 		       method1, method_name(ho, NULL));
 	    }
 	} else
-	    syslog(LOG_NOTICE, "%s receive compression enabled",
-		   method_name(go, NULL));
+	    notice("%s receive compression enabled", method_name(go, NULL));
     } else if (ANY_COMPRESS(*ho))
-	syslog(LOG_NOTICE, "%s transmit compression enabled",
-	       method_name(ho, NULL));
+	notice("%s transmit compression enabled", method_name(ho, NULL));
 }
 
 /*
@@ -1197,7 +1192,7 @@ ccp_datainput(unit, pkt, len)
 	    /*
 	     * Disable compression by taking CCP down.
 	     */
-	    syslog(LOG_ERR, "Lost compression sync: disabling compression");
+	    error("Lost compression sync: disabling compression");
 	    ccp_close(unit, "Lost compression sync");
 	} else {
 	    /*

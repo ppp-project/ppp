@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.12 1998/11/24 19:38:05 christos Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.13 1999/03/16 03:15:14 paulus Exp $";
 #endif
 
 #ifdef CHAPMS
@@ -43,7 +43,6 @@ static char rcsid[] = "$Id: chap_ms.c,v 1.12 1998/11/24 19:38:05 christos Exp $"
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <syslog.h>
 #include <unistd.h>
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
@@ -98,7 +97,8 @@ ChallengeResponse(challenge, pwHash, response)
     BCOPY(pwHash, ZPasswordHash, MD4_SIGNATURE_SIZE);
 
 #if 0
-    log_packet(ZPasswordHash, sizeof(ZPasswordHash), "ChallengeResponse - ZPasswordHash", LOG_DEBUG);
+    dbglog("ChallengeResponse - ZPasswordHash %.*B",
+	   sizeof(ZPasswordHash), ZPasswordHash);
 #endif
 
     DesEncrypt(challenge, ZPasswordHash +  0, response + 0);
@@ -106,7 +106,7 @@ ChallengeResponse(challenge, pwHash, response)
     DesEncrypt(challenge, ZPasswordHash + 14, response + 16);
 
 #if 0
-    log_packet(response, 24, "ChallengeResponse - response", LOG_DEBUG);
+    dbglog("ChallengeResponse - response %.24B", response);
 #endif
 }
 
@@ -128,8 +128,7 @@ DesEncrypt(clear, key, cipher)
     setkey(crypt_key);
 
 #if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %02X%02X%02X%02X%02X%02X%02X%02X",
-	       clear[0], clear[1], clear[2], clear[3], clear[4], clear[5], clear[6], clear[7]));
+    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %.8B", clear));
 #endif
 
     Expand(clear, des_input);
@@ -137,8 +136,7 @@ DesEncrypt(clear, key, cipher)
     Collapse(des_input, cipher);
 
 #if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %02X%02X%02X%02X%02X%02X%02X%02X",
-	       cipher[0], cipher[1], cipher[2], cipher[3], cipher[4], cipher[5], cipher[6], cipher[7]));
+    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %.8B", cipher));
 #endif
 }
 
@@ -158,15 +156,13 @@ DesEncrypt(clear, key, cipher)
     des_set_key(&des_key, key_schedule);
 
 #if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %02X%02X%02X%02X%02X%02X%02X%02X",
-	       clear[0], clear[1], clear[2], clear[3], clear[4], clear[5], clear[6], clear[7]));
+    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %.8B", clear));
 #endif
 
     des_ecb_encrypt((des_cblock *)clear, (des_cblock *)cipher, key_schedule, 1);
 
 #if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %02X%02X%02X%02X%02X%02X%02X%02X",
-	       cipher[0], cipher[1], cipher[2], cipher[3], cipher[4], cipher[5], cipher[6], cipher[7]));
+    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %.8B", cipher));
 #endif
 }
 
@@ -245,10 +241,8 @@ static void MakeKey(key, des_key)
 #endif
 
 #if 0
-    CHAPDEBUG((LOG_INFO, "MakeKey: 56-bit input : %02X%02X%02X%02X%02X%02X%02X",
-	       key[0], key[1], key[2], key[3], key[4], key[5], key[6]));
-    CHAPDEBUG((LOG_INFO, "MakeKey: 64-bit output: %02X%02X%02X%02X%02X%02X%02X%02X",
-	       des_key[0], des_key[1], des_key[2], des_key[3], des_key[4], des_key[5], des_key[6], des_key[7]));
+    CHAPDEBUG((LOG_INFO, "MakeKey: 56-bit input : %.7B", key));
+    CHAPDEBUG((LOG_INFO, "MakeKey: 64-bit output: %.8B", des_key));
 #endif
 }
 

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.14 1999/03/12 06:07:16 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.15 1999/03/16 03:15:14 paulus Exp $";
 #endif
 
 /*
@@ -30,7 +30,6 @@ static char rcsid[] = "$Id: fsm.c,v 1.14 1999/03/12 06:07:16 paulus Exp $";
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <syslog.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -92,8 +91,7 @@ fsm_lowerup(f)
 	break;
 
     default:
-	FSMDEBUG((LOG_INFO, "%s: Up event in state %d!",
-		  PROTO_NAME(f), f->state));
+	FSMDEBUG(("%s: Up event in state %d!", PROTO_NAME(f), f->state));
     }
 }
 
@@ -138,8 +136,7 @@ fsm_lowerdown(f)
 	break;
 
     default:
-	FSMDEBUG((LOG_INFO, "%s: Down event in state %d!",
-		  PROTO_NAME(f), f->state));
+	FSMDEBUG(("%s: Down event in state %d!", PROTO_NAME(f), f->state));
     }
 }
 
@@ -276,8 +273,7 @@ fsm_timeout(arg)
 	break;
 
     default:
-	FSMDEBUG((LOG_INFO, "%s: Timeout event in state %d!",
-		  PROTO_NAME(f), f->state));
+	FSMDEBUG(("%s: Timeout event in state %d!", PROTO_NAME(f), f->state));
     }
 }
 
@@ -301,27 +297,24 @@ fsm_input(f, inpacket, l)
      */
     inp = inpacket;
     if (l < HEADERLEN) {
-	FSMDEBUG((LOG_WARNING, "fsm_input(%x): Rcvd short header.",
-		  f->protocol));
+	FSMDEBUG(("fsm_input(%x): Rcvd short header.", f->protocol));
 	return;
     }
     GETCHAR(code, inp);
     GETCHAR(id, inp);
     GETSHORT(len, inp);
     if (len < HEADERLEN) {
-	FSMDEBUG((LOG_INFO, "fsm_input(%x): Rcvd illegal length.",
-		  f->protocol));
+	FSMDEBUG(("fsm_input(%x): Rcvd illegal length.", f->protocol));
 	return;
     }
     if (len > l) {
-	FSMDEBUG((LOG_INFO, "fsm_input(%x): Rcvd short packet.",
-		  f->protocol));
+	FSMDEBUG(("fsm_input(%x): Rcvd short packet.", f->protocol));
 	return;
     }
     len -= HEADERLEN;		/* subtract header length */
 
     if( f->state == INITIAL || f->state == STARTING ){
-	FSMDEBUG((LOG_INFO, "fsm_input(%x): Rcvd packet in state %d.",
+	FSMDEBUG(("fsm_input(%x): Rcvd packet in state %d.",
 		  f->protocol, f->state));
 	return;
     }
@@ -376,7 +369,6 @@ fsm_rconfreq(f, id, inp, len)
 {
     int code, reject_if_disagree;
 
-    FSMDEBUG((LOG_INFO, "fsm_rconfreq(%s): Rcvd id %d.", PROTO_NAME(f), id));
     switch( f->state ){
     case CLOSED:
 	/* Go away, we're closed */
@@ -445,17 +437,12 @@ fsm_rconfack(f, id, inp, len)
     u_char *inp;
     int len;
 {
-    FSMDEBUG((LOG_INFO, "fsm_rconfack(%s): Rcvd id %d.",
-	      PROTO_NAME(f), id));
-
     if (id != f->reqid || f->seen_ack)		/* Expected id? */
 	return;					/* Nope, toss... */
     if( !(f->callbacks->ackci? (*f->callbacks->ackci)(f, inp, len):
 	  (len == 0)) ){
 	/* Ack is bad - ignore it */
-	log_packet(inp, len, "Received bad configure-ack: ", LOG_ERR);
-	FSMDEBUG((LOG_INFO, "%s: received bad Ack (length %d)",
-		  PROTO_NAME(f), len));
+	error("Received bad configure-ack: %P", inp, len);
 	return;
     }
     f->seen_ack = 1;
@@ -510,17 +497,12 @@ fsm_rconfnakrej(f, code, id, inp, len)
     int (*proc) __P((fsm *, u_char *, int));
     int ret;
 
-    FSMDEBUG((LOG_INFO, "fsm_rconfnakrej(%s): Rcvd id %d.",
-	      PROTO_NAME(f), id));
-
     if (id != f->reqid || f->seen_ack)	/* Expected id? */
 	return;				/* Nope, toss... */
     proc = (code == CONFNAK)? f->callbacks->nakci: f->callbacks->rejci;
     if (!proc || !(ret = proc(f, inp, len))) {
 	/* Nak/reject is bad - ignore it */
-	log_packet(inp, len, "Received bad configure-nak/rej: ", LOG_ERR);
-	FSMDEBUG((LOG_INFO, "%s: received bad %s (length %d)",
-		  PROTO_NAME(f), (code==CONFNAK? "Nak": "reject"), len));
+	error("Received bad configure-nak/rej: %P", inp, len);
 	return;
     }
     f->seen_ack = 1;
@@ -569,9 +551,6 @@ fsm_rtermreq(f, id, p, len)
     u_char *p;
     int len;
 {
-    FSMDEBUG((LOG_INFO, "fsm_rtermreq(%s): Rcvd id %d.",
-	      PROTO_NAME(f), id));
-
     switch (f->state) {
     case ACKRCVD:
     case ACKSENT:
@@ -602,8 +581,6 @@ static void
 fsm_rtermack(f)
     fsm *f;
 {
-    FSMDEBUG((LOG_INFO, "fsm_rtermack(%s).", PROTO_NAME(f)));
-
     switch (f->state) {
     case CLOSING:
 	UNTIMEOUT(fsm_timeout, f);
@@ -642,10 +619,8 @@ fsm_rcoderej(f, inp, len)
 {
     u_char code, id;
 
-    FSMDEBUG((LOG_INFO, "fsm_rcoderej(%s).", PROTO_NAME(f)));
-
     if (len < HEADERLEN) {
-	FSMDEBUG((LOG_INFO, "fsm_rcoderej: Rcvd short Code-Reject packet!"));
+	FSMDEBUG(("fsm_rcoderej: Rcvd short Code-Reject packet!"));
 	return;
     }
     GETCHAR(code, inp);
@@ -703,7 +678,7 @@ fsm_protreject(f)
 	break;
 
     default:
-	FSMDEBUG((LOG_INFO, "%s: Protocol-reject event in state %d!",
+	FSMDEBUG(("%s: Protocol-reject event in state %d!",
 		  PROTO_NAME(f), f->state));
     }
 }
@@ -754,9 +729,6 @@ fsm_sconfreq(f, retransmit)
     /* start the retransmit timer */
     --f->retransmits;
     TIMEOUT(fsm_timeout, f, f->timeouttime);
-
-    FSMDEBUG((LOG_INFO, "%s: sending Configure-Request, id %d",
-	      PROTO_NAME(f), f->reqid));
 }
 
 
@@ -787,7 +759,4 @@ fsm_sdata(f, code, id, data, datalen)
     PUTCHAR(id, outp);
     PUTSHORT(outlen, outp);
     output(f->unit, outpacket_buf, outlen + PPP_HDRLEN);
-
-    FSMDEBUG((LOG_INFO, "fsm_sdata(%s): Sent code %d, id %d.",
-	      PROTO_NAME(f), code, id));
 }
