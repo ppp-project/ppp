@@ -136,34 +136,6 @@ installfile () {
 }
 
 #
-# Patch the bad copies of the sys/types.h file
-#
-patch_include () {
-  echo -n "Ensuring that sys/types.h includes sys/bitypes.h"
-  fgrep "<sys/bitypes.h>" /usr/include/sys/types.h >/dev/null
-  if [ ! "$?" = "0" ]; then
-    echo -n '.'
-    rm -f /usr/include/sys/types.h.rej
-    (cd /usr/include/sys; patch -p0 -f -F30 -s) <patch-include
-    if [ ! "$?" = "0" ]; then
-       touch /usr/include/sys/types.h.rej
-    fi
-    if [ -f /usr/include/sys/types.h.rej ]; then
-       echo " --- FAILED!!!! You must fix this yourself!"
-       echo "The /usr/include/sys/types.h file must include the file"
-       echo "<sys/bitypes.h> after it includes the <linux/types.h> file."
-       echo -n "Please change it so that it does."
-       rm -f /usr/include/sys/types.h.rej
-    else
-       echo -n " -- completed"
-    fi
-  else
-    echo -n " -- skipping"
-  fi
-  echo ""
-}
-
-#
 # Check for the root user
 test_root() {
   my_uid=`id -u`
@@ -216,17 +188,6 @@ done
 
 installfile $LINUXSRC/drivers/net/ppp.c yes
 
-for FILE in if.h if_arp.h route.h
-  do
-  if [ ! -f $LINUXSRC/include/linux/$FILE ]; then
-    echo Installing new $1
-    cp $FILE $LINUXSRC/include/linux/$FILE
-    bombiffailed
-    touch $LINUXSRC/include/linux/$FILE
-    bombiffailed
-  fi
-done
-
 echo -n 'Adding BSD compression module to drivers makefile...'
 NETMK=$LINUXSRC/drivers/net/Makefile
 fgrep bsd_comp.o $NETMK >/dev/null
@@ -271,8 +232,6 @@ for FILE in if_ppp.h \
             if_pppvar.h \
             ppp-comp.h \
 	    if.h \
-            if_arp.h \
-	    route.h \
             ppp_defs.h
   do
   if [ ! -f /usr/include/net/$FILE ]; then
@@ -287,27 +246,6 @@ for FILE in if_ppp.h \
     bombiffailed
   fi
 done
-
-for FILE in ip.h \
-	    tcp.h
-  do
-  if [ ! -f /usr/include/netinet/$FILE ]; then
-    echo Installing stub include file in /usr/include/netinet/$FILE
-    if [ ! -f $LINUXSRC/include/linux/$FILE ]; then
-      echo "#include \"$LINUXSRC/net/inet/$FILE\"" >/usr/include/netinet/$FILE
-    else
-      echo "#include <linux/$FILE>" > /usr/include/netinet/$FILE
-    fi
-    chown 0:0 /usr/include/netinet/$FILE
-    bombiffailed
-    chmod 444 /usr/include/netinet/$FILE
-    bombiffailed
-    touch /usr/include/netinet/$FILE
-    bombiffailed
-  fi
-done
-
-patch_include
 
 echo "Kernel driver files installation done."
 
