@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.12 1994/08/22 00:36:38 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.13 1994/09/01 00:13:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -56,6 +56,35 @@ char *strdup __ARGS((char *));
 #ifndef GIDSET_TYPE
 #define GIDSET_TYPE	gid_t
 #endif
+
+/*
+ * Option variables and default values.
+ */
+int	debug = 0;		/* Debug flag */
+int	kdebugflag = 0;		/* Tell kernel to print debug messages */
+int	default_device = 1;	/* Using /dev/tty or equivalent */
+char	devnam[MAXPATHLEN] = "/dev/tty";	/* Device name */
+int	crtscts = 0;		/* Use hardware flow control */
+int	modem = 1;		/* Use modem control lines */
+int	inspeed = 0;		/* Input/Output speed requested */
+uint32	netmask = 0;		/* IP netmask to set on interface */
+int	lockflag = 0;		/* Create lock file to lock the serial dev */
+int	nodetach = 0;		/* Don't detach from controlling tty */
+char	*connector = NULL;	/* Script to establish physical link */
+char	*disconnector = NULL;	/* Script to disestablish physical link */
+char	user[MAXNAMELEN];	/* Username for PAP */
+char	passwd[MAXSECRETLEN];	/* Password for PAP */
+int	auth_required = 0;	/* Peer is required to authenticate */
+int	defaultroute = 0;	/* assign default route through interface */
+int	proxyarp = 0;		/* Set up proxy ARP entry for peer */
+int	persist = 0;		/* Reopen link after it goes down */
+int	uselogin = 0;		/* Use /etc/passwd for checking PAP */
+int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
+int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
+char	our_name[MAXNAMELEN];	/* Our name for authentication purposes */
+char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
+int	usehostname = 0;	/* Use hostname for our_name */
+int	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 
 /*
  * Prototypes
@@ -127,36 +156,6 @@ static int setnobsdcomp __ARGS((void));
 
 static int number_option __ARGS((char *, long *, int));
 static int readable __ARGS((int fd));
-
-/*
- * Option variables
- */
-extern char *progname;
-extern int debug;
-extern int kdebugflag;
-extern int modem;
-extern int lockflag;
-extern int crtscts;
-extern int nodetach;
-extern char *connector;
-extern char *disconnector;
-extern int inspeed;
-extern char devnam[];
-extern int default_device;
-extern u_long netmask;
-extern int detach;
-extern char user[];
-extern char passwd[];
-extern int auth_required;
-extern int proxyarp;
-extern int persist;
-extern int uselogin;
-extern u_long lcp_echo_interval;
-extern u_long lcp_echo_fails;
-extern char our_name[];
-extern char remote_name[];
-int usehostname;
-int disable_defaultip;
 
 /*
  * Valid arguments.
@@ -1086,7 +1085,7 @@ setipaddr(arg)
 {
     struct hostent *hp;
     char *colon, *index();
-    u_long local, remote;
+    uint32 local, remote;
     ipcp_options *wo = &ipcp_wantoptions[0];
   
     /*
@@ -1189,7 +1188,7 @@ void
 setipdefault()
 {
     struct hostent *hp;
-    u_long local;
+    uint32 local;
     ipcp_options *wo = &ipcp_wantoptions[0];
 
     /*
@@ -1219,7 +1218,7 @@ static int
 setnetmask(argv)
     char **argv;
 {
-    u_long mask;
+    uint32 mask;
 
     if ((mask = inet_addr(*argv)) == -1 || (netmask & ~mask) != 0) {
 	fprintf(stderr, "Invalid netmask %s\n", *argv);
@@ -1235,9 +1234,9 @@ setnetmask(argv)
  * been set. 
  */
 /* ARGSUSED */
-u_long
+uint32
 GetMask(addr)
-    u_long addr;
+    uint32 addr;
 {
     return(netmask);
 }
