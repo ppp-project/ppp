@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.2 1994/09/16 01:57:34 paulus Exp $
+ * $Id: ppp-comp.h,v 1.3 1994/09/19 04:23:58 paulus Exp $
  */
 
 /*
@@ -45,6 +45,8 @@ struct compressor {
 	/* Compress a packet */
 	int	(*compress) __P((void *state, PACKET **mret,
 				 PACKET *mp, int orig_len, int max_len));
+	/* Return compression statistics */
+	void	(*comp_stat) __P((void *state, struct compstat *stats));
 
 	/* Allocate space for a decompressor (receive side) */
 	void	*(*decomp_alloc) __P((u_char *options, int opt_len));
@@ -59,6 +61,8 @@ struct compressor {
 	int	(*decompress) __P((void *state, PACKET *mp, PACKET **dmpp));
 	/* Update state for an incompressible packet received */
 	void	(*incomp) __P((void *state, PACKET *mp));
+	/* Return decompression statistics */
+	void	(*decomp_stat) __P((void *state, struct compstat *stats));
 };
 
 /*
