@@ -1,5 +1,5 @@
 /*
- * auth.c - PPP authentication and phase control.
+ * demand.c - Support routines for demand-dialling.
  *
  * Copyright (c) 1993 The Australian National University.
  * All rights reserved.
@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.3 1996/05/28 00:37:53 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.4 1996/07/01 01:12:52 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -36,7 +36,6 @@ static char rcsid[] = "$Id: demand.c,v 1.3 1996/05/28 00:37:53 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <net/if.h>
-#include <net/bpf.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -247,10 +246,6 @@ loop_chars(p, n)
  * decide whether to bring up the link or not, and, if we want
  * to transmit this frame later, put it on the pending queue.
  * Return value is 1 if we need to bring up the link, 0 otherwise.
- * We assume that the kernel driver has already applied the
- * pass_filter, so we won't get packets it rejected.
- * We apply the active_filter to see if we want this packet to
- * bring up the link.
  */
 int
 loop_frame(frame, len)
@@ -320,5 +315,20 @@ active_packet(p, len)
     unsigned char *p;
     int len;
 {
-    return 1;			/* for now */
+    int proto, i;
+    struct protent *protp;
+
+    if (len < PPP_HDRLEN)
+	return 0;
+    proto = PPP_PROTOCOL(p);
+    for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+	if (protp->protocol < 0xC000 && (protp->protocol & ~0x8000) == proto) {
+	    if (!protp->enabled_flag)
+		return 0;
+	    if (protp->active_pkt == NULL)
+		return 1;
+	    return (*protp->active_pkt)(p, len);
+	}
+    }
+    return 0;			/* not a supported protocol !!?? */
 }
