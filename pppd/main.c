@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.137 2004/10/24 23:13:16 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.138 2004/10/28 00:32:32 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -172,6 +172,7 @@ int ngroups;			/* How many groups valid in groups */
 
 static struct timeval start_time;	/* Time when link was started. */
 
+static struct pppd_stats old_link_stats;
 struct pppd_stats link_stats;
 unsigned link_connect_time;
 int link_stats_valid;
@@ -219,7 +220,7 @@ static void cleanup_db __P((void));
 #endif
 
 static void handle_events __P((void));
-static void print_link_stats __P((void));
+void print_link_stats __P((void));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -1126,7 +1127,7 @@ void
 die(status)
     int status;
 {
-	print_link_stats();
+    print_link_stats();
     cleanup();
     notify(exitnotify, status);
     syslog(LOG_INFO, "Exit.");
@@ -1177,6 +1178,18 @@ print_link_stats()
 }
 
 /*
+ * reset_link_stats - "reset" stats when link goes up.
+ */
+void
+reset_link_stats(u)
+    int u;
+{
+    if (!get_ppp_stats(u, &old_link_stats))
+	return;
+    gettimeofday(&start_time, NULL);
+}
+
+/*
  * update_link_stats - get stats at link termination.
  */
 void
@@ -1191,6 +1204,11 @@ update_link_stats(u)
 	return;
     link_connect_time = now.tv_sec - start_time.tv_sec;
     link_stats_valid = 1;
+
+    link_stats.bytes_in  -= old_link_stats.bytes_in;
+    link_stats.bytes_out -= old_link_stats.bytes_out;
+    link_stats.pkts_in   -= old_link_stats.pkts_in;
+    link_stats.pkts_out  -= old_link_stats.pkts_out;
 
     slprintf(numbuf, sizeof(numbuf), "%u", link_connect_time);
     script_setenv("CONNECT_TIME", numbuf, 0);

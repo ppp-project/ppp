@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.82 2003/04/07 00:01:46 paulus Exp $
+ * $Id: pppd.h,v 1.83 2004/10/28 00:32:32 paulus Exp $
  */
 
 /*
@@ -473,6 +473,8 @@ pid_t run_program __P((char *prog, char **args, int must_exist,
 		       void (*done)(void *), void *arg));
 				/* Run program prog with args in child */
 void reopen_log __P((void));	/* (re)open the connection to syslog */
+void print_link_stats __P((void)); /* Print stats, if available */
+void reset_link_stats __P((int)); /* Reset (init) stats when link goes up */
 void update_link_stats __P((int)); /* Get stats at link termination */
 void script_setenv __P((char *, char *, int));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */

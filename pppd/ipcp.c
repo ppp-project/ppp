@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.65 2004/01/13 03:59:06 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.66 2004/10/28 00:32:32 paulus Exp $"
 
 /*
  * TODO:
@@ -1805,6 +1805,8 @@ ipcp_up(f)
 	    notice("secondary DNS address %I", go->dnsaddr[1]);
     }
 
+    reset_link_stats(f->unit);
+
     np_up(f->unit, PPP_IP);
     ipcp_is_up = 1;
 
@@ -1836,6 +1838,8 @@ ipcp_down(f)
     IPCPDEBUG(("ipcp: down"));
     /* XXX a bit IPv4-centric here, we only need to get the stats
      * before the interface is marked down. */
+    /* XXX more correct: we must get the stats before running the notifiers,
+     * at least for the radius plugin */
     update_link_stats(f->unit);
     notify(ip_down_notifier, 0);
     if (ip_down_hook)
@@ -1845,6 +1849,10 @@ ipcp_down(f)
 	np_down(f->unit, PPP_IP);
     }
     sifvjcomp(f->unit, 0, 0, 0);
+
+    print_link_stats(); /* _after_ running the notifiers and ip_down_hook(),
+			 * because print_link_stats() sets link_stats_valid
+			 * to 0 (zero) */
 
     /*
      * If we are doing dial-on-demand, set the interface
