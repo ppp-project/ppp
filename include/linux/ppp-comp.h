@@ -28,7 +28,7 @@
  */
 
 /*
- *  ==FILEVERSION 960302==
+ *  ==FILEVERSION 960918==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -50,16 +50,16 @@
 #ifndef DO_BSD_COMPRESS
 #define DO_BSD_COMPRESS	1	/* by default, include BSD-Compress */
 #endif
-
+#ifndef DO_DEFLATE
+#define DO_DEFLATE	1	/* by default, include Deflate */
+#endif
 #define DO_PREDICTOR_1	0
 #define DO_PREDICTOR_2	0
-#define DO_DEFLATE	0
 
 /*
  * Structure giving methods for compression/decompression.
  */
 
-#ifdef PACKETPTR
 struct compressor {
 	int	compress_proto;	/* CCP compression protocol number */
 
@@ -107,18 +107,19 @@ struct compressor {
 	/* Return decompression statistics */
 	void	(*decomp_stat) (void *state, struct compstat *stats);
 };
-#endif /* PACKETPTR */
 
 /*
- * Return values for decompress routine.
- * We need to make these distinctions so that we can disable certain
+ * The return value from decompress routine is the length of the
+ * decompressed packet if successful, otherwise DECOMP_ERROR
+ * or DECOMP_FATALERROR if an error occurred.
+ * 
+ * We need to make this distinction so that we can disable certain
  * useful functionality, namely sending a CCP reset-request as a result
  * of an error detected after decompression.  This is to avoid infringing
  * a patent held by Motorola.
  * Don't you just lurve software patents.
  */
 
-#define DECOMP_OK		0	/* everything went OK */
 #define DECOMP_ERROR		1	/* error detected before decomp. */
 #define DECOMP_FATALERROR	2	/* error detected after decomp. */
 
@@ -169,13 +170,8 @@ struct compressor {
 #define BSD_MAX_BITS		15	/* largest code size supported */
 
 /*
- * Definitions for other, as yet unsupported, compression methods.
+ * Definitions for Deflate.
  */
-
-#define CI_PREDICTOR_1		1	/* config option for Predictor-1 */
-#define CILEN_PREDICTOR_1	2	/* length of its config option */
-#define CI_PREDICTOR_2		2	/* config option for Predictor-2 */
-#define CILEN_PREDICTOR_2	2	/* length of its config option */
 
 #define CI_DEFLATE		24	/* config option for Deflate */
 #define CILEN_DEFLATE		4	/* length of its config option */
@@ -188,5 +184,14 @@ struct compressor {
 #define DEFLATE_MAKE_OPT(w)	((((w) - DEFLATE_MIN_SIZE) << 4) \
 				 + DEFLATE_METHOD_VAL)
 #define DEFLATE_CHK_SEQUENCE	0
+
+/*
+ * Definitions for other, as yet unsupported, compression methods.
+ */
+
+#define CI_PREDICTOR_1		1	/* config option for Predictor-1 */
+#define CILEN_PREDICTOR_1	2	/* length of its config option */
+#define CI_PREDICTOR_2		2	/* config option for Predictor-2 */
+#define CILEN_PREDICTOR_2	2	/* length of its config option */
 
 #endif /* _NET_PPP_COMP_H */
