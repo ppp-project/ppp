@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.4 1995/04/28 06:13:05 paulus Exp $
+ * $Id: ppp_comp.c,v 1.5 1995/05/01 01:42:38 paulus Exp $
  */
 
 #include <net/net_globals.h>
@@ -86,7 +86,9 @@ struct ppp_comp_state {
 extern struct compressor ppp_bsd_compress;
 
 struct compressor *ppp_compressors[] = {
+#if DO_BSD_COMPRESS
     &ppp_bsd_compress,
+#endif
     NULL
 };
 
