@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.31 1999/06/24 00:18:41 paulus Exp $";
+static const char rcsid[] = "$Id: sys-svr4.c,v 1.32 1999/08/12 04:24:52 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -280,11 +280,14 @@ establish_ppp(fd)
 
     /* Push the async hdlc module and the compressor module. */
     tty_npushed = 0;
-    if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0) {
-	error("Couldn't push PPP Async HDLC module: %m");
-	return -1;
+
+    if(!sync_serial) {
+        if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0) {
+            error("Couldn't push PPP Async HDLC module: %m");
+	    return -1;
+        }
+        ++tty_npushed;
     }
-    ++tty_npushed;
     if (kdebugflag & 4) {
 	i = PPPDBG_LOG + PPPDBG_AHDLC;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
@@ -515,7 +518,7 @@ set_up_tty(fd, local)
     struct termiox tiox;
 #endif
 
-    if (tcgetattr(fd, &tios) < 0)
+    if (!sync_serial && tcgetattr(fd, &tios) < 0)
 	fatal("tcgetattr: %m");
 
 #ifndef CRTSCTS
@@ -580,7 +583,7 @@ set_up_tty(fd, local)
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+    if (!sync_serial && tcsetattr(fd, TCSAFLUSH, &tios) < 0)
 	fatal("tcsetattr: %m");
 
 #ifndef CRTSCTS
