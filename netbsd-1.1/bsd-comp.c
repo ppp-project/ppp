@@ -1,4 +1,4 @@
-/*	$Id: bsd-comp.c,v 1.3 1996/04/04 02:48:56 paulus Exp $	*/
+/*	$Id: bsd-comp.c,v 1.4 1996/07/01 01:02:22 paulus Exp $	*/
 
 /* Because this code is derived from the 4.3BSD compress source:
  *
@@ -714,7 +714,6 @@ bsd_incomp(state, dmsg)
     if (ent < 0x21 || ent > 0xf9)
 	return;
 
-    db->incomp_count++;
     db->seqno++;
     ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;
