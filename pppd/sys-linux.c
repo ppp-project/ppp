@@ -2029,10 +2029,10 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     if (ioctl(sock_fd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	if (errno != EEXIST) {
 	    if (! ok_error (errno))
-		error("ioctl(SIOCAIFADDR): %m(%d)", errno);
+		error("ioctl(SIOCSIFADDR): %m(%d)", errno);
 	}
         else {
-	    warn("ioctl(SIOCAIFADDR): Address already exists");
+	    warn("ioctl(SIOCSIFADDR): Address already exists");
 	}
         return (0);
     }
@@ -2300,10 +2300,10 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
 	    result = 0;
 	    if (errno != EEXIST) {
 		if (! ok_error (errno))
-		    dbglog("ioctl(SIOCAIFADDR, CRTITF): %m (%d)", errno);
+		    dbglog("ioctl(SIOCSIFADDR, CRTITF): %m (%d)", errno);
 	    }
 	    else {
-		warn("ioctl(SIOCAIFADDR, CRTITF): Address already exists");
+		warn("ioctl(SIOCSIFADDR, CRTITF): Address already exists");
 	    }
 	}
 	close (skfd);
@@ -2346,7 +2346,7 @@ int cipxfaddr (int unit)
  */
 	if (ioctl(skfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
-		info("ioctl(SIOCAIFADDR, IPX_DLTITF): %m (%d)", errno);
+		info("ioctl(SIOCSIFADDR, IPX_DLTITF): %m (%d)", errno);
 	    result = 0;
 	}
 	close (skfd);
