@@ -10,12 +10,14 @@
 # This program may be distributed according to the terms of the GNU
 # General Public License, version 2 or (at your option) any later version.
 #
-# $Id: Makefile.linux,v 1.5 2004/11/13 12:14:59 paulus Exp $
+# $Id: Makefile.linux,v 1.6 2004/11/14 07:58:37 paulus Exp $
 #***********************************************************************
 
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+LIBDIR = $(DESTDIR)/lib/pppd/$(PPPDVERSION)
+
+PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 
 INSTALL	= install
 
