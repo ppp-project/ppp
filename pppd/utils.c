@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.16 2002/01/11 18:27:17 etbe Exp $"
+#define RCSID	"$Id: utils.c,v 1.17 2002/01/14 15:31:34 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -821,7 +821,7 @@ lock(dev)
 
     result = mklock (dev, (void *) 0);
     if (result == 0) {
-	strlcpy(lock_file, sizeof(lock_file), dev);
+	strlcpy(lock_file, dev, sizeof(lock_file));
 	return 0;
     }
 
