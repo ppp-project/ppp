@@ -1,23 +1,22 @@
 #
 # pppd makefile for OSF/1 on DEC Alpha
-# $Id: Makefile.osf,v 1.4 1996/04/04 03:25:08 paulus Exp $
+# $Id: Makefile.osf,v 1.5 1996/07/01 01:05:41 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-osf.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
+	auth.c options.c demand.c sys-osf.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-osf.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
+	auth.o options.o demand.o sys-osf.o
 
 CC = cc
 DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int -D_SOCKADDR_LEN
-COPTS = -O2
+COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int -D_SOCKADDR_LEN $(DEBUG_FLAGS)
+#COPTS = -O2
+COPTS = -g
 LIBS = 
 
 CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
