@@ -26,12 +26,14 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.18 1996/09/14 05:14:36 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.19 1996/09/26 06:20:52 paulus Exp $";
 #endif
 
 #include <string.h>
 #include <syslog.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <net/ppp_defs.h>
 #include <net/ppp-comp.h>
 
 #include "pppd.h"
@@ -163,7 +165,7 @@ ccp_init(unit)
 /*
  * ccp_open - CCP is allowed to come up.
  */
-void
+static void
 ccp_open(unit)
     int unit;
 {
@@ -991,7 +993,7 @@ ccp_printpkt(p, plen, printer, arg)
  * decompression; if it was, we take CCP down, thus disabling
  * compression :-(, otherwise we issue the reset-request.
  */
-void
+static void
 ccp_datainput(unit, pkt, len)
     int unit;
     u_char *pkt;
