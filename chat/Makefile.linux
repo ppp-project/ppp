@@ -1,4 +1,4 @@
-#	$Id: Makefile.linux,v 1.9 1999/08/13 01:54:32 paulus Exp $
+#	$Id: Makefile.linux,v 1.10 2004/01/13 03:57:55 paulus Exp $
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DSIGTYPE=void			# Standard definition
@@ -6,7 +6,8 @@ CDEF3=	-UNO_SLEEP			# Use the usleep function
 CDEF4=	-DFNDELAY=O_NDELAY		# Old name value
 CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4)
 
-CFLAGS=	-O2 -g -pipe $(CDEFS)
+COPTS=	-O2 -g -pipe $(CDEFS)
+CFLAGS=	$(COPTS) $(CDEFS)
 
 INSTALL= install
 

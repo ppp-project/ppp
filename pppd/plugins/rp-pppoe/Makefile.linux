@@ -10,13 +10,14 @@
 # This program may be distributed according to the terms of the GNU
 # General Public License, version 2 or (at your option) any later version.
 #
-# $Id: Makefile.linux,v 1.1 2001/12/14 02:55:20 mostrows Exp $
+# $Id: Makefile.linux,v 1.2 2004/01/13 03:57:55 paulus Exp $
 #***********************************************************************
 
 # Version is set ONLY IN THE MAKEFILE!  Don't delete this!
 VERSION=3.3
 
-CFLAGS+=-I../../../include/linux
+COPTS=-O2 -g
+CFLAGS=$(COPTS) -I../../../include/linux
 all: rp-pppoe.so
 
 rp-pppoe.so: libplugin.a plugin.o
