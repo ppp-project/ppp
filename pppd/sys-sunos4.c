@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.4 1996/04/04 04:06:59 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.5 1996/05/27 00:00:56 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -102,11 +102,6 @@ void
 sys_init()
 {
     int x;
-
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -203,7 +198,6 @@ sys_close()
     close(iffd);
     close(pppfd);
     close(sockfd);
-    closelog();
 }
 
 /*
@@ -237,19 +231,6 @@ daemon(nochdir, noclose)
 	fclose(stderr);
     }
     return 0;
-}
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
 }
 
 /*
@@ -1442,4 +1423,22 @@ strtoul(str, ptr, base)
     int base;
 {
     return (unsigned long) strtol(str, ptr, base);
+}
+
+/*
+ * Or strerror :-(
+ */
+extern char *sys_errlist[];
+extern int sys_nerr;
+
+char *
+strerror(n)
+    int n;
+{
+    static char unknown[32];
+
+    if (n > 0 && n < sys_nerr)
+	return sys_errlist[n];
+    sprintf(unknown, "Error %d", n);
+    return unknown;
 }
