@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 960926==
+ *  ==FILEVERSION 961207==
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -32,6 +32,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/version.h>
 
 #include <endian.h>
 #include <linux/kernel.h>
@@ -53,7 +54,7 @@
 #include <asm/bitops.h>
 #include <asm/segment.h>
 
-#include <net/if.h>
+#include <linux/if.h>
 
 #include <linux/if_ether.h>
 #include <linux/netdevice.h>
@@ -63,13 +64,13 @@
 
 #include <linux/ppp_defs.h>
 
-#ifdef NEW_SKBUFF
+#if LINUX_VERSION_CODE < 0x02010E
 #include <linux/netprotocol.h>
 #endif
 
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
-#include <net/if_arp.h>
+#include <linux/if_arp.h>
 #include <linux/ppp-comp.h>
 
 #include "zlib.c"
@@ -191,6 +192,13 @@ MemChunk *freePool;
 #endif
 #endif /* USEMEMPOOL */
 
+struct chunk_header {
+    unsigned size;		/* amount of space following header */
+    int valloced;		/* allocated with valloc, not kmalloc */
+};
+
+#define MIN_VMALLOC	2048	/* use kmalloc for blocks < this */
+
 /*
  * Space allocation and freeing routines for use by zlib routines.
  */
@@ -201,7 +209,12 @@ zfree(arg, ptr, nbytes)
     unsigned int nbytes;
 {
 #if !USEMEMPOOL
-    kfree(ptr);
+    struct chunk_header *hdr = ((struct chunk_header *)ptr) - 1;
+
+    if (hdr->valloced)
+	vfree(hdr);
+    else
+	kfree(hdr);
 #else
     MemPool *memPool = (MemPool *)arg;
     MemChunk *mprev = 0, *node;
@@ -262,8 +275,22 @@ zalloc(arg, items, size)
 {
 #if !USEMEMPOOL
     struct ppp_deflate_state *state = arg;
+    struct chunk_header *hdr;
+    unsigned nbytes;
 
-    return kmalloc(items * size, state->in_alloc? GFP_KERNEL: GFP_ATOMIC);
+    nbytes = items * size + sizeof(*hdr);
+    if (state->in_alloc)
+	if (nbytes >= MIN_VMALLOC)
+	    hdr = vmalloc(nbytes);
+	else
+	    hdr = kmalloc(nbytes, GFP_KERNEL);
+    else
+	hdr = kmalloc(nbytes, GFP_ATOMIC);
+    if (hdr == 0)
+	return 0;
+    hdr->size = nbytes;
+    hdr->valloced = state->in_alloc && nbytes >= MIN_VMALLOC;
+    return (void *) (hdr + 1);
 #else
     MemPool *memPool = (MemPool *)arg;
     MemChunk *mprev = 0, *node;
@@ -705,7 +732,7 @@ z_decompress(arg, ibuf, isize, obuf, osize)
     if (decode_proto)
 	return DECOMP_ERROR;
 
-    olen = osize - state->strm.avail_out;
+    olen = osize + overflow - state->strm.avail_out;
     state->stats.unc_bytes += olen;
     state->stats.unc_packets++;
     state->stats.comp_bytes += isize;
