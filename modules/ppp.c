@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.11 1997/05/22 06:45:32 paulus Exp $
+ * $Id: ppp.c,v 1.12 1997/07/14 03:51:15 paulus Exp $
  */
 
 /*
@@ -934,7 +934,7 @@ dlpi_request(q, mp, us)
 	reply->b_wptr += sizeof(dl_info_ack_t);
 	bzero((caddr_t) info, sizeof(dl_info_ack_t));
 	info->dl_primitive = DL_INFO_ACK;
-	info->dl_max_sdu = us->ppa->mtu;
+	info->dl_max_sdu = us->ppa? us->ppa->mtu: PPP_MAXMTU;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(ulong);
 #ifdef DL_OTHER
