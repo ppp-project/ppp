@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.6 1996/09/14 05:19:18 paulus Exp $
+ * $Id: ppp_comp.c,v 1.7 1997/03/04 03:31:51 paulus Exp $
  */
 
 /*
@@ -79,7 +79,11 @@ static int msg_byte __P((mblk_t *, unsigned int));
 
 #define PPP_COMP_ID 0xbadf
 static struct module_info minfo = {
+#ifdef PRIOQ
+    PPP_COMP_ID, "ppp_comp", 0, INFPSZ, 16512, 16384,
+#else
     PPP_COMP_ID, "ppp_comp", 0, INFPSZ, 16384, 4096,
+#endif
 };
 
 static struct qinit r_init = {
@@ -610,7 +614,11 @@ ppp_comp_wsrv(q)
     cp = (comp_state_t *) q->q_ptr;
     while ((mp = getq(q)) != 0) {
 	/* assert(mp->b_datap->db_type == M_DATA) */
-	if (!canputnext(q)) {
+#ifdef PRIOQ
+        if (!bcanputnext(q,mp->b_band)) {
+#else
+        if (!canputnext(q)) {
+#endif PRIOQ
 	    putbq(q, mp);
 	    return;
 	}
@@ -685,6 +693,9 @@ ppp_comp_wsrv(q)
 	    (*cp->xcomp->compress)(cp->xstate, &cmp, mp, len,
 				   (cp->flags & CCP_ISUP? cp->mtu: 0));
 	    if (cmp != NULL) {
+#ifdef PRIOQ
+		cmp->b_band=mp->b_band;
+#endif PRIOQ
 		freemsg(mp);
 		mp = cmp;
 	    }

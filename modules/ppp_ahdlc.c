@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.4 1996/09/14 05:19:18 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.5 1997/03/04 03:31:51 paulus Exp $
  */
 
 /*
@@ -68,7 +68,11 @@ static int msg_byte __P((mblk_t *, unsigned int));
 
 #define PPP_AHDL_ID 0x7d23
 static struct module_info minfo = {
+#ifdef PRIOQ
+    PPP_AHDL_ID, "ppp_ahdl", 0, INFPSZ, 640, 512
+#else
     PPP_AHDL_ID, "ppp_ahdl", 0, INFPSZ, 4096, 128
+#endif PRIOQ
 };
 
 static struct qinit rinit = {

@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.8 1996/09/14 05:18:45 paulus Exp $
+ * $Id: ppp.c,v 1.9 1997/03/04 03:31:35 paulus Exp $
  */
 
 /*
@@ -65,6 +65,14 @@
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include "ppp_mod.h"
+
+/*
+ * Modifications marked with #ifdef PRIOQ are for priority queueing of
+ * interactive traffic, and are due to Marko Zec <zec@japa.tel.fer.hr>.
+ */
+#ifdef PRIOQ
+#include <netinet/in.h>
+#endif	/* PRIOQ */
 
 #ifdef __STDC__
 #define __P(x)	x
@@ -129,6 +137,35 @@ typedef struct upperstr {
 #define US_LASTMOD	8	/* no PPP modules below us */
 #define US_DBGLOG	0x10	/* log various occurrences */
 
+
+#ifdef PRIOQ
+static u_char max_band=0;
+static u_char def_band=0;
+
+#define IPPORT_DEFAULT		65535
+
+/*
+ * Port priority table
+ * Highest priority ports are listed first, lowest are listed last.
+ * ICMP & packets using unlisted ports will be treated as "default".
+ * If IPPORT_DEFAULT is not listed here, "default" packets will be 
+ * assigned lowest priority.
+ * Each line should be terminated with "0".
+ * Line containing only "0" marks the end of the list.
+ */
+
+static u_short prioq_table[]= {
+    113, 53, 0,
+    22, 23, 513, 517, 518, 0,
+    514, 21, 79, 111, 0,
+    25, 109, 110, 0,
+    IPPORT_DEFAULT, 0,
+    20, 70, 80, 8001, 8008, 8080, 0, /* 8001,8008,8080 - common proxy ports */
+0 };
+
+#endif	/* PRIOQ */
+
+
 static upperstr_t *minor_devs = NULL;
 static upperstr_t *ppas = NULL;
 
@@ -163,7 +200,11 @@ static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
 
 #define PPP_ID 0xb1a6
 static struct module_info ppp_info = {
+#ifdef PRIOQ
+    PPP_ID, "ppp", 0, 512, 512, 384
+#else
     PPP_ID, "ppp", 0, 512, 512, 128
+#endif	/* PRIOQ */
 };
 
 static struct qinit pppurint = {
@@ -243,9 +284,36 @@ pppopen(q, dev, oflag, sflag)
     upperstr_t *up;
     upperstr_t **prevp;
     minor_t mn;
+#ifdef PRIOQ
+    u_short *ptr;
+    u_char new_band;
+#endif	/* PRIOQ */
 
     if (q->q_ptr)
 	DRV_OPEN_OK(dev);	/* device is already open */
+
+#ifdef PRIOQ
+    /* Calculate max_bband & def_band from definitions in prioq.h
+       This colud be done at some more approtiate time (less often)
+       but this way it works well so I'll just leave it here */
+
+    max_band = 1;
+    def_band = 0;
+    ptr = prioq_table;
+    while (*ptr) {
+        new_band = 1;
+        while (*ptr)
+	    if (*ptr++ == IPPORT_DEFAULT) {
+		new_band = 0;
+		def_band = max_band;
+	    }
+        max_band += new_band;
+        ptr++;
+    }
+    if (def_band)
+        def_band = max_band - def_band;
+    --max_band;
+#endif	/* PRIOQ */
 
     if (sflag == CLONEOPEN) {
 	mn = 0;
@@ -424,6 +492,9 @@ pppuwput(q, mp)
     mblk_t *mq;
     struct ppp_idle *pip;
     int len;
+#ifdef PRIOQ
+    queue_t *tlq;
+#endif	/* PRIOQ */
 
     us = (upperstr_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
@@ -483,6 +554,18 @@ pppuwput(q, mp)
 	    putctl2(lq, M_CTL, PPPCTL_UNIT, us->ppa_id);
 	    putctl4(lq, M_CTL, PPPCTL_MRU, us->mru);
 	    putctl4(lq, M_CTL, PPPCTL_MTU, us->mtu);
+#ifdef PRIOQ
+            /* Lower tty driver's queue hiwat/lowat from default 4096/128
+               to 256/128 since we don't want queueing of data on
+               output to physical device */
+
+            freezestr(lq);
+            for (tlq = lq; tlq->q_next != NULL; tlq = tlq->q_next)
+		;
+            strqset(tlq, QHIWAT, 0, 256);
+            strqset(tlq, QLOWAT, 0, 128);
+            unfreezestr(lq);
+#endif	/* PRIOQ */
 	    break;
 
 	case I_UNLINK:
@@ -969,6 +1052,68 @@ dlpi_request(q, mp, us)
 	    DPRINT2("dlpi data too large (%d > %d)\n", len, ppa->mtu);
 	    break;
 	}
+	mp->b_band = 0;
+#ifdef PRIOQ
+        /* Extract s_port & d_port from IP-packet, the code is a bit
+           dirty here, but so am I, too... */
+        if (mp->b_datap->db_type == M_PROTO && us->sap == PPP_IP
+	    && mp->b_cont != 0) {
+	    u_char *bb, *tlh;
+	    int iphlen, len;
+	    u_short *ptr;
+	    u_char band_unset, cur_band, syn;
+	    u_short s_port, d_port;
+
+            bb = mp->b_cont->b_rptr; /* bb points to IP-header*/
+	    len = mp->b_cont->b_wptr - mp->b_cont->b_rptr;
+            syn = 0;
+	    s_port = IPPORT_DEFAULT;
+	    d_port = IPPORT_DEFAULT;
+	    if (len >= 20) {	/* 20 = minimum length of IP header */
+		iphlen = (bb[0] & 0x0f) * 4;
+		tlh = bb + iphlen;
+		len -= iphlen;
+		switch (bb[9]) {
+		case IPPROTO_TCP:
+		    if (len >= 20) {	      /* min length of TCP header */
+			s_port = (tlh[0] << 8) + tlh[1];
+			d_port = (tlh[2] << 8) + tlh[3];
+			syn = tlh[13] & 0x02;
+		    }
+		    break;
+		case IPPROTO_UDP:
+		    if (len >= 8) {	      /* min length of UDP header */
+			s_port = (tlh[0] << 8) + tlh[1];
+			d_port = (tlh[2] << 8) + tlh[3];
+		    }
+		    break;
+		}
+	    }
+
+            /*
+	     * Now calculate b_band for this packet from the
+	     * port-priority table.
+	     */
+            ptr = prioq_table;
+            cur_band = max_band;
+            band_unset = 1;
+            while (*ptr) {
+                while (*ptr && band_unset)
+                    if (s_port == *ptr || d_port == *ptr++) {
+                        mp->b_band = cur_band;
+                        band_unset = 0;
+                        break;
+		    }
+                ptr++;
+                cur_band--;
+	    }
+            if (band_unset)
+		mp->b_band = def_band;
+            /* It may be usable to urge SYN packets a bit */
+            if (syn)
+		mp->b_band++;
+	}
+#endif	/* PRIOQ */
 	/* this assumes PPP_HDRLEN <= sizeof(dl_unitdata_req_t) */
 	if (mp->b_datap->db_ref > 1) {
 	    np = allocb(PPP_HDRLEN, BPRI_HI);
@@ -1119,7 +1264,7 @@ send_data(mp, us)
     }
     if ((q = ppa->lowerq) == 0) {
 	/* try to send it up the control stream */
-	if (canputnext(ppa->q)) {
+        if (bcanputnext(ppa->q, mp->b_band)) {
 	    /*
 	     * The message seems to get corrupted for some reason if
 	     * we just send the message up as it is, so we send a copy.
@@ -1131,7 +1276,7 @@ send_data(mp, us)
 	    return 1;
 	}
     } else {
-	if (canputnext(ppa->lowerq)) {
+        if (bcanputnext(ppa->lowerq, mp->b_band)) {
 	    /*
 	     * The lower write queue's put procedure just updates counters
 	     * and does a putnext.  We call it so that on SMP systems, we
