@@ -851,13 +851,16 @@ int read_packet (unsigned char *buf)
 	*buf++ = PPP_UI;
 	len -= 2;
     }
-    nr = read(ppp_fd, buf, len);
-    if (new_style_driver && nr < 0 && (errno == EWOULDBLOCK || errno == EIO))
+    nr = -1;
+    if (new_style_driver) {
 	nr = read(ppp_dev_fd, buf, len);
-    if (nr < 0) {
-	if (errno == EWOULDBLOCK || errno == EIO)
-	    return -1;
-	fatal("read: %m(%d)", errno);
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
+	    error("read /dev/ppp: %m");
+    }
+    if (nr < 0 && ppp_fd >= 0) {
+	nr = read(ppp_fd, buf, len);
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
+	    error("read: %m");
     }
     return (new_style_driver && nr > 0)? nr+2: nr;
 }
