@@ -36,7 +36,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.7 1995/05/02 04:18:40 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.8 1995/05/02 05:51:22 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -218,7 +218,7 @@ intpr()
 		   W(d.comp_packets),
 		   W(d.inc_bytes),
 		   W(d.inc_packets),
-		   W(d.ratio) / 256.0);
+		   W(d.ratio) == 0? 0.0: 1 - 1.0 / W(d.ratio) * 256.0);
 
 	    printf(" | %6d %6d %6d %6d %6d %6d %6.2f",
 		   W(c.unc_bytes),
@@ -227,7 +227,7 @@ intpr()
 		   W(c.comp_packets),
 		   W(c.inc_bytes),
 		   W(c.inc_packets),
-		   W(c.ratio) / 256.0);
+		   W(d.ratio) == 0? 0.0: 1 - 1.0 / W(d.ratio) * 256.0);
 	
 	    putchar('\n');
 	} else {
