@@ -1,5 +1,5 @@
 /*
- * $Id: buildreq.c,v 1.3 2002/04/02 14:09:35 dfs Exp $
+ * $Id: buildreq.c,v 1.4 2002/10/01 09:51:01 fcusack Exp $
  *
  * Copyright (C) 1995,1997 Lars Fenneberg
  *
@@ -14,6 +14,44 @@
 #include <radiusclient.h>
 
 unsigned char rc_get_seqnbr(void);
+
+/*
+ * Function: rc_get_nas_id
+ *
+ * Purpose: fills in NAS-Identifier or NAS-IP-Address in request
+ *
+ */
+
+int rc_get_nas_id(VALUE_PAIR **sendpairs)
+{
+	UINT4		client_id;
+	char *nasid;
+
+	nasid = rc_conf_str("nas_identifier");
+	if (strlen(nasid)) {
+		/*
+		 * Fill in NAS-Identifier
+		 */
+		if (rc_avpair_add(sendpairs, PW_NAS_IDENTIFIER, nasid, 0,
+				  VENDOR_NONE) == NULL)
+			return (ERROR_RC);
+
+		return (OK_RC);
+	  
+	} else {
+		/*
+		 * Fill in NAS-IP-Address
+		 */
+		if ((client_id = rc_own_ipaddress()) == 0)
+			return (ERROR_RC);
+
+		if (rc_avpair_add(sendpairs, PW_NAS_IP_ADDRESS, &client_id,
+				  0, VENDOR_NONE) == NULL)
+			return (ERROR_RC);
+	}
+
+	return (OK_RC);
+}
 
 /*
  * Function: rc_buildreq
@@ -150,7 +188,6 @@ int rc_auth_using_server(SERVER *authserver,
 			 char *msg, REQUEST_INFO *info)
 {
 	SEND_DATA       data;
-	UINT4		client_id;
 	int		result;
 	int		i;
 	int		timeout = rc_conf_int("radius_timeout");
@@ -160,14 +197,11 @@ int rc_auth_using_server(SERVER *authserver,
 	data.receive_pairs = NULL;
 
 	/*
-	 * Fill in NAS-IP-Address
+	 * Fill in NAS-IP-Address or NAS-Identifier
 	 */
 
-	if ((client_id = rc_own_ipaddress()) == 0)
-		return (ERROR_RC);
-
-	if (rc_avpair_add(&(data.send_pairs), PW_NAS_IP_ADDRESS, &client_id, 0, VENDOR_NONE) == NULL)
-		return (ERROR_RC);
+	if (rc_get_nas_id(&(data.send_pairs)) == ERROR_RC)
+	    return (ERROR_RC);
 
 	/*
 	 * Fill in NAS-Port
@@ -246,8 +280,8 @@ int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg)
  * Purpose: Builds an accounting request for port id client_port
  *	    with the value_pairs send.  You explicitly supply server list.
  *
- * Remarks: NAS-IP-Address, NAS-Port and Acct-Delay-Time get filled
- *	    in by this function, the rest has to be supplied.
+ * Remarks: NAS-Identifier/NAS-IP-Address, NAS-Port and Acct-Delay-Time get
+ *	    filled in by this function, the rest has to be supplied.
  */
 
 int rc_acct_using_server(SERVER *acctserver,
@@ -256,7 +290,6 @@ int rc_acct_using_server(SERVER *acctserver,
 {
 	SEND_DATA       data;
 	VALUE_PAIR	*adt_vp;
-	UINT4		client_id;
 	int		result;
 	time_t		start_time, dtime;
 	char		msg[4096];
@@ -268,14 +301,11 @@ int rc_acct_using_server(SERVER *acctserver,
 	data.receive_pairs = NULL;
 
 	/*
-	 * Fill in NAS-IP-Address
+	 * Fill in NAS-IP-Address or NAS-Identifier
 	 */
 
-	if ((client_id = rc_own_ipaddress()) == 0)
-		return (ERROR_RC);
-
-	if (rc_avpair_add(&(data.send_pairs), PW_NAS_IP_ADDRESS, &client_id, 0, VENDOR_NONE) == NULL)
-		return (ERROR_RC);
+	if (rc_get_nas_id(&(data.send_pairs)) == ERROR_RC)
+	    return (ERROR_RC);
 
 	/*
 	 * Fill in NAS-Port
@@ -321,8 +351,8 @@ int rc_acct_using_server(SERVER *acctserver,
  * Purpose: Builds an accounting request for port id client_port
  *	    with the value_pairs send
  *
- * Remarks: NAS-IP-Address, NAS-Port and Acct-Delay-Time get filled
- *	    in by this function, the rest has to be supplied.
+ * Remarks: NAS-Identifier/NAS-IP-Address, NAS-Port and Acct-Delay-Time get
+ *	    filled in by this function, the rest has to be supplied.
  */
 
 int rc_acct(UINT4 client_port, VALUE_PAIR *send)
@@ -384,20 +414,19 @@ int rc_check(char *host, unsigned short port, char *msg)
 {
 	SEND_DATA       data;
 	int		result;
-	UINT4		client_id, service_type;
+	UINT4		service_type;
 	int		timeout = rc_conf_int("radius_timeout");
 	int		retries = rc_conf_int("radius_retries");
 
 	data.send_pairs = data.receive_pairs = NULL;
 
 	/*
-	 * Fill in NAS-IP-Address, although it isn't neccessary
+	 * Fill in NAS-IP-Address or NAS-Identifier,
+         * although it isn't neccessary
 	 */
 
-	if ((client_id = rc_own_ipaddress()) == 0)
-		return (ERROR_RC);
-
-	rc_avpair_add(&(data.send_pairs), PW_NAS_IP_ADDRESS, &client_id, 0, VENDOR_NONE);
+	if (rc_get_nas_id(&(data.send_pairs)) == ERROR_RC)
+	    return (ERROR_RC);
 
 	/*
 	 * Fill in Service-Type

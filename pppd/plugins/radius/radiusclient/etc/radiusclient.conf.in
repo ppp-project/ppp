@@ -7,21 +7,21 @@
 # this server is asked.
 auth_order	radius
 
-# maximum login tries a user has
+# maximum login tries a user has (default 4)
 login_tries	4
 
-# timeout for all login tries
-# if this time is exceeded the user is kicked out
+# timeout for all login tries (default 60)
+# if this time is exceeded the user is kicked out 
 login_timeout	60
 
 # name of the nologin file which when it exists disables logins.
 # it may be extended by the ttyname which will result in
 # a terminal specific lock (e.g. /etc/nologin.ttyS2 will disable
-# logins on /dev/ttyS2)
+# logins on /dev/ttyS2)   (default /etc/nologin)
 nologin /etc/nologin
 
 # name of the issue file. it's only display when no username is passed
-# on the radlogin command line
+# on the radlogin command line  (default /etc/radiusclient/issue)
 issue	@pkgsysconfdir@/issue
 
 # RADIUS settings
@@ -49,7 +49,8 @@ servers		@pkgsysconfdir@/servers
 # just like in the normal RADIUS distributions
 dictionary 	@pkgsysconfdir@/dictionary
 
-# program to call for a RADIUS authenticated login
+# program to call for a RADIUS authenticated login 
+# (default /usr/sbin/login.radius)
 login_radius	@sbindir@/login.radius
 
 # file which holds sequence number for communication with the
@@ -70,6 +71,18 @@ radius_timeout	10
 
 # resend request this many times before trying the next server
 radius_retries	3
+
+# NAS-Identifier
+#
+# If supplied, this option will cause the client to send the given string
+# as the contents of the NAS-Identifier attribute in RADIUS requests.  No
+# NAS-IP-Address attribute will be sent in this case.
+#
+# The default behavior is to send a NAS-IP-Address option and not send
+# a NAS-Identifier.  The value of the NAS-IP-Address option is chosen
+# by resolving the system hostname.
+
+# nas_identifier MyUniqueNASName
 
 # LOCAL settings
 

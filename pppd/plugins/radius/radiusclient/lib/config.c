@@ -1,5 +1,5 @@
 /*
- * $Id: config.c,v 1.2 2002/02/27 15:51:20 dfs Exp $
+ * $Id: config.c,v 1.3 2002/10/01 09:51:01 fcusack Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -479,8 +479,7 @@ int rc_find_server (char *server_name, UINT4 *ip_addr, char *secret)
 		return (-1);
 	}
 
-	if ((myipaddr = rc_own_ipaddress()) == 0)
-		return (-1);
+	myipaddr = rc_own_ipaddress();
 
 	result = 0;
 	while (fgets (buffer, sizeof (buffer), clientfd) != (char *) NULL)

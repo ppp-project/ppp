@@ -71,6 +71,7 @@ ATTRIBUTE	Idle-Timeout		28	integer
 ATTRIBUTE	Termination-Action	29	integer
 ATTRIBUTE	Called-Station-Id	30	string
 ATTRIBUTE	Calling-Station-Id	31	string
+ATTRIBUTE	NAS-Identifier		32	string
 ATTRIBUTE	Acct-Status-Type	40	integer
 ATTRIBUTE	Acct-Delay-Time		41	integer
 ATTRIBUTE	Acct-Input-Octets	42	integer
