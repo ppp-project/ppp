@@ -18,10 +18,11 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.19 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.20 1994/10/22 11:49:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
@@ -356,9 +357,14 @@ main(argc, argv)
 	}
 
 	/*
-	 * Run disconnector script, if requested
+	 * Run disconnector script, if requested.
+	 * First we need to reset non-blocking mode.
 	 */
+	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) >= 0)
+	    initfdflags = -1;
+	disestablish_ppp();
 	if (disconnector) {
+	    set_up_tty(fd, 1);
 	    if (device_script(disconnector, fd, fd) < 0) {
 		syslog(LOG_WARNING, "disconnect script failed");
 		die(1);
@@ -391,61 +397,58 @@ get_input()
     u_char *p;
     u_short protocol;
 
-    for (;;) {			/* Read all available packets */
-	p = inpacket_buf;	/* point to beginning of packet buffer */
+    p = inpacket_buf;	/* point to beginning of packet buffer */
 
-	len = read_packet(inpacket_buf);
-	if (len < 0)
-	    return;
+    len = read_packet(inpacket_buf);
+    if (len < 0)
+	return;
 
-	if (len == 0) {
-	    MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
-	    hungup = 1;
-	    lcp_lowerdown(0);	/* serial link is no longer available */
-	    phase = PHASE_DEAD;
-	    return;
+    if (len == 0) {
+	MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
+	hungup = 1;
+	lcp_lowerdown(0);	/* serial link is no longer available */
+	phase = PHASE_DEAD;
+	return;
+    }
+
+    if (debug /*&& (debugflags & DBG_INPACKET)*/)
+	log_packet(p, len, "rcvd ");
+
+    if (len < PPP_HDRLEN) {
+	MAINDEBUG((LOG_INFO, "io(): Received short packet."));
+	return;
+    }
+
+    p += 2;				/* Skip address and control */
+    GETSHORT(protocol, p);
+    len -= PPP_HDRLEN;
+
+    /*
+     * Toss all non-LCP packets unless LCP is OPEN.
+     */
+    if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
+	MAINDEBUG((LOG_INFO,
+		   "io(): Received non-LCP packet when LCP not open."));
+	return;
+    }
+
+    /*
+     * Upcall the proper protocol input routine.
+     */
+    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
+	if (prottbl[i].protocol == protocol) {
+	    (*prottbl[i].input)(0, p, len);
+	    break;
+	} else if (protocol == (prottbl[i].protocol & ~0x8000)
+		   && prottbl[i].datainput != NULL) {
+	    (*prottbl[i].datainput)(0, p, len);
+	    break;
 	}
 
-	if (debug /*&& (debugflags & DBG_INPACKET)*/)
-	    log_packet(p, len, "rcvd ");
-
-	if (len < PPP_HDRLEN) {
-	    MAINDEBUG((LOG_INFO, "io(): Received short packet."));
-	    return;
-	}
-
-	p += 2;				/* Skip address and control */
-	GETSHORT(protocol, p);
-	len -= PPP_HDRLEN;
-
-	/*
-	 * Toss all non-LCP packets unless LCP is OPEN.
-	 */
-	if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
-	    MAINDEBUG((LOG_INFO,
-		       "io(): Received non-LCP packet when LCP not open."));
-	    return;
-	}
-
-	/*
-	 * Upcall the proper protocol input routine.
-	 */
-	for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
-	    if (prottbl[i].protocol == protocol) {
-		(*prottbl[i].input)(0, p, len);
-		break;
-	    } else if (protocol == (prottbl[i].protocol & ~0x8000)
-		       && prottbl[i].datainput != NULL) {
-		(*prottbl[i].datainput)(0, p, len);
-		break;
-	    }
-
-	if (i == sizeof (prottbl) / sizeof (struct protent)) {
-	    if (debug)
-		syslog(LOG_WARNING, "Unknown protocol (0x%x) received",
-		       protocol);
-	    lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
-	}
+    if (i == sizeof (prottbl) / sizeof (struct protent)) {
+	if (debug)
+	    syslog(LOG_WARNING, "Unknown protocol (0x%x) received", protocol);
+	lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
     }
 }
 
