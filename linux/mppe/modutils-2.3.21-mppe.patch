@@ -1,0 +1,10 @@
+--- modutils-2.3.21.orig/util/alias.h	Tue Mar 19 21:23:02 2002
++++ modutils-2.3.21/util/alias.h	Tue Mar 19 21:25:55 2002
+@@ -162,6 +162,7 @@
+ 	"slip1 slip",
+ 	"tty-ldisc-1 slip",
+ 	"tty-ldisc-3 ppp",
++	"ppp-compress-18 ppp_mppe",
+ 	"ppp-compress-21 bsd_comp",
+ 	"ppp-compress-24 ppp_deflate",
+ 	"ppp-compress-26 ppp_deflate",

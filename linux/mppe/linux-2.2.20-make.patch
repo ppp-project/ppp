@@ -1,0 +1,43 @@
+--- linux/drivers/net/Makefile.orig	Fri Nov  2 08:39:07 2001
++++ linux/drivers/net/Makefile	Tue Mar 19 09:31:06 2002
+@@ -325,11 +325,13 @@
+ CONFIG_BSDCOMP_BUILTIN = y
+ CONFIG_SLHC_BUILTIN = y
+ CONFIG_PPPDEF_BUILTIN = y
++CONFIG_PPPMPPE_BUILTIN = y
+ else
+   ifeq ($(CONFIG_PPP),m)
+   CONFIG_BSDCOMP_MODULE = y
+   CONFIG_SLHC_MODULE = y
+   CONFIG_PPPDEF_MODULE = y
++  CONFIG_PPPMPPE_MODULE = y
+   MX_OBJS += ppp.o
+   endif
+ endif
+@@ -1100,6 +1102,17 @@
+   endif
+ endif
+ 
++# If anything built-in uses ppp_mppe, then build it into the kernel also.
++# If not, but a module uses it, build as a module.
++ifdef CONFIG_PPPMPPE_BUILTIN
++L_OBJS += ppp_mppe_compress.o arcfour.o sha1.o
++else
++  ifdef CONFIG_PPPMPPE_MODULE
++  PPPMPPE_OBJS = ppp_mppe_compress.o arcfour.o sha1.o
++  M_OBJS += ppp_mppe.o
++  endif
++endif
++
+ ifeq ($(CONFIG_ARIADNE2),y)
+ L_OBJS += ariadne2.o
+ CONFIG_8390_BUILTIN = y
+@@ -1449,3 +1462,8 @@
+ 
+ rcpci.o: rcpci45.o rclanmtl.o
+ 	$(LD) -r -o rcpci.o rcpci45.o rclanmtl.o
++
++ifdef CONFIG_PPPMPPE_MODULE
++ppp_mppe.o: $(PPPMPPE_OBJS)
++	$(LD) -r -o $@ $(PPPMPPE_OBJS)
++endif
