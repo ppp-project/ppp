@@ -41,7 +41,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.13 2000/01/28 01:50:14 masputra Exp $
+ * $Id: ppp_ahdlc.c,v 1.14 2000/02/16 20:39:24 masputra Exp $
  */
 
 /*
@@ -67,6 +67,10 @@
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include "ppp_mod.h"
+
+#if !defined(clock32_t)
+typedef clock_t clock32_t;
+#endif /* clock32_t */
 
 /*
  * Right now, mutex is only enabled for Solaris 2.x
