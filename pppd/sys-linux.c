@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <string.h>
+#include <time.h>
+#include <memory.h>
+#include <utmp.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -798,4 +801,20 @@ int ppp_available(void)
     close(s);
     
     return ok;
+}
+
+int
+logwtmp(line, name, host)
+	char *line, *name, *host;
+{
+    struct utmp ut;
+
+    memset (&ut, 0, sizeof (ut));
+    (void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+    (void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+    (void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+    (void)time(&ut.ut_time);
+	
+    pututline (&ut);		/* Write the line to the proper place */
+    endutent();			/* Indicate operation is complete */
 }
