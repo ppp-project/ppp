@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.51 1999/03/12 06:07:19 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.52 1999/03/19 01:27:43 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -53,9 +53,6 @@ static char rcsid[] = "$Id: options.c,v 1.51 1999/03/12 06:07:19 paulus Exp $";
 
 #include <net/ppp-comp.h>
 
-#define FALSE	0
-#define TRUE	1
-
 #if defined(ultrix) || defined(NeXT)
 char *strdup __P((char *));
 #endif
@@ -85,8 +82,6 @@ char	user[MAXNAMELEN];	/* Username for PAP */
 char	passwd[MAXSECRETLEN];	/* Password for PAP */
 bool	persist = 0;		/* Reopen link after it goes down */
 char	our_name[MAXNAMELEN];	/* Our name for authentication purposes */
-char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
-int	explicit_remote = 0;	/* User specified explicit remote name */
 bool	demand = 0;		/* do dial-on-demand */
 char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
@@ -119,6 +114,7 @@ static int readfile __P((char **));
 static int callfile __P((char **));
 static int showversion __P((char **));
 static int showhelp __P((char **));
+static void usage __P((void));
 
 #ifdef PPP_FILTER
 static int setpassfilter __P((char **));
@@ -129,6 +125,7 @@ static int setactivefilter __P((char **));
 static option_t *find_option __P((char *name));
 static int process_option __P((option_t *, char **));
 static int n_arguments __P((option_t *));
+static int number_option __P((char *, u_int32_t *, int));
 
 /*
  * Valid arguments.
@@ -352,13 +349,6 @@ options_from_file(filename, must_exist, check_prot, priv)
 	option_error("Can't open options file %s: %m", filename);
 	return 0;
     }
-#if 0	/* check done by setting effective UID above */
-    if (check_prot && !readable(fileno(f))) {
-	option_error("Can't open options file %s: access denied", filename);
-	fclose(f);
-	return 0;
-    }
-#endif
 
     oldpriv = privileged_option;
     privileged_option = priv;
@@ -589,7 +579,7 @@ process_option(opt, argv)
 
     case o_string:
 	if (opt->flags & OPT_STATIC) {
-	    strlcpy((char *)(opt->addr), opt->upper_limit, *argv);
+	    strlcpy((char *)(opt->addr), *argv, opt->upper_limit);
 	} else {
 	    sv = strdup(*argv);
 	    if (sv == NULL)
@@ -632,7 +622,7 @@ n_arguments(opt)
 /*
  * usage - print out a message telling how to use the program.
  */
-void
+static void
 usage()
 {
     if (phase == PHASE_INITIALIZE)
@@ -694,6 +684,7 @@ option_error __V((char *fmt, ...))
     syslog(LOG_ERR, "%s", buf);
 }
 
+#if 0
 /*
  * readable - check if a file is readable by the real user.
  */
@@ -719,6 +710,7 @@ readable(fd)
 	    return sbuf.st_mode & S_IRGRP;
     return sbuf.st_mode & S_IROTH;
 }
+#endif
 
 /*
  * Read a word from a file.
@@ -969,7 +961,7 @@ getword(f, word, newlinep, filename)
 /*
  * number_option - parse an unsigned numeric parameter for an option.
  */
-int
+static int
 number_option(str, valp, base)
     char *str;
     u_int32_t *valp;
@@ -1177,8 +1169,8 @@ setdevname(cp, quiet)
 	return 0;
 
     if (strncmp("/dev/", cp, 5) != 0) {
-	strlcpy(dev, sizeof(dev), "/dev/");
-	strlcat(dev, sizeof(dev), cp);
+	strlcpy(dev, "/dev/", sizeof(dev));
+	strlcat(dev, cp, sizeof(dev));
 	cp = dev;
     }
 
@@ -1198,8 +1190,8 @@ setdevname(cp, quiet)
 	return -1;
     }
 
-    strlcpy(devnam, sizeof(devnam), cp);
-    default_device = FALSE;
+    strlcpy(devnam, cp, sizeof(devnam));
+    default_device = 0;
     devnam_info.priv = privileged_option;
     devnam_info.source = option_source;
   
@@ -1258,7 +1250,7 @@ setipaddr(arg)
 	    } else {
 		remote = *(u_int32_t *)hp->h_addr;
 		if (remote_name[0] == 0)
-		    strlcpy(remote_name, sizeof(remote_name), colon);
+		    strlcpy(remote_name, colon, sizeof(remote_name));
 	    }
 	}
 	if (bad_ip_adrs(remote)) {
