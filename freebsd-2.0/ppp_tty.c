@@ -70,7 +70,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: ppp_tty.c,v 1.5 1996/07/01 01:00:31 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.6 1996/07/01 05:25:56 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -507,7 +507,7 @@ pppfcs(fcs, cp, len)
 }
 
 /*
- * This gets called at splnet from if_ppp.c at various times
+ * This gets called at splsoftnet from if_ppp.c at various times
  * when there is data ready to be sent.
  */
 static void
@@ -691,7 +691,7 @@ pppasyncstart(sc)
 
 /*
  * This gets called when a received packet is placed on
- * the inq, at splnet.
+ * the inq, at splsoftnet.
  */
 static void
 pppasyncctlp(sc)
@@ -711,7 +711,7 @@ pppasyncctlp(sc)
 /*
  * Start output on async tty interface.  If the transmit queue
  * has drained sufficiently, arrange for pppasyncstart to be
- * called later at splnet.
+ * called later at splsoftnet.
  * Called at spltty or higher.
  */
 int

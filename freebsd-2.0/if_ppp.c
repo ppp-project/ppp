@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.7 1996/07/01 01:00:27 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.8 1996/07/01 05:25:55 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -114,6 +114,8 @@
 #include <net/if_ppp.h>
 #include <net/if_pppvar.h>
 #include <machine/cpu.h>
+
+#define splsoftnet	splnet
 
 #ifndef NETISR_PPP
 /* This definition should be moved to net/netisr.h */
@@ -251,7 +253,7 @@ pppalloc(pid)
 }
 
 /*
- * Deallocate a ppp unit.  Must be called at splnet or higher.
+ * Deallocate a ppp unit.  Must be called at splsoftnet or higher.
  */
 void
 pppdealloc(sc)
@@ -339,7 +341,7 @@ pppioctl(sc, cmd, data, flag, p)
 	if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	    return (error);
 	flags = *(int *)data & SC_MASK;
-	s = splnet();
+	s = splsoftnet();
 #ifdef PPP_COMPRESS
 	if (sc->sc_flags & SC_CCP_OPEN && !(flags & SC_CCP_OPEN))
 	    ppp_ccp_closed(sc);
@@ -366,7 +368,7 @@ pppioctl(sc, cmd, data, flag, p)
 	if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	    return (error);
 	if (sc->sc_comp) {
-	    s = splnet();
+	    s = splsoftnet();
 	    vj_compress_init(sc->sc_comp, *(int *)data);
 	    splx(s);
 	}
@@ -399,7 +401,7 @@ pppioctl(sc, cmd, data, flag, p)
 		 */
 		error = 0;
 		if (odp->transmit) {
-		    s = splnet();
+		    s = splsoftnet();
 		    if (sc->sc_xc_state != NULL)
 			(*sc->sc_xcomp->comp_free)(sc->sc_xc_state);
 		    sc->sc_xcomp = *cp;
@@ -414,7 +416,7 @@ pppioctl(sc, cmd, data, flag, p)
 		    sc->sc_flags &= ~SC_COMP_RUN;
 		    splx(s);
 		} else {
-		    s = splnet();
+		    s = splsoftnet();
 		    if (sc->sc_rc_state != NULL)
 			(*sc->sc_rcomp->decomp_free)(sc->sc_rc_state);
 		    sc->sc_rcomp = *cp;
@@ -454,7 +456,7 @@ pppioctl(sc, cmd, data, flag, p)
 	    if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 		return (error);
 	    if (npi->mode != sc->sc_npmode[npx]) {
-		s = splnet();
+		s = splsoftnet();
 		sc->sc_npmode[npx] = npi->mode;
 		if (npi->mode != NPMODE_QUEUE) {
 		    ppp_requeue(sc);
@@ -466,7 +468,7 @@ pppioctl(sc, cmd, data, flag, p)
 	break;
 
     case PPPIOCGIDLE:
-	s = splnet();
+	s = splsoftnet();
 	t = time.tv_sec;
 	((struct ppp_idle *)data)->xmit_idle = t - sc->sc_last_sent;
 	((struct ppp_idle *)data)->recv_idle = t - sc->sc_last_recv;
@@ -595,6 +597,8 @@ pppoutput(ifp, m0, dst, rtp)
     struct ip *ip;
     struct ifqueue *ifq;
     enum NPmode mode;
+    int len;
+    struct mbuf *m;
 
     if (sc->sc_devp == NULL || (ifp->if_flags & IFF_RUNNING) == 0
 	|| ((ifp->if_flags & IFF_UP) == 0 && dst->sa_family != AF_UNSPEC)) {
@@ -668,6 +672,10 @@ pppoutput(ifp, m0, dst, rtp)
     *cp++ = protocol & 0xff;
     m0->m_len += PPP_HDRLEN;
 
+    len = 0;
+    for (m = m0; m != 0; m = m->m_next)
+	len += m->m_len;
+
     if (sc->sc_flags & SC_LOG_OUTPKT) {
 	printf("ppp%d output: ", ifp->if_unit);
 	pppdumpm(m0);
@@ -691,7 +699,7 @@ pppoutput(ifp, m0, dst, rtp)
     /*
      * Put the packet on the appropriate queue.
      */
-    s = splnet();
+    s = splsoftnet();
     if (mode == NPMODE_QUEUE) {
 	/* XXX we should limit the number of packets on this queue */
 	*sc->sc_npqtail = m0;
@@ -725,7 +733,7 @@ bad:
 /*
  * After a change in the NPmode for some NP, move packets from the
  * npqueue to the send queue or the fast queue as appropriate.
- * Should be called at splnet.
+ * Should be called at splsoftnet.
  */
 static void
 ppp_requeue(sc)
@@ -776,7 +784,7 @@ ppp_requeue(sc)
 
 /*
  * Transmitter has finished outputting some stuff;
- * remember to call sc->sc_start later at splnet.
+ * remember to call sc->sc_start later at splsoftnet.
  */
 void
 ppp_restart(sc)
@@ -791,7 +799,7 @@ ppp_restart(sc)
 
 /*
  * Get a packet to send.  This procedure is intended to be called at
- * splnet, since it may involve time-consuming operations such as
+ * splsoftnet, since it may involve time-consuming operations such as
  * applying VJ compression, packet compression, address/control and/or
  * protocol field compression to the packet.
  */
@@ -917,7 +925,7 @@ ppp_dequeue(sc)
 }
 
 /*
- * Software interrupt routine, called at splnet.
+ * Software interrupt routine, called at splsoftnet.
  */
 void
 pppintr()
@@ -927,7 +935,7 @@ pppintr()
     struct mbuf *m;
 
     sc = ppp_softc;
-    s = splnet();
+    s = splsoftnet();
     for (i = 0; i < NPPP; ++i, ++sc) {
 	if (!(sc->sc_flags & SC_TBUSY)
 	    && (sc->sc_if.if_snd.ifq_head || sc->sc_fastq.ifq_head)) {
@@ -1088,7 +1096,7 @@ ppppktin(sc, m, lost)
 
 /*
  * Process a received PPP packet, doing decompression as necessary.
- * Should be called at splnet.
+ * Should be called at splsoftnet.
  */
 #define COMPTYPE(proto)	((proto) == PPP_VJC_COMP? TYPE_COMPRESSED_TCP: \
 			 TYPE_UNCOMPRESSED_TCP)
