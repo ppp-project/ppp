@@ -98,9 +98,7 @@ to reestablish the link (0 means immediately).
 
 int (*pap_check_hook)(void);
 int (*pap_passwd_hook)(char *user, char *passwd);
-int (*pap_auth_hook)(char *user, int userlen,
-		     char *passwd, int passlen,
-		     char **msgp, int *msglenp,
+int (*pap_auth_hook)(char *user, char *passwd, char **msgp,
 		     struct wordlist **paddrs,
 		     struct wordlist **popts);
 void (*pap_logout_hook)(void);
@@ -265,4 +263,4 @@ Here is a list of the currently-implemented notifiers in pppd.
 
 
 
-## $Id: PLUGINS,v 1.5 2002/02/12 20:07:09 dfs Exp $ ##
+## $Id: PLUGINS,v 1.6 2003/02/25 07:43:09 fcusack Exp $ ##
