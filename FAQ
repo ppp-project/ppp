@@ -585,3 +585,25 @@ your /etc/hosts file to make sure you have the local machine and any
 hosts on your local LAN listed, and /etc/resolv.conf and/or
 /etc/nsswitch.conf files to make sure you resolve hostnames from
 /etc/hosts if possible before trying to contact a nameserver.
+
+
+------------------------------------------------------------------------
+
+Q: Since I installed ppp-2.3.6, dialin users to my server have been
+getting this message when they run pppd:
+
+peer authentication required but no suitable secret(s) found for 
+authenticating any peer to us (ispserver)
+
+A: In 2.3.6, the default is to let an unauthenticated peer only use IP
+addresses to which the machine doesn't already have a route.  So on a
+machine with a default route, everyone has to authenticate.  If you
+really don't want that, you can put `noauth' in the /etc/ppp/options
+file.  Note that there is then no check on who is using which IP
+address.  IMHO, this is undesirably insecure, but I guess it may be
+tolerable as long as you don't use any .rhosts files or anything like
+that.  I recommend that you require dialin users to authenticate, even
+if just with PAP using their login password (using the `login' option
+to pppd).  If you do use `noauth', you should at least have a pppusers
+group and set the permissions on pppd to allow only user and group to
+execute it.
