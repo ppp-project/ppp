@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.5 1996/05/28 00:56:18 paulus Exp $
+ * $Id: ppp.c,v 1.6 1996/06/26 00:53:38 paulus Exp $
  */
 
 /*
- * This file is used under Solaris 2, SVR4, and SunOS 4.
+ * This file is used under Solaris 2, SVR4, SunOS 4, and Digital UNIX.
  */
 
 #include <sys/types.h>
@@ -37,7 +37,13 @@
 #include <sys/stream.h>
 #include <sys/stropts.h>
 #include <sys/errno.h>
+#ifdef __osf__
+#include <sys/ioctl.h>
+#include <sys/cmn_err.h>
+#define queclass(mp)	((mp)->b_band & QPCTL)
+#else
 #include <sys/ioccom.h>
+#endif
 #include <sys/time.h>
 #ifdef SVR4
 #include <sys/cmn_err.h>
@@ -154,8 +160,9 @@ static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
 
+#define PPP_ID 0xb1a6
 static struct module_info ppp_info = {
-    0xb1a6, "ppp", 0, 512, 512, 128
+    PPP_ID, "ppp", 0, 512, 512, 128
 };
 
 static struct qinit pppurint = {
@@ -387,7 +394,7 @@ pppclose(q, flag)
 	    break;
 	}
     }
-    kmem_free(up, sizeof(upperstr_t));
+    FREE(up, sizeof(upperstr_t));
     --ppp_count;
 
     return 0;
@@ -900,7 +907,6 @@ dlpi_request(q, mp, us)
 	   except that we accept ETHERTYPE_IP in place of PPP_IP. */
 	sap = d->bind_req.dl_sap;
 	us->req_sap = sap;
-	DPRINT1("ppp bind %x\n", sap);
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
@@ -1455,6 +1461,22 @@ ppplrput(q, mp)
 	    freemsg(mp);
 	else
 	    putnext(us->q, mp);
+	break;
+
+    case M_HANGUP:
+	/*
+	 * The serial device has hung up.  We don't want to send
+	 * the M_HANGUP message up to pppd because that will stop
+	 * us from using the control stream any more.  Instead we
+	 * send a zero-length message as an end-of-file indication.
+	 */
+	freemsg(mp);
+	mp = allocb(1, BPRI_HI);
+	if (mp == 0) {
+	    DPRINT1("ppp/%d: couldn't allocate eof message!\n", ppa->mn);
+	    break;
+	}
+	putnext(ppa->q, mp);
 	break;
 
     default:
