@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.39 1999/05/12 06:19:49 paulus Exp $
+ * $Id: pppd.h,v 1.40 1999/05/13 00:34:33 paulus Exp $
  */
 
 /*
@@ -272,16 +272,18 @@ void untimeout __P((void (*func)(void *), void *arg));
 pid_t run_program __P((char *prog, char **args, int must_exist,
 		       void (*done)(void *), void *arg));
 				/* Run program prog with args in child */
-void demuxprotrej __P((int, int));
-				/* Demultiplex a Protocol-Reject */
+void reopen_log __P((void));	/* (re)open the connection to syslog */
+void update_link_stats __P((int)); /* Get stats at link termination */
+void script_setenv __P((char *, char *));	/* set script env var */
+void script_unsetenv __P((char *));		/* unset script env var */
+
+/* Procedures exported from utils.c. */
 void log_packet __P((u_char *, int, char *, int));
 				/* Format a packet and log it with syslog */
 void print_string __P((char *, int,  void (*) (void *, char *, ...),
 		void *));	/* Format a string for output */
 int slprintf __P((char *, int, char *, ...));		/* sprintf++ */
 int vslprintf __P((char *, int, char *, va_list));	/* vsprintf++ */
-void script_setenv __P((char *, char *));	/* set script env var */
-void script_unsetenv __P((char *));		/* unset script env var */
 size_t strlcpy __P((char *, const char *, size_t));	/* safe strcpy */
 size_t strlcat __P((char *, const char *, size_t));	/* safe strncpy */
 void dbglog __P((char *, ...));	/* log a debug message */
@@ -290,7 +292,6 @@ void notice __P((char *, ...));	/* log a notice-level message */
 void warn __P((char *, ...));	/* log a warning message */
 void error __P((char *, ...));	/* log an error message */
 void fatal __P((char *, ...));	/* log an error message and die(1) */
-void reopen_log __P((void));	/* (re)open the connection to syslog */
 
 /* Procedures exported from auth.c */
 void link_required __P((int));	  /* we are starting to use the link */
@@ -514,6 +515,7 @@ extern struct option_info ptycommand_info;
 #define EXIT_CALLBACK		14
 #define EXIT_PEER_DEAD		15
 #define EXIT_HANGUP		16
+#define EXIT_LOOPBACK		17
 
 /*
  * Debug macros.  Slightly useful for finding bugs in pppd, not particularly
