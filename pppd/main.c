@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.149 2004/11/14 22:53:42 carlsonj Exp $"
+#define RCSID	"$Id: main.c,v 1.150 2005/03/21 09:20:16 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -551,6 +551,8 @@ main(argc, argv)
 		}
 	    }
 	}
+	/* restore FSMs to original state */
+	lcp_close(0, "");
 
 	if (!persist || asked_to_quit || (maxfail > 0 && unsuccess >= maxfail))
 	    break;

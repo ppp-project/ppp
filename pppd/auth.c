@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.102 2004/12/31 11:58:56 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.103 2005/03/21 09:20:16 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -584,9 +584,6 @@ link_required(unit)
     new_phase(PHASE_DEAD);
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
-
-    /* XXX not nice here but needs to go somewhere... */
-    lcp_close(0, msg);
 }
 
 /*
