@@ -399,6 +399,7 @@ ppp_if_close(q)
 	}
 	p->pii_npq = NULL;
 	p->pii_npq_tail = &p->pii_npq;
+	p->pii_writeq = NULL;
 	DLOG("ppp_if%d: closed\n", p - pii);
     }
     return(0);			/* no work to be done */
