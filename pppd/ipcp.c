@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.24 1996/04/04 03:57:12 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.25 1996/05/28 00:40:47 paulus Exp $";
 #endif
 
 /*
@@ -1152,6 +1152,7 @@ ipcp_up(f)
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
+	sifnpmode(f->unit, PPP_IP, NPMODE_PASS);
 
 	/* assign a default route through the interface if required */
 	if (ipcp_wantoptions[f->unit].default_route) 
