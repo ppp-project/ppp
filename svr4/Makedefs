@@ -4,10 +4,8 @@
 
 INSTALL= /usr/sbin/install
 
-#BINDIR = /usr/local/bin
-#MANDIR = /usr/local/man
-BINDIR = /data/paulus/bin
-MANDIR = /data/paulus/man
+BINDIR = /usr/local/bin
+MANDIR = /usr/local/man
 ETCDIR = /etc/ppp
 
 COPTS = -O -Xa -w
