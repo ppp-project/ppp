@@ -1,3 +1,5 @@
+/*	$Id: if_ppp.h,v 1.6 1994/09/21 00:28:21 paulus Exp $	*/
+
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
  *
@@ -15,122 +17,20 @@
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
- *
- * $Id: if_ppp.h,v 1.5 1994/09/16 01:54:06 paulus Exp $
  */
 
 #ifndef _IF_PPP_H_
 #define _IF_PPP_H_
 
 /*
- * Standard PPP header.
- */
-struct ppp_header {
-	u_char	ph_address;	/* Address Field */
-	u_char	ph_control;	/* Control Field */
-	u_short	ph_protocol;	/* Protocol Field */
-};
-
-#define PPP_HDRLEN	4	/* sizeof(struct ppp_header) must be 4 */
-#define PPP_FCSLEN	2	/* octets for FCS */
-
-#define PPP_ADDRESS(p)	(((u_char *)(p))[0])
-#define PPP_CONTROL(p)	(((u_char *)(p))[1])
-#define PPP_PROTOCOL(p)	((((u_char *)(p))[2] << 8) + ((u_char *)(p))[3])
-
-/*
- * Significant octet values.
- */
-#define	PPP_ALLSTATIONS	0xff	/* All-Stations broadcast address */
-#define	PPP_UI		0x03	/* Unnumbered Information */
-#define	PPP_FLAG	0x7e	/* Flag Sequence */
-#define	PPP_ESCAPE	0x7d	/* Asynchronous Control Escape */
-#define	PPP_TRANS	0x20	/* Asynchronous transparency modifier */
-
-/*
- * Protocol field values.
- */
-#define PPP_IP		0x21	/* Internet Protocol */
-#define	PPP_XNS		0x25	/* Xerox NS */
-#define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
-#define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
-#define PPP_COMP	0xfd	/* compressed packet */
-#define PPP_LCP		0xc021	/* Link Control Protocol */
-#define PPP_CCP		0x80fd	/* Compression Control Protocol */
-
-/*
- * Important FCS values.
- */
-#define PPP_INITFCS	0xffff	/* Initial FCS value */
-#define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
-#define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
-
-/*
  * Packet sizes
  */
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
-#define PPP_MRU		1500	/* Default MRU (max receive unit) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
 
-/* Extended asyncmap - allows any character to be escaped. */
-typedef u_long	ext_accm[8];
-
 /*
- * What to do with network protocol (NP) packets.
+ * Bit definitions for flags.
  */
-enum NPmode {
-    NPMODE_PASS,		/* pass the packet through */
-    NPMODE_DROP,		/* silently drop the packet */
-    NPMODE_ERROR,		/* return an error */
-    NPMODE_QUEUE		/* save it up for later. */
-};
-
-/*
- * Supported network protocols.  These values are used for
- * indexing sc_npmode.
- */
-#define NP_IP	0		/* Internet Protocol */
-#define NUM_NP	1		/* Number of NPs. */
-
-/*
- * Structure describing each ppp unit.
- */
-struct ppp_softc {
-	struct	ifnet sc_if;		/* network-visible interface */
-	u_int	sc_flags;		/* see below */
-	void	*sc_devp;		/* pointer to device-dep structure */
-	int	(*sc_start)();		/* start routine */
-	short	sc_mru;			/* max receive unit */
-	pid_t	sc_xfer;		/* used in transferring unit */
-	struct	ifqueue sc_inq;		/* TTY side input queue */
-	struct	ifqueue sc_fastq;	/* IP interactive output packet q */
-#ifdef	VJC
-	struct	slcompress sc_comp; 	/* vjc control buffer */
-#endif
-	u_int	sc_bytessent;		/* count of octets sent */
-	u_int	sc_bytesrcvd;		/* count of octets received */
-	caddr_t	sc_bpf;			/* hook for BPF */
-	enum	NPmode sc_npmode[NUM_NP]; /* what to do with each NP */
-	struct	compressor *sc_xcomp;	/* transmit compressor */
-	void	*sc_xc_state;		/* transmit compressor state */
-	struct	compressor *sc_rcomp;	/* receive decompressor */
-	void	*sc_rc_state;		/* receive decompressor state */
-	
-	/* Device-dependent part for async lines. */
-	ext_accm sc_asyncmap;		/* async control character map */
-	u_long	sc_rasyncmap;		/* receive async control char map */
-	struct	mbuf *sc_outm;		/* mbuf chain currently being output */
-	struct	mbuf *sc_m;		/* pointer to input mbuf chain */
-	struct	mbuf *sc_mc;		/* pointer to current input mbuf */
-	char	*sc_mp;			/* ptr to next char in input mbuf */
-	short	sc_ilen;		/* length of input packet so far */
-	u_short	sc_fcs;			/* FCS so far (input) */
-	u_short	sc_outfcs;		/* FCS so far for output packet */
-	u_char	sc_rawin[16];		/* chars as received */
-	int	sc_rawin_count;		/* # in sc_rawin */
-};
-
-/* flags */
 #define SC_COMP_PROT	0x00000001	/* protocol compression (output) */
 #define SC_COMP_AC	0x00000002	/* header compression (output) */
 #define	SC_COMP_TCP	0x00000004	/* TCP (VJ) compression (output) */
@@ -176,7 +76,14 @@ struct ppp_option_data {
 	int	transmit;
 };
 
-/* this stuff doesn't belong here... */
+struct ifpppstatsreq {
+    char ifr_name[IFNAMSIZ];
+    struct ppp_stats stats;
+};
+
+/*
+ * Ioctl definitions.
+ */
 #define	PPPIOCGFLAGS	_IOR('t', 90, int)	/* get configuration flags */
 #define	PPPIOCSFLAGS	_IOW('t', 89, int)	/* set configuration flags */
 #define	PPPIOCGASYNCMAP	_IOR('t', 88, int)	/* get async map */
@@ -194,12 +101,10 @@ struct ppp_option_data {
 #define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 
-#ifdef ultrix 
-#define ifr_mtu ifr_ifru.ifru_metric
-#endif
+#define SIOCGPPPSTATS	_IOWR('i', 123, struct ifpppstatsreq)
 
 #if !defined(ifr_mtu)
-#define ifr_mtu	ifr_metric
+#define ifr_mtu	ifr_ifru.ifru_metric
 #endif
 
 #endif /* _IF_PPP_H_ */
