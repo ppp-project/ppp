@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.2 1996/09/26 06:30:54 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.3 1997/03/04 03:45:17 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -129,8 +129,6 @@ struct ifpppcstatsreq {
 
 #if defined(_KERNEL) || defined(KERNEL)
 void pppattach(void);
-int pppsioctl(struct ifnet *, int, caddr_t);
-int pppoutput(struct ifnet *, struct mbuf *, struct sockaddr *);
 void pppintr();
 #endif
 #endif /* _IF_PPP_H_ */

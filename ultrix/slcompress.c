@@ -24,7 +24,7 @@
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
  *
- * $Id: slcompress.c,v 1.3 1996/05/24 07:04:55 paulus Exp $
+ * $Id: slcompress.c,v 1.4 1997/03/04 03:45:18 paulus Exp $
  */
 
 #include "../h/types.h"
@@ -416,7 +416,8 @@ sl_uncompress_tcp(bufp, len, type, comp)
 	struct slcompress *comp;
 {
 	u_char *hdr, *cp;
-	int hlen, vjlen;
+	int vjlen;
+	u_int hlen;
 
 	cp = bufp? *bufp: NULL;
 	vjlen = sl_uncompress_tcp_core(cp, len, len, type, comp, &hdr, &hlen);
