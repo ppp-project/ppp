@@ -18,6 +18,8 @@
  *		(614)451-1883
  */
 
+static char rcsid[] = "$Id: chat.c,v 1.4 1994/05/30 00:30:37 paulus Exp $";
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
