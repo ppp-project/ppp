@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.15 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.16 1994/12/12 22:54:59 paulus Exp $";
 #endif
 
 /*
@@ -44,7 +44,8 @@ static char rcsid[] = "$Id: lcp.c,v 1.15 1994/10/24 04:31:11 paulus Exp $";
 #include "ipcp.h"
 
 #ifdef _linux_		/* Needs ppp ioctls */
-#include <linux/ppp.h>
+#include <net/if.h>
+#include <net/if_ppp.h>
 #endif
 
 /* global vars */
@@ -58,6 +59,11 @@ u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
 static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
 static u_int32_t lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
+
+#ifdef _linux_
+u_int32_t idle_timer_running = 0;
+extern int idle_time_limit;
+#endif
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -212,6 +218,65 @@ lcp_close(unit)
 	fsm_close(&lcp_fsm[unit]);
 }
 
+#ifdef _linux_
+static void IdleTimeCheck __P((caddr_t));
+
+/*
+ * Timer expired for the LCP echo requests from this process.
+ */
+
+static void
+RestartIdleTimer (f)
+    fsm *f;
+{
+    u_long             delta;
+    struct ppp_ddinfo  ddinfo;
+    u_long             latest;
+/*
+ * Read the time since the last packet was received.
+ */
+    if (ioctl (fd, PPPIOCGTIME, &ddinfo) < 0) {
+        syslog (LOG_ERR, "ioctl(PPPIOCGTIME): %m");
+        die (1);
+    }
+/*
+ * Choose the most recient IP activity. It may be a read or write frame
+ */
+    latest = ddinfo.ip_sjiffies < ddinfo.ip_rjiffies ? ddinfo.ip_sjiffies
+                                                     : ddinfo.ip_rjiffies;
+/*
+ * Compute the time since the last packet was received. If the timer
+ *  has expired then send the echo request and reset the timer to maximum.
+ */
+    delta = (idle_time_limit * HZ) - latest;
+    if (((int) delta < HZ || (int) latest < 0L) && f->state == OPENED) {
+        syslog (LOG_NOTICE, "No IP frames exchanged within idle time limit");
+	lcp_close(f->unit);		/* Reset connection */
+	phase = PHASE_TERMINATE;	/* Mark it down */
+    } else {
+        delta = (delta + HZ - 1) / HZ;
+        if (delta == 0)
+	    delta = (u_long) idle_time_limit;
+        assert (idle_timer_running==0);
+        TIMEOUT (IdleTimeCheck, (caddr_t) f, delta);
+        idle_timer_running = 1;
+    }
+}
+
+/*
+ * IdleTimeCheck - Timer expired on the IDLE detection for IP frames
+ */
+
+static void
+IdleTimeCheck (arg)
+    caddr_t arg;
+{
+    if (idle_timer_running != 0) {
+        idle_timer_running = 0;
+        RestartIdleTimer ((fsm *) arg);
+    }
+}
+#endif
 
 /*
  * lcp_lowerup - The lower layer is up.
@@ -1056,7 +1121,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		break;
 	    }
 	    GETLONG(cilong, p);
-	    LCPDEBUG((LOG_INFO, "(%lx)", cilong));
+	    LCPDEBUG((LOG_INFO, "(%x)", (unsigned int) cilong));
 
 	    /*
 	     * Asyncmap must have set at least the bits
@@ -1065,7 +1130,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    if ((ao->asyncmap & ~cilong) != 0) {
 		orc = CONFNAK;
 		if( !reject_if_disagree ){
-		    DECPTR(sizeof (long), p);
+		    DECPTR(sizeof(u_int32_t), p);
 		    PUTLONG(ao->asyncmap | cilong, p);
 		}
 		break;
@@ -1147,7 +1212,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 
 	    GETSHORT(cishort, p);
 	    GETLONG(cilong, p);
-	    LCPDEBUG((LOG_INFO, "(%x %lx)", cishort, cilong));
+	    LCPDEBUG((LOG_INFO, "(%x %x)", cishort, (unsigned int) cilong));
 	    if (cishort != PPP_LQR) {
 		orc = CONFREJ;
 		break;
@@ -1167,7 +1232,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		break;
 	    }
 	    GETLONG(cilong, p);
-	    LCPDEBUG((LOG_INFO, "(%lx)", cilong));
+	    LCPDEBUG((LOG_INFO, "(%x)", (unsigned int) cilong));
 
 	    /*
 	     * He must have a different magic number.
@@ -1175,7 +1240,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    if (go->neg_magicnumber &&
 		cilong == go->magicnumber) {
 		orc = CONFNAK;
-		DECPTR(sizeof (long), p);
+		DECPTR(sizeof(u_int32_t), p);
 		cilong = magic();	/* Don't put magic() inside macro! */
 		PUTLONG(cilong, p);
 		break;
@@ -1641,6 +1706,11 @@ lcp_echo_lowerup (unit)
     /* If a timeout interval is specified then start the timer */
     if (lcp_echo_interval != 0)
         LcpEchoCheck (f);
+#ifdef _linux_
+    /* If a idle time limit is given then start it */
+    if (idle_time_limit != 0)
+        RestartIdleTimer (f);
+#endif
 }
 
 /*
@@ -1657,4 +1727,11 @@ lcp_echo_lowerdown (unit)
         UNTIMEOUT (LcpEchoTimeout, (caddr_t) f);
         lcp_echo_timer_running = 0;
     }
+#ifdef _linux_  
+    /* If a idle time limit is running then stop it */
+    if (idle_timer_running != 0) {
+        UNTIMEOUT (IdleTimeCheck, (caddr_t) f);
+        idle_timer_running = 0;
+    }
+#endif
 }
