@@ -1,10 +1,10 @@
 #
 # Makefile for STREAMS modules for SVR4.
 #
-# $Id: Makefile.svr4,v 1.1 1995/10/27 03:58:31 paulus Exp $
+# $Id: Makefile.svr4,v 1.2 1995/12/11 05:20:01 paulus Exp $
 #
 
-CFLAGS= -D_KERNEL -I.. -O
+CFLAGS= -D_KERNEL -DSVR4 -I.. -O -DLACHTCP
 CC=	cc
 
 all:	ppp ppp_ahdl ppp_comp
@@ -19,6 +19,12 @@ ppp_comp: ppp_comp.o bsd-comp.o vjcompress.o
 	ld -r -o $@ ppp_comp.o bsd-comp.o vjcompress.o
 
 bsd-comp.o: ../modules/bsd-comp.c
+	$(CC) $(CFLAGS) -c $?
+ppp.o:	../modules/ppp.c
+	$(CC) $(CFLAGS) -c $?
+ppp_ahdlc.o: ../modules/ppp_ahdlc.c
+	$(CC) $(CFLAGS) -c $?
+ppp_comp.o: ../modules/ppp_comp.c
 	$(CC) $(CFLAGS) -c $?
 vjcompress.o: ../modules/vjcompress.c
 	$(CC) $(CFLAGS) -c $?
