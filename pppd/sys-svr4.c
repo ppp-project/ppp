@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.37 1999/10/29 00:30:26 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.38 1999/11/13 19:19:17 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -98,7 +98,17 @@
 
 static const char rcsid[] = RCSID;
 
-static		char *mux_dev_name;
+#if defined(SOL2)
+/*
+ * "/dev/udp" is used as a multiplexor to PLINK the interface stream
+ * under. It is used in place of "/dev/ip" since STREAMS will not let
+ * a driver be PLINK'ed under itself, and "/dev/ip" is typically the
+ * driver at the bottom of the tunneling interfaces stream.
+ */
+static char *mux_dev_name = UDP_DEV_NAME;
+#else
+static char *mux_dev_name = IP_DEV_NAME;
+#endif
 static int	pppfd;
 static int	fdmuxid = -1;
 static int	ipfd;
@@ -363,18 +373,6 @@ sys_init()
 	char space[64];
     } reply;
 #endif /* !defined(SOL2) */
-
-#if defined(SOL2)
-    /*
-     * "/dev/udp" is used as a multiplexor to PLINK the interface stream
-     * under. It is used in place of "/dev/ip" since STREAMS will not let
-     * a driver be PLINK'ed under itself, and "/dev/ip" is typically the
-     * driver at the bottom of the tunneling interfaces stream.
-     */
-    mux_dev_name = UDP_DEV_NAME;
-#else
-    mux_dev_name = IP_DEV_NAME;
-#endif
 
     ipfd = open(mux_dev_name, O_RDWR, 0);
     if (ipfd < 0)
