@@ -1,5 +1,5 @@
-/* $Id: patchlevel.h,v 1.6 1994/04/21 03:34:00 paulus Exp $ */
+/* $Id: patchlevel.h,v 1.7 1994/05/02 00:29:07 paulus Exp $ */
 #define	PATCHLEVEL	0
 
-#define VERSION	"2.1a"
-#define DATE	"21 Apr 94"
+#define VERSION	"2.1"
+#define DATE	"1 May 94"
