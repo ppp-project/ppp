@@ -607,3 +607,28 @@ if just with PAP using their login password (using the `login' option
 to pppd).  If you do use `noauth', you should at least have a pppusers
 group and set the permissions on pppd to allow only user and group to
 execute it.
+
+------------------------------------------------------------------------
+
+Q: When running pppd as a dial-in server, I often get the message
+"LCP: timeout sending Config-Requests" from pppd.  It seems to be
+random, but dial-out always works fine.  What is wrong?
+
+A: Most modern modems auto-detects the speed of the serial line
+between the modem and the computer.  This auto-detection occurs when
+the computer sends characters to the modem, when the modem is in
+command mode.  It does not occur when the modem is in data mode.
+Thus, if you send commands to the modem at 2400 bps, and then change
+the serial port speed to 115200 bps, the modem will not detect this
+change until something is transmitted from the computer to the modem.
+When running pppd in dial-in mode (i.e. without a connect script),
+pppd sets the speed of the serial port, but does not transmit
+anything.  If the modem was already running at the specified speed,
+everything is fine, but if not, you will just receive garbage from the
+modem.  To cure this, use an init script such as the following:
+
+	pppd ttyS0 115200 modem crtscts init "chat '' AT OK"
+
+To reset the modem and enable auto-answer, use:
+
+	pppd ttyS0 115200 modem crtscts init "chat '' ATZ OK ATS0=1 OK"
