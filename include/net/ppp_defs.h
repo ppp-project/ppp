@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.2 1994/09/21 01:31:06 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.3 1994/10/22 11:56:19 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -120,6 +120,11 @@ struct vjstat {
     u_int	vjs_tossed;	/* inbound packets tossed because of error */
 };
 
+struct ppp_stats {
+    struct pppstat	p;	/* basic PPP statistics */
+    struct vjstat	vj;	/* VJ header compression statistics */
+};
+
 struct compstat {
     u_int	unc_bytes;	/* total uncompressed bytes */
     u_int	unc_packets;	/* total uncompressed packets */
@@ -130,9 +135,7 @@ struct compstat {
     double	ratio;		/* recent compression ratio */
 };
 
-struct ppp_stats {
-    struct pppstat	p;	/* basic PPP statistics */
-    struct vjstat	vj;	/* VJ header compression statistics */
+struct ppp_comp_stats {
     struct compstat	c;	/* packet compression statistics */
     struct compstat	d;	/* packet decompression statistics */
 };

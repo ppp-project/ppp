@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.7 1994/10/21 06:26:15 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.8 1994/10/22 11:56:19 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -84,6 +84,11 @@ struct ifpppstatsreq {
     struct ppp_stats stats;
 };
 
+struct ifpppcstatsreq {
+    char ifr_name[IFNAMSIZ];
+    struct ppp_comp_stats stats;
+};
+
 /*
  * Ioctl definitions.
  */
@@ -105,6 +110,7 @@ struct ifpppstatsreq {
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 
 #define SIOCGPPPSTATS	_IOWR('i', 123, struct ifpppstatsreq)
+#define SIOCGPPPCSTATS	_IOWR('i', 124, struct ifpppcstatsreq)
 
 #if !defined(ifr_mtu)
 #define ifr_mtu	ifr_ifru.ifru_metric

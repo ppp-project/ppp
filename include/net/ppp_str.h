@@ -5,8 +5,6 @@
   See copyright statement in NOTES
 */
 
-#include	<sys/ioccom.h>
-
 /*
  * Packet sizes
  */
@@ -32,6 +30,11 @@ struct ppp_option_data {
 struct ifpppstatsreq {
     char ifr_name[IFNAMSIZ];
     struct ppp_stats stats;
+};
+
+struct ifpppcstatsreq {
+    char ifr_name[IFNAMSIZ];
+    struct ppp_comp_stats stats;
 };
 
 /*
@@ -61,6 +64,7 @@ struct ifpppstatsreq {
 #define SIOCSCOMPRESS	_IOW('p', 150, struct ppp_option_data)
 
 #define SIOCGPPPSTATS	_IOWR('i', 123, struct ifpppstatsreq)
+#define SIOCGPPPCSTATS	_IOWR('i', 124, struct ifpppcstatsreq)
 
 #else
 /* traditional C compiler */
@@ -86,6 +90,7 @@ struct ifpppstatsreq {
 #define SIOCSCOMPRESS	_IOW(p, 150, struct ppp_option_data)
 
 #define SIOCGPPPSTATS	_IOWR(i, 123, struct ifpppstatsreq)
+#define SIOCGPPPCSTATS	_IOWR(i, 124, struct ifpppcstatsreq)
 #endif
 
 /*
