@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.14 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.15 1995/04/24 05:58:38 paulus Exp $";
 #endif
 
 /*
@@ -774,7 +774,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		&& (ciaddr1 == 0 || !wo->accept_remote)) {
 		orc = CONFNAK;
 		if (!reject_if_disagree) {
-		    DECPTR(sizeof (long), p);
+		    DECPTR(sizeof(u_int32_t), p);
 		    tl = ntohl(wo->hisaddr);
 		    PUTLONG(tl, p);
 		}
@@ -791,7 +791,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		if (ciaddr2 == 0 || !wo->accept_local) {
 		    orc = CONFNAK;
 		    if (!reject_if_disagree) {
-			DECPTR(sizeof (long), p);
+			DECPTR(sizeof(u_int32_t), p);
 			tl = ntohl(wo->ouraddr);
 			PUTLONG(tl, p);
 		    }
@@ -828,7 +828,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		&& (ciaddr1 == 0 || !wo->accept_remote)) {
 		orc = CONFNAK;
 		if (!reject_if_disagree) {
-		    DECPTR(sizeof (long), p);
+		    DECPTR(sizeof(u_int32_t), p);
 		    tl = ntohl(wo->hisaddr);
 		    PUTLONG(tl, p);
 		}
@@ -1083,7 +1083,8 @@ ipcp_script(f, script)
     argv[3] = strspeed;
     argv[4] = strlocal;
     argv[5] = strremote;
-    argv[6] = NULL;
+    argv[6] = ipparam;
+    argv[7] = NULL;
     run_program(script, argv, 0);
 }
 
