@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.22 1996/04/04 03:31:27 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.23 1996/05/28 00:47:01 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -50,6 +50,14 @@ static char rcsid[] = "$Id: auth.c,v 1.22 1996/04/04 03:31:27 paulus Exp $";
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#ifdef SVR4
+#include <crypt.h>
+#else
+#ifdef SUNOS4
+extern char *crypt();
+#endif
+#endif
 
 #ifdef HAS_SHADOW
 #include <shadow.h>
@@ -241,8 +249,10 @@ network_phase(unit)
     struct protent *protp;
 
     phase = PHASE_NETWORK;
+#if 0
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
+#endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         if (protp->protocol < 0xC000 && protp->enabled_flag
 	    && protp->open != NULL) {
@@ -552,6 +562,66 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     return ret;
 }
 
+#ifdef HAS_SHADOW
+/**************
+ * This function was lifted from the shadow-3.3.2 version by John Haugh II.
+ * It is included because the function was not in the standard libshadow
+ * library. If it is included in the library then I can remove it from here.
+ */
+
+#define	DAY	(24L*3600L)
+/*
+ * isexpired - determine if account is expired yet
+ *
+ *	isexpired calculates the expiration date based on the
+ *	password expiration criteria.
+ */
+
+/*ARGSUSED*/
+int
+isexpired (pw, sp)
+struct	passwd	*pw;
+struct	spwd	*sp;
+{
+	long	clock;
+
+	clock = time ((time_t *) 0) / DAY;
+
+	/*
+	 * Quick and easy - there is an expired account field
+	 * along with an inactive account field.  Do the expired
+	 * one first since it is worse.
+	 */
+
+	if (sp->sp_expire > 0 && sp->sp_expire < clock)
+		return 3;
+
+	if (sp->sp_inact > 0 && sp->sp_lstchg > 0 && sp->sp_max > 0 &&
+			sp->sp_inact + sp->sp_lstchg + sp->sp_max < clock)
+		return 2;
+
+	/*
+	 * The last and max fields must be present for an account
+	 * to have an expired password.  A maximum of >10000 days
+	 * is considered to be infinite.
+	 */
+
+	if (sp->sp_lstchg == -1 ||
+			sp->sp_max == -1 || sp->sp_max >= 10000L)
+		return 0;
+
+	/*
+	 * Calculate today's day and the day on which the password
+	 * is going to expire.  If that date has already passed,
+	 * the password has expired.
+	 */
+
+	if (sp->sp_lstchg + sp->sp_max < clock)
+		return 1;
+
+	return 0;
+}
+#endif
 
 /*
  * login - Check the user name and password against the system
@@ -598,10 +668,21 @@ login(user, passwd, msg, msglen)
     }
 
 #ifdef HAS_SHADOW
-    if ((pw->pw_passwd && pw->pw_passwd[0] == '@'
-	 && pw_auth (pw->pw_passwd+1, pw->pw_name, PW_PPP, NULL))
-	|| !valid (passwd, pw)) {
-	return (UPAP_AUTHNAK);
+    if (pw->pw_passwd) {
+	if (pw->pw_passwd[0] == '@') {
+	    if (pw_auth (pw->pw_passwd+1, pw->pw_name, PW_PPP, NULL)) {
+		return (UPAP_AUTHNAK);
+	    }
+	} else {
+	    epasswd = pw_encrypt(passwd, pw->pw_passwd);
+	    if (strcmp(epasswd, pw->pw_passwd)) {
+		return (UPAP_AUTHNAK);
+	    }
+	}
+	/* check the age of the password entry */
+	if (spwd && (isexpired (pw, spwd) != 0)) {
+	    return (UPAP_AUTHNAK);
+	}
     }
 #else
     epasswd = crypt(passwd, pw->pw_passwd);
