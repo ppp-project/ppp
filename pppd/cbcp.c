@@ -18,7 +18,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: cbcp.c,v 1.12 2002/05/21 17:26:49 dfs Exp $"
+#define RCSID	"$Id: cbcp.c,v 1.13 2002/09/18 02:49:46 carlsonj Exp $"
 
 #include <stdio.h>
 #include <string.h>
@@ -38,7 +38,7 @@ static const char rcsid[] = RCSID;
 static int setcbcp __P((char **));
 
 static option_t cbcp_option_list[] = {
-    { "callback", o_special, setcbcp,
+    { "callback", o_special, (void *)setcbcp,
       "Ask for callback", OPT_PRIO | OPT_A2STRVAL, &cbcp[0].us_number },
     { NULL }
 };
@@ -79,11 +79,11 @@ cbcp_state cbcp[NUM_PPP];
 
 /* internal prototypes */
 
-static void cbcp_recvreq __P((cbcp_state *us, char *pckt, int len));
+static void cbcp_recvreq __P((cbcp_state *us, u_char *pckt, int len));
 static void cbcp_resp __P((cbcp_state *us));
 static void cbcp_up __P((cbcp_state *us));
-static void cbcp_recvack __P((cbcp_state *us, char *pckt, int len));
-static void cbcp_send __P((cbcp_state *us, u_char code, u_char *buf, int len));
+static void cbcp_recvack __P((cbcp_state *us, u_char *pckt, int len));
+static void cbcp_send __P((cbcp_state *us, int code, u_char *buf, int len));
 
 /* option processing */
 static int
@@ -269,8 +269,8 @@ cbcp_printpkt(p, plen, printer, arg)
 		printer(arg, " number = %s", str);
 	    }
 	    printer(arg, ">");
-	    break;
 	}
+	break;
 
     default:
 	break;
@@ -288,7 +288,7 @@ cbcp_printpkt(p, plen, printer, arg)
 static void
 cbcp_recvreq(us, pckt, pcktlen)
     cbcp_state *us;
-    char *pckt;
+    u_char *pckt;
     int pcktlen;
 {
     u_char type, opt_len, delay, addr_type;
@@ -391,7 +391,7 @@ cbcp_resp(us)
 static void
 cbcp_send(us, code, buf, len)
     cbcp_state *us;
-    u_char code;
+    int code;
     u_char *buf;
     int len;
 {
@@ -417,7 +417,7 @@ cbcp_send(us, code, buf, len)
 static void
 cbcp_recvack(us, pckt, len)
     cbcp_state *us;
-    char *pckt;
+    u_char *pckt;
     int len;
 {
     u_char type, delay, addr_type;
