@@ -19,21 +19,25 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.16 1995/04/24 05:37:51 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.17 1995/04/27 00:33:39 paulus Exp $";
 #endif
 
 /*
  * TODO:
  */
 
+#include <stdio.h>
 #include <syslog.h>
 #include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <sys/errno.h>
+#include <sys/stat.h>
 
 #include <net/if.h>
 #include <net/ppp_defs.h>
@@ -53,6 +57,8 @@ static int rtm_seq;
 
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
+
+static char *lock_file;		/* name of lock file created */
 
 int sockfd;			/* socket for doing interface ioctls */
 
@@ -938,7 +944,7 @@ get_ether_addr(ipaddr, hwaddr)
 	     */
 	    if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
 		continue;
-	    mask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	    mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
 	    if ((ipaddr & mask) != (ina & mask))
 		continue;
 
@@ -969,4 +975,145 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     return 0;
+}
+
+/*
+ * Return user specified netmask, modified by any mask we might determine
+ * for address `addr' (in network byte order).
+ * Here we scan through the system's list of interfaces, looking for
+ * any non-point-to-point interfaces which might appear to be on the same
+ * network as `addr'.  If we find any, we OR in their netmask to the
+ * user-specified netmask.
+ */
+u_int32_t
+GetMask(addr)
+    u_int32_t addr;
+{
+    u_int32_t mask, nmask, ina;
+    struct ifreq *ifr, *ifend, ifreq;
+    struct ifconf ifc;
+    struct ifreq ifs[MAX_IFS];
+
+    addr = ntohl(addr);
+    if (IN_CLASSA(addr))	/* determine network mask for address class */
+	nmask = IN_CLASSA_NET;
+    else if (IN_CLASSB(addr))
+	nmask = IN_CLASSB_NET;
+    else
+	nmask = IN_CLASSC_NET;
+    /* class D nets are disallowed by bad_ip_adrs */
+    mask = netmask | htonl(nmask);
+
+    /*
+     * Scan through the system's network interfaces.
+     */
+    ifc.ifc_len = sizeof(ifs);
+    ifc.ifc_req = ifs;
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
+	syslog(LOG_WARNING, "ioctl(SIOCGIFCONF): %m");
+	return mask;
+    }
+    ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
+	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+	/*
+	 * Check the interface's internet address.
+	 */
+	if (ifr->ifr_addr.sa_family != AF_INET)
+	    continue;
+	ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	if ((ntohl(ina) & nmask) != (addr & nmask))
+	    continue;
+	/*
+	 * Check that the interface is up, and not point-to-point or loopback.
+	 */
+	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
+	    continue;
+	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
+	    != IFF_UP)
+	    continue;
+	/*
+	 * Get its netmask and OR it into our mask.
+	 */
+	if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
+	    continue;
+	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
+    }
+
+    return mask;
+}
+
+/*
+ * lock - create a lock file for the named lock device
+ */
+#define	LOCK_PREFIX	"/var/spool/lock/LCK.."
+
+int
+lock(dev)
+    char *dev;
+{
+    char hdb_lock_buffer[12];
+    int fd, pid, n;
+    char *p;
+
+    if ((p = strrchr(dev, '/')) != NULL)
+	dev = p + 1;
+    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
+    if (lock_file == NULL)
+	novm("lock file name");
+    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+
+    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
+	if (errno == EEXIST
+	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
+	    /* Read the lock file to find out who has the device locked */
+	    n = read(fd, hdb_lock_buffer, 11);
+	    if (n > 0) {
+		hdb_lock_buffer[n] = 0;
+		pid = atoi(hdb_lock_buffer);
+	    }
+	    if (n <= 0) {
+		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		close(fd);
+	    } else {
+		if (kill(pid, 0) == -1 && errno == ESRCH) {
+		    /* pid no longer exists - remove the lock file */
+		    if (unlink(lock_file) == 0) {
+			close(fd);
+			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			       dev, pid);
+			continue;
+		    } else
+			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			       dev);
+		} else
+		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+			   dev, pid);
+	    }
+	    close(fd);
+	} else
+	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	free(lock_file);
+	lock_file = NULL;
+	return -1;
+    }
+
+    sprintf(hdb_lock_buffer, "%10d\n", getpid());
+    write(fd, hdb_lock_buffer, 11);
+
+    close(fd);
+    return 0;
+}
+
+/*
+ * unlock - remove our lockfile
+ */
+unlock()
+{
+    if (lock_file) {
+	unlink(lock_file);
+	free(lock_file);
+	lock_file = NULL;
+    }
 }
