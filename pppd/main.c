@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.136 2004/04/12 11:20:19 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.137 2004/10/24 23:13:16 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1575,6 +1575,8 @@ device_script(program, in, out, dont_wait)
     close(2);
     if (the_channel->close)
 	(*the_channel->close)();
+    else
+	close(devfd);	/* some plugins don't have a close function */
     closelog();
     close(fd_devnull);
 
