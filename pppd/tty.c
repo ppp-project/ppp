@@ -20,7 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.6 2001/03/12 22:59:01 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.7 2002/09/12 22:34:47 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -841,6 +841,7 @@ start_charshunt(ifd, ofd)
 	if (getuid() != uid)
 	    fatal("setuid failed");
 	setgid(getgid());
+	sys_close();
 	if (!nodetach)
 	    log_to_fd = -1;
 	charshunt(ifd, ofd, record_file);
