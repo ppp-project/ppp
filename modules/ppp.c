@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.24 1999/10/06 23:00:43 masputra Exp $
+ * $Id: ppp.c,v 1.25 1999/10/08 01:10:12 masputra Exp $
  */
 
 /*
@@ -73,8 +73,9 @@
  * interactive traffic, and are due to Marko Zec <zec@japa.tel.fer.hr>.
  */
 #ifdef PRIOQ
-#include <netinet/in.h>
 #endif	/* PRIOQ */
+
+#include <netinet/in.h>	/* leave this outside of PRIOQ for htons */
 
 #ifdef __STDC__
 #define __P(x)	x
