@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.41 1999/02/26 10:38:50 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.42 1999/03/02 05:33:09 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -627,6 +627,13 @@ auth_check_options()
 	wo->neg_chap = 0;
 	wo->neg_upap = 0;
     }
+
+    /*
+     * If we have a default route, require the peer to authenticate
+     * unless the noauth option was given.
+     */
+    if (!auth_required && !allow_any_ip && have_route_to(0))
+	auth_required = 1;
 
     /*
      * Check whether we have appropriate secrets to use
