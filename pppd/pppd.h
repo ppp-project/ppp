@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.73 2002/09/07 05:15:25 carlsonj Exp $
+ * $Id: pppd.h,v 1.74 2002/09/24 11:35:22 fcusack Exp $
  */
 
 /*
@@ -120,7 +120,6 @@ typedef struct {
 #define OPT_A2PRINTER	0x10000000 /* *addr2 is a fn for printing option */
 #define OPT_A2STRVAL	0x20000000 /* *addr2 points to current string value */
 #define OPT_NOPRINT	0x40000000 /* don't print this option at all */
-#define OPT_A3OR  	0x80000000u /* addr3 -> third location to rcv | value */
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
 

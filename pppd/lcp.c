@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.61 2002/09/12 22:51:06 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.62 2002/09/24 11:35:22 fcusack Exp $"
 
 /*
  * TODO:
@@ -676,12 +676,12 @@ lcp_addci(f, ucp, lenp)
 	PUTCHAR(CILEN_SHORT, ucp); \
 	PUTSHORT(val, ucp); \
     }
-#define ADDCICHAP(opt, neg, val, digest) \
+#define ADDCICHAP(opt, neg, val) \
     if (neg) { \
 	PUTCHAR((opt), ucp); \
 	PUTCHAR(CILEN_CHAP, ucp); \
-	PUTSHORT((val), ucp); \
-	PUTCHAR((digest), ucp); \
+	PUTSHORT(PPP_CHAP, ucp); \
+	PUTCHAR((CHAP_DIGEST(val)), ucp); \
     }
 #define ADDCILONG(opt, neg, val) \
     if (neg) { \
@@ -715,7 +715,7 @@ lcp_addci(f, ucp, lenp)
     ADDCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
     ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
 	      go->asyncmap);
-    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP,CHAP_DIGEST(go->chap_mdtype));
+    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, go->chap_mdtype);
     ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ADDCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
@@ -794,7 +794,7 @@ lcp_ackci(f, p, len)
 	if (cichar != val) \
 	    goto bad; \
     }
-#define ACKCICHAP(opt, neg, val, digest) \
+#define ACKCICHAP(opt, neg, val) \
     if (neg) { \
 	if ((len -= CILEN_CHAP) < 0) \
 	    goto bad; \
@@ -804,10 +804,10 @@ lcp_ackci(f, p, len)
 	    citype != (opt)) \
 	    goto bad; \
 	GETSHORT(cishort, p); \
-	if (cishort != (val)) \
+	if (cishort != PPP_CHAP) \
 	    goto bad; \
 	GETCHAR(cichar, p); \
-	if (cichar != (digest)) \
+	if (cichar != (CHAP_DIGEST(val))) \
 	  goto bad; \
     }
 #define ACKCILONG(opt, neg, val) \
@@ -862,7 +862,7 @@ lcp_ackci(f, p, len)
     ACKCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
     ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
 	      go->asyncmap);
-    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP,CHAP_DIGEST(go->chap_mdtype));
+    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, go->chap_mdtype);
     ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ACKCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
@@ -1058,8 +1058,8 @@ lcp_nakci(f, p, len)
 			go->chap_mdtype = CHAP_MDTYPE_D(cichar);
 		    } else {
 			/* ... otherwise, try our next-preferred algorithm. */
-			go->chap_mdtype &= ~(CHAP_MDTYPE(go->chap_mdtype));
-			if (go->chap_mdtype == MDTYPE_NONE) /* out of algos */
+			try.chap_mdtype &= ~(CHAP_MDTYPE(try.chap_mdtype));
+			if (try.chap_mdtype == MDTYPE_NONE) /* out of algos */
 			    try.neg_chap = 0;
 		    }
 		} else {
@@ -1300,7 +1300,7 @@ lcp_rejci(f, p, len)
 	    goto bad; \
 	try.neg = 0; \
     }
-#define REJCICHAP(opt, neg, val, digest) \
+#define REJCICHAP(opt, neg, val) \
     if (go->neg && \
 	len >= CILEN_CHAP && \
 	p[1] == CILEN_CHAP && \
@@ -1310,7 +1310,7 @@ lcp_rejci(f, p, len)
 	GETSHORT(cishort, p); \
 	GETCHAR(cichar, p); \
 	/* Check rejected value. */ \
-	if ((cishort != (val)) || (cichar != (digest))) \
+	if ((cishort != PPP_CHAP) || (cichar != (CHAP_DIGEST(val)))) \
 	    goto bad; \
 	try.neg = 0; \
 	try.neg_upap = 0; \
@@ -1376,7 +1376,7 @@ lcp_rejci(f, p, len)
 
     REJCISHORT(CI_MRU, neg_mru, go->mru);
     REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
-    REJCICHAP(CI_AUTHTYPE, neg_chap, PPP_CHAP, CHAP_DIGEST(go->chap_mdtype));
+    REJCICHAP(CI_AUTHTYPE, neg_chap, go->chap_mdtype);
     if (!go->neg_chap) {
 	REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
     }

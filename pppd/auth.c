@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.83 2002/09/15 12:51:05 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.84 2002/09/24 11:35:22 fcusack Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -236,31 +236,31 @@ option_t auth_options[] = {
     { "+pap", o_bool, &lcp_wantoptions[0].neg_upap,
       "Require PAP authentication from peer",
       OPT_ALIAS | OPT_PRIOSUB | 1, &auth_required },
-    { "require-chap", o_bool, &lcp_wantoptions[0].neg_chap,
+    { "require-chap", o_bool, &auth_required,
       "Require CHAP authentication from peer",
-      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MD5,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
-    { "+chap", o_bool, &lcp_wantoptions[0].neg_chap,
+      OPT_PRIOSUB | OPT_A2OR | MDTYPE_MD5,
+      &lcp_wantoptions[0].chap_mdtype },
+    { "+chap", o_bool, &auth_required,
       "Require CHAP authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MD5,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2OR | MDTYPE_MD5,
+      &lcp_wantoptions[0].chap_mdtype },
 #ifdef CHAPMS
-    { "require-mschap", o_bool, &lcp_wantoptions[0].neg_chap,
+    { "require-mschap", o_bool, &auth_required,
       "Require MS-CHAP authentication from peer",
-      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
-    { "+mschap", o_bool, &lcp_wantoptions[0].neg_chap,
+      OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT,
+      &lcp_wantoptions[0].chap_mdtype },
+    { "+mschap", o_bool, &auth_required,
       "Require MS-CHAP authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
-    { "require-mschap-v2", o_bool, &lcp_wantoptions[0].neg_chap,
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT,
+      &lcp_wantoptions[0].chap_mdtype },
+    { "require-mschap-v2", o_bool, &auth_required,
       "Require MS-CHAPv2 authentication from peer",
-      OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT_V2,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
-    { "+mschap-v2", o_bool, &lcp_wantoptions[0].neg_chap,
+      OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT_V2,
+      &lcp_wantoptions[0].chap_mdtype },
+    { "+mschap-v2", o_bool, &auth_required,
       "Require MS-CHAPv2 authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MICROSOFT_V2,
-      &auth_required, 0, 0, NULL, 0, 0, &lcp_wantoptions[0].chap_mdtype },
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT_V2,
+      &lcp_wantoptions[0].chap_mdtype },
 #endif
 
     { "refuse-pap", o_bool, &refuse_pap,
@@ -268,7 +268,8 @@ option_t auth_options[] = {
     { "-pap", o_bool, &refuse_pap,
       "Don't allow PAP authentication with peer", OPT_ALIAS | 1 },
     { "refuse-chap", o_bool, &refuse_chap,
-      "Don't agree to auth to peer with CHAP", OPT_A2CLRB | MDTYPE_MD5,
+      "Don't agree to auth to peer with CHAP",
+      OPT_A2CLRB | MDTYPE_MD5,
       &lcp_allowoptions[0].chap_mdtype },
     { "-chap", o_bool, &refuse_chap,
       "Don't allow CHAP authentication with peer",
@@ -277,14 +278,16 @@ option_t auth_options[] = {
 #ifdef CHAPMS
     { "refuse-mschap", o_bool, &refuse_mschap,
       "Don't agree to auth to peer with MS-CHAP",
-      OPT_A2CLRB | MDTYPE_MICROSOFT, &lcp_allowoptions[0].chap_mdtype },
+      OPT_A2CLRB | MDTYPE_MICROSOFT,
+      &lcp_allowoptions[0].chap_mdtype },
     { "-mschap", o_bool, &refuse_mschap,
       "Don't allow MS-CHAP authentication with peer",
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT,
       &lcp_allowoptions[0].chap_mdtype },
     { "refuse-mschap-v2", o_bool, &refuse_mschap_v2,
       "Don't agree to auth to peer with MS-CHAPv2",
-      OPT_A2CLRB | MDTYPE_MICROSOFT_V2, &lcp_allowoptions[0].chap_mdtype },
+      OPT_A2CLRB | MDTYPE_MICROSOFT_V2,
+      &lcp_allowoptions[0].chap_mdtype },
     { "-mschap-v2", o_bool, &refuse_mschap_v2,
       "Don't allow MS-CHAPv2 authentication with peer",
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT_V2,
@@ -983,6 +986,10 @@ auth_check_options()
 	auth_required = 1;
 	default_auth = 1;
     }
+
+    /* If we selected any CHAP flavors, we should probably negotiate it. :-) */
+    if (wo->chap_mdtype)
+	wo->neg_chap = 1;
 
     /* If authentication is required, ask peer for CHAP or PAP. */
     if (auth_required) {
