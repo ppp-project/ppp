@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_mod.c,v 1.2 1996/01/18 03:27:36 paulus Exp $
+ * $Id: ppp_mod.c,v 1.3 1999/02/26 10:53:28 paulus Exp $
  */
 
 /*
@@ -37,6 +37,7 @@
 #include <sys/conf.h>
 #include <sys/modctl.h>
 #include <sys/sunddi.h>
+#include <sys/ksynch.h>
 
 #ifdef __STDC__
 #define __P(x)	x
@@ -50,6 +51,7 @@ static int ppp_detach __P((dev_info_t *, ddi_detach_cmd_t));
 static int ppp_devinfo __P((dev_info_t *, ddi_info_cmd_t, void *, void **));
 
 extern struct streamtab pppinfo;
+extern krwlock_t ppp_lower_lock;
 
 static dev_info_t *ppp_dip;
 
@@ -131,6 +133,7 @@ ppp_attach(dip, cmd)
 	ddi_remove_minor_node(dip, NULL);
 	return DDI_FAILURE;
     }
+    rw_init(&ppp_lower_lock, NULL, RW_DRIVER, NULL);
     return DDI_SUCCESS;
 }
 
@@ -139,6 +142,7 @@ ppp_detach(dip, cmd)
     dev_info_t *dip;
     ddi_detach_cmd_t cmd;
 {
+    rw_destroy(&ppp_lower_lock);
     ddi_remove_minor_node(dip, NULL);
     return DDI_SUCCESS;
 }
