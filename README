@@ -22,8 +22,8 @@ This software consists of two parts:
 - Kernel code, which establishes a network interface and passes
 packets between the serial port, the kernel networking code and the
 PPP daemon (pppd).  This code is implemented using STREAMS modules on
-SunOS 4.x, AIX 4.1 and OSF/1, and as a line discipline under Ultrix,
-NextStep, NetBSD, FreeBSD, and Linux.
+SunOS 4.x, System V Release 4, AIX 4.1, and OSF/1, Solaris 2, and as a
+line discipline under Ultrix, NextStep, NetBSD, FreeBSD, and Linux.
 
 - The PPP daemon (pppd), which negotiates with the peer to establish
 the link and sets up the ppp network interface.  Pppd includes support
@@ -40,14 +40,15 @@ system, which contains more specific details for installing PPP on
 that system.  The supported systems, and the corresponding README
 files, are:
 
-	SunOS 4.x			README.sun
+	SunOS 4.x			README.sunos4
 	NetBSD, FreeBSD			README.bsd
 	Ultrix 4.x			README.ultrix
 	Linux				README.linux
 	OSF/1				README.osf
 	AIX 4.x				README.aix4
 	NeXTStep			README.next
-	Solaris 2			README.svr4
+	Solaris 2			README.sol2
+	System V Release 4		README.svr4
 
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
@@ -72,6 +73,7 @@ What is new in ppp-2.2.
   NextStep 3.2 and 3.3, thanks to Philip-Andrew Prindeville
 	(philipp@res.enst.fr) and Steve Perkins (perkins@cps.msu.edu),
   Solaris 2,
+  System V Release 4, thanks to Joe Kelsey (joe@zircon.seattle.wa.us)
 
 in addition to NetBSD 1.0, SunOS 4.x, Ultrix 4.x, FreeBSD 2.0, and
 Linux.
