@@ -1,7 +1,7 @@
-PPP for Linux                                             Version 2.2.0
+PPP for Linux                                             Version 2.3.0
 =============                                                  based on
-                                                              ppp-2.2.0
-                                                               Mar 1995
+                                                              ppp-2.3.0
+                                                               Dec 1996
 
 Michael Callahan    callahan@maths.ox.ac.uk
 Al Longyear         longyear@netcom.com
@@ -9,8 +9,6 @@ Al Longyear         longyear@netcom.com
   Contents:
     INTRODUCTION
     CREDITS
-    CHANGES FROM THE PREVIOUS VERSION
-    FUTURE PLANS
     INSTALLATION
     PROBLEMS WHICH MAY OCCUR WHILE BUILDING THE KERNEL
        A REFERENCE TO UNDEFINED _mod_use_count_
@@ -31,7 +29,7 @@ Al Longyear         longyear@netcom.com
 INTRODUCTION
 
 This file is substantially derived from the previous version for the
-pppd process 2.2.0, which itself was derived from earlier works by
+pppd process 2.3.0, which itself was derived from earlier works by
 Michael Callahan. This particular version was written, modified,
 hacked, changed, whatever, by Al Longyear. If you find errors in this
 document, they are probably mine and not Michael's.
@@ -88,40 +86,6 @@ Jim Freeman added the code to support a ppp module and to dynamically
 extend the number of ppp devices. All ppp devices listed in the Space.c
 will be unlinked when the kernel is loaded. This feature makes the use
 of '16 channel' support obsolete.
-
-
-
-CHANGES FROM THE PREVIOUS VERSION
-
-- The kernel debug value has changed. Previously it was a level. It is now
-  a bit map with various bits meaning certain types of debug information.
-
-     0 - No debug information is generated
-     1 - Debug messages
-     2 - Log incoming packets
-     4 - Log outgoing packets
-     8 - Log tty output buffers
-    16 - Log tty input buffers
-
-  If you wish to use any combination, add the values together. For example,
-  '7' will log debug messages and incoming packages and outgoing packets.
-
-  The default setting is 0.
-
-  The simple IP trace which ppp.c performed when 'kdebug' was greater than
-  127 has been removed. You should use tcpdump for this type of trace
-  actions.
-
-- Support is added for compression control protocol. At the present time
-  the BSD-Compress and 'deflate' compression protocols are supported. A
-  testing version of the predictor-1 compression protocol was developed but
-  it is not included in this package due to unfortunate Motorola patent
-  considerations.
-
-
-FUTURE PLANS
-
-These are to be determined.
 
 
 
@@ -362,8 +326,7 @@ be loaded. BOTH systems must support the same compression protocols.
 
 PROBLEMS WHICH MAY OCCUR WHILE BUILDING THE KERNEL
 
-At this time with the 1.3.100 and pre-2.0 series kernels, soon to have the
-2.0 series kernel, there should not be a problem with the compilation of the
+At this time there should not be a problem with the complication of the
 drivers.
 
 
@@ -575,7 +538,7 @@ lo        Link encap Local Loopback
           TX packets 0 errors 0 dropped 0 overrun 0
 
 ppp0      Link encap Point-to-Point Protocol
-          inet addr 192.76.32.2  P-t-P 129.67.1.165  Mask 255.255.255.0
+          inet addr 192.76.32.3  P-t-P 129.67.1.165  Mask 255.255.255.0
           UP POINTOPOINT RUNNING  MTU 1500  Metric 1
           RX packets 33 errors 0 dropped 0 overrun 0
           TX packets 42 errors 0 dropped 0 overrun 0
@@ -739,9 +702,9 @@ pieces of information:
 modem
 crtscts
 lock
-:192.1.2.23
+:192.1.2.33
 
-Here we will insist that the remote machine use IP address 192.1.2.23,
+Here we will insist that the remote machine use IP address 192.1.2.33,
 while the local PPP interface will use the IP address associated with
 this machine's hostname in /etc/hosts.  The '-detach' option is required
 for a server. It tells the pppd process not to terminate until the modem
@@ -775,7 +738,7 @@ to be on the local Ethernet segment and you should give the 'proxyarp'
 option to pppd on the server.  Suppose, for example, we have this
 setup:
 
- 192.1.2.23                        192.1.2.17
+ 192.1.2.33                        192.1.2.17
 +-----------+      PPP link       +----------+
 | chelseapc | ------------------- |  billpc  |
 +-----------+		          +----------+
@@ -796,14 +759,14 @@ piece of information:
 modem
 crtscts
 lock
-192.1.2.17:192.1.2.23
+192.1.2.17:192.1.2.33
 proxyarp
 
 When the link comes up, pppd will enter a "proxy arp" entry for
 chelseapc into the arp table on billpc.  What this means effectively
 is that billpc will pretend to the other machines on the 192.1.2.x
 Ethernet that its Ethernet interface is ALSO the interface for
-chelseapc (192.1.2.23) as well as billpc (192.1.2.17).  In practice
+chelseapc (192.1.2.33) as well as billpc (192.1.2.17).  In practice
 this means that chelseapc can communicate just as if it was directly
 connected to the Ethernet.
 
