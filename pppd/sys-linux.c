@@ -39,6 +39,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <termios.h>
+#include <unistd.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -49,21 +50,21 @@
 #define MAX_ADDR_LEN 7
 #endif
 
+#include <linux/ppp_defs.h>
+#include <linux/if_ppp.h>
+
 #if __GLIBC__ >= 2
-#include <net/ppp_defs.h>
 #include <net/if_arp.h>
-#include <net/if_ppp.h>
 #include <net/route.h>
 #include <netinet/if_ether.h>
 #else
 #include <linux/if.h>
-#include <linux/ppp_defs.h>
 #include <linux/if_arp.h>
-#include <linux/if_ppp.h>
 #include <linux/route.h>
 #include <linux/if_ether.h>
 #endif
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -249,7 +250,6 @@ void sys_init(void)
 
 void sys_cleanup(void)
   {
-    struct ifreq ifr;
 /*
  * Take down the device
  */
@@ -422,9 +422,6 @@ void establish_ppp (int tty_fd)
 
 void disestablish_ppp(int tty_fd)
   {
-    int x;
-    char *s;
-
 /*
  * Attempt to restore the previous tty settings
  */
@@ -649,7 +646,7 @@ static int baud_rate_of (int speed)
 
 void set_up_tty (int tty_fd, int local)
   {
-    int speed, x;
+    int speed;
     struct termios tios;
     
     if (tcgetattr(tty_fd, &tios) < 0)
@@ -1133,7 +1130,10 @@ static int path_to_procfs (void)
 	  }
 	fclose (fp);
       }
-    return 0;
+
+    /* Default the mount location of /proc */
+    strncpy (route_buffer, "/proc", sizeof (route_buffer)-10);
+    return 1;
   }
 
 /********************************************************************
@@ -1200,7 +1200,7 @@ static int open_route_table (void)
 static int read_route_table (struct rtentry *rt)
   {
     static char delims[] = " \t\n";
-    char *dev_ptr, *ptr, *dst_ptr, *gw_ptr, *flag_ptr;
+    char *dev_ptr, *dst_ptr, *gw_ptr, *flag_ptr;
 	
     memset (rt, '\0', sizeof (struct rtentry));
 
@@ -1442,8 +1442,7 @@ static int get_ether_addr (u_int32_t ipaddr,
 			   struct sockaddr *hwaddr,
 			   char *name)
   {
-    struct ifreq *ifr, *ifend, *ifp;
-    int i;
+    struct ifreq *ifr, *ifend;
     u_int32_t ina, mask;
     struct ifreq ifreq;
     struct ifconf ifc;
@@ -2101,7 +2100,7 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 	  {
 	    if (! ok_error (errno))
 	      {
-		syslog (LOG_ERR, "ioctl(PPPIOCSFLAGS): %m(%d)", errno);
+		syslog (LOG_ERR, "ioctl(PPPIOCSMAXCID): %m(%d)", errno);
 	      }
 	    vjcomp = 0;
 	  }
@@ -2462,7 +2461,6 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
 
 #ifdef IPX_CHANGE
     int    skfd; 
-    struct sockaddr_ipx  ipx_addr;
     struct ifreq         ifr;
     struct sockaddr_ipx *sipx = (struct sockaddr_ipx *) &ifr.ifr_addr;
 
@@ -2525,7 +2523,6 @@ int cipxfaddr (int unit)
 
 #ifdef IPX_CHANGE
     int    skfd; 
-    struct sockaddr_ipx  ipx_addr;
     struct ifreq         ifr;
     struct sockaddr_ipx *sipx = (struct sockaddr_ipx *) &ifr.ifr_addr;
 
@@ -2586,6 +2583,21 @@ daemon(nochdir, noclose)
 	fclose(stderr);
     }
     return 0;
+}
+
+/*
+ * Use the hostname as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    int h;
+    char *p = hostname;
+
+    h = 407;
+    for (p = hostname; *p != 0; ++p)
+	h = h * 37 + *p;
+    return h;
 }
 
 /********************************************************************
