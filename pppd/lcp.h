@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.9 1995/12/18 03:45:17 paulus Exp $
+ * $Id: lcp.h,v 1.10 1996/07/01 01:15:37 paulus Exp $
  */
 
 /*
@@ -72,16 +72,11 @@ extern u_int32_t xmit_accm[][8];
 #define MINMRU	128		/* No MRUs below this */
 #define MAXMRU	16384		/* Normally limit MRU to this */
 
-void lcp_init __P((int));
 void lcp_open __P((int));
 void lcp_close __P((int, char *));
 void lcp_lowerup __P((int));
 void lcp_lowerdown __P((int));
-void lcp_input __P((int, u_char *, int));
-void lcp_protrej __P((int));
-void lcp_sprotrej __P((int, u_char *, int));
-int  lcp_printpkt __P((u_char *, int,
-		       void (*) __P((void *, char *, ...)), void *));
+void lcp_sprotrej __P((int, u_char *, int));	/* send protocol reject */
 
 extern struct protent lcp_protent;
 
