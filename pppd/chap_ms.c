@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.29 2003/06/11 23:56:26 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.30 2003/07/10 17:59:33 fcusack Exp $"
 
 #ifdef CHAPMS
 
@@ -186,16 +186,17 @@ chapms_verify_response(int id, char *name,
 		       unsigned char *challenge, unsigned char *response,
 		       char *message, int message_space)
 {
-	MS_ChapResponse *rmd = (MS_ChapResponse *) response;
+	MS_ChapResponse *rmd;
 	MS_ChapResponse md;
 	int diff;
 	int challenge_len, response_len;
 
 	challenge_len = *challenge++;	/* skip length, is 8 */
-
 	response_len = *response++;
 	if (response_len != MS_CHAP_RESPONSE_LEN)
 		goto bad;
+
+	rmd = (MS_ChapResponse *) response;
 
 #ifndef MSLANMAN
 	if (!rmd->UseNT[0]) {
@@ -235,7 +236,7 @@ chapms2_verify_response(int id, char *name,
 			unsigned char *challenge, unsigned char *response,
 			char *message, int message_space)
 {
-	MS_Chap2Response *rmd = (MS_Chap2Response *) response;
+	MS_Chap2Response *rmd;
 	MS_Chap2Response md;
 	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
 	int challenge_len, response_len;
@@ -244,6 +245,8 @@ chapms2_verify_response(int id, char *name,
 	response_len = *response++;
 	if (response_len != MS_CHAP2_RESPONSE_LEN)
 		goto bad;	/* not even the right length */
+
+	rmd = (MS_Chap2Response *) response;
 
 	/* Generate the expected response and our mutual auth. */
 	ChapMS2(challenge, rmd->PeerChallenge, name,
