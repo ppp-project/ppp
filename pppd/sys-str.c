@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.21 1995/06/12 12:18:04 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.22 1995/07/04 12:35:56 paulus Exp $";
 #endif
 
 /*
@@ -49,6 +49,7 @@ static char rcsid[] = "$Id: sys-str.c,v 1.21 1995/06/12 12:18:04 paulus Exp $";
 #include <net/ppp_str.h>
 #include <net/route.h>
 #include <net/if_arp.h>
+#include <net/nit_if.h>
 #include <netinet/in.h>
 
 #include "pppd.h"
@@ -585,6 +586,8 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     }
 
     if(ioctl(fd, SIOCSIFASYNCMAP, (caddr_t) &asyncmap) < 0) {
+	if (hungup && errno == ENXIO)
+	    return;
 	syslog(LOG_ERR, "ioctl(SIOCSIFASYNCMAP): %m");
 	quit();
     }
@@ -633,6 +636,8 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     }
 
     if (ioctl(fd, SIOCSIFRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+	if (hungup && errno == ENXIO)
+	    return;
 	syslog(LOG_ERR, "ioctl(SIOCSIFRASYNCMAP): %m");
     }
 
@@ -675,8 +680,11 @@ ccp_flags_set(unit, isopen, isup)
     int x;
 
     x = (isopen? 1: 0) + (isup? 2: 0);
-    if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY)
+    if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY) {
+	if (hungup && errno == ENXIO)
+	    return;
 	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
+    }
 }
 
 /*
@@ -760,7 +768,7 @@ sifdown(u)
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_ERROR;
     if (ioctl(fd, SIOCSETNPMODE, (caddr_t) &npi) < 0) {
-	if (errno != ENOTTY) {
+	if (errno != ENOTTY && errno != ENXIO) {
 	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
 	    rv = 0;
 	}
@@ -771,10 +779,12 @@ sifdown(u)
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
     } else {
-	ifr.ifr_flags &= ~IFF_UP;
-	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
-	    rv = 0;
+	if ((ifr.ifr_flags & IFF_UP) != 0) {
+	    ifr.ifr_flags &= ~IFF_UP;
+	    if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+		syslog(LOG_ERR, "Couldn't mark interface down: %m");
+		rv = 0;
+	    }
 	}
     }
     return rv;
@@ -941,148 +951,88 @@ cifproxyarp(unit, hisaddr)
 
 /*
  * get_ether_addr - get the hardware address of an interface on the
- * the same subnet as ipaddr.  Code borrowed from myetheraddr.c
- * in the cslip-2.6 distribution, which is subject to the following
- * copyright notice (which also applies to logwtmp below):
- *
- * Copyright (c) 1990, 1992 The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that: (1) source code distributions
- * retain the above copyright notice and this paragraph in its entirety, (2)
- * distributions including binary code include the above copyright notice and
- * this paragraph in its entirety in the documentation or other materials
- * provided with the distribution, and (3) all advertising materials mentioning
- * features or use of this software display the following acknowledgement:
- * ``This product includes software developed by the University of California,
- * Lawrence Berkeley Laboratory and its contributors.'' Neither the name of
- * the University nor the names of its contributors may be used to endorse
- * or promote products derived from this software without specific prior
- * written permission.
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ * the same subnet as ipaddr.
  */
-
-#include <fcntl.h>
-#include <nlist.h>
-#include <kvm.h>
-
-/* XXX SunOS 4.1 defines this and 3.5 doesn't... */
-#ifdef _nlist_h
-#define SUNOS4
-#endif
-
-#ifdef SUNOS4
-#include <netinet/in_var.h>
-#endif
-#include <netinet/if_ether.h>
-
-/* Cast a struct sockaddr to a structaddr_in */
-#define SATOSIN(sa) ((struct sockaddr_in *)(sa))
-
-/* Determine if "bits" is set in "flag" */
-#define ALLSET(flag, bits) (((flag) & (bits)) == (bits))
-
-static struct nlist nl[] = {
-#define N_IFNET 0
-	{ "_ifnet" },
-	{ 0 }
-};
-
-static void kread();
+#define MAX_IFS		32
 
 int
 get_ether_addr(ipaddr, hwaddr)
     u_int32_t ipaddr;
     struct sockaddr *hwaddr;
 {
-    register kvm_t *kd;
-    register struct ifnet *ifp;
-    register struct arpcom *ac;
-    struct arpcom arpcom;
-    struct in_addr *inp;
-#ifdef SUNOS4
-    register struct ifaddr *ifa;
-    register struct in_ifaddr *in;
-    union {
-	struct ifaddr ifa;
-	struct in_ifaddr in;
-    } ifaddr;
-#endif
-    u_int32_t addr, mask;
+    struct ifreq *ifr, *ifend;
+    u_int32_t ina, mask;
+    struct ifreq ifreq;
+    struct ifconf ifc;
+    struct ifreq ifs[MAX_IFS];
+    int nit_fd;
 
-    /* Open kernel memory for reading */
-    kd = kvm_open(0, 0, 0, O_RDONLY, NULL);
-    if (kd == 0) {
-	syslog(LOG_ERR, "kvm_open: %m");
+    ifc.ifc_len = sizeof(ifs);
+    ifc.ifc_req = ifs;
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
 
-    /* Fetch namelist */
-    if (kvm_nlist(kd, nl) != 0) {
-	syslog(LOG_ERR, "kvm_nlist failed");
+    /*
+     * Scan through looking for an interface with an Internet
+     * address on the same subnet as `ipaddr'.
+     */
+    ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
+	    ((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
+        if (ifr->ifr_addr.sa_family == AF_INET) {
+
+            /*
+             * Check that the interface is up, and not point-to-point
+             * or loopback.
+             */
+            strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+            if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
+                continue;
+            if ((ifreq.ifr_flags &
+                 (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
+                 != (IFF_UP|IFF_BROADCAST))
+                continue;
+
+            /*
+             * Get its netmask and check that it's on the right subnet.
+             */
+            if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
+                continue;
+            ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+            mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
+            if ((ipaddr & mask) != (ina & mask))
+                continue;
+
+            break;
+        }
+    }
+
+    if (ifr >= ifend)
+	return 0;
+    syslog(LOG_INFO, "found interface %s for proxy arp", ifr->ifr_name);
+
+    /*
+     * Grab the physical address for this interface.
+     */
+    if ((nit_fd = open("/dev/nit", O_RDONLY)) < 0) {
+	syslog(LOG_ERR, "Couldn't open /dev/nit: %m");
+	return 0;
+    }
+    strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+    if (ioctl(nit_fd, NIOCBIND, &ifreq) < 0
+	|| ioctl(nit_fd, SIOCGIFADDR, &ifreq) < 0) {
+	syslog(LOG_ERR, "Couldn't get hardware address for %s: %m",
+	       ifreq.ifr_name);
+	close(nit_fd);
 	return 0;
     }
 
-    ac = &arpcom;
-    ifp = &arpcom.ac_if;
-#ifdef SUNOS4
-    ifa = &ifaddr.ifa;
-    in = &ifaddr.in;
-#endif
-
-    if (kvm_read(kd, nl[N_IFNET].n_value, (char *)&addr, sizeof(addr))
-	!= sizeof(addr)) {
-	syslog(LOG_ERR, "error reading ifnet addr");
-	return 0;
-    }
-    for ( ; addr; addr = (u_int32_t)ifp->if_next) {
-	if (kvm_read(kd, addr, (char *)ac, sizeof(*ac)) != sizeof(*ac)) {
-	    syslog(LOG_ERR, "error reading ifnet");
-	    return 0;
-	}
-
-	/* Only look at configured, broadcast interfaces */
-	if (!ALLSET(ifp->if_flags, IFF_UP | IFF_BROADCAST))
-	    continue;
-#ifdef SUNOS4
-	/* This probably can't happen... */
-	if (ifp->if_addrlist == 0)
-	    continue;
-#endif
-
-	/* Get interface ip address */
-#ifdef SUNOS4
-	if (kvm_read(kd, (u_int32_t)ifp->if_addrlist, (char *)&ifaddr,
-		     sizeof(ifaddr)) != sizeof(ifaddr)) {
-	    syslog(LOG_ERR, "error reading ifaddr");
-	    return 0;
-	}
-	inp = &SATOSIN(&ifa->ifa_addr)->sin_addr;
-#else
-	inp = &SATOSIN(&ifp->if_addr)->sin_addr;
-#endif
-
-	/* Check if this interface on the right subnet */
-#ifdef SUNOS4
-	mask = in->ia_subnetmask;
-#else
-	mask = ifp->if_subnetmask;
-#endif
-	if ((ipaddr & mask) != (inp->s_addr & mask))
-	    continue;
-
-	/* Copy out the local ethernet address */
-	hwaddr->sa_family = AF_UNSPEC;
-	BCOPY((caddr_t) &arpcom.ac_enaddr, hwaddr->sa_data,
-	      sizeof(arpcom.ac_enaddr));
-	return 1;		/* success! */
-    }
-
-    /* couldn't find one */
-    return 0;
+    hwaddr->sa_family = AF_UNSPEC;
+    memcpy(hwaddr->sa_data, ifreq.ifr_addr.sa_data, 6);
+    close(nit_fd);
+    return 1;
 }
 
 #define	WTMPFILE	"/usr/adm/wtmp"
@@ -1181,12 +1131,12 @@ GetMask(addr)
  * This code is derived from chat.c.
  */
 
-#if defined(SUNOS) && SUNOS >= 41 && !defined(HDB)
-#define	HDB	1
+#if !defined(HDB) && !defined(SUNOS3)
+#define	HDB	1		/* ascii lock files are the default */
 #endif
 
 #ifndef LOCK_DIR
-# ifdef HDB
+# if HDB
 #  define	PIDSTRING
 #  define	LOCK_PREFIX	"/usr/spool/locks/LCK.."
 # else /* HDB */
