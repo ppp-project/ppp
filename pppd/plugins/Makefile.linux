@@ -1,19 +1,34 @@
 CC	= gcc
-CFLAGS	= -g -O2 -I.. -I../../include -fPIC
+CFLAGS	= -g -O2 -I.. -I../../include -D_linux_=1 -fPIC
 LDFLAGS	= -shared
-INSTALL	= install
+INSTALL	= install -o root
 
-all:	minconn.so passprompt.so
+SUBDIRS = pppoe
+PLUGINS = minconn.so passprompt.so
 
-minconn.so: minconn.c
-	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) minconn.c
+# include dependencies if present
+ifeq (.depend,$(wildcard .depend))
+include .depend
+endif
 
-passprompt.so: passprompt.c
-	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) passprompt.c
+all:	$(PLUGINS)
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d all; done
 
-LIBDIR	= /usr/lib/pppd
+%.so: %.c
+	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
-install: minconn.so passprompt.so
-	version=`awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h`; \
-	$(INSTALL) -d $(LIBDIR)/$$version; \
-	$(INSTALL) $? $(LIBDIR)/$$version
+VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
+LIBDIR	= /usr/lib/pppd/$(VERSION)
+
+install: $(PLUGINS)
+	$(INSTALL) -d $(LIBDIR)
+	$(INSTALL) $? $(LIBDIR)
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d LIBDIR=$(LIBDIR) install; done
+
+clean:
+	rm -f *.o *.so *.a
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d clean; done
+
+depend:
+	$(CPP) -M $(CFLAGS) *.c >.depend
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d depend; done
