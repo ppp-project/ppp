@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.35 1998/11/07 06:59:26 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.36 1999/03/02 05:35:09 paulus Exp $";
 #endif
 
 /*
@@ -52,6 +52,7 @@ bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 static int cis_received[NUM_PPP];	/* # Conf-Reqs received */
 static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
+static bool usepeerdns;			/* Ask peer for DNS addrs */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -147,6 +148,8 @@ static option_t ipcp_option_list[] = {
     { "-proxyarp", o_bool, &ipcp_allowoptions[0].proxy_arp,
       "disable proxyarp option", OPT_A2COPY,
       &ipcp_wantoptions[0].proxy_arp },
+    { "usepeerdns", o_bool, &usepeerdns,
+      "Ask peer for DNS address(es)" },
     { NULL }
 };
 
@@ -165,6 +168,7 @@ static int  ipcp_printpkt __P((u_char *, int,
 static void ip_check_options __P((void));
 static int  ip_demand_conf __P((int));
 static int  ip_active_pkt __P((u_char *, int));
+static void create_resolv __P((u_int32_t, u_int32_t));
 
 struct protent ipcp_protent = {
     PPP_IPCP,
@@ -343,6 +347,10 @@ ipcp_init(unit)
     wo->maxslotindex = MAX_STATES - 1; /* really max index */
     wo->cflag = 1;
 
+    wo->req_dns1 = usepeerdns;	/* Request DNS addresses from the peer */
+    wo->req_dns2 = usepeerdns;
+
+
     /* max slots and slot-id compression are currently hardwired in */
     /* ppp_if.c to 16 and 1, this needs to be changed (among other */
     /* things) gmc */
@@ -434,6 +442,7 @@ ipcp_protrej(unit)
 
 /*
  * ipcp_resetci - Reset our CI.
+ * Called by fsm_sconfreq, Send Configure Request.
  */
 static void
 ipcp_resetci(f)
@@ -453,6 +462,7 @@ ipcp_resetci(f)
 
 /*
  * ipcp_cilen - Return length of our CI.
+ * Called by fsm_sconfreq, Send Configure Request.
  */
 static int
 ipcp_cilen(f)
@@ -464,6 +474,7 @@ ipcp_cilen(f)
 
 #define LENCIVJ(neg, old)	(neg ? (old? CILEN_COMPRESS : CILEN_VJ) : 0)
 #define LENCIADDR(neg, old)	(neg ? (old? CILEN_ADDRS : CILEN_ADDR) : 0)
+#define LENCIDNS(neg)		(neg ? (CILEN_ADDR) : 0)
 
     /*
      * First see if we want to change our options to the old
@@ -490,12 +501,15 @@ ipcp_cilen(f)
     }
 
     return (LENCIADDR(go->neg_addr, go->old_addrs) +
-	    LENCIVJ(go->neg_vj, go->old_vj));
+	    LENCIVJ(go->neg_vj, go->old_vj) +
+	    LENCIDNS(go->req_dns1) +
+	    LENCIDNS(go->req_dns2)) ;
 }
 
 
 /*
  * ipcp_addci - Add our desired CIs to a packet.
+ * Called by fsm_sconfreq, Send Configure Request.
  */
 static void
 ipcp_addci(f, ucp, lenp)
@@ -540,11 +554,29 @@ ipcp_addci(f, ucp, lenp)
 	    neg = 0; \
     }
 
+#define ADDCIDNS(opt, neg) \
+    if (neg) { \
+	int addrlen = CILEN_ADDR; \
+	if (len >= addrlen) { \
+	    u_int32_t l; \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(addrlen, ucp); \
+	    l = ntohl(0); \
+	    PUTLONG(l, ucp); \
+	    len -= addrlen; \
+	} else \
+	    neg = 0; \
+    }
+
     ADDCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), go->neg_addr,
 	      go->old_addrs, go->ouraddr, go->hisaddr);
 
     ADDCIVJ(CI_COMPRESSTYPE, go->neg_vj, go->vj_protocol, go->old_vj,
 	    go->maxslotindex, go->cflag);
+
+    ADDCIDNS(CI_MS_DNS1, go->req_dns1);
+
+    ADDCIDNS(CI_MS_DNS2, go->req_dns2);
 
     *lenp -= len;
 }
@@ -552,6 +584,7 @@ ipcp_addci(f, ucp, lenp)
 
 /*
  * ipcp_ackci - Ack our CIs.
+ * Called by fsm_rconfack, Receive Configure ACK.
  *
  * Returns:
  *	0 - Ack was bad.
@@ -642,6 +675,7 @@ bad:
  * ipcp_nakci - Peer has sent a NAK for some of our CIs.
  * This should not modify any state if the Nak is bad
  * or if IPCP is in the OPENED state.
+ * Calback from fsm_rconfnakrej - Receive Configure-Nak or Configure-Reject.
  *
  * Returns:
  *	0 - Nak was bad.
@@ -657,7 +691,7 @@ ipcp_nakci(f, p, len)
     u_char cimaxslotindex, cicflag;
     u_char citype, cilen, *next;
     u_short cishort;
-    u_int32_t ciaddr1, ciaddr2, l;
+    u_int32_t ciaddr1, ciaddr2, l, cidnsaddr;
     ipcp_options no;		/* options we've seen Naks for */
     ipcp_options try;		/* options to request next time */
 
@@ -698,6 +732,22 @@ ipcp_nakci(f, p, len)
 	GETSHORT(cishort, p); \
 	no.neg = 1; \
         code \
+    }
+
+/*
+ * Peer returns DNS address in a NAK packet
+ */
+#define NAKCIDNS(opt, neg, code) \
+    if (go->neg && \
+	((cilen = p[1]) == CILEN_ADDR) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cidnsaddr = htonl(l); \
+	no.neg = 1; \
+	code \
     }
 
     /*
@@ -744,6 +794,18 @@ ipcp_nakci(f, p, len)
 		    try.neg_vj = 0;
 		}
 	    }
+	    );
+
+    NAKCIDNS(CI_MS_DNS1, req_dns1,
+	    try.dnsaddr[0] = cidnsaddr;
+	    IPCPDEBUG((LOG_INFO, "Received DNS address %s", ip_ntoa(cidnsaddr)));
+	    try.req_dns1 = 0;
+	    );
+
+    NAKCIDNS(CI_MS_DNS2, req_dns2,
+	    try.dnsaddr[1] = cidnsaddr;
+	    IPCPDEBUG((LOG_INFO, "Received DNS address %s", ip_ntoa(cidnsaddr)));
+	    try.req_dns2 = 0;
 	    );
 
     /*
@@ -818,6 +880,7 @@ bad:
 
 /*
  * ipcp_rejci - Reject some of our CIs.
+ * Callback from fsm_rconfnakrej.
  */
 static int
 ipcp_rejci(f, p, len)
@@ -882,11 +945,32 @@ ipcp_rejci(f, p, len)
 	try.neg = 0; \
      }
 
+#define REJCIDNS(opt, neg, dnsaddr) \
+    if (go->neg && \
+	((cilen = p[1]) == CI_MS_DNS1) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	u_int32_t l; \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cilong = htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != dnsaddr) \
+	    goto bad; \
+	try.neg = 0; \
+    }
+
+
     REJCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), neg_addr,
 	      go->old_addrs, go->ouraddr, go->hisaddr);
 
     REJCIVJ(CI_COMPRESSTYPE, neg_vj, go->vj_protocol, go->old_vj,
 	    go->maxslotindex, go->cflag);
+
+    REJCIDNS(CI_MS_DNS1, req_dns1, go->dnsaddr[0]);
+
+    REJCIDNS(CI_MS_DNS2, req_dns2, go->dnsaddr[1]);
 
     /*
      * If there are any remaining CIs, then this packet is bad.
@@ -908,6 +992,7 @@ bad:
 
 /*
  * ipcp_reqci - Check the peer's requested CIs and send appropriate response.
+ * Callback from fsm_rconfreq, Receive Configure Request
  *
  * Returns: CONFACK, CONFNAK or CONFREJ and input packet modified
  * appropriately.  If reject_if_disagree is non-zero, doesn't return
@@ -1323,6 +1408,15 @@ ipcp_up(f)
     script_setenv("IPLOCAL", ip_ntoa(go->ouraddr));
     script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr));
 
+    if (usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
+	script_setenv("USEPEERDNS", "1");
+	if (go->dnsaddr[0])
+	    script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]));
+	if (go->dnsaddr[1])
+	    script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]));
+	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
+    }
+
     /*
      * Check that the peer is allowed to use the IP address it wants.
      */
@@ -1423,6 +1517,8 @@ ipcp_up(f)
 
 	syslog(LOG_NOTICE, "local  IP address %s", ip_ntoa(go->ouraddr));
 	syslog(LOG_NOTICE, "remote IP address %s", ip_ntoa(ho->hisaddr));
+	syslog(LOG_NOTICE, "primary   DNS address %s", ip_ntoa(go->dnsaddr[0]));
+	syslog(LOG_NOTICE, "secondary DNS address %s", ip_ntoa(go->dnsaddr[1]));
     }
 
     /*
@@ -1553,6 +1649,33 @@ ipcp_script(script)
     argv[6] = ipparam;
     argv[7] = NULL;
     ipcp_script_pid = run_program(script, argv, 0, ipcp_script_done, NULL);
+}
+
+/*
+ * create_resolv - create the replacement resolv.conf file
+ */
+static void
+create_resolv(peerdns1, peerdns2)
+    u_int32_t peerdns1, peerdns2;
+{
+    FILE *f;
+
+    f = fopen(_PATH_RESOLV, "w");
+    if (f == NULL) {
+	syslog(LOG_ERR, "Failed to create %s: %m", _PATH_RESOLV);
+	return;
+    }
+
+    if (peerdns1)
+	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns1));
+
+    if (peerdns2)
+	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns2));
+
+    if (ferror(f))
+	syslog(LOG_ERR, "Write failed to %s: %m", _PATH_RESOLV);
+
+    fclose(f);
 }
 
 /*

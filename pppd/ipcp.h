@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipcp.h,v 1.12 1998/11/07 06:59:27 paulus Exp $
+ * $Id: ipcp.h,v 1.13 1999/03/02 05:35:09 paulus Exp $
  */
 
 /*
@@ -52,6 +52,8 @@ typedef struct ipcp_options {
     bool old_vj;		/* use old (short) form of VJ option? */
     bool accept_local;		/* accept peer's value for ouraddr */
     bool accept_remote;		/* accept peer's value for hisaddr */
+    bool req_dns1;		/* Ask peer to send primary DNS address? */
+    bool req_dns2;		/* Ask peer to send secondary DNS address? */
     int  vj_protocol;		/* protocol value to use in VJ option */
     int  maxslotindex;		/* values for RFC1332 VJ compression neg. */
     bool cflag;
