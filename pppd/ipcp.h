@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipcp.h,v 1.8 1996/04/04 03:57:37 paulus Exp $
+ * $Id: ipcp.h,v 1.9 1996/07/01 01:14:04 paulus Exp $
  */
 
 /*
@@ -62,16 +62,6 @@ extern ipcp_options ipcp_gotoptions[];
 extern ipcp_options ipcp_allowoptions[];
 extern ipcp_options ipcp_hisoptions[];
 
-void ipcp_init __P((int));
-void ipcp_open __P((int));
-void ipcp_close __P((int, char *));
-void ipcp_lowerup __P((int));
-void ipcp_lowerdown __P((int));
-void ipcp_input __P((int, u_char *, int));
-void ipcp_protrej __P((int));
-int  ipcp_printpkt __P((u_char *, int, void (*)(), void *));
-void ip_check_options __P((void));
-int  ip_demand_conf __P((int));
 char *ip_ntoa __P((u_int32_t));
 
 extern struct protent ipcp_protent;
