@@ -17,14 +17,14 @@
 
 send_user "hello, starting ppp\n"
 
-system "stty 19200 -echoe -echo raw < /dev/cua3 > /dev/cua3"
+system "stty 19200 -echoe -echo raw < /dev/ttyS3 > /dev/ttyS3"
 
 #
 # These are the parameters for the program.
 #
 set user      Pxxxxxx
 set password  xxxxxxx 
-set modem     /dev/cua3
+set modem     /dev/ttyS3
 set dialup    <put phone number here>
 set timeout   60
 
@@ -107,5 +107,5 @@ expect {
 	}
 }
 
-overlay -0 $spawn_id -1 $spawn_id pppd /dev/cua3 19200 192.111.187.215: \
+overlay -0 $spawn_id -1 $spawn_id pppd /dev/ttyS3 19200 192.111.187.215: \
 	crtscts modem defaultroute debug 

@@ -21,7 +21,7 @@ administrator to create a file under /etc/ppp/peers, named for the ISP
 that you will be dialling.  For example, suppose the file is called
 /etc/ppp/peers/isp.  This file would contain something like this:
 
-cua0		# modem is connected to /dev/cua0
+ttyS0		# modem is connected to /dev/ttyS0
 38400		# run the serial port at 38400 baud
 crtscts		# use hardware flow control
 noauth		# don't require the ISP to authenticate itself
