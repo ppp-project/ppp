@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.19 1999/03/16 02:57:06 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.20 1999/03/16 22:53:48 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -344,7 +344,7 @@ streamify(int fd)
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
-void
+int
 establish_ppp(fd)
     int fd;
 {
@@ -391,11 +391,14 @@ establish_ppp(fd)
 
     /*
      * Set device for non-blocking reads.
+     * XXX why do we need to do this?  don't we use pppfd not fd?
      */
     if ((initfdflags = fcntl(fd, F_GETFL)) == -1
         || fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
         warn("Couldn't set device to non-blocking mode: %m");
     }
+
+    return pppfd;
 }
 
 /*
@@ -704,12 +707,13 @@ int fd, on;
 
 /*
  * open_loopback - open the device we use for getting packets
- * in demand mode.  Under Solaris 2, we use our existing fd
+ * in demand mode.  Under Digital Unix, we use our existing fd
  * to the ppp driver.
  */
-void
+int
 open_ppp_loopback()
 {
+    return pppfd;
 }
 
 /*

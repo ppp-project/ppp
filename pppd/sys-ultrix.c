@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.26 1999/03/16 02:57:08 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.27 1999/03/16 22:53:49 paulus Exp $";
 #endif
 
 /*
@@ -205,7 +205,7 @@ file in the ppp-2.2 distribution.\n";
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
-void
+int
 establish_ppp(fd)
     int fd;
 {
@@ -254,6 +254,8 @@ establish_ppp(fd)
 	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
 	warn("Couldn't set device to non-blocking mode: %m");
     }
+
+    return fd;
 }
 
 /*
@@ -550,11 +552,11 @@ int fd, on;
  * packets in demand mode, and connect it to a ppp interface.
  * Here we use would use a pty, except that Ultrix ptys are brain-dead.
  */
-void
+int
 open_ppp_loopback()
 {
-    error("open_ppp_loopback called!");
-    die(1);
+    fatal("open_ppp_loopback called!");
+    /* return loop_master; */
 }
 
 

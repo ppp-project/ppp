@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.16 1999/03/16 02:57:05 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.17 1999/03/16 22:53:46 paulus Exp $";
 #endif
 
 /*
@@ -183,7 +183,7 @@ ppp_available()
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
-void
+int
 establish_ppp(fd)
     int fd;
 {
@@ -242,6 +242,8 @@ establish_ppp(fd)
 	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
 	warn("Couldn't set device to non-blocking mode: %m");
     }
+
+    return fd;
 }
 
 /*

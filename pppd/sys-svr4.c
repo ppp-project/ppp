@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.25 1999/03/16 02:57:07 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.26 1999/03/16 22:53:48 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -260,7 +260,7 @@ ppp_available()
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
-void
+int
 establish_ppp(fd)
     int fd;
 {
@@ -290,6 +290,8 @@ establish_ppp(fd)
     /* Link the serial port under the PPP multiplexor. */
     if ((fdmuxid = ioctl(pppfd, I_LINK, fd)) < 0)
 	fatal("Can't link tty to PPP mux: %m");
+
+    return pppfd;
 }
 
 /*
@@ -624,9 +626,10 @@ int fd, on;
  * in demand mode.  Under Solaris 2, we use our existing fd
  * to the ppp driver.
  */
-void
+int
 open_ppp_loopback()
 {
+    return pppfd;
 }
 
 /*

@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.13 1999/03/16 02:57:05 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.14 1999/03/16 22:53:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -184,7 +184,7 @@ file in the ppp-2.2 distribution.\n";
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
  */
-void
+int
 establish_ppp(fd)
     int fd;
 {
@@ -224,6 +224,7 @@ establish_ppp(fd)
 	warn("Couldn't set device to non-blocking mode: %m");
     }
 
+    return fd;
 }
 
 
@@ -1516,7 +1517,7 @@ sifnpmode(u, proto, mode)
  * packets in demand mode, and connect it to a ppp interface.
  * Here we use a pty.
  */
-void
+int
 open_ppp_loopback()
 {
 
@@ -1568,6 +1569,7 @@ open_ppp_loopback()
 	}
     }
 
+    return loop_master;
 #endif
 
 }

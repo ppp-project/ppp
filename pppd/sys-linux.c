@@ -2108,8 +2108,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 /********************************************************************
  *
  * open_loopback - open the device we use for getting packets
- * in demand mode.  Under Linux, we use our existing fd
- * to the ppp driver.
+ * in demand mode.  Under Linux, we use a pty master/slave pair.
  */
 int
 open_ppp_loopback(void)
@@ -2167,7 +2166,7 @@ open_ppp_loopback(void)
  */
     set_kdebugflag (kdebugflag);
 
-    return ppp_fd;
+    return master_fd;
 }
 
 /********************************************************************
