@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.4 1993/12/15 00:17:43 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.5 1994/01/10 00:18:59 paulus Exp $";
 #endif
 
 #define SETSID
@@ -339,7 +339,16 @@ main(argc, argv)
 
     signal(SIGUSR1, incdebug);		/* Increment debug flag */
     signal(SIGUSR2, nodebug);		/* Reset debug flag */
-  
+
+    /*
+     * Block SIGIOs and SIGPOLLs for now
+     */
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGIO);
+#ifdef	STREAMS
+    sigaddset(&mask, SIGPOLL);
+#endif
+    sigprocmask(SIG_BLOCK, &mask, NULL);
 
     /*
      * Open the serial device and set it up to be the ppp interface.
