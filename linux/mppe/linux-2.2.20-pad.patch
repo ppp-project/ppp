@@ -1,5 +1,5 @@
 --- linux/drivers/net/ppp.c.orig	Sun Mar 25 08:31:15 2001
-+++ linux/drivers/net/ppp.c	Tue Mar 19 07:15:40 2002
++++ linux/drivers/net/ppp.c	Mon Mar 25 09:27:28 2002
 @@ -2468,10 +2468,14 @@
  	    (proto != PPP_LCP)			&&
  	    (proto != PPP_CCP)) {
@@ -16,7 +16,15 @@
  		if (new_skb == NULL) {
  			printk(KERN_ERR "ppp_send_frame: no memory\n");
  			kfree_skb(skb);
-@@ -2489,12 +2493,25 @@
+@@ -2482,19 +2486,32 @@
+ 		/* Compress the frame. */
+ 		new_count = (*ppp->sc_xcomp->compress)
+ 			(ppp->sc_xc_state, data, new_skb->data,
+-			 count, ppp->mtu + PPP_HDRLEN);
++			 count, new_skb_size);
+ 
+ 		/* Did it compress? */
+ 		if (new_count > 0 && (ppp->flags & SC_CCP_UP)) {
  			skb_put(new_skb, new_count);
  			kfree_skb(skb);
  			skb = new_skb;
