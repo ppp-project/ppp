@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.52 2000/04/04 07:06:53 paulus Exp $
+ * $Id: pppd.h,v 1.53 2000/04/13 12:05:15 paulus Exp $
  */
 
 /*
@@ -178,6 +178,8 @@ extern int	link_stats_valid; /* set if link_stats is valid */
 extern int	link_connect_time; /* time the link was up for */
 extern int	using_pty;	/* using pty as device (notty or pty opt.) */
 extern int	log_to_fd;	/* logging to this fd as well as syslog */
+extern bool	log_to_file;	/* log_to_fd is a file */
+extern bool	log_to_specific_fd;	/* log_to_fd was specified by user */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 extern volatile int status;	/* exit status for pppd */
 extern int	devnam_fixed;	/* can no longer change devnam */

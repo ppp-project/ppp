@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.72 2000/04/04 07:06:52 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.73 2000/04/13 12:05:16 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -128,6 +128,7 @@ char *current_option;		/* the name of the option being parsed */
 int  privileged_option;		/* set iff the current option came from root */
 char *option_source;		/* string saying where the option came from */
 bool log_to_file;		/* log_to_fd is a file opened by us */
+bool log_to_specific_fd;	/* log_to_fd was specified by user option */
 
 /*
  * Prototypes
@@ -257,7 +258,8 @@ option_t general_options[] = {
     { "sync", o_bool, &sync_serial,
       "Use synchronous HDLC serial encoding", 1 },
     { "logfd", o_int, &log_to_fd,
-      "Send log messages to this file descriptor" },
+      "Send log messages to this file descriptor",
+      0, &log_to_specific_fd },
     { "logfile", o_special, setlogfile,
       "Append log messages to this file" },
     { "nolog", o_int, &log_to_fd,
