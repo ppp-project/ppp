@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.6 1995/05/01 00:26:11 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.7 1995/10/27 03:45:34 paulus Exp $";
 #endif
 
 /*
@@ -68,8 +68,19 @@ static int	closed_stdio;
 
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
+static int	initfdflags = -1; /* Initial file descriptor flags for fd */
 
-int sockfd;			/* socket for doing interface ioctls */
+static int sockfd;		/* socket for doing interface ioctls */
+
+static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t default_route_gateway;	/* Gateway for default route added */
+static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
+
+/* Prototypes for procedures local to this file. */
+static int translate_speed __P((int));
+static int baud_rate_of __P((int));
+static int get_ether_addr __P((u_int32_t, struct sockaddr *));
+
 
 /*
  * sys_init - System-dependent initialization.
@@ -87,6 +98,31 @@ sys_init()
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
     }
+}
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void
+sys_cleanup()
+{
+    struct ifreq ifr;
+
+    if (if_is_up) {
+	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
+	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
+	    ifr.ifr_flags &= ~IFF_UP;
+	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
+	}
+    }
+
+    if (default_route_gateway)
+	cifdefaultroute(0, default_route_gateway);
+    if (proxy_arp_addr)
+	cifproxyarp(0, proxy_arp_addr);
 }
 
 /*
@@ -206,6 +242,14 @@ establish_ppp()
 		close(i);
 	closed_stdio = 1;
     }
+
+    /*
+     * Set device for non-blocking reads.
+     */
+    if ((initfdflags = fcntl(fd, F_GETFL)) == -1
+	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+    }
 }
 
 /*
@@ -218,6 +262,11 @@ disestablish_ppp()
 {
     int flags;
     char *s;
+
+    /* Reset non-blocking mode on the file descriptor. */
+    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
+	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+    initfdflags = -1;
 
     if (hungup) {
 	/* we can't push or pop modules after the stream has hung up */
@@ -348,7 +397,7 @@ struct speed {
 /*
  * Translate from bits/second to a speed_t.
  */
-int
+static int
 translate_speed(bps)
     int bps;
 {
@@ -366,7 +415,7 @@ translate_speed(bps)
 /*
  * Translate from a speed_t to bits/second.
  */
-int
+static int
 baud_rate_of(speed)
     int speed;
 {
@@ -385,6 +434,7 @@ baud_rate_of(speed)
  * at the requested speed, etc.  If `local' is true, set CLOCAL
  * regardless of whether the modem option was specified.
  */
+void
 set_up_tty(fd, local)
     int fd, local;
 {
@@ -401,12 +451,12 @@ set_up_tty(fd, local)
 	inittermios = tios;
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-    if (crtscts == 1) {
+    if (crtscts > 0) {
         bzero(&tiox, sizeof(tiox));
         ioctl(fd, TCGETX, &tiox);
         tiox.x_hflag = RTSXOFF;
         ioctl(fd, TCSETX, &tiox);
-        tios.c_cflag &= ~(IXOFF);
+        tios.c_cflag &= ~(IXON | IXOFF);
     } else if (crtscts < 0) {
         bzero(&tiox, sizeof(tiox));
         ioctl(fd, TCGETX, &tiox);
@@ -424,8 +474,8 @@ set_up_tty(fd, local)
     tios.c_cc[VMIN] = 1;
     tios.c_cc[VTIME] = 0;
 
-    if (crtscts == 2) {
-	tios.c_iflag |= IXOFF;
+    if (crtscts == -2) {
+	tios.c_iflag |= IXON | IXOFF;
 	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
     }
@@ -483,6 +533,7 @@ restore_tty()
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
+void
 setdtr(fd, on)
 int fd, on;
 {
@@ -501,26 +552,32 @@ output(unit, p, len)
     u_char *p;
     int len;
 {
-    struct strbuf	str;
+    struct strbuf str;
+    int retries;
+    struct pollfd pfd;
 
-    if (unit != 0)
-	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
     if (debug)
 	log_packet(p, len, "sent ");
 
     str.len = len;
     str.buf = (caddr_t) p;
-    if (putmsg(fd, NULL, &str, 0) < 0) {
-	if (errno != ENXIO) {
-	    syslog(LOG_ERR, "putmsg: %m");
-	    die(1);
+    retries = 4;
+    while (putmsg(fd, NULL, &str, 0) < 0) {
+	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
+	    if (errno != ENXIO)
+		syslog(LOG_ERR, "Couldn't send packet: %m");
+	    break;
 	}
+	pfd.fd = fd;
+	pfd.events = POLLOUT;
+	poll(&pfd, 1, 250);	/* wait for up to 0.25 seconds */
     }
 }
 
 /*
  * wait_input - wait for input, for a length of time specified in *timo.
  */
+void
 wait_input(timo)
     struct timeval *timo;
 {
@@ -662,6 +719,7 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
  * ccp_test - ask kernel whether a given compression method
  * is acceptable for use.
  */
+int
 ccp_test(unit, opt_ptr, opt_len, for_transmit)
     int unit, opt_len, for_transmit;
     u_char *opt_ptr;
@@ -673,7 +731,9 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     data.length = opt_len;
     data.transmit = for_transmit;
     BCOPY(opt_ptr, data.opt_data, opt_len);
-    return ioctl(fd, SIOCSCOMPRESS, &data) >= 0;
+    if (ioctl(fd, SIOCSCOMPRESS, &data) >= 0)
+	return 1;
+    return (errno == ENOSR)? 0: -1;
 }
 
 /*
@@ -745,6 +805,7 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
+    if_is_up = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_PASS;
     if (ioctl(fd, SIOCSETNPMODE, &npi) < 0) {
@@ -787,7 +848,8 @@ sifdown(u)
         if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
             syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
             rv = 0;
-        }
+        } else
+	    if_is_up = 0;
     }
     return rv;
 }
@@ -883,6 +945,7 @@ sifdefaultroute(u, g)
 	syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
 	return 0;
     }
+    default_route_gateway = g;
     return 1;
 }
 
@@ -904,6 +967,7 @@ cifdefaultroute(u, g)
 	syslog(LOG_ERR, "default route ioctl(SIOCDELRT): %m");
 	return 0;
     }
+    default_route_gateway = 0;
     return 1;
 }
 
@@ -936,6 +1000,7 @@ sifproxyarp(unit, hisaddr)
 	return 0;
     }
 
+    proxy_arp_addr = hisaddr;
     return 1;
 }
 
@@ -956,6 +1021,7 @@ cifproxyarp(unit, hisaddr)
 	syslog(LOG_ERR, "ioctl(SIOCDARP): %m");
 	return 0;
     }
+    proxy_arp_addr = 0;
     return 1;
 }
 
