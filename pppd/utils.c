@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 #ifndef lint
-static char rcsid[] = "$Id: utils.c,v 1.5 1999/06/01 01:43:34 paulus Exp $";
+static char rcsid[] = "$Id: utils.c,v 1.6 1999/06/24 00:17:48 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -171,7 +171,8 @@ vslprintf(buf, buflen, fmt, args)
 	if (*fmt == 0)
 	    break;
 	c = *++fmt;
-	width = prec = 0;
+	width = 0;
+	prec = -1;
 	fillch = ' ';
 	if (c == '0') {
 	    fillch = '0';
@@ -192,6 +193,7 @@ vslprintf(buf, buflen, fmt, args)
 		prec = va_arg(args, int);
 		c = *++fmt;
 	    } else {
+		prec = 0;
 		while (isdigit(c)) {
 		    prec = prec * 10 + c - '0';
 		    c = *++fmt;
@@ -265,11 +267,11 @@ vslprintf(buf, buflen, fmt, args)
 	case 'q':		/* quoted string */
 	    quoted = c == 'q';
 	    p = va_arg(args, unsigned char *);
-	    if (fillch == '0' && prec > 0) {
+	    if (fillch == '0' && prec >= 0) {
 		n = prec;
 	    } else {
 		n = strlen((char *)p);
-		if (prec > 0 && prec < n)
+		if (prec >= 0 && n > prec)
 		    n = prec;
 	    }
 	    while (n > 0 && buflen > 0) {
@@ -354,7 +356,7 @@ vslprintf(buf, buflen, fmt, args)
 	    len = num + sizeof(num) - 1 - str;
 	} else {
 	    len = strlen(str);
-	    if (prec > 0 && len > prec)
+	    if (prec >= 0 && len > prec)
 		len = prec;
 	}
 	if (width > 0) {

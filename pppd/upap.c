@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.16 1999/04/28 02:45:44 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.17 1999/06/24 00:17:48 paulus Exp $";
 #endif
 
 /*
@@ -437,13 +437,15 @@ upap_rauthack(u, inp, id, len)
 	return;
     }
     GETCHAR(msglen, inp);
-    len -= sizeof (u_char);
-    if (len < msglen) {
-	UPAPDEBUG(("pap_rauthack: rcvd short packet."));
-	return;
+    if (msglen > 0) {
+	len -= sizeof (u_char);
+	if (len < msglen) {
+	    UPAPDEBUG(("pap_rauthack: rcvd short packet."));
+	    return;
+	}
+	msg = (char *) inp;
+	PRINTMSG(msg, msglen);
     }
-    msg = (char *) inp;
-    PRINTMSG(msg, msglen);
 
     u->us_clientstate = UPAPCS_OPEN;
 
@@ -475,13 +477,15 @@ upap_rauthnak(u, inp, id, len)
 	return;
     }
     GETCHAR(msglen, inp);
-    len -= sizeof (u_char);
-    if (len < msglen) {
-	UPAPDEBUG(("pap_rauthnak: rcvd short packet."));
-	return;
+    if (msglen > 0) {
+	len -= sizeof (u_char);
+	if (len < msglen) {
+	    UPAPDEBUG(("pap_rauthnak: rcvd short packet."));
+	    return;
+	}
+	msg = (char *) inp;
+	PRINTMSG(msg, msglen);
     }
-    msg = (char *) inp;
-    PRINTMSG(msg, msglen);
 
     u->us_clientstate = UPAPCS_BADAUTH;
 
