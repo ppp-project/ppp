@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.12 1998/03/31 23:47:07 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.13 1998/05/04 06:14:00 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 980331==
+ *  ==FILEVERSION 980504==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -41,7 +41,7 @@
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
-#define PPP_VERSION	"2.3.3"
+#define PPP_VERSION	"2.3.5"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
 #define PROTO_DNA_RT    0x0027  /* DNA Routing */
@@ -59,6 +59,7 @@
 #define SC_REJ_COMP_TCP	0x00000020	/* reject TCP (VJ) comp. on input */
 #define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
+#define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
 #define SC_COMP_RUN	0x00001000	/* compressor has been inited */
 #define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
