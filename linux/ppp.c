@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990510==
+ *  ==FILEVERSION 990625==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.30 1999/07/23 07:07:34 paulus Exp $ */
+/* $Id: ppp.c,v 1.31 1999/08/13 01:56:03 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -1963,6 +1963,9 @@ ppp_ioctl(struct ppp *ppp, unsigned int param2, unsigned long param3)
 			break;
 
 		switch (npi.protocol) {
+		case PPP_IPV6:
+			npi.protocol = NP_IPV6;
+			break;
 		case PPP_IP:
 			npi.protocol = NP_IP;
 			break;
