@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <sys/errno.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 
 #include <stdio.h>
 #include <stdlib.h>
