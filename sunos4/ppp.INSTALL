@@ -70,7 +70,7 @@ case "$0" in
     fi
     rm -f /dev/ppp
     # we "just know" that 37 is the major number of the clone driver
-    mknod /dev/ppp c 37 $3
+    mknod /dev/ppp c 37 $4
     chmod 644 /dev/ppp
     exit 0
     ;;
@@ -93,7 +93,7 @@ case "$0" in
     ;;
 
 *ppp.RMDEV)
-    echo "$# args: $*"
+    rm -f /dev/ppp
     exit 0
     ;;
 
