@@ -9,7 +9,7 @@
 * This program may be distributed according to the terms of the GNU
 * General Public License, version 2 or (at your option) any later version.
 *
-* $Id: pppoe.h,v 1.1 2001/12/14 02:55:20 mostrows Exp $
+* $Id: pppoe.h,v 1.2 2004/11/04 10:07:37 paulus Exp $
 *
 ***********************************************************************/
 
@@ -263,7 +263,6 @@ typedef struct PPPoEConnectionStruct {
     int printACNames;		/* Just print AC names */
     int skipDiscovery;		/* Skip discovery */
     int noDiscoverySocket;	/* Don't even open discovery socket */
-    int killSession;		/* Kill session and exit */
     FILE *debugFile;		/* Debug file for dumping packets */
     int numPADOs;		/* Number of PADO packets received */
     PPPoETag cookie;		/* We have to send this if we get it */

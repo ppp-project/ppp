@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.11 2004/10/24 23:06:31 paulus Exp $";
+"$Id: plugin.c,v 1.12 2004/11/04 10:07:37 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -244,6 +244,8 @@ PPPOEDisconnectDevice(void)
 	return;
     }
     close(conn->sessionSocket);
+    /* don't send PADT?? */
+    close(conn->discoverySocket);
 }
 
 static void
