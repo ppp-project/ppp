@@ -14,25 +14,27 @@ END-INFO-DIR-ENTRY
 @end format
 
 @titlepage
-@title PPP-2.x
+@title PPP-2.x Users' Guide
 @author by Paul Mackerras
 @end titlepage
 
 @node Top, Introduction, (dir), (dir)
 
 @ifinfo
-This file documents the ppp-2.x package for setting up network links
-over serial lines using the Point-to-Point Protocol.
+This file documents how to use the ppp-2.x package to set up network
+links over serial lines with the Point-to-Point Protocol.
 
 @end ifinfo
 
 @menu
-* Introduction::                What PPP is and what you can use it for.
+* Introduction::                Basic concepts of the Point-to-Point
+                                Protocol and the ppp-2.x package.
 * Installation::                How to compile and install the software.
 * Configuration::               How to set up your system for
-establishing a link to another system.
-* Security::                    Potential dangers and how to avoid them.
-* Compression::                 
+                                establishing a link to another system.
+* Security::                    Avoid creating security holes.
+* Compression::                 Using compression of various kinds
+                                to improve throughput.
 @end menu
 
 @node Introduction, Installation, Top, Top
@@ -41,16 +43,20 @@ establishing a link to another system.
 The Point-to-Point Protocol (PPP) is the protocol of choice for
 establishing network links over serial lines.  This package (ppp-2.x)
 provides an implementation of PPP which supports the Internet Protocols
-(TCP/IP, UDP/IP, etc.) and which runs on a range of Unix
-workstations.
+(TCP/IP, UDP/IP, etc.) and which runs on a range of Unix workstations.
+The protocols in the PPP family are produced by the Point-to-Point
+Working Group of the Internet Engineering Task Force, and are specified
+in RFC (Request for Comments) documents, available by anonymous FTP from
+several sites.
 
-As an example, an otherwise isolated system could connect to another
-system via a modem using PPP.  Suppose that the second system was
-connected to the Internet.  When the PPP link is established, the first
-system is then also connected to the Internet.  It can establish
-connections with any other Internet host.  Users can then use
-a wide range of network-based applications on the first system, such as
-telnet, ftp, rlogin, email, Mosaic, sup, and X clients and servers.
+A typical use of PPP is to provide a network connection, via a pair of
+modems and a telephone connection, from one system to a second system
+which has a permanent link to the Internet.  When this network
+connection is established, the first system is then also connected to
+the Internet.  It can establish connections with any other Internet
+host.  Users can then use a wide range of network-based applications on
+the first system, such as telnet, ftp, rlogin, email, WWW browsers, sup,
+and X clients and servers.
 
 Features of PPP include:
 @itemize
@@ -74,29 +80,34 @@ Compression.  PPP includes support for various kinds of compression to
 be applied to the packets before they are transmitted.
 @end itemize
 
-This software consists of two parts:
+The ppp-2.x software consists of two parts:
 
 @itemize @bullet
 
 @item
-Kernel code, which establishes a network interface and passes
-packets between the serial port, the kernel networking code and the
-PPP daemon (pppd).  This code is implemented using STREAMS modules on
-SunOS 4.x, AIX 4.1 and OSF/1, and as a line discipline under Ultrix,
+Kernel code, which establishes a network interface and passes packets
+between the serial port, the kernel networking code and the PPP daemon
+(pppd).  This code is implemented using STREAMS modules on Solaris 2,
+SunOS 4.x, AIX 4.1 and OSF/1, and as a tty line discipline under Ultrix,
 NextStep, NetBSD, FreeBSD, and Linux.
 
 @item
-The PPP daemon (@code{pppd}), which negotiates with the peer to establish
-the link and sets up the ppp network interface.  Pppd includes support
-for authentication, so you can control which other systems may make a
-PPP connection and what IP addresses they may use.
+The PPP daemon (@code{pppd}), which negotiates with the peer to
+establish the link and sets up the ppp network interface.  Pppd includes
+support for authentication.  It can authenticate itself to the other
+system and/or require the other system to authenticate itself, so that
+you can control which other systems may make a PPP connection and what
+IP addresses they may use.
 @end itemize
 
 @menu
-* PPP Concepts::                
+* PPP Concepts::                Basic concepts and terms used with PPP.
+* PPP packet format::           How data is packaged up for transmission.
+* LCP negotiation::             The parameters which LCP negotiates.
+* IPCP negotiation::            The parameters which IPCP negotiates.
 @end menu
 
-@node PPP Concepts,  , Introduction, Introduction
+@node PPP Concepts, , Introduction, Introduction
 @section PPP Concepts
 
 Establishing a PPP link involves communication between two systems.  The
@@ -106,39 +117,49 @@ peer''.  Although we may sometimes refer to one system as a ``client''
 and the other as a ``server'', this distinction is not made in the PPP
 protocols.
 
-PPP requires the use of a communications medium which transmits 8 bits
-per character.  Typically this is a serial line, perhaps including
-modems and telephone lines, but other media can be used (even a telnet
-session).  The medium must be full duplex---capable of transmitting
-characters independently in both directions.  Note that PPP cannot work
-over a serial link which transmits only 7 bits per character.
+PPP requires the use of a communications medium which transmits a stream
+of characters, with 8 bits per character.  We will refer to this as the
+``serial link''.  Most often, this involves a standard asynchronous
+serial port on each of the peers, connected via modems and telephone
+lines.  Many other types of serial link can be used, for example a
+synchronous ISDN connection, or even a telnet session over the Internet.
+The serial link must be full duplex, that is, capable of transmitting
+characters independently in both directions at once, and it must
+transmit 8 bits per character; PPP cannot work over a serial link which
+transmits only 7 bits per character.
 
 PPP has a mechanism to avoid sending certain characters if it is known
-that the medium interprets them specially.  For example, the DC1 and DC3
-ASCII characters (control-Q and control-S) may be trapped by a modem if
-it is set for ``software'' flow control.  PPP can send these characters
-as a two-character ``escape'' sequence.  The set of characters which are
-to be transmitted as an escape sequence is represented in an ``async
-control character map'' (ACCM).  The ``async'' part refers to the fact
-that this facility is used for asynchronous serial lines.  For
-synchronous serial connections, the HDLC bit-stuffing procedure is used
-instead.
+that the some element of the serial link interprets them specially.  For
+example, the DC1 and DC3 ASCII characters (control-Q and control-S) may
+be trapped by a modem if it is set for ``software'' flow control.  PPP
+can send these characters as a two-character ``escape'' sequence.  The
+set of characters which are to be transmitted as an escape sequence is
+represented in an ``async control character map'' (ACCM).  The ``async''
+part refers to the fact that this facility is used for asynchronous
+serial links.  For synchronous serial connections, the HDLC bit-stuffing
+procedure is used instead.
 
-During the lifetime of a PPP link, it proceeds through several phases:
+During the lifetime of a PPP connection, it proceeds through several
+phases:
 
 @enumerate
 @item
-Communications establishment.  In this phase, the underlying
-communications medium is prepared for use.  This may involve sending
+Serial link establishment.  In this phase, the serial link is set up and
+PPP protocol software is attached to each end of the serial link.  The
+precise steps involved in doing this vary greatly, depending on the
+nature of the serial link, but typically it involves first sending
 commands to a modem to cause it to dial the remote system.  When the
-remote system answers, there may be a dialog involving a username and
-password.  Or, in the case of two systems connected directly by a cable,
-there may be nothing to do.
+remote system answers, the local system usually has to supply a username
+and password, and then issue a command to invoke PPP software on the
+remote system.  The ``chat'' program supplied with ppp-2.x provides a
+way to automate a dialog with the modem and the remote system.  This
+phase is not standardized; it is outside the scope of the PPP protocol
+specifications.
 
 @item
 Link Control Protocol (LCP) negotiation.  In this phase, the peers send
 LCP packets to each other to negotiate various parameters of the
-link, such as the ACCM to be used in each direction, whether
+connection, such as the ACCM to be used in each direction, whether
 authentication is required, and whether or not to use various forms of
 compression.  When the peers reach agreement on these parameters, LCP is
 said to be ``up''.
@@ -150,14 +171,14 @@ cannot successfully authenticate itself, the other peer terminates the
 link.
 
 @item
-Network Control Protocol (NP) negotiation.  PPP can potentially support
+Network Control Protocol (NCP) negotiation.  PPP can potentially support
 several different network protocols, although IP is the only network
 protocol (NP) supported by the ppp-2.x package.  Each NP has an
-associated Network Control Protocol defined for it, which is used to
-negotiate the specific parameters which affect that NP.  For example,
-the IP Control Protocol (IPCP) is used to negotiate the IP addresses for
-each end of the link, and whether the TCP header compression method
-described by Van Jacobsen in RFC 1144 is to be used.
+associated NCP defined for it, which is used to negotiate the specific
+parameters which affect that NP.  For example, the IP Control Protocol
+(IPCP) is used to negotiate the IP addresses for each end of the link,
+and whether the TCP header compression method described by Van Jacobsen
+in RFC 1144 is to be used.
 
 @item
 Network communication.  When each NCP has successfully negotiated the
@@ -172,15 +193,163 @@ Termination.  When the link is no longer required, it is terminated.
 Usually this involves an exchange of LCP packets so that one peer can
 notify the other that it is shutting down the link, enabling both peers
 to shut down in an orderly manner.  But of course there are occasions
-when the link terminates because the underlying communications medium is
-interrupted, for example when the modem loses carrier and hangs up.
+when the link terminates because the serial link is interrupted, for
+example, when a modem loses carrier and hangs up.
 
 @end enumerate
 
 PPP is defined in several RFC (Request For Comments) documents, in
 particular RFCs 1661, 1662, and 1334.  IPCP is defined in RFC 1332.
 Other RFCs describe the control protocols for other network protocols
-(e.g., DECnet, OSI, Appletalk).
+(e.g., DECnet, OSI, Appletalk).  RFCs are available by anonymous FTP
+from several sites including nic.ddn.mil, nnsc.nsf.net, nic.nordu.net,
+ftp.nisc.sri.com, and munnari.oz.au.
+
+@node PPP packet format, , PPP Concepts, Introduction
+@section PPP packet format
+
+PPP transmits packets over the serial link using a simple encapsulation
+scheme.  First, a two-byte PPP Protocol field is inserted before the
+beginning of the data to be sent.  The value in this field identifies
+which higher-level protocol (either a network protocol such as IP or a
+PPP control protocol such as LCP) should receive the data in the packet.
+By default, a one-byte Address field with the value 0xFF, and a one-byte
+Control field with the value 0x03, are inserted before the PPP Protocol
+field (apparently this is supposed to provide compatibility with HDLC,
+in case there is a synchronous to asynchronous converter in the serial
+link).
+
+On ``slow'' serial links, these fields can be compressed down to one
+byte in most cases.  The PPP Address and Control fields are compressed
+by simply omitting them.  The PPP Protocol field values are chosen so
+that bit 0 (the least-significant bit) of the first (most significant)
+byte is always 0, and bit 0 of the second byte is always 1.  The PPP
+Protocol field can be compressed by omitting the first byte provided
+that it is 0.  The values for this field are assigned so that the first
+byte is zero for all of the commonly-used network protocols.  For
+example, the PPP Protocol field value for IP is 0x21.
+
+For asynchronous serial links, which do not provide any packet framing
+or transparency, a further encapsulation is used as follows.  First a
+16-bit Frame Check Sequence (FCS) is computed over the packet to be
+sent, and appended as two bytes to the end of the packet.
+
+Then each byte of the packet is examined, and if it contains one of the
+characters which are to be escaped, it is replaced by a two byte
+sequence: the 0x7d character '}', followed by the character with bit 5
+inverted.  For example, the control-C character (0x03) could be replaced
+by the two-byte sequence 0x7d, 0x23 ('}#').  The 0x7d and 0x7e ('~')
+characters are always escaped (and the 0x5e ('^') character may not be
+escaped).
+
+Finally, a ``flag'' character (0x7e, '~') is inserted at the beginning
+and end of the packet to mark the packet boundaries.  The initial flag
+may be omitted if this packet immediately follows another packet, as the
+ending flag for the previous packet can serve as the beginning flag of
+this packet.
+
+@node LCP negotiation, , PPP packet format, Introduction
+@section LCP negotiation
+
+The LCP negotiation process actually involves two sets of negotiations,
+one for each direction of the PPP connection.  Thus A will send B
+packets (``Configure-Requests'') describing what characteristics A would
+like to have apply to the B -> A direction of the link, that is, to the
+packets that A will receive.  Similarly B will send A packets describing
+the characteristics it would like to have apply to the packets it will
+be receiving.  These characteristics need not necessarily be the same in
+both directions.
+
+The parameters which are negotiated for each direction of the connection
+using LCP are:
+
+@itemize
+@item
+Maximum Receive Unit (MRU): indicates the maximum packet size which we
+are prepared to receive (specifically the maximum size of the
+data portion of the packet).  The default value is 1500, but on
+slow serial links, smaller values give better response.  The choice of
+MRU is discussed below (see xxx).
+
+@item
+Async Control Character Map (ACCM): indicates the set of control
+characters (characters with ASCII values in the range 0 - 31) which we
+wish to receive in escaped form.  The default is that the sender should
+escape all characters in the range 0 - 31.
+
+@item
+Authentication Protocol: indicates which protocol we would like the peer
+to use to authenticate itself.  Common choices are the Password
+Authentication Protocol (PAP) and the Cryptographic Handshake
+Authentication Protocol (CHAP).
+
+@item
+Quality Protocol: indicates which protocol which we would like the peer
+to use to send us link quality reports.  The ppp-2.x package does not
+currently support link quality reports.
+
+@item
+Magic Number: a randomly-chosen number, different from the peer's magic
+number.  If we persistently receive our own magic number in the peer's
+configure-request packets, then we can conclude that the serial link is
+looped back.
+
+@item
+Protocol Field Compression: indicates that we wish the peer to compress
+the PPP Protocol field to one byte, where possible, in the packets it
+sends.
+
+@item
+Address/Control Field Compression: indicates that we wish the peer to
+compress the PPP Address/Control fields (by simply omitting them) in the
+packets it sends.
+@end itemize
+
+@node IPCP negotiation,  , LCP negotiation, Introduction
+@section IPCP negotiation
+
+The IPCP negotiation process is very similar to the LCP negotiation
+process, except that of course different parameters are negotiated.
+The parameters which are negotiated using IPCP are:
+
+@itemize
+@item
+IP Address: the IP address (32-bit host IP number) which we plan to use
+as the local address for our end of the link.
+
+@item
+TCP header compression: indicates (a) that we wish the peer to compress
+the TCP/IP headers of TCP/IP packets that it sends, using the Van
+Jacobson algorithm as described in RFC1144; (b) the maximum slot ID that
+we wish the peer to use, and (c) whether we are prepared to accept
+packets with the slot ID field compressed (omitted).
+
+With Van Jacobson (VJ) compression, the receiver and transmitter (for
+one direction of the connection) both keep a table, with a certain
+number of ``slots'', where each slot holds the TCP/IP header of the most
+recently transmitted packet for one TCP connection.  If a packet is to
+be transmitted for a TCP connection which does not have a slot currently
+allocated, the VJ scheme will allocate one of the slots and send the
+entire TCP/IP header, together with the slot number.  For many packets,
+there will be a slot already allocated for the TCP connection, and the
+VJ scheme will then often be able to replace the entire TCP/IP header
+with a much smaller compressed header (typically only 3 - 7 bytes)
+describing which fields of the TCP/IP header have changed, and by how
+much.  If there are many more active connections than slots, the
+efficiency of the VJ scheme will drop, because it will not be able to
+send compressed headers as often.
+
+Usually the compressed header includes a one-byte slot index, indicating
+which TCP connection the packet is for.  It is possible to reduce the
+header size by omitting the slot index when the packet has the same slot
+index as the previous packet.  However, this introduces a danger if the
+lower levels of the PPP software can sometimes drop damaged packets
+without informing the VJ decompressor, as it may then assume the wrong
+slot index for packets which have the slot index field omitted.  With
+the ppp-2.x software, however, the probability of this happening is
+generally very small (see xxx).
+
+@end itemize
 
 @node Installation, Configuration, Introduction, Top
 @chapter Installation
@@ -190,17 +359,17 @@ kernel, its installation process is necessarily quite heavily
 system-dependent.  In addition, you will require super-user privileges
 (root access) to install the code.
 
-Some systems provide a ``modload'' facility, which
-allows you to load new code into a running kernel without relinking the
-kernel or rebooting.  Under SunOS 4.x, AIX 4.1, OSF/1 and NextStep, this
-is the recommended (or only) way to install the kernel portion of the
-ppp-2.x package.  
+Some systems provide a ``modload'' facility, which allows you to load
+new code into a running kernel without relinking the kernel or
+rebooting.  Under Solaris 2, SunOS 4.x, Linux, AIX 4.1, OSF/1 and
+NextStep, this is the recommended (or only) way to install the kernel
+portion of the ppp-2.x package.
 
-Under the remaining supported operating systems
-(NetBSD, FreeBSD, Ultrix, Linux), it is necessary to go through the
-process of creating a new kernel image and reboot.  (Note that NetBSD
-and FreeBSD have a modload facility, but ppp-2.x is currently not
-configured to take advantage of it.)
+Under the remaining supported operating systems (NetBSD, FreeBSD,
+Ultrix), it is necessary to go through the process of creating a new
+kernel image and reboot.  (Note that NetBSD and FreeBSD have a modload
+facility, but ppp-2.x is currently not configured to take advantage of
+it.)
 
 @node Configuration, Security, Installation, Top
 @chapter Configuration
