@@ -39,10 +39,11 @@
 /*
  * This version is for use with contiguous buffers on Linux-derived systems.
  *
- *  ==FILEVERSION 5==
+ *  ==FILEVERSION 960924==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the number above.
+ *     If you modify this file at all, please set the number above to the
+ *     date of the modification as YYMMDD (year month day).
  *     bsd_comp.c is shipped with a PPP distribution as well as with
  *     the kernel; if everyone increases the FILEVERSION number above,
  *     then scripts can do the right thing when deciding whether to
@@ -58,7 +59,6 @@
 
 #include <linux/module.h>
 
-#include <endian.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -77,6 +77,7 @@
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/segment.h>
+#include <asm/byteorder.h>
 
 #include <linux/if.h>
 
@@ -141,14 +142,16 @@ struct bsd_dict {
     union {				/* hash value */
 	unsigned long	fcode;
 	struct {
-#ifndef BIG_ENDIAN_BITFIELD /* Little endian order */
+#if defined(__LITTLE_ENDIAN)		/* Little endian order */
 	    unsigned short	prefix;	/* preceding code */
 	    unsigned char	suffix; /* last character of new code */
 	    unsigned char	pad;
-#else /* Big endian order */
+#elif defined(__BIG_ENDIAN)		/* Big endian order */
 	    unsigned char	pad;
 	    unsigned char	suffix; /* last character of new code */
 	    unsigned short	prefix; /* preceding code */
+#else
+#error Endianness not defined...
 #endif
 	} hs;
     } f;
