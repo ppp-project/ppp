@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.83 2004/11/13 12:22:49 paulus Exp $
+.\" $Id: pppd.8,v 1.84 2005/03/22 10:48:37 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -81,8 +81,8 @@ system has a default route.  If neither this option nor the
 IP addresses to which the system does not already have a route.
 .TP
 .B call \fIname
-Read options from the file /etc/ppp/peers/\fIname\fR.  This file may
-contain privileged options, such as \fInoauth\fR, even if pppd
+Read additional options from the file /etc/ppp/peers/\fIname\fR.  This
+file may contain privileged options, such as \fInoauth\fR, even if pppd
 is not being run by root.  The \fIname\fR string may not begin with /
 or include .. as a pathname component.  The format of the options file
 is described below.
