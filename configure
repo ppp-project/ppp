@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.18 1999/09/13 20:57:53 masputra Exp $
+# $Id: configure,v 1.19 1999/09/17 04:20:10 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -25,7 +25,7 @@ case $system in
       [0-3]*)	state="ancient";;
       4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
       5.[1-6]*)	state="known"; ksrc="svr4"; makext="sol2";;
-      5.[789]*)	state="known"; ksrc="svr4"; makext="sol2"; lp64="y";
+      5.[789]*)	state="known"; ksrc="svr4"; makext="sol2"; lp64="y";;
     esac;;
   ULTRIX)
     makext="ultrix";
