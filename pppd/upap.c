@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.10 1996/07/01 01:21:35 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.11 1997/04/30 05:59:56 paulus Exp $";
 #endif
 
 /*
@@ -65,8 +65,8 @@ struct protent pap_protent = {
 
 upap_state upap[NUM_PPP];		/* UPAP state; one for each unit */
 
-static void upap_timeout __P((caddr_t));
-static void upap_reqtimeout __P((caddr_t));
+static void upap_timeout __P((void *));
+static void upap_reqtimeout __P((void *));
 static void upap_rauthreq __P((upap_state *, u_char *, int, int));
 static void upap_rauthack __P((upap_state *, u_char *, int, int));
 static void upap_rauthnak __P((upap_state *, u_char *, int, int));
@@ -147,7 +147,7 @@ upap_authpeer(unit)
 
     u->us_serverstate = UPAPSS_LISTEN;
     if (u->us_reqtimeout > 0)
-	TIMEOUT(upap_reqtimeout, (caddr_t) u, u->us_reqtimeout);
+	TIMEOUT(upap_reqtimeout, u, u->us_reqtimeout);
 }
 
 
@@ -156,7 +156,7 @@ upap_authpeer(unit)
  */
 static void
 upap_timeout(arg)
-    caddr_t arg;
+    void *arg;
 {
     upap_state *u = (upap_state *) arg;
 
@@ -180,7 +180,7 @@ upap_timeout(arg)
  */
 static void
 upap_reqtimeout(arg)
-    caddr_t arg;
+    void *arg;
 {
     upap_state *u = (upap_state *) arg;
 
@@ -214,7 +214,7 @@ upap_lowerup(unit)
     else if (u->us_serverstate == UPAPSS_PENDING) {
 	u->us_serverstate = UPAPSS_LISTEN;
 	if (u->us_reqtimeout > 0)
-	    TIMEOUT(upap_reqtimeout, (caddr_t) u, u->us_reqtimeout);
+	    TIMEOUT(upap_reqtimeout, u, u->us_reqtimeout);
     }
 }
 
@@ -231,9 +231,9 @@ upap_lowerdown(unit)
     upap_state *u = &upap[unit];
 
     if (u->us_clientstate == UPAPCS_AUTHREQ)	/* Timeout pending? */
-	UNTIMEOUT(upap_timeout, (caddr_t) u);	/* Cancel timeout */
+	UNTIMEOUT(upap_timeout, u);		/* Cancel timeout */
     if (u->us_serverstate == UPAPSS_LISTEN && u->us_reqtimeout > 0)
-	UNTIMEOUT(upap_reqtimeout, (caddr_t) u);
+	UNTIMEOUT(upap_reqtimeout, u);
 
     u->us_clientstate = UPAPCS_INITIAL;
     u->us_serverstate = UPAPSS_INITIAL;
@@ -395,7 +395,7 @@ upap_rauthreq(u, inp, id, len)
     }
 
     if (u->us_reqtimeout > 0)
-	UNTIMEOUT(upap_reqtimeout, (caddr_t) u);
+	UNTIMEOUT(upap_reqtimeout, u);
 }
 
 
@@ -507,7 +507,7 @@ upap_sauthreq(u)
 
     UPAPDEBUG((LOG_INFO, "pap_sauth: Sent id %d.", u->us_id));
 
-    TIMEOUT(upap_timeout, (caddr_t) u, u->us_timeouttime);
+    TIMEOUT(upap_timeout, u, u->us_timeouttime);
     ++u->us_transmits;
     u->us_clientstate = UPAPCS_AUTHREQ;
 }
