@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.8 1994/05/01 11:44:43 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.9 1994/05/09 02:40:21 paulus Exp $";
 #endif
 
 #define SETSID
@@ -113,7 +113,7 @@ static char pidfilename[MAXPATHLEN];
 char devname[MAXPATHLEN] = "/dev/tty";	/* Device name */
 int default_device = TRUE;	/* use default device (stdin/out) */
 
-int fd;				/* Device file descriptor */
+int fd = -1;			/* Device file descriptor */
 int s;				/* Socket file descriptor */
 
 int phase;			/* where the link is at */
@@ -627,7 +627,7 @@ set_up_tty(fd, local)
     int fd, local;
 {
 #ifndef SGTTY
-    int speed;
+    int speed, x;
     struct termios tios;
 
     if (tcgetattr(fd, &tios) < 0) {
@@ -666,6 +666,14 @@ set_up_tty(fd, local)
 	syslog(LOG_ERR, "tcsetattr: %m");
 	die(1);
     }
+
+#ifdef ultrix
+    x = 0;
+    if (ioctl(fd, (crtscts || modem)? TIOCMODEM: TIOCNMODEM, &x) < 0)
+	syslog(LOG_WARNING, "TIOC(N)MODEM: %m");
+    if (ioctl(fd, (local || !modem)? TIOCNCAR: TIOCCAR) < 0)
+	syslog(LOG_WARNING, "TIOC(N)CAR: %m");
+#endif
 
 #else	/* SGTTY */
     int speed;
@@ -747,7 +755,7 @@ cleanup(status, arg)
 	if (modem)
 	    setdtr(fd, FALSE);
 
-	if (fcntl(fd, F_SETFL, initfdflags) < 0)
+	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
 	    syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
 
 	disestablish_ppp();
