@@ -3,6 +3,7 @@ PPP Client Support for Microsoft's CHAP-80
 
 Eric Rosenquist          rosenqui@strataware.com
 (updated by Paul Mackerras)
+(updated by Al Longyear)
 
 INTRODUCTION
 
@@ -112,6 +113,33 @@ to your PPPD "options" file.
 
 The "remotename" option is required for MS-CHAP since Microsoft PPP servers
 don't send their system name in the CHAP challenge packet.
+
+
+E=691 (AUTHENTICATION_FAILURE) ERRORS WHEN YOU HAVE THE VALID SECRET (PASSWORD)
+
+If your RAS server is not the domain controller and is not a 'stand-alone'
+server then it must make a query to the domain controller for your domain.
+
+You need to specify the domain name with the user name when you attempt to
+use this type of a configuration. The domain name is specified with the
+local name in the chap-secrets file and with the option for the 'name'
+parameter.
+
+For example, the previous example would become:
+
+    DialupNT            domain\\customer47   foobar
+    domain\\customer47  DialupNT             foobar
+
+and
+
+    pppd name 'domain\\customer47' remotename DialupNT <other options>
+
+or add:
+
+    name domain\\customer47
+    remotename DialupNT
+
+when the Windows NT domain name is simply called 'domain'.
 
 
 TROUBLESHOOTING

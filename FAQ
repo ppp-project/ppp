@@ -370,13 +370,9 @@ the server.  Thus, it may be necessary to use the `remotename' option
 to pppd when using PAP authentication so that it can select the
 appropriate secret from /etc/ppp/pap-secrets.
 
-Microsoft also has a variant of CHAP which they apparently think is
-more secure than standard CHAP because they don't store secrets in
-clear text on the server.  However, a bogus client only needs to know
-the encrypted secret to gain access, so the only extra security is
-that the bogus client would need to run something other than Windows.
-There is a client-side implementation of Microsoft's CHAP in ppp-2.3;
-see README.MSCHAP80.
+Microsoft also has a variant of CHAP which uses a different hashing
+arrangement from normal CHAP.  There is a client-side implementation
+of Microsoft's CHAP in ppp-2.3; see README.MSCHAP80.
 
 
 ------------------------------------------------------------------------

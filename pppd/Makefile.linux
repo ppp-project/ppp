@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.17 1996/10/08 04:35:01 paulus Exp $
+# $Id: Makefile.linux,v 1.18 1996/10/08 06:42:41 paulus Exp $
 #
 
 # Default installation locations
@@ -40,14 +40,21 @@ COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
-ifdef HAS_SHADOW
-CFLAGS   += -DHAS_SHADOW
-LIBS     += -lshadow
+ifdef CHAPMS
+CFLAGS   += -DCHAPMS=1
+LIBS     := -ldes $(LIBS)
+PPPDOBJS += md4.o chap_ms.o
 endif
 
+ifdef HAS_SHADOW
+CFLAGS   += -DHAS_SHADOW
+LIBS     := -lshadow -lcrypt $(LIBS)
+endif
+
+# For "Pluggable Authentication Modules", see ftp.redhat.com:/pub/pam/.
 ifdef USE_PAM
 CFLAGS   += -DUSE_PAM
-LIBS     += -lpam -ldl
+LIBS     := -lpam -ldl $(LIBS)
 endif
 
 install: pppd

@@ -48,7 +48,7 @@ fi
 #    introduced in 1.0.1
 if [ `egrep '^VERSION|^PATCHLEVEL|^SUBLEVEL' $LINUXMK | wc -l` -ne 3 ]; then
   echo You appear to have a very old kernel. You must upgrade.
-  echo It is recommended that you upgrade to the most recent 2.0.X kernel.
+  echo It is recommended that you upgrade to the most recent 1.2.X kernel.
   exit 1
 fi
 
@@ -62,18 +62,11 @@ KERNEL=$VERSION.$PATCHLEVEL.$SUBLEVEL
 
 #
 #  Pass judgement on the kernel version
-if [ $VERSION -eq 1 ]; then
-  if [ $PATCHLEVEL -eq 0 -o $PATCHLEVEL -eq 1 -a $SUBLEVEL -lt 14 ]; then
+if [ $VERSION -lt 2 ]; then
     echo You appear to be running $KERNEL. There is no support for
-    echo kernels predating 1.1.14.  It is recommended that you upgrade
-    echo to the most recent 2.0.X kernel.
+    echo kernels predating 2.0.0.  It is recommended that you upgrade
+    echo to the most recent 2.0.x kernel.
     exit 1
-  fi
-  if [ $PATCHLEVEL -eq 1 ]; then
-    echo You appear to be running $KERNEL. It is recommended that you
-    echo upgrade to the most recent 1.2.X kernel.
-    echo However, installation will proceed.
-  fi
 fi
 
 echo
@@ -139,13 +132,7 @@ newer () {
 #
 #  Change the USE_SKB_PROTOCOL for correct operation on 1.3.x
 update_ppp () {
-  mv $LINUXSRC/drivers/net/ppp.c $LINUXSRC/drivers/net/ppp.c.in
-  if [ "$VERSION.$PATCHLEVEL" = "1.3" ]; then
-    sed 's/#define USE_SKB_PROTOCOL 0/#define USE_SKB_PROTOCOL 1/' <$LINUXSRC/drivers/net/ppp.c.in >$LINUXSRC/drivers/net/ppp.c
-  else
-    sed 's/#define USE_SKB_PROTOCOL 1/#define USE_SKB_PROTOCOL 0/' <$LINUXSRC/drivers/net/ppp.c.in >$LINUXSRC/drivers/net/ppp.c
-  fi
-  rm $LINUXSRC/drivers/net/ppp.c.in
+  return
 }
 
 #
@@ -269,42 +256,17 @@ echo -n 'Adding BSD compression module to drivers makefile...'
 NETMK=$LINUXSRC/drivers/net/Makefile
 fgrep bsd_comp.o $NETMK >/dev/null
 if [ ! "$?" = "0" ]; then
-   echo -n '.'
-   rm -f $NETMK.orig $NETMK.rej
-   if [ "$VERSION.$PATCHLEVEL" = "1.2" ]; then
-      (cd $LINUXSRC; patch -p1 -f -F30 -s) <patch-1.2
-      if [ ! "$?" = "0" ]; then
-         touch $NETMK.rej
-      fi
-   else
-      if [ "$VERSION.$PATCHLEVEL" = "1.3" ]; then
-         (cd $LINUXSRC; patch -p1 -f -F30 -s) <patch-1.3
-         if [ ! "$?" = "0" ]; then
-            touch $NETMK.rej
-         fi
-      else
-         touch $NETMK.rej
-      fi
-   fi
-#
-   if [ -f $NETMK.rej ]; then
-      rm -f $NETMK.rej
-      if [ -f $NETMK.orig ]; then
-         mv $NETMK.orig $NETMK
-      fi
-      sed 's/ppp.o$/ppp.o bsd_comp.o/g' <$NETMK >$NETMK.temp
-      bombiffailed
-      echo -n '.'
-      mv $NETMK $NETMK.orig
-      bombiffailed
-      echo -n '.'
-      mv $NETMK.temp $NETMK
-      bombiffailed
-   fi
-#
    if [ -f $NETMK.orig ]; then
-      mv $NETMK.orig $NETMK.old
+      mv $NETMK.orig $NETMK
    fi
+   sed 's/ppp.o$/ppp.o bsd_comp.o/g' <$NETMK >$NETMK.temp
+   bombiffailed
+   echo -n '.'
+   mv $NETMK $NETMK.orig
+   bombiffailed
+   echo -n '.'
+   mv $NETMK.temp $NETMK
+   bombiffailed
 else
    echo -n '(already there--skipping)'
 fi
@@ -373,14 +335,5 @@ done
 patch_include
 
 echo "Kernel driver files installation done."
-
-if [ "$VERSION.$PATCHLEVEL" = "1.2" ]; then
-  echo
-  echo "Please make sure that you apply the kernel patches in the"
-  echo "linux/Other.Patches directory. You should apply both the 1.2.13 and"
-  echo "slhc.patch files or the driver in the kernel may not compile."
-  echo "The instructions are in each of these files and the README.Linux"
-  echo "document."
-fi
 
 exit 0
