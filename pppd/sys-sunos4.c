@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.5 1996/05/27 00:00:56 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.6 1996/09/26 06:23:34 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -63,6 +63,9 @@ static char rcsid[] = "$Id: sys-sunos4.c,v 1.5 1996/05/27 00:00:56 paulus Exp $"
 
 #if defined(sun) && defined(sparc)
 #include <alloca.h>
+#ifndef __GNUC__
+extern void *alloca();
+#endif
 #endif /*sparc*/
 
 static int	pppfd;
@@ -948,7 +951,7 @@ sifnpmode(u, proto, mode)
 
     npi[0] = proto;
     npi[1] = (int) mode;
-    if (strioctl(pppfd, PPPIO_NPMODE, &npi, 2 * sizeof(int), 0) < 0) {
+    if (strioctl(pppfd, PPPIO_NPMODE, npi, 2 * sizeof(int), 0) < 0) {
 	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
 	return 0;
     }
