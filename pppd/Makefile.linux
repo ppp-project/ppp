@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.59 2003/06/11 23:56:26 paulus Exp $
+# $Id: Makefile.linux,v 1.60 2003/11/27 21:55:19 paulus Exp $
 #
 
 # Default installation locations
@@ -46,9 +46,8 @@ MPPE=y
 
 # Uncomment the next line to include support for PPP packet filtering.
 # This requires that the libpcap library and headers be installed
-# and that the kernel driver support PPP packet filtering, which it
-# doesn't yet.
-#FILTER=y
+# and that the kernel driver support PPP packet filtering.
+FILTER=y
 
 # Uncomment the next line to enable multilink PPP (enabled by default)
 # Linux distributions: Please leave multilink ENABLED in your builds
