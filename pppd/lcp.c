@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.19 1995/05/19 03:25:16 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.20 1995/06/30 01:47:15 paulus Exp $";
 #endif
 
 /*
@@ -232,32 +232,25 @@ RestartIdleTimer (f)
     fsm *f;
 {
     u_long             delta;
-    struct ppp_ddinfo  ddinfo;
-    u_long             latest;
+    struct ppp_idle    ddinfo;
 /*
  * Read the time since the last packet was received.
  */
-    if (ioctl (fd, PPPIOCGTIME, &ddinfo) < 0) {
-        syslog (LOG_ERR, "ioctl(PPPIOCGTIME): %m");
+    if (ioctl (fd, PPPIOCGIDLE, &ddinfo) < 0) {
+        syslog (LOG_ERR, "ioctl(PPPIOCGIDLE): %m");
         die (1);
     }
 /*
- * Choose the most recient IP activity. It may be a read or write frame
- */
-    latest = ddinfo.ip_sjiffies < ddinfo.ip_rjiffies ? ddinfo.ip_sjiffies
-                                                     : ddinfo.ip_rjiffies;
-/*
  * Compute the time since the last packet was received. If the timer
- *  has expired then send the echo request and reset the timer to maximum.
+ *  has expired then disconnect the line.
  */
-    delta = (idle_time_limit * HZ) - latest;
-    if (((int) delta < HZ || (int) latest < 0L) && f->state == OPENED) {
-        syslog (LOG_NOTICE, "No IP frames exchanged within idle time limit");
+    delta = idle_time_limit - (u_long) ddinfo.recv_idle;
+    if (((int) delta <= 0L) && (f->state == OPENED)) {
+        syslog (LOG_NOTICE, "No IP frames received within idle time limit");
 	lcp_close(f->unit);		/* Reset connection */
 	phase = PHASE_TERMINATE;	/* Mark it down */
     } else {
-        delta = (delta + HZ - 1) / HZ;
-        if (delta == 0)
+        if ((int) delta <= 0L)
 	    delta = (u_long) idle_time_limit;
         assert (idle_timer_running==0);
         TIMEOUT (IdleTimeCheck, (caddr_t) f, delta);
@@ -1671,43 +1664,36 @@ static void
 LcpEchoCheck (f)
     fsm *f;
 {
-    u_int32_t delta;
+    long int delta;
 #ifdef __linux__
-    struct ppp_ddinfo ddinfo;
-    u_int32_t latest;
+    struct ppp_idle    ddinfo;
 /*
  * Read the time since the last packet was received.
  */
-    if (ioctl (fd, PPPIOCGTIME, &ddinfo) < 0) {
-        syslog (LOG_ERR, "ioctl(PPPIOCGTIME): %m");
+    if (ioctl (fd, PPPIOCGIDLE, &ddinfo) < 0) {
+        syslog (LOG_ERR, "ioctl(PPPIOCGIDLE): %m");
         die (1);
     }
-/*
- * Choose the most recient frame received. It may be an IP or NON-IP frame.
- */
-    latest = ddinfo.nip_rjiffies < ddinfo.ip_rjiffies ? ddinfo.nip_rjiffies
-                                                      : ddinfo.ip_rjiffies;
 /*
  * Compute the time since the last packet was received. If the timer
  *  has expired then send the echo request and reset the timer to maximum.
  */
-    delta = (lcp_echo_interval * HZ) - latest;
-    if (delta < HZ || latest < 0L) {
+    delta = (long int) lcp_echo_interval - (long int) ddinfo.recv_idle;
+    if (delta < 0L) {
         LcpSendEchoRequest (f);
-        delta = lcp_echo_interval * HZ;
+        delta = (int) lcp_echo_interval;
     }
-    delta /= HZ;
 
 #else /* Other implementations do not have ability to find delta */
     LcpSendEchoRequest (f);
-    delta = lcp_echo_interval;
+    delta = (int) lcp_echo_interval;
 #endif
 
 /*
  * Start the timer for the next interval.
  */
     assert (lcp_echo_timer_running==0);
-    TIMEOUT (LcpEchoTimeout, (caddr_t) f, delta);
+    TIMEOUT (LcpEchoTimeout, (caddr_t) f, (u_int32_t) delta);
     lcp_echo_timer_running = 1;
 }
 

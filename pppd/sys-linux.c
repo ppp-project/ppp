@@ -43,7 +43,7 @@
 #include <net/ppp_defs.h>
 #include <net/if_arp.h>
 #include <net/if_ppp.h>
-#include <net/if_route.h>
+#include <net/route.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
 

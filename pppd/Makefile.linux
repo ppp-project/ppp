@@ -1,9 +1,9 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.7 1995/06/12 11:37:02 paulus Exp $
+# $Id: Makefile.linux,v 1.8 1995/06/30 01:47:13 paulus Exp $
 #
 
-BINDIR = /usr/etc
+BINDIR = /usr/lib/ppp
 MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
@@ -34,6 +34,7 @@ CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
 install: pppd
+	mkdir -p $(BINDIR)
 	install -c -m 4555 -o root pppd $(BINDIR)/pppd
 	install -c -m 555 -o root pppd.8 $(MANDIR)/man8
 
