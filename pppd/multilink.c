@@ -96,6 +96,11 @@ mp_join_bundle()
 		if (go->neg_mrru)
 			notice("oops, multilink negotiated only for receive");
 		multilink = 0;
+		if (demand) {
+			/* already have a bundle */
+			cfg_bundle(0, 0, 0, 0);
+			return 0;
+		}
 		make_new_bundle(0, 0, 0, 0);
 		set_ifunit(1);
 		return 0;

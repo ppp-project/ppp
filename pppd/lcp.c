@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.52 2000/04/15 01:27:12 masputra Exp $"
+#define RCSID	"$Id: lcp.c,v 1.53 2000/04/24 07:41:09 paulus Exp $"
 
 /*
  * TODO:
@@ -323,9 +323,7 @@ lcp_init(unit)
 #ifdef CBCP_SUPPORT
     ao->neg_cbcp = 1;
 #endif
-#ifdef HAVE_MULTILINK
     ao->neg_endpoint = 1;
-#endif
 
     BZERO(xmit_accm[unit], sizeof(xmit_accm[0]));
     xmit_accm[unit][3] = 0x60000000;
@@ -558,6 +556,7 @@ lcp_resetci(f)
 {
     lcp_options *wo = &lcp_wantoptions[f->unit];
     lcp_options *go = &lcp_gotoptions[f->unit];
+    lcp_options *ao = &lcp_allowoptions[f->unit];
 
     wo->magicnumber = magic();
     wo->numloops = 0;
@@ -567,6 +566,8 @@ lcp_resetci(f)
 	go->neg_ssnhf = 0;
 	go->neg_endpoint = 0;
     }
+    if (noendpoint)
+	ao->neg_endpoint = 0;
     peer_mru[f->unit] = PPP_MRU;
     auth_reset(f->unit);
 }
@@ -1640,7 +1641,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    break;
 
 	case CI_EPDISC:
-	    if (!ao->neg_endpoint || !multilink ||
+	    if (!ao->neg_endpoint ||
 		cilen < CILEN_CHAR ||
 		cilen > CILEN_CHAR + MAX_ENDP_LEN) {
 		orc = CONFREJ;
