@@ -39,8 +39,11 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: magic.h,v 1.4 2002/12/04 23:03:32 paulus Exp $
+ * $Id: magic.h,v 1.5 2003/06/11 23:56:26 paulus Exp $
  */
 
 void magic_init __P((void));	/* Initialize the magic number generator */
 u_int32_t magic __P((void));	/* Returns the next magic number */
+
+/* Fill buffer with random bytes */
+void random_bytes __P((unsigned char *buf, int len));

@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.127 2003/05/12 07:31:36 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.128 2003/06/11 23:56:26 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -74,7 +74,7 @@
 #include "ipv6cp.h"
 #endif
 #include "upap.h"
-#include "chap.h"
+#include "chap-new.h"
 #include "eap.h"
 #include "ccp.h"
 #include "ecp.h"

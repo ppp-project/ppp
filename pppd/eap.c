@@ -43,7 +43,7 @@
  * Based on draft-ietf-pppext-eap-srp-03.txt.
  */
 
-#define RCSID	"$Id: eap.c,v 1.2 2002/11/14 21:50:12 fcusack Exp $"
+#define RCSID	"$Id: eap.c,v 1.3 2003/06/11 23:56:26 paulus Exp $"
 
 /*
  * TODO:
@@ -63,8 +63,6 @@
 #include "pppd.h"
 #include "pathnames.h"
 #include "md5.h"
-/* For MD5_SIGNATURE_SIZE and MIN/MAX_CHALLENGE_LENGTH; should fix. */
-#include "chap.h"
 #include "eap.h"
 
 #ifdef USE_SRP

@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.28 2003/01/10 07:12:36 fcusack Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.29 2003/06/11 23:56:26 paulus Exp $"
 
 #ifdef CHAPMS
 
@@ -87,11 +87,12 @@
 #include <unistd.h>
 
 #include "pppd.h"
-#include "chap.h"
+#include "chap-new.h"
 #include "chap_ms.h"
 #include "md4.h"
 #include "sha1.h"
 #include "pppcrypt.h"
+#include "magic.h"
 
 static const char rcsid[] = RCSID;
 
@@ -115,8 +116,6 @@ static void	Set_Start_Key __P((u_char *, char *, int));
 static void	SetMasterKeys __P((char *, int, u_char[24], int));
 #endif
 
-extern double drand48 __P((void));
-
 #ifdef MSLANMAN
 bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 			  	/* Has meaning only with MS-CHAP challenges */
@@ -127,10 +126,308 @@ u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
 int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
 
+/* For MPPE debug */
+/* Use "[]|}{?/><,`!2&&(" (sans quotes) for RFC 3079 MS-CHAPv2 test value */
+static char *mschap_challenge = NULL;
+/* Use "!@\#$%^&*()_+:3|~" (sans quotes, backslash is to escape #) for ... */
+static char *mschap2_peer_challenge = NULL;
+
 #include "fsm.h"		/* Need to poke MPPE options */
 #include "ccp.h"
 #include <net/ppp-comp.h>
 #endif
+
+/*
+ * Command-line options.
+ */
+static option_t chapms_option_list[] = {
+#ifdef MSLANMAN
+	{ "ms-lanman", o_bool, &ms_lanman,
+	  "Use LanMan passwd when using MS-CHAP", 1 },
+#endif
+#ifdef DEBUGMPPEKEY
+	{ "mschap-challenge", o_string, &mschap_challenge,
+	  "specify CHAP challenge" },
+	{ "mschap2-peer-challenge", o_string, &mschap2_peer_challenge,
+	  "specify CHAP peer challenge" },
+#endif
+	{ NULL }
+};
+
+/*
+ * chapms_generate_challenge - generate a challenge for MS-CHAP.
+ * For MS-CHAP the challenge length is fixed at 8 bytes.
+ * The length goes in challenge[0] and the actual challenge starts
+ * at challenge[1].
+ */
+static void
+chapms_generate_challenge(unsigned char *challenge)
+{
+	*challenge++ = 8;
+	if (mschap_challenge && strlen(mschap_challenge) == 8)
+		memcpy(challenge, mschap_challenge, 8);
+	else
+		random_bytes(challenge, 8);
+}
+
+static void
+chapms2_generate_challenge(unsigned char *challenge)
+{
+	*challenge++ = 16;
+	if (mschap_challenge && strlen(mschap_challenge) == 16)
+		memcpy(challenge, mschap_challenge, 16);
+	else
+		random_bytes(challenge, 16);
+}
+
+static int
+chapms_verify_response(int id, char *name,
+		       unsigned char *secret, int secret_len,
+		       unsigned char *challenge, unsigned char *response,
+		       char *message, int message_space)
+{
+	MS_ChapResponse *rmd = (MS_ChapResponse *) response;
+	MS_ChapResponse md;
+	int diff;
+	int challenge_len, response_len;
+
+	challenge_len = *challenge++;	/* skip length, is 8 */
+
+	response_len = *response++;
+	if (response_len != MS_CHAP_RESPONSE_LEN)
+		goto bad;
+
+#ifndef MSLANMAN
+	if (!rmd->UseNT[0]) {
+		/* Should really propagate this into the error packet. */
+		notice("Peer request for LANMAN auth not supported");
+		goto bad;
+	}
+#endif
+
+	/* Generate the expected response. */
+	ChapMS(challenge, secret, secret_len, &md);
+
+#ifdef MSLANMAN
+	/* Determine which part of response to verify against */
+	if (!rmd->UseNT[0])
+		diff = memcmp(&rmd->LANManResp, &md.LANManResp,
+			      sizeof(md.LANManResp));
+	else
+#endif
+		diff = memcmp(&rmd->NTResp, &md.NTResp, sizeof(md.NTResp));
+
+	if (diff == 0) {
+		slprintf(message, message_space, "Access granted");
+		return 1;
+	}
+
+ bad:
+	/* See comments below for MS-CHAP V2 */
+	slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0",
+		 challenge_len, challenge);
+	return 0;
+}
+
+static int
+chapms2_verify_response(int id, char *name,
+			unsigned char *secret, int secret_len,
+			unsigned char *challenge, unsigned char *response,
+			char *message, int message_space)
+{
+	MS_Chap2Response *rmd = (MS_Chap2Response *) response;
+	MS_Chap2Response md;
+	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
+	int challenge_len, response_len;
+
+	challenge_len = *challenge++;	/* skip length, is 16 */
+	response_len = *response++;
+	if (response_len != MS_CHAP2_RESPONSE_LEN)
+		goto bad;	/* not even the right length */
+
+	/* Generate the expected response and our mutual auth. */
+	ChapMS2(challenge, rmd->PeerChallenge, name,
+		secret, secret_len, &md,
+		saresponse, MS_CHAP2_AUTHENTICATOR);
+
+	/* compare MDs and send the appropriate status */
+	/*
+	 * Per RFC 2759, success message must be formatted as
+	 *     "S=<auth_string> M=<message>"
+	 * where
+	 *     <auth_string> is the Authenticator Response (mutual auth)
+	 *     <message> is a text message
+	 *
+	 * However, some versions of Windows (win98 tested) do not know
+	 * about the M=<message> part (required per RFC 2759) and flag
+	 * it as an error (reported incorrectly as an encryption error
+	 * to the user).  Since the RFC requires it, and it can be
+	 * useful information, we supply it if the peer is a conforming
+	 * system.  Luckily (?), win98 sets the Flags field to 0x04
+	 * (contrary to RFC requirements) so we can use that to
+	 * distinguish between conforming and non-conforming systems.
+	 *
+	 * Special thanks to Alex Swiridov <say@real.kharkov.ua> for
+	 * help debugging this.
+	 */
+	if (memcmp(md.NTResp, rmd->NTResp, sizeof(md.NTResp)) == 0) {
+		if (rmd->Flags[0])
+			slprintf(message, message_space, "S=%s", saresponse);
+		else
+			slprintf(message, message_space, "S=%s M=%s",
+				 saresponse, "Access granted");
+		return 1;
+	}
+
+ bad:
+	/*
+	 * Failure message must be formatted as
+	 *     "E=e R=r C=c V=v M=m"
+	 * where
+	 *     e = error code (we use 691, ERROR_AUTHENTICATION_FAILURE)
+	 *     r = retry (we use 1, ok to retry)
+	 *     c = challenge to use for next response, we reuse previous
+	 *     v = Change Password version supported, we use 0
+	 *     m = text message
+	 *
+	 * The M=m part is only for MS-CHAPv2.  Neither win2k nor
+	 * win98 (others untested) display the message to the user anyway.
+	 * They also both ignore the E=e code.
+	 *
+	 * Note that it's safe to reuse the same challenge as we don't
+	 * actually accept another response based on the error message
+	 * (and no clients try to resend a response anyway).
+	 *
+	 * Basically, this whole bit is useless code, even the small
+	 * implementation here is only because of overspecification.
+	 */
+	slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0 M=%s",
+		 challenge_len, challenge, "Access denied");
+	return 0;
+}
+
+static void
+chapms_make_response(unsigned char *response, int id, char *our_name,
+		     unsigned char *challenge, char *secret, int secret_len,
+		     unsigned char *private)
+{
+	challenge++;	/* skip length, should be 8 */
+	*response++ = MS_CHAP_RESPONSE_LEN;
+	ChapMS(challenge, secret, secret_len, (MS_ChapResponse *) response);
+}
+
+static void
+chapms2_make_response(unsigned char *response, int id, char *our_name,
+		      unsigned char *challenge, char *secret, int secret_len,
+		      unsigned char *private)
+{
+	challenge++;	/* skip length, should be 16 */
+	*response++ = MS_CHAP2_RESPONSE_LEN;
+	ChapMS2(challenge, mschap2_peer_challenge, our_name,
+		secret, secret_len,
+		(MS_Chap2Response *) response, private,
+		MS_CHAP2_AUTHENTICATEE);
+}
+
+static int
+chapms2_check_success(unsigned char *msg, int len, unsigned char *private)
+{
+	if ((len < MS_AUTH_RESPONSE_LENGTH + 2) || strncmp(msg, "S=", 2)) {
+		/* Packet does not start with "S=" */
+		error("MS-CHAPv2 Success packet is badly formed.");
+		return 0;
+	}
+	msg += 2;
+	len -= 2;
+	if (len < MS_AUTH_RESPONSE_LENGTH
+	    || memcmp(msg, private, MS_AUTH_RESPONSE_LENGTH)) {
+		/* Authenticator Response did not match expected. */
+		error("MS-CHAPv2 mutual authentication failed.");
+		return 0;
+	}
+	/* Authenticator Response matches. */
+	msg += MS_AUTH_RESPONSE_LENGTH; /* Eat it */
+	len -= MS_AUTH_RESPONSE_LENGTH;
+	if ((len >= 3) && !strncmp(msg, " M=", 3)) {
+		msg += 3; /* Eat the delimiter */
+	} else if (len) {
+		/* Packet has extra text which does not begin " M=" */
+		error("MS-CHAPv2 Success packet is badly formed.");
+		return 0;
+	}
+	return 1;
+}
+
+static void
+chapms_handle_failure(unsigned char *inp, int len)
+{
+	int err;
+	char *p, *msg;
+
+	/* We want a null-terminated string for strxxx(). */
+	msg = malloc(len + 1);
+	if (!msg) {
+		notice("Out of memory in chapms_handle_failure");
+		return;
+	}
+	BCOPY(inp, msg, len);
+	msg[len] = 0;
+	p = msg;
+
+	/*
+	 * Deal with MS-CHAP formatted failure messages; just print the
+	 * M=<message> part (if any).  For MS-CHAP we're not really supposed
+	 * to use M=<message>, but it shouldn't hurt.  See
+	 * chapms[2]_verify_response.
+	 */
+	if (!strncmp(p, "E=", 2))
+		err = strtol(p, NULL, 10); /* Remember the error code. */
+	else
+		goto print_msg; /* Message is badly formatted. */
+
+	if (len && ((p = strstr(p, " M=")) != NULL)) {
+		/* M=<message> field found. */
+		p += 3;
+	} else {
+		/* No M=<message>; use the error code. */
+		switch (err) {
+		case MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS:
+			p = "E=646 Restricted logon hours";
+			break;
+
+		case MS_CHAP_ERROR_ACCT_DISABLED:
+			p = "E=647 Account disabled";
+			break;
+
+		case MS_CHAP_ERROR_PASSWD_EXPIRED:
+			p = "E=648 Password expired";
+			break;
+
+		case MS_CHAP_ERROR_NO_DIALIN_PERMISSION:
+			p = "E=649 No dialin permission";
+			break;
+
+		case MS_CHAP_ERROR_AUTHENTICATION_FAILURE:
+			p = "E=691 Authentication failure";
+			break;
+
+		case MS_CHAP_ERROR_CHANGING_PASSWORD:
+			/* Should never see this, we don't support Change Password. */
+			p = "E=709 Error changing password";
+			break;
+
+		default:
+			free(msg);
+			error("Unknown MS-CHAP authentication failure: %.*v",
+			      len, inp);
+			return;
+		}
+	}
+print_msg:
+	if (p != NULL)
+		error("MS-CHAP authentication failed: %v", p);
+	free(msg);
+}
 
 static void
 ChallengeResponse(u_char *challenge,
@@ -469,7 +766,7 @@ SetMasterKeys(char *secret, int secret_len, u_char NTResponse[24], int IsServer)
 
 
 void
-ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
+ChapMS(u_char *rchallenge, char *secret, int secret_len,
        MS_ChapResponse *response)
 {
 #if 0
@@ -487,8 +784,6 @@ ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
 #else
     response->UseNT[0] = 1;
 #endif
-
-    cstate->resp_length = MS_CHAP_RESPONSE_LEN;
 
 #ifdef MPPE
     Set_Start_Key(rchallenge, secret, secret_len);
@@ -508,9 +803,9 @@ ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
  * Authenticator Response.
  */
 void
-ChapMS2(chap_state *cstate, u_char *rchallenge, u_char *PeerChallenge,
+ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
 	char *user, char *secret, int secret_len, MS_Chap2Response *response,
-	u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1], int authenticator)
+	u_char authResponse[], int authenticator)
 {
     /* ARGSUSED */
     u_char *p = response->PeerChallenge;
@@ -534,8 +829,6 @@ ChapMS2(chap_state *cstate, u_char *rchallenge, u_char *PeerChallenge,
     GenerateAuthenticatorResponse(secret, secret_len, response->NTResp,
 				  response->PeerChallenge, rchallenge,
 				  user, authResponse);
-
-    cstate->resp_length = MS_CHAP2_RESPONSE_LEN;
 
 #ifdef MPPE
     SetMasterKeys(secret, secret_len, response->NTResp, authenticator);
@@ -575,5 +868,31 @@ set_mppe_enc_types(int policy, int types)
     }
 }
 #endif /* MPPE */
+
+static struct chap_digest_type chapms_digest = {
+	CHAP_MICROSOFT,		/* code */
+	chapms_generate_challenge,
+	chapms_verify_response,
+	chapms_make_response,
+	NULL,			/* check_success */
+	chapms_handle_failure,
+};
+
+static struct chap_digest_type chapms2_digest = {
+	CHAP_MICROSOFT_V2,	/* code */
+	chapms2_generate_challenge,
+	chapms2_verify_response,
+	chapms2_make_response,
+	chapms2_check_success,
+	chapms_handle_failure,
+};
+
+void
+chapms_init(void)
+{
+	chap_register_digest(&chapms_digest);
+	chap_register_digest(&chapms2_digest);
+	add_options(chapms_option_list);
+}
 
 #endif /* CHAPMS */

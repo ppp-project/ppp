@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.68 2003/06/11 23:50:53 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.69 2003/06/11 23:56:26 paulus Exp $"
 
 /*
  * TODO:
@@ -53,7 +53,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
-#include "chap.h"
+#include "chap-new.h"
 #include "magic.h"
 
 static const char rcsid[] = RCSID;
@@ -2038,7 +2038,7 @@ lcp_printpkt(p, plen, printer, arg)
 			printer(arg, "chap");
 			if (p < optend) {
 			    switch (*p) {
-			    case CHAP_DIGEST_MD5:
+			    case CHAP_MD5:
 				printer(arg, " MD5");
 				++p;
 				break;

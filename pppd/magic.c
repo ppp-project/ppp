@@ -40,9 +40,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: magic.c,v 1.10 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: magic.c,v 1.11 2003/06/11 23:56:26 paulus Exp $"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -80,6 +81,18 @@ u_int32_t
 magic()
 {
     return (u_int32_t) mrand48();
+}
+
+/*
+ * random_bytes - Fill a buffer with random bytes.
+ */
+void
+random_bytes(unsigned char *buf, int len)
+{
+	int i;
+
+	for (i = 0; i < len; ++i)
+		buf[i] = mrand48() >> 24;
 }
 
 #ifdef NO_DRAND48

@@ -27,7 +27,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: chap_ms.h,v 1.9 2002/12/24 03:43:35 fcusack Exp $
+ * $Id: chap_ms.h,v 1.10 2003/06/11 23:56:26 paulus Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -37,6 +37,8 @@
 
 #define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
 #define MS_CHAP2_RESPONSE_LEN	49	/* Response length for MS-CHAPv2 */
+#define MS_AUTH_RESPONSE_LENGTH	40	/* MS-CHAPv2 authenticator response, */
+					/* as ASCII */
 
 /* E=eeeeeeeeee error codes for MS-CHAP failure messages. */
 #define MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS	646
@@ -87,13 +89,14 @@ extern void set_mppe_enc_types(int, int);
 #define MS_CHAP2_AUTHENTICATEE 0
 #define MS_CHAP2_AUTHENTICATOR 1
 
-#include "chap.h" /* chap_state, et al */
-void ChapMS __P((chap_state *, u_char *, char *, int, MS_ChapResponse *));
-void ChapMS2 __P((chap_state *, u_char *, u_char *, char *, char *, int,
+void ChapMS __P((u_char *, char *, int, MS_ChapResponse *));
+void ChapMS2 __P((u_char *, u_char *, char *, char *, int,
 		  MS_Chap2Response *, u_char[MS_AUTH_RESPONSE_LENGTH+1], int));
 #ifdef MPPE
 void mppe_set_keys __P((u_char *, u_char[MD4_SIGNATURE_SIZE]));
 #endif
+
+void chapms_init(void);
 
 #define __CHAPMS_INCLUDE__
 #endif /* __CHAPMS_INCLUDE__ */

@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.94 2003/03/09 09:52:19 etbe Exp $"
+#define RCSID	"$Id: auth.c,v 1.95 2003/06/11 23:56:26 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -114,7 +114,7 @@
 #include "ecp.h"
 #include "ipcp.h"
 #include "upap.h"
-#include "chap.h"
+#include "chap-new.h"
 #include "eap.h"
 #ifdef CBCP_SUPPORT
 #include "cbcp.h"
@@ -185,6 +185,12 @@ void (*pap_logout_hook) __P((void)) = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
 int (*pap_passwd_hook) __P((char *user, char *passwd)) = NULL;
+
+/* Hook for a plugin to say if we can possibly authenticate a peer using CHAP */
+int (*chap_check_hook) __P((void)) = NULL;
+
+/* Hook for a plugin to get the CHAP password for authenticating us */
+int (*chap_passwd_hook) __P((char *user, char *passwd)) = NULL;
 
 /* Hook for a plugin to say whether it is OK if the peer
    refuses to authenticate. */
@@ -634,7 +640,7 @@ link_established(unit)
 	eap_authpeer(unit, our_name);
 	auth |= EAP_PEER;
     } else if (go->neg_chap) {
-	ChapAuthPeer(unit, our_name, CHAP_DIGEST(go->chap_mdtype));
+	chap_auth_peer(unit, our_name, CHAP_DIGEST(go->chap_mdtype));
 	auth |= CHAP_PEER;
     } else if (go->neg_upap) {
 	upap_authpeer(unit);
@@ -644,7 +650,7 @@ link_established(unit)
 	eap_authwithpeer(unit, user);
 	auth |= EAP_WITHPEER;
     } else if (ho->neg_chap) {
-	ChapAuthWithPeer(unit, user, CHAP_DIGEST(ho->chap_mdtype));
+	chap_auth_with_peer(unit, user, CHAP_DIGEST(ho->chap_mdtype));
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
 	if (passwd[0] == 0) {
@@ -800,7 +806,7 @@ auth_peer_success(unit, protocol, prot_flavor, name, namelen)
     case PPP_CHAP:
 	bit = CHAP_PEER;
 	switch (prot_flavor) {
-	case CHAP_DIGEST_MD5:
+	case CHAP_MD5:
 	    bit |= CHAP_MD5_PEER;
 	    break;
 #ifdef CHAPMS
@@ -876,7 +882,7 @@ auth_withpeer_success(unit, protocol, prot_flavor)
     case PPP_CHAP:
 	bit = CHAP_WITHPEER;
 	switch (prot_flavor) {
-	case CHAP_DIGEST_MD5:
+	case CHAP_MD5:
 	    bit |= CHAP_MD5_WITHPEER;
 	    break;
 #ifdef CHAPMS

@@ -17,7 +17,7 @@
  *
  * Original version by James Carlson
  *
- * $Id: eap.h,v 1.1 2002/11/02 19:48:12 carlsonj Exp $
+ * $Id: eap.h,v 1.2 2003/06/11 23:56:26 paulus Exp $
  */
 
 #ifndef PPP_EAP_H
@@ -73,6 +73,10 @@ extern "C" {
 
 #define	SRP_PSEUDO_ID	"pseudo_"
 #define	SRP_PSEUDO_LEN	7
+
+#define MD5_SIGNATURE_SIZE	16
+#define MIN_CHALLENGE_LENGTH	16
+#define MAX_CHALLENGE_LENGTH	24
 
 enum eap_state_code {
 	eapInitial = 0,	/* No EAP authentication yet requested */
