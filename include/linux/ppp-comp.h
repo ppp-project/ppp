@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.6 1997/11/27 06:04:44 paulus Exp $
+ * $Id: ppp-comp.h,v 1.7 1998/03/19 04:56:44 paulus Exp $
  */
 
 /*
- *  ==FILEVERSION 971024==
+ *  ==FILEVERSION 980319==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -173,7 +173,8 @@ struct compressor {
  * Definitions for Deflate.
  */
 
-#define CI_DEFLATE		24	/* config option for Deflate */
+#define CI_DEFLATE		26	/* config option for Deflate */
+#define CI_DEFLATE_DRAFT	24	/* value used in original draft RFC */
 #define CILEN_DEFLATE		4	/* length of its config option */
 
 #define DEFLATE_MIN_SIZE	8
