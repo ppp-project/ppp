@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.1 1994/12/05 00:29:21 paulus Exp $
+ * $Id: ppp_comp.c,v 1.2 1994/12/05 00:55:24 paulus Exp $
  */
 
 #include <net/net_globals.h>
@@ -410,7 +410,7 @@ ppp_comp_ccp(q, mp, rcvd)
 		if (cp->rstate != NULL
 		    && (*cp->rcomp->decomp_init)
 		        (cp->rstate, dp + CCP_HDRLEN, clen - CCP_HDRLEN,
-			 0/* unit */, cp->mru, cp->debug))
+			 0/* unit */, 0, cp->mru, cp->debug))
 		    cp->ccp_state = (cp->ccp_state & ~CCP_ERR)
 			| CCP_DECOMP_RUN;
 	    }
