@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.5 1994/05/24 11:20:26 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.6 1994/05/25 06:25:05 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -59,10 +59,6 @@ static char rcsid[] = "$Id: auth.c,v 1.5 1994/05/24 11:20:26 paulus Exp $";
 
 #ifdef sparc
 #include <alloca.h>
-#ifndef __GNUC__
-/* why alloca.h doesn't define what alloca() returns is a mystery */
-/* char *alloca __ARGS((int)); */
-#endif /*__GNUC__*/
 #endif /*sparc*/
 
 /* Used for storing a sequence of words.  Usually malloced. */
