@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.5 1995/08/16 01:36:38 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.6 1995/10/27 03:34:42 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -124,11 +124,11 @@
 #endif
 
 void	pppattach __P((void));
-int	pppioctl __P((struct ppp_softc *sc, int cmd, caddr_t data, int flag,
+int	pppioctl __P((struct ppp_softc *sc, u_long cmd, caddr_t data, int flag,
 		      struct proc *));
 int	pppoutput __P((struct ifnet *ifp, struct mbuf *m0,
 		       struct sockaddr *dst, struct rtentry *rtp));
-int	pppsioctl __P((struct ifnet *ifp, int cmd, caddr_t data));
+int	pppsioctl __P((struct ifnet *ifp, u_long cmd, caddr_t data));
 void	pppintr __P((void));
 
 static void	ppp_requeue __P((struct ppp_softc *));
@@ -205,7 +205,7 @@ pppattach()
 	bpfattach(&sc->sc_bpf, &sc->sc_if, DLT_PPP, PPP_HDRLEN);
 #endif
     }
-    netisrs[NETISR_PPP] = ppp_intr;
+    netisrs[NETISR_PPP] = pppintr;
 }
 
 /*
@@ -300,8 +300,9 @@ pppdealloc(sc)
 int
 pppioctl(sc, cmd, data, flag, p)
     struct ppp_softc *sc;
+    u_long cmd;
     caddr_t data;
-    int cmd, flag;
+    int flag;
     struct proc *p;
 {
     int s, error, flags, mru, nb, npx;
@@ -387,8 +388,8 @@ pppioctl(sc, cmd, data, flag, p)
 		 * a compressor or decompressor.
 		 */
 		error = 0;
-		s = splnet();
 		if (odp->transmit) {
+		    s = splnet();
 		    if (sc->sc_xc_state != NULL)
 			(*sc->sc_xcomp->comp_free)(sc->sc_xc_state);
 		    sc->sc_xcomp = *cp;
@@ -401,7 +402,9 @@ pppioctl(sc, cmd, data, flag, p)
 		    }
 		    splimp();
 		    sc->sc_flags &= ~SC_COMP_RUN;
+		    splx(s);
 		} else {
+		    s = splnet();
 		    if (sc->sc_rc_state != NULL)
 			(*sc->sc_rcomp->decomp_free)(sc->sc_rc_state);
 		    sc->sc_rcomp = *cp;
@@ -414,8 +417,8 @@ pppioctl(sc, cmd, data, flag, p)
 		    }
 		    splimp();
 		    sc->sc_flags &= ~SC_DECOMP_RUN;
+		    splx(s);
 		}
-		splx(s);
 		return (error);
 	    }
 	if (sc->sc_flags & SC_DEBUG)
@@ -441,7 +444,7 @@ pppioctl(sc, cmd, data, flag, p)
 	    if (error = suser(p->p_ucred, &p->p_acflag))
 		return (error);
 	    if (npi->mode != sc->sc_npmode[npx]) {
-		s = splimp();
+		s = splnet();
 		sc->sc_npmode[npx] = npi->mode;
 		if (npi->mode != NPMODE_QUEUE) {
 		    ppp_requeue(sc);
@@ -453,7 +456,7 @@ pppioctl(sc, cmd, data, flag, p)
 	break;
 
     case PPPIOCGIDLE:
-	s = splimp();
+	s = splnet();
 	t = time.tv_sec;
 	((struct ppp_idle *)data)->xmit_idle = t - sc->sc_last_sent;
 	((struct ppp_idle *)data)->recv_idle = t - sc->sc_last_recv;
@@ -472,7 +475,7 @@ pppioctl(sc, cmd, data, flag, p)
 int
 pppsioctl(ifp, cmd, data)
     register struct ifnet *ifp;
-    int cmd;
+    u_long cmd;
     caddr_t data;
 {
     struct proc *p = curproc;	/* XXX */
@@ -671,7 +674,7 @@ pppoutput(ifp, m0, dst, rtp)
     /*
      * Put the packet on the appropriate queue.
      */
-    s = splimp();		/* splnet should be OK now */
+    s = splnet();
     if (mode == NPMODE_QUEUE) {
 	/* XXX we should limit the number of packets on this queue */
 	*sc->sc_npqtail = m0;
@@ -679,7 +682,7 @@ pppoutput(ifp, m0, dst, rtp)
 	sc->sc_npqtail = &m0->m_nextpkt;
     } else {
 	ifq = (m0->m_flags & M_HIGHPRI)? &sc->sc_fastq: &ifp->if_snd;
-	if (IF_QFULL(ifq)) {
+	if (IF_QFULL(ifq) && dst->sa_family != AF_UNSPEC) {
 	    IF_DROP(ifq);
 	    splx(s);
 	    sc->sc_if.if_oerrors++;
@@ -701,7 +704,7 @@ bad:
 /*
  * After a change in the NPmode for some NP, move packets from the
  * npqueue to the send queue or the fast queue as appropriate.
- * Should be called at splimp (actually splnet would probably suffice).
+ * Should be called at splnet.
  */
 static void
 ppp_requeue(sc)
@@ -750,11 +753,11 @@ ppp_requeue(sc)
 }
 
 /*
- * Get a packet to send.  This procedure is intended to be called
- * at spltty()/splimp(), so it takes little time.  If there isn't
- * a packet waiting to go out, it schedules a software interrupt
- * to prepare a new packet; the device start routine gets called
- * again when a packet is ready.
+ * Get a packet to send.  This procedure is intended to be called at
+ * spltty or splimp, so it takes little time.  If there isn't a packet
+ * waiting to go out, it schedules a software interrupt to prepare a
+ * new packet; the device start routine gets called again when a
+ * packet is ready.
  */
 struct mbuf *
 ppp_dequeue(sc)
@@ -799,7 +802,9 @@ pppintr()
 	    && (sc->sc_if.if_snd.ifq_head || sc->sc_fastq.ifq_head))
 	    ppp_outpkt(sc);
 	for (;;) {
+	    s = splimp();
 	    IF_DEQUEUE(&sc->sc_rawq, m);
+	    splx(s);
 	    if (m == NULL)
 		break;
 	    ppp_inproc(sc, m);
@@ -935,10 +940,8 @@ ppp_outpkt(sc)
 	--m->m_len;
     }
 
-    s = splimp();
     sc->sc_togo = m;
     (*sc->sc_start)(sc);
-    splx(s);
 }
 
 #ifdef PPP_COMPRESS
@@ -1081,6 +1084,7 @@ ppppktin(sc, m, lost)
 
 /*
  * Process a received PPP packet, doing decompression as necessary.
+ * Should be called at splnet.
  */
 #define COMPTYPE(proto)	((proto) == PPP_VJC_COMP? TYPE_COMPRESSED_TCP: \
 			 TYPE_UNCOMPRESSED_TCP)
@@ -1100,6 +1104,9 @@ ppp_inproc(sc, m)
     sc->sc_if.if_ipackets++;
 
     if (sc->sc_flags & SC_LOG_INPKT) {
+	ilen = 0;
+	for (mp = m; mp != NULL; mp = mp->m_next)
+	    ilen += mp->m_len;
 	printf("ppp%d: got %d bytes\n", sc->sc_if.if_unit, ilen);
 	pppdumpm(m);
     }
