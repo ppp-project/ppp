@@ -1,7 +1,7 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.1 2000/04/18 23:51:27 masputra Exp $
+# $Id: Makefile.sol2,v 1.2 2003/03/31 12:07:28 carlsonj Exp $
 #
 
 include Makedefs.sol2
@@ -14,15 +14,15 @@ COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 all:	ppp ppp_ahdl ppp_comp
 
 ppp:	ppp.o ppp_mod.o
-	ld -r -o $@ ppp.o ppp_mod.o
+	$(LD) -r -o $@ ppp.o ppp_mod.o
 	chmod +x $@
 
 ppp_ahdl: ppp_ahdlc.o ppp_ahdlc_mod.o
-	ld -r -o $@ ppp_ahdlc.o ppp_ahdlc_mod.o
+	$(LD) -r -o $@ ppp_ahdlc.o ppp_ahdlc_mod.o
 	chmod +x $@
 
 ppp_comp: $(COMP_OBJS)
-	ld -r -o $@ $(COMP_OBJS)
+	$(LD) -r -o $@ $(COMP_OBJS)
 	chmod +x $@
 
 bsd-comp.o:	../modules/bsd-comp.c

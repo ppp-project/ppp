@@ -10,3 +10,5 @@ ETCDIR = /etc/ppp
 
 CC = /opt/SUNWspro/bin/cc
 COPTS = -O -Xa
+
+LD = /usr/ccs/bin/ld

@@ -10,3 +10,5 @@ ETCDIR = /etc/ppp
 
 CC = gcc
 COPTS = -O2
+
+LD = /usr/ccs/bin/ld

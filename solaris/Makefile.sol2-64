@@ -1,7 +1,7 @@
 #
 # Makefile for 64-bit STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2-64,v 1.1 2000/04/18 23:51:27 masputra Exp $
+# $Id: Makefile.sol2-64,v 1.2 2003/03/31 12:07:28 carlsonj Exp $
 #
 
 include Makedefs.sol2
@@ -25,15 +25,16 @@ std_objs:
 	$(MAKE) -f $(STD_MAKE) all
 
 ppp:	$(LP64DIR)/ppp.o $(LP64DIR)/ppp_mod.o
-	ld -r -o $(LP64DIR)/$@ $(LP64DIR)/ppp.o $(LP64DIR)/ppp_mod.o
+	$(LD) -r -o $(LP64DIR)/$@ $(LP64DIR)/ppp.o $(LP64DIR)/ppp_mod.o
 	chmod +x $(LP64DIR)/$@
 
 ppp_ahdl: $(LP64DIR)/ppp_ahdlc.o $(LP64DIR)/ppp_ahdlc_mod.o
-	ld -r -o $(LP64DIR)/$@ $(LP64DIR)/ppp_ahdlc.o $(LP64DIR)/ppp_ahdlc_mod.o
+	$(LD) -r -o $(LP64DIR)/$@ $(LP64DIR)/ppp_ahdlc.o \
+		$(LP64DIR)/ppp_ahdlc_mod.o
 	chmod +x $(LP64DIR)/$@
 
 ppp_comp: $(COMP_OBJS)
-	ld -r -o $(LP64DIR)/$@ $(COMP_OBJS)
+	$(LD) -r -o $(LP64DIR)/$@ $(COMP_OBJS)
 	chmod +x $(LP64DIR)/$@
 
 $(LP64DIR)/bsd-comp.o: ../modules/bsd-comp.c
