@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.7 1994/05/30 06:10:07 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.8 1994/08/09 06:30:38 paulus Exp $";
 #endif
 
 /*
@@ -154,6 +154,27 @@ output(unit, p, len)
 
 
 /*
+ * wait_input - wait until there is data available on fd,
+ * for the length of time specified by *timo (indefinite
+ * if timo is NULL).
+ */
+wait_input(timo)
+    struct timeval *timo;
+{
+    fd_set ready;
+    int n;
+
+    FD_ZERO(&ready);
+    FD_SET(fd, &ready);
+    n = select(fd+1, &ready, NULL, &ready, timo);
+    if (n < 0 && errno != EINTR) {
+	syslog(LOG_ERR, "select: %m");
+	die(1);
+    }
+}
+
+
+/*
  * read_packet - get a PPP packet from the serial device.
  */
 int
@@ -254,6 +275,25 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
+}
+
+/*
+ * ccp_flags_set - inform kernel about the current state of CCP.
+ */
+void
+ccp_flags_set(unit, isopen, isup)
+    int unit, isopen, isup;
+{
+    int x;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	return;
+    }
+    x = isopen? x | SC_CCP_OPEN: x &~ SC_CCP_OPEN;
+    x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 }
 
 /*
@@ -412,7 +452,6 @@ cifaddr(u, o, h)
     }
     return 1;
 }
-
 
 /*
  * sifdefaultroute - assign a default route through the address given.

@@ -29,6 +29,7 @@
 #include <string.h>
 #include <time.h>
 #include <utmp.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -55,15 +56,43 @@ static struct	modlist {
 } str_modules[MAXMODULES];
 static int	str_module_count = 0;
 static int	pushed_ppp;
+static int	closed_stdio;
 
-extern int hungup;		/* has the physical layer been disconnected? */
-extern int kdebugflag;
+extern int	hungup;		/* has the physical layer been disconnected? */
+extern int	kdebugflag;
+extern int	default_device;
+extern int	restore_term;
 
 #define PAI_FLAGS_B7_0		0x100
 #define PAI_FLAGS_B7_1		0x200
 #define PAI_FLAGS_PAR_EVEN	0x400
 #define PAI_FLAGS_PAR_ODD	0x800
 #define PAI_FLAGS_HIBITS	0xF00
+
+/*
+ * daemon - Detach us from the terminal session.
+ */
+int
+daemon(nochdir, noclose)
+    int nochdir, noclose;
+{
+    int pid;
+
+    if ((pid = fork()) < 0)
+	return -1;
+    if (pid != 0)
+	exit(0);		/* parent dies */
+    setsid();
+    if (!nochdir)
+	chdir("/");
+    if (!noclose) {
+	fclose(stdin);		/* don't need stdin, stdout, stderr */
+	fclose(stdout);
+	fclose(stderr);
+    }
+    return 0;
+}
+
 
 /*
  * ppp_available - check if this kernel supports PPP.
@@ -110,20 +139,24 @@ establish_ppp()
 	die(1);
     }
     pushed_ppp = 1;
+#if 0
     if (ioctl(fd, I_SETSIG, S_INPUT) < 0) {
 	syslog(LOG_ERR, "ioctl(I_SETSIG, S_INPUT): %m");
 	die(1);
     }
+#endif
     /* read mode, message non-discard mode */
     if (ioctl(fd, I_SRDOPT, RMSGN) < 0) {
 	syslog(LOG_ERR, "ioctl(I_SRDOPT, RMSGN): %m");
 	die(1);
     }
+#if 0
     /* Flush any waiting messages, or we'll never get SIGPOLL */
     if (ioctl(fd, I_FLUSH, FLUSHRW) < 0) {
 	syslog(LOG_ERR, "ioctl(I_FLUSH, FLUSHRW): %m");
 	die(1);
     }
+#endif
     /*
      * Find out which interface we were given.
      * (ppp_if handles this ioctl)
@@ -136,6 +169,16 @@ establish_ppp()
     /* Set debug flags in driver */
     if (ioctl(fd, SIOCSIFDEBUG, &kdebugflag) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFDEBUG): %m");
+    }
+
+    /* close stdin, stdout, stderr if they might refer to the device */
+    if (default_device && !closed_stdio) {
+	int i;
+
+	for (i = 0; i <= 2; ++i)
+	    if (i != fd && i != s)
+		close(i);
+	closed_stdio = 1;
     }
 }
 
@@ -153,6 +196,7 @@ disestablish_ppp()
     if (hungup) {
 	/* we can't push or pop modules after the stream has hung up */
 	str_module_count = 0;
+	restore_term = 0;	/* nor can we fix up terminal settings */
 	return;
     }
 
@@ -189,8 +233,9 @@ disestablish_ppp()
   
     for (; str_module_count > 0; str_module_count--) {
 	if (ioctl(fd, I_PUSH, str_modules[str_module_count-1].modname)) {
-	    syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
-		   str_modules[str_module_count-1].modname);
+	    if (errno != ENXIO)
+		syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
+		       str_modules[str_module_count-1].modname);
 	} else {
 	    MAINDEBUG((LOG_INFO, "str_restore: pushed module %s",
 		       str_modules[str_module_count-1].modname));
@@ -217,12 +262,29 @@ output(unit, p, len)
 
     str.len = len;
     str.buf = (caddr_t) p;
-    if(putmsg(fd, NULL, &str, 0) < 0) {
-	syslog(LOG_ERR, "putmsg: %m");
-	die(1);
+    if (putmsg(fd, NULL, &str, 0) < 0) {
+	if (errno != ENXIO) {
+	    syslog(LOG_ERR, "putmsg: %m");
+	    die(1);
+	}
     }
 }
 
+
+wait_input(timo)
+    struct timeval *timo;
+{
+    int t;
+    struct pollfd pfd;
+
+    t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
+    pfd.fd = fd;
+    pfd.events = POLLIN | POLLPRI | POLLHUP;
+    if (poll(&pfd, 1, t) < 0 && errno != EINTR) {
+	syslog(LOG_ERR, "poll: %m");
+	die(1);
+    }
+}
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -231,13 +293,16 @@ int
 read_packet(buf)
     u_char *buf;
 {
-    struct strbuf str;
+    struct strbuf str, ctl;
     int len, i;
+    unsigned char ctlbuf[16];
 
     str.maxlen = MTU+DLLHEADERLEN;
     str.buf = (caddr_t) buf;
+    ctl.maxlen = sizeof(ctlbuf);
+    ctl.buf = (caddr_t) ctlbuf;
     i = 0;
-    len = getmsg(fd, NULL, &str, &i);
+    len = getmsg(fd, &ctl, &str, &i);
     if (len < 0) {
 	if (errno == EAGAIN || errno == EWOULDBLOCK) {
 	    return -1;
@@ -247,6 +312,9 @@ read_packet(buf)
     }
     if (len) 
 	MAINDEBUG((LOG_DEBUG, "getmsg returned 0x%x",len));
+    if (ctl.len > 0)
+	syslog(LOG_NOTICE, "got ctrl msg len %d %x %x\n", ctl.len,
+	       ctlbuf[0], ctlbuf[1]);
 
     if (str.len < 0) {
 	MAINDEBUG((LOG_DEBUG, "getmsg short return length %d", str.len));
@@ -338,6 +406,22 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     if (ioctl(fd, SIOCSIFCOMPAC, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
     }
+}
+
+/*
+ * ccp_flags_set - inform kernel about the current state of CCP.
+ */
+void
+ccp_flags_set(unit, isopen, isup)
+    int unit, isopen, isup;
+{
+    int x;
+
+#if 0
+    x = (isopen? 1: 0) + (isup? 2: 0);
+    if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0)
+	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
+#endif
 }
 
 /*
