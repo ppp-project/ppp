@@ -49,7 +49,7 @@
 /*
  * This version is for use with mbufs on BSD-derived systems.
  *
- * $Id: bsd-comp.c,v 1.2 1996/01/18 03:12:26 paulus Exp $
+ * $Id: bsd-comp.c,v 1.3 1996/09/14 05:08:26 paulus Exp $
  */
 
 #include <sys/param.h>
@@ -245,7 +245,6 @@ bsd_clear(db)
     db->ratio = 0;
     db->bytes_out = 0;
     db->in_count = 0;
-    db->incomp_count = 0;
     db->checkpoint = CHECK_GAP;
 }
 
@@ -734,7 +733,6 @@ bsd_incomp(state, dmsg)
     if (ent < CI_BSD_COMPRESS || ent > 0xf9)
 	return;
 
-    db->incomp_count++;
     db->seqno++;
     ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;
