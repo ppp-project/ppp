@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.63 2004/10/31 21:27:24 paulus Exp $
+# $Id: Makefile.linux,v 1.64 2004/10/31 22:09:03 paulus Exp $
 #
 
 # Default installation locations
@@ -193,7 +193,7 @@ ifdef MAXOCTETS
      CFLAGS += -DMAXOCTETS
 endif
 
-INSTALL= install -o root
+INSTALL= install
 
 all: $(TARGETS)
 

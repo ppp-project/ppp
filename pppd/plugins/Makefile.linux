@@ -2,7 +2,7 @@ CC	= gcc
 COPTS	= -O2 -g
 CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS	= -shared
-INSTALL	= install -o root
+INSTALL	= install
 
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin

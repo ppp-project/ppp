@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.7 2004/10/31 21:27:24 paulus Exp $
+# $Id: Makefile.linux,v 1.8 2004/10/31 22:09:03 paulus Exp $
 #
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
@@ -14,7 +14,7 @@ COPTS = -O
 COMPILE_FLAGS = -I../include
 LIBS =
 
-INSTALL= install -o root -g daemon
+INSTALL= install
 
 CFLAGS = $(COPTS) $(COMPILE_FLAGS)
 
