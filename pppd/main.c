@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.55 1999/03/02 05:59:21 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.56 1999/03/06 11:28:10 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -77,6 +77,7 @@ char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char default_devnam[MAXPATHLEN];	/* name of default device */
 static pid_t pid;		/* Our pid */
+static uid_t uid;		/* Our real user-id */
 static int conn_running;	/* we have a [dis]connector running */
 
 int ttyfd = -1;			/* Serial port file descriptor */
@@ -84,7 +85,6 @@ mode_t tty_mode = -1;		/* Original access permissions to tty */
 int baud_rate;			/* Actual bits/second for serial device */
 int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
-int uid;			/* real user ID of the user */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
 
@@ -231,7 +231,6 @@ main(argc, argv)
 		     argv[0]);
 	exit(1);
     }
-    setuid(0);			/* make real uid = root */
 
     if (!ppp_available()) {
 	option_error(no_ppp_msg);
@@ -1241,9 +1240,10 @@ run_program(prog, args, must_exist, done, arg)
 	int new_fd;
 
 	/* Leave the current location */
-	(void) setsid();    /* No controlling tty. */
+	(void) setsid();	/* No controlling tty. */
 	(void) umask (S_IRWXG|S_IRWXO);
-	(void) chdir ("/"); /* no current directory. */
+	(void) chdir ("/");	/* no current directory. */
+	setuid(0);		/* set real UID = root */
 	setgid(getegid());
 
 	/* Ensure that nothing of our device environment is inherited. */

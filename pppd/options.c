@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.47 1999/03/02 05:59:21 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.48 1999/03/06 11:28:10 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -342,17 +342,24 @@ options_from_file(filename, must_exist, check_prot, priv)
     char args[MAXARGS][MAXWORDLEN];
     char cmd[MAXWORDLEN];
 
-    if ((f = fopen(filename, "r")) == NULL) {
+    if (check_prot)
+	seteuid(getuid());
+    f = fopen(filename, "r");
+    if (check_prot)
+	seteuid(0);
+    if (f == NULL) {
 	if (!must_exist && errno == ENOENT)
 	    return 1;
 	option_error("Can't open options file %s: %m", filename);
 	return 0;
     }
+#if 0	/* check done by setting effective UID above */
     if (check_prot && !readable(fileno(f))) {
 	option_error("Can't open options file %s: access denied", filename);
 	fclose(f);
 	return 0;
     }
+#endif
 
     oldpriv = privileged_option;
     privileged_option = priv;
@@ -416,7 +423,7 @@ options_from_user()
     int ret;
     struct passwd *pw;
 
-    pw = getpwuid(uid);
+    pw = getpwuid(getuid());
     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
 	return 1;
     file = _PATH_USEROPT;
@@ -688,10 +695,12 @@ int
 readable(fd)
     int fd;
 {
+    uid_t uid;
     int ngroups, i;
     struct stat sbuf;
     GIDSET_TYPE groups[NGROUPS_MAX];
 
+    uid = getuid();
     if (uid == 0)
 	return 1;
     if (fstat(fd, &sbuf) != 0)

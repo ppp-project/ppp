@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.42 1999/03/02 05:33:09 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.43 1999/03/06 11:28:10 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -211,14 +211,19 @@ setupapfile(argv)
     lcp_allowoptions[0].neg_upap = 1;
 
     /* open user info file */
-    if ((ufile = fopen(*argv, "r")) == NULL) {
+    seteuid(getuid());
+    ufile = fopen(*argv, "r");
+    seteuid(0);
+    if (ufile == NULL) {
 	option_error("unable to open user login data file %s", *argv);
 	return 0;
     }
+#if 0	/* check done by setting effective UID above */
     if (!readable(fileno(ufile))) {
 	option_error("%s: access denied", *argv);
 	return 0;
     }
+#endif
     check_access(ufile, *argv);
 
     /* get username */
