@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.8 1998/03/24 23:52:31 paulus Exp $
+ * $Id: deflate.c,v 1.9 1999/01/19 23:58:35 paulus Exp $
  */
 
 #ifdef AIX4
@@ -587,6 +587,7 @@ z_decompress(arg, mi, mop)
     mo->b_rptr += state->hdrlen;
     mo->b_wptr = wptr = mo->b_rptr;
     ospace = DECOMP_CHUNK;
+    olen = 0;
 
     /*
      * Fill in the first part of the PPP header.  The protocol field
@@ -609,7 +610,6 @@ z_decompress(arg, mi, mop)
     state->strm.next_out = wptr + 3;
     state->strm.avail_out = 1;
     decode_proto = 1;
-    olen = PPP_HDRLEN;
 
     /*
      * Call inflate, supplying more input or output as needed.
@@ -643,7 +643,6 @@ z_decompress(arg, mi, mop)
 		    wptr[2] = wptr[3];
 		    --state->strm.next_out;
 		    ++state->strm.avail_out;
-		    --olen;
 		}
 		decode_proto = 0;
 	    } else {
