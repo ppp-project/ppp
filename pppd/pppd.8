@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.49 1999/11/17 03:49:56 paulus Exp $
+.\" $Id: pppd.8,v 1.50 1999/11/20 05:11:47 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -292,7 +292,7 @@ to the peer.  This option is privileged.
 .TP
 .B hide-password
 When logging the contents of PAP packets, this option causes pppd to
-exclude the password string from the log.
+exclude the password string from the log.  This is the default.
 .TP
 .B holdoff \fIn
 Specifies how many seconds to wait before re-initiating the link after
@@ -735,7 +735,9 @@ rather than a specific terminal device.  Pppd will allocate itself a
 pseudo-tty master/slave pair and use the slave as its terminal
 device.  The \fIscript\fR will be run in a child process with the
 pseudo-tty master as its standard input and output.  An explicit
-device name may not be given if this option is used.
+device name may not be given if this option is used.  (Note: if the
+\fIrecord\fR option is used in conjuction with the \fIpty\fR option,
+the child process will have pipes on its standard input and output.)
 .TP
 .B receive-all
 With this option, pppd will accept all control characters from the
@@ -772,6 +774,10 @@ Handshake Authentication Protocol] authentication.
 .B require-pap
 Require the peer to authenticate itself using PAP [Password
 Authentication Protocol] authentication.
+.TP
+.B show-password
+When logging the contents of PAP packets, this option causes pppd to
+show the password string in the log message.
 .TP
 .B silent
 With this option, pppd will not transmit LCP packets to initiate a

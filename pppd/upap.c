@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.22 1999/11/15 01:51:53 paulus Exp $"
+#define RCSID	"$Id: upap.c,v 1.23 1999/11/20 05:11:47 paulus Exp $"
 
 /*
  * TODO:
@@ -31,7 +31,7 @@
 
 static const char rcsid[] = RCSID;
 
-static bool hide_password;
+static bool hide_password = 1;
 
 /*
  * Command-line options.
@@ -39,6 +39,8 @@ static bool hide_password;
 static option_t pap_option_list[] = {
     { "hide-password", o_bool, &hide_password,
       "Don't output passwords to log", 1 },
+    { "show-password", o_bool, &hide_password,
+      "Show password string in debug log messages", 0 },
     { "pap-restart", o_int, &upap[0].us_timeouttime,
       "Set retransmit timeout for PAP" },
     { "pap-max-authreq", o_int, &upap[0].us_maxtransmits,
