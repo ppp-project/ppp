@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.5 2002/03/14 20:32:41 dfs Exp $";
+"$Id: plugin.c,v 1.6 2002/03/14 21:54:06 dfs Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -64,7 +64,7 @@ static char *acName = NULL;
 static char *existingSession = NULL;
 static int printACNames = 0;
 
-static int PPPoEDevnameHook(const char **argv);
+static int PPPoEDevnameHook(char *cmd, char **argv, int doit);
 static option_t Options[] = {
     { "device name", o_wild, (void *) &PPPoEDevnameHook,
       "PPPoE device name",
@@ -80,7 +80,7 @@ static option_t Options[] = {
       "Be verbose about discovered access concentrators"},
     { NULL }
 };
-int (*OldDevnameHook)(const char **argv) = NULL;
+int (*OldDevnameHook)(char *cmd, char **argv, int doit) = NULL;
 static PPPoEConnection *conn = NULL;
 
 /**********************************************************************
@@ -259,7 +259,9 @@ struct channel pppoe_channel;
 /**********************************************************************
  * %FUNCTION: PPPoEDevnameHook
  * %ARGUMENTS:
- * argv -- argument vector for option
+ * cmd -- the command (actually, the device name
+ * argv -- argument vector
+ * doit -- if non-zero, set device name.  Otherwise, just check if possible
  * %RETURNS:
  * 1 if we will handle this device; 0 otherwise.
  * %DESCRIPTION:
@@ -267,16 +269,16 @@ struct channel pppoe_channel;
  * sets up devnam (string representation of device).
  ***********************************************************************/
 static int
-PPPoEDevnameHook(const char **argv)
+PPPoEDevnameHook(char *cmd, char **argv, int doit)
 {
     int r = 1;
     int fd;
     struct ifreq ifr;
-    char const *name = *argv;
 
     /* Only do it if name is "ethXXX" */
     /* Thanks to Russ Couturier for this fix */
-    if (strlen(name) < 4 || strncmp(name, "eth", 3)) {
+    if (strlen(cmd) < 4 || strncmp(cmd, "eth", 3)) {
+	if (OldDevnameHook) return OldDevnameHook(cmd, argv, doit);
 	return 0;
     }
 
@@ -287,7 +289,7 @@ PPPoEDevnameHook(const char **argv)
 
     /* Try getting interface index */
     if (r) {
-	strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	strncpy(ifr.ifr_name, cmd, sizeof(ifr.ifr_name));
 	if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
 	    r = 0;
 	} else {
@@ -295,7 +297,7 @@ PPPoEDevnameHook(const char **argv)
 		r = 0;
 	    } else {
 		if (ifr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
-		    error("Interface %s not Ethernet", name);
+		    error("Interface %s not Ethernet", cmd);
 		    r=0;
 		}
 	    }
@@ -305,7 +307,7 @@ PPPoEDevnameHook(const char **argv)
     /* Close socket */
     close(fd);
     if (r) {
-	strncpy(devnam, name, sizeof(devnam));
+	strncpy(devnam, cmd, sizeof(devnam));
 	if (the_channel != &pppoe_channel) {
 
 	    the_channel = &pppoe_channel;
@@ -334,7 +336,7 @@ PPPoEDevnameHook(const char **argv)
 	return 1;
     }
 
-    if (OldDevnameHook) r = OldDevnameHook(argv);
+    if (OldDevnameHook) r = OldDevnameHook(cmd, argv, doit);
     return r;
 }
 
