@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.82 2002/09/12 22:38:47 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.83 2002/09/15 12:51:05 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -228,14 +228,14 @@ option_t auth_options[] = {
     { "auth", o_bool, &auth_required,
       "Require authentication from peer", OPT_PRIO | 1 },
     { "noauth", o_bool, &auth_required,
-      "Don't require peer to authenticate", OPT_PRIOSUB | OPT_PRIV | OPT_A2COPY,
+      "Don't require peer to authenticate", OPT_PRIOSUB | OPT_PRIV,
       &allow_any_ip },
     { "require-pap", o_bool, &lcp_wantoptions[0].neg_upap,
       "Require PAP authentication from peer",
-      OPT_PRIOSUB | OPT_A2COPY | 1, &auth_required },
+      OPT_PRIOSUB | 1, &auth_required },
     { "+pap", o_bool, &lcp_wantoptions[0].neg_upap,
       "Require PAP authentication from peer",
-      OPT_ALIAS | OPT_PRIOSUB | OPT_A2COPY | 1, &auth_required },
+      OPT_ALIAS | OPT_PRIOSUB | 1, &auth_required },
     { "require-chap", o_bool, &lcp_wantoptions[0].neg_chap,
       "Require CHAP authentication from peer",
       OPT_PRIOSUB | OPT_A2COPY | OPT_A3OR | MDTYPE_MD5,
