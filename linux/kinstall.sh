@@ -48,7 +48,7 @@ fi
 #    introduced in 1.0.1
 if [ `egrep '^VERSION|^PATCHLEVEL|^SUBLEVEL' $LINUXMK | wc -l` -ne 3 ]; then
   echo You appear to have a very old kernel. You must upgrade.
-  echo It is recommended that you upgrade to the most recent 1.2.X kernel.
+  echo It is recommended that you upgrade to the most recent 2.0.x kernel.
   exit 1
 fi
 
@@ -68,22 +68,6 @@ if [ $VERSION -lt 2 ]; then
     echo to the most recent 2.0.x kernel.
     exit 1
 fi
-
-echo
-echo Installing into kernel version $KERNEL in $LINUXSRC
-echo
-
-echo "Notice to the user:"
-echo
-echo "It is perfectly legal for this script to run without making any changes"
-echo "to your system. This only means that the system currently contains the"
-echo "necessary changes to support this package. Please do not attempt to"
-echo "force this script to replace any file or make any patch. If you do so"
-echo "then it is probable that you are actually putting older, buggier, code"
-echo "over newer, fixed, code. Thank you."
-echo
-echo Installing into kernel version $KERNEL in $LINUXSRC
-echo
 
 #
 # convenience function to exit if the last command failed
