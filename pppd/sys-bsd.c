@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.13 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.14 1994/10/22 11:50:36 paulus Exp $";
 #endif
 
 /*
@@ -27,6 +27,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.13 1994/09/21 06:47:37 paulus Exp $";
  */
 
 #include <syslog.h>
+#include <string.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -326,8 +327,8 @@ read_packet(buf)
     int len;
 
     if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
-	if (errno == EWOULDBLOCK) {
-	    MAINDEBUG((LOG_DEBUG, "read(fd): EWOULDBLOCK"));
+	if (errno == EWOULDBLOCK || errno == EINTR) {
+	    MAINDEBUG((LOG_DEBUG, "read(fd): %m"));
 	    return -1;
 	}
 	syslog(LOG_ERR, "read(fd): %m");
@@ -905,7 +906,8 @@ get_ether_addr(ipaddr, hwaddr)
      * address on the same subnet as `ipaddr'.
      */
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
+	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
 	    strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
@@ -930,7 +932,6 @@ get_ether_addr(ipaddr, hwaddr)
 
 	    break;
 	}
-	ifr = (struct ifreq *) ((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len);
     }
 
     if (ifr >= ifend)
