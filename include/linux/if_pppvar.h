@@ -42,15 +42,15 @@
  */
 
 /*
- *  ==FILEVERSION 971001==
+ *  ==FILEVERSION 980704==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, please set the above date.
- *     if_pppvar.h is shipped with a PPP distribution as well as with the kernel;
- *     if everyone increases the FILEVERSION number above, then scripts
- *     can do the right thing when deciding whether to install a new if_pppvar.h
- *     file.  Don't change the format of that line otherwise, so the
- *     installation script can recognize it.
+ *   If you modify this file at all, please set the above date.
+ *   if_pppvar.h is shipped with a PPP distribution as well as with the kernel;
+ *   if everyone increases the FILEVERSION number above, then scripts
+ *   can do the right thing when deciding whether to install a new if_pppvar.h
+ *   file.  Don't change the format of that line otherwise, so the
+ *   installation script can recognize it.
  */
 
 /*
@@ -59,101 +59,74 @@
  */
 
 #define NP_IP	0		/* Internet Protocol */
-#define NUM_NP	1		/* Number of NPs. */
+#define NP_IPX	1		/* IPX protocol */
+#define NP_AT	2		/* Appletalk protocol */
+#define NUM_NP	3		/* Number of NPs. */
 
-/*
- * Buffers for the PPP process have the following structure
- */
-
-#define RBUFSIZE  2048		 /* MUST be a power of 2 and be <= 4095 */
-
-struct ppp_buffer {
-	__s32		size;		/* Size of the buffer area	*/
-        __s32		count;		/* Count of characters in bufr	*/
-        __s32		head;		/* index to head of list	*/
-        __s32		tail;		/* index to tail of list	*/
-        unsigned long	locked;		/* Buffer is being sent		*/
-        __s32		type;		/* Type of the buffer		*/
-					/* =0, device read buffer	*/
-					/* =1, device write buffer	*/
-					/* =2, daemon write buffer	*/
-					/* =3, daemon read buffer	*/
-        __u16		fcs;		/* Frame Check Sequence (CRC)	*/
-        __u16		magic;		/* Extra space if needed	*/
-};
-
-/* Given a pointer to the ppp_buffer then return base address of buffer */
-#define buf_base(buf) ((__u8 *) (&buf[1]))
+#define OBUFSIZE	256	/* # chars of output buffering */
 
 /*
  * Structure describing each ppp unit.
  */
 
 struct ppp {
-	__s32		magic;		/* magic value for structure	*/
+	int		magic;		/* magic value for structure	*/
 	struct ppp	*next;		/* unit with next index		*/
-
-	/* Bitmapped flag fields. */
 	unsigned long	inuse;		/* are we allocated?		*/
-	__u8		escape;		/* 0x20 if prev char was PPP_ESC*/
-	__u8		toss;		/* toss this frame		*/
+	int		line;		/* network interface unit #	*/
+	__u32		flags;		/* miscellaneous control flags	*/
+	int		mtu;		/* maximum xmit frame size	*/
+	int		mru;		/* maximum receive frame size	*/
+	struct slcompress *slcomp;	/* for TCP header compression	*/
+	struct sk_buff_head xmt_q;	/* frames to send from pppd	*/
+	struct sk_buff_head rcv_q;	/* frames for pppd to read	*/
 
-	__u32		flags;		/* miscellany			*/
-
-	__u32		xmit_async_map[8]; /* 1 bit means that given control 
-					   character is quoted on output*/
-
-	__u32		recv_async_map; /* 1 bit means that given control 
-					   character is ignored on input*/
-	__s32		mtu;		/* maximum xmit frame size	*/
-	__s32		mru;		/* maximum receive frame size	*/
-
-	/* Information about the current tty data */
-	__s32		line;		/* PPP channel number	*/
+	/* Information specific to using ppp on async serial lines. */
 	struct tty_struct *tty;		/* ptr to TTY structure	*/
 	struct tty_struct *backup_tty;	/* TTY to use if tty gets closed */
-	__s32		bytes_sent;	/* Bytes sent on frame	*/
-	__s32		bytes_rcvd;	/* Bytes recvd on frame	*/
+	__u8		escape;		/* 0x20 if prev char was PPP_ESC */
+	__u8		toss;		/* toss this frame		*/
+	volatile __u8	tty_pushing;	/* internal state flag		*/
+	__u32		xmit_async_map[8]; /* 1 bit means that given control 
+					   character is quoted on output*/
+	__u32		recv_async_map; /* 1 bit means that given control 
+					   character is ignored on input*/
+	__u32		bytes_sent;	/* Bytes sent on frame	*/
+	__u32		bytes_rcvd;	/* Bytes recvd on frame	*/
 
-	/* VJ Header compression data */
-	struct slcompress *slcomp;	/* for header compression	*/
+	/* Async transmission information */
+	struct sk_buff	*tpkt;		/* frame currently being sent	*/
+	int		tpkt_pos;	/* how much of it we've done	*/
+	__u16		tfcs;		/* FCS so far for it		*/
+	unsigned char	*optr;		/* where we're up to in sending */
+	unsigned char	*olim;		/* points past last valid char	*/
 
-	/* Transmission information */
-	struct ppp_buffer *xbuf;	/* Buffer currently being sent	*/
-	struct ppp_buffer *s1buf;	/* Pointer to daemon buffer	*/
-	struct ppp_buffer *s2buf;	/* Pointer to device buffer	*/
+	/* Async reception information */
+	struct sk_buff	*rpkt;		/* frame currently being rcvd	*/
+	__u16		rfcs;		/* FCS so far of rpkt		*/
 
+	/* Queues for select() functionality */
+	struct wait_queue *read_wait;	/* queue for reading processes	*/
+
+	/* info for detecting idle channels */
 	unsigned long	last_xmit;	/* time of last transmission	*/
 	unsigned long	last_recv;	/* time last packet received    */
 
-  /* These are pointers to the malloc()ed frame buffers.
-     These buffers are used while processing a packet.	If a packet
-     has to hang around for the user process to read it, it lingers in
-     the user buffers below. */
-
-	struct ppp_buffer *wbuf;	  /* Transmission information	*/
-	struct ppp_buffer *tbuf;	  /* daemon transmission buffer	*/
-	struct ppp_buffer *rbuf;	  /* Receive information	*/
-	struct ppp_buffer *ubuf;	  /* User buffer information	*/
-	struct ppp_buffer *cbuf;	  /* compression buffer		*/
-
-	/* Queues for select() functionality */
-	struct wait_queue *write_wait;	  /* queue for reading processes */
-	struct wait_queue *read_wait;	  /* queue for writing processes */
-
 	/* Statistic information */
-	struct pppstat	stats;		  /* statistic information	*/
+	struct pppstat	stats;		/* statistic information	*/
 
 	/* PPP compression protocol information */
-	__u32	sc_bytessent;		  /* count of octets sent */
-	__u32	sc_bytesrcvd;		  /* count of octets received */
+	struct	compressor *sc_xcomp;	/* transmit compressor */
+	void	*sc_xc_state;		/* transmit compressor state */
+	struct	compressor *sc_rcomp;	/* receive decompressor */
+	void	*sc_rc_state;		/* receive decompressor state */
+
 	enum	NPmode sc_npmode[NUM_NP]; /* what to do with each NP */
-	struct	compressor *sc_xcomp;	  /* transmit compressor */
-	void	*sc_xc_state;		  /* transmit compressor state */
-	struct	compressor *sc_rcomp;	  /* receive decompressor */
-	void	*sc_rc_state;		  /* receive decompressor state */
-	__s32	 sc_xfer;		  /* PID of reserved PPP table */
-	char	name[8];
+	int	 sc_xfer;		/* PID of reserved PPP table */
+	char	name[8];		/* space for unit name */
 	struct device	dev;		/* net device structure */
 	struct enet_statistics estats;	/* more detailed stats */
+
+	/* tty output buffer */
+	unsigned char	obuf[OBUFSIZE];	/* buffer for characters to send */
 };

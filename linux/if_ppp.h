@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.13 1998/05/04 06:14:00 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.14 1998/07/07 04:27:33 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 980504==
+ *  ==FILEVERSION 980704==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -35,13 +35,19 @@
 #ifndef _IF_PPP_H_
 #define _IF_PPP_H_
 
+#if defined(__linux__)
+#include <linux/if.h>
+#include <linux/ioctl.h>
+#include <linux/ppp_defs.h>
+#endif
+
 /*
  * Packet sizes
  */
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
-#define PPP_VERSION	"2.3.5"
+#define PPP_VERSION	"2.3.3"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
 #define PROTO_DNA_RT    0x0027  /* DNA Routing */
@@ -70,7 +76,7 @@
 #define	SC_MASK		0x0f0000ff	/* bits that user can change */
 
 /* state bits */
-#define SC_XMIT_BUSY	0x10000000	/* ppp_write_wakeup is active */
+#define SC_XMIT_BUSY	0x10000000	/* (used by isdn_ppp?) */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
@@ -83,8 +89,8 @@
  */
 
 struct npioctl {
-    int		protocol;	/* PPP protocol, e.g. PPP_IP */
-    enum NPmode	mode;
+	int		protocol;	/* PPP protocol, e.g. PPP_IP */
+	enum NPmode	mode;
 };
 
 /* Structure describing a CCP configuration option, for PPPIOCSCOMPRESS */
@@ -95,13 +101,13 @@ struct ppp_option_data {
 };
 
 struct ifpppstatsreq {
-  struct ifreq	   b;
-  struct ppp_stats stats;			/* statistic information */
+	struct ifreq	 b;
+	struct ppp_stats stats;			/* statistic information */
 };
 
 struct ifpppcstatsreq {
-  struct ifreq		b;
-  struct ppp_comp_stats stats;
+	struct ifreq	      b;
+	struct ppp_comp_stats stats;
 };
 
 #define ifr__name       b.ifr_ifrn.ifrn_name
@@ -132,7 +138,7 @@ struct ifpppcstatsreq {
 #define PPPIOCGIDLE	_IOR('t', 63, struct ppp_idle) /* get idle time */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
-#define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)  /* NEVER change this!! */
+#define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)	/* NEVER change this!! */
 #define SIOCGPPPCSTATS  (SIOCDEVPRIVATE + 2)
 
 #if !defined(ifr_mtu)
