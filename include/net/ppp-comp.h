@@ -24,16 +24,24 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.6 1995/04/24 02:41:37 paulus Exp $
+ * $Id: ppp-comp.h,v 1.7 1995/05/01 01:43:37 paulus Exp $
  */
 
 #ifndef _NET_PPP_COMP_H
 #define _NET_PPP_COMP_H
 
-#ifdef PACKETPTR
+/*
+ * The following symbols control whether we include code for
+ * various compression methods.
+ */
+#ifndef DO_BSD_COMPRESS
+#define DO_BSD_COMPRESS	1	/* by default, include BSD-Compress */
+#endif
+
 /*
  * Structure giving methods for compression/decompression.
  */
+#ifdef PACKETPTR
 struct compressor {
 	int	compress_proto;	/* CCP compression protocol number */
 
