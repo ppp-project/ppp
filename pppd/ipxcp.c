@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 
-#define RCSID	"$Id: ipxcp.c,v 1.17 1999/08/13 06:46:14 paulus Exp $"
+#define RCSID	"$Id: ipxcp.c,v 1.18 1999/08/24 05:31:09 paulus Exp $"
 
 /*
  * TODO:
@@ -1266,6 +1266,7 @@ ipxcp_up(f)
 	ipxcp_close(unit, "Interface configuration failed");
 	return;
     }
+    ipxcp_is_up = 1;
 
     /* set the network number for IPX */
     if (!sipxfaddr(unit, go->network, go->our_node)) {
@@ -1275,7 +1276,6 @@ ipxcp_up(f)
 	return;
     }
 
-    ipxcp_is_up = 1;
     np_up(f->unit, PPP_IPX);
 
     /*
@@ -1299,11 +1299,12 @@ ipxcp_down(f)
 {
     IPXCPDEBUG(("ipxcp: down"));
 
-    if (ipxcp_is_up) {
-	ipxcp_is_up = 0;
-	np_down(f->unit, PPP_IPX);
-    }
-    cipxfaddr (f->unit);
+    if (!ipxcp_is_up)
+	return;
+    ipxcp_is_up = 0;
+    np_down(f->unit, PPP_IPX);
+    cipxfaddr(f->unit);
+    sifnpmode(f->unit, PPP_IPX, NPMODE_DROP);
     sifdown(f->unit);
     ipxcp_script (f, _PATH_IPXDOWN);
 }

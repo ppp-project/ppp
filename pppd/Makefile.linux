@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.32 1999/08/12 03:59:07 paulus Exp $
+# $Id: Makefile.linux,v 1.33 1999/08/24 05:31:08 paulus Exp $
 #
 
 # Default installation locations
@@ -44,6 +44,7 @@ endif
 
 HAS_SHADOW=y
 #USE_PAM=y
+#HAVE_INET6=y
 
 INCLUDE_DIRS= -I../include
 
@@ -83,6 +84,14 @@ ifdef LOCKLIB
 LIBS     := -llock $(LIBS)
 CFLAGS   += -DLOCKLIB=1
 endif
+
+ifdef HAVE_INET6
+     PPPDSRCS += ipv6cp.c eui64.c
+     HEADERS  += ipv6cp.h eui64.h
+     PPPDOBJS += ipv6cp.o eui64.o
+     CFLAGS   += -DINET6=1
+endif
+
 
 INSTALL= install -o root
 

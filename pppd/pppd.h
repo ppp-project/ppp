@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.44 1999/08/13 01:57:37 paulus Exp $
+ * $Id: pppd.h,v 1.45 1999/08/24 05:31:11 paulus Exp $
  */
 
 /*
@@ -41,6 +41,10 @@
 #define __V(x)	(va_alist) va_dcl
 #define const
 #define volatile
+#endif
+
+#if INET6
+#include "eui64.h"
 #endif
 
 /*
@@ -385,14 +389,22 @@ int  get_ppp_stats __P((int, struct pppd_stats *));
 				/* Return link statistics */
 int  sifvjcomp __P((int, int, int, int));
 				/* Configure VJ TCP header compression */
-int  sifup __P((int));		/* Configure i/f up (for IP) */
+int  sifup __P((int));		/* Configure i/f up for one protocol */
 int  sifnpmode __P((int u, int proto, enum NPmode mode));
 				/* Set mode for handling packets for proto */
-int  sifdown __P((int));	/* Configure i/f down (for IP) */
+int  sifdown __P((int));	/* Configure i/f down for one protocol */
 int  sifaddr __P((int, u_int32_t, u_int32_t, u_int32_t));
-				/* Configure IP addresses for i/f */
+				/* Configure IPv4 addresses for i/f */
 int  cifaddr __P((int, u_int32_t, u_int32_t));
 				/* Reset i/f IP addresses */
+#if INET6
+int  sif6up __P((int));		/* Configure i/f up (for IPv6) */
+int  sif6down __P((int));	/* Configure i/f down (for IPv6) */
+int  sif6addr __P((int, eui64_t, eui64_t));
+				/* Configure IPv6 addresses for i/f */
+int  cif6addr __P((int, eui64_t, eui64_t));
+				/* Remove an IPv6 address from i/f */
+#endif
 int  sifdefaultroute __P((int, u_int32_t, u_int32_t));
 				/* Create default route through i/f */
 int  cifdefaultroute __P((int, u_int32_t, u_int32_t));
@@ -545,6 +557,7 @@ extern struct option_info ptycommand_info;
 #define DEBUGFSM	1
 #define DEBUGLCP	1
 #define DEBUGIPCP	1
+#define DEBUGIPV6CP	1
 #define DEBUGUPAP	1
 #define DEBUGCHAP	1
 #endif
@@ -552,7 +565,7 @@ extern struct option_info ptycommand_info;
 #ifndef LOG_PPP			/* we use LOG_LOCAL2 for syslog by default */
 #if defined(DEBUGMAIN) || defined(DEBUGFSM) || defined(DEBUGSYS) \
   || defined(DEBUGLCP) || defined(DEBUGIPCP) || defined(DEBUGUPAP) \
-  || defined(DEBUGCHAP) || defined(DEBUG)
+  || defined(DEBUGCHAP) || defined(DEBUG) || defined(DEBUGIPV6CP)
 #define LOG_PPP LOG_LOCAL2
 #else
 #define LOG_PPP LOG_DAEMON
@@ -587,6 +600,12 @@ extern struct option_info ptycommand_info;
 #define IPCPDEBUG(x)	if (debug) dbglog x
 #else
 #define IPCPDEBUG(x)
+#endif
+
+#ifdef DEBUGIPV6CP
+#define IPV6CPDEBUG(x)  if (debug) dbglog x
+#else
+#define IPV6CPDEBUG(x)
 #endif
 
 #ifdef DEBUGUPAP

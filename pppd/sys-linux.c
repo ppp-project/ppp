@@ -26,6 +26,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
+#include <sys/sysmacros.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,9 +89,26 @@
 #include <sys/locks.h>
 #endif
 
-#ifndef RTF_DEFAULT  /* Normally in <linux/route.h> from <net/route.h> */
-#define RTF_DEFAULT  0
+#ifdef INET6
+#ifndef _LINUX_IN6_H
+/*
+ *    This is in linux/include/net/ipv6.h.
+ */
+
+struct in6_ifreq {
+    struct in6_addr ifr6_addr;
+    __u32 ifr6_prefixlen;
+    unsigned int ifr6_ifindex;
+};
 #endif
+
+#define IN6_LLADDR_FROM_EUI64(sin6, eui64) do {			\
+	memset(&sin6.s6_addr, 0, sizeof(struct in6_addr));	\
+	sin6.s6_addr16[0] = htons(0xfe80); 			\
+	eui64_copy(eui64, sin6.s6_addr32[2]);			\
+	} while (0)
+
+#endif /* INET6 */
 
 /* We can get an EIO error on an ioctl if the modem has hung up */
 #define ok_error(num) ((num)==EIO)
@@ -102,6 +120,9 @@ static int ppp_fd = -1;		/* fd which is set to PPP discipline */
 static int sock_fd = -1;	/* socket for doing interface ioctls */
 static int slave_fd = -1;
 static int master_fd = -1;
+#ifdef INET6
+static int sock6_fd = -1;
+#endif /* INET6 */
 static int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
@@ -249,10 +270,14 @@ void sys_init(void)
 
     /* Get an internet socket for doing socket ioctls. */
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock_fd < 0) {
-	if ( ! ok_error ( errno ))
-	    fatal("Couldn't create IP socket: %m(%d)", errno);
-    }
+    if (sock_fd < 0)
+	fatal("Couldn't create IP socket: %m(%d)", errno);
+
+#ifdef INET6
+    sock6_fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock6_fd < 0)
+	fatal("Couldn't create IPv6 socket: %m(%d)", errno);
+#endif
 
     FD_ZERO(&in_fds);
     max_in_fd = 0;
@@ -275,8 +300,10 @@ void sys_cleanup(void)
 /*
  * Take down the device
  */
-    if (if_is_up)
+    if (if_is_up) {
+	if_is_up = 0;
 	sifdown(0);
+    }
 /*
  * Delete any routes through the device.
  */
@@ -1012,12 +1039,56 @@ int ccp_fatal_error (int unit)
     return x & SC_DC_FERROR;
 }
 
+/********************************************************************
+ *
+ * path_to_procfs - find the path to the proc file system mount point
+ */
+static char proc_path[MAXPATHLEN];
+static int proc_path_len;
+
+static char *path_to_procfs(const char *tail)
+{
+    struct mntent *mntent;
+    FILE *fp;
+
+    if (proc_path_len == 0) {
+	fp = fopen(MOUNTED, "r");
+	if (fp == NULL) {
+	    /* Default the mount location of /proc */
+	    strlcpy (proc_path, "/proc", sizeof(proc_path));
+	    proc_path_len = 5;
+
+	} else {
+	    while ((mntent = getmntent(fp)) != NULL) {
+		if (strcmp(mntent->mnt_type, MNTTYPE_IGNORE) == 0)
+		    continue;
+		if (strcmp(mntent->mnt_type, "proc") == 0)
+		    break;
+	    }
+	    fclose (fp);
+	    if (mntent == 0)
+		proc_path_len = -1;
+	    else {
+		strlcpy(proc_path, mntent->mnt_dir, sizeof(proc_path));
+		proc_path_len = strlen(proc_path);
+	    }
+	}
+    }
+
+    if (proc_path_len < 0)
+	return 0;
+
+    strlcpy(proc_path + proc_path_len, tail,
+	    sizeof(proc_path) - proc_path_len);
+    return proc_path;
+}
+
 /*
  * path_to_route - determine the path to the proc file system data
  */
 #define ROUTE_MAX_COLS	12
 FILE *route_fd = (FILE *) 0;
-static char route_buffer [512];
+static char route_buffer[512];
 static int route_dev_col, route_dest_col, route_gw_col;
 static int route_flags_col, route_mask_col;
 static int route_num_cols;
@@ -1029,49 +1100,17 @@ static int read_route_table (struct rtentry *rt);
 
 /********************************************************************
  *
- * path_to_procfs - find the path to the proc file system mount point
- */
-
-static int path_to_procfs (const char *tail)
-{
-    struct mntent *mntent;
-    FILE *fp;
-
-    fp = fopen(MOUNTED, "r");
-    if (fp == NULL) {
-	/* Default the mount location of /proc */
-	strlcpy (route_buffer, "/proc", sizeof (route_buffer));
-	strlcat (route_buffer, tail, sizeof(route_buffer));
-	return 1;
-    }
-
-    while ((mntent = getmntent(fp)) != NULL) {
-	if (strcmp(mntent->mnt_type, MNTTYPE_IGNORE) == 0)
-	    continue;
-	if (strcmp(mntent->mnt_type, "proc") == 0)
-	    break;
-    }
-    fclose (fp);
-    if (mntent == 0)
-	return 0;
-
-    strlcpy(route_buffer, mntent->mnt_dir, sizeof (route_buffer));
-    strlcat (route_buffer, tail, sizeof(route_buffer));
-    return 1;
-}
-
-/********************************************************************
- *
  * path_to_route - find the path to the route tables in the proc file system
  */
 
 static char *path_to_route (void)
 {
-    if (!path_to_procfs("/net/route")) {
+    char *path;
+
+    path = path_to_procfs("/net/route");
+    if (path == 0)
 	error("proc file system not mounted");
-	return 0;
-    }
-    return (route_buffer);
+    return path;
 }
 
 /********************************************************************
@@ -1268,7 +1307,7 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
-    rt.rt_flags = RTF_UP | RTF_GATEWAY | RTF_DEFAULT;
+    rt.rt_flags = RTF_UP | RTF_GATEWAY;
     if (ioctl(sock_fd, SIOCADDRT, &rt) < 0) {
 	if ( ! ok_error ( errno ))
 	    error("default route ioctl(SIOCADDRT): %m(%d)", errno);
@@ -1301,7 +1340,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
-    rt.rt_flags = RTF_UP | RTF_GATEWAY | RTF_DEFAULT;
+    rt.rt_flags = RTF_UP | RTF_GATEWAY;
     if (ioctl(sock_fd, SIOCDELRT, &rt) < 0 && errno != ESRCH) {
 	if (still_ppp()) {
 	    if ( ! ok_error ( errno ))
@@ -1321,6 +1360,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 int sifproxyarp (int unit, u_int32_t his_adr)
 {
     struct arpreq arpreq;
+    char *forw_path;
 
     if (has_proxy_arp == 0) {
 	memset (&arpreq, '\0', sizeof(arpreq));
@@ -1346,6 +1386,15 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 	}
 	proxy_arp_addr = his_adr;
 	has_proxy_arp = 1;
+
+	forw_path = path_to_procfs("/sys/net/ipv4/ip_forward");
+	if (forw_path != 0) {
+	    int fd = open(forw_path, O_WRONLY);
+	    if (fd >= 0) {
+		write(fd, "1", 1);
+		close(fd);
+	    }
+	}
     }
 
     return 1;
@@ -1848,7 +1897,7 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
  * sifup - Config the interface up and enable IP packets to pass.
  */
 
-int sifup (int u)
+int sifup(int u)
 {
     struct ifreq ifr;
 
@@ -1866,20 +1915,23 @@ int sifup (int u)
 	    error("ioctl(SIOCSIFFLAGS): %m(%d)", errno);
 	return 0;
     }
-    if_is_up = 1;
+    if_is_up++;
+
     return 1;
 }
 
 /********************************************************************
  *
- * sifdown - Config the interface down and disable IP.
+ * sifdown - Disable the indicated protocol and config the interface
+ *	     down if there are no remaining protocols.
  */
 
 int sifdown (int u)
 {
     struct ifreq ifr;
 
-    if_is_up = 0;
+    if (if_is_up && --if_is_up > 0)
+	return 1;
 
     memset (&ifr, '\0', sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
@@ -1989,12 +2041,13 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 
 int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 {
-    struct rtentry rt;
+    struct ifreq ifr;
 
     if (kernel_version < KVERSION(2,1,16)) {
 /*
  *  Delete the route through the device
  */
+	struct rtentry rt;
 	memset (&rt, '\0', sizeof (rt));
 
 	SET_SA_FAMILY (rt.rt_dst,     AF_INET);
@@ -2016,8 +2069,102 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 	    return (0);
 	}
     }
+
+    /* This way it is possible to have an IPX-only or IPv6-only interface */
+    memset(&ifr, 0, sizeof(ifr));
+    SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    
+    if (ioctl(sock_fd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
+	if (! ok_error (errno)) {
+	    error("ioctl(SIOCSIFADDR): %m(%d)", errno);
+	    return 0;
+	}
+    }
+
     return 1;
 }
+
+#ifdef INET6
+/********************************************************************
+ * 
+ * sif6addr - Config the interface with an IPv6 link-local address
+ */
+int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
+{
+    struct in6_ifreq ifr6;
+    struct ifreq ifr;
+    struct in6_rtmsg rt6;
+
+    memset(&ifr, 0, sizeof (ifr));
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {
+	error("sif6addr: ioctl(SIOCGIFINDEX): %m (%d)", errno);
+	return 0;
+    }
+    
+    /* Local interface */
+    memset(&ifr6, 0, sizeof(ifr6));
+    IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
+    ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+    ifr6.ifr6_prefixlen = 10;
+
+    if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
+	error("sif6addr: ioctl(SIOCSIFADDR): %m (%d)", errno);
+	return 0;
+    }
+    
+    /* Route to remote host */
+    memset(&rt6, 0, sizeof(rt6));
+    IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
+    rt6.rtmsg_flags = RTF_UP | RTF_HOST;
+    rt6.rtmsg_dst_len = 128;
+    rt6.rtmsg_ifindex = ifr.ifr_ifindex;
+    rt6.rtmsg_metric = 1;
+    
+    if (ioctl(sock6_fd, SIOCADDRT, &rt6) < 0) {
+	error("sif6addr: ioctl(SIOCADDRT): %m (%d)", errno);
+	return 0;
+    }
+
+    return 1;
+}
+
+
+/********************************************************************
+ *
+ * cif6addr - Remove IPv6 address from interface
+ */
+int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
+{
+    struct ifreq ifr;
+    struct in6_ifreq ifr6;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {
+	error("cif6addr: ioctl(SIOCGIFINDEX): %m (%d)", errno);
+	return 0;
+    }
+    
+    memset(&ifr6, 0, sizeof(ifr6));
+    IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
+    ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+    ifr6.ifr6_prefixlen = 10;
+
+    if (ioctl(sock6_fd, SIOCDIFADDR, &ifr6) < 0) {
+	if (errno != EADDRNOTAVAIL) {
+	    if (! ok_error (errno))
+		error("cif6addr: ioctl(SIOCDIFADDR): %m (%d)", errno);
+	}
+        else {
+	    warn("cif6addr: ioctl(SIOCDIFADDR): No such address");
+	}
+        return (0);
+    }
+    return 1;
+}
+#endif /* INET6 */
 
 /*
  * get_pty - get a pty master/slave pair and chown the slave side
@@ -2163,7 +2310,7 @@ void
 restore_loop(void)
 {
     if (new_style_driver) {
-	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) & SC_LOOP_TRAFFIC);
+	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
 	return;
     }
     if (ppp_fd != slave_fd) {
@@ -2318,10 +2465,13 @@ sys_check_options(void)
 /*
  * Disable the IPX protocol if the support is not present in the kernel.
  */
+    char *path;
+    int fd;
+
     if (ipxcp_protent.enabled_flag) {
 	struct stat stat_buf;
-        if (!path_to_procfs("/net/ipx_interface")
-	    || lstat (route_buffer, &stat_buf) < 0) {
+        if ((path = path_to_procfs("/net/ipx_interface")) == 0
+	    || lstat(path, &stat_buf) < 0) {
 	    error("IPX support is not present in the kernel\n");
 	    ipxcp_protent.enabled_flag = 0;
 	}
@@ -2332,6 +2482,14 @@ sys_check_options(void)
 		     "version %d.%d.%d", driver_version, driver_modification,
 		     driver_patch);
 	return 0;
+    }
+    if (demand) {
+	/* set ip_dynaddr if possible */
+	path = path_to_procfs("/sys/net/ipv4/ip_dynaddr");
+	if (path != 0 && (fd = open(path, O_WRONLY)) >= 0) {
+	    write(fd, "1", 1);
+	    close(fd);
+	}
     }
     return 1;
 }

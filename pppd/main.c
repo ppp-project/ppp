@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.83 1999/08/13 06:46:15 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.84 1999/08/24 05:31:10 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -46,6 +46,9 @@
 #include "fsm.h"
 #include "lcp.h"
 #include "ipcp.h"
+#ifdef INET6
+#include "ipv6cp.h"
+#endif
 #include "upap.h"
 #include "chap.h"
 #include "ccp.h"
@@ -160,7 +163,7 @@ static void open_ccp __P((int));
 static void bad_signal __P((int));
 static void holdoff_end __P((void *));
 static int device_script __P((char *, int, int, int));
-static void reap_kids __P((int waitfor));
+static int reap_kids __P((int waitfor));
 static void record_child __P((int, char *, void (*) (void *), void *));
 static int start_charshunt __P((int, int));
 static void charshunt_done __P((void *));
@@ -194,6 +197,9 @@ struct protent *protocols[] = {
     &cbcp_protent,
 #endif
     &ipcp_protent,
+#ifdef INET6
+    &ipv6cp_protent,
+#endif
     &ccp_protent,
 #ifdef IPX_CHANGE
     &ipxcp_protent,
@@ -250,6 +256,12 @@ main(argc, argv)
     script_setenv("ORIG_UID", numbuf);
 
     ngroups = getgroups(NGROUPS_MAX, groups);
+
+    /*
+     * Initialize magic number generator now so that protocols may
+     * use magic numbers in initialization.
+     */
+    magic_init();
 
     /*
      * Initialize to the standard option set, then parse, in order,
@@ -373,10 +385,9 @@ main(argc, argv)
     script_setenv("DEVICE", devnam);
 
     /*
-     * Initialize system-dependent stuff and magic number package.
+     * Initialize system-dependent stuff.
      */
     sys_init();
-    magic_init();
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
@@ -815,6 +826,18 @@ main(argc, argv)
 	}
 
 	/*
+	 * Delete pid file before disestablishing ppp.  Otherwise it
+	 * can happen that another pppd gets the same unit and then
+	 * we delete its pid file.
+	 */
+	if (!demand) {
+	    if (pidfilename[0] != 0
+		&& unlink(pidfilename) < 0 && errno != ENOENT) 
+		warn("unable to delete pid file %s: %m", pidfilename);
+	    pidfilename[0] = 0;
+	}
+
+	/*
 	 * If we may want to bring the link up again, transfer
 	 * the ppp unit back to the loopback.  Set the
 	 * real serial device back to its normal mode of operation.
@@ -905,7 +928,8 @@ main(argc, argv)
 	    for (chp = children; chp != NULL; chp = chp->next)
 		dbglog("  script %s, pid %d", chp->prog, chp->pid);
 	}
-	reap_kids(1);
+	if (reap_kids(1) < 0)
+	    break;
     }
 
     die(status);
@@ -1665,7 +1689,7 @@ record_child(pid, prog, done, arg)
  * reap_kids - get status from any dead child processes,
  * and log a message for abnormal terminations.
  */
-static void
+static int
 reap_kids(waitfor)
     int waitfor;
 {
@@ -1695,8 +1719,13 @@ reap_kids(waitfor)
 	if (chp)
 	    free(chp);
     }
-    if (pid == -1 && errno != ECHILD && errno != EINTR)
-	error("Error waiting for child process: %m");
+    if (pid == -1) {
+	if (errno == ECHILD)
+	    return -1;
+	if (errno != EINTR)
+	    error("Error waiting for child process: %m");
+    }
+    return 0;
 }
 
 

@@ -21,14 +21,14 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.2 1999/08/13 06:46:13 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.3 1999/08/24 05:31:09 paulus Exp $ 
  *
  *
  * Original version by Inria (www.inria.fr)
  * Modified to match RFC2472 by Tommi Komulainen <Tommi.Komulainen@iki.fi>
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.2 1999/08/13 06:46:13 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.3 1999/08/24 05:31:09 paulus Exp $"
 
 /*
  * TODO: 
@@ -46,6 +46,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -202,8 +203,8 @@ setifaceid(arg)
     ipv6cp_options *wo = &ipv6cp_wantoptions[0];
     struct in6_addr addr;
     
-#define VALIDID(a) (	((a).s6_addr64[0] == 0) && \
-			((a).s6_addr64[1] != 0) )
+#define VALIDID(a) ( (((a).s6_addr32[0] == 0) && ((a).s6_addr32[1] == 0)) && \
+			(((a).s6_addr32[2] != 0) || ((a).s6_addr32[3] != 0)) )
     
     if ((comma = strchr(arg, ',')) == NULL)
 	comma = arg + strlen(arg);
@@ -955,13 +956,13 @@ ipv6_demand_conf(u)
     ipv6cp_options *wo = &ipv6cp_wantoptions[u];
 
 #if defined(__linux__) || (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
-    if (!sifup(u, PPP_IPV6))
+    if (!sifup(u))
 	return 0;
 #endif    
     if (!sif6addr(u, wo->ourid, wo->hisid))
 	return 0;
 #if !defined(__linux__) && !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
-    if (!sifup(u, PPP_IPV6))
+    if (!sifup(u))
 	return 0;
 #endif
     if (!sifnpmode(u, PPP_IPV6, NPMODE_QUEUE))
@@ -1063,7 +1064,7 @@ ipv6cp_up(f)
 #endif
 
 	/* bring the interface up for IPv6 */
-	if (!sifup(f->unit, PPP_IPV6)) {
+	if (!sifup(f->unit)) {
 	    if (debug)
 		warn("sif6up failed");
 	    ipv6cp_close(f->unit, "Interface configuration failed");
@@ -1126,11 +1127,12 @@ ipv6cp_down(f)
 	sifnpmode(f->unit, PPP_IPV6, NPMODE_QUEUE);
     } else {
 #if !defined(__linux__) && !(defined(SVR4) && (defined(SNI) || defined(__USLC)))
-	sifdown(f->unit, PPP_IPV6);
+	sifnpmode(f->unit, PPP_IPV6, NPMODE_DROP);
+	sifdown(f->unit);
 #endif
 	ipv6cp_clear_addrs(f->unit);
 #if defined(__linux__) || (defined(SVR4) && (defined(SNI) || defined(__USLC)))
-	sifdown(f->unit, PPP_IPV6);
+	sifdown(f->unit);
 #endif
     }
 

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.49 1999/08/13 06:46:12 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.50 1999/08/24 05:31:09 paulus Exp $"
 
 /*
  * TODO:
@@ -1307,17 +1307,6 @@ ip_check_options()
 		wo->ouraddr = local;
 	}
     }
-
-    if (demand && wo->hisaddr == 0) {
-	option_error("remote IP address required for demand-dialling\n");
-	exit(1);
-    }
-#if 0
-    if (demand && wo->accept_remote) {
-	option_error("ipcp-accept-remote is incompatible with demand\n");
-	exit(1);
-    }
-#endif
 }
 
 
@@ -1331,6 +1320,17 @@ ip_demand_conf(u)
 {
     ipcp_options *wo = &ipcp_wantoptions[u];
 
+    if (wo->hisaddr == 0) {
+	/* make up an arbitrary address for the peer */
+	wo->hisaddr = htonl(0x0a707070 + ifunit);
+	wo->accept_remote = 1;
+    }
+    if (wo->ouraddr == 0) {
+	/* make up an arbitrary address for us */
+	wo->ouraddr = htonl(0x0a404040 + ifunit);
+	wo->accept_local = 1;
+	disable_defaultip = 1;	/* don't tell the peer this address */
+    }
     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
 	return 0;
     if (!sifup(u))
@@ -1545,6 +1545,7 @@ ipcp_down(f)
     if (demand) {
 	sifnpmode(f->unit, PPP_IP, NPMODE_QUEUE);
     } else {
+	sifnpmode(f->unit, PPP_IP, NPMODE_DROP);
 	sifdown(f->unit);
 	ipcp_clear_addrs(f->unit, ipcp_gotoptions[f->unit].ouraddr,
 			 ipcp_hisoptions[f->unit].hisaddr);
