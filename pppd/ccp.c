@@ -10,16 +10,11 @@
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- *
- * 3. The name(s) of the authors of this software must not be used to
+ * 2. The name(s) of the authors of this software must not be used to
  *    endorse or promote products derived from this software without
  *    prior written permission.
  *
- * 4. Redistributions of any form whatsoever must retain the following
+ * 3. Redistributions of any form whatsoever must retain the following
  *    acknowledgment:
  *    "This product includes software developed by Paul Mackerras
  *     <paulus@samba.org>".
@@ -33,7 +28,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.46 2003/05/01 12:30:28 paulus Exp $"
+#define RCSID	"$Id: ccp.c,v 1.47 2004/11/04 10:02:26 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>

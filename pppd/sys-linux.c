@@ -2,7 +2,7 @@
  * sys-linux.c - System-dependent procedures for setting up
  * PPP interfaces on Linux systems
  *
- * Copyright (c) 1994-2002 Paul Mackerras. All rights reserved.
+ * Copyright (c) 1994-2004 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -11,16 +11,11 @@
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- *
- * 3. The name(s) of the authors of this software must not be used to
+ * 2. The name(s) of the authors of this software must not be used to
  *    endorse or promote products derived from this software without
  *    prior written permission.
  *
- * 4. Redistributions of any form whatsoever must retain the following
+ * 3. Redistributions of any form whatsoever must retain the following
  *    acknowledgment:
  *    "This product includes software developed by Paul Mackerras
  *     <paulus@samba.org>".
