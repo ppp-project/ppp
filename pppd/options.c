@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.55 1999/03/24 05:05:24 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.56 1999/03/30 06:33:08 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -89,6 +89,7 @@ int	holdoff = 30;		/* # seconds to pause before reconnecting */
 bool	notty = 0;		/* Stdin/out is not a tty */
 char	*record_file = NULL;	/* File to record chars sent/received */
 int	using_pty = 0;
+bool	sync_serial = 0;	/* Device is synchronous serial device */
 
 extern option_t auth_options[];
 
@@ -211,6 +212,8 @@ option_t general_options[] = {
       "Show brief listing of options" },
     { "-h", o_special_noarg, showhelp,
       "Show brief listing of options" },
+    { "sync", o_bool, &sync_serial,
+      "Use synchronous HDLC serial encoding", 1 },
 
 #ifdef PPP_FILTER
     { "pdebug", o_int, &dflag,

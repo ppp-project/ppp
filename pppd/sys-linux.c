@@ -866,6 +866,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     x = get_flags();
     x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
     x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
+    x = sync_serial ? x | SC_SYNC : x & ~SC_SYNC;
     set_flags(x);
 }
 

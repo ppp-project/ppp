@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.17 1999/03/02 05:37:51 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.18 1999/03/30 06:33:07 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 990226==
+ *  ==FILEVERSION 990325==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -67,7 +67,8 @@
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
-#define	SC_MASK		0x0f0000ff	/* bits that user can change */
+#define	SC_SYNC		0x00200000	/* synchronous serial mode */
+#define	SC_MASK		0x0f2000ff	/* bits that user can change */
 
 /* state bits */
 #define SC_XMIT_BUSY	0x10000000	/* (used by isdn_ppp?) */

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.35 1999/03/24 05:05:25 paulus Exp $
+ * $Id: pppd.h,v 1.36 1999/03/30 06:33:09 paulus Exp $
  */
 
 /*
@@ -181,6 +181,7 @@ extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
 extern bool	notty;		/* Stdin/out is not a tty */
 extern char	*record_file;	/* File to record chars sent/received */
+extern bool	sync_serial;	/* Device is synchronous serial device */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */

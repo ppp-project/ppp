@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.37 1999/03/23 03:22:34 paulus Exp $
+.\" $Id: pppd.8,v 1.38 1999/03/30 06:33:09 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -689,6 +689,12 @@ Authentication Protocol] authentication.
 With this option, pppd will not transmit LCP packets to initiate a
 connection until a valid LCP packet is received from the peer (as for
 the `passive' option with ancient versions of pppd).
+.TP
+.B sync
+Use synchronous HDLC serial encoding instead of asynchronous.
+The device used by pppd with this option must support synchronous
+serial communications. Currently supports Microgate SyncLink adapters
+under Linux.
 .TP
 .B usehostname
 Enforce the use of the hostname (with domain name appended, if given)

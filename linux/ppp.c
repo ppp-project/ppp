@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990114==
+ *  ==FILEVERSION 990325==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.21 1999/02/26 06:48:21 paulus Exp $ */
+/* $Id: ppp.c,v 1.22 1999/03/30 06:33:07 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -185,9 +185,11 @@ static void ppp_unregister_compressor (struct compressor *cp);
 
 static void ppp_async_init(struct ppp *ppp);
 static void ppp_async_release(struct ppp *ppp);
+static int ppp_tty_sync_push(struct ppp *ppp);
 static int ppp_tty_push(struct ppp *ppp);
 static int ppp_async_encode(struct ppp *ppp);
 static int ppp_async_send(struct ppp *, struct sk_buff *);
+static int ppp_sync_send(struct ppp *, struct sk_buff *);
 
 static int ppp_ioctl(struct ppp *, unsigned int, unsigned long);
 static int ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp);
@@ -955,6 +957,135 @@ ppp_tty_wakeup (struct tty_struct *tty)
 }
 
 /*
+ * Send a packet to the peer over a synchronous tty line.
+ * All encoding and FCS are handled by hardware.
+ * Addr/Ctrl and Protocol field compression implemented.
+ * Returns -1 iff the packet could not be accepted at present,
+ * 0 if the packet was accepted but we can't accept another yet, or
+ * 1 if we can accept another packet immediately.
+ * If this procedure returns 0, ppp_output_wakeup will be called
+ * exactly once.
+ */
+static int
+ppp_sync_send(struct ppp *ppp, struct sk_buff *skb)
+{
+	unsigned char *data;
+	int islcp;
+	
+	CHECK_PPP(0);
+
+	if (ppp->tpkt != NULL)
+		return -1;
+	ppp->tpkt = skb;
+
+	data = ppp->tpkt->data;
+	
+	/*
+	 * LCP packets with code values between 1 (configure-reqest)
+	 * and 7 (code-reject) must be sent as though no options
+	 * had been negotiated.
+	 */
+	islcp = PPP_PROTOCOL(data) == PPP_LCP
+		&& 1 <= data[PPP_HDRLEN] && data[PPP_HDRLEN] <= 7;
+
+	/* only reset idle time for data packets */
+	if (PPP_PROTOCOL(data) < 0x8000)
+		ppp->last_xmit = jiffies;
+	++ppp->stats.ppp_opackets;
+	ppp->stats.ppp_ooctects += ppp->tpkt->len;
+
+	if ( !(data[2]) && (ppp->flags & SC_COMP_PROT) ) {
+		/* compress protocol field */
+		data[2] = data[1];
+		data[1] = data[0];
+		skb_pull(ppp->tpkt,1);
+		data = ppp->tpkt->data;
+	}
+	
+	/*
+	 * Do address/control compression
+	 */
+	if ((ppp->flags & SC_COMP_AC) && !islcp
+	    && PPP_ADDRESS(data) == PPP_ALLSTATIONS
+	    && PPP_CONTROL(data) == PPP_UI) {
+		/* strip addr and control field */
+		skb_pull(ppp->tpkt,2);
+	}
+
+	return ppp_tty_sync_push(ppp);
+}
+
+/*
+ * Push a synchronous frame out to the tty.
+ * Returns 1 if frame accepted (or discarded), 0 otherwise.
+ */
+static int
+ppp_tty_sync_push(struct ppp *ppp)
+{
+	int sent;
+	struct tty_struct *tty = ppp2tty(ppp);
+	unsigned long flags;
+		
+	CHECK_PPP(0);
+
+	if (ppp->tpkt == NULL)
+		return 0;
+		
+	/* prevent reentrancy with tty_pushing flag */		
+	save_flags(flags);
+	cli();
+	if (ppp->tty_pushing) {
+		/* record wakeup attempt so we don't loose */
+		/* a wakeup call while doing push processing */
+		ppp->woke_up=1;
+		restore_flags(flags);
+		return 0;
+	}
+	ppp->tty_pushing = 1;
+	restore_flags(flags);
+	
+	if (tty == NULL || tty->disc_data != (void *) ppp)
+		goto flush;
+		
+	for(;;){
+		ppp->woke_up=0;
+		
+		/* Note: Sync driver accepts complete frame or nothing */
+		tty->flags |= (1 << TTY_DO_WRITE_WAKEUP);
+		sent = tty->driver.write(tty, 0, ppp->tpkt->data, ppp->tpkt->len);
+		if (sent < 0) {
+			/* write error (possible loss of CD) */
+			/* record error and discard current packet */
+			ppp->stats.ppp_oerrors++;
+			break;
+		}
+		ppp->stats.ppp_obytes += sent;
+		if (sent < ppp->tpkt->len) {
+			/* driver unable to accept frame just yet */
+			save_flags(flags);
+			cli();
+			if (ppp->woke_up) {
+				/* wake up called while processing */
+				/* try to send the frame again */
+				restore_flags(flags);
+				continue;
+			}
+			/* wait for wakeup callback to try send again */
+			ppp->tty_pushing = 0;
+			restore_flags(flags);
+			return 0;
+		}
+		break;
+	}
+flush:	
+	/* done with current packet (sent or discarded) */
+	KFREE_SKB(ppp->tpkt);
+	ppp->tpkt = 0;
+	ppp->tty_pushing = 0;
+	return 1;
+}
+
+/*
  * Send a packet to the peer over an async tty line.
  * Returns -1 iff the packet could not be accepted at present,
  * 0 if the packet was accepted but we can't accept another yet, or
@@ -986,6 +1117,9 @@ ppp_tty_push(struct ppp *ppp)
 {
 	int avail, sent, done = 0;
 	struct tty_struct *tty = ppp2tty(ppp);
+	
+	if ( ppp->flags & SC_SYNC ) 
+		return ppp_tty_sync_push(ppp);
 
 	CHECK_PPP(0);
 	if (ppp->tty_pushing)
@@ -1184,6 +1318,74 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 
 	ppp->stats.ppp_ibytes += count;
 	skb = ppp->rpkt;
+	
+	if ( ppp->flags & SC_SYNC ) {
+		/* synchronous mode */
+		
+		if (ppp->toss==0xE0) {
+			/* this is the 1st frame, reset vj comp */
+			ppp_receive_error(ppp);
+			ppp->toss = 0;
+		}
+		
+		/*
+		 * Allocate an skbuff for frame.
+		 * The 128 is room for VJ header expansion.
+		 */
+		
+		if (skb == NULL)
+			skb = dev_alloc_skb(ppp->mru + 128 + PPP_HDRLEN);
+			
+		if (skb == NULL) {
+			if (ppp->flags & SC_DEBUG)
+				printk(KERN_DEBUG "couldn't "
+				       "alloc skb for recv\n");
+		} else {
+			LIBERATE_SKB(skb);
+			/*
+			 * Decompress A/C and protocol compression here.
+			 */
+			p = skb_put(skb, 2);
+			p[0] = PPP_ALLSTATIONS;
+			p[1] = PPP_UI;
+			if (*data == PPP_ALLSTATIONS) {
+				data += 2;
+				count -= 2;
+			}
+			if ((*data & 1) != 0) {
+				p = skb_put(skb, 1);
+				p[0] = 0;
+			}
+
+			/* copy frame to socket buffer */
+			p = skb_put(skb, count);
+			memcpy(p,data,count);
+			
+			/*
+			 * Check if we've overflowed the MRU
+			 */
+			if (skb->len >= ppp->mru + PPP_HDRLEN + 2
+			    || skb_tailroom(skb) <= 0) {
+				++ppp->estats.rx_length_errors;
+				if (ppp->flags & SC_DEBUG)
+					printk(KERN_DEBUG "rcv frame too long: "
+					       "len=%d mru=%d hroom=%d troom=%d\n",
+					       skb->len, ppp->mru, skb_headroom(skb),
+					       skb_tailroom(skb));
+			} else {
+				if (!ppp_receive_frame(ppp, skb)) {
+					KFREE_SKB(skb);
+					ppp_receive_error(ppp);
+				}
+			}
+		
+			/* Reset for the next frame */
+			skb = NULL;
+		}
+		ppp->rpkt = skb;
+		return;
+	}
+	
 	while (count-- > 0) {
 		/*
 		 * Collect the character and error condition for the character.
@@ -2024,23 +2226,25 @@ ppp_receive_frame(struct ppp *ppp, struct sk_buff *skb)
 		return 0;
 	}
 
-	/*
-	 * Verify the FCS of the frame and discard the FCS characters
-	 * from the end of the buffer.
-	 */
-	if (ppp->rfcs != PPP_GOODFCS) {
-		if (ppp->flags & SC_DEBUG) {
-			printk(KERN_DEBUG
-			       "ppp: frame with bad fcs, length = %d\n",
-			       count);
-			ppp_print_buffer("bad frame", data, count);
+	if ( !(ppp->flags & SC_SYNC) ) { 
+		/*
+		 * Verify the FCS of the frame and discard the FCS characters
+		 * from the end of the buffer.
+		 */
+		if (ppp->rfcs != PPP_GOODFCS) {
+			if (ppp->flags & SC_DEBUG) {
+				printk(KERN_DEBUG
+				       "ppp: frame with bad fcs, length = %d\n",
+				       count);
+				ppp_print_buffer("bad frame", data, count);
+			}
+			++ppp->estats.rx_crc_errors;
+			return 0;
 		}
-		++ppp->estats.rx_crc_errors;
-		return 0;
+		count -= 2;		/* ignore the fcs characters */
+		skb_trim(skb, count);
 	}
-	count -= 2;		/* ignore the fcs characters */
-	skb_trim(skb, count);
-
+	
 	/*
 	 * Process the active decompressor.
 	 */
@@ -2410,7 +2614,10 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 	/*
 	 * Send the frame
 	 */
-	ret = ppp_async_send(ppp, skb);
+	if ( ppp->flags & SC_SYNC ) 
+		ret = ppp_sync_send(ppp, skb);
+	else
+		ret = ppp_async_send(ppp, skb);
 	if (ret > 0) {
 		/* we can release the lock */
 		ppp->xmit_busy = 0;
