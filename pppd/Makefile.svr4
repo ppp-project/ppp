@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.svr4,v 1.8 1996/08/28 06:38:18 paulus Exp $
+# $Id: Makefile.svr4,v 1.9 1996/09/14 05:14:05 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
@@ -13,7 +13,7 @@ COPTS = -g -O -Xa -w
 #COPTS = -g -O2
 
 CFLAGS = $(COPTS) -I.. -DSVR4
-LIBS = -lsocket -lnsl
+LIBS = -lsocket -lnsl -lc -L/usr/ucblib -lucb
 
 INSTALL = /usr/sbin/install
 
