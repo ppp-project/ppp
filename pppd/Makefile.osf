@@ -1,0 +1,43 @@
+#
+# pppd makefile for OSF/1 on DEC Alpha
+# $Id: Makefile.osf,v 1.1 1995/04/24 02:45:30 paulus Exp $
+#
+
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c \
+	sys-osf.c
+HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
+MANPAGES = pppd.8
+
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+	auth.o options.o sys-osf.o
+
+CC = cc
+DEBUG_FLAGS = -DDEBUGALL
+COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int
+COPTS = -O2
+LIBS = 
+
+CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+
+SOURCE= RELNOTES Makefile \
+	$(PPPDSRCS) $(HEADERS) $(MANPAGES)
+
+all: pppd
+
+install:
+	installbsd -c -m 4555 -o root -g daemon pppd $(BINDIR)/pppd
+	installbsd -c -m 555 -o root pppd.8 $(MANDIR)/man8
+
+pppd: $(PPPDOBJS)
+	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+
+clean:
+	rm -f $(PPPDOBJS) pppd *~ #* core
+
+depend:
+	cpp -M $(CFLAGS) $(PPPDSRCS) >.depend
+#	makedepend $(CFLAGS) $(PPPDSRCS)
