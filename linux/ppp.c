@@ -2,11 +2,12 @@
  *
  *  Michael Callahan <callahan@maths.ox.ac.uk>
  *  Al Longyear <longyear@netcom.com>
+ *  Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
  *
  *  Dynamic PPP devices by Jim Freeman <jfree@caldera.com>.
  *  ppp_tty_receive ``noisy-raise-bug'' fixed by Ove Ewerlid <ewerlid@syscon.uu.se>
  *
- *  ==FILEVERSION 970626==
+ *  ==FILEVERSION 971016==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -47,17 +48,7 @@
 #define CHECK_CHARACTERS	1
 #define PPP_COMPRESS		1
 
-#ifndef PPP_MAX_DEV
-#define PPP_MAX_DEV	256
-#endif
-
-/* $Id: ppp.c,v 1.13 1997/07/14 03:50:50 paulus Exp $
- * Added dynamic allocation of channels to eliminate
- *   compiled-in limits on the number of channels.
- *
- * Dynamic channel allocation code Copyright 1995 Caldera, Inc.,
- *   released under the GNU General Public License Version 2.
- */
+/* $Id: ppp.c,v 1.14 1997/11/27 06:04:45 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/module.h>
@@ -185,7 +176,7 @@ extern inline void ppp_stuff_char (struct ppp *ppp,
 				   register __u8 chr);
 extern inline int lock_buffer (register struct ppp_buffer *buf);
 static int ppp_dev_xmit_ip (struct ppp *ppp, struct ppp_buffer *buf,
-			    __u8 *data, int len);
+			    __u8 *data, int len, enum NPmode npmode);
 
 static int rcv_proto_ip		(struct ppp *, __u16, __u8 *, int);
 static int rcv_proto_ipx	(struct ppp *, __u16, __u8 *, int);
@@ -205,20 +196,14 @@ static int  rcv_proto_ccp (struct ppp *, __u16, __u8 *, int);
 #define OPTIMIZE_FLAG_TIME	0
 #endif
 
-#ifndef PPP_MAX_DEV
-#define PPP_MAX_DEV 256
-#endif
-
 /*
  * Parameters which may be changed via insmod.
  */
 
 static int  flag_time = OPTIMIZE_FLAG_TIME;
-static int  max_dev   = PPP_MAX_DEV;
 
 #if LINUX_VERSION_CODE >= VERSION(2,1,19) 
 MODULE_PARM(flag_time, "i");
-MODULE_PARM(max_dev, "i");
 #endif
 
 /*
@@ -455,7 +440,7 @@ ppp_init_dev (struct device *dev)
 	dev->rebuild_header   = ppp_dev_rebuild;
 #endif
 
-	dev->hard_header_len  = PPP_HARD_HDR_LEN;
+	dev->hard_header_len  = PPP_HDRLEN;
 
 	/* device INFO */
 	dev->mtu	      = PPP_MTU;
@@ -518,14 +503,11 @@ ppp_init_ctrl_blk (register struct ppp *ppp)
 	ppp->read_wait	= NULL;
 	ppp->write_wait = NULL;
 	ppp->last_xmit	= jiffies - flag_time;
+	ppp->last_recv  = jiffies;
 
 	/* clear statistics */
 	memset(&ppp->stats, 0, sizeof (struct pppstat));
-	memset(&ppp->estats, 0, sizeof(struct enet_statistics));
-
-	/* Reset the demand dial information */
-	ppp->ddinfo.xmit_idle=	       /* time since last NP packet sent */
-	ppp->ddinfo.recv_idle=jiffies; /* time since last NP packet received */
+	memset(&ppp->estats, 0, sizeof(ppp->estats));
 
 	/* PPP compression data */
 	ppp->sc_xc_state =
@@ -622,7 +604,7 @@ ppp_free_buf (struct ppp_buffer *ptr)
 extern inline int
 lock_buffer (register struct ppp_buffer *buf)
 {
-	register int state;
+	unsigned long state;
 	unsigned long flags;
 /*
  * Save the current state and if free then set it to the "busy" state
@@ -795,7 +777,7 @@ ppp_release (struct ppp *ppp)
 	dev = ppp2dev (ppp);
 
 	if (ppp->flags & SC_DEBUG)
-		printk(KERN_DEBUG "ppp%s released\n", ppp->name);
+		printk(KERN_DEBUG "%s released\n", ppp->name);
 
 	ppp_ccp_closed (ppp);
 
@@ -1038,9 +1020,7 @@ ppp_tty_wakeup_code (struct ppp *ppp, struct tty_struct *tty,
  * transmission block.
  */
 			ppp2dev (ppp)->tbusy = 0;
-			if (ppp2dev (ppp) -> flags & IFF_UP) {
-				mark_bh (NET_BH);
-			}
+			mark_bh (NET_BH);
 /*
  * Wake up the transmission queue for all completion events.
  */
@@ -1220,6 +1200,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
  */
 	if (ppp->flags & SC_LOG_RAWIN)
 		ppp_print_buffer ("receive buffer", data, count);
+
 /*
  * Collect the character and error condition for the character. Set the toss
  * flag for the first character error.
@@ -1242,6 +1223,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 			}
 			++flags;
 		}
+
 /*
  * Set the flags for d7 being 0/1 and parity being even/odd so that
  * the normal processing would have all flags set at the end of the
@@ -1360,6 +1342,7 @@ ppp_doframe (struct ppp *ppp)
 
 	CHECK_PPP(0);
 	CHECK_BUF_MAGIC(ppp->rbuf);
+
 /*
  * If there is a pending error from the receiver then log it and discard
  * the damaged frame.
@@ -1533,7 +1516,7 @@ ppp_rcv_rx (struct ppp *ppp, __u16 proto, __u8 * data, int count)
 	skb->free = 1;
 #endif
 
-	ppp->ddinfo.recv_idle = jiffies;
+	ppp->last_recv = jiffies;
 	netif_rx (skb);
 	return 1;
 }
@@ -1849,8 +1832,8 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 	if (!ppp)
 		return -EIO;
 
-	if (ppp->magic != PPP_MAGIC)
-		return -EIO;
+	/* if (ppp->magic != PPP_MAGIC)
+		return -EIO; */
 
 	CHECK_PPP (-ENXIO);
 
@@ -2031,7 +2014,7 @@ ppp_dev_xmit_lower (struct ppp *ppp, struct ppp_buffer *buf,
 	if (non_ip || flag_time == 0)
 		ins_char (buf, PPP_FLAG);
 	else {
-		if (jiffies - ppp->last_xmit > flag_time)
+		if (jiffies - ppp->last_xmit >= flag_time)
 			ins_char (buf, PPP_FLAG);
 	}
 	ppp->last_xmit = jiffies;
@@ -2195,7 +2178,7 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 {
 	struct ppp *ppp = tty2ppp (tty);
 	__u8 *new_data;
-	int proto;
+	int error;
 
 /*
  * Verify the pointers.
@@ -2231,9 +2214,10 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 /*
  * Retrieve the user's buffer
  */
-	if (copy_from_user (new_data, data, count)) {
+	COPY_FROM_USER (error, new_data, data, count);
+	if (error) {
 		kfree (new_data);
-		return -EFAULT;
+		return error;
 	}
 /*
  * lock this PPP unit so we will be the only writer;
@@ -2266,14 +2250,14 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 /*
  * Send the data
  */
-	if (proto == PPP_IP) {
+	if (PPP_PROTOCOL(new_data) == PPP_IP) {
 		/*
 		 * IP frames can be sent by pppd when we're doing
 		 * demand-dialling.  We send them via ppp_dev_xmit_ip
 		 * to make sure that VJ compression happens properly.
 		 */
 		ppp_dev_xmit_ip(ppp, ppp->tbuf, new_data + PPP_HDRLEN,
-				count - PPP_HDRLEN);
+				count - PPP_HDRLEN, NPMODE_PASS);
 
 	} else {
 		ppp_dev_xmit_frame (ppp, ppp->tbuf, new_data, count);
@@ -2530,11 +2514,10 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 	case PPPIOCGIDLE:
 		{
 			struct ppp_idle cur_ddinfo;
-			__u32 cur_jiffies = jiffies;
 
 			/* change absolute times to relative times. */
-			cur_ddinfo.xmit_idle = (cur_jiffies - ppp->ddinfo.xmit_idle) / HZ;
-			cur_ddinfo.recv_idle = (cur_jiffies - ppp->ddinfo.recv_idle) / HZ;
+			cur_ddinfo.xmit_idle = (jiffies - ppp->last_xmit) / HZ;
+			cur_ddinfo.recv_idle = (jiffies - ppp->last_recv) / HZ;
 			COPY_TO_USER (error,
 				      (void *) param3,
 				      &cur_ddinfo,
@@ -2653,6 +2636,8 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 			if (ppp->flags & SC_DEBUG)
 				printk(KERN_DEBUG "ppp: set np %d to %d\n",
 				       npi.protocol, npi.mode);
+			ppp2dev(ppp)->tbusy = 0;
+			mark_bh(NET_BH);
 		}
 		break;
 /*
@@ -2767,6 +2752,7 @@ ppp_tty_poll (struct tty_struct *tty, struct file *filp, poll_table * wait)
 		poll_wait(&ppp->write_wait, wait);
 
 		/* Must lock the user buffer area while checking. */
+		CHECK_BUF_MAGIC(ppp->ubuf);
 		if(test_and_set_bit(0, &ppp->ubuf->locked) == 0) {
 			if(ppp->ubuf->head != ppp->ubuf->tail)
 				mask |= POLLIN | POLLRDNORM;
@@ -2801,8 +2787,10 @@ ppp_dev_open (struct device *dev)
 {
 	struct ppp *ppp = dev2ppp (dev);
 
+#if 0
 	/* reset POINTOPOINT every time, since dev_close zaps it! */
 	dev->flags |= IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
+#endif
 
 	if (ppp2tty (ppp) == NULL) {
 		if (ppp->flags & SC_DEBUG)
@@ -2984,14 +2972,14 @@ ppp_dev_ioctl (struct device *dev, struct ifreq *ifr, int cmd)
 
 static int
 ppp_dev_xmit_ip (struct ppp *ppp, struct ppp_buffer *buf,
-		 __u8 *data, int len)
+		 __u8 *data, int len, enum NPmode npmode)
 {
 	int	proto = PPP_IP;
 	__u8	*hdr;
 /*
  * Branch on the type of processing for the IP frame.
  */
-	switch (ppp->sc_npmode[NP_IP]) {
+	switch (npmode) {
 	case NPMODE_PASS:
 		break;
 
@@ -3052,7 +3040,7 @@ ppp_dev_xmit_ip (struct ppp *ppp, struct ppp_buffer *buf,
 	hdr[2] = 0;
 	hdr[3] = proto;
 
-	return ppp_dev_xmit_frame (ppp, ppp->wbuf, hdr, len);
+	return ppp_dev_xmit_frame (ppp, buf, hdr, len);
 }
 
 /*
@@ -3149,7 +3137,7 @@ ppp_dev_xmit (sk_buff *skb, struct device *dev)
 	if (ppp->tbuf->locked || lock_buffer (ppp->wbuf) != 0) {
 		dev->tbusy = 1;
 		if (ppp->flags & SC_DEBUG)
-			printk(KERN_DEBUG "dev_xmit blocked, t=%d w=%d\n",
+			printk(KERN_DEBUG "dev_xmit blocked, t=%lu w=%lu\n",
 			       ppp->tbuf->locked, ppp->wbuf->locked);
 		return 1;
 	}
@@ -3163,7 +3151,8 @@ ppp_dev_xmit (sk_buff *skb, struct device *dev)
 		break;
 
 	case ETH_P_IP:
-		answer = ppp_dev_xmit_ip (ppp, ppp->wbuf, data, len);
+		answer = ppp_dev_xmit_ip (ppp, ppp->wbuf, data, len,
+					  ppp->sc_npmode[NP_IP]);
 		break;
 
 	default: /* All others have no support at this time. */
@@ -3176,7 +3165,6 @@ ppp_dev_xmit (sk_buff *skb, struct device *dev)
 	if (answer == 0) {
 		/* packet queued OK */
 		dev_kfree_skb (skb, FREE_WRITE);
-		ppp->ddinfo.xmit_idle = jiffies;
 	} else {
 		ppp->wbuf->locked = 0;
 		if (answer < 0) {
@@ -3200,10 +3188,14 @@ ppp_dev_stats (struct device *dev)
 {
 	struct ppp *ppp = dev2ppp (dev);
 
-	ppp->estats.rx_packets	      = ppp->stats.ppp_ipackets;
-	ppp->estats.rx_errors	      = ppp->stats.ppp_ierrors;
-	ppp->estats.tx_packets	      = ppp->stats.ppp_opackets;
-	ppp->estats.tx_errors	      = ppp->stats.ppp_oerrors;
+	ppp->estats.rx_packets = ppp->stats.ppp_ipackets;
+	ppp->estats.rx_errors  = ppp->stats.ppp_ierrors;
+	ppp->estats.tx_packets = ppp->stats.ppp_opackets;
+	ppp->estats.tx_errors  = ppp->stats.ppp_oerrors;
+#if LINUX_VERSION_CODE >= VERSION(2,1,25)
+	ppp->estats.rx_bytes   = ppp->stats.ppp_ibytes;
+	ppp->estats.tx_bytes   = ppp->stats.ppp_obytes;
+#endif
 
 	return &ppp->estats;
 }
@@ -3257,7 +3249,7 @@ ppp_alloc (void)
 	/* try to find an free device */
 	if_num = 0;
 	for (ppp = ppp_list; ppp != 0; ppp = ppp->next) {
-		if (!set_bit(0, &ppp->inuse))
+		if (!test_and_set_bit(0, &ppp->inuse))
 			return ppp;
 		++if_num;
 	}

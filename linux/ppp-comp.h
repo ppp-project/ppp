@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * From: ppp-comp.h,v 1.7 1995/05/01 01:43:37 paulus Exp
+ * $Id: ppp-comp.h,v 1.6 1997/11/27 06:04:44 paulus Exp $
  */
 
 /*
- *  ==FILEVERSION 970501==
+ *  ==FILEVERSION 971024==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -120,9 +120,8 @@ struct compressor {
  * Don't you just lurve software patents.
  */
 
-#define DECOMP_OK		0	/* no error occured */
-#define DECOMP_ERROR		1	/* error detected before decomp. */
-#define DECOMP_FATALERROR	2	/* error detected after decomp. */
+#define DECOMP_ERROR		-1	/* error detected before decomp. */
+#define DECOMP_FATALERROR	-2	/* error detected after decomp. */
 
 /*
  * CCP codes.

@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 970626==
+ *  ==FILEVERSION 971001==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -72,7 +72,7 @@ struct ppp_buffer {
         __s32		count;		/* Count of characters in bufr	*/
         __s32		head;		/* index to head of list	*/
         __s32		tail;		/* index to tail of list	*/
-        __u32		locked;		/* Buffer is being sent		*/
+        unsigned long	locked;		/* Buffer is being sent		*/
         __s32		type;		/* Type of the buffer		*/
 					/* =0, device read buffer	*/
 					/* =1, device write buffer	*/
@@ -94,7 +94,7 @@ struct ppp {
 	struct ppp	*next;		/* unit with next index		*/
 
 	/* Bitmapped flag fields. */
-	__u32		inuse;		/* are we allocated?		*/
+	unsigned long	inuse;		/* are we allocated?		*/
 	__u8		escape;		/* 0x20 if prev char was PPP_ESC*/
 	__u8		toss;		/* toss this frame		*/
 
@@ -123,7 +123,8 @@ struct ppp {
 	struct ppp_buffer *s1buf;	/* Pointer to daemon buffer	*/
 	struct ppp_buffer *s2buf;	/* Pointer to device buffer	*/
 
-	__u32		  last_xmit;	/* time of last transmission	*/
+	unsigned long	last_xmit;	/* time of last transmission	*/
+	unsigned long	last_recv;	/* time last packet received    */
 
   /* These are pointers to the malloc()ed frame buffers.
      These buffers are used while processing a packet.	If a packet
@@ -142,7 +143,6 @@ struct ppp {
 
 	/* Statistic information */
 	struct pppstat	stats;		  /* statistic information	*/
-	struct ppp_idle	ddinfo;		  /* demand dial information	*/
 
 	/* PPP compression protocol information */
 	__u32	sc_bytessent;		  /* count of octets sent */
