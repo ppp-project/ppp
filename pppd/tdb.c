@@ -1134,6 +1134,7 @@ TDB_CONTEXT *tdb_open(char *name, int hash_size, int tdb_flags,
             if (tdb.fd == -1) {
 		goto fail;
             }
+	    (void) fcntl(tdb.fd, F_SETFD, FD_CLOEXEC);
         }
 
 	/* ensure there is only one process initialising at once */
