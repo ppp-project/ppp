@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.4 1996/07/01 01:24:26 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.5 1996/09/26 06:19:03 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -95,10 +95,9 @@ struct ppp_softc {
 
 struct	ppp_softc ppp_softc[NPPP];
 
-struct	ppp_softc *pppalloc __P((pid_t pid));
-void	pppdealloc __P((struct ppp_softc *sc));
-int	pppioctl __P((struct ppp_softc *sc, int cmd, caddr_t data,
-		      int flag, struct proc *p));
-void	ppp_restart __P((struct ppp_softc *sc));
-void	ppppktin __P((struct ppp_softc *sc, struct mbuf *m, int lost));
-struct	mbuf *ppp_dequeue __P((struct ppp_softc *sc));
+struct	ppp_softc *pppalloc(pid_t pid);
+void	pppdealloc(struct ppp_softc *sc);
+int	pppioctl(struct ppp_softc *sc, int cmd, caddr_t data, int flag);
+void	ppp_restart(struct ppp_softc *sc);
+void	ppppktin(struct ppp_softc *sc, struct mbuf *m, int lost);
+struct	mbuf *ppp_dequeue(struct ppp_softc *sc);
