@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.49 1998/05/05 05:24:17 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.50 1998/09/13 23:38:49 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -199,7 +199,7 @@ main(argc, argv)
     uid = getuid();
     privileged = uid == 0;
     sprintf(numbuf, "%d", uid);
-    script_setenv("UID", numbuf);
+    script_setenv("ORIG_UID", numbuf);
 
     /*
      * Initialize to the standard option set, then parse, in order,
