@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.22 1995/07/04 12:35:56 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.23 1995/08/11 02:36:23 paulus Exp $";
 #endif
 
 /*
@@ -68,6 +68,7 @@ static int	closed_stdio;
 
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
+static struct winsize wsinfo;	/* Initial window size info */
 
 int sockfd;			/* socket for doing interface ioctls */
 static char *lock_file;		/* lock file created for serial port */
@@ -396,8 +397,10 @@ set_up_tty(fd, local)
 	die(1);
     }
 
-    if (!restore_term)
+    if (!restore_term) {
 	inittermios = tios;
+	ioctl(fd, TIOCGWINSZ, &wsinfo);
+    }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
     if (crtscts > 0)
@@ -465,6 +468,7 @@ restore_tty()
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
+	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
 }

@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.13 1995/07/04 12:36:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.14 1995/08/11 02:36:26 paulus Exp $";
 #endif
 
 /*
@@ -52,6 +52,7 @@ static int initdisc = -1;	/* Initial TTY discipline */
 
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
+static struct winsize wsinfo;	/* Initial window size info */
 
 static char *lock_file;
 
@@ -336,8 +337,10 @@ set_up_tty(fd, local)
 	die(1);
     }
 
-    if (!restore_term)
+    if (!restore_term) {
 	inittermios = tios;
+	ioctl(fd, TIOCGWINSZ, &wsinfo);
+    }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
 #ifdef CRTSCTS
@@ -413,6 +416,7 @@ restore_tty()
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
+	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = FALSE;
     }
 }

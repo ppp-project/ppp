@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.4 1995/08/10 06:53:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.5 1995/08/11 02:36:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -64,6 +64,7 @@ static int	ipmuxid = -1;
 
 static int	restore_term;
 static struct termios inittermios;
+static struct winsize wsinfo;	/* Initial window size info */
 static pid_t	tty_sid;	/* original session ID for terminal */
 
 static int	link_mtu, link_mru;
@@ -371,8 +372,10 @@ set_up_tty(fd, local)
 	die(1);
     }
 
-    if (!restore_term)
+    if (!restore_term) {
 	inittermios = tios;
+	ioctl(fd, TIOCGWINSZ, &wsinfo);
+    }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
     if (crtscts > 0)
@@ -440,6 +443,7 @@ restore_tty()
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (!hungup && errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
+	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
 }
