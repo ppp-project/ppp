@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.ultrix,v 1.4 1995/06/01 01:32:56 paulus Exp $
+# $Id: Makefile.ultrix,v 1.5 1996/09/26 06:16:35 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -11,7 +11,7 @@ PPPSTATOBJS = pppstats.o
 
 #CC = gcc
 COPTS = -O
-COMPILE_FLAGS = 
+COMPILE_FLAGS = -DULTRIX
 LIBS = 
 
 CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
