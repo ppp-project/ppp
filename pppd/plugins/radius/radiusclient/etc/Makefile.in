@@ -11,7 +11,7 @@
 # PARTICULAR PURPOSE.
 
 #
-# $Id: Makefile.in,v 1.4 2002/10/05 04:35:24 fcusack Exp $
+# $Id: Makefile.in,v 1.5 2002/10/05 17:49:00 fcusack Exp $
 #
 # Copyright (C) 1997,1998 Lars Fenneberg
 #
@@ -218,7 +218,7 @@ radiusclient.conf: radiusclient.conf.in
 install-data-local: realms servers
 	$(mkinstalldirs) $(DESTDIR)$(pkgsysconfdir); \
         echo " $(INSTALL) -m600 $(srcdir)/realms $(DESTDIR)$(pkgsysconfdir)/realms"; \
-        $(INSTALL) -m600 $(srcdir)/realms $(DESTDIR)$(pkgsysconfdir)/realms
+        $(INSTALL) -m600 $(srcdir)/realms $(DESTDIR)$(pkgsysconfdir)/realms; \
         echo " $(INSTALL) -m600 $(srcdir)/servers $(DESTDIR)$(pkgsysconfdir)/servers"; \
         $(INSTALL) -m600 $(srcdir)/servers $(DESTDIR)$(pkgsysconfdir)/servers
 
