@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.5 1994/04/18 04:07:48 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.6 1994/05/01 11:45:53 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -307,7 +307,7 @@ options_from_file(filename, must_exist)
 	if (!must_exist && errno == ENOENT)
 	    return 1;
 	perror(filename);
-	exit(1);
+	return 0;
     }
     while (getword(f, cmd, &newline, filename)) {
 	/*
@@ -734,7 +734,7 @@ setupapfile(argv)
     /* open user info file */
     if ((ufile = fopen(*argv, "r")) == NULL) {
 	fprintf(stderr, "unable to open user login data file %s\n", *argv);
-	exit(1);
+	return 0;
     }
     check_access(ufile, *argv);
 
@@ -742,7 +742,7 @@ setupapfile(argv)
     if (fgets(user, MAXNAMELEN - 1, ufile) == NULL
 	|| fgets(passwd, MAXSECRETLEN - 1, ufile) == NULL){
 	fprintf(stderr, "Unable to read user login data file %s.\n", *argv);
-	exit(2);
+	return 0;
     }
     fclose(ufile);
 
@@ -925,7 +925,7 @@ setdevname(cp)
 	if (errno == ENOENT)
 	    return (0);
 	syslog(LOG_ERR, cp);
-	exit(1);
+	return 0;
     }
   
     (void) strncpy(devname, cp, MAXPATHLEN);
@@ -1074,7 +1074,7 @@ setnetmask(argv)
 	
     if ((mask = inet_addr(*argv)) == -1) {
 	fprintf(stderr, "Invalid netmask %s\n", *argv);
-	exit(1);
+	return 0;
     }
 
     netmask = mask;
