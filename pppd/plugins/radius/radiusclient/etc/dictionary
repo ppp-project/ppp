@@ -242,6 +242,7 @@ VALUE		Add-Port-To-IP-Address	Yes			1
 VALUE		Octets-Direction        Sum			0
 VALUE		Octets-Direction        Input			1
 VALUE		Octets-Direction        Output			2
-VALUE		Octets-Direction        Maximum			3
+VALUE		Octets-Direction        MaxOveral		3
+VALUE		Octets-Direction        MaxSession		4
 
 INCLUDE /etc/radiusclient/dictionary.microsoft

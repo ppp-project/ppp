@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.79 2002/07/15 11:04:18 kad Exp $"
+#define RCSID	"$Id: auth.c,v 1.80 2002/07/16 13:11:43 kad Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -893,8 +893,8 @@ check_maxoctets(arg)
 	case PPP_OCTETS_DIRECTION_OUT:
 	    used = link_stats.bytes_out;
 	    break;
-	case PPP_OCTETS_DIRECTION_MAX:
-	case PPP_OCTETS_DIRECTION_MAX2:
+	case PPP_OCTETS_DIRECTION_MAXOVERAL:
+	case PPP_OCTETS_DIRECTION_MAXSESSION:
 	    used = (link_stats.bytes_in > link_stats.bytes_out) ? link_stats.bytes_in : link_stats.bytes_out;
 	    break;
 	default:
