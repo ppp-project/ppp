@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.39 2000/01/25 03:25:36 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.40 2000/01/28 01:51:19 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1426,7 +1426,8 @@ get_ppp_stats(u, stats)
 {
     struct ppp_stats s;
 
-    if (strioctl(pppfd, PPPIO_GETSTAT, &s, 0, sizeof(s)) < 0) {
+    if (!sync_serial && 
+	strioctl(pppfd, PPPIO_GETSTAT, &s, 0, sizeof(s)) < 0) {
 	error("Couldn't get link statistics: %m");
 	return 0;
     }
