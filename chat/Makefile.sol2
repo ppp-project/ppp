@@ -7,7 +7,8 @@ MANDIR = /usr/local/man
 
 INSTALL= /usr/sbin/install
 
-CFLAGS = -w -DNO_USLEEP
+COPTS = -O -Xa -w
+CFLAGS = $(COPTS) -DNO_USLEEP
 
 all:	chat
 
