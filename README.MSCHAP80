@@ -226,7 +226,8 @@ int main(argc, argv)
     for (i = 0; i < sizeof(challenge); i++)
         challenge[i] = (u_char)challengeInt[i];
 
-    ChapMS(&cstate, challenge, sizeof(challenge), argv[2], strlen(argv[2]));
+    ChapMS(&cstate, challenge, argv[2], strlen(argv[2]),
+	   (MS_ChapResponse *)&cstate.response);
     printf("Response length is %d, response is:", cstate.resp_length);
 
     for (i = 0; i < cstate.resp_length; i++) {
@@ -241,8 +242,8 @@ int main(argc, argv)
 }
 -------------
 
-This needs to link against chap_ms.o, md4.o, and the DES library.  When 
-you run it with the command line:
+This needs to link against chap_ms.o, md4.o, sha1.o and the DES library.
+When you run it with the command line:
 
  $ testchap 00000000000000000000000000000000 hello
 

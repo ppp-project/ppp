@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.80 2002/07/16 13:11:43 kad Exp $"
+#define RCSID	"$Id: auth.c,v 1.81 2002/09/01 12:00:15 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -608,59 +608,62 @@ void
 start_networks(unit)
     int unit;
 {
-    static int started = 0;
     int i;
     struct protent *protp;
     int ecp_required, mppe_required;
 
-    if (!started) {
-	started = 1;
-	new_phase(PHASE_NETWORK);
+    new_phase(PHASE_NETWORK);
 
 #ifdef HAVE_MULTILINK
-	if (multilink) {
-	    if (mp_join_bundle()) {
-		if (updetach && !nodetach)
-		    detach();
-		return;
-	    }
+    if (multilink) {
+	if (mp_join_bundle()) {
+	    if (updetach && !nodetach)
+		detach();
+	    return;
 	}
+    }
 #endif /* HAVE_MULTILINK */
 
 #ifdef PPP_FILTER
-	if (!demand)
-	    set_filters(&pass_filter, &active_filter);
+    if (!demand)
+	set_filters(&pass_filter, &active_filter);
 #endif
-	/* Start CCP and ECP */
-	for (i = 0; (protp = protocols[i]) != NULL; ++i)
-	    if ((protp->protocol == PPP_ECP || protp->protocol == PPP_CCP)
-		&& protp->enabled_flag && protp->open != NULL)
-		(*protp->open)(0);
-    }
+    /* Start CCP and ECP */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if ((protp->protocol == PPP_ECP || protp->protocol == PPP_CCP)
+	    && protp->enabled_flag && protp->open != NULL)
+	    (*protp->open)(0);
 
     /*
-     * Bring up other network protocols after encryption has completed.
-     * OPENED here merely means that negotiation has completed.  It is
-     * up to the protocol to correctly terminate or disable LCP/NCP 
-     * based on the result of the negotiation.
+     * Bring up other network protocols iff encryption is not required.
      */
     ecp_required = ecp_gotoptions[unit].required;
     mppe_required = ccp_gotoptions[unit].mppe;
-    if ((!ecp_required && !mppe_required)
-	|| (ecp_required && ecp_fsm[unit].state == OPENED)
-	|| (mppe_required && ccp_fsm[unit].state == OPENED)) {
-	for (i = 0; (protp = protocols[i]) != NULL; ++i)
-	    if (protp->protocol < 0xC000
-		&& protp->protocol != PPP_CCP && protp->protocol != PPP_ECP
-		&& protp->enabled_flag && protp->open != NULL) {
-		(*protp->open)(0);
-		++num_np_open;
-	    }
+    if (!ecp_required && !mppe_required)
+	continue_networks(unit);
+}
 
-	if (num_np_open == 0)
-	    /* nothing to do */
-	    lcp_close(0, "No network protocols running");
-    }
+void
+continue_networks(unit)
+    int unit;
+{
+    int i;
+    struct protent *protp;
+
+    /*
+     * Start the "real" network protocols.
+     */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if (protp->protocol < 0xC000
+	    && protp->protocol != PPP_CCP && protp->protocol != PPP_ECP
+	    && protp->enabled_flag && protp->open != NULL) {
+	    (*protp->open)(0);
+	    ++num_np_open;
+	}
+
+    if (num_np_open == 0)
+	/* nothing to do */
+	lcp_close(0, "No network protocols running");
 }
 
 /*

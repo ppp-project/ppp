@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.32 2002/05/21 17:26:49 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.33 2002/09/01 12:00:15 dfs Exp $"
 
 /*
  * TODO:
@@ -500,7 +500,6 @@ ChapReceiveChallenge(cstate, inp, id, len)
     case CHAP_MICROSOFT:
 	ChapMS(cstate, rchallenge, secret, secret_len,
 	       (MS_ChapResponse *) cstate->response);
-	cstate->resp_length = MS_CHAP_RESPONSE_LEN;
 	break;
 
     case CHAP_MICROSOFT_V2:
@@ -509,7 +508,6 @@ ChapReceiveChallenge(cstate, inp, id, len)
 		cstate->resp_name, secret, secret_len,
 		(MS_Chap2Response *) cstate->response, cstate->earesponse,
 		 MS_CHAP2_AUTHENTICATEE);
-	cstate->resp_length = MS_CHAP2_RESPONSE_LEN;
 	break;
 #endif /* CHAPMS */
 

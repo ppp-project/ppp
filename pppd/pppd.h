@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.71 2002/07/16 13:11:43 kad Exp $
+ * $Id: pppd.h,v 1.72 2002/09/01 12:00:15 dfs Exp $
  */
 
 /*
@@ -496,6 +496,7 @@ void link_terminated __P((int));  /* we are finished with the link */
 void link_down __P((int));	  /* the LCP layer has left the Opened state */
 void link_established __P((int)); /* the link is up; authenticate now */
 void start_networks __P((int));   /* start all the network control protos */
+void continue_networks __P((int)); /* start network [ip, etc] control protos */
 void np_up __P((int, int));	  /* a network protocol has come up */
 void np_down __P((int, int));	  /* a network protocol has gone down */
 void np_finished __P((int, int)); /* a network protocol no longer needs link */

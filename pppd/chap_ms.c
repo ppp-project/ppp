@@ -40,7 +40,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.20 2002/04/02 14:15:07 dfs Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.21 2002/09/01 12:00:15 dfs Exp $"
 
 #ifdef CHAPMS
 
@@ -570,17 +570,18 @@ ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
 #endif
     BZERO(response, sizeof(*response));
 
-    /* Calculate both always */
     ChapMS_NT(rchallenge, secret, secret_len, response->NTResp);
 
 #ifdef MSLANMAN
     ChapMS_LANMan(rchallenge, secret, secret_len, response);
 
-    /* prefered method is set by option  */
+    /* preferred method is set by option  */
     response->UseNT[0] = !ms_lanman;
 #else
     response->UseNT[0] = 1;
 #endif
+
+    cstate->resp_length = MS_CHAP_RESPONSE_LENGTH;
 
 #ifdef MPPE
     Set_Start_Key(rchallenge, secret, secret_len);
@@ -625,6 +626,9 @@ ChapMS2(chap_state *cstate, u_char *rchallenge, u_char *PeerChallenge,
     GenerateAuthenticatorResponse(secret, secret_len, response->NTResp,
 				  response->PeerChallenge, rchallenge,
 				  user, authResponse);
+
+    cstate->resp_length = MS_CHAP2_RESPONSE_LEN;
+
 #ifdef MPPE
     SetMasterKeys(secret, secret_len, response->NTResp, authenticator);
 #endif

@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.38 2002/07/10 20:04:35 kad Exp $"
+#define RCSID	"$Id: ccp.c,v 1.39 2002/09/01 12:00:15 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -1421,7 +1421,7 @@ ccp_up(f)
     if (go->mppe) {
 	BZERO(mppe_recv_key, MPPE_MAX_KEY_LEN);
 	BZERO(mppe_send_key, MPPE_MAX_KEY_LEN);
-	start_networks(f->unit);		/* Bring up IP et al */
+	continue_networks(f->unit);		/* Bring up IP et al */
     }
 #endif
 }
