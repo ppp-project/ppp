@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.3 1996/07/01 01:04:37 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.4 1997/04/30 05:47:02 paulus Exp $	*/
 
 /*
  * if_pppvar.h - private structures and declarations for PPP.
@@ -76,6 +76,10 @@ struct ppp_softc {
 	void	*sc_rc_state;		/* receive decompressor state */
 	time_t	sc_last_sent;		/* time (secs) last NP pkt sent */
 	time_t	sc_last_recv;		/* time (secs) last NP pkt rcvd */
+#ifdef PPP_FILTER
+	struct	bpf_program sc_pass_filt;   /* filter for packets to pass */
+	struct	bpf_program sc_active_filt; /* filter for "non-idle" packets */
+#endif /* PPP_FILTER */
 #ifdef	VJC
 	struct	slcompress *sc_comp; 	/* vjc control buffer */
 #endif
@@ -94,6 +98,7 @@ struct ppp_softc {
 	int	sc_rawin_count;		/* # in sc_rawin */
 };
 
+#ifdef _KERNEL
 struct	ppp_softc ppp_softc[NPPP];
 
 struct	ppp_softc *pppalloc __P((pid_t pid));
@@ -103,3 +108,6 @@ int	pppioctl __P((struct ppp_softc *sc, u_long cmd, caddr_t data,
 void	ppp_restart __P((struct ppp_softc *sc));
 void	ppppktin __P((struct ppp_softc *sc, struct mbuf *m, int lost));
 struct	mbuf *ppp_dequeue __P((struct ppp_softc *sc));
+int	pppoutput __P((struct ifnet *, struct mbuf *,
+		       struct sockaddr *, struct rtentry *));
+#endif /* _KERNEL */
