@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.18 1995/05/19 03:18:08 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.19 1995/06/01 01:30:38 paulus Exp $";
 #endif
 
 /*
@@ -581,7 +581,8 @@ ipcp_nakci(f, p, len)
 	    if (ciaddr1 && go->accept_local)
 		try.ouraddr = ciaddr1;
 	    if (try.ouraddr != 0)
-		no.neg_addr = 1;
+		try.neg_addr = 1;
+	    no.neg_addr = 1;
 	    break;
 	default:
 	    goto bad;
