@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.32 2004/11/04 12:00:07 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.33 2004/11/12 09:57:43 paulus Exp $"
 
 #ifdef CHAPMS
 
@@ -125,11 +125,13 @@ u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
 int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
 
+#ifdef DEBUGMPPEKEY
 /* For MPPE debug */
 /* Use "[]|}{?/><,`!2&&(" (sans quotes) for RFC 3079 MS-CHAPv2 test value */
 static char *mschap_challenge = NULL;
 /* Use "!@\#$%^&*()_+:3|~" (sans quotes, backslash is to escape #) for ... */
 static char *mschap2_peer_challenge = NULL;
+#endif
 
 #include "fsm.h"		/* Need to poke MPPE options */
 #include "ccp.h"
