@@ -1,405 +1,46 @@
 #
-#  $Id: README.NeXT,v 1.2 1995/12/18 03:29:36 paulus Exp $
+#  $Id: README.NeXT,v 1.3 1997/04/30 05:37:02 paulus Exp $
 #
 
-This distribution contains a port of PPP-2.2 for NeXT.  The full
+This distribution contains a port of PPP-2.3 for NeXT.  The full
 source code is available as well as an MAB installer package.  Since
 this project is a continuing effort, you are encouraged to check out
-the WWW page to see if you have the latest software.  This is
-especially true if you find you have problems with the version you
-presently use. For more information on the NeXT PPP port see:
+the "PPP-2.3 for NeXTSTEP" web page to see if you have the latest
+software.  This is especially true if you find you have problems with
+the version you presently use.  The web site contains a comprehensive
+NeXT specific FAQ, mailing list information, and a bug submission
+form.  Please see:
+
   http://www.thoughtport.com:8080/PPP/
      -or-
   ftp://ftp.thoughtport.com/pub/next/ppp/
 
-For more information on PPP in general, you might want to check out:
-   http://cs.uni-bonn.de/ppp/faq.html
-     -and-
-   ftp://morningstar.com/pub/papers/ppp-white-paper.ps.gz
-     -and-
-   http://www.cis.ohio-state.edu/hypertext/faq/usenet/pdial/faq.html
-       (This last is a list of internet providers)
+If you use this software and are pleased with its performance, you are
+encouraged to make a donation to support continued development.  50%
+of all donations go to charity.  For more information, please see:
+  http://www.thoughtport.com:8080/PPP/donations.html
 
 
-See the file ./README for general information regarding PPP-2.2 for
-       all computer systems.
-See the file ./SETUP for general setup information for all computer systems.
-See the file ./NeXT/INSTALL for NeXT Specific installation instructions.
-See the file ./NeXT/README.NeXT for bugs.
+The subdirectory NeXT contains several files of interest:
 
-New to release 0.4.6 (LKS version 4.14)
-=======================================
+   INSTALL -     A file giving specific directions for installing
+                 ppp-2.3 on a NeXT computer.
 
- * Added a kernel optimization that will reduce the 
-   interrupt load on the CPU.  This optimization will
-   only work if you use the latest serial drivers supplied
-   by NeXT.  You can get these drivers off of NeXTAnswers.
-   The optimization will not work if you use the Mux serial
-   driver.  I believe that this optimization will solve many
-   of the kernel panics that people have reported.
+   Examples -    This directory provides more examples of
+                 scripts and other helpful utilities.
 
- * Added support for Microsoft's extended DNS negotiation.
-   This will only be of use for people who server PPP clients
-   using Win95, TechSmith Corporation's Foray PPP client 
-   (http://www.techsmith.com) for WFWG 3.11, or others whose
-   client supports this mechanism. Thanks to
-   clameter@hur.fuller.edu (Christoph Lameter) for supplying the
-   patches.  This patch is totally untested since I don't serve 
-   any clients, and if I did I wouldn't admit to running a 
-   MicroSloth operating system.
+   MailBug.app - This application is similar to BugNeXT.  It will 
+                 allow you to submit bugs electronically.  
+                 Many thanks to Running-Start, Inc. for this program.
+                 The WWW page also has a bug submission form.
 
- * Various minor fixes to documentation and examples.
+   NeXT_Version - This file describes what NeXT specific version of
+                  PPP-2.3 you have.
 
+   ChangeLog.rtf - A history of development and bug fixes for ppp-2.3.
 
-New to release 0.4.5 (LKS version 4.9 release1)
-======================================
+   TODO.NeXT -   A wishlist for features.
 
- * This release is based on the third beta release of
-   PPP-2.2 (ppp-2.2b3.tar.gz) by Paul Mackerras.  It will
-   probably be the version released along with PPP-2.2.
-
- * Some enhancements to the Example ip-up and ip-down
-   scripts.
-
- * Several documentation enhancements to support the
-   actual release.
-
- * Removed the new locking code.  Temporarily, we continue
-   to rely on the old mechanism.
-
- * This program runs on Intel, Moto, and Sparc.  It apparently
-   runs fine on HP until shutdown.  Then there appear to be problems.
-   Due to time constraints, this will have to be corrected as a patch.
-   As usual, this will be available on ftp.thoughtport.com:/pub/next/ppp/.
-
-
-New to release 0.4.4 (LKS version 4.5)
-======================================
-
- * The netbuf queueing mechanism was significantly
-   simplified.  It is hoped that some HP memory
-   alignment problems were also solved.  This may
-   help solve some of the mysterious panics others have
-   seen.
-
- * A new locking mechanism was implemented that
-   may simplify the spl() calls.
-
- * Memory allocation in BSD Compress code was cleaned up in 
-   an attempt to solve HP alignment problems.  
-
- * Thanks go to Pete French <pete@ohm.york.ac.uk> for all the 
-   above modifications
-
-New to release 0.4.3 (LKS version 4.4)
-======================================
-
- * This release fixes some problems regarding
-   HP and SPARC support.  It is said to now run
-   on Sparc.  I would hope HP also but havn't heard
-   yet.  Thanks to Dave Hess <David-Hess@net.tamu.edu>
-   for finding the problems for Sparc.
-
- * Minor documentation fixes.
-
-
-New to release 0.4.0 (LKS version 4.1 - summerb2)
-=================================================
-
- * This release is based on the second beta release
-   of PPP-2.2 (ppp-2.2b2).
-
- * The default chat is now the one supplied in the beta
-   PPP release.  This chat will compile fine using Dev 3.3.
-   However, if you are running Dev 3.2, you will not be able
-   to compile the default chat (POSIX problems).  In this case,
-   you may use the old chat (renamed as ./chat/chat.c.3.2).
-
-
-
-New to release 0.4.0 (LKS version 4.0 - summerb1)
-=================================================
-
- * This release is based on the first beta release
-   of PPP-2.2 (ppp-2.2b1).
-
- * Chat was updated in the new beta.  However, because
-   of broken posix functionality under NeXTSTEP (3.2) it 
-   will not compile properly.  Therefore, the old chat
-   is being used.  The newer chat is backed up as
-   ./chat/chat.c.orig.  Those with Dev 3.3 may wish to 
-   try to compile to see if the posix problems were fixed.
-
- * Support for the Microsoft Call Back Configuration Protocol.	
-   See the file ./README.cbcp.
-
-
-
-New to release 0.3.0 (LKS version 3.0 - summera51)
-=====================================
-
- * This release is the first to be based on the fifth alpha
-   release of PPP-2.2 (ppp-2.2a5).
-
- * Major kernel revision.  This release attempts to merge
-   the LKS written by Perkins and that written by Prindeville/French.
-   The hope is that this new merged kernel will allow us to maintain
-   one set of sources.  This kernel, or a variant thereof, will
-   probably be the one that is released with the PPP-2.2 beta
-   distribution.
-
- * Fixed a bug that caused problems with NXFax's capability
-   to determine port usage.
-
- * Added support for the Berkley Packet Filter (BPF) and tcpdump.
-   Use of BPF requires special installation instructions.  See
-   the installation file for more info.
-
- * Fixed a header include problem that kept sources from compiling
-   under NS 3.3 Dev. for m68k.  *Sigh* I guess support for m68k
-   continues to falter... :(
-
- * Officially changed the name of the log file from:
-      /usr/adm/ppp2.2.debug
-             -to-
-      /usr/adm/ppp2.2.log
-   If you are upgrading, you should change the name of the file
-   in /etc/syslog.conf.  Remember to watch out for the tab character
-   and remember to create the initial file.  For more information see
-   ./NeXT/INSTALL.
-
-   This change was done so that the file could be opened from the
-   workspace.  There was a naming conflict with the .debug extension.
-   Note also, that this name is a bit different than that suggested in
-   the ./SETUP file.
-
- * Fixed a problem with the pppd option 'local'.
-
-As part of a5:
-
- * Fixed a bug in pppd that would allow service (under some circumstances)
-   to peers who refuse to authenticate.
-
- * Fixed a bug with CCP negotiation. 
-
- * Fixed a bug that caused negotation with an NT RAS PPP server to fail.
-  
-
-New to release 1.9 (LKS version 2.1)
-=====================================
-
- * Support for NS Sparc has been added. Sparc users note, the SUN
-   serial driver in the pre-release was not very robust at high speeds.
-   This has been fixed for the final release.  This could cause problems
-   with testing on Sparc.  Low bps rates should be OK...like 2400 to
-   maybe 9600 with low system activity.  Thanks go to
-   John Landwehr <John_Landwehr@NeXT.COM> for this work.
-
- * Fixed a nasty little bug that degraded performance of multiple
-   interfaces on Intel systems.
-
- * Added support for IP address filtering.  This allows
-   detection and prevetion of IP address spoofing.  Check out
-   the new ./pppexclude directory.  Thanks to
-   Lawrence E. Freil <lef@woods.com> for this code.
-
- * More support for multiple ppp connections to different
-   hosts.  Check out ./Examples/ppp_multiple_hosts.tar.gz.
-   Thanks to Jonathan Adams <jonathan@filoli.com> for this
-   code.
-
- * Modified lock file for better UUCP interaction.  Special
-   thanks to Kim Shrier <kim@tinker.com> for this code.
-
- * Fixed the new 3.3 multicast warning.
-
- * Improved installation documentation.
-
-
-New to release 1.8 (LKS version 1.3)
-=====================================
-
- * Moved to ppp-2.2a4, the fourth alpha release
-   from Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>.
-
- * Fixed a bug that I introduced in 1.7 that could cause
-   kernel panics when BSD compression was used in conjunction
-   with VJ header compression.
-
- * LKS Numbering Scheme changed (due to my screwup with a4 and CVS).
-
- * Removed support for extra pppd option 'usepty'.  Can be done
-   with an external program if desired.
-
- * Included the old modified pppstats.c that shows compression
-   statistics.
-
-New to release 1.7 (LKS version 1.31)
-=====================================
-
- * Moved packet compression outside the interrupt handler.
-   Previously, only packet decompression was done outside.
-
- * Made many enhancements as suggested by Paul Mackerras.
-
- * Fixed a bug that sometimes caused "bad fcs" errors to panic
-   the machine.
-
- * Fixed a problem that caused NFS traffic to force
-   compression to exit (and sometimes hang NFS).
-   NFS traffic works properly now (regardless of the buffer size
-   set via the NFSManager.app).
-
- * Fixed a timeout problem in pppd that could sometimes cause
-   negotiations to loop endlessly.  This fix should eventually make
-   it into ppp2.2a4.
-
- * Split code into multiple files for better organization.
-
- * Fixed pppstats to show compression ratios on the proper
-   side.  Left side is for incoming packets and right side is
-   for outgoing packets.
-
- * Added some suggested enhancements to
-   pppd.  These suggestions were brought up
-   on the ports mailing list and will probably
-   be included in ppp2.2a4.  I added them for 
-   the interrim.  They basically involve better permissions
-   for running the ip-up and ip-down scripts.  They are now run
-   as the effective user-id of pppd.  So if you run pppd suid,
-   root, then ip-up and ip-down are run as root.
-   
- * Corrected several minor documentation problems.
-
-
-New to release 1.6 (LKS version 1.24)
-=====================================
-
- * Added support for HP-PA systems.  Many thanks go to
-   Alain Fauconnet <af@biomath.jussieu.fr> for his efforts in this
-   work.
-
- * Added further performance enhancements to the LKS.  This resulted
-   in fewer "silo overflows", and thus dropped packets, when operating
-   at high speed (>= 38.4KBS) sustained bidirectional transfers over
-   multiple interfaces.
-
- * Updated the installation instructions.
-
-
-New to release 1.5 (LKS version 1.22)
-=====================================
-
- * Not a real release.  Used for distributing
-   tests to HPPA users.
-
-
-New to release 1.4 (LKS version 1.18)
-=====================================
-
- * Fixed problem that delayed many PPP protcol packets from timely
-   delivery to pppd.
-
- * Added compression statistics support for pppstats.
-
- * Cleaned up processor priority levels. 
-
- * Added better support for netbuf queue monitoring.
-
-
-New to release 1.3 (LKS version 1.16)
-=====================================
-
- * At compile time, you have the option to decompress VJ/BSD
-   packets either inside or outside the interrupt handler.
-   See the DECOMP_OUT flag in ./NeXT/Makefile.  The old 
-   functionality was to do the work inside the interrupt
-   handler.  It is probably more appropriate to do it
-   outside. Thanks to Pete French <pete@ohm.york.ac.uk> for
-   discussion on this topic.
-
- * Added initial support for operation over pseudo
-   ttys.  See the USEPTY flag in ./pppd/Makefile.NeXT.
-   This adds a new option to pppd, "usepty <hostname>".
-   If this option is used, pppd will fire up an rlogin
-   session to <hostname>.  You may then use chat as normal
-   to start the remote ppp.  Thereafter, the packets flow
-   over the rlogin session.  This may potentially be used
-   to start a new ppp session over an open ppp session.
-
- * Added enhancements and changes suggested for ppp-2.2a3.
-   This includes some fixes to the BSD compression code
-   that caused it to turn off compression inappropriately
-   under error conditions.
-
- * Patched pppd to better support code that sleeps but never
-   wakes in ip-up scripts.  Thanks to longyear@netcom.com 
-   (Al Longyear) and Bill Hay <wish@dumain.demon.co.uk>.
-
- * Did more verification with the full version of NXFAX installed. 
-   Seems to work flawlessly!  Thanks to Rick Damon <nxfax@bandw.com>
-   at Black and White for his help in the matter.
-
- * Added a new 'Examples' directory to the hierarchy.  This
-   will become a collecting place for user info.
-
-
-
-New to release 1.2 (LKS version 1.13)
-=====================================
-
- * The system now supports BSD Packet compression using the new CCP.
-   Of course, both ends must negotiate this option.
-
-
-New to release 1.1
-==================
-
- * The system now works with the MuX serial driver V1.5. Probably 
-   version 1.4 also.  No changes need to be made to the MuX buffer
-   (and DOUBLE_BUFFER) values. 
-
- * The system now works when NXFax is installed.
-
- * There have been some internal optimizations for those
-   who use the NeXT supplied serial drivers.
-
-
-New to release 1.0
-==================
-
- * On Intel systems, some ioctl calls did not return the proper value.
-   This turned out to be a bug in the OS.  A true workaround has been
-   implemented.  The ioctl return value macro is now only used to 
-   check for return value errors.  Flags are now correctly set without
-   the macro.
-
- * Multiple interfaces now work properly.  The ioctl fix above solved
-   the problem of a second interface "stealing" the first interface.
-
- * lcp-echo-failure works.
-
- * We are now using the default pppstats.  This was modified to 
-   use an ioctl to get information.  One less program we have to 
-   support.  pppstats no longer requires the SUID bit or the loadable.
-
- * We are now using the default VJ compression code.  Another
-   file we do not have to support.
-
- * PPP-2.2 uses a new mechanism for determining when to kill pppd.
-   This should solve the process group problems we have been
-   experiencing.
-
- * Compression is not yet implemented.  This release should give you
-   the same (but more stable) functionality as the ppp-2.1.2 release.
-
-
-
-For problems, please mail nextppp@listproc.thoughtport.com.  Make
-sure you read the TROUBLESHOOTING section in ./NeXT/INSTALL so that
-you send all the appropriate information.  Further, there is an
-extensive FAQ available at:
-  http://www.thoughtport.com:8080/PPP/
 
 
 

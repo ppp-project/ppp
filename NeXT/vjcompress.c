@@ -26,16 +26,16 @@
  */
 
 /*
- * This version is used under SunOS 4.x, DEC Alpha OSF/1, AIX 4.x,
+ * This version is used under SunOS 4.x, Digital UNIX, AIX 4.x,
  * and SVR4 systems including Solaris 2.
  *
- * $Id: vjcompress.c,v 1.2 1996/05/24 07:04:06 paulus Exp $
+ * $Id: vjcompress.c,v 1.3 1997/04/30 05:39:44 paulus Exp $
  */
 
 #include <sys/types.h>
 #include <sys/param.h>
 
-#ifdef __svr4__
+#ifdef SVR4
 #ifndef __GNUC__
 #include <sys/byteorder.h>	/* for ntohl, etc. */
 #else
@@ -49,7 +49,7 @@
 #endif
 #include <netinet/in.h>
 
-#ifdef __aix4__
+#ifdef AIX4
 #define _NETINET_IN_SYSTM_H_
 typedef u_long  n_long;
 #else
@@ -430,8 +430,9 @@ vj_uncompress_err(comp)
  * "Uncompress" a packet of type TYPE_UNCOMPRESSED_TCP.
  */
 int
-vj_uncompress_uncomp(buf, comp)
+vj_uncompress_uncomp(buf, buflen, comp)
     u_char *buf;
+    int buflen;
     struct vjcompress *comp;
 {
     register u_int hlen;

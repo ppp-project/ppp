@@ -49,9 +49,10 @@
 /*
  * This version is for use with mbufs on BSD-derived systems.
  *
- * $Id: bsd-comp.c,v 1.3 1996/09/14 05:08:26 paulus Exp $
+ * $Id: bsd-comp.c,v 1.4 1997/04/30 05:39:29 paulus Exp $
  */
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -63,10 +64,11 @@
 #include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 
-#define PACKETPTR	netbuf_t
+#include "nbq.h"
+
+#define PACKETPTR	NETBUF_T
 #include <net/ppp-comp.h>
 
-#include "nbq.h"
 
 /*
  * We align with this number of bits zero. The code makes the somewhat
@@ -90,7 +92,7 @@
 #include <netinet/in_var.h>
 #include <netinet/ip.h>
 
-#define	mtod(m,type)	((type)nb_map(m))
+#define	mtod(m,type)	((type)NB_MAP(m))
 typedef unsigned short u_int16_t;
 
 /*
@@ -175,10 +177,10 @@ static int	bsd_comp_init __P((void *state, u_char *options, int opt_len,
 				   int unit, int hdrlen, int debug));
 static int	bsd_decomp_init __P((void *state, u_char *options, int opt_len,
 				     int unit, int hdrlen, int mru, int debug));
-static int	bsd_compress __P((void *state, netbuf_t *mret,
-				  netbuf_t mp, int slen, int maxolen));
-static void	bsd_incomp __P((void *state, netbuf_t dmsg));
-static int	bsd_decompress __P((void *state, netbuf_t cmp, netbuf_t *dmpp));
+static int	bsd_compress __P((void *state, NETBUF_T *mret,
+				  NETBUF_T mp, int slen, int maxolen));
+static void	bsd_incomp __P((void *state, NETBUF_T dmsg));
+static int	bsd_decompress __P((void *state, NETBUF_T cmp, NETBUF_T *dmpp));
 static void	bsd_reset __P((void *state));
 static void	bsd_comp_stats __P((void *state, struct compstat *stats));
 
@@ -245,6 +247,7 @@ bsd_clear(db)
     db->ratio = 0;
     db->bytes_out = 0;
     db->in_count = 0;
+    db->incomp_count = 0;
     db->checkpoint = CHECK_GAP;
 }
 
@@ -267,7 +270,9 @@ bsd_check(db)
 {
     u_int new_ratio;
 
-    if (db->in_count >= db->checkpoint) {
+    if (db->in_count >= db->checkpoint)
+      {
+
 	/* age the ratio by limiting the size of the counts */
 	if (db->in_count >= RATIO_MAX
 	    || db->bytes_out >= RATIO_MAX) {
@@ -289,10 +294,11 @@ bsd_check(db)
 	    if (db->bytes_out != 0)
 		new_ratio /= db->bytes_out;
 
-	    if (new_ratio < db->ratio || new_ratio < 1 * RATIO_SCALE) {
+	    if (new_ratio < db->ratio || new_ratio < 1 * RATIO_SCALE)
+	      {
 		bsd_clear(db);
 		return 1;
-	    }
+	      }
 	    db->ratio = new_ratio;
 	}
     }
@@ -518,8 +524,8 @@ bsd_decomp_init(state, options, opt_len, unit, hdrlen, mru, debug)
 int					/* new slen */
 bsd_compress(state, mret, mp, slen, maxolen)
     void *state;
-    netbuf_t *mret;		/* return compressed netbuf here */
-    netbuf_t mp;		/* from here */
+    NETBUF_T *mret;		/* return compressed netbuf here */
+    NETBUF_T mp;		/* from here */
     int slen;			/* uncompressed length */
     int maxolen;		/* max compressed length */
 {
@@ -535,7 +541,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
     u_char *rptr, *wptr;
     u_char *cp_end;
     int olen;
-    netbuf_t m;
+    NETBUF_T m;
 
 #define PUTBYTE(v) {					\
     ++olen;						\
@@ -574,12 +580,12 @@ bsd_compress(state, mret, mp, slen, maxolen)
 	maxolen = slen;
 
     /* Allocate one mbuf to start with. (don't forget space for the FCS!) */
-    m = ppp_nb_alloc(maxolen + db->hdrlen + PPP_FCSLEN);
+    m = NB_ALLOC(maxolen + db->hdrlen + PPP_FCSLEN);
     *mret = m;
     if (m != NULL) {
       if (db->hdrlen > 0)
-	ppp_nb_shrink_top(m, db->hdrlen);
-      nb_shrink_bot(m, PPP_FCSLEN);  /* grown by pppstart() */
+	NB_SHRINK_TOP(m, db->hdrlen);
+      NB_SHRINK_BOT(m, PPP_FCSLEN);  /* grown by pppstart() */
 	wptr = mtod(m, u_char *);
 	cp_end = wptr + maxolen;
     } else
@@ -601,7 +607,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
 
     olen = 0;
     rptr += PPP_HDRLEN;
-    slen = nb_size(mp) - PPP_HDRLEN;
+    slen = NB_SIZE(mp) - PPP_HDRLEN;
     ilen = slen + 1;
     while (slen > 0) {
 	slen--;
@@ -684,13 +690,13 @@ bsd_compress(state, mret, mp, slen, maxolen)
     if (olen + PPP_HDRLEN + BSD_OVHD > maxolen || wptr == NULL) {
 	/* throw away the compressed stuff if it is longer than uncompressed */
 	if (*mret != NULL) {
-	    nb_free(*mret);
+	    NB_FREE(*mret);
 	    *mret = NULL;
 	}
 	++db->incomp_count;
 	db->incomp_bytes += ilen;
     } else {
-	nb_shrink_bot(m, nb_size(m) - (wptr - mtod(m, u_char *)));
+	NB_SHRINK_BOT(m, NB_SIZE(m) - (wptr - mtod(m, u_char *)));
 	++db->comp_count;
 	db->comp_bytes += olen + BSD_OVHD;
     }
@@ -708,7 +714,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
 static void
 bsd_incomp(state, dmsg)
     void *state;
-    netbuf_t dmsg;
+    NETBUF_T dmsg;
 {
     struct bsd_db *db = (struct bsd_db *) state;
     u_int hshift = db->hshift;
@@ -733,10 +739,11 @@ bsd_incomp(state, dmsg)
     if (ent < CI_BSD_COMPRESS || ent > 0xf9)
 	return;
 
+    db->incomp_count++;
     db->seqno++;
     ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;
-    slen = nb_size(dmsg) - PPP_HDRLEN;
+    slen = NB_SIZE(dmsg) - PPP_HDRLEN;
     ilen += slen;
 
     do {
@@ -828,7 +835,7 @@ bsd_incomp(state, dmsg)
 int
 bsd_decompress(state, cmp, dmpp)
     void *state;
-    netbuf_t cmp, *dmpp;
+    NETBUF_T cmp, *dmpp;
 {
     struct bsd_db *db = (struct bsd_db *) state;
     u_int max_ent = db->max_ent;
@@ -840,7 +847,7 @@ bsd_decompress(state, cmp, dmpp)
     int explen, seq, len;
     u_int incode, oldcode, finchar;
     u_char *p, *rptr, *wptr;
-    netbuf_t dmp, mret;
+    NETBUF_T dmp, mret;
     int adrs, ctrl, ilen;
     int space, codelen, extra, maxilen;
 
@@ -853,7 +860,7 @@ bsd_decompress(state, cmp, dmpp)
     adrs = PPP_ADDRESS(rptr);
     ctrl = PPP_CONTROL(rptr);
     rptr += PPP_HDRLEN;
-    len = nb_size(cmp) - PPP_HDRLEN;
+    len = NB_SIZE(cmp) - PPP_HDRLEN;
     seq = (rptr[0] << 8) + rptr[1];
     rptr += BSD_OVHD;
     len -= BSD_OVHD;
@@ -873,14 +880,14 @@ bsd_decompress(state, cmp, dmpp)
      * Allocate an netbuf large enough for all the data.
      */
     maxilen = db->mru + db->hdrlen + PPP_HDRLEN;	/* no FCS */
-    dmp = ppp_nb_alloc(maxilen);			/* XXX */
+    dmp = NB_ALLOC(maxilen);			/* XXX */
     if (dmp == NULL)
 	return DECOMP_ERROR;
     if (db->hdrlen > 0)
-   	ppp_nb_shrink_top(dmp, db->hdrlen);
+   	NB_SHRINK_TOP(dmp, db->hdrlen);
     mret = dmp;
     wptr = mtod(dmp, u_char *);
-    space = nb_size(dmp) - PPP_HDRLEN + 1;
+    space = NB_SIZE(dmp) - PPP_HDRLEN + 1;
 
     /*
      * Fill in the ppp header, but not the last byte of the protocol
@@ -916,7 +923,7 @@ bsd_decompress(state, cmp, dmpp)
 	     * empty mbuf at the end.
 	     */
 	    if (len > 0) {
-		nb_free(mret);
+		NB_FREE(mret);
 		IOLogDbg("bsd_decomp%d: bad CLEAR\n", db->unit);
 		return DECOMP_FATALERROR;	/* probably a bug */
 	    }
@@ -927,7 +934,7 @@ bsd_decompress(state, cmp, dmpp)
 
 	if (incode > max_ent + 2 || incode > db->maxmaxcode
 	    || incode > max_ent && oldcode == CLEAR) {
-	    nb_free(mret);
+	    NB_FREE(mret);
 	    IOLogDbg("bsd_decomp%d: bad code 0x%x oldcode=0x%x max_ent=0x%x explen=%d seqno=%d\n",
 		     db->unit, incode, oldcode, max_ent, explen, db->seqno);
 	    return DECOMP_FATALERROR;	/* probably a bug */
@@ -945,7 +952,7 @@ bsd_decompress(state, cmp, dmpp)
 	codelen = db->lens[finchar];
 	explen += codelen + extra;
 	if (explen > db->mru + 1) {
-	    nb_free(mret);
+	    NB_FREE(mret);
 	    IOLogDbg("bsd_decomp%d: ran out of mru\n  len=%d, finchar=0x%x, codelen=%d, explen=%d\n",
 		       db->unit, len, finchar, codelen, explen);
 	    return DECOMP_FATALERROR;
@@ -957,7 +964,7 @@ bsd_decompress(state, cmp, dmpp)
 	if ((space -= codelen + extra) < 0) {
 	    IOLog("bsd_decompress%d: no space left in netbuf (need %d bytes)\n",
 		  db->unit, (codelen + extra) - space);
-	    nb_free(mret);
+	    NB_FREE(mret);
 	    return DECOMP_ERROR;
 	}
 
@@ -1035,7 +1042,7 @@ bsd_decompress(state, cmp, dmpp)
 	}
 	oldcode = incode;
     }
-    nb_shrink_bot(dmp, nb_size(dmp) - (wptr - mtod(dmp, u_char *)));
+    NB_SHRINK_BOT(dmp, NB_SIZE(dmp) - (wptr - mtod(dmp, u_char *)));
 
     /*
      * Keep the checkpoint right so that incompressible packets
@@ -1066,7 +1073,7 @@ bsd_decompress(state, cmp, dmpp)
 	      db->unit, incode, finchar, oldcode, db->dict[finchar].cptr,
 	      dictp->codem1);
     }
-    nb_free(mret);
+    NB_FREE(mret);
     return DECOMP_FATALERROR;
 #endif /* DEBUG */
 }

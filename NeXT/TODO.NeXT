@@ -1,8 +1,6 @@
 #
-#  $Id: TODO.NeXT,v 1.1 1995/12/18 03:29:55 paulus Exp $
+#  $Id: TODO.NeXT,v 1.2 1997/04/30 05:39:29 paulus Exp $
 #
-
-* FAQ on IPCP failure because of AUTH
 
 * FAQ on shell chat scripts and special characters
 
@@ -21,22 +19,16 @@
 * Better Load support for BPF.  Figure out how to support
   NeXT (moto) with driverkit stuff.
 
-* Verify 1500 minimum
-
-* Limit resources for runaway UDP.
-
-* Better support for getting/releasing netbufs.
-
-* >Jan 10 21:41:46 beatty pppd[1427]: rcvd [IPCP ConfNak id=0x1 <addr 129.38.252.150> <compress VJ 0f 00>]
-
-* Break up installer into Smaller packages
-
 * Fix with VirtModem
 
 * If the dialing program fails to get a line, but returns success,
   then ppp will report that it could not determine the ip address,
   and not notice the "received own echo reply" condition.
 
-* Look into stack overflow as cause of kernel panics.
-
 * Use kget inside interrupt handler.
+
+Look at NAT:There *is* a way to get multiple machines on a network to use
+	one IP address.  RFC 1631 -- The IP Network Address Translator
+	(NAT) describes how this works.
+	http://www.mischler.com 
+	http://willow.canberra.edu.au/~chrisc/nat.html

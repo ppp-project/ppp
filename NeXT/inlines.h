@@ -68,11 +68,11 @@ nbq_high(struct nb_queue* nbq)
     return rv;
 }
 
-static inline netbuf_t
+static inline NETBUF_T
 nbq_peek(struct nb_queue* nbq)
 {
     int s;
-    netbuf_t nb;
+    NETBUF_T nb;
 
     s = splimp();
     nb = nbq->head;
@@ -80,18 +80,18 @@ nbq_peek(struct nb_queue* nbq)
     return nb;
 }
 
-static inline netbuf_t
+static inline NETBUF_T
 nbq_dequeue(struct nb_queue* nbq)
 {
   int s;
-  netbuf_t nb;
+  NETBUF_T nb;
 
   if (!nbq->head)
       return NULL;
 
   s = splimp();
   nb = nbq->head;
-  nb_get_next(nb,&nbq->head);
+  NB_GET_NEXT(nb,&nbq->head);
   if (!nbq->head)
 	nbq->tail = NULL;
   --nbq->len;
@@ -118,14 +118,14 @@ nbq_dequeue(struct nb_queue* nbq)
  */
 
 static inline int
-nbq_enqueue(struct nb_queue* nbq, netbuf_t nb)
+nbq_enqueue(struct nb_queue* nbq, NETBUF_T nb)
 {
   int s;
 
-  nb_set_next(nb,NULL);
+  NB_SET_NEXT(nb,NULL);
   s = splimp();
   if (nbq->tail)
-    nb_set_next(nbq->tail,nb);
+    NB_SET_NEXT(nbq->tail,nb);
   else
     nbq->head = nb;
   nbq->tail = nb;
@@ -137,15 +137,15 @@ nbq_enqueue(struct nb_queue* nbq, netbuf_t nb)
 static inline void
 nbq_flush(struct nb_queue *nbq)
 {
-    netbuf_t nb,temp;
+    NETBUF_T nb,temp;
     int s;
 
     s  = splimp();
     nb = nbq->head;
     while(nb) {
 	temp=nb;
-	nb_get_next(nb,&nb);
-	nb_free(temp);
+	NB_GET_NEXT(nb,&nb);
+	NB_FREE(temp);
     }
 
     nbq->head = nbq->tail = NULL;
@@ -185,7 +185,7 @@ nbq_drop(struct nb_queue *nbq)
 /*
  * Not very pretty, but it makes for less "diffs"...
  */
-#define mtod(m,type)	((type) nb_map(m))
+#define mtod(m,type)	((type) NB_MAP(m))
 
 typedef void (*pfv)(void *);
 
@@ -236,7 +236,11 @@ bpfattach(caddr_t *driverp, netif_t ifp, u_int dlt, u_int hdrlen)
 
 
 static inline void
-bpf_tap(caddr_t arg, u_char *pkt, u_int pktlen)
+#ifndef NETBUF_PROXY
+ bpf_tap(caddr_t arg, u_char *pkt, u_int pktlen) 
+#else
+ bpf_tap(caddr_t arg, NETBUF_T pkt, u_int pktlen)
+#endif
 {
   (*fnarg.tapfn)(arg, pkt, pktlen);
 }

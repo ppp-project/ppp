@@ -144,9 +144,17 @@ int	ppptioctl __P((struct tty *tp, int cmd, void *data, int flag));
 void	pppinput __P((int c, struct tty *tp));
 void	pppstart __P((struct tty *tp));
 
+/*
+ * Must return an actual netbuf_t since other protocols
+ * use this to get our buffers.
+ */
 netbuf_t	pppgetbuf __P((netif_t));
+
+/*
+ * Must accept an actual netbuf_t since others use this
+ * Procedure to access our output routine.
+ */
 int     	pppoutput __P((netif_t ifp, netbuf_t m, void *arg));
-void		pppintr __P((void *));
 
 static u_int16_t pppfcs __P((u_int16_t fcs, u_char *cp, int len));
 static void	pppasyncstart __P((struct ppp_softc *));
@@ -158,19 +166,6 @@ static void	pppdumpb __P((u_char *b, int l));
 void	        ppplogchar __P((struct ppp_softc *, int));
 
 extern kern_server_t instance;
-
-#ifdef ADD_ERRORS
-
-static int in_error_pkt_count = 0;   /* Number of packets received */
-static int in_error_limit = -1;      /* Insert error at this limit */
-static int in_error_max_sep  = 50;  /* Max range of random number */
-
-static int out_error_pkt_count = 0;   /* Number of packets sent */
-static int out_error_limit = -1;      /* Insert error at this limit */
-static int out_error_max_sep  = 50;  /* Max range of random number */
-
-#endif /* ADD_ERRORS */
-
 
 /*
  * Does c need to be escaped?
@@ -188,23 +183,23 @@ extern int ttymodem(struct tty*, int);
 extern int ttselect(struct tty *tp, int rw);
 
 
-static netbuf_t
+static NETBUF_T
 pppgetinbuf(netif_t ifp)
 {
     register struct ppp_softc *sc = &ppp_softc[if_unit(ifp)];
-    netbuf_t nb;
+    NETBUF_T nb;
     int len = MAX(sc->sc_mru, PPP_MTU) + sizeof (struct ifnet *) +
 #ifdef VJC
 	      VJ_HDRLEN +
 #endif
 	      PPP_HDRLEN + PPP_FCSLEN;
-    nb =  ppp_nb_alloc(len);
+    nb =  NB_ALLOC(len);
     if (nb != NULL)
       {
 #ifdef VJC
-	ppp_nb_shrink_top(nb, VJ_HDRLEN + PPP_HDRLEN);
+	NB_SHRINK_TOP(nb, VJ_HDRLEN + PPP_HDRLEN);
 #else
-	ppp_nb_shrink_top(nb, PPP_HDRLEN);
+	NB_SHRINK_TOP(nb, PPP_HDRLEN);
 #endif
       }
 
@@ -219,7 +214,7 @@ void
 pppfillfreeq(void *arg)
 {
     struct ppp_softc *sc = (struct ppp_softc *)arg;
-    netbuf_t nb;
+    NETBUF_T nb;
     volatile static int in = 0;
 
     if (in)
@@ -229,14 +224,6 @@ pppfillfreeq(void *arg)
     while(!nbq_high(&sc->sc_freeq)) {
 	nb = pppgetinbuf(sc->sc_if);
 	if (! nb) break;
-#if 0
-	/*
-	 * we no longer reset the length to 0 and then advance the
-	 * packet length bit by bit; instead we write into it whenever
-	 * we want, and at the end resize the packet before handing-off.
-	 */
-	nb_shrink_bot(nb, nb_size(nb));
-#endif
 	nbq_enqueue(&sc->sc_freeq, nb);
     }
 
@@ -279,7 +266,7 @@ pppopen(dev, tp)
     sc->sc_m = NULL;
     bzero(sc->sc_asyncmap, sizeof(sc->sc_asyncmap));
     sc->sc_asyncmap[0] = 0xffffffff;
-    sc->sc_asyncmap[3] = 0x60000000;
+    sc->sc_asyncmap[3] = 0x60000000;    /* 0x7D and 0x7E */
     sc->sc_rasyncmap = 0;
     sc->sc_devp = (void *) tp;
     sc->sc_start = pppasyncstart;
@@ -334,11 +321,11 @@ pppasyncrelinq(sc)
 
     s = splimp();
     if (sc->sc_outm) {
-	nb_free(sc->sc_outm);
+	NB_FREE(sc->sc_outm);
 	sc->sc_outm = NULL;
     }
     if (sc->sc_m) {
-	nb_free(sc->sc_m);
+	NB_FREE(sc->sc_m);
 	sc->sc_m = NULL;
     }
     if (sc->sc_flags & SC_TIMEOUT) {
@@ -357,12 +344,22 @@ pppread(tp, uio)
     struct uio *uio;
 {
     register struct ppp_softc *sc = (struct ppp_softc *)tp->t_sc;
-    netbuf_t m;
+    NETBUF_T m;
     register int s;
     int error = 0;
+    struct nty *np = ttynty(tp);
+
+#ifdef NEW_CLOCAL
+    if ((tp->t_state & TS_CARR_ON) == 0 && (np->t_pflags & TP_CLOCAL) == 0)
+	return 0;		/* end of file */
+
+#else
 
     if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_flags & CLOCAL) == 0)
 	return 0;		/* end of file */
+
+#endif /* NEW_CLOCAL */
+
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
 	return 0;
     s = splimp();
@@ -371,16 +368,7 @@ pppread(tp, uio)
 	    splx(s);
 	    return (EWOULDBLOCK);
 	}
-#if 0
-	/* NetBSD version... */
-	error = ttysleep(tp, (caddr_t)&tp->t_rawq, TTIPRI|PCATCH, ttyin, 0);
-	if (error) {
-	    splx(s);
-	    return error;
-	}
-#else
 	sleep((caddr_t)&tp->t_rawq, TTIPRI);
-#endif
     }
     if (tp->t_line != PPPDISC) {
 	splx(s);
@@ -398,8 +386,8 @@ pppread(tp, uio)
 	IOLogDbg("Read didn't get a buffer at %s %d\n", __FILE__, __LINE__);
       return -1;
     }
-    error = uiomove(nb_map(m), nb_size(m), UIO_READ, uio);
-    nb_free(m);
+    error = uiomove(NB_MAP(m), NB_SIZE(m), UIO_READ, uio);
+    NB_FREE(m);
     return (error);
 }
 
@@ -412,12 +400,23 @@ pppwrite(tp, uio)
     struct uio *uio;
 {
     register struct ppp_softc *sc = (struct ppp_softc *)tp->t_sc;
-    netbuf_t m;
+    NETBUF_T m;
     struct sockaddr dst;
     int len, error;
+    struct nty *np = ttynty(tp);
+
+#ifdef NEW_CLOCAL
+
+    if ((tp->t_state & TS_CARR_ON) == 0 && (np->t_pflags & TP_CLOCAL) == 0)
+	return 0;		/* wrote 0 bytes */
+
+#else
 
     if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_flags & CLOCAL) == 0)
 	return 0;		/* wrote 0 bytes */
+
+#endif /* NEW_CLOCAL */
+
     if (tp->t_line != PPPDISC)
 	return (EINVAL);
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
@@ -425,23 +424,25 @@ pppwrite(tp, uio)
     if (uio->uio_resid > if_mtu(sc->sc_if) + PPP_HDRLEN ||
       uio->uio_resid < PPP_HDRLEN)
 	return (EMSGSIZE);
-    m = pppgetbuf(sc->sc_if);
+    m = nb_TO_NB(pppgetbuf(sc->sc_if));
+
     if (m == NULL){
       if (sc->sc_flags & SC_DEBUG)
 	IOLogDbg("No buffers available for user level write()\n");
       return(ENOBUFS);
     }
-    ppp_nb_grow_top(m, PPP_HDRLEN);
+    NB_GROW_TOP(m, PPP_HDRLEN);
     len = uio->uio_resid;
-    if (error = uiomove(nb_map(m), nb_size(m), UIO_WRITE, uio)) {
-	nb_free(m);
+    if (error = uiomove(NB_MAP(m), NB_SIZE(m), UIO_WRITE, uio)) {
+	NB_FREE(m);
 	return error;
     }
-    nb_shrink_bot(m, nb_size(m) - len);
+    NB_SHRINK_BOT(m, NB_SIZE(m) - len);
     dst.sa_family = AF_UNSPEC;
     bcopy(mtod(m, u_char *), dst.sa_data, PPP_HDRLEN);
-    ppp_nb_shrink_top(m, PPP_HDRLEN);
-    return (pppoutput(sc->sc_if, m, &dst));
+
+    NB_SHRINK_TOP(m, PPP_HDRLEN);
+    return (pppoutput(sc->sc_if, NB_TO_nb(m), &dst));
 }
 
 /*
@@ -467,34 +468,22 @@ ppptioctl(tp, cmd, data, flag)
     case PPPIOCSASYNCMAP:
 	if (! suser())
 	    return EPERM;
-#if 0
-	IOLogDbg("ppp%d: set async map to 0x%08x\n", if_unit(sc->sc_if),
-		 *(u_long *)data);
-#endif
+
 	sc->sc_asyncmap[0] = *(u_int *)data;
 	break;
 
     case PPPIOCGASYNCMAP:
 	*(u_int *)data = sc->sc_asyncmap[0];
-#if 0
-	IOLogDbg("ppp%d: asyncmap gets 0x%x\n", if_unit(sc->sc_if), *(u_int *)data);
-#endif
 	break;
 
     case PPPIOCSRASYNCMAP:
 	if (! suser())
 	    return EPERM;
 	sc->sc_rasyncmap = *(u_int *)data;
-#if 0
-	IOLogDbg("ppp%d: setting rasyncmap 0x%x\n", if_unit(sc->sc_if), sc->sc_rasyncmap);
-#endif
 	break;
 
     case PPPIOCGRASYNCMAP:
 	*(u_int *)data = sc->sc_rasyncmap;
-#if 0
-	IOLogDbg("ppp%d: rasyncmap gets 0x%x\n", if_unit(sc->sc_if), *(u_int *)data);
-#endif
 	break;
 
     case PPPIOCSXASYNCMAP:
@@ -510,9 +499,6 @@ ppptioctl(tp, cmd, data, flag)
 
     case PPPIOCGXASYNCMAP:
 	bcopy(sc->sc_asyncmap, data, sizeof(sc->sc_asyncmap));
-#if 0
-	IOLogDbg("ppp%d: xasyncmap gets 0x%x/0x%x/0x%x/0x%x\n", if_unit(sc->sc_if), ((u_int *)data)[0], ((u_int *)data)[1], ((u_int *)data)[2], ((u_int *)data)[3]);
-#endif
 	break;
 
     default:
@@ -626,12 +612,22 @@ pppstart(tp)
     register struct tty *tp;
 {
     register struct ppp_softc *sc = (struct ppp_softc *) tp->t_sc;
-    register netbuf_t m;
+    register NETBUF_T m;
     register int len;
     register u_char *start, *stop, *cp;
     int n, ndone, done, idle;
+    struct nty *np = ttynty(tp);
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_flags & CLOCAL) == 0
+#ifdef NEW_CLOCAL
+
+    if ((tp->t_state & TS_CARR_ON) == 0 && (np->t_pflags & TP_CLOCAL) == 0
+
+#else
+
+    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_flags & CLOCAL) == 0 
+
+#endif /* NEW_CLOCAL */
+
 	|| sc == NULL || tp != (struct tty *) sc->sc_devp) {
 	if (tp->t_oproc != NULL)
 	    (*tp->t_oproc)(tp);
@@ -670,44 +666,23 @@ pppstart(tp)
 	    }
 
 	    /* Calculate the FCS for the first netbuf's worth. */
-	    sc->sc_outfcs = pppfcs(PPP_INITFCS, mtod(m, u_char *), nb_size(m));
+	    sc->sc_outfcs = pppfcs(PPP_INITFCS, mtod(m, u_char *), NB_SIZE(m));
 	    sc->sc_outfcs ^= 0xffff;
-
-#ifdef ADD_ERRORS
-      /*
-       * This section will adds random errors to 
-       * outgoing packets.
-       */
-
-      if (out_error_limit == -1)  /* Initial time through */
-	{
-	  out_error_limit = rand() % out_error_max_sep;
-	  IOLog("Introducing outgoing random error after %d more packets\n",
-		 out_error_limit);
-	}	
-
-      if (out_error_pkt_count >=  out_error_limit)
-	{
-	  sc->sc_outfcs ^= 0x99;   /* Munge with some noise */
-	  out_error_pkt_count = 0;
-	  out_error_limit = rand() % out_error_max_sep;
-	  IOLog("Introducing outgoing random error after %d more packets\n",
-		 out_error_limit);
-	}
-      else
-	++out_error_pkt_count;
-      
-
-#endif /* ADD_ERRORS */      
-
-	    cp = mtod(m, u_char *) + nb_size(m);
-	    nb_grow_bot(m, PPP_FCSLEN);
+	    
+	    cp = mtod(m, u_char *) + NB_SIZE(m);
+	    NB_GROW_BOT(m, PPP_FCSLEN);
 	    *cp++ = sc->sc_outfcs & 0xFF;
 	    *cp++ = (sc->sc_outfcs >> 8) & 0xFF;
 	}
 
+#ifdef NETBUF_PROXY
+	m->pktinfo.fourth.tv_sec = time.tv_sec;
+	m->pktinfo.fourth.tv_usec = time.tv_usec;
+#endif
+
+
 	start = mtod(m, u_char *);
-	len = nb_size(m);
+	len = NB_SIZE(m);
 	stop = start + len;
 	while (len > 0) {
 	    /*
@@ -717,9 +692,16 @@ pppstart(tp)
 	    for (cp = start; cp < stop; cp++)
 		if (ESCAPE_P(*cp))
 		    break;
+
 	    n = cp - start;
+
 	    if (n) {
-		/* NetBSD (0.9 or later), 4.3-Reno or similar. */
+		/*
+		 * b_to_q returns the number of characters
+		 * _not_ sent
+		 *
+		 * NetBSD (0.9 or later), 4.3-Reno or similar.
+		 */
 		ndone = n - b_to_q(start, n, &tp->t_outq);
 		len -= ndone;
 		start += ndone;
@@ -727,6 +709,7 @@ pppstart(tp)
 
 		if (ndone < n)
 		    break;	/* packet doesn't fit */
+
 	    }
 
 	    /*
@@ -744,6 +727,9 @@ pppstart(tp)
 		sc->sc_bytessent += 2;
 		start++;
 		len--;
+#ifdef NETBUF_PROXY
+ 	++(m->pktinfo.async_esc);
+#endif
 	    }
 	}
 	/*
@@ -753,7 +739,7 @@ pppstart(tp)
 
 	if (!done) {
 	    /* remember where we got to */
-	    ppp_nb_shrink_top(m, start - mtod(m, u_char *));
+	    NB_SHRINK_TOP(m, start - mtod(m, u_char *));
 	    break;	/* can't do any more at the moment */
 	}
 
@@ -762,13 +748,39 @@ pppstart(tp)
 	 * We make the length zero in case the flag
 	 * cannot be output immediately.
 	 */
-	ppp_nb_shrink_top(m, nb_size(m));
+	NB_SHRINK_TOP(m, NB_SIZE(m));
 	if (putc(PPP_FLAG, &tp->t_outq))
 	    break;
 	sc->sc_bytessent++;
 
+
+#ifdef NETBUF_PROXY
+	m->pktinfo.fifth.tv_sec = time.tv_sec;
+	m->pktinfo.fifth.tv_usec = time.tv_usec;
+#endif
+
+
+#if defined(NBPFILTER) && defined(NETBUF_PROXY)
+
+    /*
+     * See if bpf wants to look at the packet.  Gotta be careful
+     * here because BPF want the uncompressed packet.  For now we
+     * stash a copy that we hand off.  In the future, we may try
+     * to modify BPF to handle compressed packets instead.
+     *
+     * The BPF process point will not work for
+     * non-NETBUF_PROXY points.  In this case, we hand the packet
+     * to BPF earlier in the process (see if_ppp.c).
+     *
+     */
+
+	  if (sc->sc_bpf)
+	      bpf_tap(sc->sc_bpf, m, 0);
+
+#endif
+
 	/* Finished with this netbuf; free it and move on. */
-	nb_free(m);
+	NB_FREE(m);
 	m = NULL;
 	incr_cnt(sc->sc_if, if_opackets);
 
@@ -831,7 +843,7 @@ pppgetm(sc)
      * hand-shake is lock-step (ie. single packet).
      */
     if (sc->sc_m != NULL)
-	nb_free(sc->sc_m);
+	NB_FREE(sc->sc_m);
     sc->sc_m = nbq_dequeue(&sc->sc_freeq);
     splx(s);
 }
@@ -861,9 +873,10 @@ ppprend(cp, n, tp)
 {
 
 #ifndef OPTIMIZE_PPPREND	
+#warning PPPREND Not optimized!!!
   while (n--) pppinput((u_char) *cp++, tp);
 #else
-#warning OPTIMIZE_PPPREND in effect
+
 
   register struct ppp_softc *sc = (struct ppp_softc *)tp->t_sc;
   register int ret;
@@ -896,39 +909,40 @@ ppprend(cp, n, tp)
 	  while(--n);
 	}
       else if (sc->sc_ilen > 3 &&
-		       (nb_size(sc->sc_m) - sc->sc_ilen) > n &&
-		 *cp != PPP_FLAG &&
-		 *cp != PPP_ESCAPE)         /* Dont really handle escapes properly...should */
+	       (NB_SIZE(sc->sc_m) - sc->sc_ilen) > n &&
+	       *cp != PPP_FLAG &&
+	       *cp != PPP_ESCAPE)        /* Dont really handle escapes properly...should */
 	{
-	    unsigned char* cp1 = cp;
-	    if (sc->sc_flags & SC_ESCAPED)
+	  unsigned char* cp1 = cp;
+	  if (sc->sc_flags & SC_ESCAPED)
 	    {
-		sc->sc_flags &= ~SC_ESCAPED;
-		*cp ^= PPP_TRANS;
-	      }
-	    
-	    do
+	      sc->sc_flags &= ~SC_ESCAPED;
+	      *cp ^= PPP_TRANS;
+	    }
+	  
+	  do
 	    {
-		sc->sc_fcs = PPP_FCS(sc->sc_fcs, *(cp++));
-		if (sc->sc_flags & SC_LOG_RAWIN)
-		  ppplogchar(sc, *cp);
-
+	      sc->sc_fcs = PPP_FCS(sc->sc_fcs, *(cp++));
+	      if (sc->sc_flags & SC_LOG_RAWIN)
+		ppplogchar(sc, *cp);
+	      
 	    } while(--n && *cp != PPP_FLAG && *cp != PPP_ESCAPE);
-	    
-
-	    bcopy(cp1, sc->sc_mp, (cp-cp1));
-
-	    sc->sc_bytesrcvd += (cp - cp1);
-	    sc->sc_ilen += (cp-cp1);
-	    sc->sc_mp += (cp-cp1);
+	  
+	  
+	  bcopy(cp1, sc->sc_mp, (cp-cp1));
+	  
+	  sc->sc_bytesrcvd += (cp - cp1);
+	  sc->sc_ilen += (cp-cp1);
+	  sc->sc_mp += (cp-cp1);
+	  
 	}
-	else
+      else
 	{
-	    --n;
-	    pppinput(*(cp++), tp);
+	  --n;
+	  pppinput(*(cp++), tp);
 	}
     }
-
+  
 #endif /* OPTIMIZE_PPPREND */
 }
 
@@ -946,7 +960,7 @@ pppinput(c, tp)
     register struct tty *tp;
 {
     register struct ppp_softc *sc;
-    netbuf_t m;
+    NETBUF_T m;
     int ilen, s;
 
     sc = (struct ppp_softc *) tp->t_sc;
@@ -978,43 +992,14 @@ pppinput(c, tp)
 
     if (c == PPP_FLAG) {
 
+      if (sc->sc_ilen == 0)
+	return;
 
 	ilen = sc->sc_ilen;
 	sc->sc_ilen = 0;
 
 	if (sc->sc_rawin_count > 0)
 	    ppplogchar(sc, -1);
-
-#ifdef ADD_ERRORS
-      /*
-       * This section will adds random packet
-       * errors if defined.
-       */
-
-      /*
-       * Initial time through
-       */
-      if (in_error_limit == -1) 
-	{
-	  in_error_limit = rand() % in_error_max_sep;
-	  IOLog("Introducing incoming random error after %d more packets\n",
-		 in_error_limit);
-	}	
-
-      if ((in_error_pkt_count >= in_error_limit) && (ilen != 0))
-	{
-	  sc->sc_fcs = !PPP_GOODFCS;
-	  in_error_pkt_count = 0;
-	  in_error_limit = rand() % in_error_max_sep;
-	  IOLog("Introducing incoming random error after %d more packets\n",
-		 in_error_limit);
-	}
-
-	if (ilen != 0)
-	  ++in_error_pkt_count;
-      
-
-#endif /* ADD_ERRORS */      
 
 	/*
 	 * From the RFC:
@@ -1025,32 +1010,45 @@ pppinput(c, tp)
 	 * So, if SC_ESCAPED is set, then we've seen the packet
 	 * abort sequence "}~".
 	 */
-
-	if (sc->sc_flags & (SC_FLUSH | SC_ESCAPED)
-	    || ilen > 0 && sc->sc_fcs != PPP_GOODFCS) {
+	if ((sc->sc_flags & (SC_FLUSH | SC_ESCAPED)) ||
+	    ((ilen > 0) && (sc->sc_fcs != PPP_GOODFCS)))
+	  {
 	    sc->sc_flags |= SC_PKTLOST;	/* note the dropped packet */
-	    if ((sc->sc_flags & (SC_FLUSH | SC_ESCAPED)) == 0){
-		IOLogDbg("ppp%d: bad fcs 0x%04x\n", if_unit(sc->sc_if), sc->sc_fcs);
+	    if ((sc->sc_flags & (SC_FLUSH | SC_ESCAPED)) == 0)
+	      {
+		IOLog("ppp%d: bad fcs 0x%04x\n", if_unit(sc->sc_if), sc->sc_fcs);
 		incr_cnt(sc->sc_if, if_ierrors);
-	    } else
+	      }
+	    else
+	      {
+		IOLog("ppp%d: bad packet flushed...\n", if_unit(sc->sc_if));
 		sc->sc_flags &= ~(SC_FLUSH | SC_ESCAPED);
+	      }
 	    return;
-	}
-
-	if (ilen < PPP_HDRLEN + PPP_FCSLEN) {
-	    if (ilen) {
+	  }
+	
+	if (ilen < (PPP_HDRLEN + PPP_FCSLEN))
+	  {
+	    if (ilen)
+	      {
 		IOLogDbg("ppp%d: too short (%d)\n", if_unit(sc->sc_if), ilen);
 		incr_cnt(sc->sc_if, if_ierrors);
 		sc->sc_flags |= SC_PKTLOST;
-	    }
+	      }
 	    return;
-	}
+	  }
+	
+#ifdef NETBUF_PROXY
+	sc->sc_m->pktinfo.second.tv_sec = time.tv_sec;
+	sc->sc_m->pktinfo.second.tv_usec = time.tv_usec;
+	sc->sc_m->pktinfo.size1 = ilen;
+#endif
 
 	/*
 	 * Remove FCS trailer.  Set packet length...
 	 */
 	ilen -= PPP_FCSLEN;
-	nb_shrink_bot(sc->sc_m, nb_size(sc->sc_m) - ilen);
+	NB_SHRINK_BOT(sc->sc_m, NB_SIZE(sc->sc_m) - ilen);
 
 	/* excise this netbuf */
 	m = sc->sc_m;
@@ -1078,7 +1076,6 @@ pppinput(c, tp)
  *  removed, and the following octet is exclusive-or'd with hexadecimal
  *  0x20, unless it is the Flag Sequence (which aborts a frame).
  */
-
     if (c < 0x20 && (sc->sc_rasyncmap & (1 << c))) {
 	return;
     }
@@ -1088,7 +1085,9 @@ pppinput(c, tp)
 	c ^= PPP_TRANS;
     } else if (c == PPP_ESCAPE) {
 	sc->sc_flags |= SC_ESCAPED;
-/*	splx(s); */
+#ifdef NETBUF_PROXY
+ 	++(sc->sc_m->pktinfo.async_esc);
+#endif
 	return;
     }
 
@@ -1102,6 +1101,7 @@ pppinput(c, tp)
      * Fourth octet is second octet of protocol.
      */
     if (sc->sc_ilen == 0) {
+
 	/* reset the input netbuf */
 	if (sc->sc_m == NULL) {
 	    pppgetm(sc);
@@ -1118,6 +1118,12 @@ pppinput(c, tp)
 	m = sc->sc_m;
 	sc->sc_mp = mtod(m, char *);
 	sc->sc_fcs = PPP_INITFCS;
+
+#ifdef NETBUF_PROXY
+	m->pktinfo.first.tv_sec = time.tv_sec;
+	m->pktinfo.first.tv_usec = time.tv_usec;
+	m->pktinfo.flags |= NBFLAG_INCOMING;
+#endif
 	if (c != PPP_ALLSTATIONS) {
 	    if (sc->sc_flags & SC_REJ_COMP_AC) {
 		IOLogDbg("ppp%d: garbage received: 0x%02x (need 0x%02x)\n",
@@ -1127,18 +1133,28 @@ pppinput(c, tp)
 	    *sc->sc_mp++ = PPP_ALLSTATIONS;
 	    *sc->sc_mp++ = PPP_UI;
 	    sc->sc_ilen += 2;
+#ifdef NETBUF_PROXY
+	    m->pktinfo.flags |= NBFLAG_AC;
+#endif	    
 	}
     }
+
+
     if (sc->sc_ilen == 1 && c != PPP_UI) {
 	IOLogDbg("ppp%d: missing UI (0x%02x), got 0x%02x\n",
 		   if_unit(sc->sc_if), PPP_UI, c);
 	goto flush;
     }
+
     if (sc->sc_ilen == 2 && (c & 1) == 1) {
 	/* a compressed protocol */
 	*sc->sc_mp++ = 0;
 	sc->sc_ilen++;
+#ifdef NETBUF_PROXY
+	    m->pktinfo.flags |= NBFLAG_PC;
+#endif	    
     }
+
     if (sc->sc_ilen == 3 && (c & 1) == 0) {
 	IOLogDbg("ppp%d: bad protocol %x\n", if_unit(sc->sc_if),
 		   (sc->sc_mp[-1] << 8) + c);

@@ -33,7 +33,7 @@
 
 
 /* only defined in the posix universe... */
-typedef	int pid_t;
+/*typedef	int pid_t; */
 typedef unsigned short u_int16_t;
 
 struct ppp_softc {
@@ -45,7 +45,7 @@ struct ppp_softc {
 	void	(*sc_relinq) __P((struct ppp_softc *));	/* relinquish ifunit */
 	u_int16_t sc_mru;	/* max receive unit */
 	pid_t	sc_xfer;	/* used in transferring unit */
-	netbuf_t sc_m;		/* Current TTY input netbuf */
+	NETBUF_T sc_m;		/* Current TTY input netbuf */
 	struct nb_queue sc_freeq; /* reserve netbufs */
 	struct nb_queue sc_rawq;  /* Raw input buffers */
 	struct nb_queue sc_fastq; /* For telnet, rlogin, and ftp control */
@@ -78,7 +78,7 @@ struct ppp_softc {
 	/* Device-dependent part for async lines. */
 	ext_accm sc_asyncmap;	/* async control character map */
 	u_int32_t sc_rasyncmap;	/* receive async control char map */
-	netbuf_t sc_outm;	/* netbuf currently being output */
+	NETBUF_T sc_outm;	/* netbuf currently being output */
 	char	*sc_mp;		/* ptr to next char in input netbuf */
 	u_int16_t sc_ilen;      /* length of input packet so far */
 	u_int16_t sc_fcs;	/* FCS so far (input) */
@@ -92,8 +92,8 @@ extern struct	ppp_softc ppp_softc[];
 struct	ppp_softc *pppalloc __P((pid_t pid));
 void	pppdealloc __P((struct ppp_softc *sc));
 int	pppioctl __P((struct ppp_softc *sc, u_long cmd, void *data, int flag));
-void	ppppktin __P((struct ppp_softc *sc, netbuf_t m, int lost));
-netbuf_t ppp_dequeue __P((struct ppp_softc *sc));
+void	ppppktin __P((struct ppp_softc *sc, NETBUF_T m, int lost));
+NETBUF_T ppp_dequeue __P((struct ppp_softc *sc));
 
 #define t_sc T_LINEP
 

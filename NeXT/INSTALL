@@ -1,14 +1,31 @@
-Installation Instructions
-=========================
+		PPP-2.3 for systems running NeXTSTEP
+                ====================================
 
-Files, information, and an FAQ are available from:
-  http://www.thoughtport.com:8080/PPP/ 
-Full source and an MAB installer package are available.  If you don't
-currently have access to a WWW viewer, you may get the files from
-ftp.thoughtport.com (199.171.224.105) in the directory /pub/next/ppp/.
 
-If you have questions or problems, please mail
-nextppp@listproc.thoughtport.com _before_ you go to usenet.
+Authoritative information can be found at:
+
+  WWW site:     http://www.thoughtport.com:8080/PPP/ 
+  FTP site:     ftp://ftp.thoughtport.com/pub/next/ppp
+  Mirror FTP:   ftp://ftp.duq.edu/pub/next/ppp/
+  Mirror FTP:   ftp://ftp.NMR.EMBL-Heidelberg.DE/pub/next/ppp/
+
+If you have questions or problems, please visit the WWW site
+for FAQ and mailing list information.
+
+NEW: If you want to submit a bug report, use the new MailBug.app
+     provided in this directory.  You will need to install it as
+     you would any package.  If you don't have email access, please
+     use bug submission form on the WWW site.
+
+If you use this software and are pleased with its performance, you are
+encouraged to make a donation to support continued development.  50%
+of all donations go to charity.  For more information, please see:
+  http://www.thoughtport.com:8080/PPP/donations.html
+
+
+
+NeXT Specific Installation Instructions
+=======================================
 
 The procedure for an initial installation and for an upgrade are very
 similar. However, if this is the first time you are installing PPP,
@@ -18,43 +35,50 @@ They will be described later in this document.
 Making the source files
 =========================
 
-To install on a NeXT:
+To install on a computer running NeXTSTEP:
 
  1) Read this file completely through before you start.
 
  2) If you are on an HP-PA system, read the file
     ./NeXT/hppa/README.hppa and install the serial
     driver patch.  Successfull installation of this
-    patch will require a reboot of your machine.
+    patch will require a reboot of your machine.  HPPA
+    is not supported.
 
  3) If you have previously installed a SLIP package, comment out
     the slip configuration code in /etc/rc.local and reboot your
     machine.  SLIP and PPP _should_ interoperate but for initial
     testing it is best to remove SLIP.
 
- 4) If you plan in using tcpdump to monitor packets, you must
+ 4) If you are using Intel, you _must_ get the latest NeXT serial
+    drivers from NeXTAnswers.  You need both the serial and ttyport
+    drivers (version 3.33 or later).  Install these according to
+    the directions.  PPP-2.3 is optimized to work with 
+    the NeXT drivers.   It will work with the Mux driver, but
+    that driver has been known to cause panics with PPP.
+
+ 5) If you plan in using tcpdump to monitor packets, you must
     enable the Berkley Packet Filter code.  Edit ./NeXT/Makefile
     and make sure the '-DNBPFILTER' option is defined in DFLAGS.
     WARNING: If you choose to use BPF, you must make sure that you
     compile _AND LOAD_ the bpf_reloc LKS _BEFORE_ you load the
-    ppp_reloc LKS.  See the ./NeXT/bpf directory for more information.
+    ppp_reloc LKS.  Also, make sure you read the installation file in
+    ./NeXT/bpf.  You will need to create a few special device files in
+    /dev/.
 
     If you don't want to compile in this code, please make sure that
     '-DBPFILTER' is _not_ defined in the ./NeXT/Makefile DFLAGS.
 
-    Also, make sure you read the installation file in ./NeXT/bpf.  You
-    will need to create a few special device files in /dev/.
-
- 5) Type ./configure in the top level PPP directory.  This will set
+ 6) Type ./configure in the top level PPP directory.  This will set
     up some necessary links.
 
- 6) If you have developer 3.2, you need to use the old version of
+ 7) If you have developer 3.2, you need to use the old version of
     chat.c.  Perform:
       a) cd to the chat directory
       b) backup chat.c (mv chat.c chat.c.orig)
       c) use the old chat (mv chat.c.3.2 chat.c)
 
- 7) Edit ./Makefile and set the installation directories.
+ 8) Edit ./Makefile and set the installation directories.
     If you change the ETCDIR you will need to modify pathnames in
     pppd/pathnames.h. I recommend keeping it set to /etc/ppp. 
     If you don't specifically like that directory, you may
@@ -62,13 +86,13 @@ To install on a NeXT:
     that points to the proper place.
 
     You will also want to set the -arch flags to the appropriate
-    architectures. 
+    architectures.  Leaving it blank will default to your current
+    architecture.
 
-
- 8) Do a:
+ 9) Do a:
       make 
 
- 9) If you are satisfied with the results, then as root, type:
+ 10) If you are satisfied with the results, then as root, type:
       make install
 
 
@@ -79,6 +103,11 @@ loaded. Make sure you remember to edit /etc/rc.local and add the code
 to load the bpf_reloc LKS (if you enabled BPF support).  You should be
 able to start the upgraded PPP just like normal.  If this doesn't
 work, see the "Troubleshooting" section later on.
+
+Also, you might want to compare the ip-up and ip-down scripts in 
+the ./NeXT/Examples directory with those you have installed in
+/etc/ppp/ip-up and /etc/ppp/ip-down.  Most things included in the
+examples should be in any installation.
 
 
 Extra Steps for Initial Configuration 
@@ -128,11 +157,15 @@ if [ -f /usr/local/ppp/reloc/ppp_reloc ]; then
 fi
 ======================================================================
 
-  This code will now be executed next time you reboot your
-  machine.  You can verify that this was executed by checking
-  the output of /usr/adm/messages upon a successful reboot.  There
-  should be a section of output that says the PPP-2.2 LKS was 
-  successfully loaded.
+  If you choose not to use BPF, then comment out the first lines
+  of code by adding the '#' mark in front of them (similar to the 
+  comment lines that are already in place).  All three lines
+  (including the 'if' and 'fi') need to be commented.
+
+  This code will now be executed next time you reboot your machine.
+  You can verify that this was executed by checking  the output of
+  /usr/adm/messages upon a successful reboot.  There should be a
+  section of output that says the PPP-2.2 LKS was successfully loaded.
 
 
 2) The default Makefile paths place PPP files  in a directory called
@@ -154,12 +187,10 @@ fi
    ln -s /usr/local/ppp/bin/* /usr/local/bin
    ln -s /usr/local/ppp/man/man8/* /usr/local/man/man8
 
-   Some or all of the 'mkdir' commands may fail if the directories
-   already exists.  This is OK.  Futher, to get the man program to
-   understand that you have added some pages to the /usr/local/man 
-   directory, you need to make sure that the environment variable
-   MANPATH includes the /usr/local/man entry.  In my .cshrc file
-   I have an entry that looks like:
+   To get the man program to understand that you have added some pages
+   to the /usr/local/man directory, you need to make sure that the
+   environment variable MANPATH includes the /usr/local/man entry.  In
+   my .cshrc file (in my home directory) I have an entry that looks like:
       setenv MANPATH "/usr/local/man:/usr/man:.:.."
    See 'man man' for more information.
 
@@ -223,14 +254,34 @@ mail.info					/usr/spool/mqueue/syslog
    (remember to specify the 'debug' option to pppd to get reasonable 
    information sent to the logging file).
 
+4) You should copy a few files to a new directory.  Part of the
+   installation process creates a new directory (or link)
+   called /etc/ppp/. Further, it creates an empty file called
+   /etc/ppp/options. An empty options file is the bare minimum of what
+   is necessary. However, the directory ./NeXT/Examples contains
+   several files that are useful in almost any setup.  It is
+   recommended that you perform the following steps to place better
+   files in the directory /etc/ppp.  As user root, perform the
+   following commands.  It assumes you are in the PPP distribution
+   directory:
 
-4) If you have a standalone machine, it is necessary for you to make
+     cp NeXT/Examples/options /etc/ppp/options
+     cp NeXT/Examples/ip-up.example /etc/ppp/ip-up
+     cp NeXT/Examples/ip-down.example /etc/ppp/ip-down
+     /usr/etc/chown root.wheel /etc/ppp/options /etc/ppp/ip-up /etc/ppp/ip-down
+     chmod 644 /etc/ppp/options
+     chmod  511 /etc/ppp/ip-up /etc/ppp/ip-down
+ 
+
+5) If you have a standalone machine, it is necessary for you to make
    sure your system is configured to correctly support a network.  The
    following steps will help in correctly configuring your machine.
    Please note, if you do not have a standalone machine (i.e. you are
    on a local network), you need to speak with your system
    administrator to determine the proper configuration for your
-   machine.  The following only applies to standalone machines.
+   machine.  In most cases, a machine correctly configured for a
+   network will not need to perform the steps listed here. The
+   following only applies to standalone machines.
 
    It is suggested that you reboot your machine _before_ you start 
    these procedures.  This is to verify that you successfully
@@ -240,25 +291,6 @@ mail.info					/usr/spool/mqueue/syslog
    failed.  After successfully rebooting, you are ready to move on to 
    these steps.
 
-   As root, make a backup copy of /etc/iftab.  You might name it
-   /etc/iftab.prePPP.  Then, modify this file by adding the line:
-  
-    lo0     inet    127.0.0.1 netmask 0xff000000 -trailers up
-
-   right before the -1- entry that already exists in the file.  The
-   finished file should look similar to (minus the ---- separators):
-   ----------------------------------------------------------------------
-
-   lo0     inet    127.0.0.1 netmask 0xff000000 -trailers up
-   -1-	   inet	   -HOSTCONFIG-
-   *	   inet	   -AUTOMATIC- netmask -AUTOMATIC- -trailers up
-
-   ----------------------------------------------------------------------
-   Please note that the file  probably has a bunch of comments
-   at the top (lines that start with #).   I left those out in the
-   example above so I could save space.  They of course, can remain
-   in your copy.
-  
    As root, make a backup copy of /etc/hostconfig.  You might
    name it /etc/hostconfig.prePPP.  If, after the following steps, you
    run into problems booting your machine, you may replace
@@ -281,9 +313,13 @@ mail.info					/usr/spool/mqueue/syslog
            For "NIS Domain Name", select "None"
 
            For "Internet Address", use the provided IP address
-           (probably 127.0.0.1) unless your system administrator has
+           (probably 192.42.172.1) unless your system administrator has
            assigned you your own unique IP address.  In this case,
-           reverify that you are a standalone machine.
+           reverify that you are a standalone machine.  Please
+           note... if your PPP service provider has assigned you an
+           IP address, do _NOT_ use that address here.  That address
+           will be used later.  Use whatever address is already in
+           the display.
 
            For "Broadcast Address", select "Default"
 	
@@ -305,7 +341,6 @@ mail.info					/usr/spool/mqueue/syslog
   cases.  There are lots of variations that people can and will need 
   to make. Your network administrator will be able to provide you with
   the correct details for your particular site.
-
 
 Congratulations!  You have successfully installed PPP and are now
 ready to start up a connection.  See the section "Initial Testing" for
@@ -338,13 +373,10 @@ perform.  Once you _know_ ppp works, you can spend time on the dial
 scripts.
 
 Please note, you _must_ exit from your communications program before
-you start your local pppd.  For example if you are in kermit and you
-start the peer pppd process by hand, you must completely exit kermit
-before you start pppd.  If you don't, the connection will not form.
-Further, if you find that when you exit, your modem immediately hangs
-up, you need to instruct the modem to ignore DTR.  There is an AT
-command that will do this (AT&D on Supra), but you will need to check
-your modem manual to determine the correct command.
+you start your local pppd.  If you find that when you exit, your modem
+immediately hangs up, you need to instruct the modem to ignore DTR.
+There is an AT command that will do this (AT&D on Supra), but you will
+need to check your modem manual to determine the correct command.
 
 If you are planning on using kermit, Stephane I. Matis
 <petergun@vectrex.login.qc.ca>, has supplied this excellent definition
@@ -357,11 +389,12 @@ define pppd -
         !pppd < \v(line) > \v(line) defaultroute
 ----------------------------------------------------------------------
 
-To use this, add the above to your ~/.kermrc file (minus the '---...---'
-separators).  Then start kermit.  After you have started the remote PPP
-server by hand, return back to your local kermit prompt and execute
-the command 'do pppd'.  In this particular circumstance, you will not
-need to exit from kermit.
+To use this, add the above to your ~/.kermrc file (minus the
+'---...---' separators).  Then start kermit.  After you have started
+the remote PPP server by hand and you see garbage being printed on the
+screen, return back to your local kermit prompt and execute the
+command 'do pppd'.  In this particular circumstance, you will not need
+to exit completely from kermit.
 
 Before you start initial testing, you may want to read the pppd man
 page.  This will allow you to familiarize yourself with the some of
@@ -404,15 +437,16 @@ established.  I will go through some of them.
    is an example of what you might see:
 
 	Routing tables
-	Destination      Gateway            Flags     Refs     Use  Interface
-	127.0.0.1        127.0.0.1          UH          2      558  lo0
-	35.9.10.14       35.9.12.104        UH          0        0  ppp0
-	default          35.9.10.14         UG          2       25  ppp0
-	192.42.172       192.42.172.1       U           6     1939  en0
+        Destination      Gateway            Flags     Refs     Use  Interface
+        35.9.10.32       35.9.15.107        UH          0        0  ppp0
+        127.0.0.1        127.0.0.1          UH         12     2636  lo0
+        35.9.15.107      127.0.0.1          UH          0        0  lo0
+        default          35.9.10.32         UG          2        6  ppp0
+        192.42.172       192.42.172.1       U          15     8872  en0
 
 
-  In the above case, the peer is 35.9.10.14 and my local machine has
-  been assigned 35.9.12.104.  All foreign traffic goes through the
+  In the above case, the peer is 35.9.10.32 and my local machine has
+  been assigned 35.9.15.107.  All foreign traffic goes through the
   default route to the peer.
 
   If you don't have an ethernet card installed on your system, you
@@ -433,7 +467,11 @@ PPP will negotiate the address with the peer.  This is the preferred
 mechanism of operation.  Probably the only time you should specify an
 IP address as an argument to pppd is if you are assigned your own IP
 address by your system administrator.  Otherwise, sit back and let PPP
-do the work for you.
+do the work for you.  If you are assigned an address by your PPP
+provider, that address does _NOT_ go in the hostconfig.app or netinfo.
+Instead, you provide that IP address as a command line option to pppd
+when you start it up.  See the pppd man page for details on specifying
+a fixed IP address.
 
 
 A Typical PPP Session
@@ -456,10 +494,11 @@ point, ppp will terminate the phone connection and pppd will die off.
 
 You may start and kill the ppp session as many times as you like while
 you are logged on.  However, if you do not kill the PPP session, it
-will not die once you log out.  Thus your telephone will remain off
-the hook and your computer will remain connected to the net until you
-log back in and shut down the connection.  Turning off the computer
-will obviously close the connection.
+will not die once you log out (unless you use the idle timer option to
+pppd).  Thus your telephone will remain off the hook and your computer
+will remain connected to the net until you log back in and shut down
+the connection.  Turning off the computer will obviously close the
+connection.
 
 
 Name Resolution
@@ -561,57 +600,82 @@ place it in the /etc/ppp/options file).
 Troubleshooting
 ===============
 
-The NeXT port of ppp-2.2 is stable. However, the PD ppp-2.2 is
-considered to be in alpha release.  If you have problem, please mail
-me <perkins@cps.msu.edu> before you go to usenet.  I'm especially
-interested in hearing your suggestions and comments about the package
-and related documentation.
-
-Any time that you have a bug report to send, please include your
+Any time that you have a bug report, please use the included
+MailBug.app (in the NeXT directory) to submit an electronic report.
+If you don't have email capability, please see the WWW site and use
+the bug report form found there.  Please remember to include your 
 hardware type and the LKS version number in all reports.  This number
 may be found in the file /usr/adm/messages (once the LKS has been
 installed). Also, for most questions, it is best to append a copy of
 the /usr/adm/ppp2.2.log file.
 
-There are some common problems that people have.  I have listed them
-here:
+If you do have troubles, please see the FAQ on:
+  http://www.thoughtport.com:8080/PPP/
+
+Here are a few of the more common problems that this FAQ addresses:
+
 ======================================================================
 1) pppd bombs out with an error similar to:
  Jan 26 14:46:25 localhost pppd[256]: Connected...
  Jan 26 14:46:26 localhost pppd[256]: ioctl(PPPIOCGUNIT): Inappropriate ioctl for device
  Jan 26 14:46:26 localhost pppd[256]: Exit.
 
-This is typically the result of using the wrong LKS with pppd.  Some
-versions of PPP installed the LKS (ppp_reloc) in
+There are two things that can cause this error.  The most common error
+is that you are using the innappropriate device for communication to
+your modem.  You should be using /dev/cufa or /dev/cufb.  Second, the
+Loadable Kernel Server (LKS) and the user level daemon (pppd) must be
+of the same version.  While unusual, the error above can be the result
+of using the wrong Loadable Kernel Server (LKS) with pppd (or vice
+versa).  Some versions of PPP installed the LKS (ppp_reloc) in
 /usr/lib/kern_loader/ppp and some in /usr/local/ppp/reloc.  The second
-is going to be the standard place for installation from now on.  Make
-sure that your /etc/rc.local is loading the correct version of the LKS
-and make sure you are really calling the correct pppd for use with the
-LKS that you loaded.
+is going to be the standard place for installation from now on.
 
+Solution: Make sure that you are using the appropriate device for
+communications with your modem.  Further, make sure that your
+/etc/rc.local is loading the correct version of the LKS and make sure
+you are really calling the correct pppd for use with the LKS that you
+loaded. 
 ======================================================================
 
 2) PPP works fine, but when the link is up, netinfo sleeps when you
    try to print or send mail.
 
-You'll see this problem if you don't have a route from your "hostname"
-to localhost.  In essence, your host doesn't know how to "get back to
-itself".  My guess is that you didn't follow the installation
-instructions and you chose an IP address different than 127.0.0.1.
-There is a fix! ;) Do this in your rc.local:
+This problem is typically a result of an improper routing setup on the
+PPP client (your host).  When PPP starts up, it will dynamically
+negotiate an IP address for use on the PPP interface (usually ppp0).
+If you don't specify an IP address to pppd, then the address will
+usually be provided by the peer.  It may change each time that you
+bring up a PPP link.  If you did specify an IP address, pppd will
+attempt to use that address first.  If that fails, it will try to get
+an address from the peer.  Either way, the PPP interface usually has a
+new IP address.  The routing problem can result when trying to access
+your local host (and netinfo) on the IP address that was dynamically
+negotiated.
 
-route add your_host_name localhost 0
+Solution: The solution is straightforward.  You must add a route from
+the IP address that your PPP interface uses to the special loopback IP
+address 127.0.0.1.  The 'route' command will allow you to do this.
+For instance, if you are assigned the address 35.8.74.211 during PPP
+negotiation, you can add the needed route byentering (as the user
+root):
 
-(with the appropriate substitution of your_host_name) Without it,
-netinfo will sleep when trying to connect to the local domain.  You
-will need to reboot or perform this command manually (as root) for it
-to take affect.
+  /usr/etc/route add 35.8.74.211 127.0.0.1 0
 
-Many thanks to:
-  Scott Bender 
-  Pete French
-  Terence Parr   
-for help on this one.
+This route needs to be added each time the link comes up.  However,
+one problem with hard coding this command into /etc/ppp/ip-up is that
+you may get a different IP address each time the link comes
+up. Fortunately, Bill Bereza <berezaw@river.it.gvsu.edu> submitted
+this nice script clip that can be pasted into /etc/ppp/ip-up.  This
+will create the correct route entry for you automatically.  Place this
+in /etc/ppp/ip-up:
+
+    /usr/etc/route add $4 127.0.0.1 0
+
+You will also want to add this little clip to /etc/ppp/ip-down:					<br>
+
+   /usr/etc/route delete $4 127.0.0.1
+
+This removes the route when your link goes down.
 
 ======================================================================
 
@@ -622,8 +686,7 @@ for help on this one.
 
 Check out the 'proxyarp' option to pppd.  Servers (connected to their
 LAN) must proxyarp for the remote address (i.e. the address of the
-machine dialing in).  Further, read the file ./NeXT/README.NeXT (not
-this file) for more information on proxyarp.
+machine dialing in).
 
 ======================================================================
 
@@ -646,24 +709,26 @@ this file) for more information on proxyarp.
   Mar 13 12:03:12 crystal pppd[243]: Serial link is not 8-bit clean:
   Mar 13 12:03:12 crystal pppd[243]: All received characters had bit 7 set to 0
 
-This is a common problem.  It is typically the result of a failure to
-properly start the remote PPP process.  Make sure you add the '-v'
-option to chat (in your dial script) and then check the output of
-/usr/adm/ppp2.2.log to see why chat failed to start the remote PPP
-process.
+Discussion: This is a common problem.  It is typically the result of a
+failure to properly start the remote PPP process.  The problem arises
+since the local PPP starts sending packets as soon as chat
+exits. Since there is no remote PPP process running to interpret the
+packets, the remote command line interpreter starts sending error
+messages for each received packet (considered garbage to the remote
+CLI).  Thus, your local PPP process is receiveing error message text
+instead of the expected PPP packets.  Since error message text is
+usually ascii (values < 127) PPP believes that the link is not 8-bit
+clean.
+
+Solution: Make sure you add the '-v' option to chat (in your dial
+script) and then check the output of /usr/adm/ppp2.2.log to see why
+chat failed to start the remote PPP process.
+
+
 
 ======================================================================
 
-5) Your LCP sessions get into an infinite loop while trying to
-   negotiate the magic numer.  Alternately, every LCP echo you send
-   is accompanied with a message saying that "our own echo reply was
-   received".  I'm not sure why some systems have this trouble, but
-   the solution is to turn off magic number negotiation at your end. 
-   Add the '-mn' flag to pppd.
-
-======================================================================
-
-6) NXHosting applications over PPP fails.  I don't know why this 
+5) NXHosting applications over PPP fails.  I don't know why this 
    happens.  Rest assured, that I and others do have it working.
    The most obvious things to check are that you have your system set
    up as a public window server.  Also, make sure that you reset the
@@ -677,7 +742,7 @@ process.
 Updates
 =======
 
-You may also want to join the mailing list for PPP.  This will keep
+You may want to join the mailing list for PPP.  This will keep
 you informed of new releases and will provide an arena for discussing
 problems with the NeXT specific PPP port.  To add yourself to the list
 (or for any other administrative requests), send an email message to:
@@ -700,7 +765,6 @@ Security
 Security issues are not dealt with in this document.  Please
 note that the pppd file is installed suid root.  This is a potential
 security hazard.
-
 
 
 Noted bugs
@@ -728,3 +792,17 @@ dropped, the modem will disconnect.  On my modem the command is
 dialins, you must read your modem manual to determine the correct
 setting.
 
+
+Obtaining the Software by Electronic Mail
+-----------------------------------------
+
+Do not send me requests for the software; they will be ignored
+(without response).  If you cannot use FTP at all, there is a service
+called "ftpmail" available from decwrl.dec.com: you can send e-mail to
+this machine and it will use FTP to retrieve files for you and send
+you the files back again via e-mail.  To find out more about the
+ftpmail service, send a message to "ftpmail@decwrl.dec.com" whose body
+consists of the single line "help".
+
+
+Thanks Stephen J. Perkins
