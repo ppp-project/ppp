@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.8 1996/01/01 22:55:29 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.9 1996/05/26 23:57:19 paulus Exp $";
 #endif
 
 /*
@@ -260,18 +260,18 @@ upap_input(unit, inpacket, l)
      */
     inp = inpacket;
     if (l < UPAP_HEADERLEN) {
-	UPAPDEBUG((LOG_INFO, "upap_input: rcvd short header."));
+	UPAPDEBUG((LOG_INFO, "pap_input: rcvd short header."));
 	return;
     }
     GETCHAR(code, inp);
     GETCHAR(id, inp);
     GETSHORT(len, inp);
     if (len < UPAP_HEADERLEN) {
-	UPAPDEBUG((LOG_INFO, "upap_input: rcvd illegal length."));
+	UPAPDEBUG((LOG_INFO, "pap_input: rcvd illegal length."));
 	return;
     }
     if (len > l) {
-	UPAPDEBUG((LOG_INFO, "upap_input: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_input: rcvd short packet."));
 	return;
     }
     len -= UPAP_HEADERLEN;
@@ -314,7 +314,7 @@ upap_rauthreq(u, inp, id, len)
     char *msg;
     int msglen;
 
-    UPAPDEBUG((LOG_INFO, "upap_rauth: Rcvd id %d.", id));
+    UPAPDEBUG((LOG_INFO, "pap_rauth: Rcvd id %d.", id));
 
     if (u->us_serverstate < UPAPSS_LISTEN)
 	return;
@@ -336,20 +336,20 @@ upap_rauthreq(u, inp, id, len)
      * Parse user/passwd.
      */
     if (len < sizeof (u_char)) {
-	UPAPDEBUG((LOG_INFO, "upap_rauth: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauth: rcvd short packet."));
 	return;
     }
     GETCHAR(ruserlen, inp);
     len -= sizeof (u_char) + ruserlen + sizeof (u_char);
     if (len < 0) {
-	UPAPDEBUG((LOG_INFO, "upap_rauth: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauth: rcvd short packet."));
 	return;
     }
     ruser = (char *) inp;
     INCPTR(ruserlen, inp);
     GETCHAR(rpasswdlen, inp);
     if (len < rpasswdlen) {
-	UPAPDEBUG((LOG_INFO, "upap_rauth: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauth: rcvd short packet."));
 	return;
     }
     rpasswd = (char *) inp;
@@ -388,7 +388,7 @@ upap_rauthack(u, inp, id, len)
     u_char msglen;
     char *msg;
 
-    UPAPDEBUG((LOG_INFO, "upap_rauthack: Rcvd id %d.", id));
+    UPAPDEBUG((LOG_INFO, "pap_rauthack: Rcvd id %d.", id));
     if (u->us_clientstate != UPAPCS_AUTHREQ) /* XXX */
 	return;
 
@@ -396,13 +396,13 @@ upap_rauthack(u, inp, id, len)
      * Parse message.
      */
     if (len < sizeof (u_char)) {
-	UPAPDEBUG((LOG_INFO, "upap_rauthack: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauthack: rcvd short packet."));
 	return;
     }
     GETCHAR(msglen, inp);
     len -= sizeof (u_char);
     if (len < msglen) {
-	UPAPDEBUG((LOG_INFO, "upap_rauthack: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauthack: rcvd short packet."));
 	return;
     }
     msg = (char *) inp;
@@ -427,7 +427,7 @@ upap_rauthnak(u, inp, id, len)
     u_char msglen;
     char *msg;
 
-    UPAPDEBUG((LOG_INFO, "upap_rauthnak: Rcvd id %d.", id));
+    UPAPDEBUG((LOG_INFO, "pap_rauthnak: Rcvd id %d.", id));
     if (u->us_clientstate != UPAPCS_AUTHREQ) /* XXX */
 	return;
 
@@ -435,13 +435,13 @@ upap_rauthnak(u, inp, id, len)
      * Parse message.
      */
     if (len < sizeof (u_char)) {
-	UPAPDEBUG((LOG_INFO, "upap_rauthnak: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauthnak: rcvd short packet."));
 	return;
     }
     GETCHAR(msglen, inp);
     len -= sizeof (u_char);
     if (len < msglen) {
-	UPAPDEBUG((LOG_INFO, "upap_rauthnak: rcvd short packet."));
+	UPAPDEBUG((LOG_INFO, "pap_rauthnak: rcvd short packet."));
 	return;
     }
     msg = (char *) inp;
@@ -481,7 +481,7 @@ upap_sauthreq(u)
 
     output(u->us_unit, outpacket_buf, outlen + PPP_HDRLEN);
 
-    UPAPDEBUG((LOG_INFO, "upap_sauth: Sent id %d.", u->us_id));
+    UPAPDEBUG((LOG_INFO, "pap_sauth: Sent id %d.", u->us_id));
 
     TIMEOUT(upap_timeout, (caddr_t) u, u->us_timeouttime);
     ++u->us_transmits;
@@ -513,7 +513,7 @@ upap_sresp(u, code, id, msg, msglen)
     BCOPY(msg, outp, msglen);
     output(u->us_unit, outpacket_buf, outlen + PPP_HDRLEN);
 
-    UPAPDEBUG((LOG_INFO, "upap_sresp: Sent code %d, id %d.", code, id));
+    UPAPDEBUG((LOG_INFO, "pap_sresp: Sent code %d, id %d.", code, id));
 }
 
 /*
