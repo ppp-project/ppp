@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.2 1995/04/28 06:27:55 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.3 1995/06/12 11:36:50 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -17,6 +17,19 @@
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ */
+
+/*
+ *  ==PPPVERSION 2.1.3==
+ *
+ *  NOTE TO MAINTAINERS:
+ *     If you modify this file at all, increment the last number above.
+ *     ppp.c is shipped with a PPP distribution as well as with the kernel;
+ *     if everyone increases the PPPVERSION number above, then scripts
+ *     can do the right thing when deciding whether to install a new ppp.c
+ *     file.  Don't change the format of that line otherwise, so the
+ *     installation script can recognize it.
  */
 
 #ifndef _IF_PPP_H_
@@ -28,7 +41,6 @@
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
-#define PPP_NRUNIT	4	/* how many PPP units? */
 #define PPP_VERSION	"2.2.0"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
@@ -53,19 +65,19 @@
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
-#define	SC_MASK		0x0fffffff	/* bits that user can change */
+#define	SC_MASK		0x0fE0ffff	/* bits that user can change */
 
 /* state bits */
 #define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
 #define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
 #define SC_VJ_RESET	0x20000000	/* Need to reset the VJ decompressor */
 #define SC_XMIT_BUSY	0x10000000	/* ppp_write_wakeup is active */
-#define SC_RCV_B7_0	0x01000000	/* have rcvd char with bit 7 = 0 */
-#define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
-#define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
-#define SC_DC_ERROR	0x00400000	/* non-fatal decomp error detected */
+#define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
+#define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
+#define SC_RCV_B7_0	0x01000000	/* have rcvd char with bit 7 = 0 */
 #define SC_DC_FERROR	0x00800000	/* fatal decomp error detected */
+#define SC_DC_ERROR	0x00400000	/* non-fatal decomp error detected */
 
 /*
  * Ioctl definitions.
@@ -87,13 +99,6 @@ struct ifpppstatsreq {
     char ifr__name[IFNAMSIZ];		/* Name of the device */
     struct ppp_stats *stats_ptr;	/* Pointer to stats buffer */
     struct ppp_stats stats;		/* statistic information */
-};
-
-struct ppp_ddinfo {
-  unsigned long		ip_sjiffies;	/* time when last IP frame sent */
-  unsigned long		ip_rjiffies;	/* time when last IP frame recvd*/
-  unsigned long		nip_sjiffies;	/* time when last NON-IP sent	*/
-  unsigned long		nip_rjiffies;	/* time when last NON-IP recvd	*/
 };
 
 /*
@@ -122,7 +127,6 @@ struct ppp_ddinfo {
 #define PPPIOCGTIME	_IOR('t', 63, struct ppp_ddinfo) /* Read time info */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
-#define SIOCGPPPCSTATS	(SIOCDEVPRIVATE + 2)
 #define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)
 
 #if !defined(ifr_mtu)

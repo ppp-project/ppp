@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.1 1994/12/08 01:59:58 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.2 1995/06/12 11:36:51 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -39,6 +39,18 @@
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+/*
+ *  ==PPPVERSION 2.1.3==
+ *
+ *  NOTE TO MAINTAINERS:
+ *     If you modify this file at all, increment the last number above.
+ *     ppp.c is shipped with a PPP distribution as well as with the kernel;
+ *     if everyone increases the PPPVERSION number above, then scripts
+ *     can do the right thing when deciding whether to install a new ppp.c
+ *     file.  Don't change the format of that line otherwise, so the
+ *     installation script can recognize it.
  */
 
 /*
@@ -128,7 +140,7 @@ struct ppp {
 	struct wait_queue *read_wait;	/* queue for writing processes	*/
 
   /* Statistic information */
-	struct pppstat	  p;		/* statistic information	*/
+	struct pppstat	  stats;	/* statistic information	*/
 	struct ppp_ddinfo ddinfo;	/* demand dial information	*/
 
   /* PPP compression protocol information */

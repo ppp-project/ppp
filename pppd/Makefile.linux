@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.6 1995/04/28 04:32:20 paulus Exp $
+# $Id: Makefile.linux,v 1.7 1995/06/12 11:37:02 paulus Exp $
 #
 
 BINDIR = /usr/etc
@@ -25,7 +25,7 @@ endif
 
 # CC = gcc
 # DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H -I..
+COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H
 COPTS = -g # -O2
 VER = 0.2.8
 LIBS = -lbsd
