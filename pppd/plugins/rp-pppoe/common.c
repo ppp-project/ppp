@@ -14,7 +14,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: common.c,v 1.1 2001/12/14 02:55:20 mostrows Exp $";
+"$Id: common.c,v 1.2 2004/01/13 04:03:58 paulus Exp $";
 
 #include "pppoe.h"
 
@@ -178,6 +178,7 @@ strDup(char const *str)
     return copy;
 }
 
+#ifdef PPPOE_STANDALONE
 /**********************************************************************
 *%FUNCTION: computeTCPChecksum
 *%ARGUMENTS:
@@ -248,21 +249,38 @@ clampMSS(PPPoEPacket *packet, char const *dir, int clampMss)
     unsigned char *mssopt = NULL;
     UINT16_t csum;
 
-    int len;
+    int len, minlen;
 
-    /* Is it IPv4? */
-    if (packet->payload[0] != 0x00 ||
-	packet->payload[1] != 0x21) {
-	/* Nope, ignore it */
-	return;
+    /* check PPP protocol type */
+    if (packet->payload[0] & 0x01) {
+        /* 8 bit protocol type */
+
+        /* Is it IPv4? */
+        if (packet->payload[0] != 0x21) {
+            /* Nope, ignore it */
+            return;
+        }
+
+        ipHdr = packet->payload + 1;
+	minlen = 41;
+    } else {
+        /* 16 bit protocol type */
+
+        /* Is it IPv4? */
+        if (packet->payload[0] != 0x00 ||
+            packet->payload[1] != 0x21) {
+            /* Nope, ignore it */
+            return;
+        }
+
+        ipHdr = packet->payload + 2;
+	minlen = 42;
     }
-
-    ipHdr = packet->payload + 2;
 
     /* Is it too short? */
     len = (int) ntohs(packet->length);
-    if (len < 42) {
-	/* 20 byte IP header; 20 byte TCP header; 2 byte PPP protocol */
+    if (len < minlen) {
+	/* 20 byte IP header; 20 byte TCP header; at least 1 or 2 byte PPP protocol */
 	return;
     }
 
@@ -362,6 +380,7 @@ clampMSS(PPPoEPacket *packet, char const *dir, int clampMss)
     csum = computeTCPChecksum(ipHdr, tcpHdr);
     (* (UINT16_t *) (tcpHdr+16)) = csum;
 }
+#endif /* PPPOE_STANDALONE */
 
 /***********************************************************************
 *%FUNCTION: sendPADT

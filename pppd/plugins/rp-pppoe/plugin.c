@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.9 2003/04/07 00:01:46 paulus Exp $";
+"$Id: plugin.c,v 1.10 2004/01/13 04:03:58 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -144,7 +144,8 @@ PPPOEConnectDevice(void)
     } else {
 	discovery(conn);
 	if (conn->discoveryState != STATE_SESSION) {
-	    fatal("Unable to complete PPPoE Discovery");
+	    error("Unable to complete PPPoE Discovery");
+	    return -1;
 	}
     }
 
@@ -276,13 +277,14 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     int fd;
     struct ifreq ifr;
 
-    /* Only do it if name is "ethXXX" or "nic-XXXX.  In latter case,
-       strip off the "nic-" */
+    /* Only do it if name is "ethXXX", "nasXXX", "tapXXX" or "nic-XXXX.
+       In latter case strip off the "nic-" */
     /* Thanks to Russ Couturier for this fix */
     if (strlen(cmd) > 4 && !strncmp(cmd, "nic-", 4)) {
 	/* Strip off "nic-" */
 	cmd += 4;
-    } else if (strlen(cmd) < 4 || strncmp(cmd, "eth", 3)) {
+    } else if (strlen(cmd) < 4 || (strncmp(cmd, "eth", 3) &&
+		strncmp(cmd, "nas", 3) && strncmp(cmd, "tap", 3))) {
 	if (OldDevnameHook) return OldDevnameHook(cmd, argv, doit);
 	return 0;
     }

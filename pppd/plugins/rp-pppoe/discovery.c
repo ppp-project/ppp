@@ -9,7 +9,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: discovery.c,v 1.1 2001/12/14 02:55:20 mostrows Exp $";
+"$Id: discovery.c,v 1.2 2004/01/13 04:03:58 paulus Exp $";
 
 #include "pppoe.h"
 
@@ -602,7 +602,8 @@ discovery(PPPoEConnection *conn)
     do {
 	padiAttempts++;
 	if (padiAttempts > MAX_PADI_ATTEMPTS) {
-	    rp_fatal("Timeout waiting for PADO packets");
+	    warn("Timeout waiting for PADO packets");
+	    return;
 	}
 	sendPADI(conn);
 	conn->discoveryState = STATE_SENT_PADI;
@@ -629,7 +630,8 @@ discovery(PPPoEConnection *conn)
     do {
 	padrAttempts++;
 	if (padrAttempts > MAX_PADI_ATTEMPTS) {
-	    rp_fatal("Timeout waiting for PADS packets");
+	    warn("Timeout waiting for PADS packets");
+	    return;
 	}
 	sendPADR(conn);
 	conn->discoveryState = STATE_SENT_PADR;
