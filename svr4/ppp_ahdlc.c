@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.3 1995/05/29 06:45:49 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.4 1995/08/10 06:54:20 paulus Exp $
  */
 
 /*
@@ -566,6 +566,17 @@ static unsigned paritytab[8] = {
     0x69969669, 0x96696996, 0x96696996, 0x69969669
 };
 
+#define UPDATE_FLAGS(c)	{				\
+    if ((c) & 0x80)					\
+	state->flags |= RCV_B7_1;			\
+    else						\
+	state->flags |= RCV_B7_0;			\
+    if (paritytab[(c) >> 5] & (1 << ((c) & 0x1F)))	\
+	state->flags |= RCV_ODDP;			\
+    else						\
+	state->flags |= RCV_EVNP;			\
+}
+
 /*
  * Process received characters.
  */
@@ -616,26 +627,18 @@ unstuff_chars(q, mp)
 		if (c == PPP_FLAG)
 		    break;
 		++cp;
-		if (c & 0x80)
-		    state->flags |= RCV_B7_1;
-		else
-		    state->flags |= RCV_B7_0;
-		if (paritytab[c >> 5] & (1 << (c & 0x1F)))
-		    state->flags |= RCV_ODDP;
-		else
-		    state->flags |= RCV_EVNP;
+		UPDATE_FLAGS(c);
 		if (c == PPP_ESCAPE) {
 		    if (extra > 0) {
 			--extra;
 			++cpend;
-		    } else if (cp >= cpend) {
+		    }
+		    if (cp >= cpend || (c = *cp) == PPP_FLAG) {
 			state->flags |= ESCAPED;
 			break;
 		    }
-		    c = *cp;
-		    if (c == PPP_FLAG)
-			break;
 		    ++cp;
+		    UPDATE_FLAGS(c);
 		    c ^= PPP_TRANS;
 		}
 		*dp++ = c;
@@ -644,19 +647,12 @@ unstuff_chars(q, mp)
 	    state->inlen += dp - dp0;
 	    state->infcs = fcs;
 	    om->b_wptr = dp;
-	    if (cp >= cpend)
-		continue;	/* go back and check cp again */
+	    if (cp >= mp->b_wptr)
+		continue;	/* advance to the next mblk */
 	}
 
 	c = *cp++;
-	if (c & 0x80)
-	    state->flags |= RCV_B7_1;
-	else
-	    state->flags |= RCV_B7_0;
-	if (paritytab[c >> 5] & (1 << (c & 0x1F)))
-	    state->flags |= RCV_ODDP;
-	else
-	    state->flags |= RCV_EVNP;
+	UPDATE_FLAGS(c);
 	if (c == PPP_FLAG) {
 	    /*
 	     * End of a frame.
