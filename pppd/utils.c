@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.11 2001/03/08 05:11:16 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.12 2001/03/12 22:56:45 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -552,6 +552,7 @@ pr_log __V((void *arg, char *fmt, ...))
 		*eol = 0;
 		log_write(llevel, p);
 		p = eol + 1;
+		eol = strchr(p, '\n');
 	}
 
 	/* assumes sizeof(buf) <= sizeof(line) */
