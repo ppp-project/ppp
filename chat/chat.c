@@ -87,7 +87,7 @@
 #endif
 
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.26 1999/12/23 01:39:54 paulus Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.27 2002/01/11 18:05:44 etbe Exp $";
 #endif
 
 #include <stdio.h>
@@ -203,7 +203,7 @@ int n_aborts = 0, abort_next = 0, timeout_next = 0, echo_next = 0;
 int clear_abort_next = 0;
 
 char *report_string[MAX_REPORTS] ;
-char  report_buffer[50] ;
+char  report_buffer[256] ;
 int n_reports = 0, report_next = 0, report_gathering = 0 ; 
 int clear_report_next = 0;
 
