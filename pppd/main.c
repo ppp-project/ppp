@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.54 1999/03/02 05:36:42 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.55 1999/03/02 05:59:21 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -77,7 +77,6 @@ char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char default_devnam[MAXPATHLEN];	/* name of default device */
 static pid_t pid;		/* Our pid */
-static uid_t uid;		/* Our real user-id */
 static int conn_running;	/* we have a [dis]connector running */
 
 int ttyfd = -1;			/* Serial port file descriptor */
@@ -85,6 +84,7 @@ mode_t tty_mode = -1;		/* Original access permissions to tty */
 int baud_rate;			/* Actual bits/second for serial device */
 int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
+int uid;			/* real user ID of the user */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
 
@@ -231,6 +231,7 @@ main(argc, argv)
 		     argv[0]);
 	exit(1);
     }
+    setuid(0);			/* make real uid = root */
 
     if (!ppp_available()) {
 	option_error(no_ppp_msg);
@@ -448,7 +449,16 @@ main(argc, argv)
 	hungup = 0;
 	kill_link = 0;
 	sigprocmask(SIG_UNBLOCK, &mask, NULL);
-	while ((ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0)) < 0) {
+	for (;;) {
+	    /* If the user specified the device name, become the
+	       user before opening it. */
+	    if (!devnam_info.priv)
+		seteuid(uid);
+	    ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
+	    if (!devnam_info.priv)
+		seteuid(0);
+	    if (ttyfd >= 0)
+		break;
 	    if (errno != EINTR)
 		syslog(LOG_ERR, "Failed to open %s: %m", devnam);
 	    if (!persist || errno != EINTR)
@@ -504,7 +514,14 @@ main(argc, argv)
 
 	/* reopen tty if necessary to wait for carrier */
 	if (connector == NULL && modem) {
-	    while ((i = open(devnam, O_RDWR)) < 0) {
+	    for (;;) {
+		if (!devnam_info.priv)
+		    seteuid(uid);
+		i = open(devnam, O_RDWR);
+		if (!devnam_info.priv)
+		    seteuid(0);
+		if (i >= 0)
+		    break;
 		if (errno != EINTR)
 		    syslog(LOG_ERR, "Failed to reopen %s: %m", devnam);
 		if (!persist || errno != EINTR || hungup || kill_link)
@@ -1145,7 +1162,7 @@ device_script(program, in, out)
 		close(errfd);
 	    }
 	}
-	setuid(getuid());
+	setuid(uid);
 	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
 	syslog(LOG_ERR, "could not exec /bin/sh: %m");
@@ -1227,7 +1244,6 @@ run_program(prog, args, must_exist, done, arg)
 	(void) setsid();    /* No controlling tty. */
 	(void) umask (S_IRWXG|S_IRWXO);
 	(void) chdir ("/"); /* no current directory. */
-	setuid(geteuid());
 	setgid(getegid());
 
 	/* Ensure that nothing of our device environment is inherited. */

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.46 1999/02/26 11:03:34 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.47 1999/03/02 05:59:21 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -416,7 +416,7 @@ options_from_user()
     int ret;
     struct passwd *pw;
 
-    pw = getpwuid(getuid());
+    pw = getpwuid(uid);
     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
 	return 1;
     file = _PATH_USEROPT;
@@ -688,12 +688,10 @@ int
 readable(fd)
     int fd;
 {
-    uid_t uid;
     int ngroups, i;
     struct stat sbuf;
     GIDSET_TYPE groups[NGROUPS_MAX];
 
-    uid = getuid();
     if (uid == 0)
 	return 1;
     if (fstat(fd, &sbuf) != 0)
@@ -1183,15 +1181,11 @@ setdevname(cp, quiet)
 	return -1;
     }
 
-    if (!privileged_option) {
-	if (!quiet)
-	    option_error("setting the device name requires root privilege");
-	return -1;
-    }
-
     (void) strncpy(devnam, cp, MAXPATHLEN);
     devnam[MAXPATHLEN-1] = 0;
     default_device = FALSE;
+    devnam_info.priv = privileged_option;
+    devnam_info.source = option_source;
   
     return 1;
 }

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.25 1999/02/26 11:03:34 paulus Exp $
+ * $Id: pppd.h,v 1.26 1999/03/02 05:59:22 paulus Exp $
  */
 
 /*
@@ -116,6 +116,7 @@ extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
+extern int	uid;		/* Real user ID of the user running pppd */
 
 /*
  * Variables set by command-line options.
@@ -387,7 +388,7 @@ struct option_info {
     char    *source;		/* where option came from */
 };
 
-extern struct option_info auth_req_info;
+extern struct option_info devnam_info;
 extern struct option_info connector_info;
 extern struct option_info disconnector_info;
 extern struct option_info welcomer_info;
