@@ -14,9 +14,6 @@
 #
 #  In addition, we have to edit the Makefile in the drivers/net
 #  directory to add support for the ppp-comp compression option.
-#
-#  Finally, we have to check that certain include file stubs in
-#  /usr/include/net exist, or else pppd won't compile.  Phew!
 
 LINUXSRC=/usr/src/linux
 
@@ -82,7 +79,7 @@ bombiffailed () {
 
 #
 # convenience function to compare two files marked with ==FILEVERSION
-# version numbers; returns success if $1 is newer than $2
+# version numbers; returns success if $1 is not older than $2
 
 newer () {
   file1=$1
@@ -119,7 +116,7 @@ newer () {
 installfile () {
   BASE=`basename $1`
   if newer $1 $BASE; then
-    echo $1 is newer than $BASE, skipping
+    echo $1 is not older than $BASE, skipping
     return 0
   fi
   BACKUP=`echo $1 | sed 's/.c$/.old.c/;s/.h$/.old.h/'`
@@ -225,27 +222,27 @@ else
 fi
 echo
 
-#
-# install header stub files in /usr/include/net
+# #
+# # install header stub files in /usr/include/net
 
-for FILE in if_ppp.h \
-            if_pppvar.h \
-            ppp-comp.h \
-	    if.h \
-            ppp_defs.h
-  do
-  if [ ! -f /usr/include/net/$FILE ]; then
-    echo Installing stub include file in /usr/include/net/$FILE
-    echo "#include <linux/$FILE>" > /usr/include/net/$FILE
-    bombiffailed
-    chown 0:0 /usr/include/net/$FILE
-    bombiffailed
-    chmod 444 /usr/include/net/$FILE
-    bombiffailed
-    touch /usr/include/net/$FILE
-    bombiffailed
-  fi
-done
+# for FILE in if_ppp.h \
+#             if_pppvar.h \
+#             ppp-comp.h \
+# 	    if.h \
+#             ppp_defs.h
+#   do
+#   if [ ! -f /usr/include/net/$FILE ]; then
+#     echo Installing stub include file in /usr/include/net/$FILE
+#     echo "#include <linux/$FILE>" > /usr/include/net/$FILE
+#     bombiffailed
+#     chown 0:0 /usr/include/net/$FILE
+#     bombiffailed
+#     chmod 444 /usr/include/net/$FILE
+#     bombiffailed
+#     touch /usr/include/net/$FILE
+#     bombiffailed
+#   fi
+# done
 
 echo "Kernel driver files installation done."
 
