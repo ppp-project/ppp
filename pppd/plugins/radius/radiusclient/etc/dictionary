@@ -85,6 +85,9 @@ ATTRIBUTE	NAS-Port-Type		61	integer
 ATTRIBUTE	Port-Limit		62	integer
 ATTRIBUTE	Connect-Info		77	string
 
+# RFC 2869
+ATTRIBUTE	Acct-Interim-Interval	85	integer
+
 #
 #	Experimental Non Protocol Attributes used by Cistron-Radiusd
 #
