@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.46 1999/05/13 00:35:23 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.47 1999/07/21 00:19:52 paulus Exp $";
 #endif
 
 /*
@@ -189,7 +189,7 @@ struct protent ipcp_protent = {
     ip_active_pkt
 };
 
-static void ipcp_clear_addrs __P((int));
+static void ipcp_clear_addrs __P((int, u_int32_t, u_int32_t));
 static void ipcp_script __P((char *));		/* Run an up/down script */
 static void ipcp_script_done __P((void *));
 
@@ -440,15 +440,18 @@ ipcp_resetci(f)
     fsm *f;
 {
     ipcp_options *wo = &ipcp_wantoptions[f->unit];
+    ipcp_options *go = &ipcp_gotoptions[f->unit];
 
     wo->req_addr = wo->neg_addr && ipcp_allowoptions[f->unit].neg_addr;
-    if (wo->ouraddr == 0)
+    if (wo->ouraddr == 0 || disable_defaultip)
 	wo->accept_local = 1;
     if (wo->hisaddr == 0)
 	wo->accept_remote = 1;
     wo->req_dns1 = usepeerdns;	/* Request DNS addresses from the peer */
     wo->req_dns2 = usepeerdns;
-    ipcp_gotoptions[f->unit] = *wo;
+    *go = *wo;
+    if (disable_defaultip)
+	go->ouraddr = 0;
 }
 
 
@@ -1291,7 +1294,7 @@ ip_check_options()
      * Default our local IP address based on our hostname.
      * If local IP address already given, don't bother.
      */
-    if (wo->ouraddr == 0 && !disable_defaultip) {
+    if (wo->ouraddr == 0) {
 	/*
 	 * Look up our hostname (possibly with domain name appended)
 	 * and take the first IP address as our local IP address.
@@ -1411,6 +1414,7 @@ ipcp_up(f)
      */
     if (demand) {
 	if (go->ouraddr != wo->ouraddr || ho->hisaddr != wo->hisaddr) {
+	    ipcp_clear_addrs(f->unit, wo->ouraddr, wo->hisaddr);
 	    if (go->ouraddr != wo->ouraddr) {
 		warn("Local IP address changed to %I", go->ouraddr);
 		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr));
@@ -1423,7 +1427,6 @@ ipcp_up(f)
 		wo->hisaddr = ho->hisaddr;
 	    } else
 		script_unsetenv("OLDIPREMOTE");
-	    ipcp_clear_addrs(f->unit);
 
 	    /* Set the interface to the new addresses */
 	    mask = GetMask(go->ouraddr);
@@ -1491,6 +1494,8 @@ ipcp_up(f)
 	    if (sifproxyarp(f->unit, ho->hisaddr))
 		proxy_arp_set[f->unit] = 1;
 
+	ipcp_wantoptions[0].ouraddr = go->ouraddr;
+
 	notice("local  IP address %I", go->ouraddr);
 	notice("remote IP address %I", ho->hisaddr);
 	if (go->dnsaddr[0])
@@ -1541,7 +1546,8 @@ ipcp_down(f)
 	sifnpmode(f->unit, PPP_IP, NPMODE_QUEUE);
     } else {
 	sifdown(f->unit);
-	ipcp_clear_addrs(f->unit);
+	ipcp_clear_addrs(f->unit, ipcp_gotoptions[f->unit].ouraddr,
+			 ipcp_hisoptions[f->unit].hisaddr);
     }
 
     /* Execute the ip-down script */
@@ -1557,13 +1563,11 @@ ipcp_down(f)
  * proxy arp entries, etc.
  */
 static void
-ipcp_clear_addrs(unit)
+ipcp_clear_addrs(unit, ouraddr, hisaddr)
     int unit;
+    u_int32_t ouraddr;  /* local address */
+    u_int32_t hisaddr;  /* remote address */
 {
-    u_int32_t ouraddr, hisaddr;
-
-    ouraddr = ipcp_gotoptions[unit].ouraddr;
-    hisaddr = ipcp_hisoptions[unit].hisaddr;
     if (proxy_arp_set[unit]) {
 	cifproxyarp(unit, hisaddr);
 	proxy_arp_set[unit] = 0;
