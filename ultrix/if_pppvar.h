@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.2 1994/10/21 06:26:41 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.3 1994/12/13 03:26:08 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -57,12 +57,15 @@ struct ppp_softc {
 	void	*sc_devp;		/* pointer to device-dep structure */
 	void	(*sc_start) __P((struct ppp_softc *));	/* start output proc */
 	void	(*sc_ctlp) __P((struct ppp_softc *)); /* rcvd control pkt */
+	void	(*sc_relinq) __P((struct ppp_softc *)); /* relinquish ifunit */
 	short	sc_mru;			/* max receive unit */
 	pid_t	sc_xfer;		/* used in transferring unit */
 	struct	ifqueue sc_rawq;	/* received packets */
 	struct	ifqueue sc_inq;		/* queue of input packets for daemon */
 	struct	ifqueue sc_fastq;	/* interactive output packet q */
 	struct	mbuf *sc_togo;		/* output packet ready to go */
+	struct	mbuf *sc_npqueue;	/* output packets not to be sent yet */
+	struct	mbuf **sc_npqtail;	/* ptr to last next ptr in npqueue */
 #ifdef	VJC
 	struct	slcompress sc_comp; 	/* vjc control buffer */
 #endif
@@ -74,6 +77,8 @@ struct ppp_softc {
 	void	*sc_xc_state;		/* transmit compressor state */
 	struct	compressor *sc_rcomp;	/* receive decompressor */
 	void	*sc_rc_state;		/* receive decompressor state */
+	int	sc_last_sent;		/* time (secs) last NP pkt sent */
+	int	sc_last_recv;		/* time (secs) last NP pkt rcvd */
 	
 	/* Device-dependent part for async lines. */
 	ext_accm sc_asyncmap;		/* async control character map */
