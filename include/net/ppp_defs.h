@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.9 1996/10/08 04:38:33 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.10 1997/03/04 03:32:37 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -54,10 +54,12 @@
  * Protocol field values.
  */
 #define PPP_IP		0x21	/* Internet Protocol */
+#define PPP_AT		0x29	/* AppleTalk Protocol */
 #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
 #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
 #define PPP_COMP	0xfd	/* compressed packet */
 #define PPP_IPCP	0x8021	/* IP Control Protocol */
+#define PPP_ATCP	0x8029	/* AppleTalk Control Protocol */
 #define PPP_CCP		0x80fd	/* Compression Control Protocol */
 #define PPP_LCP		0xc021	/* Link Control Protocol */
 #define PPP_PAP		0xc023	/* Password Authentication Protocol */
@@ -75,7 +77,7 @@
 /*
  * A 32-bit unsigned integral type.
  */
-#if !defined(__BIT_TYPES_DEFINED__) && !defined(_BITYPES)
+#if !defined(__BIT_TYPES_DEFINED__) && !defined(_BITYPES) && !defined(__FreeBSD__)
 #ifdef	UINT32_T
 typedef UINT32_T	u_int32_t;
 #else
