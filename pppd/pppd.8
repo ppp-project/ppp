@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.54 2000/12/27 23:24:13 paulus Exp $
+.\" $Id: pppd.8,v 1.55 2001/02/22 03:10:05 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -265,7 +265,7 @@ Request that the peer compress packets that it sends, using the
 Deflate scheme, with a maximum window size of \fI2**nr\fR bytes, and
 agree to compress packets sent to the peer with a maximum window size
 of \fI2**nt\fR bytes.  If \fInt\fR is not specified, it defaults to
-the value given for \fInr\fR.  Values in the range 8 to 15 may be used
+the value given for \fInr\fR.  Values in the range 9 to 15 may be used
 for \fInr\fR and \fInt\fR; larger values give better compression but
 consume more kernel memory for compression dictionaries.
 Alternatively, a value of 0 for \fInr\fR or \fInt\fR disables
