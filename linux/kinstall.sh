@@ -48,7 +48,7 @@ fi
 #    introduced in 1.0.1
 if [ `egrep '^VERSION|^PATCHLEVEL|^SUBLEVEL' $LINUXMK | wc -l` -ne 3 ]; then
   echo You appear to have a very old kernel. You must upgrade.
-  echo It is recommended that you upgrade to the most recent 1.2.X kernel.
+  echo It is recommended that you upgrade to the most recent 2.0.X kernel.
   exit 1
 fi
 
@@ -66,7 +66,7 @@ if [ $VERSION -eq 1 ]; then
   if [ $PATCHLEVEL -eq 0 -o $PATCHLEVEL -eq 1 -a $SUBLEVEL -lt 14 ]; then
     echo You appear to be running $KERNEL. There is no support for
     echo kernels predating 1.1.14.  It is recommended that you upgrade
-    echo to the most recent 1.2.X kernel.
+    echo to the most recent 2.0.X kernel.
     exit 1
   fi
   if [ $PATCHLEVEL -eq 1 ]; then
