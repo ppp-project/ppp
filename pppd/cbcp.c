@@ -1,24 +1,39 @@
 /*
  * cbcp - Call Back Configuration Protocol.
  *
- * Copyright (c) 1995 Pedro Roque Marques
- * All rights reserved.
+ * Copyright (c) 1995 Pedro Roque Marques.  All rights reserved.
  *
- * Redistribution and use in source and binary forms are permitted
- * provided that the above copyright notice and this paragraph are
- * duplicated in all such forms and that any documentation,
- * advertising materials, and other materials related to such
- * distribution and use acknowledge that the software was developed
- * by Pedro Roque Marques.  The name of the author may not be used to
- * endorse or promote products derived from this software without
- * specific prior written permission.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
  *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
- * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. The names of the authors of this software must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission.
+ *
+ * 4. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by Pedro Roque Marques
+ *     <pedro_m@yahoo.com>"
+ *
+ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
+ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: cbcp.c,v 1.13 2002/09/18 02:49:46 carlsonj Exp $"
+#define RCSID	"$Id: cbcp.c,v 1.14 2002/12/04 23:03:32 paulus Exp $"
 
 #include <stdio.h>
 #include <string.h>
