@@ -1,7 +1,7 @@
 /*
  * Definitions for tcp compression routines.
  *
- * $Id: slcompress.h,v 1.2 1994/04/18 05:09:38 paulus Exp $
+ * $Id: slcompress.h,v 1.3 1994/09/21 01:37:22 paulus Exp $
  *
  * Copyright (c) 1989 Regents of the University of California.
  * All rights reserved.
@@ -137,10 +137,10 @@ struct slcompress {
 /* flag values */
 #define SLF_TOSS 1		/* tossing rcvd frames because of input err */
 
-extern void sl_compress_init(/* struct slcompress * */);
-extern void sl_compress_setup(/* struct slcompress *, int */);
-extern u_char sl_compress_tcp(/* struct mbuf *, struct ip *,
-				struct slcompress *, int compress_cid_flag */);
-extern int sl_uncompress_tcp(/* u_char **, int,  u_char, struct slcompress * */);
-
-#endif /* _SLCOMPRESS_H_ */
+void	sl_compress_init __P((struct slcompress *));
+void	sl_compress_setup __P((struct slcompress *, int));
+u_int	sl_compress_tcp __P((struct mbuf *,
+	    struct ip *, struct slcompress *, int));
+int	sl_uncompress_tcp __P((u_char **, int, u_int, struct slcompress *));
+int	sl_uncompress_tcp_core __P((u_char *, int, int, u_int,
+	    struct slcompress *, u_char **, u_int *));
