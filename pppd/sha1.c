@@ -20,6 +20,9 @@
 #include <netinet/in.h>	/* htonl() */
 #include "sha1.h"
 
+static void
+SHA1_Transform(unsigned long[5], const unsigned char[64]);
+
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 /* blk0() and blk() perform the initial expand. */
@@ -38,7 +41,8 @@
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1_Transform(unsigned long state[5], const unsigned char buffer[64])
+static void
+SHA1_Transform(unsigned long state[5], const unsigned char buffer[64])
 {
     unsigned long a, b, c, d, e;
     typedef union {
@@ -94,7 +98,8 @@ void SHA1_Transform(unsigned long state[5], const unsigned char buffer[64])
 
 /* SHA1Init - Initialize new context */
 
-void SHA1_Init(SHA1_CTX *context)
+void
+SHA1_Init(SHA1_CTX *context)
 {
     /* SHA1 initialization constants */
     context->state[0] = 0x67452301;
@@ -108,7 +113,8 @@ void SHA1_Init(SHA1_CTX *context)
 
 /* Run your data through this. */
 
-void SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
+void
+SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
 {
     unsigned int i, j;
 
@@ -132,7 +138,8 @@ void SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
 
 /* Add padding and return the message digest. */
 
-void SHA1_Final(unsigned char digest[20], SHA1_CTX *context)
+void
+SHA1_Final(unsigned char digest[20], SHA1_CTX *context)
 {
     unsigned long i, j;
     unsigned char finalcount[8];

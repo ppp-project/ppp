@@ -16,7 +16,7 @@ as plaintext-equivalent.  (Well, the Change-Password packet is arguably
 an advantage.)  It does introduce a significant weakness if the LM hash
 is used.  Additionally, the format of the failure packet potentially
 gives information to an attacker.  The weakness of the LM hash is partly
-address in RFC 2433, which deprecates its use.
+addressed in RFC 2433, which deprecates its use.
 
 MS-CHAPv2 adds 2 benefits to MS-CHAP.  (1) The LM hash is no longer
 used.  (2) Mutual authentication is required.  Note that the mutual

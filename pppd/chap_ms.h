@@ -19,7 +19,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap_ms.h,v 1.5 2002/03/05 15:14:04 dfs Exp $
+ * $Id: chap_ms.h,v 1.6 2002/04/02 13:54:59 dfs Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -30,17 +30,13 @@
 #define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
 #define MS_CHAP2_RESPONSE_LEN	49	/* Response length for MS-CHAPv2 */
 
-/*
- * E=eeeeeeeeee error codes for MS-CHAP failure messages. 
- * Offset by 646 (the minimum code) for switch() handling on older compilers.
- */
-#define MS_CHAP_ERROR_BASE			646
-#define MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS	(646 - MS_CHAP_ERROR_BASE)
-#define MS_CHAP_ERROR_ACCT_DISABLED		(647 - MS_CHAP_ERROR_BASE)
-#define MS_CHAP_ERROR_PASSWD_EXPIRED		(648 - MS_CHAP_ERROR_BASE)
-#define MS_CHAP_ERROR_NO_DIALIN_PERMISSION	(649 - MS_CHAP_ERROR_BASE)
-#define MS_CHAP_ERROR_AUTHENTICATION_FAILURE	(691 - MS_CHAP_ERROR_BASE)
-#define MS_CHAP_ERROR_CHANGING_PASSWORD		(709 - MS_CHAP_ERROR_BASE)
+/* E=eeeeeeeeee error codes for MS-CHAP failure messages. */
+#define MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS	646
+#define MS_CHAP_ERROR_ACCT_DISABLED		647
+#define MS_CHAP_ERROR_PASSWD_EXPIRED		648
+#define MS_CHAP_ERROR_NO_DIALIN_PERMISSION	649
+#define MS_CHAP_ERROR_AUTHENTICATION_FAILURE	691
+#define MS_CHAP_ERROR_CHANGING_PASSWORD		709
 
 /*
  * Use MS_CHAP_RESPONSE_LEN, rather than sizeof(MS_ChapResponse),
@@ -63,9 +59,23 @@ typedef struct {
     u_char Flags[1];		/* Must be zero */
 } MS_Chap2Response;
 
+#ifdef MPPE
+#include <net/ppp-comp.h>	/* MPPE_MAX_KEY_LEN */
+extern u_char mppe_send_key[MPPE_MAX_KEY_LEN];
+extern u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
+#endif
+
+/* Are we the authenticator or authenticatee?  For MS-CHAPv2 key derivation. */
+#define MS_CHAP2_AUTHENTICATEE 0
+#define MS_CHAP2_AUTHENTICATOR 1
+
+#include "chap.h" /* chap_state, et al */
 void ChapMS __P((chap_state *, u_char *, char *, int, MS_ChapResponse *));
 void ChapMS2 __P((chap_state *, u_char *, u_char *, char *, char *, int,
-		  MS_Chap2Response *, u_char[MS_AUTH_RESPONSE_LENGTH+1]));
+		  MS_Chap2Response *, u_char[MS_AUTH_RESPONSE_LENGTH+1], int));
+#ifdef MPPE
+void mppe_set_keys __P((u_char *, u_char[MD4_SIGNATURE_SIZE]));
+#endif
 
 #define __CHAPMS_INCLUDE__
 #endif /* __CHAPMS_INCLUDE__ */

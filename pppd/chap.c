@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.29 2002/03/05 15:14:04 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.30 2002/04/02 13:54:59 dfs Exp $"
 
 /*
  * TODO:
@@ -66,6 +66,14 @@ int (*chap_auth_hook) __P((char *user,
 
 static const char rcsid[] = RCSID;
 
+#ifdef CHAPMS
+/* For MPPE debug */
+/* Use "[]|}{?/><,`!2&&(" (sans quotes) for RFC 3079 MS-CHAPv2 test value */
+static char *mschap_challenge = NULL;
+/* Use "!@\#$%^&*()_+:3|~" (sans quotes, backslash is to escape #) for ... */
+static char *mschap2_peer_challenge = NULL;
+#endif
+
 /*
  * Command-line options.
  */
@@ -79,6 +87,12 @@ static option_t chap_option_list[] = {
 #ifdef MSLANMAN
     { "ms-lanman", o_bool, &ms_lanman,
       "Use LanMan passwd when using MS-CHAP", 1 },
+#endif
+#ifdef DEBUGMPPEKEY
+    { "mschap-challenge", o_string, &mschap_challenge,
+      "specify CHAP challenge" },
+    { "mschap2-peer-challenge", o_string, &mschap2_peer_challenge,
+      "specify CHAP peer challenge" },
 #endif
     { NULL }
 };
@@ -490,8 +504,11 @@ ChapReceiveChallenge(cstate, inp, id, len)
 	break;
 
     case CHAP_MICROSOFT_V2:
-	ChapMS2(cstate, rchallenge, NULL, cstate->resp_name, secret, secret_len,
-		(MS_Chap2Response *) cstate->response, cstate->earesponse);
+	ChapMS2(cstate, rchallenge,
+		mschap2_peer_challenge? mschap2_peer_challenge: NULL,
+		cstate->resp_name, secret, secret_len,
+		(MS_Chap2Response *) cstate->response, cstate->earesponse,
+		 MS_CHAP2_AUTHENTICATEE);
 	cstate->resp_length = MS_CHAP2_RESPONSE_LEN;
 	break;
 #endif /* CHAPMS */
@@ -649,7 +666,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 		ChapMS2(cstate, cstate->challenge, rmd->PeerChallenge,
 			(explicit_remote? remote_name: rhostname),
 			secret, secret_len, &md,
-			cstate->saresponse);
+			cstate->saresponse, MS_CHAP2_AUTHENTICATOR);
 
 		/* compare MDs and send the appropriate status */
 		if (memcmp(md.NTResp, rmd->NTResp, sizeof(md.NTResp)) == 0)
@@ -671,7 +688,8 @@ ChapReceiveResponse(cstate, inp, id, len)
 	old_state = cstate->serverstate;
 	cstate->serverstate = CHAPSS_OPEN;
 	if (old_state == CHAPSS_INITIAL_CHAL) {
-	    auth_peer_success(cstate->unit, PPP_CHAP, rhostname, len);
+	    auth_peer_success(cstate->unit, PPP_CHAP, cstate->chal_type,
+			      rhostname, len);
 	}
 	if (cstate->chal_interval != 0)
 	    TIMEOUT(ChapRechallenge, cstate, cstate->chal_interval);
@@ -746,7 +764,7 @@ ChapReceiveSuccess(cstate, inp, id, len)
 
     cstate->clientstate = CHAPCS_OPEN;
 
-    auth_withpeer_success(cstate->unit, PPP_CHAP);
+    auth_withpeer_success(cstate->unit, PPP_CHAP, cstate->resp_type);
 }
 
 
@@ -786,7 +804,7 @@ ChapReceiveFailure(cstate, inp, id, len)
 #ifdef CHAPMS
     if ((cstate->resp_type == CHAP_MICROSOFT_V2) ||
 	(cstate->resp_type == CHAP_MICROSOFT)) {
-	long error;
+	int error;
 
 	/*
 	 * Deal with MS-CHAP formatted failure messages; just print the
@@ -794,7 +812,7 @@ ChapReceiveFailure(cstate, inp, id, len)
 	 * to use M=<message>, but it shouldn't hurt.  See ChapSendStatus().
 	 */
 	if (!strncmp(p, "E=", 2))
-	    error = strtol(p, NULL, 10); /* Remember the error code. */
+	    error = (int) strtol(p, NULL, 10); /* Remember the error code. */
 	else
 	    goto print_msg; /* Message is badly formatted. */
 
@@ -803,7 +821,7 @@ ChapReceiveFailure(cstate, inp, id, len)
 	    p += 3;
 	} else {
 	    /* No M=<message>; use the error code. */
-	    switch(error - MS_CHAP_ERROR_BASE) {
+	    switch(error) {
 	    case MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS:
 		p = "Restricted logon hours";
 		break;
@@ -1023,9 +1041,15 @@ ChapGenChallenge(cstate)
     cstate->chal_id = ++cstate->id;
     cstate->chal_transmits = 0;
 
-    /* generate a random string */
-    for (i = 0; i < chal_len; i++)
-	*ptr++ = (char) (drand48() * 0xff);
+#ifdef CHAPMS
+    if (mschap_challenge)
+	for (i = 0; i < chal_len; i++)
+	    *ptr++ = mschap_challenge[i];
+    else
+#endif
+	/* generate a random string */
+	for (i = 0; i < chal_len; i++)
+	    *ptr++ = (char) (drand48() * 0xff);
 }
 
 /*

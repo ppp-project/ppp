@@ -1088,6 +1088,24 @@ netif_set_mtu(int unit, int mtu)
 	error("ioctl(SIOCSIFMTU): %m (line %d)", __LINE__);
 }
 
+/*
+ * netif_get_mtu - get the MTU on the PPP network interface.
+ */
+int
+netif_get_mtu(int unit)
+{
+    struct ifreq ifr;
+
+    memset (&ifr, '\0', sizeof (ifr));
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+
+    if (ifunit >= 0 && ioctl(sock_fd, SIOCGIFMTU, (caddr_t) &ifr) < 0) {
+	error("ioctl(SIOCGIFMTU): %m (line %d)", __LINE__);
+	return 0;
+    }
+    return ifr.ifr_mtu;
+}
+
 /********************************************************************
  *
  * tty_send_config - configure the transmit characteristics of
@@ -1175,7 +1193,8 @@ void tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
  * is acceptable for use.
  */
 
-int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
+int
+ccp_test(int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 {
     struct ppp_option_data data;
 

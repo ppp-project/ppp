@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.82 2002/03/01 14:39:18 dfs Exp $"
+#define RCSID	"$Id: options.c,v 1.83 2002/04/02 13:54:59 dfs Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -627,6 +627,8 @@ process_option(opt, cmd, argv)
 	    *(bool *)(opt->addr2) = 0;
 	else if (opt->addr2 && (opt->flags & OPT_A2CLRB))
 	    *(u_char *)(opt->addr2) &= ~v;
+	else if (opt->addr2 && (opt->flags & OPT_A2OR))
+	    *(u_char *)(opt->addr2) |= v;
 	if (opt->addr3 && (opt->flags & OPT_A3OR))
 	    *(u_char *)(opt->addr3) |= v;
 	break;
@@ -730,7 +732,7 @@ process_option(opt, cmd, argv)
     }
 
     if (opt->addr2 && (opt->flags & (OPT_A2COPY|OPT_ENABLE
-		|OPT_A2PRINTER|OPT_A2STRVAL|OPT_A2LIST)) == 0)
+		|OPT_A2PRINTER|OPT_A2STRVAL|OPT_A2LIST|OPT_A2OR)) == 0)
 	*(bool *)(opt->addr2) = !(opt->flags & OPT_A2CLR);
 
     mainopt->source = option_source;

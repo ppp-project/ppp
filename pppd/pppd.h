@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.66 2002/03/01 14:39:18 dfs Exp $
+ * $Id: pppd.h,v 1.67 2002/04/02 13:54:59 dfs Exp $
  */
 
 /*
@@ -95,6 +95,7 @@ typedef struct {
 #define OPT_NOARG	0x200	/* option doesn't take argument */
 #define OPT_OR		0x400	/* OR in argument to value */
 #define OPT_INC		0x800	/* increment value */
+#define OPT_A2OR	0x800	/* for o_bool, OR arg to *(u_char *)addr2 */
 #define OPT_PRIV	0x1000	/* privileged option */
 #define OPT_STATIC	0x2000	/* string option goes into static array */
 #define OPT_LLIMIT	0x4000	/* check value against lower limit */
@@ -198,6 +199,7 @@ extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
 extern int	redirect_stderr;/* Connector's stderr should go to file */
 extern char	peer_authname[];/* Authenticated name of peer */
+extern int	auth_done[NUM_PPP]; /* Methods actually used for auth */
 extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
@@ -293,6 +295,21 @@ extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #ifdef MSLANMAN
 extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
+#endif
+
+/* Values for auth_pending, auth_done */
+#define PAP_WITHPEER	0x1
+#define PAP_PEER	0x2
+#define CHAP_WITHPEER	0x4
+#define CHAP_PEER	0x8
+/* Values for auth_done only */
+#define CHAP_MD5_WITHPEER	0x10
+#define CHAP_MD5_PEER		0x20
+#ifdef CHAPMS
+#define CHAP_MS_WITHPEER	0x40
+#define CHAP_MS_PEER		0x80
+#define CHAP_MS2_WITHPEER	0x100
+#define CHAP_MS2_PEER		0x200
 #endif
 
 extern char *current_option;	/* the name of the option being parsed */
@@ -467,11 +484,11 @@ void np_down __P((int, int));	  /* a network protocol has gone down */
 void np_finished __P((int, int)); /* a network protocol no longer needs link */
 void auth_peer_fail __P((int, int));
 				/* peer failed to authenticate itself */
-void auth_peer_success __P((int, int, char *, int));
+void auth_peer_success __P((int, int, int, char *, int));
 				/* peer successfully authenticated itself */
 void auth_withpeer_fail __P((int, int));
 				/* we failed to authenticate ourselves */
-void auth_withpeer_success __P((int, int));
+void auth_withpeer_success __P((int, int, int));
 				/* we successfully authenticated ourselves */
 void auth_check_options __P((void));
 				/* check authentication options supplied */
@@ -542,6 +559,7 @@ int  get_idle_time __P((int, struct ppp_idle *));
 int  get_ppp_stats __P((int, struct pppd_stats *));
 				/* Return link statistics */
 void netif_set_mtu __P((int, int)); /* Set PPP interface MTU */
+int  netif_get_mtu __P((int));      /* Get PPP interface MTU */
 int  sifvjcomp __P((int, int, int, int));
 				/* Configure VJ TCP header compression */
 int  sifup __P((int));		/* Configure i/f up for one protocol */

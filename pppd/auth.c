@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.75 2002/03/05 15:14:04 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.76 2002/04/02 13:54:59 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -90,6 +90,9 @@ char peer_authname[MAXNAMELEN];
 
 /* Records which authentication operations haven't completed yet. */
 static int auth_pending[NUM_PPP];
+
+/* Records which authentication operations have been completed. */
+int auth_done[NUM_PPP];
 
 /* Set if we have successfully called plogin() */
 static int logged_in;
@@ -183,12 +186,6 @@ bool explicit_remote = 0;	/* User specified explicit remote name */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 
 static char *uafname;		/* name of most recent +ua file */
-
-/* Bits in auth_pending[] */
-#define PAP_WITHPEER	1
-#define PAP_PEER	2
-#define CHAP_WITHPEER	4
-#define CHAP_PEER	8
 
 extern char *crypt __P((const char *, const char *));
 
@@ -552,6 +549,7 @@ link_established(unit)
 	auth |= PAP_WITHPEER;
     }
     auth_pending[unit] = auth;
+    auth_done[unit] = 0;
 
     if (!auth)
 	network_phase(unit);
@@ -653,8 +651,8 @@ auth_peer_fail(unit, protocol)
  * The peer has been successfully authenticated using `protocol'.
  */
 void
-auth_peer_success(unit, protocol, name, namelen)
-    int unit, protocol;
+auth_peer_success(unit, protocol, prot_flavor, name, namelen)
+    int unit, protocol, prot_flavor;
     char *name;
     int namelen;
 {
@@ -663,6 +661,19 @@ auth_peer_success(unit, protocol, name, namelen)
     switch (protocol) {
     case PPP_CHAP:
 	bit = CHAP_PEER;
+	switch (prot_flavor) {
+	case CHAP_DIGEST_MD5:
+	    bit |= CHAP_MD5_PEER;
+	    break;
+#ifdef CHAPMS
+	case CHAP_MICROSOFT:
+	    bit |= CHAP_MS_PEER;
+	    break;
+	case CHAP_MICROSOFT_V2:
+	    bit |= CHAP_MS2_PEER;
+	    break;
+#endif
+	}
 	break;
     case PPP_PAP:
 	bit = PAP_PEER;
@@ -680,6 +691,9 @@ auth_peer_success(unit, protocol, name, namelen)
     BCOPY(name, peer_authname, namelen);
     peer_authname[namelen] = 0;
     script_setenv("PEERNAME", peer_authname, 0);
+
+    /* Save the authentication method for later. */
+    auth_done[unit] |= bit;
 
     /*
      * If there is no more authentication still to be done,
@@ -712,14 +726,27 @@ auth_withpeer_fail(unit, protocol)
  * We have successfully authenticated ourselves with the peer using `protocol'.
  */
 void
-auth_withpeer_success(unit, protocol)
-    int unit, protocol;
+auth_withpeer_success(unit, protocol, prot_flavor)
+    int unit, protocol, prot_flavor;
 {
     int bit;
 
     switch (protocol) {
     case PPP_CHAP:
 	bit = CHAP_WITHPEER;
+	switch (prot_flavor) {
+	case CHAP_DIGEST_MD5:
+	    bit |= CHAP_MD5_WITHPEER;
+	    break;
+#ifdef CHAPMS
+	case CHAP_MICROSOFT:
+	    bit |= CHAP_MS_WITHPEER;
+	    break;
+	case CHAP_MICROSOFT_V2:
+	    bit |= CHAP_MS2_WITHPEER;
+	    break;
+#endif
+	}
 	break;
     case PPP_PAP:
 	if (passwd_from_file)
@@ -730,6 +757,9 @@ auth_withpeer_success(unit, protocol)
 	warn("auth_withpeer_success: unknown protocol %x", protocol);
 	bit = 0;
     }
+
+    /* Save the authentication method for later. */
+    auth_done[unit] |= bit;
 
     /*
      * If there is no more authentication still being done,

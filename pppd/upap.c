@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.24 2001/03/08 05:11:16 paulus Exp $"
+#define RCSID	"$Id: upap.c,v 1.25 2002/04/02 13:54:59 dfs Exp $"
 
 /*
  * TODO:
@@ -409,7 +409,7 @@ upap_rauthreq(u, inp, id, len)
 
     if (retcode == UPAP_AUTHACK) {
 	u->us_serverstate = UPAPSS_OPEN;
-	auth_peer_success(u->us_unit, PPP_PAP, ruser, ruserlen);
+	auth_peer_success(u->us_unit, PPP_PAP, 0, ruser, ruserlen);
     } else {
 	u->us_serverstate = UPAPSS_BADAUTH;
 	auth_peer_fail(u->us_unit, PPP_PAP);
@@ -456,7 +456,7 @@ upap_rauthack(u, inp, id, len)
 
     u->us_clientstate = UPAPCS_OPEN;
 
-    auth_withpeer_success(u->us_unit, PPP_PAP);
+    auth_withpeer_success(u->us_unit, PPP_PAP, 0);
 }
 
 

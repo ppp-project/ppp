@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.7 2002/03/12 00:28:56 dfs Exp $";
+"$Id: radius.c,v 1.8 2002/04/02 13:55:00 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"

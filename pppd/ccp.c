@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.33 2002/03/06 15:00:30 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.34 2002/04/02 13:54:59 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +34,11 @@
 #include "fsm.h"
 #include "ccp.h"
 #include <net/ppp-comp.h>
+
+#ifdef MPPE
+#include "chap_ms.h"	/* mppe_xx_key */
+#include "lcp.h"	/* lcp_close() */
+#endif
 
 static const char rcsid[] = RCSID;
 
@@ -53,6 +58,13 @@ static int setbsdcomp __P((char **));
 static int setdeflate __P((char **));
 static char bsd_value[8];
 static char deflate_value[8];
+
+/*
+ * Option variables.
+ */
+#ifdef MPPE
+bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
+#endif
 
 static option_t ccp_option_list[] = {
     { "noccp", o_bool, &ccp_protent.enabled_flag,
@@ -92,6 +104,56 @@ static option_t ccp_option_list[] = {
     { "-predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
       "don't allow Predictor-1", OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].predictor_1 },
+
+#ifdef MPPE
+    /* MPPE options are symmetrical ... we only set wantoptions here */
+    { "require-mppe", o_bool, &ccp_wantoptions[0].mppe,
+      "require MPPE encryption",
+      OPT_PRIO | MPPE_OPT_40 | MPPE_OPT_128 },
+    { "+mppe", o_bool, &ccp_wantoptions[0].mppe,
+      "require MPPE encryption",
+      OPT_ALIAS | OPT_PRIO | MPPE_OPT_40 | MPPE_OPT_128 },
+    { "nomppe", o_bool, &ccp_wantoptions[0].mppe,
+      "don't allow MPPE encryption", OPT_PRIO },
+    { "-mppe", o_bool, &ccp_wantoptions[0].mppe,
+      "don't allow MPPE encryption", OPT_ALIAS | OPT_PRIO },
+
+    /* We use ccp_allowoptions[0].mppe as a junk var ... it is reset later */
+    { "require-mppe-40", o_bool, &ccp_allowoptions[0].mppe,
+      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
+      &ccp_wantoptions[0].mppe },
+    { "+mppe-40", o_bool, &ccp_allowoptions[0].mppe,
+      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
+      &ccp_wantoptions[0].mppe },
+    { "nomppe-40", o_bool, &ccp_allowoptions[0].mppe,
+      "don't allow MPPE 40-bit encryption",
+      OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_40, &ccp_wantoptions[0].mppe },
+    { "-mppe-40", o_bool, &ccp_allowoptions[0].mppe,
+      "don't allow MPPE 40-bit encryption",
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_40,
+      &ccp_wantoptions[0].mppe },
+
+    { "require-mppe-128", o_bool, &ccp_allowoptions[0].mppe,
+      "require MPPE 128-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_128,
+      &ccp_wantoptions[0].mppe },
+    { "+mppe-128", o_bool, &ccp_allowoptions[0].mppe,
+      "require MPPE 128-bit encryption",
+      OPT_ALIAS | OPT_PRIO | OPT_A2OR | MPPE_OPT_128,
+      &ccp_wantoptions[0].mppe },
+    { "nomppe-128", o_bool, &ccp_allowoptions[0].mppe,
+      "don't allow MPPE 128-bit encryption",
+      OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_128, &ccp_wantoptions[0].mppe },
+    { "-mppe-128", o_bool, &ccp_allowoptions[0].mppe,
+      "don't allow MPPE 128-bit encryption",
+      OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_128,
+      &ccp_wantoptions[0].mppe },
+
+    /* strange one; we always request stateless, but will we allow stateful? */
+    { "mppe-stateful", o_bool, &refuse_mppe_stateful,
+      "allow MPPE stateful mode", OPT_PRIO },
+    { "nomppe-stateful", o_bool, &refuse_mppe_stateful,
+      "disallow MPPE stateful mode", OPT_PRIO | 1 },
+#endif /* MPPE */
 
     { NULL }
 };
@@ -175,7 +237,8 @@ static fsm_callbacks ccp_callbacks = {
  * Do we want / did we get any compression?
  */
 #define ANY_COMPRESS(opt)	((opt).deflate || (opt).bsd_compress \
-				 || (opt).predictor_1 || (opt).predictor_2)
+				 || (opt).predictor_1 || (opt).predictor_2 \
+				 || (opt).mppe)
 
 /*
  * Local state (mainly for handling reset-reqs and reset-acks).
@@ -386,8 +449,15 @@ ccp_input(unit, p, len)
      */
     oldstate = f->state;
     fsm_input(f, p, len);
-    if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED)
+    if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED) {
 	notice("Compression disabled by peer.");
+#ifdef MPPE
+	if (ccp_gotoptions[unit].mppe) {
+	    notice("MPPE disabled, closing LCP");
+	    lcp_close(unit, "MPPE disabled by peer");
+	}
+#endif
+    }
 
     /*
      * If we get a terminate-ack and we're not asking for compression,
@@ -450,15 +520,91 @@ ccp_resetci(f)
     fsm *f;
 {
     ccp_options *go = &ccp_gotoptions[f->unit];
-    u_char opt_buf[16];
+    u_char opt_buf[CCP_MAX_OPTION_LENGTH];
 
     *go = ccp_wantoptions[f->unit];
     all_rejected[f->unit] = 0;
+
+#ifdef MPPE
+    if (go->mppe) {
+	ccp_options *ao = &ccp_allowoptions[f->unit];
+	int auth_mschap_bits = auth_done[f->unit];
+	int numbits;
+
+	/*
+	 * Start with a basic sanity check: mschap[v2] auth must be in
+	 * exactly one direction.  RFC 3079 says that the keys are
+	 * 'derived from the credentials of the peer that initiated the call',
+	 * however the PPP protocol doesn't have such a concept, and pppd
+	 * cannot get this info externally.  Instead we do the best we can.
+	 * NB: If MPPE is required, all other compression opts are invalid.
+	 *     So, we return right away if we can't do it.
+	 */
+
+	/* Leave only the mschap auth bits set */
+	auth_mschap_bits &= ~(PAP_WITHPEER | PAP_PEER |
+			      CHAP_WITHPEER | CHAP_PEER |
+			      CHAP_MD5_WITHPEER | CHAP_MD5_PEER);
+	/* Count the mschap auths */
+	numbits = 0;
+	do {
+	    numbits += auth_mschap_bits & 1;
+	    auth_mschap_bits >>= 1;
+	} while (auth_mschap_bits);
+	if (numbits > 1) {
+	    error("MPPE required, but auth done in both directions.");
+	    lcp_close(f->unit, "MPPE required but not available");
+	    return;
+	}
+	if (!numbits) {
+	    error("MPPE required, but MS-CHAP[v2] auth not performed.");
+	    lcp_close(f->unit, "MPPE required but not available");
+	    return;
+	}
+
+	/* LM auth not supported for MPPE */
+	if (auth_done[f->unit] & (CHAP_MS_WITHPEER | CHAP_MS_PEER)) {
+	    /* This might be noise */
+	    if (go->mppe & MPPE_OPT_40) {
+		notice("Disabling 40-bit MPPE; MS-CHAP LM not supported");
+		go->mppe &= ~MPPE_OPT_40;
+	    }
+	}
+
+	/* Last check: can we actually negotiate something? */
+	if (!(go->mppe & (MPPE_OPT_40 | MPPE_OPT_128))) {
+	    /* Could be misconfig, could be 40-bit disabled above. */
+	    error("MPPE required, but both 40-bit and 128-bit disabled.");
+	    lcp_close(f->unit, "MPPE required but not available");
+	    return;
+	}
+
+	/* sync options */
+	ao->mppe = go->mppe;
+	/* MPPE is not compatible with other compression types */
+	ao->bsd_compress = go->bsd_compress = 0;
+	ao->predictor_1  = go->predictor_1  = 0;
+	ao->predictor_2  = go->predictor_2  = 0;
+	ao->deflate      = go->deflate      = 0;
+    }
+#endif /* MPPE */
 
     /*
      * Check whether the kernel knows about the various
      * compression methods we might request.
      */
+#ifdef MPPE
+    if (go->mppe) {
+	opt_buf[0] = CI_MPPE;
+	opt_buf[1] = CILEN_MPPE;
+	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
+	/* Key material unimportant here. */
+	if (ccp_test(f->unit, opt_buf, CILEN_MPPE + MPPE_MAX_KEY_LEN, 0) <= 0) {
+	    error("MPPE required, but kernel has no support.");
+	    lcp_close(f->unit, "MPPE required but not available");
+	}
+    }
+#endif
     if (go->bsd_compress) {
 	opt_buf[0] = CI_BSD_COMPRESS;
 	opt_buf[1] = CILEN_BSD_COMPRESS;
@@ -512,7 +658,8 @@ ccp_cilen(f)
     return (go->bsd_compress? CILEN_BSD_COMPRESS: 0)
 	+ (go->deflate? CILEN_DEFLATE: 0)
 	+ (go->predictor_1? CILEN_PREDICTOR_1: 0)
-	+ (go->predictor_2? CILEN_PREDICTOR_2: 0);
+	+ (go->predictor_2? CILEN_PREDICTOR_2: 0)
+	+ (go->mppe? CILEN_MPPE: 0);
 }
 
 /*
@@ -530,21 +677,40 @@ ccp_addci(f, p, lenp)
 
     /*
      * Add the compression types that we can receive, in decreasing
-     * preference order.  Get the kernel to allocate the first one
-     * in case it gets Acked.
+     * preference order.
      */
+#ifdef MPPE
+    if (go->mppe) {
+	u_char opt_buf[CILEN_MPPE + MPPE_MAX_KEY_LEN];
+
+	p[0] = opt_buf[0] = CI_MPPE;
+	p[1] = opt_buf[1] = CILEN_MPPE;
+	MPPE_OPTS_TO_CI(go->mppe, &p[2]);
+	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
+	BCOPY(mppe_recv_key, &opt_buf[CILEN_MPPE], MPPE_MAX_KEY_LEN);
+	res = ccp_test(f->unit, opt_buf, CILEN_MPPE + MPPE_MAX_KEY_LEN, 0);
+	if (res > 0)
+	    p += CILEN_MPPE;
+	else
+	    /* This shouldn't happen, we've already tested it! */
+	    lcp_close(f->unit, "MPPE required but not available in kernel");
+    }
+#endif
     if (go->deflate) {
 	p[0] = go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT;
 	p[1] = CILEN_DEFLATE;
 	p[2] = DEFLATE_MAKE_OPT(go->deflate_size);
 	p[3] = DEFLATE_CHK_SEQUENCE;
 	for (;;) {
+	    if (go->deflate_size < DEFLATE_MIN_WORKS) {
+		go->deflate = 0;
+		break;
+	    }
 	    res = ccp_test(f->unit, p, CILEN_DEFLATE, 0);
 	    if (res > 0) {
 		p += CILEN_DEFLATE;
 		break;
-	    }
-	    if (res < 0 || go->deflate_size <= DEFLATE_MIN_WORKS) {
+	    } else if (res < 0) {
 		go->deflate = 0;
 		break;
 	    }
@@ -563,22 +729,21 @@ ccp_addci(f, p, lenp)
 	p[0] = CI_BSD_COMPRESS;
 	p[1] = CILEN_BSD_COMPRESS;
 	p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
-	if (p != p0) {
-	    p += CILEN_BSD_COMPRESS;	/* not the first option */
-	} else {
-	    for (;;) {
-		res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 0);
-		if (res > 0) {
-		    p += CILEN_BSD_COMPRESS;
-		    break;
-		}
-		if (res < 0 || go->bsd_bits <= BSD_MIN_BITS) {
-		    go->bsd_compress = 0;
-		    break;
-		}
-		--go->bsd_bits;
-		p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
+	for (;;) {
+	    if (go->bsd_bits < BSD_MIN_BITS) {
+		go->bsd_compress = 0;
+		break;
 	    }
+	    res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 0);
+	    if (res > 0) {
+		p += CILEN_BSD_COMPRESS;
+		break;
+	    } else if (res < 0) {
+		go->bsd_compress = 0;
+		break;
+	    }
+	    --go->bsd_bits;
+	    p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
 	}
     }
     /* XXX Should Predictor 2 be preferable to Predictor 1? */
@@ -619,6 +784,22 @@ ccp_ackci(f, p, len)
     ccp_options *go = &ccp_gotoptions[f->unit];
     u_char *p0 = p;
 
+#ifdef MPPE
+    if (go->mppe) {
+	u_char opt_buf[CILEN_MPPE];
+
+	opt_buf[0] = CI_MPPE;
+	opt_buf[1] = CILEN_MPPE;
+	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
+	if (len < CILEN_MPPE || memcmp(opt_buf, p, CILEN_MPPE))
+	    return 0;
+	p += CILEN_MPPE;
+	len -= CILEN_MPPE;
+	/* XXX Cope with first/fast ack */
+	if (len == 0)
+	    return 1;
+    }
+#endif
     if (go->deflate) {
 	if (len < CILEN_DEFLATE
 	    || p[0] != (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
@@ -696,6 +877,25 @@ ccp_nakci(f, p, len)
     memset(&no, 0, sizeof(no));
     try = *go;
 
+#ifdef MPPE
+    if (go->mppe && len >= CILEN_MPPE
+	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
+	no.mppe = 1;
+	/*
+	 * Peer wants us to use a different strength or other setting.
+	 * Fail if we aren't willing to use his suggestion.
+	 */
+	MPPE_CI_TO_OPTS(&p[2], try.mppe);
+	if ((try.mppe & MPPE_OPT_STATEFUL) && refuse_mppe_stateful)
+	    try.mppe = 0;
+	else if ((go->mppe & try.mppe) != try.mppe)
+	    /* Peer must have set options we didn't request (suggest) */
+	    try.mppe = 0;
+
+	if (!try.mppe)
+	    lcp_close(f->unit, "MPPE required but peer negotiation failed");
+    }
+#endif /* MPPE */
     if (go->deflate && len >= CILEN_DEFLATE
 	&& p[0] == (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
 	&& p[1] == CILEN_DEFLATE) {
@@ -767,6 +967,14 @@ ccp_rejci(f, p, len)
     if (len == 0 && all_rejected[f->unit])
 	return -1;
 
+#ifdef MPPE
+    if (go->mppe && len >= CILEN_MPPE
+	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
+	lcp_close(f->unit, "MPPE required but peer refused");
+	p += CILEN_MPPE;
+	len -= CILEN_MPPE;
+    }
+#endif
     if (go->deflate && len >= CILEN_DEFLATE
 	&& p[0] == (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
 	&& p[1] == CILEN_DEFLATE) {
@@ -859,6 +1067,100 @@ ccp_reqci(f, p, lenp, dont_nak)
 	    clen = p[1];
 
 	    switch (type) {
+#ifdef MPPE
+	    case CI_MPPE:
+		if (!ao->mppe || clen != CILEN_MPPE) {
+		    newret = CONFREJ;
+		    break;
+		}
+		MPPE_CI_TO_OPTS(&p[2], ho->mppe);
+
+		/* Nak if anything unsupported or unknown are set. */
+		if (ho->mppe & MPPE_OPT_UNSUPPORTED) {
+		    newret = CONFNAK;
+		    ho->mppe &= ~MPPE_OPT_UNSUPPORTED;
+		}
+		if (ho->mppe & MPPE_OPT_UNKNOWN) {
+		    newret = CONFNAK;
+		    ho->mppe &= ~MPPE_OPT_UNKNOWN;
+		}
+
+		/* Check state opt */
+		if (ho->mppe & MPPE_OPT_STATEFUL) {
+		   if (refuse_mppe_stateful) {
+			/*
+			 * We can Nak and request stateless, but it's a
+			 * lot easier to just assume the peer will request
+			 * it if he can do it; stateful mode is bad over
+			 * the Internet -- which is where we expect MPPE.
+			 */
+			newret = CONFREJ;
+			break;
+		    } else {
+			newret = CONFNAK;
+		    }
+		}
+
+		/* Find out which of {S,L} are set. */
+		if ((ho->mppe & MPPE_OPT_128)
+		     && (ho->mppe & MPPE_OPT_40)) {
+		    /* Both are set, negotiate the strongest. */
+		    newret = CONFNAK;
+		    if (ao->mppe & MPPE_OPT_128)
+			ho->mppe &= ~MPPE_OPT_40;
+		    else if (ao->mppe & MPPE_OPT_40)
+			ho->mppe &= ~MPPE_OPT_128;
+		    else {
+			newret = CONFREJ;
+			break;
+		    }
+		} else if (ho->mppe & MPPE_OPT_128) {
+		    if (!(ao->mppe & MPPE_OPT_128)) {
+			newret = CONFREJ;
+			break;
+		    }
+		} else if (ho->mppe & MPPE_OPT_40) {
+		    if (!(ao->mppe & MPPE_OPT_40)) {
+			newret = CONFREJ;
+			break;
+		    }
+		} else {
+		    /* Neither are set. */
+		    newret = CONFREJ;
+		    break;
+		}
+
+		/* rebuild the opts */
+		MPPE_OPTS_TO_CI(ho->mppe, &p[2]);
+		if (newret == CONFACK) {
+		    u_char opt_buf[CILEN_MPPE + MPPE_MAX_KEY_LEN];
+		    int mtu;
+
+		    BCOPY(p, opt_buf, CILEN_MPPE);
+		    BCOPY(mppe_send_key, &opt_buf[CILEN_MPPE],
+			  MPPE_MAX_KEY_LEN);
+		    if (ccp_test(f->unit, opt_buf,
+				 CILEN_MPPE + MPPE_MAX_KEY_LEN, 1) <= 0) {
+			/* This shouldn't happen, we've already tested it! */
+			error("MPPE required, but kernel has no support.");
+			lcp_close(f->unit, "MPPE required but not available");
+			newret = CONFREJ;
+			break;
+		    }
+		    /*
+		     * We need to decrease the interface MTU by MPPE_PAD
+		     * because MPPE frames **grow**.  The kernel [must]
+		     * allocate MPPE_PAD extra bytes in xmit buffers.
+		     */
+		    mtu = netif_get_mtu(f->unit);
+		    if (mtu)
+			netif_set_mtu(f->unit, mtu - MPPE_PAD);
+		    else
+			newret = CONFREJ;
+		}
+
+		break;
+#endif /* MPPE */
 	    case CI_DEFLATE:
 	    case CI_DEFLATE_DRAFT:
 		if (!ao->deflate || clen != CILEN_DEFLATE
@@ -1000,6 +1302,8 @@ ccp_reqci(f, p, lenp, dont_nak)
 	else
 	    *lenp = retp - p0;
     }
+    if (ret == CONFREJ && ao->mppe)
+	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     return ret;
 }
 
@@ -1015,6 +1319,30 @@ method_name(opt, opt2)
     if (!ANY_COMPRESS(*opt))
 	return "(none)";
     switch (opt->method) {
+#ifdef MPPE
+    case CI_MPPE:
+    {
+	char *p = result;
+	char *q = result + sizeof(result); /* 1 past result */
+
+	slprintf(p, q - p, "MPPE ");
+	p += 5;
+	if (opt->mppe & MPPE_OPT_128) {
+	    slprintf(p, q - p, "128-bit ");
+	    p += 8;
+	}
+	if (opt->mppe & MPPE_OPT_40) {
+	    slprintf(p, q - p, "40-bit ");
+	    p += 7;
+	}
+	if (opt->mppe & MPPE_OPT_STATEFUL)
+	    slprintf(p, q - p, "stateful");
+	else
+	    slprintf(p, q - p, "stateless");
+
+	break;
+    }
+#endif
     case CI_DEFLATE:
     case CI_DEFLATE_DRAFT:
 	if (opt2 != NULL && opt2->deflate_size != opt->deflate_size)
@@ -1138,6 +1466,24 @@ ccp_printpkt(p, plen, printer, arg)
 	    len -= optlen;
 	    optend = p + optlen;
 	    switch (code) {
+#ifdef MPPE
+	    case CI_MPPE:
+		if (optlen >= CILEN_MPPE) {
+		    u_char mppe_opts;
+
+		    MPPE_CI_TO_OPTS(&p[2], mppe_opts);
+		    printer(arg, "mppe %s %s %s %s %s %s%s",
+			    (p[2] & MPPE_H_BIT)? "+H": "-H",
+			    (p[5] & MPPE_M_BIT)? "+M": "-M",
+			    (p[5] & MPPE_S_BIT)? "+S": "-S",
+			    (p[5] & MPPE_L_BIT)? "+L": "-L",
+			    (p[5] & MPPE_D_BIT)? "+D": "-D",
+			    (p[5] & MPPE_C_BIT)? "+C": "-C",
+			    (mppe_opts & MPPE_OPT_UNKNOWN)? " +U": "");
+		    p += CILEN_MPPE;
+		}
+		break;
+#endif
 	    case CI_DEFLATE:
 	    case CI_DEFLATE_DRAFT:
 		if (optlen >= CILEN_DEFLATE) {
@@ -1222,6 +1568,15 @@ ccp_datainput(unit, pkt, len)
 	     */
 	    error("Lost compression sync: disabling compression");
 	    ccp_close(unit, "Lost compression sync");
+#ifdef MPPE
+	    /*
+	     * If we were doing MPPE, we must also take the link down.
+	     */
+	    if (ccp_gotoptions[unit].mppe) {
+		error("Too many MPPE errors, closing LCP");
+		lcp_close(unit, "Too many MPPE errors");
+	    }
+#endif
 	} else {
 	    /*
 	     * Send a reset-request to reset the peer's compressor.

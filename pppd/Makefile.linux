@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.46 2002/03/05 15:14:04 dfs Exp $
+# $Id: Makefile.linux,v 1.47 2002/04/02 13:54:59 dfs Exp $
 #
 
 # Default installation locations
@@ -34,9 +34,12 @@ LIBS += -lcrypt
 endif
 
 # Uncomment the next 2 lines to include support for Microsoft's
-# MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.
+# MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.linux.
 CHAPMS=y
 USE_CRYPT=y
+# Uncomment the next line to include support for MPPE.  CHAPMS (above) must
+# also be enabled.  Also, edit plugins/radius/Makefile.linux.
+MPPE=y
 ifneq ($(wildcard /usr/lib/libcrypt.*),)
 HAVE_CRYPT_H=y
 endif
@@ -82,6 +85,9 @@ endif
 PPPDOBJS += md4.o chap_ms.o
 ifdef MSLANMAN
 CFLAGS   += -DMSLANMAN=1
+endif
+ifdef MPPE
+CFLAGS   += -DMPPE=1
 endif
 endif
 

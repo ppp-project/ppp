@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.61 2002/03/05 15:14:04 dfs Exp $
+.\" $Id: pppd.8,v 1.62 2002/04/02 13:54:59 dfs Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -561,6 +561,10 @@ control, as for the \fIcrtscts\fR option.
 Enables the use of PPP multilink; this is an alias for the `multilink'
 option.  This option is currently only available under Linux.
 .TP
+.B mppe-stateful
+Allow MPPE to use stateful mode.  Stateless mode is still attempted first.
+The default is to disallow stateful mode.  
+.TP
 .B mpshortseq
 Enables the use of short (12-bit) sequence numbers in multilink
 headers, as opposed to 24-bit sequence numbers.  This option is only
@@ -702,6 +706,18 @@ peer is buggy.
 .B nomp
 Disables the use of PPP multilink.  This option is currently only
 available under Linux.
+.TP
+.B nomppe
+Disables MPPE (Microsoft Point to Point Encryption).  This is the default.
+.TP
+.B nomppe-40
+Disable 40\-bit encryption with MPPE.
+.TP
+.B nomppe-128
+Disable 128\-bit encryption with MPPE.
+.TP
+.B nomppe-stateful
+Disabled MPPE stateful mode.  This is the default.
 .TP
 .B nompshortseq
 Disables the use of short (12-bit) sequence numbers in the PPP
@@ -868,6 +884,18 @@ peer using PAP.
 .B require-chap
 Require the peer to authenticate itself using CHAP [Challenge
 Handshake Authentication Protocol] authentication.
+.TP
+.B require-mppe
+Require the use of MPPE (Microsoft Point to Point Encryption).  This
+option disables all other compression types.  This option enables
+both 40\-bit and 128\-bit encryption.  In order for MPPE to successfully
+come up, you must have authenticated with either MS-CHAP or MS-CHAPv2.
+.TP
+.B require-mppe-40
+Require the use of MPPE, with 40\-bit encryption.
+.TP
+.B require-mppe-128
+Require the use of MPPE, with 128\-bit encryption.
 .TP
 .B require-mschap
 Require the peer to authenticate itself using MS-CHAP [Microsft Challenge

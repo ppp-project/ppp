@@ -10,10 +10,9 @@ typedef struct {
 
 #define SHA1_SIGNATURE_SIZE 20
 
-void SHA1_Transform(unsigned long[5], const unsigned char[64]);
-void SHA1_Init(SHA1_CTX *);
-void SHA1_Update(SHA1_CTX *, const unsigned char *, unsigned int);
-void SHA1_Final(unsigned char[20], SHA1_CTX *);
+extern void SHA1_Init(SHA1_CTX *);
+extern void SHA1_Update(SHA1_CTX *, const unsigned char *, unsigned int);
+extern void SHA1_Final(unsigned char[SHA1_SIGNATURE_SIZE], SHA1_CTX *);
 
 #define __SHA1_INCLUDE_
 #endif /* __SHA1_INCLUDE_ */
