@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.13 1996/07/01 01:05:27 paulus Exp $
+# $Id: Makefile.linux,v 1.14 1996/08/28 06:37:53 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
@@ -35,8 +35,8 @@ LEX = flex
 #INCLUDE_DIRS= -I/usr/include -I..
 INCLUDE_DIRS=
 
-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H
-  
+COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -D__BSD_SOURCE
+
 CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
 ifdef USE_MS_DNS
