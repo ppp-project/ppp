@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.19 1999/03/31 06:07:57 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.20 1999/07/23 06:53:39 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 990331==
+ *  ==FILEVERSION 990717==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -41,8 +41,6 @@
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
-#define PPP_VERSION	"2.3.7"
-#define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
 #define PROTO_DNA_RT    0x0027  /* DNA Routing */
 
@@ -60,6 +58,7 @@
 #define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
 #define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
+#define SC_LOOP_TRAFFIC	0x00000200	/* send traffic to pppd */
 #define SC_COMP_RUN	0x00001000	/* compressor has been inited */
 #define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
@@ -68,7 +67,7 @@
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
 #define	SC_SYNC		0x00200000	/* synchronous serial mode */
-#define	SC_MASK		0x0f2000ff	/* bits that user can change */
+#define	SC_MASK		0x0f200fff	/* bits that user can change */
 
 /* state bits */
 #define SC_XMIT_BUSY	0x10000000	/* (used by isdn_ppp?) */
@@ -131,6 +130,9 @@ struct ifpppcstatsreq {
 #define PPPIOCGDEBUG	_IOR('t', 65, int)	/* Read debug level */
 #define PPPIOCSDEBUG	_IOW('t', 64, int)	/* Set debug level */
 #define PPPIOCGIDLE	_IOR('t', 63, struct ppp_idle) /* get idle time */
+#define PPPIOCNEWUNIT	_IOWR('t', 62, int)	/* create new ppp unit */
+#define PPPIOCATTACH	_IOW('t', 61, int)	/* attach to ppp unit */
+#define PPPIOCDETACH	_IOW('t', 60, int)	/* detach from ppp unit */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
 #define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)	/* NEVER change this!! */
