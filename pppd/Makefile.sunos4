@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under SunOS 4.
-# $Id: Makefile.sunos4,v 1.10 1999/04/12 06:24:44 paulus Exp $
+# $Id: Makefile.sunos4,v 1.11 2001/03/08 05:01:03 paulus Exp $
 #
 
 include ../sunos4/Makedefs
@@ -13,7 +13,7 @@ CFLAGS = $(COPTS) -I../include -DSUNOS4 -DGIDSET_TYPE=int \
 all: pppd
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o utils.o sys-sunos4.o
+	auth.o options.o demand.o utils.o sys-sunos4.o tty.o
 
 pppd:	$(OBJS)
 	$(CC) -o pppd $(OBJS) $(LIBS)
