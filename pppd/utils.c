@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 #ifndef lint
-static char rcsid[] = "$Id: utils.c,v 1.1 1999/04/12 06:24:53 paulus Exp $";
+static char rcsid[] = "$Id: utils.c,v 1.2 1999/04/16 11:34:27 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -773,7 +773,9 @@ lock(char *dev)
 	lock_buffer[n] = 0;
 	pid = atoi(lock_buffer);
 #endif /* LOCK_BINARY */
-	if (pid == 0 || pid == getpid()
+	if (pid == getpid())
+	    return 1;		/* somebody else locked it for us */
+	if (pid == 0
 	    || (kill(pid, 0) == -1 && errno == ESRCH)) {
 	    if (unlink (lock_file) == 0) {
 		notice("Removed stale lock on %s (pid %d)", dev, pid);
