@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.12 1996/05/28 00:42:27 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.13 1996/07/01 01:12:09 paulus Exp $";
 #endif
 
 /*
@@ -54,10 +54,33 @@ static char rcsid[] = "$Id: chap.c,v 1.12 1996/05/28 00:42:27 paulus Exp $";
 #include "chap_ms.h"
 #endif
 
+/*
+ * Protocol entry points.
+ */
+static void ChapInit __P((int));
+static void ChapLowerUp __P((int));
+static void ChapLowerDown __P((int));
+static void ChapInput __P((int, u_char *, int));
+static void ChapProtocolReject __P((int));
+static int  ChapPrintPkt __P((u_char *, int,
+			      void (*) __P((void *, char *, ...)), void *));
+
 struct protent chap_protent = {
-    PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
-    ChapLowerUp, ChapLowerDown, NULL, NULL,
-    ChapPrintPkt, NULL, 1, "CHAP", NULL, NULL
+    PPP_CHAP,
+    ChapInit,
+    ChapInput,
+    ChapProtocolReject,
+    ChapLowerUp,
+    ChapLowerDown,
+    NULL,
+    NULL,
+    ChapPrintPkt,
+    NULL,
+    1,
+    "CHAP",
+    NULL,
+    NULL,
+    NULL
 };
 
 chap_state chap[NUM_PPP];		/* CHAP state; one for each unit */
@@ -79,7 +102,7 @@ extern void srand48 __P((long));
 /*
  * ChapInit - Initialize a CHAP unit.
  */
-void
+static void
 ChapInit(unit)
     int unit;
 {
@@ -221,7 +244,7 @@ ChapRechallenge(arg)
  *
  * Start up if we have pending requests.
  */
-void
+static void
 ChapLowerUp(unit)
     int unit;
 {
@@ -247,7 +270,7 @@ ChapLowerUp(unit)
  *
  * Cancel all timeouts.
  */
-void
+static void
 ChapLowerDown(unit)
     int unit;
 {
@@ -271,7 +294,7 @@ ChapLowerDown(unit)
 /*
  * ChapProtocolReject - Peer doesn't grok CHAP.
  */
-void
+static void
 ChapProtocolReject(unit)
     int unit;
 {
@@ -290,7 +313,7 @@ ChapProtocolReject(unit)
 /*
  * ChapInput - Input CHAP packet.
  */
-void
+static void
 ChapInput(unit, inpacket, packet_len)
     int unit;
     u_char *inpacket;
@@ -443,6 +466,7 @@ ChapReceiveChallenge(cstate, inp, id, len)
 	return;
     }
 
+    BZERO(secret, sizeof(secret));
     ChapSendResponse(cstate);
 }
 
@@ -547,13 +571,14 @@ ChapReceiveResponse(cstate, inp, id, len)
 	}
     }
 
+    BZERO(secret, sizeof(secret));
     ChapSendStatus(cstate, code);
 
     if (code == CHAP_SUCCESS) {
 	old_state = cstate->serverstate;
 	cstate->serverstate = CHAPSS_OPEN;
 	if (old_state == CHAPSS_INITIAL_CHAL) {
-	    auth_peer_success(cstate->unit, PPP_CHAP);
+	    auth_peer_success(cstate->unit, PPP_CHAP, rhostname, len);
 	}
 	if (cstate->chal_interval != 0)
 	    TIMEOUT(ChapRechallenge, (caddr_t) cstate, cstate->chal_interval);
@@ -774,11 +799,11 @@ ChapSendResponse(cstate)
 /*
  * ChapPrintPkt - print the contents of a CHAP packet.
  */
-char *ChapCodenames[] = {
+static char *ChapCodenames[] = {
     "Challenge", "Response", "Success", "Failure"
 };
 
-int
+static int
 ChapPrintPkt(p, plen, printer, arg)
     u_char *p;
     int plen;
