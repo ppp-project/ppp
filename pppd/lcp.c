@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.10 1994/08/09 06:24:59 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.11 1994/08/09 06:29:14 paulus Exp $";
 #endif
 
 /*
@@ -1286,6 +1286,7 @@ lcp_up(f)
     ChapLowerUp(f->unit);	/* Enable CHAP */
     upap_lowerup(f->unit);	/* Enable UPAP */
     ipcp_lowerup(f->unit);	/* Enable IPCP */
+    ccp_lowerup(f->unit);	/* Enable CCP */
     lcp_echo_lowerup(f->unit);  /* Enable echo messages */
 
     link_established(f->unit);
@@ -1302,6 +1303,7 @@ lcp_down(f)
     fsm *f;
 {
     lcp_echo_lowerdown(f->unit);
+    ccp_lowerdown(f->unit);
     ipcp_lowerdown(f->unit);
     ChapLowerDown(f->unit);
     upap_lowerdown(f->unit);

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.10 1994/05/27 00:43:34 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.11 1994/08/09 06:29:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -44,6 +44,7 @@ static char rcsid[] = "$Id: options.c,v 1.10 1994/05/27 00:43:34 paulus Exp $";
 #include "ipcp.h"
 #include "upap.h"
 #include "chap.h"
+#include "ccp.h"
 
 #define FALSE	0
 #define TRUE	1
@@ -121,6 +122,8 @@ static int setipcpaccl __ARGS((void));
 static int setipcpaccr __ARGS((void));
 static int setlcpechointv __ARGS((char **));
 static int setlcpechofails __ARGS((char **));
+static int setbsdcomp __ARGS((char **));
+static int setnobsdcomp __ARGS((void));
 
 static int number_option __ARGS((char *, long *, int));
 static int readable __ARGS((int fd));
@@ -228,6 +231,8 @@ static struct cmd {
     {"chap-interval", 1, setchapintv}, /* Set interval for rechallenge */
     {"ipcp-accept-local", 0, setipcpaccl}, /* Accept peer's address for us */
     {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
+    {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
+    {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
     {NULL, 0, NULL}
 };
 
@@ -1449,4 +1454,21 @@ static int setchapintv(argv)
     char **argv;
 {
     return int_option(*argv, &chap[0].chal_interval);
+}
+
+static int setbsdcomp(argv)
+    char **argv;
+{
+    int bits;
+
+    if (!int_option(*argv, &bits))
+	return 0;
+    ccp_wantoptions[0].bsd_compress = 1;
+    ccp_wantoptions[0].bsd_bits = bits;
+    return 1;
+}
+
+static int setnobsdcomp()
+{
+    ccp_allowoptions[0].bsd_compress = 0;
 }

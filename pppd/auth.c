@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.6 1994/05/25 06:25:05 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.7 1994/08/09 06:29:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -55,6 +55,7 @@ static char rcsid[] = "$Id: auth.c,v 1.6 1994/05/25 06:25:05 paulus Exp $";
 #include "upap.h"
 #include "chap.h"
 #include "ipcp.h"
+#include "ccp.h"
 #include "pathnames.h"
 
 #ifdef sparc
@@ -100,6 +101,7 @@ static struct wordlist *addresses[NPPP];
 /* Prototypes */
 void check_access __ARGS((FILE *, char *));
 
+static void network_phase __ARGS((int));
 static int  login __ARGS((char *, char *, char **, int *));
 static void logout __ARGS((void));
 static int  null_login __ARGS((int));
@@ -130,6 +132,8 @@ void
 link_terminated(unit)
     int unit;
 {
+    if (phase == PHASE_DEAD)
+	return;
     if (logged_in)
 	logout();
     phase = PHASE_DEAD;
@@ -143,6 +147,8 @@ void
 link_down(unit)
     int unit;
 {
+    ipcp_close(0);
+    ccp_close(0);
     phase = PHASE_TERMINATE;
 }
 
@@ -191,10 +197,20 @@ link_established(unit)
     }
     auth_pending[unit] = auth;
 
-    if (!auth) {
-	phase = PHASE_NETWORK;
-	ipcp_open(unit);
-    }
+    if (!auth)
+	network_phase(unit);
+}
+
+/*
+ * Proceed to the network phase.
+ */
+static void
+network_phase(unit)
+    int unit;
+{
+    phase = PHASE_NETWORK;
+    ipcp_open(unit);
+    ccp_open(unit);
 }
 
 /*
@@ -240,6 +256,7 @@ auth_peer_success(unit, protocol)
     if ((auth_pending[unit] &= ~bit) == 0) {
 	phase = PHASE_NETWORK;
 	ipcp_open(unit);
+	ccp_open(unit);
     }
 }
 
@@ -283,10 +300,8 @@ auth_withpeer_success(unit, protocol)
      * If there is no more authentication still being done,
      * proceed to the network phase.
      */
-    if ((auth_pending[unit] &= ~bit) == 0) {
-	phase = PHASE_NETWORK;
-	ipcp_open(unit);
-    }
+    if ((auth_pending[unit] &= ~bit) == 0)
+	network_phase(unit);
 }
 
 
