@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.9 1994/08/22 00:41:00 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.10 1994/09/01 00:36:39 paulus Exp $";
 #endif
 
 /*
@@ -27,6 +27,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.9 1994/08/22 00:41:00 paulus Exp $";
  */
 
 #include <syslog.h>
+#include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -46,9 +47,37 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.9 1994/08/22 00:41:00 paulus Exp $";
 #include "pppd.h"
 #include "ppp.h"
 
-static int initdisc = -1;		/* Initial TTY discipline */
-extern int kdebugflag;
+static int initdisc = -1;	/* Initial TTY discipline */
 static int rtm_seq;
+
+static int	restore_term;	/* 1 => we've munged the terminal */
+static struct termios inittermios; /* Initial TTY termios */
+
+/*
+ * sys_init - System-dependent initialization.
+ */
+void
+sys_init()
+{
+    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
+    setlogmask(LOG_UPTO(LOG_INFO));
+    if (debug)
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+}
+
+/*
+ * note_debug_level - note a change in the debug level.
+ */
+void
+note_debug_level()
+{
+    if (debug) {
+	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+    } else {
+	setlogmask(LOG_UPTO(LOG_WARNING));
+    }
+}
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
@@ -133,6 +162,97 @@ disestablish_ppp()
 
 
 /*
+ * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
+ * at the requested speed, etc.  If `local' is true, set CLOCAL
+ * regardless of whether the modem option was specified.
+ *
+ * For *BSD, we assume that speed_t values numerically equal bits/second.
+ */
+set_up_tty(fd, local)
+    int fd, local;
+{
+    struct termios tios;
+
+    if (tcgetattr(fd, &tios) < 0) {
+	syslog(LOG_ERR, "tcgetattr: %m");
+	die(1);
+    }
+
+    if (!restore_term)
+	inittermios = tios;
+
+    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
+    if (crtscts == 1)
+	tios.c_cflag |= CRTSCTS;
+
+    tios.c_cflag |= CS8 | CREAD | HUPCL;
+    if (local || !modem)
+	tios.c_cflag |= CLOCAL;
+    tios.c_iflag = IGNBRK | IGNPAR;
+    tios.c_oflag = 0;
+    tios.c_lflag = 0;
+    tios.c_cc[VMIN] = 1;
+    tios.c_cc[VTIME] = 0;
+
+    if (crtscts == 2) {
+	tios.c_iflag |= IXOFF;
+	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
+	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
+    }
+
+    if (inspeed) {
+	cfsetospeed(&tios, inspeed);
+	cfsetispeed(&tios, inspeed);
+    } else {
+	inspeed = cfgetospeed(&tios);
+	/*
+	 * We can't proceed if the serial port speed is 0,
+	 * since that implies that the serial port is disabled.
+	 */
+	if (inspeed == 0) {
+	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
+		   devnam);
+	    die(1);
+	}
+    }
+    baud_rate = inspeed;
+
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
+	syslog(LOG_ERR, "tcsetattr: %m");
+	die(1);
+    }
+
+    restore_term = 1;
+}
+
+/*
+ * restore_tty - restore the terminal to the saved settings.
+ */
+void
+restore_tty()
+{
+    if (restore_term) {
+	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	    if (errno != ENXIO)
+		syslog(LOG_WARNING, "tcsetattr: %m");
+	restore_term = 0;
+    }
+}
+
+/*
+ * setdtr - control the DTR line on the serial port.
+ * This is called from die(), so it shouldn't call die().
+ */
+setdtr(fd, on)
+int fd, on;
+{
+    int modembits = TIOCM_DTR;
+
+    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
+}
+
+
+/*
  * output - Output PPP packet.
  */
 void
@@ -202,7 +322,7 @@ read_packet(buf)
 void
 ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int unit, mtu;
-    u_long asyncmap;
+    uint32 asyncmap;
     int pcomp, accomp;
 {
     u_int x;
@@ -253,7 +373,7 @@ ppp_set_xaccm(unit, accm)
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     int unit, mru;
-    u_long asyncmap;
+    uint32 asyncmap;
     int pcomp, accomp;
 {
     int x;
@@ -421,7 +541,7 @@ sifdown(u)
 int
 sifaddr(u, o, h, m)
     int u;
-    u_long o, h, m;
+    uint32 o, h, m;
 {
     struct ifaliasreq ifra;
 
@@ -452,7 +572,7 @@ sifaddr(u, o, h, m)
 int
 cifaddr(u, o, h)
     int u;
-    u_long o, h;
+    uint32 o, h;
 {
     struct ifaliasreq ifra;
 
@@ -475,7 +595,7 @@ cifaddr(u, o, h)
 int
 sifdefaultroute(u, g)
     int u;
-    u_long g;
+    uint32 g;
 {
     return dodefaultroute(g, 's');
 }
@@ -486,7 +606,7 @@ sifdefaultroute(u, g)
 int
 cifdefaultroute(u, g)
     int u;
-    u_long g;
+    uint32 g;
 {
     return dodefaultroute(g, 'c');
 }
@@ -496,7 +616,7 @@ cifdefaultroute(u, g)
  */
 int
 dodefaultroute(g, cmd)
-    u_long g;
+    uint32 g;
     int cmd;
 {
     int routes;
@@ -554,7 +674,7 @@ static int arpmsg_valid;
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    u_long hisaddr;
+    uint32 hisaddr;
 {
     int routes;
     int l;
@@ -604,7 +724,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    u_long hisaddr;
+    uint32 hisaddr;
 {
     int routes;
 
@@ -638,7 +758,7 @@ cifproxyarp(unit, hisaddr)
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    u_long hisaddr;
+    uint32 hisaddr;
 {
     struct arpreq arpreq;
     struct {
@@ -677,7 +797,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    u_long hisaddr;
+    uint32 hisaddr;
 {
     struct arpreq arpreq;
 
@@ -701,11 +821,11 @@ cifproxyarp(unit, hisaddr)
 
 int
 get_ether_addr(ipaddr, hwaddr)
-    u_long ipaddr;
+    uint32 ipaddr;
     struct sockaddr_dl *hwaddr;
 {
     struct ifreq *ifr, *ifend, *ifp;
-    u_long ina, mask;
+    uint32 ina, mask;
     struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;
