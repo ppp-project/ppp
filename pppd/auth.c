@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.16 1995/07/04 12:34:17 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.17 1995/08/16 01:37:22 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -507,11 +507,9 @@ login(user, passwd, msg, msglen)
     /*
      * Write a wtmp entry for this user.
      */
-    tty = strrchr(devnam, '/');
-    if (tty == NULL)
-	tty = devnam;
-    else
-	tty++;
+    tty = devnam;
+    if (strncmp(tty, "/dev/", 5) == 0)
+	tty += 5;
     logwtmp(tty, user, "");		/* Add wtmp login entry */
     logged_in = TRUE;
 
@@ -526,11 +524,9 @@ logout()
 {
     char *tty;
 
-    tty = strrchr(devnam, '/');
-    if (tty == NULL)
-	tty = devnam;
-    else
-	tty++;
+    tty = devnam;
+    if (strncmp(tty, "/dev/", 5) == 0)
+	tty += 5;
     logwtmp(tty, "", "");		/* Wipe out wtmp logout entry */
     logged_in = FALSE;
 }
