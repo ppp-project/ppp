@@ -24,11 +24,10 @@ the link and sets up the ppp network interface.  Pppd includes support
 for authentication, so you can control which other systems may make a
 PPP connection and what IP addresses they may use.
 
-The primary platforms supported by this package are Linux and Solaris.
-Code for SunOS 4.x is included here but is largely untested.  I have
-code for NeXTStep, FreeBSD, SVR4, Tru64 (Digital Unix), AIX and Ultrix
-but no active maintainers for these platforms.  Code for all of these
-except AIX is included in the ppp-2.3.11 release.
+The platforms supported by this package are Linux and Solaris.  I have
+code for NeXTStep, FreeBSD, SunOS 4.x, SVR4, Tru64 (Digital Unix), AIX
+and Ultrix but no active maintainers for these platforms.  Code for
+all of these except AIX is included in the ppp-2.3.11 release.
 
 
 Installation.
@@ -44,10 +43,10 @@ files, are:
 	Solaris				README.sol2
 
 In each case you start by running the ./configure script.  This works
-out which operating system you are using and creates symbolic links to
-the appropriate makefiles.  You then run `make' to compile the
-user-level code, and (as root) `make install' to install the
-user-level programs pppd, chat and pppstats.
+out which operating system you are using and creates the appropriate
+makefiles.  You then run `make' to compile the user-level code, and
+(as root) `make install' to install the user-level programs pppd, chat
+and pppstats.
 
 N.B. Since 2.3.0, leaving the permitted IP addresses column of the
 pap-secrets or chap-secrets file empty means that no addresses are
@@ -56,8 +55,42 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.4.2.
+What's new in ppp-2.4.3.
 ************************
+
+* The configure script now accepts --prefix and --sysconfdir options.
+  These default to /usr/local and /etc.  If you want pppd put in
+  /usr/sbin as before, use ./configure --prefix=/usr.
+
+* Doing `make install' no longer puts example configuration files in
+  /etc/ppp.  Use `make install-etcppp' if you want that.
+
+* The code has been updated to work with version 0.8.3 of libpcap.
+  Unfortunately the libpcap maintainers removed support for the
+  "inbound" and "outbound" keywords on PPP links, meaning that if you
+  link pppd with libpcap-0.8.3, you can't use those keywords in the
+  active-filter and pass-filter expressions.  The support has been
+  reinstated in the CVS version and should be in future libpcap
+  releases.  If you need the in/outbound keywords, use a later release
+  than 0.8.3, or get the CVS version from http://www.tcpdump.org.
+
+* There is a new option, child-timeout, which sets the length of time
+  that pppd will wait for child processes (such as the command
+  specified with the pty option) to exit before exiting itself.  It
+  defaults to 5 seconds.  After the timeout, pppd will send a SIGTERM
+  to any remaining child processes and exit.  A value of 0 means no
+  timeout.
+
+* Various bugs have been fixed, including some CBCP packet parsing
+  bugs that could lead to the peer being able to crash pppd if CBCP
+  support is enabled.
+
+* Various fixes and enhancements to the radius and rp-pppoe plugins
+  have been added.
+
+
+What was new in ppp-2.4.2.
+**************************
 
 * The CHAP code has been rewritten.  Pppd now has support for MS-CHAP
   V1 and V2 authentication, both as server and client.  The new CHAP
@@ -154,23 +187,25 @@ BSD-Compress.  Other compression methods which are in common use
 include Predictor, LZS, and MPPC.  These methods are not supported for
 two reasons - they are patent-encumbered, and they cause some packets
 to expand slightly, which pppd doesn't currently allow for.
-BSD-Compress is also patent-encumbered (its inclusion in this package
-can be considered a historical anomaly :-) but it doesn't ever expand
-packets.  Neither does Deflate, which uses the same algorithm as gzip.
+BSD-Compress and Deflate (which uses the same algorithm as gzip) don't
+ever expand packets.
 
 
 Patents.
 ********
 
 The BSD-Compress algorithm used for packet compression is the same as
-that used in the Unix "compress" command.  It is apparently covered by
-U.S. patents 4,814,746 (owned by IBM) and 4,558,302 (owned by Unisys),
-and corresponding patents in various other countries (but not
-Australia).  If this is of concern, you can build the package without
-including BSD-Compress.  To do this, edit net/ppp-comp.h to change the
-definition of DO_BSD_COMPRESS to 0.  The bsd-comp.c files are then no
-longer needed, so the references to bsd-comp.o may optionally be
-removed from the Makefiles.
+that used in the Unix "compress" command.  It was apparently covered
+by U.S. patents 4,814,746 (owned by IBM) and 4,558,302 (owned by
+Unisys), and corresponding patents in various other countries (but not
+Australia).  I believe the Unisys patent expired in the US on 20 June
+2003, and that the IBM patent was older.
+
+If these patents are of concern in your situation, you can build the
+package without including BSD-Compress.  To do this, edit
+net/ppp-comp.h to change the definition of DO_BSD_COMPRESS to 0.  The
+bsd-comp.c files are then no longer needed, so the references to
+bsd-comp.o may optionally be removed from the Makefiles.
 
 
 Contacts.
@@ -193,8 +228,9 @@ Copyrights:
 ***********
 
 All of the code can be freely used and redistributed.  The individual
-source files each have their own copyright and permission notice; some
-have a BSD-style notice and some are under the GPL.
+source files each have their own copyright and permission notice.
+Pppd, pppstats and pppdump are under BSD-style notices.  Some of the
+pppd plugins are GPL'd.  Chat is public domain.
 
 
 Distribution:
@@ -205,4 +241,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.30 2003/11/27 21:32:03 paulus Exp $)
+($Id: README,v 1.31 2004/11/04 11:58:14 paulus Exp $)
