@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.59 1999/03/16 02:50:15 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.60 1999/03/16 03:14:50 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1925,7 +1925,7 @@ logit(level, fmt, args)
 
     n = vslprintf(buf, sizeof(buf), fmt, args);
     syslog(level, "%s", buf);
-    if (log_to_stderr) {
+    if (log_to_stderr && (level != LOG_DEBUG || debug)) {
 	if (write(2, buf, n) != n
 	    || (buf[n-1] != '\n' && write(2, &nl, 1) != 1))
 	    log_to_stderr = 0;
