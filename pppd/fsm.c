@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.7 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.8 1994/11/10 01:52:05 paulus Exp $";
 #endif
 
 /*
@@ -470,6 +470,7 @@ fsm_rconfack(f, id, inp, len)
 
     case ACKRCVD:
 	/* Huh? an extra valid Ack? oh well... */
+	UNTIMEOUT(fsm_timeout, (caddr_t) f);	/* Cancel timeout */
 	fsm_sconfreq(f, 0);
 	f->state = REQSENT;
 	break;
@@ -534,6 +535,7 @@ fsm_rconfnakrej(f, code, id, inp, len)
 
     case ACKRCVD:
 	/* Got a Nak/reject when we had already had an Ack?? oh well... */
+	UNTIMEOUT(fsm_timeout, (caddr_t) f);	/* Cancel timeout */
 	fsm_sconfreq(f, 0);
 	f->state = REQSENT;
 	break;
@@ -591,11 +593,13 @@ fsm_rtermack(f)
 
     switch (f->state) {
     case CLOSING:
+	UNTIMEOUT(fsm_timeout, (caddr_t) f);
 	f->state = CLOSED;
 	if( f->callbacks->finished )
 	    (*f->callbacks->finished)(f);
 	break;
     case STOPPING:
+	UNTIMEOUT(fsm_timeout, (caddr_t) f);
 	f->state = STOPPED;
 	if( f->callbacks->finished )
 	    (*f->callbacks->finished)(f);
