@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.13 1996/05/27 00:02:42 paulus Exp $
+ * $Id: pppd.h,v 1.14 1996/07/01 01:19:55 paulus Exp $
  */
 
 /*
@@ -63,6 +63,8 @@ extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	phase;		/* Current state of link - see values below */
 extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
+extern int	redirect_stderr;/* Connector's stderr should go to file */
+extern char	peer_authname[];/* Authenticated name of peer */
 
 /*
  * Variables set by command-line options.
@@ -81,7 +83,7 @@ extern int	nodetach;	/* Don't detach from controlling tty */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
-extern int	maxconnect;	/* maximum number of seconds for a connection */
+extern int	maxconnect;	/* Maximum connect time (seconds) */
 extern char	user[];		/* Username for PAP */
 extern char	passwd[];	/* Password for PAP */
 extern int	auth_required;	/* Peer is required to authenticate */
@@ -99,6 +101,8 @@ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
+extern int	refuse_pap;	/* Don't wanna auth. ourselves with PAP */
+extern int	refuse_chap;	/* Don't wanna auth. ourselves with CHAP */
 
 /*
  * Values for phase.
@@ -118,19 +122,34 @@ extern int	holdoff;	/* Dead time before restarting */
  */
 struct protent {
     u_short protocol;		/* PPP protocol number */
-    void (*init)();		/* Initialization procedure */
-    void (*input)();		/* Process a received packet */
-    void (*protrej)();		/* Process a received protocol-reject */
-    void (*lowerup)();		/* Lower layer has come up */
-    void (*lowerdown)();	/* Lower layer has gone down */
-    void (*open)();		/* Open the protocol */
-    void (*close)();		/* Close the protocol */
-    int  (*printpkt)();		/* Print a packet in readable form */
-    void (*datainput)();	/* Process a received data packet */
+    /* Initialization procedure */
+    void (*init) __P((int unit));
+    /* Process a received packet */
+    void (*input) __P((int unit, u_char *pkt, int len));
+    /* Process a received protocol-reject */
+    void (*protrej) __P((int unit));
+    /* Lower layer has come up */
+    void (*lowerup) __P((int unit));
+    /* Lower layer has gone down */
+    void (*lowerdown) __P((int unit));
+    /* Open the protocol */
+    void (*open) __P((int unit));
+    /* Close the protocol */
+    void (*close) __P((int unit, char *reason));
+    /* Print a packet in readable form */
+    int  (*printpkt) __P((u_char *pkt, int len,
+			  void (*printer) __P((void *, char *, ...)),
+			  void *arg));
+    /* Process a received data packet */
+    void (*datainput) __P((int unit, u_char *pkt, int len));
     int  enabled_flag;		/* 0 iff protocol is disabled */
     char *name;			/* Text name of protocol */
-    void (*check_options)();	/* Check requested options, assign dflts */
-    int  (*demand_conf)();	/* Configure interface for demand-dial */
+    /* Check requested options, assign defaults */
+    void (*check_options) __P((void));
+    /* Configure interface for demand-dial */
+    int  (*demand_conf) __P((int unit));
+    /* Say whether to bring up link for this pkt */
+    int  (*active_pkt) __P((u_char *pkt, int len));
 };
 
 /* Table of pointers to supported protocols */
@@ -171,7 +190,7 @@ void np_down __P((int, int));	  /* a network protocol has gone down */
 void np_finished __P((int, int)); /* a network protocol no longer needs link */
 void auth_peer_fail __P((int, int));
 				/* peer failed to authenticate itself */
-void auth_peer_success __P((int, int));
+void auth_peer_success __P((int, int, char *, int));
 				/* peer successfully authenticated itself */
 void auth_withpeer_fail __P((int, int));
 				/* we failed to authenticate ourselves */
@@ -179,6 +198,7 @@ void auth_withpeer_success __P((int, int));
 				/* we successfully authenticated ourselves */
 void auth_check_options __P((void));
 				/* check authentication options supplied */
+void auth_reset __P((int));	/* check what secrets we have */
 int  check_passwd __P((int, char *, int, char *, int, char **, int *));
 				/* Check peer-supplied username/password */
 int  get_secret __P((int, char *, char *, char *, int *, int));
@@ -267,6 +287,8 @@ int  options_from_file __P((char *filename, int must_exist, int check_prot));
 				/* Parse options from an options file */
 int  options_from_user __P((void)); /* Parse options from user's .ppprc */
 int  options_for_tty __P((void)); /* Parse options from /etc/ppp/options.tty */
+void scan_args __P((int argc, char **argv));
+				/* Look for tty name in command-line args */
 int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
 
