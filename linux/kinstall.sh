@@ -130,12 +130,6 @@ newer () {
 }
 
 #
-#  Change the USE_SKB_PROTOCOL for correct operation on 1.3.x
-update_ppp () {
-  return
-}
-
-#
 #  Install the files.
 
 installfile () {
@@ -155,9 +149,6 @@ installfile () {
   bombiffailed
   touch $1
   bombiffailed
-  if [ "$2" = "yes" ]; then
-    update_ppp
-  fi
 }
 
 #

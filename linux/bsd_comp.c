@@ -39,7 +39,7 @@
 /*
  * This version is for use with contiguous buffers on Linux-derived systems.
  *
- *  ==FILEVERSION 960924==
+ *  ==FILEVERSION 970227==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -57,17 +57,26 @@
 #error This file must be compiled as a module.
 #endif
 
+#include <linux/version.h>
 #include <linux/module.h>
-
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/interrupt.h>
 #include <linux/ptrace.h>
+#include <linux/malloc.h>
 #include <linux/ioport.h>
 #include <linux/in.h>
-#include <linux/malloc.h>
+
+#undef VERSION
+/* a nice define to generate linux version numbers */
+#define VERSION(major,minor,patch) (((((major)<<8)+(minor))<<8)+(patch))
+
+#if LINUX_VERSION_CODE >= VERSION(2,1,4)
+#include <linux/vmalloc.h>
+#endif
+
 #include <linux/tty.h>
 #include <linux/errno.h>
 #include <linux/sched.h>	/* to get the struct task_struct */
@@ -76,7 +85,6 @@
 
 #include <asm/system.h>
 #include <asm/bitops.h>
-#include <asm/segment.h>
 #include <asm/byteorder.h>
 
 #include <linux/if.h>
@@ -88,14 +96,6 @@
 #include <linux/ioctl.h>
 
 #include <linux/ppp_defs.h>
-
-#ifdef NEW_SKBUFF
-#include <linux/netprotocol.h>
-#endif
-
-#include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/if_arp.h>
 
 #undef   PACKETPTR
 #define  PACKETPTR 1
