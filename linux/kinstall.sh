@@ -115,6 +115,14 @@ newer () {
 
 installfile () {
   BASE=`basename $1`
+  if [ ! -e $BASE ]; then
+    if [ -e ../include/linux/$BASE ]; then
+      BASE=../include/linux/$BASE
+    else
+      echo Could not find source file $BASE !
+      false ; return
+    fi
+  fi
   if newer $1 $BASE; then
     echo $1 is not older than $BASE, skipping
     return 0
