@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.41 1999/03/16 22:54:38 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.42 1999/03/19 01:19:31 paulus Exp $";
 #endif
 
 /*
@@ -848,12 +848,9 @@ ipcp_nakci(f, p, len)
 	p = next;
     }
 
-    /* If there is still anything left, this packet is bad. */
-    if (len != 0)
-	goto bad;
-
     /*
      * OK, the Nak is good.  Now we can update state.
+     * If there are any remaining options, we ignore them.
      */
     if (f->state != OPENED)
 	*go = try;

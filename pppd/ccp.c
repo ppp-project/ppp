@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.26 1999/03/16 22:54:38 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.27 1999/03/19 01:19:30 paulus Exp $";
 #endif
 
 #include <stdlib.h>
@@ -708,11 +708,8 @@ ccp_nakci(f, p, len)
     /*
      * Predictor-1 and 2 have no options, so they can't be Naked.
      *
-     * XXX What should we do with any remaining options?
+     * There may be remaining options but we ignore them.
      */
-
-    if (len != 0)
-	return 0;
 
     if (f->state != OPENED)
 	*go = try;
@@ -1034,7 +1031,7 @@ ccp_up(f)
 	    if (go->method == ho->method) {
 		notice("%s compression enabled", method_name(go, ho));
 	    } else {
-		strlcpy(method1, sizeof(method1), method_name(go, NULL));
+		strlcpy(method1, method_name(go, NULL), sizeof(method1));
 		notice("%s / %s compression enabled",
 		       method1, method_name(ho, NULL));
 	    }
