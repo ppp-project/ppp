@@ -90,10 +90,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.13 2001/03/08 05:11:12 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.14 2001/03/08 05:29:28 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.13 2001/03/08 05:11:12 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.14 2001/03/08 05:29:28 paulus Exp $"
 
 /*
  * TODO: 
@@ -331,7 +331,7 @@ setifaceid(argv)
 }
 
 static void
-printipaddr(opt, printer, arg)
+printifaceid(opt, printer, arg)
     option_t *opt;
     void (*printer) __P((void *, char *, ...));
     void *arg;
