@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.12 1995/06/30 00:40:06 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.13 1995/07/04 12:36:47 paulus Exp $";
 #endif
 
 /*
@@ -909,9 +909,8 @@ get_ether_addr(ipaddr, hwaddr)
     u_int32_t ipaddr;
     struct sockaddr *hwaddr;
 {
-    struct ifreq *ifr, *ifend, *ifp;
+    struct ifreq *ifr, *ifend;
     u_int32_t ina, mask;
-    struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;
     struct ifreq ifs[MAX_IFS];
