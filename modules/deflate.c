@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.6 1997/11/27 06:05:17 paulus Exp $
+ * $Id: deflate.c,v 1.7 1997/11/27 06:25:19 paulus Exp $
  */
 
 #ifdef AIX4
@@ -286,8 +286,15 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     /* Allocate one mblk initially. */
     if (maxolen > orig_len)
 	maxolen = orig_len;
-    wspace = maxolen < 4096? maxolen: 4096;
-    m = allocb(wspace, BPRI_MED);
+    if (maxolen <= PPP_HDRLEN + 2) {
+	wspace = 0;
+	m = NULL;
+    } else {
+	wspace = maxolen + state->hdrlen;
+	if (wspace > 4096)
+	    wspace = 4096;
+	m = allocb(wspace, BPRI_MED);
+    }
     if (m != NULL) {
 	*mret = m;
 	if (state->hdrlen + PPP_HDRLEN + 2 < wspace) {
@@ -343,11 +350,16 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 		m->b_wptr += wspace;
 		olen += wspace;
 		wspace = maxolen - olen;
-		if (wspace < 32)
-		    wspace = 32;
-		else if (wspace > 4096)
-		    wspace = 4096;
-		m->b_cont = allocb(wspace, BPRI_MED);
+		if (wspace <= 0) {
+		    wspace = 0;
+		    m->b_cont = NULL;
+		} else {
+		    if (wspace < 32)
+			wspace = 32;
+		    else if (wspace > 4096)
+			wspace = 4096;
+		    m->b_cont = allocb(wspace, BPRI_MED);
+		}
 		m = m->b_cont;
 		if (m != NULL) {
 		    state->strm.next_out = m->b_wptr;
@@ -360,8 +372,10 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 	    }
 	}
     }
-    m->b_wptr += wspace - state->strm.avail_out;
-    olen += wspace - state->strm.avail_out;
+    if (m != NULL) {
+	m->b_wptr += wspace - state->strm.avail_out;
+	olen += wspace - state->strm.avail_out;
+    }
 
     /*
      * See if we managed to reduce the size of the packet.
