@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.14 1996/07/01 01:19:55 paulus Exp $
+ * $Id: pppd.h,v 1.15 1996/08/28 06:42:10 paulus Exp $
  */
 
 /*
@@ -65,6 +65,8 @@ extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
 extern int	redirect_stderr;/* Connector's stderr should go to file */
 extern char	peer_authname[];/* Authenticated name of peer */
+extern int	privileged;	/* We were run by real-uid root */
+extern int	need_holdoff;	/* Need holdoff period after link terminates */
 
 /*
  * Variables set by command-line options.
@@ -84,7 +86,7 @@ extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
-extern char	user[];		/* Username for PAP */
+extern char	user[];		/* Our name for authenticating ourselves */
 extern char	passwd[];	/* Password for PAP */
 extern int	auth_required;	/* Peer is required to authenticate */
 extern int	proxyarp;	/* Set up proxy ARP entry for peer */
@@ -283,7 +285,8 @@ int  logwtmp __P((char *, char *, char *));
 int  parse_args __P((int argc, char **argv));
 				/* Parse options from arguments given */
 void usage __P((void));		/* Print a usage message */
-int  options_from_file __P((char *filename, int must_exist, int check_prot));
+int  options_from_file __P((char *filename, int must_exist, int check_prot,
+			    int privileged));
 				/* Parse options from an options file */
 int  options_from_user __P((void)); /* Parse options from user's .ppprc */
 int  options_for_tty __P((void)); /* Parse options from /etc/ppp/options.tty */
@@ -291,6 +294,25 @@ void scan_args __P((int argc, char **argv));
 				/* Look for tty name in command-line args */
 int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
+void option_error __P((char *fmt, ...));
+				/* Print an error message about an option */
+
+/*
+ * This structure is used to store information about certain
+ * options, such as where the option value came from (/etc/ppp/options,
+ * command line, etc.) and whether it came from a privileged source.
+ */
+
+struct option_info {
+    int	    priv;		/* was value set by sysadmin? */
+    char    *source;		/* where option came from */
+};
+
+extern struct option_info auth_req_info;
+extern struct option_info connector_info;
+extern struct option_info disconnector_info;
+extern struct option_info welcomer_info;
+extern struct option_info devnam_info;
 
 /*
  * Inline versions of get/put char/short/long.
