@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.56 2001/03/09 01:01:26 paulus Exp $
+.\" $Id: pppd.8,v 1.57 2001/03/12 22:49:25 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -457,7 +457,11 @@ default value is 3.
 .TP
 .B kdebug \fIn
 Enable debugging code in the kernel-level PPP driver.  The argument
-\fIn\fR is a number which is the sum of the following values: 1 to
+values depend on the specific kernel driver, but in general a value of
+1 will enable general kernel debug messages.  (Note that these
+messages are usually only useful for debugging the kernel driver
+itself.)  For the Linux 2.2.x kernel driver, the value is a sum of
+bits: 1 to
 enable general debug messages, 2 to request that the contents of
 received packets be printed, and 4 to request that the contents of
 transmitted packets be printed.  On most systems, messages printed by
