@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.35 1999/09/30 19:59:06 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.36 1999/10/08 01:09:03 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -68,8 +68,37 @@
 
 #include "pppd.h"
 
+#if !defined(PPP_DEV_NAME)
+#define PPP_DEV_NAME	"/dev/ppp"
+#endif /* !defined(PPP_DEV_NAME) */
+
+#if !defined(AHDLC_MOD_NAME)
+#define AHDLC_MOD_NAME	"ppp_ahdl"
+#endif /* !defined(AHDLC_MOD_NAME) */
+
+#if !defined(COMP_MOD_NAME)
+#define COMP_MOD_NAME	"ppp_comp"
+#endif /* !defined(COMP_MOD_NAME) */
+
+#if !defined(IP_DEV_NAME)
+#define	IP_DEV_NAME	"/dev/ip"
+#endif /* !defined(IP_DEV_NAME) */
+
+#if !defined(IP_MOD_NAME)
+#define	IP_MOD_NAME	"ip"
+#endif /* !defined(IP_MOD_NAME) */
+
+#if !defined(UDP_DEV_NAME) && defined(SOL2)
+#define	UDP_DEV_NAME	"/dev/udp"
+#endif /* !defined(UDP_DEV_NAME) && defined(SOL2) */
+
+#if !defined(UDP6_DEV_NAME) && defined(SOL2)
+#define	UDP6_DEV_NAME	"/dev/udp6"
+#endif /* !defined(UDP6_DEV_NAME) && defined(SOL2) */
+
 static const char rcsid[] = RCSID;
 
+static		char *mux_dev_name;
 static int	pppfd;
 static int	fdmuxid = -1;
 static int	ipfd;
@@ -156,8 +185,8 @@ static int strioctl __P((int, int, void *, int, int));
  */
 static int
 sifppa(fd, ppa)
-        int fd;
-        int ppa;
+    int fd;
+    int ppa;
 {
     return (int)ioctl(fd, IF_UNITSEL, (char *)&ppa);
 }
@@ -172,8 +201,8 @@ sifppa(fd, ppa)
  */
 static int
 slifname(fd, ppa)
-	int fd;
-	int ppa;
+    int fd;
+    int ppa;
 {
     struct  lifreq lifr;
     int	    ret;
@@ -323,23 +352,36 @@ void
 sys_init()
 {
     int ifd, x;
+    struct ifreq ifr;
 #if defined(INET6) && defined(SOL2)
     int i6fd;
+    struct lifreq lifr;
 #endif /* defined(INET6) && defined(SOL2) */
 #if !defined(SOL2)
-    struct ifreq ifr;
     struct {
 	union DL_primitives prim;
 	char space[64];
     } reply;
 #endif /* !defined(SOL2) */
 
-    ipfd = open("/dev/ip", O_RDWR, 0);
+#if defined(SOL2)
+    /*
+     * "/dev/udp" is used as a multiplexor to PLINK the interface stream
+     * under. It is used in place of "/dev/ip" since STREAMS will not let
+     * a driver be PLINK'ed under itself, and "/dev/ip" is typically the
+     * driver at the bottom of the tunneling interfaces stream.
+     */
+    mux_dev_name = UDP_DEV_NAME;
+#else
+    mux_dev_name = IP_DEV_NAME;
+#endif
+
+    ipfd = open(mux_dev_name, O_RDWR, 0);
     if (ipfd < 0)
 	fatal("Couldn't open IP device: %m");
 
 #if defined(INET6) && defined(SOL2)
-    ip6fd = open("/dev/ip", O_RDWR, 0);
+    ip6fd = open(UDP6_DEV_NAME, O_RDWR, 0);
     if (ip6fd < 0)
 	fatal("Couldn't open IP device (2): %m");
 #endif /* defined(INET6) && defined(SOL2) */
@@ -347,9 +389,9 @@ sys_init()
     if (default_device && !notty)
 	tty_sid = getsid((pid_t)0);
 
-    pppfd = open("/dev/ppp", O_RDWR | O_NONBLOCK, 0);
+    pppfd = open(PPP_DEV_NAME, O_RDWR | O_NONBLOCK, 0);
     if (pppfd < 0)
-	fatal("Can't open /dev/ppp: %m");
+	fatal("Can't open %s: %m", PPP_DEV_NAME);
     if (kdebugflag & 1) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(pppfd, PPPIO_DEBUG, &x, sizeof(int), 0);
@@ -359,31 +401,33 @@ sys_init()
     if (strioctl(pppfd, PPPIO_NEWPPA, &ifunit, 0, sizeof(int)) < 0)
 	fatal("Can't create new PPP interface: %m");
 
+#if defined(SOL2)
+    /*
+     * Since sys_init() is called prior to ifname being set in main(),
+     * we need to get the ifname now, otherwise slifname(), and others,
+     * will fail, or maybe, I should move them to a later point ?
+     * <adi.masputra@sun.com>
+     */
+    sprintf(ifname, "ppp%d", ifunit);
+#endif /* defined(SOL2) */
     /*
      * Open the ppp device again and link it under the ip multiplexor.
      * IP will assign a unit number which hopefully is the same as ifunit.
      * I don't know any way to be certain they will be the same. :-(
      */
-    ifd = open("/dev/ppp", O_RDWR, 0);
+    ifd = open(PPP_DEV_NAME, O_RDWR, 0);
     if (ifd < 0)
-	fatal("Can't open /dev/ppp (2): %m");
+	fatal("Can't open %s (2): %m", PPP_DEV_NAME);
     if (kdebugflag & 1) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(ifd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
 
 #if defined(INET6) && defined(SOL2)
-    /*
-     * Since sys_init() is called prior to ifname being set in main(),
-     * we need to get the ifname now, otherwise slifname() will fail,
-     * or maybe, I should move slifname() to a later point ?
-     */
-    sprintf(ifname, "ppp%d", ifunit);
-
-    i6fd = open("/dev/ppp", O_RDWR, 0);
+    i6fd = open(PPP_DEV_NAME, O_RDWR, 0);
     if (i6fd < 0) {
 	close(ifd);
-	fatal("Can't open /dev/ppp (3): %m");
+	fatal("Can't open %s (3): %m", PPP_DEV_NAME);
     }
     if (kdebugflag & 1) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
@@ -392,7 +436,7 @@ sys_init()
 #endif /* defined(INET6) && defined(SOL2) */
 
 #if defined(SOL2)
-    if (ioctl(ifd, I_PUSH, "ip") < 0) {
+    if (ioctl(ifd, I_PUSH, IP_MOD_NAME) < 0) {
 	close(ifd);
 #if defined(INET6)
 	close(i6fd);
@@ -418,7 +462,7 @@ sys_init()
      * explicitly enable it. Note that the interface will be marked
      * IPv6 during slifname().
      */
-    if (ioctl(i6fd, I_PUSH, "ip") < 0) {
+    if (ioctl(i6fd, I_PUSH, IP_MOD_NAME) < 0) {
 	close(ifd);
 	close(i6fd);
 	fatal("Can't push IP module (2): %m");
@@ -436,6 +480,34 @@ sys_init()
     }
 #endif /* defined(INET6) */
 
+    ipmuxid = ioctl(ipfd, I_PLINK, ifd);
+    close(ifd);
+    if (ipmuxid < 0) {
+#if defined(INET6)
+	close(i6fd);
+#endif /* defined(INET6) */
+	fatal("Can't I_PLINK PPP device to IP: %m");
+    }
+
+    memset(&ifr, 0, sizeof(ifr));
+    sprintf(ifr.ifr_name, "%s", ifname);
+    ifr.ifr_ip_muxid = ipmuxid;
+
+    /*
+     * In Sol 8 and later, STREAMS dynamic module plumbing feature exits.
+     * This is so that an arbitrary module can be inserted, or deleted, 
+     * between ip module and the device driver without tearing down the 
+     * existing stream. Such feature requires the mux ids, which is set 
+     * by SIOCSIFMUXID (or SIOCLSIFMUXID).
+     */
+    if (ioctl(ipfd, SIOCSIFMUXID, &ifr) < 0) {
+	ioctl(ipfd, I_PUNLINK, ipmuxid);
+#if defined(INET6)
+	close(i6fd);
+#endif /* defined(INET6) */
+	fatal("SIOCSIFMUXID: %m");
+    }
+
 #else /* else if !defined(SOL2) */
 
     if (dlpi_attach(ifd, ifunit) < 0 ||
@@ -443,18 +515,33 @@ sys_init()
 	close(ifd);
 	fatal("Can't attach to ppp%d: %m", ifunit);
     }
-#endif /* defined(SOL2) */
 
     ipmuxid = ioctl(ipfd, I_LINK, ifd);
     close(ifd);
     if (ipmuxid < 0)
 	fatal("Can't link PPP device to IP: %m");
+#endif /* defined(SOL2) */
 
 #if defined(INET6) && defined(SOL2)
-    ip6muxid = ioctl(ip6fd, I_LINK, i6fd);
+    ip6muxid = ioctl(ip6fd, I_PLINK, i6fd);
     close(i6fd);
-    if (ip6muxid < 0) 
+    if (ip6muxid < 0) {
+	ioctl(ipfd, I_PUNLINK, ipmuxid);
+	fatal("Can't I_PLINK PPP device to IP (2): %m");
+    }
+
+    memset(&lifr, 0, sizeof(lifr));
+    sprintf(lifr.lifr_name, "%s", ifname);
+    lifr.lifr_ip_muxid = ip6muxid;
+
+    /*
+     * Let IP know of the mux id [see comment for SIOCSIFMUXID above]
+     */
+    if (ioctl(ip6fd, SIOCSLIFMUXID, &lifr) < 0) {
+	ioctl(ipfd, I_PUNLINK, ipmuxid);
+	ioctl(ip6fd, I_PUNLINK, ip6muxid);
 	fatal("Can't link PPP device to IP (2): %m");
+    }
 #endif /* defined(INET6) && defined(SOL2) */
 
 #if !defined(SOL2)
@@ -476,7 +563,12 @@ sys_init()
 void
 sys_cleanup()
 {
+#if defined(SOL2)
     struct ifreq ifr;
+#if defined(INET6)
+    struct lifreq lifr;
+#endif /* defined(INET6) */
+#endif /* defined(SOL2) */
 
 #if defined(SOL2) && defined(INET6)
     if (if6_is_up)
@@ -488,6 +580,53 @@ sys_cleanup()
 	cifdefaultroute(0, default_route_gateway, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
+#if defined(SOL2)
+    /*
+     * Make sure we ask ip what the muxid, because 'ifconfig modlist' will
+     * unlink and re-link the modules, causing the muxid to change.
+     */
+    memset(&ifr, 0, sizeof(ifr));
+    sprintf(ifr.ifr_name, "%s", ifname);
+    if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
+	error("SIOCGIFFLAGS: %m");
+	return;
+    }
+
+    if (ioctl(ipfd, SIOCGIFMUXID, &ifr) < 0) {
+	error("SIOCGIFMUXID: %m");
+	return;
+    }
+
+    ipmuxid = ifr.ifr_ip_muxid;
+     
+    if (ioctl(ipfd, I_PUNLINK, ipmuxid) < 0) {
+	error("Can't I_PUNLINK PPP from IP: %m");
+	return;
+    }
+#if defined(INET6)
+    /*
+     * Make sure we ask ip what the muxid, because 'ifconfig modlist' will
+     * unlink and re-link the modules, causing the muxid to change.
+     */
+    memset(&lifr, 0, sizeof(lifr));
+    sprintf(lifr.lifr_name, "%s", ifname);
+    if (ioctl(ip6fd, SIOCGLIFFLAGS, &lifr) < 0) {
+	error("SIOCGLIFFLAGS: %m");
+	return;
+    }
+
+    if (ioctl(ip6fd, SIOCGLIFMUXID, &lifr) < 0) {
+	error("SIOCGLIFMUXID: %m");
+	return;
+    }
+
+    ip6muxid = lifr.lifr_ip_muxid;
+
+    if (ioctl(ip6fd, I_PUNLINK, ip6muxid) < 0) {
+	error("Can't I_PUNLINK PPP from IP (2): %m");
+    }
+#endif /* defined(INET6) */
+#endif /* defined(SOL2) */
 }
 
 /*
@@ -547,7 +686,7 @@ ppp_available()
 {
     struct stat buf;
 
-    return stat("/dev/ppp", &buf) >= 0;
+    return stat(PPP_DEV_NAME, &buf) >= 0;
 }
 
 /*
@@ -571,7 +710,7 @@ establish_ppp(fd)
     tty_npushed = 0;
 
     if(!sync_serial) {
-        if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0) {
+        if (ioctl(fd, I_PUSH, AHDLC_MOD_NAME) < 0) {
             error("Couldn't push PPP Async HDLC module: %m");
 	    return -1;
         }
@@ -581,7 +720,7 @@ establish_ppp(fd)
 	i = PPPDBG_LOG + PPPDBG_AHDLC;
 	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
-    if (ioctl(fd, I_PUSH, "ppp_comp") < 0)
+    if (ioctl(fd, I_PUSH, COMP_MOD_NAME) < 0)
 	error("Couldn't push PPP compression module: %m");
     else
 	++tty_npushed;
@@ -2251,9 +2390,9 @@ have_route_to(addr)
     mib2_ipRouteEntry_t routes[8];
     mib2_ipRouteEntry_t *rp;
 
-    fd = open("/dev/ip", O_RDWR);
+    fd = open(mux_dev_name, O_RDWR);
     if (fd < 0) {
-	warn("have_route_to: couldn't open /dev/ip: %m");
+	warn("have_route_to: couldn't open %s: %m", mux_dev_name);
 	return -1;
     }
 
