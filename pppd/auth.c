@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.95 2003/06/11 23:56:26 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.96 2004/10/24 23:26:19 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1251,14 +1251,15 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
     if (pap_auth_hook) {
 	ret = (*pap_auth_hook)(user, passwd, msg, &addrs, &opts);
 	if (ret >= 0) {
+	    /* note: set_allowed_addrs() saves opts (but not addrs):
+	       don't free it! */
 	    if (ret)
 		set_allowed_addrs(unit, addrs, opts);
-	    BZERO(passwd, sizeof(passwd));
+	    else if (opts != 0)
+		free_wordlist(opts);
 	    if (addrs != 0)
 		free_wordlist(addrs);
-	    if (opts != 0) {
-		free_wordlist(opts);
-	    }
+	    BZERO(passwd, sizeof(passwd));
 	    return ret? UPAP_AUTHACK: UPAP_AUTHNAK;
 	}
     }
