@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.71 2001/11/09 10:33:42 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.72 2002/01/11 18:07:45 etbe Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -64,6 +64,7 @@
 #define PW_PPP PW_LOGIN
 #endif
 #endif
+#include <time.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -1135,7 +1136,7 @@ plogin(user, passwd, msg)
     if (pam_error == PAM_SUCCESS && !PAM_error) {    
         pam_error = pam_acct_mgmt (pamh, PAM_SILENT);
         if (pam_error == PAM_SUCCESS)
-	    pam_open_session (pamh, PAM_SILENT);
+	    pam_error = pam_open_session (pamh, PAM_SILENT);
     }
 
     *msg = (char *) pam_strerror (pamh, pam_error);
