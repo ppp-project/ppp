@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.6 2002/03/05 15:14:05 dfs Exp $";
+"$Id: radius.c,v 1.7 2002/03/12 00:28:56 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -476,6 +476,10 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg)
 			 vp->lvalue, rstate.user);
 		return -1;
 	    }
+	} else if ((vp->attribute == PW_SESSION_TIMEOUT) &&
+		   (vp->vendorcode == VENDOR_NONE)) {
+	    /* Session timeout */
+	    maxconnect = vp->lvalue;
 	} else if ((vp->attribute == PW_FRAMED_IP_ADDRESS) &&
 		   (vp->vendorcode == VENDOR_NONE)) {
 	    /* seting up remote IP addresses */
