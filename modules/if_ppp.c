@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.4 1997/03/04 03:31:21 paulus Exp $
+ * $Id: if_ppp.c,v 1.5 1997/04/30 05:43:54 paulus Exp $
  */
 
 /*
@@ -37,7 +37,6 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/stream.h>
 #include <sys/errno.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
@@ -56,6 +55,8 @@
 #include <modules/ppp_mod.h>
 #endif
 
+#include <sys/stream.h>
+
 #ifdef SNIT_SUPPORT
 #include <sys/time.h>
 #include <net/nit_if.h>
@@ -71,9 +72,6 @@
 #endif
 
 #define ifr_mtu		ifr_metric
-
-#define PPP_MINMTU	64
-#define PPP_MAXMTU	65536
 
 static int if_ppp_open __P((queue_t *, int, int, int));
 static int if_ppp_close __P((queue_t *, int));
@@ -291,7 +289,7 @@ if_ppp_wput(q, mp)
 		ifs[unit] = ifp;
 		ifp->if_name = "ppp";
 		ifp->if_unit = unit;
-		ifp->if_mtu = PPP_MRU;
+		ifp->if_mtu = PPP_MTU;
 		ifp->if_flags = IFF_POINTOPOINT | IFF_RUNNING;
 #ifdef IFF_MULTICAST
 		ifp->if_flags |= IFF_MULTICAST;
@@ -299,10 +297,14 @@ if_ppp_wput(q, mp)
 		ifp->if_output = if_ppp_output;
 #ifdef __osf__
 		ifp->if_version = "Point-to-Point Protocol, version 2.3";
-		ifp->if_mediamtu = 1500;
+		ifp->if_mediamtu = PPP_MTU;
 		ifp->if_type = IFT_PPP;
 		ifp->if_hdrlen = PPP_HDRLEN;
 		ifp->if_addrlen = 0;
+		ifp->if_flags |= IFF_NOARP | IFF_SIMPLEX | IFF_NOTRAILERS;
+#ifdef IFF_VAR_MTU
+		ifp->if_flags |= IFF_VAR_MTU;
+#endif
 #ifdef NETMASTERCPU
 		ifp->if_affinity = NETMASTERCPU;
 #endif
@@ -313,7 +315,7 @@ if_ppp_wput(q, mp)
 		if (sp->flags & DBGLOG)
 		    printf("if_ppp: created unit %d\n", unit);
 	    } else {
-		ifp->if_mtu = PPP_MRU;
+		ifp->if_mtu = PPP_MTU;
 		ifp->if_flags |= IFF_RUNNING;
 	    }
 
