@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.12 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.13 1995/04/24 06:01:54 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -48,6 +48,14 @@ static char rcsid[] = "$Id: auth.c,v 1.12 1994/10/24 04:31:11 paulus Exp $";
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#ifdef HAS_SHADOW
+#include <shadow.h>
+#include <shadow/pwauth.h>
+#ifndef PW_PPP
+#define PW_PPP PW_LOGIN
+#endif
+#endif
 
 #include "pppd.h"
 #include "fsm.h"
@@ -161,7 +169,7 @@ link_established(unit)
 	 * treat it as though it authenticated with PAP using a username
 	 * of "" and a password of "".  If that's not OK, boot it out.
 	 */
-	if (wo->neg_upap && !null_login(unit)) {
+	if (!wo->neg_upap || !null_login(unit)) {
 	    syslog(LOG_WARNING, "peer refused to authenticate");
 	    lcp_close(unit);
 	    phase = PHASE_TERMINATE;
@@ -457,9 +465,22 @@ login(user, passwd, msg, msglen)
     char *epasswd;
     char *tty;
 
+#ifdef HAS_SHADOW
+    struct spwd *spwd;
+    struct spwd *getspnam();
+#endif
+
     if ((pw = getpwnam(user)) == NULL) {
 	return (UPAP_AUTHNAK);
     }
+
+#ifdef HAS_SHADOW
+    if ((spwd = getspnam(user)) == NULL) {
+        pw->pw_passwd = "";
+    } else {
+	pw->pw_passwd = spwd->sp_pwdp;
+    }
+#endif
 
     /*
      * XXX If no passwd, let them login without one.
@@ -468,10 +489,18 @@ login(user, passwd, msg, msglen)
 	return (UPAP_AUTHACK);
     }
 
+#ifdef HAS_SHADOW
+    if ((pw->pw_passwd && pw->pw_passwd[0] == '@'
+	 && pw_auth (pw->pw_passwd+1, pw->pw_name, PW_PPP, NULL))
+    || !valid (passwd, pw)) {
+	return (UPAP_AUTHNAK);
+    }
+#else
     epasswd = crypt(passwd, pw->pw_passwd);
     if (strcmp(epasswd, pw->pw_passwd)) {
 	return (UPAP_AUTHNAK);
     }
+#endif
 
     syslog(LOG_INFO, "user %s logged in", user);
 
