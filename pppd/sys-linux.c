@@ -381,20 +381,12 @@ int establish_ppp (int tty_fd)
 
 void disestablish_ppp(int tty_fd)
 {
-    int nout;
-
     if (!hungup) {
 /*
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
- * We may have to do this several times because the tcflush only
- * affects the serial driver, and may trigger the ppp driver to
- * supply more data to the serial driver.
  */
-	do {
-	    if (tcflush(tty_fd, TCIOFLUSH) < 0)
-		break;
-	    nout = 0;
-	} while (ioctl(tty_fd, TIOCOUTQ, &nout) >= 0 && nout > 0);
+	if (tcflush(tty_fd, TCIOFLUSH) < 0)
+	    warn("tcflush failed: %m");
 /*
  * Restore the previous line discipline
  */
