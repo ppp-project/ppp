@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.1 1995/06/30 01:58:28 paulus Exp $
+# $Id: Makefile.linux,v 1.2 1996/05/26 23:56:40 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -18,7 +18,7 @@ CFLAGS = $(COPTS) $(COMPILE_FLAGS)
 all: pppstats
 
 install: pppstats
-	$(INSTALL) -c pppstats $(BINDIR)/pppstats
+	$(INSTALL) -s -c pppstats $(BINDIR)/pppstats
 	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)/man8/pppstats.8
 
 pppstats: $(PPPSTATSRCS)

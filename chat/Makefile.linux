@@ -1,25 +1,24 @@
-#	$Id: Makefile.linux,v 1.5 1995/12/18 03:32:43 paulus Exp $
+#	$Id: Makefile.linux,v 1.6 1996/05/26 23:56:36 paulus Exp $
 
 CDEF1=	-DTERMIOS			# Use the termios structure
-CDEF2=	-DPIDSTRING			# I like ascii pid values
-CDEF3=	-DSIGTYPE=void			# Standard definition
-CDEF4=	-UNO_SLEEP			# Use the usleep function
-CDEF5=	-DFNDELAY=O_NDELAY		# Old name value
-CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4) $(CDEF5)
+CDEF2=	-DSIGTYPE=void			# Standard definition
+CDEF3=	-UNO_SLEEP			# Use the usleep function
+CDEF4=	-DFNDELAY=O_NDELAY		# Old name value
+CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4)
 
 CFLAGS=	-O2 $(CDEFS)
 
 all:	chat
 
 chat:	chat.o
-	$(CC) -O2 -o chat chat.o
+	$(CC) -s -O2 -o chat chat.o
 
 chat.o:	chat.c
 	$(CC) -c $(CFLAGS) -o chat.o chat.c
 
 install: chat
 	mkdir -p $(BINDIR)
-	install -c chat $(BINDIR)
+	install -s -c chat $(BINDIR)
 	install -c chat.8 $(MANDIR)/man8
 
 clean:
