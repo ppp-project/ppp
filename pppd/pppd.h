@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.88 2004/11/13 12:02:22 paulus Exp $
+ * $Id: pppd.h,v 1.89 2004/11/14 22:53:42 carlsonj Exp $
  */
 
 /*
@@ -492,6 +492,7 @@ void remove_notifier __P((struct notifier **, notify_func, void *));
 void notify __P((struct notifier *, int));
 int  ppp_send_config __P((int, int, u_int32_t, int, int));
 int  ppp_recv_config __P((int, int, u_int32_t, int, int));
+const char *protocol_name __P((int));
 void remove_pidfiles __P((void));
 void lock_db __P((void));
 void unlock_db __P((void));
