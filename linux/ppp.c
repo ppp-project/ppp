@@ -7,7 +7,7 @@
  *  Dynamic PPP devices by Jim Freeman <jfree@caldera.com>.
  *  ppp_tty_receive ``noisy-raise-bug'' fixed by Ove Ewerlid <ewerlid@syscon.uu.se>
  *
- *  ==FILEVERSION 971016==
+ *  ==FILEVERSION 971205==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -48,7 +48,7 @@
 #define CHECK_CHARACTERS	1
 #define PPP_COMPRESS		1
 
-/* $Id: ppp.c,v 1.14 1997/11/27 06:04:45 paulus Exp $ */
+/* $Id: ppp.c,v 1.15 1998/02/04 01:38:11 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/module.h>
@@ -84,6 +84,11 @@
 #include <linux/if_ether.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
+
+#if LINUX_VERSION_CODE >= VERSION(2,1,68)
+#include <linux/rtnetlink.h>
+#endif
+
 #include <linux/inet.h>
 #include <linux/ioctl.h>
 
@@ -102,6 +107,10 @@ typedef struct sk_buff	     sk_buff;
 #include <linux/if_ppp.h>
 #include <linux/if_pppvar.h>
 #include <linux/ppp-comp.h>
+
+#ifdef CONFIG_KERNELD
+#include <linux/kerneld.h>
+#endif
 
 #ifndef PPP_IPX
 #define PPP_IPX 0x2b  /* IPX protocol over PPP */
@@ -156,6 +165,22 @@ do {									  \
 
 #if LINUX_VERSION_CODE < VERSION(2,1,37)
 #define test_and_set_bit(nr, addr)	set_bit(nr, addr)
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,57)
+#define signal_pending(p)	((p)->signal & ~(p)->blocked)
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,25)
+#define net_device_stats	enet_statistics
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,60)
+typedef int		rw_ret_t;
+typedef unsigned int	rw_count_t;
+#else
+typedef ssize_t		rw_ret_t;
+typedef size_t		rw_count_t;
 #endif
 
 static int ppp_register_compressor (struct compressor *cp);
@@ -220,7 +245,7 @@ static int ppp_dev_open (struct device *);
 static int ppp_dev_ioctl (struct device *dev, struct ifreq *ifr, int cmd);
 static int ppp_dev_close (struct device *);
 static int ppp_dev_xmit (sk_buff *, struct device *);
-static struct enet_statistics *ppp_dev_stats (struct device *);
+static struct net_device_stats *ppp_dev_stats (struct device *);
 
 #if LINUX_VERSION_CODE < VERSION(2,1,15)
 static int ppp_dev_header (sk_buff *, struct device *, __u16,
@@ -233,10 +258,10 @@ static int ppp_dev_rebuild (void *eth, struct device *dev,
  * TTY callbacks
  */
 
-static int ppp_tty_read (struct tty_struct *, struct file *, __u8 *,
-			 unsigned int);
-static int ppp_tty_write (struct tty_struct *, struct file *, const __u8 *,
-			  unsigned int);
+static rw_ret_t ppp_tty_read(struct tty_struct *, struct file *, __u8 *,
+			     rw_count_t);
+static rw_ret_t ppp_tty_write(struct tty_struct *, struct file *, const __u8 *,
+			      rw_count_t);
 static int ppp_tty_ioctl (struct tty_struct *, struct file *, unsigned int,
 			  unsigned long);
 #if LINUX_VERSION_CODE < VERSION(2,1,23)
@@ -403,6 +428,9 @@ ppp_first_time (void)
  */
 	(void) memset (&ppp_ldisc, 0, sizeof (ppp_ldisc));
 	ppp_ldisc.magic		= TTY_LDISC_MAGIC;
+#if LINUX_VERSION_CODE >= VERSION(2,1,28)
+	ppp_ldisc.name          = "ppp";
+#endif
 	ppp_ldisc.open		= ppp_tty_open;
 	ppp_ldisc.close		= ppp_tty_close;
 	ppp_ldisc.read		= ppp_tty_read;
@@ -466,11 +494,13 @@ ppp_init_dev (struct device *dev)
 
 	/* New-style flags */
 	dev->flags	= IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
+#if LINUX_VERSION_CODE < VERSION(2,1,67)
 	dev->family	= AF_INET;
 	dev->pa_addr	= 0;
 	dev->pa_brdaddr = 0;
 	dev->pa_mask	= 0;
 	dev->pa_alen	= 4; /* sizeof (__u32) */
+#endif
 
 	return 0;
 }
@@ -788,10 +818,16 @@ ppp_release (struct ppp *ppp)
 	if (tty != NULL && tty->disc_data == ppp)
 		tty->disc_data = NULL;	/* Break the tty->ppp link */
 
+#if LINUX_VERSION_CODE >= VERSION(2,1,68)
+	rtnl_lock();
+#endif
+	/* Strong layering violation. */
 	if (dev && dev->flags & IFF_UP) {
-		dev->flags &= ~IFF_UP;	 /* prevent recursion */
 		dev_close (dev); /* close the device properly */
 	}
+#if LINUX_VERSION_CODE >= VERSION(2,1,68)
+	rtnl_unlock();
+#endif
 
 	ppp_free_buf (ppp->rbuf);
 	ppp_free_buf (ppp->wbuf);
@@ -1811,13 +1847,13 @@ rcv_proto_lqr (struct ppp *ppp, __u16 proto, __u8 * data, int len)
    waiting if necessary
 */
 
-static int
+static rw_ret_t
 ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
-	      unsigned int nr)
+	      rw_count_t nr)
 {
 	struct ppp *ppp = tty2ppp (tty);
 	__u8 c;
-	int len, ret;
+	rw_ret_t len, ret;
 	int error;
 
 #define GETC(c)						\
@@ -1864,7 +1900,7 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 			current->state	 = TASK_INTERRUPTIBLE;
 			schedule ();
 
-			if (current->signal & ~current->blocked)
+			if (signal_pending(current))
 				return -EINTR;
 			continue;
 		}
@@ -1897,7 +1933,7 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 				"ppp_tty_read: sleeping(read_wait)\n");
 #endif
 		interruptible_sleep_on (&ppp->read_wait);
-		if (current->signal & ~current->blocked)
+		if (signal_pending(current))
 			return -EINTR;
 	}
 
@@ -1910,8 +1946,8 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 
 		if (ppp->flags & SC_DEBUG)
 			printk (KERN_DEBUG
-				"ppp: read of %u bytes too small for %d "
-				"frame\n", nr, len + 2);
+				"ppp: read of %lu bytes too small for %ld "
+				"frame\n", (unsigned long) nr, (long) len + 2);
 		ppp->stats.ppp_ierrors++;
 		error = -EOVERFLOW;
 		goto out;
@@ -1943,10 +1979,6 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 	}
 
 	clear_bit (0, &ppp->ubuf->locked);
-#if 0
-	if (ppp->flags & SC_DEBUG)
-		printk (KERN_DEBUG "ppp_tty_read: passing %d bytes up\n", ret);
-#endif
 	return ret;
 
 out:
@@ -2172,9 +2204,9 @@ send_revise_frame (register struct ppp *ppp, __u8 *data, int len)
  * we have to put the FCS field on ourselves
  */
 
-static int
+static rw_ret_t
 ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
-	       unsigned int count)
+	       rw_count_t count)
 {
 	struct ppp *ppp = tty2ppp (tty);
 	__u8 *new_data;
@@ -2197,7 +2229,7 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 		if (ppp->flags & SC_DEBUG)
 			printk (KERN_WARNING
 				"ppp_tty_write: truncating user packet "
-				"from %u to mtu %d\n", count,
+				"from %lu to mtu %d\n", (unsigned long) count,
 				PPP_MTU + PPP_HDRLEN);
 		count = PPP_MTU + PPP_HDRLEN;
 	}
@@ -2238,7 +2270,7 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 			return 0;
 		}
 
-		if (current->signal & ~current->blocked) {
+		if (signal_pending(current)) {
 			kfree (new_data);
 			return -EINTR;
 		}
@@ -2264,7 +2296,7 @@ ppp_tty_write (struct tty_struct *tty, struct file *file, const __u8 * data,
 	}
 
 	kfree (new_data);
-	return (int) count;
+	return (rw_ret_t) count;
 }
 
 /*
@@ -2285,10 +2317,7 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 /*
  * Fetch the compression parameters
  */
-	COPY_FROM_USER (error,
-			&data,
-			odp,
-			sizeof (data));
+	COPY_FROM_USER (error, &data, odp, sizeof (data));
 
 	if (error != 0)
 		return error;
@@ -2298,10 +2327,7 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 	if ((__u32) nb >= (__u32)CCP_MAX_OPTION_LENGTH)
 		nb = CCP_MAX_OPTION_LENGTH;
 
-	COPY_FROM_USER (error,
-			ccp_option,
-			ptr,
-			nb);
+	COPY_FROM_USER (error, ccp_option, ptr, nb);
 
 	if (error != 0)
 		return error;
@@ -2315,6 +2341,15 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 	restore_flags(flags);
 
 	cp = find_compressor (ccp_option[0]);
+#ifdef CONFIG_KERNELD
+	if (cp == NULL) {
+		char modname[32];
+		sprintf(modname, "ppp-compress-%d", ccp_option[0]);
+		request_module(modname);
+		cp = find_compressor(ccp_option[0]);
+	}
+#endif /* CONFIG_KERNELD */
+
 	if (cp != (struct compressor *) 0) {
 		/*
 		 * Found a handler for the protocol - try to allocate
@@ -2518,9 +2553,7 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 			/* change absolute times to relative times. */
 			cur_ddinfo.xmit_idle = (jiffies - ppp->last_xmit) / HZ;
 			cur_ddinfo.recv_idle = (jiffies - ppp->last_recv) / HZ;
-			COPY_TO_USER (error,
-				      (void *) param3,
-				      &cur_ddinfo,
+			COPY_TO_USER (error, (void *) param3, &cur_ddinfo,
 				      sizeof (cur_ddinfo));
 		}
 		break;
@@ -2528,9 +2561,7 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
  * Retrieve the extended async map
  */
 	case PPPIOCGXASYNCMAP:
-		COPY_TO_USER (error,
-			      (void *) param3,
-			      ppp->xmit_async_map,
+		COPY_TO_USER (error, (void *) param3, ppp->xmit_async_map,
 			      sizeof (ppp->xmit_async_map));
 		break;
 /*
@@ -2540,13 +2571,11 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 		{
 			__u32 temp_tbl[8];
 
-			COPY_FROM_USER (error,
-					temp_tbl,
-					(void *) param3,
+			COPY_FROM_USER (error, temp_tbl, (void *) param3,
 					sizeof (temp_tbl));
-
 			if (error != 0)
 				break;
+
 			temp_tbl[1]  =	0x00000000;
 			temp_tbl[2] &= ~0x40000000;
 			temp_tbl[3] |=	0x60000000;
@@ -2601,9 +2630,7 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 		{
 			struct npioctl npi;
 
-			COPY_FROM_USER (error,
-					&npi,
-					(void *) param3,
+			COPY_FROM_USER (error, &npi, (void *) param3,
 					sizeof (npi));
 			if (error != 0)
 				break;
@@ -2625,9 +2652,7 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 			if (param2 == PPPIOCGNPMODE) {
 				npi.mode = ppp->sc_npmode[npi.protocol];
 
-				COPY_TO_USER (error,
-					      (void *) param3,
-					      &npi,
+				COPY_TO_USER (error, (void *) param3, &npi,
 					      sizeof (npi));
 				break;
 			}
@@ -2787,11 +2812,6 @@ ppp_dev_open (struct device *dev)
 {
 	struct ppp *ppp = dev2ppp (dev);
 
-#if 0
-	/* reset POINTOPOINT every time, since dev_close zaps it! */
-	dev->flags |= IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
-#endif
-
 	if (ppp2tty (ppp) == NULL) {
 		if (ppp->flags & SC_DEBUG)
 			printk (KERN_ERR
@@ -2846,10 +2866,7 @@ ppp_dev_ioctl_version (struct ppp *ppp, struct ifreq *ifr)
 /*
  * Move the version data
  */
-	COPY_TO_USER (error,
-		      result,
-		      szVersion,
-		      len);
+	COPY_TO_USER (error, result, szVersion, len);
 
 	return error;
 }
@@ -2885,10 +2902,7 @@ ppp_dev_ioctl_stats (struct ppp *ppp, struct ifreq *ifr, struct device *dev)
 
 	result = (struct ppp_stats *) ifr->ifr_ifru.ifru_data;
 
-	COPY_TO_USER (error,
-		      result,
-		      &temp,
-		      sizeof (temp));
+	COPY_TO_USER (error, result, &temp, sizeof (temp));
 
 	return error;
 }
@@ -2920,10 +2934,7 @@ ppp_dev_ioctl_comp_stats (struct ppp *ppp, struct ifreq *ifr, struct device *dev
  */
 	result = (struct ppp_comp_stats *) ifr->ifr_ifru.ifru_data;
 
-	COPY_TO_USER (error,
-		      result,
-		      &temp,
-		      sizeof (temp));
+	COPY_TO_USER (error, result, &temp, sizeof (temp));
 
 	return error;
 }
@@ -3183,7 +3194,7 @@ ppp_dev_xmit (sk_buff *skb, struct device *dev)
  * Generate the statistic information for the /proc/net/dev listing.
  */
 
-static struct enet_statistics *
+static struct net_device_stats *
 ppp_dev_stats (struct device *dev)
 {
 	struct ppp *ppp = dev2ppp (dev);
