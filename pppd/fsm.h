@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: fsm.h,v 1.4 1994/09/21 06:47:37 paulus Exp $
+ * $Id: fsm.h,v 1.5 1995/05/19 03:17:35 paulus Exp $
  */
 
 /*
@@ -106,7 +106,7 @@ typedef struct fsm {
 #define DEFTIMEOUT	3	/* Timeout time in seconds */
 #define DEFMAXTERMREQS	2	/* Maximum Terminate-Request transmissions */
 #define DEFMAXCONFREQS	10	/* Maximum Configure-Request transmissions */
-#define DEFMAXNAKLOOPS	10	/* Maximum number of nak loops */
+#define DEFMAXNAKLOOPS	5	/* Maximum number of nak loops */
 
 
 /*
