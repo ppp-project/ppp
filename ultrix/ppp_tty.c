@@ -73,7 +73,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.7 1996/07/01 01:24:28 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.8 1996/09/26 06:19:26 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -670,7 +670,7 @@ pppasyncstart(sc)
 
 /*
  * This gets called when a received packet is placed on
- * the inq, at splsoftnet.
+ * the inq, at splnet.
  */
 static void
 pppasyncctlp(sc)
@@ -690,7 +690,7 @@ pppasyncctlp(sc)
 /*
  * Start output on async tty interface.  If the transmit queue
  * has drained sufficiently, arrange for pppasyncstart to be
- * called later at splsoftnet.
+ * called later at splnet.
  * Called at spltty or higher.
  */
 int
@@ -786,27 +786,20 @@ pppinput(c, tp)
     ++tk_nin;
     ++sc->sc_stats.ppp_ibytes;
 
-    if (c & TTY_FE) {
-	/* framing error or overrun on this char - abort packet */
-	if (sc->sc_flags & SC_DEBUG)
-	    printf("ppp%d: bad char %x\n", sc->sc_if.if_unit, c);
-	goto flush;
-    }
-
     c &= 0xff;
 
     /*
      * Handle software flow control of output.
      */
     if (tp->t_iflag & IXON) {
-	if (c == tp->t_cc[VSTOP] && tp->t_cc[VSTOP] != _POSIX_VDISABLE) {
+	if (c == tp->t_cc[VSTOP] && tp->t_cc[VSTOP] != 0) {
 	    if ((tp->t_state & TS_TTSTOP) == 0) {
 		tp->t_state |= TS_TTSTOP;
 		(*cdevsw[major(tp->t_dev)].d_stop)(tp, 0);
 	    }
 	    return 0;
 	}
-	if (c == tp->t_cc[VSTART] && tp->t_cc[VSTART] != _POSIX_VDISABLE) {
+	if (c == tp->t_cc[VSTART] && tp->t_cc[VSTART] != 0) {
 	    tp->t_state &= ~TS_TTSTOP;
 	    if (tp->t_oproc != NULL)
 		(*tp->t_oproc)(tp);

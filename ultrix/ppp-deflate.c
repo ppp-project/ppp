@@ -1,4 +1,4 @@
-/*	$Id: ppp-deflate.c,v 1.1 1996/07/01 01:24:27 paulus Exp $	*/
+/*	$Id: ppp-deflate.c,v 1.2 1996/09/26 06:19:18 paulus Exp $	*/
 
 /*
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
@@ -98,6 +98,15 @@ struct compressor ppp_deflate = {
 };
 
 /*
+ * Some useful mbuf macros not in mbuf.h.
+ */
+#define M_IS_CLUSTER(m) ((m)->m_off > MMAXOFF)
+
+#define M_TRAILINGSPACE(m) \
+	((M_IS_CLUSTER(m) ? (u_int)(m)->m_clptr + M_CLUSTERSZ : MSIZE) \
+	 - ((m)->m_off + (m)->m_len))
+
+/*
  * Space allocation and freeing routines for use by zlib routines.
  */
 void *
@@ -140,17 +149,18 @@ z_comp_alloc(options, opt_len)
     if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
-    MALLOC(state, struct deflate_state *, sizeof(struct deflate_state),
-	   M_DEVBUF, M_NOWAIT);
+    KM_ALLOC(state, struct deflate_state *, sizeof(struct deflate_state),
+	     KM_DEVBUF, KM_NOARG);
     if (state == NULL)
 	return NULL;
+    bzero(state, sizeof(struct deflate_state));
 
     state->strm.next_in = NULL;
-    state->strm.zalloc = zalloc;
-    state->strm.zfree = zfree;
+    state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zfree = (free_func) zfree;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
-	FREE(state, M_DEVBUF);
+	KM_FREE(state, KM_DEVBUF);
 	return NULL;
     }
 
@@ -166,7 +176,7 @@ z_comp_free(arg)
     struct deflate_state *state = (struct deflate_state *) arg;
 
     deflateEnd(&state->strm);
-    FREE(state, M_DEVBUF);
+    KM_FREE(state, KM_DEVBUF);
 }
 
 static int
@@ -214,7 +224,7 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     struct deflate_state *state = (struct deflate_state *) arg;
     u_char *rptr, *wptr;
     int proto, olen, wspace, r, flush;
-    struct mbuf *m;
+    struct mbuf *m, *clp;
 
     /*
      * Check that the protocol is in the range we handle.
@@ -232,12 +242,14 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     MGET(m, M_DONTWAIT, MT_DATA);
     *mret = m;
     if (m != NULL) {
+	if (maxolen + state->hdrlen > MLEN) {
+	    /* MCLGET is not a single statement!!! */
+	    MCLGET(m, clp)
+	}
 	m->m_len = 0;
-	if (maxolen + state->hdrlen > MLEN)
-	    MCLGET(m, M_DONTWAIT);
 	wspace = M_TRAILINGSPACE(m);
-	if (state->hdrlen + PPP_HDRLEN + 2 < wspace) {
-	    m->m_data += state->hdrlen;
+	if (state->hdrlen > 0 && state->hdrlen + PPP_HDRLEN + 2 < wspace) {
+	    m->m_off += state->hdrlen;
 	    wspace -= state->hdrlen;
 	}
 	wptr = mtod(m, u_char *);
@@ -292,9 +304,10 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 		MGET(m->m_next, M_DONTWAIT, MT_DATA);
 		m = m->m_next;
 		if (m != NULL) {
+		    if (maxolen - olen > MLEN) {
+			MCLGET(m, clp)
+		    }
 		    m->m_len = 0;
-		    if (maxolen - olen > MLEN)
-			MCLGET(m, M_DONTWAIT);
 		    state->strm.next_out = mtod(m, u_char *);
 		    state->strm.avail_out = wspace = M_TRAILINGSPACE(m);
 		}
@@ -371,16 +384,17 @@ z_decomp_alloc(options, opt_len)
     if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
-    MALLOC(state, struct deflate_state *, sizeof(struct deflate_state),
-	   M_DEVBUF, M_NOWAIT);
+    KM_ALLOC(state, struct deflate_state *, sizeof(struct deflate_state),
+	     KM_DEVBUF, KM_NOARG);
     if (state == NULL)
 	return NULL;
+    bzero(state, sizeof(struct deflate_state));
 
     state->strm.next_out = NULL;
-    state->strm.zalloc = zalloc;
-    state->strm.zfree = zfree;
+    state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zfree = (free_func) zfree;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
-	FREE(state, M_DEVBUF);
+	KM_FREE(state, KM_DEVBUF);
 	return NULL;
     }
 
@@ -396,7 +410,7 @@ z_decomp_free(arg)
     struct deflate_state *state = (struct deflate_state *) arg;
 
     inflateEnd(&state->strm);
-    FREE(state, M_DEVBUF);
+    KM_FREE(state, KM_DEVBUF);
 }
 
 static int
@@ -457,7 +471,7 @@ z_decompress(arg, mi, mop)
     struct mbuf *mi, **mop;
 {
     struct deflate_state *state = (struct deflate_state *) arg;
-    struct mbuf *mo, *mo_head;
+    struct mbuf *mo, *mo_head, *clp;
     u_char *rptr, *wptr;
     int rlen, olen, ospace;
     int seq, i, flush, r, decode_proto;
@@ -489,16 +503,16 @@ z_decompress(arg, mi, mop)
     ++state->seqno;
 
     /* Allocate an output mbuf. */
-    MGETHDR(mo, M_DONTWAIT, MT_DATA);
+    MGET(mo, M_DONTWAIT, MT_DATA);
     if (mo == NULL)
 	return DECOMP_ERROR;
     mo_head = mo;
-    mo->m_len = 0;
     mo->m_next = NULL;
-    MCLGET(mo, M_DONTWAIT);
+    MCLGET(mo, clp)
+    mo->m_len = 0;
     ospace = M_TRAILINGSPACE(mo);
-    if (state->hdrlen + PPP_HDRLEN < ospace) {
-	mo->m_data += state->hdrlen;
+    if (state->hdrlen > 0 && state->hdrlen + PPP_HDRLEN < ospace) {
+	mo->m_off += state->hdrlen;
 	ospace -= state->hdrlen;
     }
 
@@ -568,7 +582,8 @@ z_decompress(arg, mi, mop)
 		    m_freem(mo_head);
 		    return DECOMP_ERROR;
 		}
-		MCLGET(mo, M_DONTWAIT);
+		MCLGET(mo, clp)
+		mo->m_len = 0;
 		state->strm.next_out = mtod(mo, u_char *);
 		state->strm.avail_out = ospace = M_TRAILINGSPACE(mo);
 	    }
