@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.20 1997/04/30 05:50:40 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.21 1997/05/22 06:45:59 paulus Exp $";
 #endif
 
 #include <string.h>
@@ -526,7 +526,7 @@ ccp_nakci(f, p, len)
 	    || p[3] != DEFLATE_CHK_SEQUENCE)
 	    try.deflate = 0;
 	else if (DEFLATE_SIZE(p[2]) < go->deflate_size)
-	    go->deflate_size = DEFLATE_SIZE(p[2]);
+	    try.deflate_size = DEFLATE_SIZE(p[2]);
 	p += CILEN_DEFLATE;
 	len -= CILEN_DEFLATE;
     }
@@ -672,8 +672,9 @@ ccp_reqci(f, p, lenp, dont_nak)
 		    if (!dont_nak) {
 			p[2] = DEFLATE_MAKE_OPT(ao->deflate_size);
 			p[3] = DEFLATE_CHK_SEQUENCE;
-		    }
-		    break;
+			/* fall through to test this #bits below */
+		    } else
+			break;
 		}
 
 		/*
@@ -710,9 +711,11 @@ ccp_reqci(f, p, lenp, dont_nak)
 		if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION
 		    || nb > ao->bsd_bits || nb < BSD_MIN_BITS) {
 		    newret = CONFNAK;
-		    if (!dont_nak)
+		    if (!dont_nak) {
 			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, ao->bsd_bits);
-		    break;
+			/* fall through to test this #bits below */
+		    } else
+			break;
 		}
 
 		/*
