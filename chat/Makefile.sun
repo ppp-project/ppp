@@ -2,13 +2,19 @@
 # Makefile for chat on suns
 #
 
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+
+INSTALL= install -o root -g daemon
+
 all:	chat
 
 chat: chat.o
 	$(CC) -o chat chat.o
 
-install:
-	install -c chat $(BINDIR)/chat
+install: chat
+	$(INSTALL) -c chat $(BINDIR)/chat
+	$(INSTALL) -c -m 444 chat.8 $(MANDIR)/man8/chat.8
 
 clean:
 	rm -f *~ *.o chat
