@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.44 1998/11/07 06:59:28 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.45 1999/01/20 00:00:35 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -304,6 +304,7 @@ scan_args(argc, argv)
     char *arg;
     option_t *opt;
 
+    privileged_option = privileged;
     while (argc > 0) {
 	arg = *argv++;
 	--argc;
@@ -1183,11 +1184,15 @@ setdevname(cp, quiet)
 	return -1;
     }
 
+    if (!privileged_option) {
+	if (!quiet)
+	    option_error("setting the device name requires root privilege");
+	return -1;
+    }
+
     (void) strncpy(devnam, cp, MAXPATHLEN);
     devnam[MAXPATHLEN-1] = 0;
     default_device = FALSE;
-    devnam_info.priv = privileged_option;
-    devnam_info.source = option_source;
   
     return 1;
 }
