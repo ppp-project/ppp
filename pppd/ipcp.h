@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipcp.h,v 1.3 1994/04/18 04:05:15 paulus Exp $
+ * $Id: ipcp.h,v 1.4 1994/09/01 00:23:12 paulus Exp $
  */
 
 /*
@@ -49,7 +49,7 @@ typedef struct ipcp_options {
     int accept_remote : 1;	/* accept peer's value for hisaddr */
     u_short vj_protocol;	/* protocol value to use in VJ option */
     u_char maxslotindex, cflag;	/* values for RFC1332 VJ compression neg. */
-    u_long ouraddr, hisaddr;	/* Addresses in NETWORK BYTE ORDER */
+    uint32 ouraddr, hisaddr;	/* Addresses in NETWORK BYTE ORDER */
 } ipcp_options;
 
 extern fsm ipcp_fsm[];
