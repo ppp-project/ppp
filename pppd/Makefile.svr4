@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.svr4,v 1.5 1995/10/27 03:38:19 paulus Exp $
+# $Id: Makefile.svr4,v 1.6 1996/04/04 03:26:02 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
@@ -15,7 +15,8 @@ INSTALL = /usr/sbin/install
 all: pppd
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o sys-svr4.o
+	auth.o options.o demand.o sys-svr4.o \
+	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
 
 pppd:	$(OBJS)
 	$(CC) -o pppd $(OBJS) -lsocket -lnsl
