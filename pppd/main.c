@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.72 1999/04/01 07:08:48 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.73 1999/04/01 07:19:59 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -153,8 +153,8 @@ static void record_child __P((int, char *, void (*) (void *), void *));
 static int start_charshunt __P((int, int));
 static void charshunt_done __P((void *));
 static void charshunt __P((int, int, char *));
-static int record_write(FILE *, int code, u_char *buf, int nb,
-			struct timeval *);
+static int record_write __P((FILE *, int code, u_char *buf, int nb,
+			     struct timeval *));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
