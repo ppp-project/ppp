@@ -1,13 +1,49 @@
 /*
   ppp_str.h - streams version include file
 
-  defines ioctl calls for MRU, COMPPROT and ASYNCMAP
-
   Copyright (C) 1990 Brad K. Clements, All Rights Reserved,
   See copyright statement in NOTES
 */
 
 #include	<sys/ioccom.h>
+
+#define PPP_HDRLEN	4	/* octets for standard ppp header */
+#define PPP_FCSLEN	2	/* octets for FCS */
+
+#define PPP_ADDRESS(cp)		((cp)[0])
+#define PPP_CONTROL(cp)		((cp)[1])
+#define PPP_PROTOCOL(cp)	(((cp)[2] << 8) + (cp)[3])
+
+#define	PPP_ALLSTATIONS	0xff	/* All-Stations broadcast address */
+#define	PPP_UI		0x03	/* Unnumbered Information */
+#define	PPP_FLAG	0x7e	/* Flag Sequence */
+#define	PPP_ESCAPE	0x7d	/* Asynchronous Control Escape */
+#define	PPP_TRANS	0x20	/* Asynchronous transparency modifier */
+
+/*
+ * Protocol field values.
+ */
+#define PPP_IP		0x21	/* Internet Protocol */
+#define	PPP_XNS		0x25	/* Xerox NS */
+#define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
+#define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
+#define PPP_COMP	0xfd	/* compressed packet */
+#define PPP_LCP		0xc021	/* Link Control Protocol */
+#define PPP_CCP		0x80fd	/* Compression Control Protocol */
+
+/*
+ * Important FCS values.
+ */
+#define PPP_INITFCS	0xffff	/* Initial FCS value */
+#define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
+#define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
+
+/*
+ * Packet sizes
+ */
+#define	PPP_MTU		1500	/* Default MTU (size of Info field) */
+#define PPP_MRU		1500	/* Default MRU (max receive unit) */
+#define PPP_MAXMRU	65000	/* Largest MRU we allow */
 
 /* Extended asyncmap - allows any character to be escaped. */
 typedef u_long	ext_accm[8];
@@ -82,11 +118,12 @@ struct	ppp_if_info {
 #endif
 };
 
-#ifdef        STREAMS
 /* defines for streams modules */
 #define       IF_INPUT_ERROR  0xe1
 #define       IF_OUTPUT_ERROR 0xe2
 
 #define       ALLOCBSIZE      64              /* how big of a buffer block to
 allocate for each chunk of the input chain */
-#endif
+
+#define	PPP_MTU		1500	/* Default MTU (size of Info field) */
+#define PPP_HDRLEN	4	/* sizeof(struct ppp_header) must be 4 */
