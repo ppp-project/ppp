@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.25 1999/04/12 06:24:50 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.26 1999/04/27 22:33:09 varadhan Exp $";
 #endif
 
 #include <stdio.h>
@@ -1113,6 +1113,7 @@ sifdown(u)
 {
     struct ifreq ifr;
 
+    bzero(&ifr, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
 	error("Couldn't mark interface down (get): %m");
@@ -1205,7 +1206,8 @@ sifaddr(u, o, h, m)
         ret = 0;
     }
 
-    ifr.ifr_metric = link_mtu;
+    ifr.ifr_data = (caddr_t)&link_mtu;
+
     if (ioctl(sockfd, SIOCSIPMTU, &ifr) < 0) {
 	error("Couldn't set IP MTU: %m");
         ret = 0;
