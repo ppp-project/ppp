@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.20 1997/03/04 03:43:54 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.21 1997/04/30 05:59:38 paulus Exp $";
 #endif
 
 /*
@@ -562,7 +562,7 @@ output(unit, p, len)
     int len;
 {
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     if (write(ttyfd, p, len) < 0) {
 	if (errno != EIO)
@@ -980,7 +980,7 @@ cifaddr(u, o, h)
  */
 int
 sifdefaultroute(u, l, g)
-    int unit;
+    int u;
     u_int32_t l, g;
 {
     struct rtentry rt;
@@ -1003,7 +1003,7 @@ sifdefaultroute(u, l, g)
  */
 int
 cifdefaultroute(u, l, g)
-    int unit;
+    int u;
     u_int32_t l, g;
 {
     struct rtentry rt;

@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.7 1997/03/04 03:34:48 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.8 1997/04/30 05:57:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -518,7 +518,7 @@ output(unit, p, len)
     int len;
 {
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     if (write(ttyfd, p, len) < 0) {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS

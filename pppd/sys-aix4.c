@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.11 1997/03/04 03:43:52 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.12 1997/04/30 05:57:19 paulus Exp $";
 #endif
 
 /*
@@ -546,7 +546,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     str.len = len;
     str.buf = (caddr_t) p;
