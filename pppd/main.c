@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.33 1996/05/28 00:49:10 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.34 1996/07/01 01:17:39 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -81,18 +81,18 @@ static uid_t uid;		/* Our real user-id */
 
 int ttyfd = -1;			/* Serial port file descriptor */
 mode_t tty_mode = -1;		/* Original access permissions to tty */
+int baud_rate;			/* Actual bits/second for serial device */
+int hungup;			/* terminal has been hung up */
 
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
+int redirect_stderr;		/* Connector's stderr should go to file */
 
 u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
 u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
 
-int hungup;			/* terminal has been hung up */
 static int n_children;		/* # child processes still running */
-
-int baud_rate;			/* Actual bits/second for serial device */
 
 static int locked;		/* lock() has succeeded */
 
@@ -185,18 +185,20 @@ main(argc, argv)
 
     /*
      * Initialize to the standard option set, then parse, in order,
-     * the system options file, the user's options file, and the command
-     * line arguments.
+     * the system options file, the user's options file,
+     * the tty's options file, and the command line arguments.
      */
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         (*protp->init)(0);
   
     progname = *argv;
 
-    if (!options_from_file(_PATH_SYSOPTIONS, REQ_SYSOPTIONS, 0) ||
-	!options_for_tty() ||
-	!options_from_user() ||
-	!parse_args(argc-1, argv+1))
+    if (!options_from_file(_PATH_SYSOPTIONS, REQ_SYSOPTIONS, 0)
+	|| !options_from_user())
+	exit(1);
+    scan_args(argc-1, argv+1);	/* look for tty name on command line */
+    if (!options_for_tty()
+	|| !parse_args(argc-1, argv+1))
 	exit(1);
 
     if (!ppp_available()) {
@@ -224,6 +226,7 @@ main(argc, argv)
      */
     if (!default_device && strcmp(devnam, default_devnam) == 0)
 	default_device = 1;
+    redirect_stderr = !nodetach || default_device;
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -497,13 +500,12 @@ main(argc, argv)
 	    get_input();
 	    if (kill_link) {
 		lcp_close(0, "User request");
-		phase = PHASE_TERMINATE;
 		kill_link = 0;
 	    }
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
-		    ccp_open(0);
+		    (*ccp_protent.open)(0);
 		}
 		open_ccp_flag = 0;
 	    }
@@ -516,9 +518,14 @@ main(argc, argv)
 	 * real serial device back to its normal mode of operation.
 	 */
 	clean_check();
+#ifdef _linux_
+	disestablish_ppp(ttyfd);
+#endif
 	if (demand)
 	    restore_loop();
+#ifndef _linux_
 	disestablish_ppp(ttyfd);
+#endif
 
 	/*
 	 * Run disconnector script, if requested.
@@ -541,7 +548,8 @@ main(argc, argv)
 	}
 
 	if (!demand) {
-	    if (unlink(pidfilename) < 0 && errno != ENOENT) 
+	    if (pidfilename[0] != 0
+		&& unlink(pidfilename) < 0 && errno != ENOENT) 
 		syslog(LOG_WARNING, "unable to delete pid file: %m");
 	    pidfilename[0] = 0;
 	}
@@ -677,8 +685,6 @@ connect_time_expired(arg)
     caddr_t arg;
 {
     syslog(LOG_INFO, "Connect time expired");
-
-    phase = PHASE_TERMINATE;
     lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
@@ -971,11 +977,32 @@ device_script(program, in, out)
     if (pid == 0) {
 	sys_close();
 	closelog();
-	dup2(in, 0);
-	dup2(out, 1);
-	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
-	if (errfd >= 0)
-	    dup2(errfd, 2);
+	if (in == out) {
+	    if (in != 0) {
+		dup2(in, 0);
+		close(in);
+	    }
+	    dup2(0, 1);
+	} else {
+	    if (out == 0)
+		out = dup(out);
+	    if (in != 0) {
+		dup2(in, 0);
+		close(in);
+	    }
+	    if (out != 1) {
+		dup2(out, 1);
+		close(out);
+	    }
+	}
+	if (redirect_stderr) {
+	    close(2);
+	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	    if (errfd >= 0 && errfd != 2) {
+		dup2(errfd, 2);
+		close(errfd);
+	    }
+	}
 	setuid(getuid());
 	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
@@ -1152,12 +1179,7 @@ format_packet(p, len, printer, arg)
 }
 
 static void
-#if __STDC__
-pr_log(void *arg, char *fmt, ...)
-#else
-pr_log(va_alist)
-    va_dcl
-#endif
+pr_log __V((void *arg, char *fmt, ...))
 {
     int n;
     va_list pvar;
@@ -1201,10 +1223,25 @@ print_string(p, len, printer, arg)
     printer(arg, "\"");
     for (; len > 0; --len) {
 	c = *p++;
-	if (' ' <= c && c <= '~')
+	if (' ' <= c && c <= '~') {
+	    if (c == '\\' || c == '"')
+		printer(arg, "\\");
 	    printer(arg, "%c", c);
-	else
-	    printer(arg, "\\%.3o", c);
+	} else {
+	    switch (c) {
+	    case '\n':
+		printer(arg, "\\n");
+		break;
+	    case '\r':
+		printer(arg, "\\r");
+		break;
+	    case '\t':
+		printer(arg, "\\t");
+		break;
+	    default:
+		printer(arg, "\\%.3o", c);
+	    }
+	}
     }
     printer(arg, "\"");
 }
@@ -1252,16 +1289,20 @@ fmtmsg __V((char *buf, int buflen, char *fmt, ...))
 /*
  * vfmtmsg - like fmtmsg, takes a va_list instead of a list of args.
  */
+#define OUTCHAR(c)	(buflen > 0? (--buflen, *buf++ = (c)): 0)
+
 int
 vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
 {
     int c, i, n;
-    int width, prec;
-    int base, len, neg;
+    int width, prec, fillch;
+    int base, len, neg, quoted;
     unsigned long val;
     char *str, *f, *buf0;
+    unsigned char *p;
     va_list a;
     char num[32];
+    time_t t;
     static char hexchars[16] = "0123456789abcdef";
 
     buf0 = buf;
@@ -1282,15 +1323,30 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
 	    break;
 	c = *++fmt;
 	width = prec = 0;
-	while (isdigit(c)) {
-	    width = width * 10 + c - '0';
+	fillch = ' ';
+	if (c == '0') {
+	    fillch = '0';
 	    c = *++fmt;
+	}
+	if (c == '*') {
+	    width = va_arg(args, int);
+	    c = *++fmt;
+	} else {
+	    while (isdigit(c)) {
+		width = width * 10 + c - '0';
+		c = *++fmt;
+	    }
 	}
 	if (c == '.') {
 	    c = *++fmt;
-	    while (isdigit(c)) {
-		prec = prec * 10 + c - '0';
+	    if (c == '*') {
+		prec = va_arg(args, int);
 		c = *++fmt;
+	    } else {
+		while (isdigit(c)) {
+		    prec = prec * 10 + c - '0';
+		    c = *++fmt;
+		}
 	    }
 	}
 	str = 0;
@@ -1341,6 +1397,58 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
 	    buf += n;
 	    buflen -= n;
 	    continue;
+	case 't':
+	    time(&t);
+	    str = ctime(&t);
+	    str += 4;		/* chop off the day name */
+	    str[15] = 0;	/* chop off year and newline */
+	    break;
+	case 'v':		/* "visible" string */
+	case 'q':		/* quoted string */
+	    quoted = c == 'q';
+	    p = va_arg(args, unsigned char *);
+	    if (fillch == '0' && prec > 0) {
+		n = prec;
+	    } else {
+		n = strlen((char *)p);
+		if (prec > 0 && prec < n)
+		    n = prec;
+	    }
+	    while (n > 0 && buflen > 0) {
+		c = *p++;
+		--n;
+		if (!quoted && c >= 0x80) {
+		    OUTCHAR('M');
+		    OUTCHAR('-');
+		    c -= 0x80;
+		}
+		if (quoted && (c == '"' || c == '\\'))
+		    OUTCHAR('\\');
+		if (c < 0x20 || 0x7f <= c && c < 0xa0) {
+		    if (quoted) {
+			OUTCHAR('\\');
+			switch (c) {
+			case '\t':	OUTCHAR('t');	break;
+			case '\n':	OUTCHAR('n');	break;
+			case '\b':	OUTCHAR('b');	break;
+			case '\f':	OUTCHAR('f');	break;
+			default:
+			    OUTCHAR('x');
+			    OUTCHAR(hexchars[c >> 4]);
+			    OUTCHAR(hexchars[c & 0xf]);
+			}
+		    } else {
+			if (c == '\t')
+			    OUTCHAR(c);
+			else {
+			    OUTCHAR('^');
+			    OUTCHAR(c ^ 0x40);
+			}
+		    }
+		} else
+		    OUTCHAR(c);
+	    }
+	    continue;
 	default:
 	    *buf++ = '%';
 	    if (c != '%')
@@ -1378,7 +1486,7 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
 	    if ((n = width - len) > 0) {
 		buflen -= n;
 		for (; n > 0; --n)
-		    *buf++ = ' ';
+		    *buf++ = fillch;
 	    }
 	}
 	if (len > buflen)
