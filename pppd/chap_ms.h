@@ -27,7 +27,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: chap_ms.h,v 1.8 2002/12/23 23:24:37 fcusack Exp $
+ * $Id: chap_ms.h,v 1.9 2002/12/24 03:43:35 fcusack Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -72,6 +72,15 @@ typedef struct {
 extern u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 extern u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
 extern int mppe_keys_set;
+
+/* These values are the RADIUS attribute values--see RFC 2548. */
+#define MPPE_ENC_POL_ENC_ALLOWED 1
+#define MPPE_ENC_POL_ENC_REQUIRED 2
+#define MPPE_ENC_TYPES_RC4_40 2
+#define MPPE_ENC_TYPES_RC4_128 4
+
+/* used by plugins (using above values) */
+extern void set_mppe_enc_types(int, int);
 #endif
 
 /* Are we the authenticator or authenticatee?  For MS-CHAPv2 key derivation. */

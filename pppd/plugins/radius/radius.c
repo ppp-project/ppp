@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.19 2002/12/23 23:24:37 fcusack Exp $";
+"$Id: radius.c,v 1.20 2002/12/24 03:43:35 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -516,6 +516,11 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 {
     u_int32_t remote;
     int ms_chap2_success = 0;
+#ifdef MPPE
+    int mppe_enc_keys = 0;	/* whether or not these were received */
+    int mppe_enc_policy = 0;
+    int mppe_enc_types = 0;
+#endif
 
     /* Send RADIUS attributes to anyone else who might be interested */
     if (radius_attributes_hook) {
@@ -623,6 +628,7 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 			     "RADIUS: bad MS-CHAP-MPPE-Keys attribute");
 		    return -1;
 		}
+		mppe_enc_keys = 1;
 		break;
 
 	    case PW_MS_MPPE_SEND_KEY:
@@ -634,11 +640,19 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 			     "Send": "Recv");
 		    return -1;
 		}
+		mppe_enc_keys = 1;
 		break;
+
+	    case PW_MS_MPPE_ENCRYPTION_POLICY:
+		mppe_enc_policy = vp->lvalue;	/* save for later */
+		break;
+
+	    case PW_MS_MPPE_ENCRYPTION_TYPES:
+		mppe_enc_types = vp->lvalue;	/* save for later */
+		break;
+
 #endif /* MPPE */
 #if 0
-	    case PW_MS_MPPE_ENCRYPTION_POLICY:
-	    case PW_MS_MPPE_ENCRYPTION_TYPES:
 	    case PW_MS_PRIMARY_DNS_SERVER:
 	    case PW_MS_SECONDARY_DNS_SERVER:
 	    case PW_MS_PRIMARY_NBNS_SERVER:
@@ -654,6 +668,19 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
     /* Require a valid MS-CHAP2-SUCCESS for MS-CHAPv2 auth */
     if (cstate && (cstate->chal_type == CHAP_MICROSOFT_V2) && !ms_chap2_success)
 	return -1;
+
+#ifdef MPPE
+    /*
+     * Require both policy and key attributes to indicate a valid key.
+     * Note that if the policy value was '0' we don't set the key!
+     */
+    if (mppe_enc_policy && mppe_enc_keys) {
+	mppe_keys_set = 1;
+	/* Set/modify allowed encryption types. */
+	if (mppe_enc_types)
+	    set_mppe_enc_types(mppe_enc_policy, mppe_enc_types);
+    }
+#endif
 
     return 0;
 }
@@ -709,7 +736,6 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info, chap_state *cstate)
      * to generate the start key, sigh.  NB: We do not support the LM-Key.
      */
     mppe_set_keys(cstate->challenge, &plain[8]);
-    mppe_keys_set = 1;
 
     return 0;    
 }
@@ -778,7 +804,6 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 	memcpy(mppe_send_key, plain + 1, 16);
     else
 	memcpy(mppe_recv_key, plain + 1, 16);
-    mppe_keys_set = 1;
 
     return 0;
 }

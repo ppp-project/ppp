@@ -48,7 +48,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.26 2002/12/23 23:24:37 fcusack Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.27 2002/12/24 03:43:35 fcusack Exp $"
 
 #ifdef CHAPMS
 
@@ -100,6 +100,10 @@ bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
 int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
+
+#include "fsm.h"		/* Need to poke MPPE options */
+#include "ccp.h"
+#include <net/ppp-comp.h>
 #endif
 
 static void
@@ -513,5 +517,37 @@ ChapMS2(chap_state *cstate, u_char *rchallenge, u_char *PeerChallenge,
 #endif
 }
 
+#ifdef MPPE
+/*
+ * Set MPPE options from plugins.
+ */
+void
+set_mppe_enc_types(int policy, int types)
+{
+    /* Early exit for unknown policies. */
+    if (policy != MPPE_ENC_POL_ENC_ALLOWED ||
+	policy != MPPE_ENC_POL_ENC_REQUIRED)
+	return;
+
+    /* Don't modify MPPE if it's optional and wasn't already configured. */
+    if (policy == MPPE_ENC_POL_ENC_ALLOWED && !ccp_wantoptions[0].mppe)
+	return;
+
+    /*
+     * Disable undesirable encryption types.  Note that we don't ENABLE
+     * any encryption types, to avoid overriding manual configuration.
+     */
+    switch(types) {
+	case MPPE_ENC_TYPES_RC4_40:
+	    ccp_wantoptions[0].mppe &= ~MPPE_OPT_128;	/* disable 128-bit */
+	    break;
+	case MPPE_ENC_TYPES_RC4_128:
+	    ccp_wantoptions[0].mppe &= ~MPPE_OPT_40;	/* disable 40-bit */
+	    break;
+	default:
+	    break;
+    }
+}
+#endif /* MPPE */
 
 #endif /* CHAPMS */
