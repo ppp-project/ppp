@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.117 2002/10/27 12:04:07 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.118 2002/10/27 12:19:58 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -146,7 +146,7 @@ int ngroups;			/* How many groups valid in groups */
 static struct timeval start_time;	/* Time when link was started. */
 
 struct pppd_stats link_stats;
-int link_connect_time;
+unsigned link_connect_time;
 int link_stats_valid;
 
 /*
