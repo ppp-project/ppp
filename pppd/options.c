@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.45 1999/01/20 00:00:35 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.46 1999/02/26 11:03:34 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -133,7 +133,6 @@ static int setactivefilter __P((char **));
 static option_t *find_option __P((char *name));
 static int process_option __P((option_t *, char **));
 static int n_arguments __P((option_t *));
-static int readable __P((int fd));
 
 /*
  * Valid arguments.
@@ -685,7 +684,7 @@ option_error __V((char *fmt, ...))
 /*
  * readable - check if a file is readable by the real user.
  */
-static int
+int
 readable(fd)
     int fd;
 {

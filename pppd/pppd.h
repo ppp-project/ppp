@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.24 1999/01/20 00:01:00 paulus Exp $
+ * $Id: pppd.h,v 1.25 1999/02/26 11:03:34 paulus Exp $
  */
 
 /*
@@ -370,6 +370,7 @@ int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
 void option_error __P((char *fmt, ...));
 				/* Print an error message about an option */
+int readable __P((int fd));	/* Is fd readable by real user? */
 int number_option __P((char *, u_int32_t *, int));
 				/* Parse a numerical option */
 int int_option __P((char *, int *));
