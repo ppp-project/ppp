@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.ultrix,v 1.2 1994/09/19 04:17:51 paulus Exp $
+# $Id: Makefile.ultrix,v 1.3 1995/04/28 06:23:39 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -15,7 +15,7 @@ CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
 
 all: pppstats
 
-install:
+install: pppstats
 	install -c pppstats $(BINDIR)/pppstats
 
 pppstats: $(PPPSTATSRCS)
@@ -27,7 +27,3 @@ clean:
 depend:
 	cpp -M $(CFLAGS) $(PPPSTATSRCS) >.depend
 #	makedepend $(CFLAGS) $(PPPSTATSRCS)
-
-saber_pppstats:
-	#setopt load_flags $(CFLAGS)
-	#load $(PPPSTATSRCS)
