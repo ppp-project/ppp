@@ -1,20 +1,13 @@
 #
 # Makefile for pppd under SunOS 4.
-# $Id: Makefile.sunos4,v 1.6 1996/08/28 06:38:18 paulus Exp $
+# $Id: Makefile.sunos4,v 1.7 1998/02/04 01:39:49 paulus Exp $
 #
 
-BINDIR = /usr/local/etc
-MANDIR = /usr/local/man
+include ../sunos4/Makedefs
 
-#CC = gcc
-#COPTS = -g -O2
-
-COPTS = -O
 LIBS =
 
 CFLAGS = $(COPTS) -I.. -DSUNOS4
-
-INSTALL = install -o root -g daemon
 
 all: pppd
 
