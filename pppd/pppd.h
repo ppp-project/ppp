@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.11 1996/01/01 23:02:23 paulus Exp $
+ * $Id: pppd.h,v 1.12 1996/04/04 04:01:51 paulus Exp $
  */
 
 /*
@@ -31,6 +31,7 @@
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
+#include <net/bpf.h>
 
 #define NUM_PPP	1		/* One PPP interface supported (per process) */
 
@@ -92,6 +93,8 @@ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
+extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
+extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 
 /*
  * Values for phase.
@@ -167,7 +170,7 @@ void auth_withpeer_fail __P((int, int));
 				/* we failed to authenticate ourselves */
 void auth_withpeer_success __P((int, int));
 				/* we successfully authenticated ourselves */
-void check_auth_options __P((void));
+void auth_check_options __P((void));
 				/* check authentication options supplied */
 int  check_passwd __P((int, char *, int, char *, int, char **, int *));
 				/* Check peer-supplied username/password */
@@ -198,7 +201,6 @@ void note_debug_level __P((void)); /* Note change in debug level */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
 void open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
 void establish_ppp __P((int));	/* Turn serial port into a ppp interface */
-/*void transfer_ppp __P((int));	/* Transfer ppp unit to another fd */
 void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
 void disestablish_ppp __P((int)); /* Restore port to normal operation */
 void clean_check __P((void));	/* Check if line was 8-bit clean */
@@ -208,7 +210,11 @@ void setdtr __P((int, int));	/* Raise or lower port's DTR line */
 void output __P((int, u_char *, int)); /* Output a PPP packet */
 void wait_input __P((struct timeval *));
 				/* Wait for input, with timeout */
+void wait_loop_output __P((struct timeval *));
+				/* Wait for pkt from loopback, with timeout */
+void wait_time __P((struct timeval *)); /* Wait for given length of time */
 int  read_packet __P((u_char *)); /* Read PPP packet */
+int  get_loop_output __P((void)); /* Read pkts from loopback */
 void ppp_send_config __P((int, int, u_int32_t, int, int));
 				/* Configure i/f transmit parameters */
 void ppp_set_xaccm __P((int, ext_accm));
@@ -220,9 +226,13 @@ int  ccp_test __P((int, u_char *, int, int));
 void ccp_flags_set __P((int, int, int));
 				/* Set kernel CCP state */
 int  ccp_fatal_error __P((int)); /* Test for fatal decomp error in kernel */
+int  get_idle_time __P((int, struct ppp_idle *));
+				/* Find out how long link has been idle */
 int  sifvjcomp __P((int, int, int, int));
 				/* Configure VJ TCP header compression */
 int  sifup __P((int));		/* Configure i/f up (for IP) */
+int  sifnpmode __P((int u, int proto, enum NPmode mode));
+				/* Set mode for handling packets for proto */
 int  sifdown __P((int));	/* Configure i/f down (for IP) */
 int  sifaddr __P((int, u_int32_t, u_int32_t, u_int32_t));
 				/* Configure IP addresses for i/f */
@@ -242,6 +252,19 @@ void unlock __P((void));	/* Delete previously-created lock file */
 int  daemon __P((int, int));	/* Detach us from terminal session */
 int  logwtmp __P((char *, char *, char *));
 				/* Write entry to wtmp file */
+int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
+				/* Set filter programs in kernel */
+
+/* Procedures exported from options.c */
+int  parse_args __P((int argc, char **argv));
+				/* Parse options from arguments given */
+void usage __P((void));		/* Print a usage message */
+int  options_from_file __P((char *filename, int must_exist, int check_prot));
+				/* Parse options from an options file */
+int  options_from_user __P((void)); /* Parse options from user's .ppprc */
+int  options_for_tty __P((void)); /* Parse options from /etc/ppp/options.tty */
+int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
+				/* Read a word from a file */
 
 /*
  * Inline versions of get/put char/short/long.
