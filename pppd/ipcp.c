@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.51 1999/11/15 01:51:51 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.52 1999/12/23 01:25:33 paulus Exp $"
 
 /*
  * TODO:
@@ -46,6 +46,12 @@ ipcp_options ipcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
+
+/* Hook for a plugin to know when IP protocol has come up */
+void (*ip_up_hook) __P((void)) = NULL;
+
+/* Hook for a plugin to know when IP protocol has come down */
+void (*ip_down_hook) __P((void)) = NULL;
 
 /* local vars */
 static int default_route_set[NUM_PPP];	/* Have set up a default route */
@@ -1507,6 +1513,9 @@ ipcp_up(f)
     np_up(f->unit, PPP_IP);
     ipcp_is_up = 1;
 
+    if (ip_up_hook)
+	ip_up_hook();
+
     /*
      * Execute the ip-up script, like this:
      *	/etc/ppp/ip-up interface tty speed local-IP remote-IP
@@ -1532,6 +1541,8 @@ ipcp_down(f)
     /* XXX a bit IPv4-centric here, we only need to get the stats
      * before the interface is marked down. */
     update_link_stats(f->unit);
+    if (ip_down_hook)
+	ip_down_hook();
     if (ipcp_is_up) {
 	ipcp_is_up = 0;
 	np_down(f->unit, PPP_IP);
