@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.16 1999/02/26 06:48:20 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.17 1999/03/02 05:37:51 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -35,18 +35,13 @@
 #ifndef _IF_PPP_H_
 #define _IF_PPP_H_
 
-#if defined(__KERNEL__)
-#include <linux/if.h>
-#include <linux/ioctl.h>
-#include <linux/ppp_defs.h>
-#endif
-
 /*
  * Packet sizes
  */
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
+#define PPP_VERSION	"2.3.6"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
 #define PROTO_DNA_RT    0x0027  /* DNA Routing */
