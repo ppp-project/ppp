@@ -469,8 +469,12 @@ int establish_ppp (int tty_fd)
     if (!looped)
 	set_kdebugflag (kdebugflag);
 
-    set_flags(ppp_fd, get_flags(ppp_fd) & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
-					    SC_RCV_EVNP | SC_RCV_ODDP));
+#define SC_RCVB	(SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP)
+#define SC_LOGB	(SC_DEBUG | SC_LOG_INPKT | SC_LOG_OUTPKT | SC_LOG_RAWIN \
+		 | SC_LOG_FLUSH)
+
+    set_flags(ppp_fd, ((get_flags(ppp_fd) & ~(SC_RCVB | SC_LOGB))
+		       | ((kdebugflag * SC_DEBUG) & SC_LOGB)));
 
     SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
@@ -1808,23 +1812,19 @@ u_int32_t GetMask (u_int32_t addr)
 static void decode_version (char *buf, int *version,
 			    int *modification, int *patch)
 {
-    *version      = (int) strtoul (buf, &buf, 10);
+    char *endp;
+
+    *version      = (int) strtoul (buf, &endp, 10);
     *modification = 0;
     *patch        = 0;
     
-    if (*buf == '.') {
-	++buf;
-	*modification = (int) strtoul (buf, &buf, 10);
-	if (*buf == '.') {
-	    ++buf;
+    if (endp != buf && *endp == '.') {
+	buf = endp + 1;
+	*modification = (int) strtoul (buf, &endp, 10);
+	if (endp != buf && *endp == '.') {
+	    buf = endp + 1;
 	    *patch = (int) strtoul (buf, &buf, 10);
 	}
-    }
-    
-    if (*buf != '\0') {
-	*version      =
-	*modification =
-	*patch        = 0;
     }
 }
 
