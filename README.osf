@@ -1,8 +1,8 @@
-
-This file (README.osf) contains instructions for installing ppp-2.2 on a
-DEC Alpha running OSF/1 version 2.0 or 3.0.  The original STREAMS
-module code is by (and copyrighted by) Brad Clements.  See the source 
-files and the general README file for full credits and copyright notices.
+This file (README.osf) contains instructions for installing ppp-2.3 on a
+Digital Alpha-based system running Digital UNIX (aka DEC OSF/1)
+version 2.0 through version 3.2F.  Digial UNIX version 3.2G and beyond
+are not supported by this package, since PPP is an integral component
+of those releases.
 
 If you would like to be on a mailing list concerning the ppp package,
 send mail to srt@cs.unt.edu and let me know.  This mailing list should
@@ -16,9 +16,7 @@ version 2.1.2 with a hardware serial port, then you probably used the
 You don't need this any more, and will have a more efficient connection
 if you get rid of this old work-around.
 
-Below are the steps for installing PPP on a Digital Equipment Corp.
-Alpha system running Digital UNIX (formerly known as DEC OSF/1.)
-
+Below are the steps for installing PPP on a DEC AXP system running OSF/1.
 You must do all of the following as "root".
 
 1.  Make the kernel sources, daemon, chat, and pppstat program by typing 
@@ -34,17 +32,19 @@ You must do all of the following as "root".
 2.  This step differs depending on whether you are running OSF/1 V3.0
     or later.
 
-    FOR DEC OSF/1 VERSIONS PRIOR TO V3.0:
+    FOR DEC OSF/1 V2.0 THROUGH V2.1:
 
     | Add the following lines to the file /sys/conf/files:
     |
-    |      streamsm/ppp_if.c                    optional ppp Notbinary
-    |      streamsm/ppp_async.c                 optional ppp Notbinary
-    |      streamsm/ppp_init.c                  optional ppp Notbinary
-    |      streamsm/vjcompress.c                optional ppp Notbinary
-    |      streamsm/bsd-comp.c                  optional ppp Notbinary
-    |      streamsm/ppp_comp.c                  optional ppp Notbinary
-    |
+    | streamsm/if_ppp.c		optional ppp Notbinary optimize -g3
+    | streamsm/ppp_comp.c	optional ppp Notbinary optimize -g3
+    | streamsm/ppp_init.c	optional ppp Notbinary optimize -g3
+    | streamsm/vjcompress.c	optional ppp Notbinary optimize -g3
+    | streamsm/bsd-comp.c	optional ppp Notbinary optimize -g3
+    | streamsm/deflate.c	optional ppp Notbinary optimize -g3
+    | streamsm/ppp.c		optional ppp Notbinary optimize -g3
+    | streamsm/ppp_ahdlc.c	optional ppp Notbinary optimize -g3
+    | streamsm/zlib.c		optional ppp Notbinary optimize -g3
     |
     | Edit the file /sys/streams/str_config.c --- at the end there will be a
     | comment to the effect of "add new configurations above this comment".
@@ -56,16 +56,25 @@ You must do all of the following as "root".
     |      retval = ppp_configure(SYSCONFIG_CONFIGURE,
     |                             &sb, sc_size, &sc, sc_size);
 
-    FOR DEC OSF/1 VERSIONS V3.0 AND LATER, INCLUDING DIGITAL UNIX:
+    FOR DEC OSF/1 V3.0 THROUGH Digital UNIX V3.2F:
 
     | Add the following lines to the file /sys/conf/files:
     |
-    |      streamsm/ppp_if.c          optional ppp if_dynamic ppp Notbinary
-    |      streamsm/ppp_async.c       optional ppp if_dynamic ppp Notbinary
-    |      streamsm/ppp_init.c        optional ppp if_dynamic ppp Notbinary
-    |      streamsm/vjcompress.c      optional ppp if_dynamic ppp Notbinary
-    |      streamsm/bsd-comp.c        optional ppp if_dynamic ppp Notbinary
-    |      streamsm/ppp_comp.c        optional ppp if_dynamic ppp Notbinary
+    | streamsm/if_ppp.c		optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/ppp_comp.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/ppp_init.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/vjcompress.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/bsd-comp.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/deflate.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/ppp.c		optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/ppp_ahdlc.c	optional ppp if_dynamic ppp Notbinary optimize -g3
+    | streamsm/zlib.c		optional ppp if_dynamic ppp Notbinary optimize -g3
+
+    FOR Digital UNIX V3.2G AND V4.0 AND BEYOND
+
+    This package does not support these versions of Digital UNIX.
+    PPP is an integral part of the OS.  Please see the Guide to
+    Network Administration for details on configuring PPP.
 
 4.  Find your system's configuration file.  This should be called
     /sys/conf/SYSNAME, where SYSNAME is replaced by the name of your
@@ -73,7 +82,7 @@ You must do all of the following as "root".
     /sys/conf/ZAPHOD.  I will refer to this file from now on as 
     /sys/conf/SYSNAME.
 
-5.  Add the following line among the other options in /sys/conf/SYSNAME:
+5.  Add the following line at the end of /sys/conf/SYSNAME:
 
 	options		PPP
 

@@ -44,19 +44,13 @@ The Point-to-Point Protocol (PPP) is the protocol of choice for
 establishing network links over serial lines.  This package (ppp-2.x)
 provides an implementation of PPP which supports the Internet Protocols
 (TCP/IP, UDP/IP, etc.) and which runs on a range of Unix workstations.
-The protocols in the PPP family are produced by the Point-to-Point
-Working Group of the Internet Engineering Task Force, and are specified
-in RFC (Request for Comments) documents, available by anonymous FTP from
-several sites.
 
-A typical use of PPP is to provide a network connection, via a pair of
-modems and a telephone connection, from one system to a second system
-which has a permanent link to the Internet.  When this network
-connection is established, the first system is then also connected to
-the Internet.  It can establish connections with any other Internet
-host.  Users can then use a wide range of network-based applications on
-the first system, such as telnet, ftp, rlogin, email, WWW browsers, sup,
-or X clients and servers.
+A typical use of PPP is to provide a network connection, via a modem,
+between a workstation and an Internet Service Provider (ISP).  When this
+connection is established, the workstation is connected to the internet,
+and applications running on the workstation can then make connections to
+other hosts anywhere on the internet.  This package can be used at
+either or both ends of such a link.
 
 Features of PPP include:
 @itemize @bullet
@@ -201,7 +195,12 @@ example, when a modem loses carrier and hangs up.
 
 @end enumerate
 
-PPP is defined in several RFC (Request For Comments) documents, in
+The protocols in the PPP family are produced by the Point-to-Point
+Working Group of the Internet Engineering Task Force, and are specified
+in RFC (Request for Comments) documents, available by anonymous FTP from
+several sites.
+
+PPP is defined in several RFCs, in
 particular RFCs 1661, 1662, and 1334.  IPCP is defined in RFC 1332.
 Other RFCs describe the control protocols for other network protocols
 (e.g., DECnet, OSI, Appletalk).  RFCs are available by anonymous FTP
@@ -365,9 +364,9 @@ system-dependent.  In addition, you will require super-user privileges
 
 Some systems provide a ``modload'' facility, which allows you to load
 new code into a running kernel without relinking the kernel or
-rebooting.  Under Solaris 2, SunOS 4.x, Linux, AIX 4.1, OSF/1 and
-NextStep, this is the recommended (or only) way to install the kernel
-portion of the ppp-2.x package.
+rebooting.  Under Solaris 2, SunOS 4.x, Linux, OSF/1 and NextStep, this
+is the recommended (or only) way to install the kernel portion of the
+ppp-2.x package.
 
 Under the remaining supported operating systems (NetBSD, FreeBSD,
 Ultrix), it is necessary to go through the process of creating a new

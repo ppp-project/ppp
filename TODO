@@ -1,7 +1,5 @@
 * Things to do *
 
-1. Support dial-on-demand in PPP
+1. Implement link quality monitoring
 
-2. Implement link quality monitoring
-
-3. Implement other network control protocols
+2. Implement other network control protocols

@@ -484,6 +484,20 @@ either.)
 
 ------------------------------------------------------------------------
 
+Q: I get a message saying something like "ioctl(TIOCSETD): Operation
+not permitted".  How do I fix this?
+
+A: This is because pppd is not running as root.  If you have not
+installed pppd setuid-root, you will have to be root to run it.  If
+you have installed pppd setuid-root and you still get this message, it
+is probably because your shell is using some other copy of pppd than
+the installed one - for example, if you are in the pppd directory
+where you've just built pppd and your $PATH has . before /usr/sbin (or
+wherever pppd gets installed).
+
+
+------------------------------------------------------------------------
+
 Q: Has your package been ported to HP/UX or IRIX or AIX?
 
 A: No.  I don't have access to systems running HP/UX or AIX.  No-one

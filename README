@@ -4,10 +4,11 @@ serial lines.
 
 In this first beta release, the ports for SunOS, Solaris, NetBSD and
 Digital Unix (OSF/1) are believed to be working correctly.  The Linux
-port mostly works, but still has some known bugs.  The remaining ports
-haven't been tested extensively.  The NeXTStep port is not included
-here since it hasn't been updated from 2.2 yet.  For information on
-its current status, see http://www.thoughtport.com:8080/PPP/.
+port mostly works, but still has some known bugs (demand dialling
+doesn't work correctly).  The remaining ports haven't been tested
+extensively.  The NeXTStep port is not included here since it hasn't
+been updated from 2.2 yet.  For information on its current status, see
+http://www.thoughtport.com:8080/PPP/.
 
 
 Introduction.
@@ -16,7 +17,7 @@ Introduction.
 The Point-to-Point Protocol (PPP) provides a standard way to establish
 a network connection over a serial link.  At present, this package
 supports IP and the protocols layered above IP, such as TCP and UDP.
-The Linux port of this package also supports IPX.
+The Linux port of this package also has support for IPX.
 
 This software consists of two parts:
 
@@ -50,6 +51,9 @@ files, are:
 	System V Release 4		README.svr4
 	Ultrix 4.x			README.ultrix
 
+(Unfortunately, AIX 4 is no longer supported, since I don't have a
+maintainer for the AIX 4 port.  If you want to volunteer, contact me.)
+
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
 the appropriate makefiles.  You then run `make' to compile the
@@ -62,32 +66,31 @@ kernel using a `modload' facility.  On others, the kernel image has to
 be recompiled and the system rebooted.  See the README.* files for
 details.
 
-(Unfortunately, AIX 4 is no longer supported, since I don't have a
-maintainer for the AIX 4 port.  If you want to volunteer, contact me.)
-
 
 What's new in ppp-2.3.
 **********************
 
 * Demand-dialling.  Pppd now has a mode where it will establish the
 network interface immediately when it starts, but not actually bring
-the link up until it sees some data to be sent.
+the link up until it sees some data to be sent.  Look for the demand
+option description in the pppd man page.
 
 * Idle timeout.  Pppd will optionally terminate the link if no data
 packets are sent or received within a certain time interval.
 
 * Pppd now runs the /etc/ppp/auth-up script, if it exists, when the
 peer successfully authenticates itself, and /etc/ppp/auth-down when
-the connection is subsequently terminated.
+the connection is subsequently terminated.  This can be useful for
+accounting purposes.
 
 * A new packet compression scheme, Deflate, has been implemented.
 This uses the same compression method as `gzip'.  This method is free
 of patent or copyright restrictions, and it achieves better
 compression than BSD-Compress.  It does consume more CPU cycles for
-compression than BSD-Compress, but this won't be a problem for links
-running at 100kbit/s or less.
+compression than BSD-Compress, but this shouldn't be a problem for
+links running at 100kbit/s or less.
 
-* There is now no code in this distribution which is covered by Brad
+* There is no code in this distribution which is covered by Brad
 Clements' restrictive copyright notice.  The STREAMS modules for SunOS
 and OSF/1 have been rewritten, based on the Solaris 2 modules, which
 were written from scratch without any Clements code.
@@ -99,6 +102,15 @@ those columns which would normally display bytes.
 * Pppd options beginning with - or + have been renamed, e.g. -ip
 became noip, +chap became require-chap, etc.  The old options are
 still accepted for compatibility but may be removed in future.
+
+* Pppd now has some options (such as the new `noauth' option) which
+can only be specified if it is being run by root, or in an
+"privileged" options file: /etc/ppp/options or an options file in the
+/etc/ppp/peers directory.  There is a new "call" option to read
+options from a file in /etc/ppp/peers, making it possible for non-root
+users to make unauthenticated connections, but only to certain trusted
+peers.  My intention is to make the `auth' option the default in a
+future release.
 
 * Several minor new features have been added to pppd, including the
 maxconnect and welcome options.  Pppd will now terminate the
@@ -167,4 +179,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.6 1996/07/03 06:47:29 paulus Exp $)
+($Id: README,v 1.7 1996/08/28 06:30:32 paulus Exp $)
