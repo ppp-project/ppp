@@ -480,3 +480,16 @@ inserting extra bogus characters into the transmit data stream, the
 peer may send protocol-reject messages to you, resulting in the above
 message (since your pppd doesn't recognize the protocol number
 either.)
+
+
+------------------------------------------------------------------------
+
+Q: Has your package been ported to HP/UX or IRIX or AIX?
+
+A: No.  I don't have access to systems running HP/UX or AIX.  No-one
+has volunteered to port it to HP/UX.  I had someone who did a port for
+AIX 4.x, but who is no longer able to maintain it.  And apparently AIX
+3.x is quite different, so it would need a separate port.
+
+IRIX includes a good PPP implementation in the standard distribution,
+as far as I know.
