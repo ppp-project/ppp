@@ -3,7 +3,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.1 1994/08/11 01:44:32 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.2 1994/08/22 00:38:36 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -109,6 +109,8 @@ ccp_open(unit)
 
     if (f->state != OPENED)
 	ccp_flags_set(unit, 1, 0);
+    if (!ccp_wantoptions[unit].bsd_compress)
+	f->flags |= OPT_SILENT;
     fsm_open(f);
 }
 
@@ -206,7 +208,17 @@ static void
 ccp_resetci(f)
     fsm *f;
 {
-    ccp_gotoptions[f->unit] = ccp_wantoptions[f->unit];
+    ccp_options *go = &ccp_gotoptions[f->unit];
+    u_char opt_buf[16];
+
+    *go = ccp_wantoptions[f->unit];
+    if (go->bsd_compress) {
+	opt_buf[0] = CI_BSD_COMPRESS;
+	opt_buf[1] = CILEN_BSD;
+	opt_buf[2] = go->bsd_bits;
+	if (!ccp_test(f->unit, opt_buf, 3, 0))
+	    go->bsd_compress = 0;
+    }
 }
 
 /*
@@ -358,7 +370,7 @@ ccp_reqci(f, p, lenp, dont_nak)
     ccp_options *ao = &ccp_allowoptions[f->unit];
 
     ret = CONFACK;
-    p0 = p;
+    retp = p0 = p;
     len = *lenp;
 
     memset(ho, 0, sizeof(ccp_options));
@@ -386,9 +398,15 @@ ccp_reqci(f, p, lenp, dont_nak)
 		if (ho->bsd_bits < MIN_BSD_BITS
 		    || ho->bsd_bits > ao->bsd_bits) {
 		    newret = CONFNAK;
-		    if (!dont_nak)
-			p[2] = (ho->bsd_bits < MIN_BSD_BITS? MIN_BSD_BITS:
-				ao->bsd_bits);
+		} else if (!ccp_test(f->unit, p, CILEN_BSD, 1)) {
+		    if (ho->bsd_bits > MIN_BSD_BITS)
+			newret = CONFNAK;
+		    else
+			newret = CONFREJ;
+		}
+		if (newret == CONFNAK && !dont_nak) {
+		    p[2] = (ho->bsd_bits < ao->bsd_bits? MIN_BSD_BITS:
+			    ao->bsd_bits);
 		}
 
 		break;
@@ -400,10 +418,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 
 	if (!(newret == CONFACK || newret == CONFNAK && ret == CONFREJ)) {
 	    /* we're returning this option */
-	    if (newret != ret) {
-		retp = p0;
-		ret = newret;
-	    }
+	    ret = newret;
 	    if (p != retp)
 		BCOPY(p, retp, clen);
 	    retp += clen;
