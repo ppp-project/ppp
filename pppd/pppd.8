@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.58 2001/05/23 02:28:42 paulus Exp $
+.\" $Id: pppd.8,v 1.59 2002/01/11 18:04:37 etbe Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -790,7 +790,8 @@ the kernel and pppd were compiled with PPP_FILTER defined.
 .TP
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
-the connection.
+the connection. The \fBmaxfail\fR option still has an effect on
+persistent connections.
 .TP
 .B plugin \fIfilename
 Load the shared library object file \fIfilename\fR as a plugin.  This
