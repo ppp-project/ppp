@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.8 1995/04/24 05:35:27 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.9 1995/04/27 00:45:24 paulus Exp $";
 #endif
 
 /*
@@ -939,7 +939,7 @@ get_ether_addr(ipaddr, hwaddr)
              */
             if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
                 continue;
-            mask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+            mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
             if ((ipaddr & mask) != (ina & mask))
                 continue;
 
@@ -959,7 +959,6 @@ get_ether_addr(ipaddr, hwaddr)
     for (ifr = ifc.ifc_req; ifr < ifend; ) {
         if (strcmp(ifp->ifr_name, ifr->ifr_name) == 0
             && ifr->ifr_addr.sa_family == AF_DLI) {
-/*          && ifr->ifr_addr.sa_family == AF_LINK) { Per! Kolla !!! ROHACK */
             /*
              * Found the link-level address - copy it out
              */
@@ -973,6 +972,73 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     return 0;
+}
+
+/*
+ * Return user specified netmask, modified by any mask we might determine
+ * for address `addr' (in network byte order).
+ * Here we scan through the system's list of interfaces, looking for
+ * any non-point-to-point interfaces which might appear to be on the same
+ * network as `addr'.  If we find any, we OR in their netmask to the
+ * user-specified netmask.
+ */
+u_int32_t
+GetMask(addr)
+    u_int32_t addr;
+{
+    u_int32_t mask, nmask, ina;
+    struct ifreq *ifr, *ifend, ifreq;
+    struct ifconf ifc;
+    struct ifreq ifs[MAX_IFS];
+
+    addr = ntohl(addr);
+    if (IN_CLASSA(addr))	/* determine network mask for address class */
+	nmask = IN_CLASSA_NET;
+    else if (IN_CLASSB(addr))
+	nmask = IN_CLASSB_NET;
+    else
+	nmask = IN_CLASSC_NET;
+    /* class D nets are disallowed by bad_ip_adrs */
+    mask = netmask | htonl(nmask);
+
+    /*
+     * Scan through the system's network interfaces.
+     */
+    ifc.ifc_len = sizeof(ifs);
+    ifc.ifc_req = ifs;
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
+	syslog(LOG_WARNING, "ioctl(SIOCGIFCONF): %m");
+	return mask;
+    }
+    ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
+	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+	/*
+	 * Check the interface's internet address.
+	 */
+	if (ifr->ifr_addr.sa_family != AF_INET)
+	    continue;
+	ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
+	if ((ntohl(ina) & nmask) != (addr & nmask))
+	    continue;
+	/*
+	 * Check that the interface is up, and not point-to-point or loopback.
+	 */
+	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
+	    continue;
+	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
+	    != IFF_UP)
+	    continue;
+	/*
+	 * Get its netmask and OR it into our mask.
+	 */
+	if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
+	    continue;
+	mask |= ((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr.s_addr;
+    }
+
+    return mask;
 }
 
 
