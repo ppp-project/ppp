@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.11 1996/05/27 00:01:53 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.12 1996/08/28 06:42:47 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -130,7 +130,7 @@ sys_init()
 	syslog(LOG_ERR, "Can't open /dev/ppp: %m");
 	die(1);
     }
-    if (kdebugflag) {
+    if (kdebugflag & 1) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(pppfd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
@@ -151,7 +151,7 @@ sys_init()
 	syslog(LOG_ERR, "Can't open /dev/ppp (2): %m");
 	die(1);
     }
-    if (kdebugflag) {
+    if (kdebugflag & 1) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(ifd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
@@ -281,9 +281,17 @@ establish_ppp(fd)
 	syslog(LOG_ERR, "Couldn't push PPP Async HDLC module: %m");
 	die(1);
     }
+    if (kdebugflag & 4) {
+	i = PPPDBG_LOG + PPPDBG_AHDLC;
+	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
+    }
     if (ioctl(fd, I_PUSH, "ppp_comp") < 0) {
 	syslog(LOG_ERR, "Couldn't push PPP compression module: %m");
 /*	die(1); */
+    }
+    if (kdebugflag & 2) {
+	i = PPPDBG_LOG + PPPDBG_COMP;
+	strioctl(pppfd, PPPIO_DEBUG, &i, sizeof(int), 0);
     }
 
     /* Link the serial port under the PPP multiplexor. */
@@ -793,13 +801,16 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	    return;
 	syslog(LOG_ERR, "Couldn't set MTU: %m");
     }
-    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't set transmit ACCM: %m");
-    }
-    cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
-    cf[1] = COMP_PROT | COMP_AC;
-    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
+    if (fdmuxid >= 0) {
+	/* can't set these if we don't have a stream attached below /dev/ppp */
+	if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+	    syslog(LOG_ERR, "Couldn't set transmit ACCM: %m");
+	}
+	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
+	cf[1] = COMP_PROT | COMP_AC;
+	if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	    syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
+	}
     }
 }
 
@@ -811,7 +822,8 @@ ppp_set_xaccm(unit, accm)
     int unit;
     ext_accm accm;
 {
-    if (strioctl(pppfd, PPPIO_XACCM, accm, sizeof(ext_accm), 0) < 0) {
+    if (fdmuxid >= 0
+	&& strioctl(pppfd, PPPIO_XACCM, accm, sizeof(ext_accm), 0) < 0) {
 	if (!hungup || errno != ENXIO)
 	    syslog(LOG_WARNING, "Couldn't set extended ACCM: %m");
     }
@@ -835,13 +847,16 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	    return;
 	syslog(LOG_ERR, "Couldn't set MRU: %m");
     }
-    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't set receive ACCM: %m");
-    }
-    cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
-    cf[1] = DECOMP_PROT | DECOMP_AC;
-    if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't set prot/AC decompression: %m");
+    if (fdmuxid >= 0) {
+	/* can't set these if we don't have a stream attached below /dev/ppp */
+	if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+	    syslog(LOG_ERR, "Couldn't set receive ACCM: %m");
+	}
+	cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
+	cf[1] = DECOMP_PROT | DECOMP_AC;
+	if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	    syslog(LOG_ERR, "Couldn't set prot/AC decompression: %m");
+	}
     }
 }
 
