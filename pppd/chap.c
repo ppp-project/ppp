@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.34 2002/10/11 22:11:13 fcusack Exp $"
+#define RCSID	"$Id: chap.c,v 1.35 2002/10/12 01:28:05 fcusack Exp $"
 
 /*
  * TODO:
@@ -457,10 +457,8 @@ ChapReceiveChallenge(cstate, inp, id, len)
     rchallenge = inp;
     INCPTR(rchallenge_len, inp);
 
-    if (len >= sizeof(rhostname))
-	len = sizeof(rhostname) - 1;
-    BCOPY(inp, rhostname, len);
-    rhostname[len] = '\000';
+    /* Null terminate and clean remote name. */
+    slprintf(rhostname, sizeof(rhostname), "%.*v", len, inp);
 
     /* Microsoft doesn't send their name back in the PPP packet */
     if (explicit_remote || (remote_name[0] != 0 && rhostname[0] == 0)) {
@@ -599,6 +597,19 @@ ChapReceiveResponse(cstate, inp, id, len)
 	code = (*chap_auth_hook) ( (explicit_remote ? remote_name : rhostname),
 				   remmd, (int) remmd_len,
 				   cstate );
+	/*
+	 * Check remote number authorization.  A plugin may have filled in
+	 * the remote number or added an allowed number, and rather than
+	 * return an authenticate failure, is leaving it for us to verify.
+	 */
+	if (code == CHAP_SUCCESS) {
+	    if (!auth_number()) {
+		/* We do not want to leak info about the chap result. */
+		code = CHAP_FAILURE; /* XXX exit value will be "wrong" */
+		error("calling number %q is not authorized", remote_number);
+	    }
+	}
+
     } else {
 	if (!get_secret(cstate->unit, (explicit_remote? remote_name: rhostname),
 			cstate->chal_name, secret, &secret_len, 1)) {
@@ -700,7 +711,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 	notice("CHAP peer authentication succeeded for %q", rhostname);
 
     } else {
-	error("CHAP peer authentication failed for %q", rhostname);
+	warn("CHAP peer authentication failed for %q", rhostname);
 	cstate->serverstate = CHAPSS_BADAUTH;
 	auth_peer_fail(cstate->unit, PPP_CHAP);
     }

@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.86 2002/10/10 06:12:04 fcusack Exp $"
+#define RCSID	"$Id: auth.c,v 1.87 2002/10/12 01:28:05 fcusack Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -610,6 +610,10 @@ network_phase(unit)
 {
     lcp_options *go = &lcp_gotoptions[unit];
 
+    /* Log calling number. */
+    if (*remote_number)
+	notice("peer from calling number %q authorized", remote_number);
+
     /*
      * If the peer had to authenticate, run the auth-up script now.
      */
@@ -1180,19 +1184,14 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	    ret = UPAP_AUTHACK;
 	    if (uselogin || login_secret) {
 		/* login option or secret is @login */
-		ret = plogin(user, passwd, msg);
-		if (ret == UPAP_AUTHNAK)
-		    warn("PAP login failure for %s", user);
-		else
+		if ((ret = plogin(user, passwd, msg)) == UPAP_AUTHACK)
 		    used_login = 1;
 	    }
 	    if (secret[0] != 0 && !login_secret) {
 		/* password given in pap-secrets - must match */
 		if ((cryptpap || strcmp(passwd, secret) != 0)
-		    && strcmp(crypt(passwd, secret), secret) != 0) {
+		    && strcmp(crypt(passwd, secret), secret) != 0)
 		    ret = UPAP_AUTHNAK;
-		    warn("PAP authentication failure for %s", user);
-		}
 	    }
 	}
 	fclose(f);

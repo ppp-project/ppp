@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.114 2002/10/10 05:47:34 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.115 2002/10/12 01:28:05 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -366,7 +366,7 @@ main(argc, argv)
      * Early check for remote number authorization.
      */
     if (!auth_number()) {
-	error("remote number %s is not authorized", remote_number);
+	error("calling number %q is not authorized", remote_number);
 	exit(EXIT_CNID_AUTH_FAILED);
     }
 

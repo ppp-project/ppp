@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.26 2002/10/11 22:11:13 fcusack Exp $"
+#define RCSID	"$Id: upap.c,v 1.27 2002/10/12 01:28:05 fcusack Exp $"
 
 /*
  * TODO:
@@ -402,16 +402,27 @@ upap_rauthreq(u, inp, id, len)
     retcode = check_passwd(u->us_unit, ruser, ruserlen, rpasswd,
 			   rpasswdlen, &msg);
     BZERO(rpasswd, rpasswdlen);
+
+    /*
+     * Check remote number authorization.  A plugin may have filled in
+     * the remote number or added an allowed number, and rather than
+     * return an authenticate failure, is leaving it for us to verify.
+     */
+    if (retcode == UPAP_AUTHACK) {
+	if (!auth_number()) {
+	    /* We do not want to leak info about the pap result. */
+	    retcode = UPAP_AUTHNAK; /* XXX exit value will be "wrong" */
+	    error("calling number %q is not authorized", remote_number);
+	}
+    }
+
     msglen = strlen(msg);
     if (msglen > 255)
 	msglen = 255;
-
     upap_sresp(u, retcode, id, msg, msglen);
 
-    if (ruserlen >= sizeof(rhostname))
-	ruserlen = sizeof(rhostname) - 1;
-    BCOPY(ruser, rhostname, ruserlen);
-    rhostname[ruserlen] = '\000';
+    /* Null terminate and clean remote name. */
+    slprintf(rhostname, sizeof(rhostname), "%.*v", ruserlen, ruser);
 
     if (retcode == UPAP_AUTHACK) {
 	u->us_serverstate = UPAPSS_OPEN;
@@ -419,7 +430,7 @@ upap_rauthreq(u, inp, id, len)
 	auth_peer_success(u->us_unit, PPP_PAP, 0, ruser, ruserlen);
     } else {
 	u->us_serverstate = UPAPSS_BADAUTH;
-	error("PAP peer authentication failed for %q", rhostname);
+	warn("PAP peer authentication failed for %q", rhostname);
 	auth_peer_fail(u->us_unit, PPP_PAP);
     }
 
