@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.13 1996/04/04 02:46:44 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.14 1996/06/26 00:54:39 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -111,8 +111,6 @@ struct ifpppcstatsreq {
 #define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 #define PPPIOCGIDLE	_IOR('t', 74, struct ppp_idle) /* get idle time */
-#define PPPIOCSPASS	_IOW('t', 71, struct bpf_program) /* set pass filter */
-#define PPPIOCSACTIVE	_IOW('t', 70, struct bpf_program) /* set active filt */
 
 /* PPPIOC[GS]MTU are alternatives to SIOC[GS]IFMTU, used under Ultrix */
 #define PPPIOCGMTU	_IOR('t', 73, int)	/* get interface MTU */
