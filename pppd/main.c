@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.96 2000/04/21 01:27:17 masputra Exp $"
+#define RCSID	"$Id: main.c,v 1.97 2000/04/24 02:54:16 masputra Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1022,7 +1022,7 @@ void
 set_ifunit(iskey)
     int iskey;
 {
-    info("Using interface ppp%d", ifunit);
+    info("Using interface %s%d", PPP_DRV_NAME, ifunit);
     slprintf(ifname, sizeof(ifname), PPP_DRV_NAME "%d", ifunit);
     script_setenv("IFNAME", ifname, iskey);
     if (iskey) {
