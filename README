@@ -67,8 +67,23 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.4.
+What's new in ppp-2.3.5.
 ************************
+
+* Minor corrections to the Digital UNIX and NetBSD ports.
+
+* A workaround to avoid tickling a bug in the `se' serial port driver
+on Sun PCI Ultra machines running Solaris.
+
+* Fixed a bug in the negotiation of the Microsoft WINS server address
+option.
+
+* Fixed a bug in the Linux port where it would fail for kernel
+versions above 2.1.99.
+
+
+What was new in ppp-2.3.4.
+**************************
 
 * The NeXT port has been updated, thanks to Steve Perkins.
 
@@ -265,4 +280,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.12 1998/03/31 04:31:33 paulus Exp $)
+($Id: README,v 1.13 1998/05/04 06:14:31 paulus Exp $)

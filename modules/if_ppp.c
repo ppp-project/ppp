@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.9 1998/03/31 23:48:49 paulus Exp $
+ * $Id: if_ppp.c,v 1.10 1998/05/04 06:11:14 paulus Exp $
  */
 
 /*
@@ -295,7 +295,7 @@ if_ppp_wput(q, mp)
 #endif
 		ifp->if_output = if_ppp_output;
 #ifdef __osf__
-		ifp->if_version = "Point-to-Point Protocol, version 2.3.3";
+		ifp->if_version = "Point-to-Point Protocol, version 2.3.5";
 		ifp->if_mediamtu = PPP_MTU;
 		ifp->if_type = IFT_PPP;
 		ifp->if_hdrlen = PPP_HDRLEN;

@@ -6,6 +6,12 @@ modules directory).
 
 This version has been tested under Solaris 2.5.1 and Solaris 2.6.
 
+NOTE: Although the kernel driver and modules have been designed to
+operate correctly on SMP systems, they have not been extensively
+tested on SMP machines.  Some users of SMP Solaris x86 systems have
+reported system problems apparently linked to the use of this
+software.
+
 
 Installation.
 *************

@@ -8,7 +8,7 @@ because it's likely to break the "update install" feature of Digital
 UNIX.  You were warned...)
 
 If you encounter bugs in this using this PPP package under Digital
-UNIX then please let me (ftw@zk3.dec.com) know.  I can't promise
+UNIX then please let me (varadhan@zk3.dec.com) know.  I can't promise
 quick turnaround but I should be able to address issues eventually.
 
 Below are the steps for installing PPP on Digital UNIX.
@@ -23,6 +23,9 @@ You must do all of the following as "root".
     binaries for the PPP daemon and the statistics program in 
     /usr/local/etc/ppp.  If you want them somewhere else, just change 
     the definition of BINDIR in the top level Makefile.osf.
+
+    Note that BINDIR and MANDIR/man8 must exist before you do a 
+    'make install'
 
 2.  This step differs depending on whether you are running OSF/1 V3.0
     or later.
@@ -100,5 +103,5 @@ You must do all of the following as "root".
 9.  Reboot and you're ready to go!
 
 Hopefully, that should work with no hitches.  If you find any bugs, or
-errors in these instructions, contact Farrell Woods <ftw@zk3.dec.com>.
+errors in these instructions, contact Sowmini Varadhan<varadhan@zk3.dec.com>.
 
