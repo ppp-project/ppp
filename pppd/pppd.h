@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.23 1998/11/07 06:59:29 paulus Exp $
+ * $Id: pppd.h,v 1.24 1999/01/20 00:01:00 paulus Exp $
  */
 
 /*
@@ -390,7 +390,6 @@ extern struct option_info auth_req_info;
 extern struct option_info connector_info;
 extern struct option_info disconnector_info;
 extern struct option_info welcomer_info;
-extern struct option_info devnam_info;
 
 /*
  * Inline versions of get/put char/short/long.
