@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.1 1996/01/01 23:10:09 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.2 1996/04/04 03:36:44 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -36,11 +36,13 @@ static char rcsid[] = "$Id: demand.c,v 1.1 1996/01/01 23:10:09 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#include <net/bpf.h>
 
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "lcp.h"
+#include "bpf_compile.h"
 
 char *frame;
 int framelen;
@@ -83,6 +85,8 @@ demand_conf()
     ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
     ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
 
+    set_filters(&pass_filter, &active_filter);
+
     /*
      * Call the demand_conf procedure for each protocol that's got one.
      */
@@ -104,7 +108,7 @@ demand_block()
 
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->enabled_flag && protp->demand_conf != NULL)
-	    sifnpmode(0, protp->protocol, NPMODE_QUEUE);
+	    sifnpmode(0, protp->protocol & ~0x8000, NPMODE_QUEUE);
     get_loop_output();
 }
 
@@ -121,7 +125,7 @@ demand_discard()
 
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->enabled_flag && protp->demand_conf != NULL)
-	    sifnpmode(0, protp->protocol, NPMODE_ERROR);
+	    sifnpmode(0, protp->protocol & ~0x8000, NPMODE_ERROR);
     get_loop_output();
 
     /* discard all saved packets */
@@ -147,7 +151,7 @@ demand_unblock()
 
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->enabled_flag && protp->demand_conf != NULL)
-	    sifnpmode(0, protp->protocol, NPMODE_PASS);
+	    sifnpmode(0, protp->protocol & ~0x8000, NPMODE_PASS);
 }
 
 /*
@@ -240,6 +244,10 @@ loop_chars(p, n)
  * decide whether to bring up the link or not, and, if we want
  * to transmit this frame later, put it on the pending queue.
  * Return value is 1 if we need to bring up the link, 0 otherwise.
+ * We assume that the kernel driver has already applied the
+ * pass_filter, so we won't get packets it rejected.
+ * We apply the active_filter to see if we want this packet to
+ * bring up the link.
  */
 int
 loop_frame(frame, len)
@@ -250,8 +258,12 @@ loop_frame(frame, len)
 
     if (len < PPP_HDRLEN)
 	return 0;
-    if (PPP_PROTOCOL(frame) != PPP_IP)
+    if ((PPP_PROTOCOL(frame) & 0x8000) != 0)
+	return 0;		/* shouldn't get any of these anyway */
+    if (active_filter.bf_len != 0
+	&& bpf_filter(active_filter.bf_insns, frame, len, len) == 0)
 	return 0;
+
     pkt = (struct packet *) malloc(sizeof(struct packet) + len);
     if (pkt != NULL) {
 	pkt->length = len;
@@ -280,9 +292,9 @@ demand_rexmit(proto)
     pkt = pend_q;
     pend_q = NULL;
     for (; pkt != NULL; pkt = nextpkt) {
+	nextpkt = pkt->next;
 	if (PPP_PROTOCOL(pkt->data) == proto) {
 	    output(0, pkt->data, pkt->length);
-	    nextpkt = pkt->next;
 	    free(pkt);
 	} else {
 	    if (prev == NULL)
@@ -293,4 +305,6 @@ demand_rexmit(proto)
 	}
     }
     pend_qtail = prev;
+    if (prev != NULL)
+	prev->next = NULL;
 }
