@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.5 1995/06/23 01:38:49 paulus Exp $
+ * $Id: ppp.c,v 1.6 1995/06/30 00:54:51 paulus Exp $
  */
 
 /*
@@ -822,6 +822,7 @@ dlpi_request(q, mp, us)
     case DL_DISABMULTI_REQ:
     case DL_PROMISCON_REQ:
     case DL_PROMISCOFF_REQ:
+    case DL_PHYS_ADDR_REQ:
     case DL_SET_PHYS_ADDR_REQ:
     case DL_XID_REQ:
     case DL_TEST_REQ:
