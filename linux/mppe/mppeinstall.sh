@@ -13,8 +13,8 @@ fi
 
 # strip any trailing /
 set -- ${1%/}
-# strip leading /path/to/linux-
-ver=`echo "${1##*/}" | sed -e 's/linux-//'` # -e 's/\/$//'
+# strip leading /path/to/linux- and trailing -release
+ver=`echo "${1##*/}" | sed -e 's/linux-//' -e 's/-.*//'`
 if ! expr "$ver" : 2.[24] >/dev/null ; then
     echo "$0: Unable to determine kernel version ($ver)" >&2
     exit 1
