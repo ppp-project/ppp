@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, and AIX 4.x.
  *
- * $Id: bsd-comp.c,v 1.9 1995/04/28 06:13:56 paulus Exp $
+ * $Id: bsd-comp.c,v 1.10 1995/05/01 01:43:16 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -74,6 +74,8 @@
 
 #define PACKETPTR	mblk_t *
 #include <net/ppp-comp.h>
+
+#if DO_BSD_COMPRESS
 
 /*
  * PPP "BSD compress" compression
@@ -1109,3 +1111,4 @@ bsd_decompress(state, cmsg, dmpp)
     *dmpp = mret;
     return DECOMP_OK;
 }
+#endif /* DO_BSD_COMPRESS */
