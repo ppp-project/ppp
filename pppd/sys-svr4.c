@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.38 1999/11/13 19:19:17 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.39 2000/01/25 03:25:36 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -961,7 +961,7 @@ set_up_tty(fd, local)
 
 #ifndef CRTSCTS
     termiox_ok = 1;
-    if (ioctl (fd, TCGETX, &tiox) < 0) {
+    if (!sync_serial && ioctl (fd, TCGETX, &tiox) < 0) {
 	termiox_ok = 0;
 	if (errno != ENOTTY)
 	    error("TCGETX: %m");
@@ -973,7 +973,8 @@ set_up_tty(fd, local)
 #ifndef CRTSCTS
 	inittermiox = tiox;
 #endif
-	ioctl(fd, TIOCGWINSZ, &wsinfo);
+	if (!sync_serial)
+	    ioctl(fd, TIOCGWINSZ, &wsinfo);
     }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
@@ -1017,7 +1018,7 @@ set_up_tty(fd, local)
 	 * We can't proceed if the serial port speed is 0,
 	 * since that implies that the serial port is disabled.
 	 */
-	if (speed == B0)
+	if ((speed == B0) && !sync_serial)
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
@@ -1025,13 +1026,14 @@ set_up_tty(fd, local)
 	fatal("tcsetattr: %m");
 
 #ifndef CRTSCTS
-    if (termiox_ok && ioctl (fd, TCSETXF, &tiox) < 0){
+    if (!sync_serial && termiox_ok && ioctl (fd, TCSETXF, &tiox) < 0){
 	error("TCSETXF: %m");
     }
 #endif
 
     baud_rate = inspeed = baud_rate_of(speed);
-    restore_term = 1;
+    if (!sync_serial)
+	restore_term = 1;
 }
 
 /*
@@ -1051,16 +1053,17 @@ restore_tty(fd)
 	     */
 	    inittermios.c_lflag &= ~(ECHO | ECHONL);
 	}
-	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	if (!sync_serial && tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (!hungup && errno != ENXIO)
 		warn("tcsetattr: %m");
 #ifndef CRTSCTS
-	if (ioctl (fd, TCSETXF, &inittermiox) < 0){
+	if (!sync_serial && ioctl (fd, TCSETXF, &inittermiox) < 0){
 	    if (!hungup && errno != ENXIO)
 		error("TCSETXF: %m");
 	}
 #endif
-	ioctl(fd, TIOCSWINSZ, &wsinfo);
+	if (!sync_serial)
+	    ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
 }
@@ -1284,9 +1287,10 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	error("Couldn't set MTU: %m");
     }
     if (fdmuxid >= 0) {
-	/* can't set these if we don't have a stream attached below /dev/ppp */
-	if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	    error("Couldn't set transmit ACCM: %m");
+	if (!sync_serial) {
+	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+		error("Couldn't set transmit ACCM: %m");
+	    }
 	}
 	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
 	cf[1] = COMP_PROT | COMP_AC;
@@ -1327,6 +1331,9 @@ ppp_set_xaccm(unit, accm)
     int unit;
     ext_accm accm;
 {
+    if (sync_serial)
+	return;
+
     if (fdmuxid >= 0
 	&& strioctl(pppfd, PPPIO_XACCM, accm, sizeof(ext_accm), 0) < 0) {
 	if (!hungup || errno != ENXIO)
@@ -1353,9 +1360,10 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	error("Couldn't set MRU: %m");
     }
     if (fdmuxid >= 0) {
-	/* can't set these if we don't have a stream attached below /dev/ppp */
-	if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	    error("Couldn't set receive ACCM: %m");
+	if (!sync_serial) {
+	    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+		error("Couldn't set receive ACCM: %m");
+	    }
 	}
 	cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
 	cf[1] = DECOMP_PROT | DECOMP_AC;
