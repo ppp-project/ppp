@@ -1,7 +1,7 @@
 #
 # ppp top level makefile for SVR4 and Solaris 2
 #
-# $Id: Makefile.top,v 1.1 2000/04/18 23:51:28 masputra Exp $
+# $Id: Makefile.top,v 1.2 2004/10/31 22:26:25 paulus Exp $
 #
 
 include solaris/Makedefs
@@ -48,3 +48,6 @@ clean:
 	cd pppdump; $(MAKE) clean
 	cd solaris; $(MAKE) clean
 
+# no tests yet, one day...
+installcheck:
+	true

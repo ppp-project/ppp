@@ -60,3 +60,7 @@ dist-clean:	clean
 
 #kernel:
 #	cd linux; ./kinstall.sh
+
+# no tests yet, one day...
+installcheck:
+	true
