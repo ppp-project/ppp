@@ -61,9 +61,30 @@
 
 static char *ntlm_auth = NULL;
 
+static int set_ntlm_auth(char **argv)
+{
+	char *p;
+
+	p = argv[0];
+	if (p[0] != '/') {
+		option_error("ntlm_auth-helper argument must be full path");
+		return 0;
+	}
+	p = strdup(p);
+	if (p == NULL) {
+		novm("ntlm_auth-helper argument");
+		return 0;
+	}
+	if (ntlm_auth != NULL)
+		free(ntlm_auth);
+	ntlm_auth = p;
+	return 1;
+}
+
 static option_t Options[] = {
-    { "ntlm_auth-helper", o_string, &ntlm_auth },
-    { NULL }
+	{ "ntlm_auth-helper", o_special, (void *) &set_ntlm_auth,
+	  "Path to ntlm_auth executable", OPT_PRIV },
+	{ NULL }
 };
 
 static int
@@ -257,72 +278,47 @@ unsigned int run_ntlm_auth(const char *username,
 	char *challenge_hex;
 	char *lm_hex_hash;
 	char *nt_hex_hash;
-	
+
+	/* First see if we have a program to run... */
+	if (ntlm_auth == NULL)
+		return NOT_AUTHENTICATED;
+
         /* Make first child */
         if (pipe(child_out) == -1) {
-                perror("pipe creation failed for child OUT!");
+                error("pipe creation failed for child OUT!");
+		return NOT_AUTHENTICATED;
         }
 
         if (pipe(child_in) == -1) {
-                perror("pipe creation failed for child IN!");
+                error("pipe creation failed for child IN!");
+		return NOT_AUTHENTICATED;
         }
 
-        forkret = fork();
+        forkret = safe_fork(child_in[0], child_out[1], 2);
         if (forkret == -1) {
-                perror("fork failed!");
 		if (error_string) {
 			*error_string = strdup("fork failed!");
 		}
 
                 return NOT_AUTHENTICATED;
-        } else if (forkret == 0) {
-		/* child - pipe out */
-		if (close(child_out[0]) == -1) {
-			perror("error closing pipe?!? for child OUT[READFD]");
-			exit(1);
-		}
-		if (dup2(child_out[1], 1) == -1) {
-			perror("(child) dup2 of fdout onto STDOUT failed!");
-		}
-		
-		/* Close extra copies */
-		if (close(child_out[1]) == -1) {
-			perror("error closing pipe?!? for child OUT[WRITEFD]");
-			exit(1);
-		}
+        }
 
-		/* child - pipe in */
-		if (close(child_in[1]) == -1) {
-			perror("error closing pipe?!? for child IN[WRITEFD]");
-			exit(1);
-		}
-		if (dup2(child_in[0], 0) == -1) {
-			perror("(child) dup2 of fdin onto STDIN failed!");
-		}
-		
-		/* Close extra copies */
-		if (close(child_in[0]) == -1) {
-			perror("error closing pipe?!? for child IN[READFD]");
-			exit(1);
-		}
+	if (forkret == 0) {
+		/* child process */
+		close(child_out[0]);
+		close(child_in[1]);
 
-		execl("/bin/sh","sh","-c", ntlm_auth,NULL);  
-
-		/* Not reached... */
+		/* run winbind as the user that invoked pppd */
+		setgid(getgid());
+		setuid(getuid());
+		execl("/bin/sh", "sh", "-c", ntlm_auth, NULL);  
+		perror("pppd/winbind: could not exec /bin/sh");
 		exit(1);
-
 	}
 
         /* parent */
-        if (close(child_out[1]) == -1) {
-                notice("error closing pipe?!? for child OUT[1]");
-                return NOT_AUTHENTICATED;
-        }
-
-        if (close(child_in[0]) == -1) {
-                notice("error closing pipe?!? for child OUT[1]");
-                return NOT_AUTHENTICATED;
-        }
+	close(child_out[1]);
+	close(child_in[0]);
 
 	/* Need to write the User's info onto the pipe */
 
@@ -467,7 +463,7 @@ unsigned int run_ntlm_auth(const char *username,
 * %ARGUMENTS:
 *  None
 * %RETURNS:
-*  1 -- we are ALWAYS willing to supply a secret. :-)
+*  0 if we don't have an ntlm_auth program to run, otherwise 1.
 * %DESCRIPTION:
 * Tells pppd that we will try to authenticate the peer, and not to
 * worry about looking in /etc/ppp/ *-secrets
@@ -475,7 +471,7 @@ unsigned int run_ntlm_auth(const char *username,
 static int
 winbind_secret_check(void)
 {
-    return 1;
+	return ntlm_auth != NULL;
 }
 
 /**********************************************************************
