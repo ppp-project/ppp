@@ -1,17 +1,17 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.2 1994/05/24 11:31:54 paulus Exp $
+# $Id: Makefile.linux,v 1.3 1994/09/01 00:40:01 paulus Exp $
 #
 
 BINDIR = /usr/etc
 MANDIR = /usr/man
 
-PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	auth.c options.c lock.c sys-linux.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
-PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 	auth.o options.o lock.o sys-linux.o
 
 all: pppd
@@ -24,14 +24,13 @@ HEADERS := $(HEADERS) .depend
 endif
 
 # CC = gcc
-# SECURE_FLAGS = -DREQ_SYSOPTIONS=1
 DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -I.. -D_linux_=1 -DGIDSET_TYPE=gid_t
+COMPILE_FLAGS = -I.. -D_linux_=1 -DGIDSET_TYPE=gid_t -DHAVE_PATHS_H
 COPTS = -g # -O2
 LOCKPREFIX = \"/usr/spool/uucp/LCK..\"
 VER = 0.2.8
 
-CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
+CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
 install:
