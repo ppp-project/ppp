@@ -1,11 +1,11 @@
 #
 # pppstats Makefile for SVR4 systems
-# $Id: Makefile.svr4,v 1.5 1998/02/04 01:41:47 paulus Exp $
+# $Id: Makefile.svr4,v 1.6 1998/03/25 02:21:26 paulus Exp $
 #
 
 include ../svr4/Makedefs
 
-CFLAGS = -DSTREAMS -I.. $(COPTS)
+CFLAGS = -DSTREAMS -I../include $(COPTS)
 
 all: pppstats
 

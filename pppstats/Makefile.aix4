@@ -17,7 +17,7 @@ COPTS = -O
 COMPILE_FLAGS = -DSTREAMS 
 LIBS =
 
-CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+CFLAGS = -I../include $(COPTS) $(COMPILE_FLAGS)
 
 all: pppstats
 

@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.sunos4,v 1.3 1998/02/04 01:41:47 paulus Exp $
+# $Id: Makefile.sunos4,v 1.4 1998/03/25 02:21:25 paulus Exp $
 #
 
 include ../sunos4/Makedefs
@@ -11,7 +11,7 @@ PPPSTATOBJS = pppstats.o
 COMPILE_FLAGS = -DSTREAMS -DSUNOS4
 LIBS =
 
-CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+CFLAGS = -I../include $(COPTS) $(COMPILE_FLAGS)
 
 all: pppstats
 
