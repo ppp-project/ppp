@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.139 2004/11/04 09:46:50 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.140 2004/11/04 09:56:26 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -673,12 +673,14 @@ handle_events()
     waiting = 0;
     calltimeout();
     if (got_sighup) {
+	info("Hangup (SIGHUP)");
 	kill_link = 1;
 	got_sighup = 0;
 	if (status != EXIT_HANGUP)
 	    status = EXIT_USER_REQUEST;
     }
     if (got_sigterm) {
+	info("Terminating on signal %d", got_sigterm);
 	kill_link = 1;
 	persist = 0;
 	status = EXIT_USER_REQUEST;
@@ -1394,7 +1396,7 @@ static void
 hup(sig)
     int sig;
 {
-    info("Hangup (SIGHUP)");
+    /* can't log a message here, it can deadlock */
     got_sighup = 1;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
@@ -1415,8 +1417,8 @@ static void
 term(sig)
     int sig;
 {
-    info("Terminating on signal %d.", sig);
-    got_sigterm = 1;
+    /* can't log a message here, it can deadlock */
+    got_sigterm = sig;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
