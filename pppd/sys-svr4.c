@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.29 1999/03/22 05:55:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.30 1999/04/12 06:24:51 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -222,7 +222,7 @@ sys_check_options()
     return 1;
 }
 
-
+#if 0
 /*
  * daemon - Detach us from controlling terminal session.
  */
@@ -246,6 +246,7 @@ daemon(nochdir, noclose)
     }
     return 0;
 }
+#endif
 
 /*
  * ppp_available - check whether the system has any ppp interfaces
@@ -452,6 +453,9 @@ struct speed {
 #endif
 #ifdef B57600
     { 57600, B57600 },
+#endif
+#ifdef B76800
+    { 76800, B76800 },
 #endif
 #ifdef B115200
     { 115200, B115200 },
@@ -1610,9 +1614,9 @@ logwtmp(line, name, host)
 
     if (name[0] != 0) {
 	/* logging in */
-	strlcpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
-	strlcpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
-	strlcpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
+	strncpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
+	strncpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
+	strncpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
 	utmpx.ut_pid = getpid();
 	utmpx.ut_type = USER_PROCESS;
     } else {
@@ -1656,6 +1660,7 @@ strioctl(fd, cmd, ptr, ilen, olen)
     return 0;
 }
 
+#if 0
 /*
  * lock - create a lock file for the named lock device
  */
@@ -1733,7 +1738,7 @@ unlock()
 	lock_file[0] = 0;
     }
 }
-
+#endif
 
 /*
  * cifroute - delete a route through the addresses given.

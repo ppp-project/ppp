@@ -122,8 +122,6 @@ static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static char proxy_arp_dev[16];		/* Device for proxy arp entry */
 
-static char *lock_file;
-
 static struct utsname utsname;	/* for the kernel version */
 static int kernel_version;
 #define KVERSION(j,n,p)	((j)*1000000 + (n)*1000 + (p))
@@ -166,10 +164,6 @@ extern u_char	inpacket_buf[];	/* borrowed from main.c */
  */
 
 extern int hungup;
-
-#ifndef LOCK_PREFIX
-#define LOCK_PREFIX	"/var/lock/LCK.."
-#endif
 
 static void set_ppp_fd (int new_fd)
 {
@@ -1570,39 +1564,32 @@ static int
 ppp_registered(void)
 {
     int local_fd;
-    int init_disc = -1;
     int mfd = -1;
     int ret = 0;
+    char slave[16];
 
-    if (devnam[0] == 0) {
-	/* running with notty or pty option */
-	char slave[16];
-	if (!get_pty(&mfd, &local_fd, slave, 0))
-	    return 0;
-    } else {
-	local_fd = open(devnam, O_NONBLOCK | O_RDWR, 0);
-	if (local_fd < 0) {
-	    error("Failed to open %s: %m(%d)", devnam, errno);
-	    return 0;
-	}
+    /*
+     * We used to open the serial device and set it to the ppp line
+     * discipline here, in order to create a ppp unit.  But that is
+     * not a good idea - the user might have specified a device that
+     * they can't open (permission, or maybe it doesn't really exist).
+     * So we grab a pty master/slave pair and use that.
+     */
+    if (!get_pty(&mfd, &local_fd, slave, 0)) {
+	no_ppp_msg = "Couldn't determine if PPP is supported (no free ptys)";
+	return 0;
     }
 
-/*
- * Read the initial line discipline and try to put the device into the
- * PPP dicipline.
- */
-    if (ioctl(local_fd, TIOCGETD, &init_disc) < 0) {
-	error("ioctl(TIOCGETD): %m(%d)", errno);
-    } else if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0) {
+    /*
+     * Try to put the device into the PPP discipline.
+     */
+    if (ioctl(local_fd, TIOCSETD, &ppp_disc) < 0) {
 	error("ioctl(TIOCSETD(PPP)): %m(%d)", errno);
-    } else if (ioctl(local_fd, TIOCSETD, &init_disc) < 0) {
-	error("ioctl(TIOCSETD(%d)): %m(%d)", init_disc, errno);
     } else
 	ret = 1;
     
-    close (local_fd);
-    if (mfd >= 0)
-	close(mfd);
+    close(local_fd);
+    close(mfd);
     return ret;
 }
 
@@ -1618,7 +1605,13 @@ int ppp_available(void)
     struct ifreq ifr;
     int    size;
     int    my_version, my_modification, my_patch;
-    extern char *no_ppp_msg;
+
+    no_ppp_msg = 
+	"This system lacks kernel support for PPP.  This could be because\n"
+	"the PPP kernel module is not loaded, or because the kernel is\n"
+	"not configured for PPP.  See the README.linux file in the\n"
+	"ppp-2.3.7 distribution.\n";
+
 /*
  * Open a socket for doing the ioctl operations.
  */    
@@ -1648,18 +1641,11 @@ int ppp_available(void)
     if (ok && ((ifr.ifr_hwaddr.sa_family & ~0xFF) != ARPHRD_PPP))
         ok = 0;
 
-    if (!ok)
-	no_ppp_msg = 
-	  "This system lacks kernel support for PPP.  This could be because\n"
-	  "the PPP kernel module is not loaded, or because the kernel is\n"
-	  "not configured for PPP.  See the README.linux file in the\n"
-	  "ppp-2.3.7 distribution.\n";
-
 /*
  *  This is the PPP device. Validate the version of the driver at this
  *  point to ensure that this program will work with the driver.
  */
-    else {
+    if (ok) {
 	char   abBuffer [1024];
 
 	ifr.ifr_data = abBuffer;
@@ -1738,10 +1724,10 @@ void logwtmp (const char *line, const char *name, const char *host)
 	memset(&ut, 0, sizeof(ut));
 
     if (ut.ut_id[0] == 0)
-	strlcpy(ut.ut_id, line + 3, sizeof(ut.ut_id));
+	strncpy(ut.ut_id, line + 3, sizeof(ut.ut_id));
 	
-    strlcpy(ut.ut_user, name, sizeof(ut.ut_user));
-    strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
+    strncpy(ut.ut_user, name, sizeof(ut.ut_user));
+    strncpy(ut.ut_line, line, sizeof(ut.ut_line));
 
     time(&ut.ut_time);
 
@@ -1750,7 +1736,7 @@ void logwtmp (const char *line, const char *name, const char *host)
 
     /* Insert the host name if one is supplied */
     if (*host)
-	strlcpy (ut.ut_host, host, sizeof(ut.ut_host));
+	strncpy (ut.ut_host, host, sizeof(ut.ut_host));
 
     /* Insert the IP address of the remote system if IP is enabled */
     if (ipcp_protent.enabled_flag && ipcp_hisoptions[0].neg_addr)
@@ -1778,10 +1764,17 @@ void logwtmp (const char *line, const char *name, const char *host)
     }
 }
 
+#if 0
 /********************************************************************
  * Code for locking/unlocking the serial device.
  * This code is derived from chat.c.
  */
+
+#ifndef LOCK_PREFIX
+#define LOCK_PREFIX	"/var/lock/LCK.."
+#endif
+
+static char *lock_file;
 
 /*
  * lock - create a lock file for the named device
@@ -1915,6 +1908,7 @@ void unlock(void)
 	lock_file = NULL;
     }
 }
+#endif
 
 /********************************************************************
  *
@@ -2348,6 +2342,7 @@ int cipxfaddr (int unit)
     return result;
 }
 
+#if 0
 /*
  * daemon - Detach us from controlling terminal session.
  */
@@ -2371,6 +2366,7 @@ daemon(nochdir, noclose)
     }
     return 0;
 }
+#endif
 
 /*
  * Use the hostname as part of the random number seed.

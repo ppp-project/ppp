@@ -1,20 +1,21 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.10 1998/03/25 01:27:09 paulus Exp $
+# $Id: Makefile.ultrix,v 1.11 1999/04/12 06:24:44 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-ultrix.c
+	auth.c options.c demand.c utils.c sys-ultrix.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-ultrix.o
+	auth.o options.o demand.o utils.o sys-ultrix.o
 
 # CC = gcc
 DEBUG_FLAGS =
-COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int -DULTRIX
+COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int -DULTRIX \
+	-DLOCK_BINARY -DLOCK_DIR=\"/usr/spool/uucp\"
 COPTS = -O
 LIBS =
 

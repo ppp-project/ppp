@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.50 1999/04/01 07:08:47 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.51 1999/04/12 06:24:44 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1016,7 +1016,7 @@ plogin(user, passwd, msg, msglen)
 		(void)lseek(fd, (off_t)(pw->pw_uid * sizeof(ll)), SEEK_SET);
 		memset((void *)&ll, 0, sizeof(ll));
 		(void)time(&ll.ll_time);
-		(void)strlcpy(ll.ll_line, tty, sizeof(ll.ll_line));
+		(void)strncpy(ll.ll_line, tty, sizeof(ll.ll_line));
 		(void)write(fd, (char *)&ll, sizeof(ll));
 		(void)close(fd);
 	    }

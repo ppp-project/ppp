@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.37 1999/03/31 05:39:43 paulus Exp $
+ * $Id: pppd.h,v 1.38 1999/04/12 06:24:47 paulus Exp $
  */
 
 /*
@@ -145,6 +145,8 @@ extern int	ngroups;	/* How many groups valid in groups */
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
 extern int	using_pty;	/* using pty as device (notty or pty opt.) */
+extern int	log_to_fd;	/* logging to this fd as well as syslog */
+extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 
 /*
  * Variables set by command-line options.
@@ -381,8 +383,8 @@ int  cifproxyarp __P((int, u_int32_t));
 				/* Delete proxy ARP entry for peer */
 u_int32_t GetMask __P((u_int32_t)); /* Get appropriate netmask for address */
 int  lock __P((char *));	/* Create lock file for device */
+int  relock __P((int));		/* Rewrite lock file with new pid */
 void unlock __P((void));	/* Delete previously-created lock file */
-int  daemon __P((int, int));	/* Detach us from terminal session */
 void logwtmp __P((const char *, const char *, const char *));
 				/* Write entry to wtmp file */
 int  get_host_seed __P((void));	/* Get host-dependent random number seed */

@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.sol2,v 1.10 1998/03/25 01:27:05 paulus Exp $
+# $Id: Makefile.sol2,v 1.11 1999/04/12 06:24:44 paulus Exp $
 #
 
 include ../svr4/Makedefs
@@ -11,7 +11,7 @@ LIBS = -lsocket -lnsl
 all: pppd
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-svr4.o
+	auth.o options.o demand.o utils.o sys-svr4.o
 
 pppd:	$(OBJS)
 	$(CC) -o pppd $(OBJS) $(LIBS)

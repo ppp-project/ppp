@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.42 1999/04/01 07:20:10 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.43 1999/04/12 06:24:49 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -82,8 +82,6 @@ static int rtm_seq;
 static int restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
 static struct winsize wsinfo;	/* Initial window size info */
-
-static char *lock_file;		/* name of lock file created */
 
 static int loop_slave = -1;
 static int loop_master;
@@ -1447,10 +1445,13 @@ get_host_seed()
     return gethostid();
 }
 
+#if 0
 /*
  * lock - create a lock file for the named lock device
  */
 #define	LOCK_PREFIX	"/var/spool/lock/LCK.."
+
+static char *lock_file;		/* name of lock file created */
 
 int
 lock(dev)
@@ -1521,3 +1522,4 @@ unlock()
 	lock_file = NULL;
     }
 }
+#endif

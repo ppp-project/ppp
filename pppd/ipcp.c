@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.43 1999/03/19 04:23:39 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.44 1999/04/12 06:24:45 paulus Exp $";
 #endif
 
 /*
@@ -548,16 +548,15 @@ ipcp_addci(f, ucp, lenp)
 	    neg = 0; \
     }
 
-#define ADDCIDNS(opt, neg) \
+#define ADDCIDNS(opt, neg, addr) \
     if (neg) { \
-	int addrlen = CILEN_ADDR; \
-	if (len >= addrlen) { \
+	if (len >= CILEN_ADDR) { \
 	    u_int32_t l; \
 	    PUTCHAR(opt, ucp); \
-	    PUTCHAR(addrlen, ucp); \
-	    l = ntohl(0); \
+	    PUTCHAR(CILEN_ADDR, ucp); \
+	    l = ntohl(addr); \
 	    PUTLONG(l, ucp); \
-	    len -= addrlen; \
+	    len -= CILEN_ADDR; \
 	} else \
 	    neg = 0; \
     }
@@ -568,9 +567,9 @@ ipcp_addci(f, ucp, lenp)
     ADDCIVJ(CI_COMPRESSTYPE, go->neg_vj, go->vj_protocol, go->old_vj,
 	    go->maxslotindex, go->cflag);
 
-    ADDCIDNS(CI_MS_DNS1, go->req_dns1);
+    ADDCIDNS(CI_MS_DNS1, go->req_dns1, go->dnsaddr[0]);
 
-    ADDCIDNS(CI_MS_DNS2, go->req_dns2);
+    ADDCIDNS(CI_MS_DNS2, go->req_dns2, go->dnsaddr[1]);
 
     *lenp -= len;
 }
@@ -647,11 +646,30 @@ ipcp_ackci(f, p, len)
 	} \
     }
 
+#define ACKCIDNS(opt, neg, addr) \
+    if (neg) { \
+	u_int32_t l; \
+	if ((len -= CILEN_ADDR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_ADDR || citype != opt) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = htonl(l); \
+	if (addr != cilong) \
+	    goto bad; \
+    }
+
     ACKCIADDR((go->old_addrs? CI_ADDRS: CI_ADDR), go->neg_addr,
 	      go->old_addrs, go->ouraddr, go->hisaddr);
 
     ACKCIVJ(CI_COMPRESSTYPE, go->neg_vj, go->vj_protocol, go->old_vj,
 	    go->maxslotindex, go->cflag);
+
+    ACKCIDNS(CI_MS_DNS1, go->req_dns1, go->dnsaddr[0]);
+
+    ACKCIDNS(CI_MS_DNS2, go->req_dns2, go->dnsaddr[1]);
 
     /*
      * If there are any remaining CIs, then this packet is bad.
@@ -728,9 +746,6 @@ ipcp_nakci(f, p, len)
         code \
     }
 
-/*
- * Peer returns DNS address in a NAK packet
- */
 #define NAKCIDNS(opt, neg, code) \
     if (go->neg && \
 	((cilen = p[1]) == CILEN_ADDR) && \
@@ -788,12 +803,10 @@ ipcp_nakci(f, p, len)
 
     NAKCIDNS(CI_MS_DNS1, req_dns1,
 	    try.dnsaddr[0] = cidnsaddr;
-	    try.req_dns1 = 0;
 	    );
 
     NAKCIDNS(CI_MS_DNS2, req_dns2,
 	    try.dnsaddr[1] = cidnsaddr;
-	    try.req_dns2 = 0;
 	    );
 
     /*
@@ -932,7 +945,7 @@ ipcp_rejci(f, p, len)
 
 #define REJCIDNS(opt, neg, dnsaddr) \
     if (go->neg && \
-	((cilen = p[1]) == CI_MS_DNS1) && \
+	((cilen = p[1]) == CILEN_ADDR) && \
 	len >= cilen && \
 	p[0] == opt) { \
 	u_int32_t l; \

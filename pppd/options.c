@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.56 1999/03/30 06:33:08 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.57 1999/04/12 06:24:47 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -347,7 +347,7 @@ options_from_file(filename, must_exist, check_prot, priv)
     int priv;
 {
     FILE *f;
-    int i, newline, ret;
+    int i, newline, ret, err;
     option_t *opt;
     int oldpriv;
     char *oldsource;
@@ -358,11 +358,13 @@ options_from_file(filename, must_exist, check_prot, priv)
     if (check_prot)
 	seteuid(getuid());
     f = fopen(filename, "r");
+    err = errno;
     if (check_prot)
 	seteuid(0);
     if (f == NULL) {
-	if (!must_exist && errno == ENOENT)
+	if (!must_exist && err == ENOENT)
 	    return 1;
+	errno = err;
 	option_error("Can't open options file %s: %m", filename);
 	return 0;
     }

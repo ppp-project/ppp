@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.19 1999/03/19 04:23:46 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.20 1999/04/12 06:24:48 paulus Exp $";
 #endif
 
 /*
@@ -137,7 +137,7 @@ int have_route_to(u_int32_t addr)
     return -1;
 }
 
-
+#if 0
 /*
  * daemon - Detach us from the terminal session.
  */
@@ -161,7 +161,7 @@ daemon(nochdir, noclose)
     }
     return 0;
 }
-
+#endif
 
 /*
  * ppp_available - check if this kernel supports PPP.
@@ -1291,9 +1291,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
-	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
-	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
+	strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strncpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);

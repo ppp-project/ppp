@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.24 1999/04/01 07:20:10 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.25 1999/04/12 06:24:50 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -200,7 +200,7 @@ sys_check_options()
     return 1;
 }
 
-
+#if 0
 /*
  * daemon - Detach us from controlling terminal session.
  */
@@ -224,6 +224,7 @@ daemon(nochdir, noclose)
     }
     return 0;
 }
+#endif
 
 /*
  * ppp_available - check whether the system has any ppp interfaces
@@ -1434,9 +1435,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	strlcpy(ut.ut_line, line, sizeof(ut.ut_line));
-	strlcpy(ut.ut_name, name, sizeof(ut.ut_name));
-	strlcpy(ut.ut_host, host, sizeof(ut.ut_host));
+	strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+	strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+	strncpy(ut.ut_host, host, sizeof(ut.ut_host));
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);
@@ -1658,6 +1659,7 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
     return 1;
 }
 
+#if 0
 /*
  * Code for locking/unlocking the serial device.
  * This code is derived from chat.c.
@@ -1761,6 +1763,7 @@ unlock()
 	lock_file = NULL;
     }
 }
+#endif
 
 int
 set_filters(pass, active)
