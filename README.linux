@@ -328,7 +328,7 @@ be loaded. BOTH systems must support the same compression protocols.
 
 PROBLEMS WHICH MAY OCCUR WHILE BUILDING THE KERNEL
 
-At this time there should not be a problem with the complication of the
+At this time there should not be a problem with the compilation of the
 drivers.
 
 
