@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.72 2004/11/12 10:30:51 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.73 2004/11/12 11:42:46 paulus Exp $"
 
 /*
  * TODO:
@@ -365,9 +365,6 @@ lcp_init(unit)
     ao->neg_magicnumber = 1;
     ao->neg_pcompression = 1;
     ao->neg_accompression = 1;
-#ifdef CBCP_SUPPORT
-    ao->neg_cbcp = 1;
-#endif
     ao->neg_endpoint = 1;
 }
 
