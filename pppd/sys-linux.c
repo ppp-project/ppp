@@ -1634,6 +1634,19 @@ int ppp_available(void)
 	"See README.linux file in the ppp distribution for more details.\n";
 
     fd = open("/dev/ppp", O_RDWR);
+    if (fd < 0 && errno == ENOENT) {
+	/* try making it and see if that helps. */
+	if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
+		  makedev(108, 0)) >= 0) {
+	    fd = open("/dev/ppp", O_RDWR);
+	    if (fd >= 0)
+		info("Created /dev/ppp device node");
+	    else
+		unlink("/dev/ppp");	/* didn't work, undo the mknod */
+	} else if (errno == EEXIST) {
+	    fd = open("/dev/ppp", O_RDWR);
+	}
+    }
     if (fd >= 0) {
 	new_style_driver = 1;
 
