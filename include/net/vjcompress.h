@@ -1,7 +1,7 @@
 /*
  * Definitions for tcp compression routines.
  *
- * $Id: vjcompress.h,v 1.2 1994/09/19 04:20:28 paulus Exp $
+ * $Id: vjcompress.h,v 1.3 1996/05/28 00:55:33 paulus Exp $
  *
  * Copyright (c) 1989 Regents of the University of California.
  * All rights reserved.
@@ -132,12 +132,13 @@ struct vjcompress {
 
 extern void  vj_compress_init __P((struct vjcompress *comp, int max_state));
 extern u_int vj_compress_tcp __P((struct ip *ip, u_int mlen,
-				  struct vjcompress *comp,
-				  int compress_cid_flag, u_char **vjhdrp));
+				struct vjcompress *comp, int compress_cid_flag,
+				u_char **vjhdrp));
 extern void  vj_uncompress_err __P((struct vjcompress *comp));
-extern int   vj_uncompress_uncomp __P((u_char *buf, struct vjcompress *comp));
+extern int   vj_uncompress_uncomp __P((u_char *buf, int buflen,
+				struct vjcompress *comp));
 extern int   vj_uncompress_tcp __P((u_char *buf, int buflen, int total_len,
-				    struct vjcompress *comp, u_char **hdrp,
-				    u_int *hlenp));
+				struct vjcompress *comp, u_char **hdrp,
+				u_int *hlenp));
 
 #endif /* _VJCOMPRESS_H_ */

@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.2 1996/01/18 03:18:07 paulus Exp $
+ * $Id: ppp_comp.c,v 1.3 1996/05/28 00:55:44 paulus Exp $
  */
 
 /*
@@ -736,7 +736,7 @@ ppp_comp_rsrv(q)
 		/*
 		 * "Decompress" a VJ-uncompressed packet.
 		 */
-		if (!vj_uncompress_uncomp(dp, &cp->vj_comp))
+		if (!vj_uncompress_uncomp(dp, hlen, &cp->vj_comp))
 		    goto bad;
 		mp->b_rptr[3] = PPP_IP;	/* fix up the PPP protocol field */
 	    }
