@@ -30,11 +30,11 @@ Al Longyear         longyear@netcom.com
 
 INTRODUCTION
 
-This file is substantially derived from the previous version for
-the pppd process 2.2.0. Michael Callahan wrote that version. This
-particular version was written, modified, hacked, changed, whatever,
-by Al Longyear. If you find errors in this document, they are probably
-mine and not Michael's.
+This file is substantially derived from the previous version for the
+pppd process 2.2.0, which itself was derived from earlier works by
+Michael Callahan. This particular version was written, modified,
+hacked, changed, whatever, by Al Longyear. If you find errors in this
+document, they are probably mine and not Michael's.
 
 This is a PPP driver for Linux.  It has been used by many people and
 seems to be quite stable.  It is capable of being used either as a
@@ -73,8 +73,8 @@ Linux has no support for asynchronous I/O, so I hacked an ioctl into
 the PPP kernel module that provides a signal when packets appear and
 made pppd use this instead.
 
-Al Longyear ported version 2.2 of pppd (from the free package
-ppp-2.2.0) to Linux.  He also provided several enhancements to both
+Al Longyear ported version 2.0 of pppd (from the free package
+ppp-2.0.0) to Linux.  He also provided several enhancements to both
 the kernel driver and the OS-independent part of pppd.  His
 contributions to Linux PPP have been immense, and so this release
 is being distributed over both our names.
@@ -92,13 +92,6 @@ of '16 channel' support obsolete.
 
 
 CHANGES FROM THE PREVIOUS VERSION
-
-- The number of devices for the PPP device has been made dynamic. It was
-  previously configured with the default value of four devices.
-
-- The problems dealing with other systems such as Windows NT and their
-  authenticiation has been corrected. It will now generate the proper
-  responses to allow the system to choose a valid authentication protocol.
 
 - The kernel debug value has changed. Previously it was a level. It is now
   a bit map with various bits meaning certain types of debug information.
@@ -120,51 +113,24 @@ CHANGES FROM THE PREVIOUS VERSION
   actions.
 
 - Support is added for compression control protocol. At the present time
-  only the BSD-Compress compression protocol is supported.
-
-- There are two queues for output frames. This avoids some problems which
-  occured with the previous version and some PPP packages which exchanged
-  echo frames with Linux.
-
-- The echo frames are now proper. Previously, it would generate extra
-  characters and this caused some providers to not respond to the 'junk'.
-
-- The max-echo-failure option will now properly disconnect the line.
-
-- There are other changes which are listed in the general README file. Please
-  read that file as well for changes.
-
-- There is no limit to the number of ppp devices which you may use. Jim Freeman
-  has added code to create them upon demand and to re-use the ones which have
-  been closed. There is no code, nor plans to write code, to remove (delete)
-  the un-used devices. So, if your system goes to a spurt and uses 256 ppp
-  devices, it will remain at that level until you next reload the kernel.
-
-  If you are using modules then you may use the additional setting of
- 
-  max_dev=#
-
-  where # is the maximum number. The default is set by the define PPP_MAX_DEV
-  and this define may be altered if you are not using modules.
-
-  The BSD compressor may only be loaded as a module. Previous beta versions
-  permitted the compressor to be included into the kernel. This was removed
-  for several reasons, some technical, some less technical and more
-  political (legal).
+  the BSD-Compress and 'deflate' compression protocols are supported. A
+  testing version of the predictor-1 compression protocol was developed but
+  it is not included in this package due to unfortunate Motorola patent
+  considerations.
 
 
 FUTURE PLANS
 
-The next version of pppd, 2.3, is designed to contain a demand dial
-function directly.
+These are to be determined.
 
 
 
 INSTALLATION
 
-This version of PPP has been tested on 1.1.x (x>=14) It will probably
-not work on kernels much earlier than this due to a change in the
-routing code.  If you have an earlier kernel, please upgrade.
+This version of PPP has been tested on kernel version 1.3.100. It will
+probably not work on kernels much earlier than this due to earlier problems
+with the kernels. If you have an earlier kernel, please upgrade to the 2.0
+kernel (when it is available).
 
 joining the PPP channel of linux-activists:
 
@@ -291,14 +257,14 @@ not been changed.
 3. Build the kernel.
 
 You must rebuild the kernel with this package. The driver is totally
-new and will not work with the older daemon and the newer daemon will
+new and may not work with the older daemon and the newer daemon will
 not work with the older kernel driver. If you don't know how to build
 a kernel, then you should read the README file in the kernel source
 directory.
 
 If you wish module support then you need to have the 'modules-1.1.87'
 package installed as the minimum version. Earlier versions of the module
-support will not work properly.
+support will not work properly. All of the later ones will.
 
 As of this time, the current version for the modules package is
 1.2.0. Even 1.1.87 is old. However, if you only have 1.1.87 then it
@@ -336,9 +302,15 @@ You may use the command
 make install
 
 to install the various programs. They will be installed into the
-/usr/lib/ppp directory. You may not like this directory for the
+/usr/sbin directory. You may not like this directory for the
 executables. The directory name is called BINDIR and is set in the
 file 'linux/Makefile.linux'.
+
+Earlier versions of the pppd package used /usr/lib/ppp as the
+directory. This has been changed. If you still have code in
+/usr/lib/ppp then you should remove it as it is probably the 2.1
+version of the code. That version will not work with the current ppp.c
+drivers in the kernel.
 
 
 7. Reboot to the new kernel.
@@ -359,47 +331,40 @@ Sequence    Module      Description
    3        bsd_comp.o  BSD compression for PPP's compression protocol.
 
 If you only have the bsd comprssor as a module then you may load it without
-regard to any order.
+regard to any order. Likewise you may load the deflate compressor without
+regard to any order with the BSD one. The idea is that the ppp.o code must
+be loaded to use the compressor and the VJ header compression code must be
+loaded to use ppp.o.
 
 You may elect not to load the BSD compression module if you desire. There
 is a controversy regarding a Motorola software patent and while it is
 believed that this code does not infringe upon the patent, it is however
 an optional component.
 
-In addition, if memory is a premium, do not run the BSD compression. It
+The deflate compressor has been stated by Morotola to not infringe upon
+their patent. However, it is also new. You may not find many systems which
+use this compressor.
+
+In addition, if memory is a premium, do not run the compressors. It
 may take large amounts of memory (up to 2.6 meg) for high compression
 lengths to hold the compression dictionaries.
 
-Without the BSD compression module, the PPP driver will not accept PPP's
-compression control protocol for BSD compression.
+Without the compression modules, the PPP driver will not accept PPP's
+compression control protocol for that type. If you have no compressors
+loaded then no compression will be performed. If you don't have the BSD
+compressor loaded then the BSD compression will not be performed, even
+if the peer system supports it. Likewise with the deflate compressor.
+
+Compressors are unique to their type. If you have the deflate compressor
+loaded and the peer system has the BSD version, still no compression must
+be loaded. BOTH systems must support the same compression protocols.
 
 
 PROBLEMS WHICH MAY OCCUR WHILE BUILDING THE KERNEL
 
-A REFERENCE TO UNDEFINED _mod_use_count_
-
-If you experience an error message that the variable "mod_use_count_" is
-undefined then apply the patches in the linux/Other.Patches directory. There
-is a version for the 1.2.13 kernel and a differnt one for the early 1.3
-kernels.
-
-The current 1.3 series kernels should not experience this problem as the
-patch has already been incorporated.
-
-
-BLOCK ON FREELIST AT nnnnnn ISN'T FREE
-(where nnnnnn are a sequence of hexadecimal digits.)
-
-While this is not really an error when the kernel is built, it is an error
-which may occur when you actually run the system. The solution is a patch
-in the linux/Other.Patches directory. (That is why I mention it here.)
-
-The problem is in the VJ header compression module. It allocated a block
-of memory and then used the wrong variable to determine the amount of memory
-which should be reset. The patch is present in the 1.3.46 kernel and later
-ones. However, versions prior to that may POSSIBLY have the problem depending
-upon the number of slots which are allocated for the header compression logic.
-
+At this time with the 1.3.100 and pre-2.0 series kernels, soon to have the
+2.0 series kernel, there should not be a problem with the compilation of the
+drivers.
 
 
 GENERAL NETWORK CONFIGURATION
@@ -442,10 +407,10 @@ will use.  For example:
      192.1.1.23  chelseapc.president.whitehouse.gov chelseapc
 
 where my IP address is 192.1.1.17 and my hostname is
-billpc.president.whitehouse.gov.  (Not really, you understand.)  If
-your PPP server does dynamic IP address assignment, give a guess as to
-an address you might get (see also "Dynamic Address Assignment"
-below).
+billpc.president.whitehouse.gov.  (Not really, but you should
+understand my meaning.)  If your PPP server does dynamic IP address
+assignment, give a guess as to an address you might get (see also
+"Dynamic Address Assignment" below).
 
 Finally, you need to configure the domain name system by putting
 appropriate lines in /etc/resolv.conf .  It should look something like
@@ -491,6 +456,9 @@ Going through pppd's options in order:
          CONNECT       wait for answer
          ""            send a return (null text followed by usual return)
          ogin: ppp word: whitewater    log in.
+
+         Please refer to the chat man page, chat.8, for more information
+         on the chat utility.
 
    /dev/cua1     specify the callout serial port cua1
    38400         specify baud rate
@@ -546,6 +514,8 @@ This sends a break to wake up my terminal server, sends a semicolon
 want the service "blackice".  It logs in, waits for a shell prompt
 ("black%"), then starts PPP.  The -t60 argument sets the timeout to a
 minute, since things here are sometimes very slow.
+
+(The sendbreak program is not included in this package.)
 
 The "&& sleep 5" causes the script to pause for 5 seconds, unless chat
 fails in which case it exits immediately.  This is just to give the
