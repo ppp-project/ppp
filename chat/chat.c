@@ -18,7 +18,7 @@
  *		(614)451-1883
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.6 1995/04/28 06:21:50 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.7 1995/05/01 04:14:51 paulus Exp $";
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -821,10 +821,11 @@ int put_char(c)
 int c;
     {
     int status;
+    char ch = c;
 
     delay();
 
-    status = write(1, &c, 1);
+    status = write(1, &ch, 1);
 
     switch (status)
 	{
