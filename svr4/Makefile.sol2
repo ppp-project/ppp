@@ -1,7 +1,7 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.15 1999/09/15 22:10:16 masputra Exp $
+# $Id: Makefile.sol2,v 1.16 1999/09/15 22:21:57 masputra Exp $
 #
 
 include Makedefs.sol2
@@ -55,3 +55,4 @@ lint:
 
 clean:
 	rm -f ppp ppp_comp ppp_ahdl *.o *~ core
+	rm -f *.ln
