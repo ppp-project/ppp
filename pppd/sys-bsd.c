@@ -3,6 +3,7 @@
  * PPP interfaces on bsd-4.4-ish systems (including 386BSD, NetBSD, etc.)
  *
  * Copyright (c) 1989 Carnegie Mellon University.
+ * Copyright (c) 1995 The Australian National University.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms are permitted
@@ -10,16 +11,17 @@
  * duplicated in all such forms and that any documentation,
  * advertising materials, and other materials related to such
  * distribution and use acknowledge that the software was developed
- * by Carnegie Mellon University.  The name of the
- * University may not be used to endorse or promote products derived
- * from this software without specific prior written permission.
+ * by Carnegie Mellon University and The Australian National University.
+ * The names of the Universities may not be used to endorse or promote
+ * products derived from this software without specific prior written
+ * permission.
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.23 1996/01/01 23:05:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.24 1996/04/04 04:05:34 paulus Exp $";
 #endif
 
 /*
@@ -30,9 +32,11 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.23 1996/01/01 23:05:39 paulus Exp $";
 #include <syslog.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -72,6 +76,7 @@ static unsigned char inbuf[512]; /* buffer for chars read from loopback */
 static int sockfd;		/* socket for doing interface ioctls */
 
 static int if_is_up;		/* the interface is currently up */
+static u_int32_t ifaddrs[2];	/* local and remote addresses we set */
 static u_int32_t default_route_gateway;	/* gateway addr for default route */
 static u_int32_t proxy_arp_addr;	/* remote addr for proxy arp */
 
@@ -116,7 +121,8 @@ sys_cleanup()
 	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
 	}
     }
-
+    if (ifaddrs[0] != 0)
+	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway);
     if (proxy_arp_addr)
@@ -265,77 +271,6 @@ establish_ppp(fd)
 	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
     }
 }
-
-#if 0
-/*
- * transfer_ppp - make the device on fd `fd' take over the PPP interface
- * unit that we are using.
- */
-void
-transfer_ppp(fd)
-    int fd;
-{
-    int x, prevdisc;
-
-    if (fd == ppp_fd)
-	return;			/* we can't get here */
-
-    /* Reset non-blocking mode on ppp_fd. */
-    if (initfdflags != -1 && fcntl(ppp_fd, F_SETFL, initfdflags) < 0)
-	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
-    initfdflags = -1;
-
-    /*
-     * Prime the old ppp device to relinquish the unit.
-     */
-    if (ioctl(ppp_fd, PPPIOCXFERUNIT, 0) < 0) {
-	syslog(LOG_ERR, "ioctl(transfer ppp unit): %m");
-	die(1);
-    }
-
-    /*
-     * Save the old line discipline of fd, and set it to PPP.
-     */
-    if (ioctl(fd, TIOCGETD, &prevdisc) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
-	die(1);
-    }
-    x = PPPDISC;
-    if (ioctl(fd, TIOCSETD, &x) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
-	die(1);
-    }
-
-    /*
-     * Set the old ppp device back to its previous discipline,
-     */
-    ioctl(ppp_fd, TIOCSETD, &initdisc);
-    initdisc = prevdisc;
-
-    /*
-     * Check that we got the same unit again.
-     */
-    if (ioctl(fd, PPPIOCGUNIT, &x) < 0) {	
-	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m");
-	die(1);
-    }
-    if (x != ifunit) {
-	syslog(LOG_ERR, "transfer_ppp failed: wanted unit %d, got %d",
-	       ifunit, x);
-	die(1);
-    }
-
-    ppp_fd = fd;
-
-    /*
-     * Set device for non-blocking reads.
-     */
-    if ((initfdflags = fcntl(fd, F_GETFL)) == -1
-	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
-    }
-}
-#endif
 
 /*
  * restore_loop - reattach the ppp unit to the loopback.
@@ -644,6 +579,7 @@ wait_input(timo)
  * loopback, for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_loop_output(timo)
     struct timeval *timo;
 {
@@ -664,6 +600,7 @@ wait_loop_output(timo)
  * wait_time - wait for a given length of time or until a
  * signal is received.
  */
+void
 wait_time(timo)
     struct timeval *timo;
 {
@@ -877,6 +814,31 @@ get_idle_time(u, ip)
 
 
 /*
+ * set_filters - transfer the pass and active filters to the kernel.
+ */
+int
+set_filters(pass, active)
+    struct bpf_program *pass, *active;
+{
+    int ret = 1;
+
+    if (pass->bf_len > 0) {
+	if (ioctl(ppp_fd, PPPIOCSPASS, pass) < 0) {
+	    syslog(LOG_ERR, "Couldn't set pass-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    if (active->bf_len > 0) {
+	if (ioctl(ppp_fd, PPPIOCSACTIVE, active) < 0) {
+	    syslog(LOG_ERR, "Couldn't set active-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    return ret;
+}
+
+
+/*
  * sifvjcomp - config tcp header compression
  */
 int
@@ -1021,6 +983,8 @@ sifaddr(u, o, h, m)
 	syslog(LOG_WARNING,
 	       "Couldn't set interface address: Address already exists");
     }
+    ifaddrs[0] = o;
+    ifaddrs[1] = h;
     return 1;
 }
 
@@ -1035,6 +999,7 @@ cifaddr(u, o, h)
 {
     struct ifaliasreq ifra;
 
+    ifaddrs[0] = 0;
     strncpy(ifra.ifra_name, ifname, sizeof(ifra.ifra_name));
     SET_SA_FAMILY(ifra.ifra_addr, AF_INET);
     ((struct sockaddr_in *) &ifra.ifra_addr)->sin_addr.s_addr = o;
@@ -1140,7 +1105,6 @@ sifproxyarp(unit, hisaddr)
     u_int32_t hisaddr;
 {
     int routes;
-    int l;
 
     /*
      * Get the hardware address of an interface on the same subnet
@@ -1455,14 +1419,12 @@ lock(dev)
 	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
 	    /* Read the lock file to find out who has the device locked */
 	    n = read(fd, hdb_lock_buffer, 11);
-	    if (n > 0) {
-		hdb_lock_buffer[n] = 0;
-		pid = atoi(hdb_lock_buffer);
-	    }
 	    if (n <= 0) {
 		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
 		close(fd);
 	    } else {
+		hdb_lock_buffer[n] = 0;
+		pid = atoi(hdb_lock_buffer);
 		if (kill(pid, 0) == -1 && errno == ESRCH) {
 		    /* pid no longer exists - remove the lock file */
 		    if (unlink(lock_file) == 0) {
