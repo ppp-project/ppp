@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.5 1994/12/13 03:24:47 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.6 1995/05/01 01:39:03 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -169,7 +169,9 @@ static u_short interactive_ports[8] = {
 extern struct compressor ppp_bsd_compress;
 
 struct compressor *ppp_compressors[] = {
+#if DO_BSD_COMPRESS
     &ppp_bsd_compress,
+#endif
     NULL
 };
 #endif /* PPP_COMPRESS */
@@ -996,7 +998,7 @@ ppp_ccp(sc, m, rcvd)
 		if (sc->sc_xc_state != NULL
 		    && (*sc->sc_xcomp->comp_init)
 			(sc->sc_xc_state, dp + CCP_HDRLEN, slen - CCP_HDRLEN,
-			 sc->sc_if.if_unit, sc->sc_flags & SC_DEBUG)) {
+			 sc->sc_if.if_unit, 0, sc->sc_flags & SC_DEBUG)) {
 		    s = splimp();
 		    sc->sc_flags |= SC_COMP_RUN;
 		    splx(s);
