@@ -1,0 +1,31 @@
+$Id: README,v 1.1 2002/01/22 16:03:03 dfs Exp $
+
+ppp-2.2.0f-radclient.diff
+
+	NOW LONGER INCLUDED. For pppd patches see:
+
+	http://www.gams.net/~mla/radius.html
+        http://www.iphil.net/~map/radius/
+        http://linux.slovenija.net/radius/
+
+merit-2.4.21-CHAP.diff
+
+	Patch to the Merit radiusd 2.4.21 to support the CHAP-Challenge
+	attribute.  Doesn't work with earlier version of Merit radiusd. I sent
+	this patch to Merit, so hopefully it'll be included in the next release.
+	Apply this patch from the "src" directory of the radiusd sources.
+
+radiusd-1.16.shadow.diff
+
+	Patch to the original radiusd by Livingston to recognize "*"
+	as a special password to look for shadow passwords.
+	Apply this patch from the "src" directory of the radiusd sources.
+
+
+radiusd-1.16.accounting.diff
+
+	The patch for Livingston's (now Lucent's) radiusd 1.16 fixes the
+	accounting reply digest bug. When you've applied this patch to your
+	RADIUS server you no longer need to compile radiusclient with
+	--enable-radius-116. This patch was contributed by Tilman
+	Mueller-Gerbes <tmg@suse.de>. Thanks, Tilman!

@@ -30,7 +30,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap.h,v 1.8 1999/11/15 01:44:41 paulus Exp $
+ * $Id: chap.h,v 1.9 2002/01/22 16:02:58 dfs Exp $
  */
 
 #ifndef __CHAP_INCLUDE__
@@ -85,6 +85,9 @@ typedef struct chap_state {
     char *resp_name;		/* Our name to send with response */
 } chap_state;
 
+/* We need the declaration of chap_state to use this prototype */
+extern int (*chap_auth_hook) __P((char *user, u_char *remmd,
+				  int remmd_len, chap_state *cstate));
 
 /*
  * Client (peer) states.

@@ -1,0 +1,41 @@
+--- funcs.c.dist	Mon May 13 00:37:37 1996
++++ funcs.c	Mon May 13 00:58:33 1996
+@@ -830,11 +830,12 @@
+ 				/* reply.*/
+ 
+ {
+-	VALUE_PAIR     *item;
++	VALUE_PAIR     *item, *chall;
+ 	u_char          buffer[AUTH_PASS_LEN + AUTH_VECTOR_LEN + 1];
+ 	int             i;
+ 	int             secretlen;
+ 	int             result;
++	int		chall_len;
+ 	u_char          digest[CHAP_VALUE_LENGTH];
+ 	u_char         *ptr;
+ 	char           *crypt ();
+@@ -896,10 +897,21 @@
+ 
+ 		secretlen = strlen ((char *) ptr);
+ 		ptr += secretlen;
+-		memcpy ((char *) ptr, (char *) authreq->vector,
+-			AUTH_VECTOR_LEN);
++
++		/* this uses CHAP-Challenge as the challenge if it exists */
++		/* lf, 5/13/96 */
++		if ((chall = get_vp (authreq->request, PW_CHAP_CHALLENGE))
++			!= (VALUE_PAIR *) NULL) {
++			memcpy ((char *) ptr, chall->strvalue, chall->lvalue);	
++			chall_len = chall->lvalue;
++		} else {
++			memcpy ((char *) ptr, (char *) authreq->vector,
++				AUTH_VECTOR_LEN);
++			chall_len = AUTH_VECTOR_LEN;
++		}	
++		
+ 		md5_calc (digest, buffer,
+-			  1 + CHAP_VALUE_LENGTH + secretlen);
++			  1 + chall_len + secretlen);
+ 		/* Compare them */
+ 		if ((result = memcmp ((char *) digest, item->strvalue + 1,
+ 				      CHAP_VALUE_LENGTH)) != 0)

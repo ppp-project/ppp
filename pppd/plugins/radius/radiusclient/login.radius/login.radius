@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# $Id: login.radius,v 1.1 2002/01/22 16:03:02 dfs Exp $
+#
+# Copyright (C) 1998 Lars Fenneberg
+#
+# See the file COPYRIGHT for the respective terms and conditions. 
+# If the file is missing contact me at lf@elemental.net 
+# and I'll send you a copy.
+#
+
+cat <<EOF
+This is the dummy login.radius script. If you want that this script
+does something useful you'll have to replace it.
+
+The following RADIUS environment variables are set:
+EOF
+
+set | egrep '^RADIUS_'
+
+echo
+echo "Bye, bye."
+
+exit 0

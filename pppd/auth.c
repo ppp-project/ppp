@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.72 2002/01/11 18:07:45 etbe Exp $"
+#define RCSID	"$Id: auth.c,v 1.73 2002/01/22 16:02:58 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -137,6 +137,8 @@ int (*pap_passwd_hook) __P((char *user, char *passwd)) = NULL;
    refuses to authenticate. */
 int (*null_auth_hook) __P((struct wordlist **paddrs,
 			   struct wordlist **popts)) = NULL;
+
+int (*allowed_address_hook) __P((u_int32_t addr)) = NULL;
 
 /* A notifier for when the peer has authenticated itself,
    and we are proceeding to the network phase. */
@@ -949,6 +951,9 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	    BZERO(passwd, sizeof(passwd));
 	    if (addrs != 0)
 		free_wordlist(addrs);
+	    if (opts != 0) {
+		free_wordlist(opts);
+	    }
 	    return ret? UPAP_AUTHACK: UPAP_AUTHNAK;
 	}
     }
@@ -1401,6 +1406,13 @@ have_chap_secret(client, server, need_ip, lacks_ipp)
     char *filename;
     struct wordlist *addrs;
 
+    if (chap_check_hook) {
+	ret = (*chap_check_hook)();
+	if (ret >= 0) {
+	    return ret;
+	}
+    }
+
     filename = _PATH_CHAPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
@@ -1447,6 +1459,12 @@ get_secret(unit, client, server, secret, secret_len, am_server)
 
     if (!am_server && passwd[0] != 0) {
 	strlcpy(secbuf, passwd, sizeof(secbuf));
+    } else if (!am_server && chap_passwd_hook) {
+	if ( (*chap_passwd_hook)(client, secbuf) < 0) {
+	    error("Unable to obtain CHAP password for %s on %s from plugin",
+		  client, server);
+	    return 0;
+	}
     } else {
 	filename = _PATH_CHAPFILE;
 	addrs = NULL;
@@ -1656,11 +1674,17 @@ auth_ip_addr(unit, addr)
     if (bad_ip_adrs(addr))
 	return 0;
 
+    if (allowed_address_hook) {
+	ok = allowed_address_hook(addr);
+	if (ok >= 0) return ok;
+    }
+
     if (addresses[unit] != NULL) {
 	ok = ip_addr_check(addr, addresses[unit]);
 	if (ok >= 0)
 	    return ok;
     }
+
     if (auth_required)
 	return 0;		/* no addresses authorized */
     return allow_any_ip || privileged || !have_route_to(addr);

@@ -1,0 +1,12 @@
+$Id: README.radexample,v 1.1 2002/01/22 16:03:00 dfs Exp $
+
+In src/radexample.c is a small example on how to use the library
+lib/libradclient.a. 
+
+You only need to include radiusclient.h into your applications and link
+against the library. For this example to work your radiusclient config file
+has to be setup right.
+
+I make no guarantees that the library interface stays the same as
+radiusclient evolves, but I think that the whole thing is so simple that the
+changes to source code which uses this library should always be trivial.

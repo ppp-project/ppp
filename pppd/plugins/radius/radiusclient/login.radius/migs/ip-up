@@ -1,0 +1,121 @@
+#!/usr/bin/perl
+#
+# ip-up
+# 
+# Script started when the PPP daemon makes a connection.
+#
+
+# This script is given:
+# interface-name tty-device speed local-IP-address remote-IP-address
+# Since this is a PPP server, local-IP-address does not change.
+
+# TODO: Clean up this file and make it really modular.
+
+use strict;
+use GDBM_File;
+
+#### RADIUS section Begins
+
+# Configuration section.
+
+# Port information database.
+my $path_portinfo = "/var/ipoint/acct/portinfo"; 
+
+
+# Radius accounting record generator.
+    my $prog_radacct = "/usr/local/lib/radiusclient/radacct";
+
+sub netmask 
+{
+    my $count = int ($_[0] / 8);
+    
+    my $c1 = ("255." x $count);
+    $c1 = substr ($c1, 0, -1) if ($count == 4);
+    my $c2 = (256 - (1<<(8 - ($_[0] - $count * 8)))) || "0";
+    $c2 .= '.' if ($count < 3);
+    my $c3 = substr (("0." x (3-$count)), 0, -1);
+    return $c1 . $c2. $c3;
+}
+
+my ($sessionid, $username, $port, $portid, $timeout, $routelist) = 
+    split (/:/, $ARGV[5]);
+
+if ($sessionid) 
+{
+# I-Way code to inform the server that we're getting in.
+
+# If there was routing, add it.  Format for $route, from the Framed-Route
+# parameter, is address/netmask gateway metric.  If gateway is 0.0.0.0,
+# add the route here.
+
+# Unescape the route list.
+    $routelist =~ s/%20/ /g;
+
+    my $route;
+
+    # Debug this.
+    open (H, ">>/tmp/ip-up.log");
+    print H "ROUTELIST: " . $routelist . "\n";
+
+    foreach $route (split ("@", $routelist)) {
+	# Split the route into the components.
+	my @routevalue = split (' ', $route);
+	my ($netmaskcmd, $gwcmd, $metriccmd);
+	my @network = split ("/", $routevalue[0]);
+	
+	if ($network[1]) {
+	    $netmaskcmd = "netmask " . netmask($network[1]);
+	}
+
+	if ($routevalue[1] eq "0.0.0.0") {
+	    $gwcmd = "gw $ARGV[4]";
+	}
+	elsif ($routevalue[1]) {
+	    $gwcmd = "gw $routevalue[1]";
+	}
+	
+	if ($routevalue[2]) {
+	    $metriccmd = "metric $routevalue[2]";
+	}
+
+	my $routecmd = "/sbin/route add -net $network[0] $netmaskcmd $gwcmd " .
+	    "$metriccmd";
+    
+	system ($routecmd);
+	print H "COMMAND: " . $routecmd . "\n";
+    }
+    close (H);
+
+# The session ID, username, raw port and ID are given to this script 
+# through the ipparam parameter of pppd 2.2.0e and above.
+
+# Generate the accounting entry, and hand it over to RADIUS.
+
+    open  (H, "| $prog_radacct -i $port");
+
+    my $cmd =
+	"Acct-Session-ID = \"$sessionid\"\n" .
+	"User-Name = \"$username\"\n" .
+	"Acct-Status-Type = Start\n" .
+	"Acct-Authentic = RADIUS\n" .
+	"Service-Type = Framed\n" .
+	"Framed-Protocol = PPP\n" .
+	"Framed-IP-Address = $ARGV[4]\n";
+
+    print H $cmd;
+    close (H);
+}
+
+# Store the username, the connection type, the IP address, the PID of pppd.
+# Index it on the port ID, since 'portman' makes use of this.
+
+my ($timenow, %s);
+$timenow = time();
+tie (%s, "GDBM_File", $path_portinfo, GDBM_WRCREAT, 0600);
+$s{$portid} = join (':', $username, "Framed-User/PPP", $ARGV[4], getppid (),
+		    $timenow, $timeout);
+untie (%s);
+
+
+#### RADIUS ends
+

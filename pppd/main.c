@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.110 2002/01/14 14:25:10 dfs Exp $"
+#define RCSID	"$Id: main.c,v 1.111 2002/01/22 16:02:58 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -83,6 +83,7 @@ char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
 char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
+char remote_number[MAXNAMELEN]; /* Remote telephone number, if available */
 uid_t uid;			/* Our real user-id */
 struct notifier *pidchange = NULL;
 struct notifier *phasechange = NULL;
@@ -97,7 +98,8 @@ volatile int status;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
-
+int ppp_session_number;		/* Session number, for channels with such a
+				   concept (eg PPPoE) */
 #ifdef USE_TDB
 TDB_CONTEXT *pppdb;		/* database for storing status etc. */
 #endif

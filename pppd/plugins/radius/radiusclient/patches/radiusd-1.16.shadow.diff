@@ -1,0 +1,12 @@
+--- radiusd.c~	Fri Jan  6 22:58:16 1995
++++ radiusd.c	Thu Apr  4 22:43:31 1996
+@@ -1426,7 +1426,8 @@
+ 	encrypted_pass = pwd->pw_passwd;
+ 
+ #if !defined(NOSHADOW)
+-	if(strcmp(pwd->pw_passwd, "x") == 0) {
++	if ((strcmp(pwd->pw_passwd, "x") == 0) ||
++	    (strcmp(pwd->pw_passwd, "*") == 0)) {
+ 		if((spwd = getspnam(name)) == NULL) {
+ 			return(-1);
+ 		}

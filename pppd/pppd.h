@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.63 2002/01/11 18:31:42 etbe Exp $
+ * $Id: pppd.h,v 1.64 2002/01/22 16:02:58 dfs Exp $
  */
 
 /*
@@ -214,6 +214,9 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern char	ppp_devnam[MAXPATHLEN];
+extern char     remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
+extern int      ppp_session_number; /* Session number (eg PPPoE session) */
+
 extern int	listen_time;	/* time to listen first (ms) */
 extern struct notifier *pidchange;   /* for notifications of pid changing */
 extern struct notifier *phasechange; /* for notifications of phase changes */
@@ -617,9 +620,13 @@ extern int (*pap_auth_hook) __P((char *user, char *passwd, char **msgp,
 				 struct wordlist **popts));
 extern void (*pap_logout_hook) __P((void));
 extern int (*pap_passwd_hook) __P((char *user, char *passwd));
+extern int (*allowed_address_hook) __P((u_int32_t addr));
 extern void (*ip_up_hook) __P((void));
 extern void (*ip_down_hook) __P((void));
 extern void (*ip_choose_hook) __P((u_int32_t *));
+
+extern int (*chap_check_hook) __P((void));
+extern int (*chap_passwd_hook) __P((char *user, char *passwd));
 
 /*
  * Inline versions of get/put char/short/long.

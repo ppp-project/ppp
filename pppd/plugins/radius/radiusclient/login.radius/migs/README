@@ -1,0 +1,10 @@
+This sample login.radius was contributed by Miguel A.L. Paraz
+<map@iphil.net>. It implements PPP, Telnet and Rlogin connections.
+
+There currently is no documentation but the scripts are very clear and
+should provide a good starting point.
+
+The ip-up and ip-down scripts must be installed under /etc/ppp so that the
+pppd can find them.
+
+lf, 970524

@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+#
+# ip-down
+# 
+# Script started when the PPP daemon disconnects.
+#
+
+use strict;
+use GDBM_File;
+
+
+#### RADIUS Begins
+
+my ($sessionid, $username, $port, $portid, $timeout) = split (/:/, $ARGV[5]);
+
+if ($sessionid) 
+{
+# Code to inform the server that we're getting out.
+
+# Port information database.
+    my $path_portinfo = "/var/ipoint/acct/portinfo"; 
+
+
+# Radius accounting record generator.
+    my $prog_radacct = "/usr/local/lib/radiusclient/radacct";
+
+# The session ID, username, raw port and ID are given to this script 
+# through the ipparam parameter of pppd 2.2.0e and above.
+
+# Generate the accounting entry, and hand it over to RADIUS.
+
+# Delete the port info entry since the user has logged off, but make use
+# of the starting time.
+    my (%s, @e, $sessiontime);
+    tie (%s, "GDBM_File", $path_portinfo, GDBM_WRCREAT, 0600);
+    @e = split (':', $s{$portid});
+
+    if ($e[4])
+    {
+	$sessiontime = time() - $e[4];
+    }
+
+    delete $s{$portid};
+    untie (%s);
+
+# Generate the accounting entry, and hand it over to RADIUS.
+
+    open  (H, "| $prog_radacct -i $port");
+
+    my $cmd =
+	"Acct-Session-ID = \"$sessionid\"\n" .
+	"User-Name = \"$username\"\n" .
+	"Acct-Status-Type = Stop\n" .
+	"Acct-Authentic = RADIUS\n" .
+	"Service-Type = Framed\n" .
+	"Framed-Protocol = PPP\n" .
+	"Framed-IP-Address = $ARGV[4]\n";
+
+    if ($sessiontime)
+    {
+	$cmd .= "Acct-Session-Time = $sessiontime\n";
+    }
+
+    print H $cmd;
+    close (H);
+}
+
+#### RADIUS Ends
+

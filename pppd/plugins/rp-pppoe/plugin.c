@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.1 2001/12/14 02:55:20 mostrows Exp $";
+"$Id: plugin.c,v 1.2 2002/01/22 16:03:05 dfs Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -53,6 +53,8 @@ static char const RCSID[] =
 #include "if_pppox.h"
 
 #define _PATH_ETHOPT         _ROOT_PATH "/etc/ppp/options."
+
+char pppd_version[] = VERSION;
 
 /* From sys-linux.c in pppd -- MUST FIX THIS! */
 extern int new_style_driver;
@@ -142,10 +144,8 @@ PPPOEConnectDevice(void)
 	}
     }
 
-#ifdef HAVE_LICENSE
     /* Set PPPoE session-number for further consumption */
-    pppd_pppoe_session = ntohs(conn->session);
-#endif
+    ppp_session_number = ntohs(conn->session);
 
     /* Make the session socket */
     conn->sessionSocket = socket(AF_PPPOX, SOCK_STREAM, PX_PROTO_OE);
@@ -157,7 +157,7 @@ PPPOEConnectDevice(void)
     sp.sa_addr.pppoe.sid = conn->session;
     memcpy(sp.sa_addr.pppoe.dev, conn->ifName, IFNAMSIZ);
     memcpy(sp.sa_addr.pppoe.remote, conn->peerEth, ETH_ALEN);
-#ifdef HAVE_LICENSE
+
     /* Set remote_number for ServPoET */
     sprintf(remote_number, "%02X:%02X:%02X:%02X:%02X:%02X",
 	    (unsigned) conn->peerEth[0],
@@ -166,7 +166,6 @@ PPPOEConnectDevice(void)
 	    (unsigned) conn->peerEth[3],
 	    (unsigned) conn->peerEth[4],
 	    (unsigned) conn->peerEth[5]);
-#endif
 
     if (connect(conn->sessionSocket, (struct sockaddr *) &sp,
 		sizeof(struct sockaddr_pppox)) < 0) {

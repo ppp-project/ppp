@@ -1,0 +1,120 @@
+$Id: CHANGES,v 1.1 2002/01/22 16:03:00 dfs Exp $
+
+This file only documents fixed bugs and new features.. well, if I am not
+too lazy...
+
+01-06-99	Added support for RFC compliant accounting request digest
+		calculation.
+		Added new attributes and value defines to radiusclient.h.
+		Deleted an fclose at the wrong place (could lead to SIGSEGV).
+		Add newlines when constructing message from Reply-Message
+		attributes.
+		Output warning message when --enable-radius-116 is enabled.
+
+07-19-98	Changed licensing terms (GPL -> BSD style).
+		Added pointer to pppd patches in patches/README.
+
+03-06-98	Added patch patches/radiusd-1.16.accounting.diff.
+
+02-10-98	IMPORTANT! Changed the name of the "clients" config file
+		directive and the file name itself to "servers". This should
+		better reflect its content. Furthermore "servers" is now
+		installed mode 600 and not 644. Thanks go to Tilman
+		Mueller-Gerbes <tmg@suse.de> for pointing this out.
+
+01-15-98	Fixed two bugs in lib/sendserver.c, rc_random_vector:
+			- file descriptor leak (found by Michael Lausch)
+			- vector was not increased with each read
+
+01-14-98	Portability changes for NetBSD and BSDI. It compiles cleanly
+		on both platforms, now. But I haven't been able to test the
+		resulting executables. Many thanks go to Meno Abels
+		<Meno.Abels@Technical.Adviser.com> for providing accounts on
+		a NetBSD and BSDI machine. Furthermore I'd like to thank
+		Dave Burgess <burgess@cynjut.neonramp.com> for his help.
+
+Dezember 1997, 	Lots of portability changes. 
+January 1998	Switched to autconf, automake and libtool.
+		Change all occurences of radclient to radiusclient (in file and 
+		directory names). 
+		Added shared libradiusclient.
+		Removed check for login_radius in lib/config.c.	
+		Fixed bug in src/radacct.c which lead to a SIGSEGV
+		when calling ttyname(3).
+		Added support for longer passwords (mostly untested).
+		Integrated includes/config.h into the configure script.
+
+09-15-96	intermediate release: changed my email address and homepage.
+			included the new (working) pppd patch.
+
+06-01-96	patch to pppd included, contributed by Matjaz Godec
+		<gody@elgo.si>, heavily changed and broken by me.
+
+06-01-96	ppptraffic is gone, it wasn't really useful as the kernel
+		ppp clears the stats right when the device goes done.
+		Maybe it's possible to add this functionality to pppd
+		directly.
+
+05-13-96	rc_mksid is back in libradiusclient.a
+
+05-12-96	Fixed some bugs in the files MCONFIG and Makefile (reported by
+		Matjaz Godec <gody@elgo.si>).
+
+05-12-96	rc_avpair_add, rc_avpair_new, rc_avpair_assign have a new
+		last argument: the length of the attribute. This can
+		normally always be zero and is needed only in the special
+		case when you want to send raw data strings which might
+		contain a \0 character.
+
+05-11-96	rc_map2id now preceeds its argument with /dev/ if neccessary
+
+05-03-96	I changed the tabbing style, so from now on tabs are 4
+		characters so that there's more space for full blown and
+		complicated if, switch, etc. structures. Remember this when
+		you look at the source.
+
+05-03-96	improved error checking in a few places and changed
+		logging so that now everything goes into syslog.
+		facility is configurable in config.h (SYSLOG_FACILITY)
+
+05-02-96	added admin logins: you can now change the radiusclient
+		config file from remote. much is still missing. to use this
+		feature define a RADIUS user with a service type of
+		Administrative.
+
+05-01-96	MERIT_GRANDFATHER compatability define removed again,
+		it's simply broken. You HAVE to compile Merit radiusd
+		without this define for outbound and admin logins to work.
+
+05-01-96	config.c rewritten, the syntax of more than one authserver
+		or acctserver directive in radiusclient.conf is no longer
+		supported. instead mutliple servers have to be specified
+		in one line seperated by comma.
+
+05-01-96	added outbound support to radlogin, usably via telnet or
+		pseudo tty (rport sets this tty up on a remote host).
+
+03-19-96	added support for /etc/nologin, new config option "nologin"
+		in radiusclient.conf
+
+03-18-96	Linux (>=1.3.x): added support for /dev/urandom for more
+		secure user passwords
+
+03-17-96	normal usage messages are now seperate in src/messages.h
+		(thanks go to Migs, who pointed out that this would
+		be usefull)
+
+03-15-96	added SCP define, to derive a service type from a user
+		name prefix and supply it to the RADIUS server
+
+03-14-96	added RADIUS_116 define, accounting should now "work" with
+		Livingston radiusd v1.16.
+
+		cleaned up the enviroment handling, the global setenv was
+		a mess.
+
+01-07-95	added ppptraffic which reads out the ppp statistics just
+		like pppstats.
+		this works only for ppp as slip has no such statistics
+		(besides packets sent/received which is not very
+		 useful).

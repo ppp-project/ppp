@@ -1,0 +1,49 @@
+# Makefile for RADIUS plugin
+#
+# Copyright 2002 Roaring Penguin Software Inc.
+#
+
+MANDIR=/usr/man
+PLUGIN=radius.so radattr.so
+CFLAGS=-I../.. -Iradiusclient/include -O2
+
+all: $(PLUGIN)
+
+install: all
+	$(MAKE) $(MFLAGS) -C radiusclient install
+	$(INSTALL) -d -m 755 $(LIBDIR)
+	$(INSTALL) -s -c -m 755 radius.so $(LIBDIR)
+	$(INSTALL) -s -c -m 755 radattr.so $(LIBDIR)
+	$(INSTALL) -c -m 444 pppd-radius.8 $(MANDIR)/man8
+	$(INSTALL) -c -m 444 pppd-radattr.8 $(MANDIR)/man8
+
+radius.so: radiusclient/lib/.libs/libradiusclient.a radius.o
+	gcc -o radius.so -shared radius.o radiusclient/lib/.libs/libradiusclient.a
+
+radattr.so: radattr.o
+	gcc -o radattr.so -shared radattr.o
+
+radius.o: radius.c
+	gcc $(CFLAGS) -c -o radius.o -fPIC radius.c
+
+radattr.o: radattr.c
+	gcc $(CFLAGS) -c -o radattr.o -fPIC radattr.c
+
+radiusclient/lib/.libs/libradiusclient.a:
+	test -r radiusclient/Makefile ||           \
+		(cd radiusclient;                  \
+		 ./configure --prefix=/usr         \
+			     --sysconfdir=/etc     \
+			     --enable-shared       \
+			     --enable-static)
+	$(MAKE) -C radiusclient
+
+clean:
+	$(MAKE) $(MFLAGS) -C radiusclient clean
+	rm -f *.o *.so
+
+distclean:
+	rm -f *.o *.so
+	$(MAKE) $(MFLAGS) -C radiusclient distclean
+
+dist-clean: distclean

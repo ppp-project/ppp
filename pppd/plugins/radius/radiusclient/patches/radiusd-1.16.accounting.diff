@@ -1,0 +1,82 @@
+Message-ID: <19980211151522.51612@Galerkin.fs100.suse.de>
+Date: Wed, 11 Feb 1998 15:15:22 +0100
+From: Tilman Mueller-Gerbes <tmg@suse.de>
+To: Lars Fenneberg <lf@elemental.net>
+Subject: Re: Radiusclient-0.3-alpha
+
+Hi!
+
+Das mit der spec-Datei dauert noch ein bisschen, allerdings habe
+ich einen Bug-Fix fuer den Radiusd, d.h. dein Problem mit
+den Radius-Accounting-Requests geloest:
+
+Es ist so, dass bei Radius-Accounting Requests im Response-MD5-Digest
+der radiusd 1.16 schlicht und einfach das secret nicht mit
+einrechnet. Das secret wird mehr oder weniger zufaellig gesetzt
+(d.h. gar nicht erst initialisiert :(.
+
+Ich habe einen Patch fuer den Radiusd 1.16.1 (unten angehaengt).
+
+Der Radiusd Berechnet die Digests bei Accounting Requests nicht -
+ob das so i.O. ist sei mal dahingestellt, andere Implementationen
+werden es wohl auch nicht tun.
+
+
+****
+
+--- src/Makefile
++++ src/Makefile	1998/02/11 14:09:51
+@@ -14,7 +14,7 @@
+ # unixware: add -Dunixware to CFLAGS, use LIBS= -lucb -lnsl -lsocket
+ #
+ SRCDIR=.
+-CFLAGS= -O -DNOSHADOW
++CFLAGS= -O -DFIX_ACCOUNTING_BUG
+ LDFLAGS=
+ CC=	cc
+ LIBS=
+--- src/acct.c
++++ src/acct.c	1998/02/11 14:09:10
+@@ -70,6 +70,31 @@
+ 	char		buffer[512];
+ 	VALUE_PAIR	*pair;
+ 	long		curtime;
++	char		pw_digest[16];
++	/*
++	 * fix accounting bug: when receiving an accounting request
++	 * the digest is not checked at all and a wrong
++	 * reply digest is calculated, as authreq->secret is not
++	 * initialized
++	 * this fix should not break any existing code, as the
++	 * reply digest was random anyway (and may be never checked
++	 * by anyone) -tmg@suse.de-
++	 */
++#if defined(FIX_ACCOUNTING_BUG)
++	/* Verify the client and Calculate the MD5 Password Digest */
++	if(calc_digest(pw_digest, authreq) != 0) {
++	        char		msg[512];
++		/* We dont respond when this fails */
++		sprintf(msg, "Authenticate: from %s - Security Breach Accounting\n",
++			ip_hostname(authreq->ipaddr));
++		msg[127] = '\0';
++		log_err(msg);
++		pairfree(authreq->request);
++		memset(authreq, 0, sizeof(AUTH_REQ));
++		free(authreq);
++		return;
++	}
++#endif
+ 
+ 	strncpy(clientname, ip_hostname(authreq->ipaddr), 128);
+ 	clientname[127] = '\0';
+
+
+
+
+-- 
+  Tilman Mueller-Gerbes, S.u.S.E. GmbH, Gebhardtstr. 2, 90762 Fuerth, Germany
+  Tel: +49-911-7405330,       Fax: +49-911-7417755,      Email: tmg@suse.de
++-------------------------------------------------------------------------+
+| S.u.S.E. auf der CeBIT '98!  --  Besuchen Sie uns in Halle 5, Stand A61 |
++-------------------------------------------------------------------------+
+

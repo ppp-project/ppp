@@ -1,0 +1,19 @@
+$Id: BUGS,v 1.1 2002/01/22 16:03:00 dfs Exp $
+
+Testing can show the presense of bugs, but not their absence.
+                -- Dijkstra
+
+The get_seqnbr function in build_req.c sometimes returns the same
+number, if invoked from multiple processes at the same time. This
+occurs only if a lot of process try to read the sequence file,
+so I suspect a race condition in the locking code, but I can't
+find one. Any help is appreciated.
+
+Radlogin respectively send_server in sendserver.c does not honour a 
+ACCESS_CHALLENGE packet from the RADIUS server. 
+
+There are interoperability problems with radiusd 1.16... but all the Merit
+radiusds I tried worked (last one I tried 2.4.21). There is an option to
+configure (--enable-radius-116) to kludge around this... It turned out to be
+a bug in radiusd 1.16: it doesn't include the shared secret in the digest
+calculation. See patches/radiusd-1.16.accounting.diff for a real fix.

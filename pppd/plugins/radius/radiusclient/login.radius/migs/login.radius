@@ -1,0 +1,312 @@
+#!/usr/bin/perl
+#
+# login program to invoke PPP.
+# RADIUS accounting is NOT handled by this; it is handled by /etc/ppp/
+# ip-up and ip-down which are invoked when the TCP/IP connection is up.
+
+# version 0.1   November 5 1996
+# clean up the code, minor features.
+
+# version 0.02  May 8 1996
+#
+# start implementing other types of logins, not only Framed.
+# Also honor static IP addresses.
+#
+# version 0.01  April 1 1996
+#
+# - ignore RADIUS server requests for Framed-User, just
+#   do PPP.  Later, this should be honored.  For now,
+#   just use RADIUS for authentication; it's much simpler.
+#   Always use dynamic addresses.
+#
+
+use strict;
+use GDBM_File;
+
+#### CONFIGURATION SECTION ##################################################
+
+# Local IP address for the PPP connection.
+my $ip_address_local = "203.176.0.3";
+
+# First IP address for this terminal server, if dynamic addressing
+# is requested, or if nothing is specified for Framed-IP-Address.
+my $ip_address_begin = "203.176.0.161";
+
+# IP translation factor; subtract this value from radclient before adding
+# the beginning IP address.
+my $ip_translate_factor = 32;
+
+# Debugging to screen?
+my $debug = 1;
+
+# PPP parameters:
+
+# Async map - this one escapes only XON and XOFF characters.
+my $asyncmap = "0x000A0000";
+
+# MTU and MRU. 296 is good for interactive performance,
+# but larger ones will lead to less overhead for file transfers.
+# Maximum is 1500.
+my ($mtu, $mru) = (296, 296);
+
+# If we're using proxy ARP, set this to "proxyarp", else leave it blank.
+# my $proxyarp = "proxyarp";
+my $proxyarp = "";
+
+# Login host for non-framed connections.
+# This should only be an IP address, since that's what
+# Login-IP-Host should be.
+my $login_host = "203.176.0.4"; # marikit.iphil.net
+
+# Programs and files.
+my $prog_pppd     = "/usr/sbin/pppd";
+my $prog_radacct  = "/usr/local/lib/radiusclient/radacct";
+my $prog_rlogin   = "/usr/bin/rlogin";
+my $prog_telnet   = "/bin/telnet";
+my $prog_tcpclear = "/bin/telnet -e ''";
+my $prog_tty      = "/usr/bin/tty";
+my $prog_who      = "/usr/bin/who";
+
+my $path_portinfo         = "/var/ipoint/acct/portinfo";
+my $path_radiusclient_map = "/etc/radclient/port-id-map";
+
+#############################################################################
+
+# Main program.
+
+print "Starting.\n" if ($debug);
+
+# Run 'who am i' to determine the current port.
+my $port = `$prog_tty`;
+chomp ($port);
+
+# Translate port numbers to numbers for RADIUS.
+# This translation is done again by radacct, but it may be useful here.
+# Remove if CPU time is a problem.
+
+my ($portid, $line);
+open (H, $path_radiusclient_map);
+while (($line = <H>) && (!$portid))
+{
+    my @info = split (/\s+/, $line);
+    $portid = $info[1] if ($info[0] eq $port);
+}
+close (H);
+
+if ($debug)
+{
+    # Print out all the RADIUS variables.
+    my @el = grep (/^RADIUS/, keys (%ENV));
+    my $e;
+    foreach $e (@el)
+    {
+	print "$e = " . $ENV{$e} . "\n";
+    }
+}
+
+# If the service type is Framed, then give them PPP.
+# SLIP is not implemented (and will probably never be).
+
+my $username = $ENV{"RADIUS_USER_NAME"};
+
+# Generate a "unique" string for the session ID.
+my $sessionid = "$$" . time ();
+
+if ($ENV{"RADIUS_SERVICE_TYPE"} =~ /^Framed$/)
+{
+   
+# Use the specified IP address, or generate one if none is specified,
+# or a dynamic one requested.  Or, let the user negotiate the address.
+
+    my $ip_address = $ENV{"RADIUS_FRAMED_IP_ADDRESS"};
+
+    if (!$ip_address || ($ip_address eq "255.255.255.254"))
+    {
+	my @ipn = split (/\./, $ip_address_begin);
+	$ipn[3] += $portid - $ip_translate_factor;
+	$ip_address = join ('.', @ipn);
+
+	if ($debug)
+	{
+	    print "port: $port\n";
+	    print "portid: $portid\n";
+	    print "ip_translate_factor: $ip_translate_factor\n";
+	    print "ip_address: $ip_address\n";
+	    print "mru: $mru\n";
+	}
+
+    }
+    elsif ($ip_address eq "255.255.255.255")
+    {
+	# Clear it out so that pppd will let the remote end specify the
+	# IP address.
+	$ip_address = "";
+    }
+
+    # Override the specified MTU.
+    $mtu = $ENV{"RADIUS_FRAMED_MTU"} if $ENV{"RADIUS_FRAMED_MTU"};
+
+    # If no compression is specified, turn it off.
+    my $compress;
+    if (!$ENV{"RADIUS_FRAMED_COMPRESSION"})
+    {
+	$compress = "-vj";
+    }
+
+# Fix up the parameters to be passed to ip-up.  Include Framed-Route.
+# Escape spaces with %20's.
+
+    # Split up the framed route into multiple parts.
+    # Separate the different given routes with bars.
+    my $routelist = join ("@", map {$ENV{$_}}
+			     grep {/^RADIUS_FRAMED_ROUTE/} keys (%ENV)
+			    );
+    $routelist =~ s/ /%20/g;
+
+    my $param = join (':', $sessionid, $username, $port, $portid,
+		      $ENV{"RADIUS_SESSION_TIMEOUT"}, $routelist);
+
+		      
+# Run pppd through exec, so that it grabs hold of the terminal
+# and catches disconnections.
+
+    # Portmaster-style prompt.
+    if ($ENV{"RADIUS_SESSION_TIMEOUT"})
+    {
+	print "Session timeout: " . $ENV{"RADIUS_SESSION_TIMEOUT"} .
+	    " seconds.\n";
+    }
+    print "PPP session from ($ip_address_local) to $ip_address beginning....";
+    my $pppdcmd =
+	"$prog_pppd $ip_address_local:$ip_address modem crtscts " .
+	"asyncmap $asyncmap lock -detach $compress " .
+	"ipparam $param mtu $mtu mru $mru $proxyarp";
+
+    exec ($pppdcmd);
+}
+elsif ($ENV{"RADIUS_SERVICE_TYPE"} =~ /Login/)
+{
+    # Warning:  This code has not been tested as well as the PPP version,
+    # as of now (19961107).
+
+    # Determine what host to connect to.
+    if (($ENV{"RADIUS_LOGIN_IP_HOST"} eq "0.0.0.0") ||
+	!defined ($ENV{"RADIUS_LOGIN_IP_HOST"}))
+    {
+	# Do nothing, it's already specified above in the config section.
+    }
+    elsif ($ENV{"RADIUS_LOGIN_IP_HOST"} eq "255.255.255.255")
+    {
+	# The user should be able to choose.  Prompt the user.
+	print "Host to connect to?  ";
+	$login_host = <STDIN>;
+	chomp ($login_host);
+    }
+    else
+    {
+	# Use what's specified by the RADIUS server.
+	$login_host = $ENV{"RADIUS_LOGIN_IP_HOST"};
+    }
+    
+    # Log into a host.  Default to telnet.  Do the accounting
+    # now, since the target of the login wouldn't know how to
+    # account for it.
+
+    # Start accounting.  Send the record.
+    open  (H, "| $prog_radacct") || die ("Cannot run $prog_radacct");
+
+    my $login_service = $ENV{"RADIUS_LOGIN_SERVICE"};
+
+    my $cmd =
+	"Acct-Session-ID = \"$sessionid\"\n" .
+	"User-Name = \"$username\"\n" .
+	"Acct-Status-Type = Start\n" .
+        "Acct-Authentic = RADIUS\n" .
+        "Service-Type = Login\n" .
+        "Login-Service = " . $login_service . "\n" .
+        "Login-IP-Host = $login_host\n";
+
+    print H $cmd;
+    close (H);
+
+    # Time.
+    my $timestart = time ();
+
+    # What protocol are we running?
+    my ($prog_run, $login_port);
+
+    if ($login_service eq "Rlogin")
+    {
+	$prog_run = $prog_rlogin;
+    }
+    elsif ($login_service eq "Telnet")
+    {
+	$prog_run = $prog_telnet;
+	$login_port = $ENV{"RADIUS_LOGIN_PORT"};
+    }
+    elsif ($login_service eq "TCP-Clear")
+    {
+	$prog_run = $prog_tcpclear;
+	$login_port = $ENV{"RADIUS_LOGIN_PORT"};
+    }
+
+    # Store the user information into portinfo.  We need to
+    # manually fork, since we have to know the PID of the program.
+
+    my $pid = fork ();
+    if ($pid == 0)
+    {
+	# Child.  Run the program.
+	# print "Connecting to $login_host:\n";
+	my $cmd = "$prog_run $login_host $login_port";
+	exec ("$cmd");
+    }
+    else
+    {
+	# Parent.  
+	# Create the portinfo record, which needs the pid of the program
+	# to kill.
+	# The IP address is all zero, as it is not applicable here.
+	# Store the time now, and the Session-Timeout.
+
+	my %db_portinfo;
+
+	tie (%db_portinfo, "GDBM_File", $path_portinfo, GDBM_WRCREAT, 0600);
+	$db_portinfo{$portid} =
+	    join (':', $username, "Login/$login_service",
+		  "0.0.0.0", $pid, $timestart, $ENV{"RADIUS_SESSION_TIMEOUT"});
+	untie (%db_portinfo);
+
+	# Wait for the session to finish.
+	waitpid ($pid, 0);
+    }
+    # Stop.  Send the record.
+    open  (H, "| $prog_radacct") || die ("Cannot run $prog_radacct");
+
+    my $timespent = time () - $timestart;
+
+    my $cmd =
+	"Acct-Session-ID = \"$sessionid\"\n" .
+	"User-Name = \"$username\"\n" .
+	"Acct-Status-Type = Stop\n" .
+        "Acct-Authentic = RADIUS\n" .
+        "Service-Type = Login\n" .
+        "Login-Service = " . $login_service . "\n" .
+        "Login-IP-Host = $login_host\n" .
+        "Acct-Session-Time = $timespent\n";
+
+    print H $cmd;
+    close (H);
+
+    # Remove the record from portinfo.
+    my %db_portinfo;
+    tie (%db_portinfo, "GDBM_File", $path_portinfo, GDBM_WRCREAT, 0600);
+    delete $db_portinfo{$portid};
+    untie (%db_portinfo);
+}
+
+### END ####
+
+
+
+

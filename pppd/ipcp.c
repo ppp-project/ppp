@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.59 2002/01/11 18:31:42 etbe Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.60 2002/01/22 16:02:58 dfs Exp $"
 
 /*
  * TODO:
@@ -656,8 +656,12 @@ ipcp_resetci(f)
     *go = *wo;
     if (!ask_for_local)
 	go->ouraddr = 0;
-    if (ip_choose_hook)
+    if (ip_choose_hook) {
 	ip_choose_hook(&wo->hisaddr);
+	if (wo->hisaddr) {
+	    wo->accept_remote = 0;
+	}
+    }
 }
 
 

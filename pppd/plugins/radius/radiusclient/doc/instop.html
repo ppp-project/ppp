@@ -1,0 +1,451 @@
+<html>
+<head>
+<title>
+Radiusclient - Installation and Operation Guide
+</title>
+</head>
+<body>
+
+<h1>
+<center>
+<i>
+Radiusclient - Installation and Operation Guide
+</i>
+</center>
+</h1>
+
+<hr size=8>
+
+<!--------------------------------------------------------------------------->
+<h2>
+Table of contents
+</h2>
+
+<ul>
+<li><a href="#introduction">Introduction</a>
+<li><a href="#principles">Principles of operation</a>
+<li><a href="#installation">Installation</a>
+<li><a href="#availability">Availabiliy</a>
+<li><a href="#credits">Credits</a>
+<li><a href="#copyright">Copyright</a>
+<li><a href="#contacting">Contacting the author</a>
+<li><a href="#appendixa">Appendix A: Command line flags</a>
+</ul>
+
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="introduction">
+Introduction
+</a>
+</h2>
+	
+	Radiusclient is a /bin/login replacement which gets called by a
+	getty to log in a user and to setup the user's login environment.
+	<br>
+	Normal login programs just check the login name and password which the
+	user entered against the local password file (/etc/passwd, /etc/shadow).
+	In contrast to that Radiusclient also uses the RADIUS protocol to
+	authenticate the user.
+
+	<p>
+
+	RADIUS stands for <i>R</i>emote <i>A</i>uthentication <i>D</i>ial
+	<i>In</i> <i>U</i>ser <i>S</i>ervice and is a protocol for carrying
+	authentication, authorization, and configuration information between
+	a Network Access Server (NAS) which desires to authenticate its
+	links and a shared Authentication Server.<br> The protocol
+	originally was designed by the well known terminal server
+	manufacturer Livingston for use with their Portmaster series of
+	terminal servers.  Since then it has been implemented by a lot of
+	other vendors and it is also on it's way to become a Internet
+	Standard.
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="principles">
+Principles of operation
+</a>
+</h2>
+
+	If the main program of Radiusclient which is called <i>radlogin</i> gets
+	invoked by your systems's getty, it behaves like the normal login
+	program to the user.
+	
+	<p>
+
+	First it asks the user for his loginname (if not supplied by getty)
+	and his password.
+	
+	<p>
+	
+	Then it tries to find the login name either through a RADIUS server
+	query or in the local passwd file or through both methods.
+	
+	<p>
+	
+	If the user is authenticated locally <i>radlogin</i> calls the local login
+	program to spawn a login enviroment.
+	
+	<p>
+	
+	If the user is authenticated via RADIUS <i>radlogin</i> calls a special other
+	login program which gets the information that was passed from the RADIUS 
+	server in enviroment variables.
+	
+	<p>
+	
+	In this special login program you can now either start a telnet/rlogin
+	session or start up SLIP/CSLIP or even PPP based on the information from
+	the RADIUS server. Furthermore you can send accounting information to a
+	RADIUS accouting server via a program called radacct which is also
+	part of Radiusclient.
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="installation">
+Installation
+</a>
+</h2>
+	
+	Get the Radiusclient package from the places mentioned 
+	<a href="#availability">below</a>.
+
+	<p>
+
+	Then unpack it in a directory which you normally use for keeping your
+	source code. For example do:
+
+	<p>
+
+	<pre>
+	cd /usr/src
+	gzip -dc radiusclient-x.x.tar.gz | tar xvvf -
+	</pre>
+
+	<p>
+
+	You now should have a directory called radiusclient-x.x in which all the
+	source code of Radiusclient is stored.
+
+	<p>
+
+	First run configure --help to see if you need to enable any options.
+	Then configure the sources by calling configure with the
+	appropriate options.
+
+	<p>
+
+	Have a look at include/messages.h if you'd like to change some
+	of the messages there. But normally you shouldn't.  
+
+	<p>
+
+	Executing "make" builds the executables.
+
+	<p>
+
+	Executing "make install" will install the executables and example
+	versions of all the needed config and data files. Be careful
+	the installation process will <b>overwrite</b> existing files
+	without asking you.
+	Try "make -n install" to see which file gets were if you're
+	unsure.
+
+	<p>
+
+	The installation procedure will only install a dummy login.radius
+	script which just outputs all RADIUS_* environment variables and
+	then exits.
+
+	<p>
+
+	You need to write your own login.radius if you want that the script
+	does something useful. See the login.radius directory for example
+	scripts. 
+
+	<p>
+
+	You <b>will</b> have to look into radiusclient.conf and edit it.
+
+	<p>
+
+	Add the following two line to /etc/services if you don't
+	already have them:
+
+	<p>
+
+	<pre>
+	radius          1645/udp	# RADIUS access requests
+	radacct         1646/udp	# RADIUS accounting requests
+	</pre>
+	<p>
+
+	Get your getty to execute <i>radlogin</i> instead of the normal login
+	process. The method of how to do this varies from getty to getty.
+
+	<p>
+
+	<ul>	
+		<li>If you're using getty_ps you can set the LOGIN directive in the 
+			respective config file.
+
+		<p>	 
+
+		<li>agetty has a command line option (-l) which allows
+			you to specify an alternate login program, i.e. <i>radlogin</i>.
+		
+		<p>
+		
+		<li>With mgetty you add the following line to your login.cfg file:
+		
+		<p>
+
+		<pre>
+	*       -       -       <path>/radlogin @
+		</pre>
+
+	</ul>
+
+	I suggest you use mgetty or getty_ps, mgetty even has a nice
+	automatic PPP detection feature, which can be useful.
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="availability">
+Availability
+</a>
+</h2>
+	
+	This program is avaiable from <a href="ftp://ftp.cityline.net/pub/radiusclient/">
+	ftp.cityline.net</a> in the directory
+	<a href="ftp://ftp.cityline.net/pub/radiusclient/">/pub/radiusclient</a>.
+	<br>
+	Download the version with the largest version number, older version are
+	only kept for reference.
+
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="credits">
+Credits
+</a>
+</h2>
+
+	My thanks go to all the people who have helped me in one or another
+	way with the development of radiusclient but especially to:
+
+	<p>
+
+	<center>
+	<table cellpadding=0 cellspacing=0 width="90%" border=0>
+	<tr>
+		<td>
+		<a href="mailto:map@iphil.net">
+		Miguel A.L. Paraz &lt;map@iphil.net&gt;
+		</a>
+		</td>
+	</tr>
+	<tr>
+		<td>
+		<a href="mailto:gody@master.slon.net">
+		Matjaz Godec &lt;gody@master.slon.net&gt;
+		</a>
+		</td>
+	</tr>
+	<tr>
+		<td>
+		<a href="mailto:mla@gams.co.at">
+		Michael Lausch &lt;mla@gams.co.at&gt;
+		</a>
+		</td>
+	</tr>
+	</table>
+	</center>
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="copyright">
+Copyright
+</a>
+</h2>
+
+	Read the file COPYRIGHT in the top directory of Radiusclient for the
+	respective copyrights.
+
+	<p>
+
+	If you like the Radiusclient software very much and/or are using
+	it on a production machine please send my a postcard. My postal
+	address is:
+
+	<p>
+
+	<center>
+	<table cellpadding=0 cellspacing=0 width="90%" border=0>
+	<tr>
+	<td>
+		Lars Fenneberg<br>
+		Boettgerstrasse 29<br>
+		22851 Norderstedt<br>
+		Germany<br>
+	</td>
+	</tr>
+	</table>
+	</center>
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="contacting">
+Contacting the author
+</a>
+</h2>
+
+	Send your comments, suggestions, bug reports and patches to
+	<a href="mailto:lf@elemental.net">
+	Lars Fenneberg <nobr>&lt;lf@elemental.net&gt;</nobr></a>.
+
+<!--------------------------------------------------------------------------->
+<h2>
+<a name="appendixa">
+Appendix A: Command line flags
+</a>
+</h2>
+
+<center>
+<table cellpadding=0 cellspacing=10 width="95%" border=0>
+
+
+<tr>
+<td>
+
+<table border=2 width=100%>
+<tr>
+	<th colspan=2>
+	radlogin
+	</th>
+</tr>
+<tr>
+	<td>
+		-f
+	</td>
+	<td>
+		Path to an alternative configuration file
+	</td>
+</tr>
+<tr>
+	<td>
+		-i
+	</td>
+	<td>
+		File name of the terminal used to determine what to send in
+		the NAS-Port attribute. Normally the tty of stdin is used.
+	</td>
+</tr>
+<tr>
+	<td>
+		-n
+	</td>
+	<td>
+		Disable display if the radlogin issue file. This option is set
+		by default if radlogin is called with an argument.
+	</td>
+</tr>
+<tr>
+	<td>
+		-V
+	</td>
+	<td>
+		Display version information
+	</td>
+</tr>
+<tr>
+	<td>
+		-h
+	</td>
+	<td>
+		Display usage information
+	</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<tr>
+<td>
+
+<table border=2 width=100%>
+<tr>
+	<th colspan=2>
+	radacct
+	</th>
+</tr>
+<tr>
+	<td>
+		-i
+	</td>
+	<td>
+		File name of the terminal used to determine what to send in
+		the NAS-Port attribute. Normally the tty of stdout is used.
+	</td>
+</tr>
+<tr>
+	<td>
+		-V
+	</td>
+	<td>
+		Display version information
+	</td>
+</tr>
+<tr>
+	<td>
+		-h
+	</td>
+	<td>
+		Display usage information
+	</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<tr>
+<td>
+
+<table border=2 width=100%>
+<tr>
+	<th colspan=2>
+	radstatus
+	</th>
+</tr>
+<tr>
+	<td>
+		-V
+	</td>
+	<td>
+		Display version information
+	</td>
+</tr>
+<tr>
+	<td>
+		-h
+	</td>
+	<td>
+		Display usage information
+	</td>
+</tr>
+</table>
+</td>
+</tr>
+
+</table>
+</center>
+
+<p>
+
+<hr size=16>
+<br>
+Last changed: 7/19/98<br>
+Copyright &copy; 1996,1997,1998, Lars Fenneberg, lf@elemental.net<br>
+</body>
+</html>

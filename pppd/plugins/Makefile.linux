@@ -3,7 +3,7 @@ CFLAGS	= -g -O2 -I.. -I../../include -D_linux_=1 -fPIC
 LDFLAGS	= -shared
 INSTALL	= install -o root
 
-SUBDIRS = rp-pppoe
+SUBDIRS = rp-pppoe radius
 PLUGINS = minconn.so passprompt.so
 
 # include dependencies if present

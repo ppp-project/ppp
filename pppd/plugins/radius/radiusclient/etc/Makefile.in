@@ -1,0 +1,226 @@
+# Makefile.in generated automatically by automake 1.3 from Makefile.am
+
+# Copyright (C) 1994, 1995, 1996, 1997, 1998 Free Software Foundation, Inc.
+# This Makefile.in is free software; the Free Software Foundation
+# gives unlimited permission to copy and/or distribute it,
+# with or without modifications, as long as this notice is preserved.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+# even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.
+
+#
+# $Id: Makefile.in,v 1.1 2002/01/22 16:03:01 dfs Exp $
+#
+# Copyright (C) 1997,1998 Lars Fenneberg
+#
+# See the file COPYRIGHT for the respective terms and conditions. 
+# If the file is missing contact me at lf@elemental.net 
+# and I'll send you a copy.
+#
+
+
+SHELL = /bin/sh
+
+srcdir = @srcdir@
+top_srcdir = @top_srcdir@
+VPATH = @srcdir@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+
+bindir = @bindir@
+libexecdir = @libexecdir@
+datadir = @datadir@
+sysconfdir = @sysconfdir@
+sharedstatedir = @sharedstatedir@
+localstatedir = @localstatedir@
+libdir = @libdir@
+infodir = @infodir@
+mandir = @mandir@
+includedir = @includedir@
+oldincludedir = /usr/include
+
+DISTDIR =
+
+pkgdatadir = $(datadir)/@PACKAGE@
+pkglibdir = $(libdir)/@PACKAGE@
+pkgincludedir = $(includedir)/@PACKAGE@
+
+top_builddir = ..
+
+ACLOCAL = @ACLOCAL@
+AUTOCONF = @AUTOCONF@
+AUTOMAKE = @AUTOMAKE@
+AUTOHEADER = @AUTOHEADER@
+
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+transform = @program_transform_name@
+
+NORMAL_INSTALL = :
+PRE_INSTALL = :
+POST_INSTALL = :
+NORMAL_UNINSTALL = :
+PRE_UNINSTALL = :
+POST_UNINSTALL = :
+build_alias = @build_alias@
+build_triplet = @build@
+host_alias = @host_alias@
+host_triplet = @host@
+target_alias = @target_alias@
+target_triplet = @target@
+AR = @AR@
+CC = @CC@
+LD = @LD@
+LIBTOOL = @LIBTOOL@
+LIBVERSION = @LIBVERSION@
+LN_S = @LN_S@
+LTLIBOBJS = @LTLIBOBJS@
+MAKEINFO = @MAKEINFO@
+NM = @NM@
+PACKAGE = @PACKAGE@
+RANLIB = @RANLIB@
+RC_LOG_FACILITY = @RC_LOG_FACILITY@
+RC_SECURE_PATH = @RC_SECURE_PATH@
+VERSION = @VERSION@
+
+AUTOMAKE_OPTIONS = foreign
+
+CLEANFILES = *~ radiusclient.conf
+
+sbindir = @sbindir@
+pkgsysconfdir = @pkgsysconfdir@
+pkgsysconf_DATA = issue port-id-map radiusclient.conf \
+	dictionary dictionary.ascend dictionary.compat dictionary.merit
+
+EXTRA_DIST = issue port-id-map dictionary dictionary.ascend \
+	dictionary.compat dictionary.merit servers radiusclient.conf.in
+mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+CONFIG_HEADER = ../config.h
+CONFIG_CLEAN_FILES = 
+DATA =  $(pkgsysconf_DATA)
+
+DIST_COMMON =  Makefile.am Makefile.in
+
+
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
+
+TAR = tar
+GZIP = --best
+all: Makefile $(DATA)
+
+.SUFFIXES:
+$(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4)
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign --include-deps etc/Makefile
+
+Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
+	cd $(top_builddir) \
+	  && CONFIG_FILES=$(subdir)/$@ CONFIG_HEADERS= $(SHELL) ./config.status
+
+
+install-pkgsysconfDATA: $(pkgsysconf_DATA)
+	@$(NORMAL_INSTALL)
+	$(mkinstalldirs) $(DESTDIR)$(pkgsysconfdir)
+	@list='$(pkgsysconf_DATA)'; for p in $$list; do \
+	  if test -f $(srcdir)/$$p; then \
+	    echo " $(INSTALL_DATA) $(srcdir)/$$p $(DESTDIR)$(pkgsysconfdir)/$$p"; \
+	    $(INSTALL_DATA) $(srcdir)/$$p $(DESTDIR)$(pkgsysconfdir)/$$p; \
+	  else if test -f $$p; then \
+	    echo " $(INSTALL_DATA) $$p $(DESTDIR)$(pkgsysconfdir)/$$p"; \
+	    $(INSTALL_DATA) $$p $(DESTDIR)$(pkgsysconfdir)/$$p; \
+	  fi; fi; \
+	done
+
+uninstall-pkgsysconfDATA:
+	@$(NORMAL_UNINSTALL)
+	list='$(pkgsysconf_DATA)'; for p in $$list; do \
+	  rm -f $(DESTDIR)$(pkgsysconfdir)/$$p; \
+	done
+tags: TAGS
+TAGS:
+
+
+distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
+
+subdir = etc
+
+distdir: $(DISTFILES)
+	@for file in $(DISTFILES); do \
+	  d=$(srcdir); \
+	  test -f $(distdir)/$$file \
+	  || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
+	  || cp -p $$d/$$file $(distdir)/$$file; \
+	done
+info:
+dvi:
+check: all
+	$(MAKE)
+installcheck:
+install-exec: 
+	@$(NORMAL_INSTALL)
+
+install-data: install-pkgsysconfDATA install-data-local
+	@$(NORMAL_INSTALL)
+
+install: install-exec install-data all
+	@:
+
+uninstall: uninstall-pkgsysconfDATA uninstall-local
+
+install-strip:
+	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' INSTALL_SCRIPT='$(INSTALL_PROGRAM)' install
+installdirs:
+	$(mkinstalldirs)  $(DATADIR)$(pkgsysconfdir)
+
+
+mostlyclean-generic:
+	-test -z "$(MOSTLYCLEANFILES)" || rm -f $(MOSTLYCLEANFILES)
+
+clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
+
+distclean-generic:
+	-rm -f Makefile $(DISTCLEANFILES)
+	-rm -f config.cache config.log stamp-h stamp-h[0-9]*
+	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
+
+maintainer-clean-generic:
+	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
+mostlyclean:  mostlyclean-generic
+
+clean:  clean-generic mostlyclean
+
+distclean:  distclean-generic clean
+	-rm -f config.status
+	-rm -f libtool
+
+maintainer-clean:  maintainer-clean-generic distclean
+	@echo "This command is intended for maintainers to use;"
+	@echo "it deletes files that may require special tools to rebuild."
+
+.PHONY: uninstall-pkgsysconfDATA install-pkgsysconfDATA tags distdir \
+info dvi installcheck install-exec install-data install uninstall all \
+installdirs mostlyclean-generic distclean-generic clean-generic \
+maintainer-clean-generic clean mostlyclean distclean maintainer-clean
+
+
+radiusclient.conf: radiusclient.conf.in
+	sed -e 's|@sbin''dir@|$(sbindir)|g' \
+	    -e 's|@pkgsysconf''dir@|$(pkgsysconfdir)|g' \
+	    <$(srcdir)/radiusclient.conf.in >radiusclient.conf
+
+install-data-local: servers
+	$(mkinstalldirs) $(pkgsysconfdir); \
+        echo " $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers"; \
+        $(INSTALL) -m600 $(srcdir)/servers $(pkgsysconfdir)/servers
+
+uninstall-local:
+	rm -f $(pkgsysconfdir)/servers
+
+# Tell versions [3.59,3.63) of GNU make to not export all variables.
+# Otherwise a system limit (for SysV at least) may be exceeded.
+.NOEXPORT:

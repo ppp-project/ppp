@@ -1,0 +1,189 @@
+# 
+#  $Id: configure.in,v 1.1 2002/01/22 16:03:00 dfs Exp $
+# 
+#  Copyright (C) 1996,1997 Lars Fenneberg
+# 
+#  See the file COPYRIGHT for the respective terms and conditions. 
+#  If the file is missing contact me at lf@elemental.net 
+#  and I'll send you a copy.
+# 
+# 
+
+AC_INIT(src/radlogin.c)
+AC_CANONICAL_SYSTEM
+
+case "$target" in
+	*)
+	;;
+esac
+
+AM_INIT_AUTOMAKE(radiusclient,0.3.1)
+
+LIBVERSION=0:1:0
+AC_SUBST(LIBVERSION)
+
+pkgsysconfdir=${sysconfdir}/$PACKAGE
+AC_SUBST(pkgsysconfdir)
+
+AC_PROG_CC
+
+dnl Needed for normal compile
+AC_PATH_PROG(AR, ar)
+AM_PROG_LIBTOOL
+
+dnl HAVE_SHADOW_PASSWORDS
+AC_MSG_CHECKING(whether to include shadow password support)
+AC_ARG_ENABLE(shadow,
+[  --enable-shadow         Enable shadow password support],
+[
+        AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_SHADOW_PASSWORDS)
+	shadow_passwords=yes
+],
+[
+        AC_MSG_RESULT(no)
+	shadow_passwords=no
+]
+)
+
+dnl Checks for libraries.
+AC_CHECK_LIB(nsl, gethostbyname)
+AC_CHECK_LIB(socket, socket)
+if test "$shadow_passwords" = "yes"
+then
+	AC_CHECK_LIB(c, getspnam,:,
+		AC_CHECK_LIB(shadow, getspnam,
+		 	LIBS="$LIBS -lshadow"
+                )
+	)
+fi
+AC_CHECK_LIB(crypt, crypt)
+
+dnl Checks for header files.
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_CHECK_HEADERS(crypt.h signal.h sys/signal.h sys/stat.h)
+AC_CHECK_HEADERS(fcntl.h sys/fcntl.h)
+AC_CHECK_HEADERS(sys/utsname.h getopt.h unistd.h)
+AC_CHECK_HEADERS(sys/file.h termios.h sys/ioctl.h)
+if test "$shadow_passwords" = "yes"
+then
+	AC_CHECK_HEADER(shadow.h)
+fi
+
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+AC_HEADER_TIME
+AC_STRUCT_TM
+
+dnl Checks for library functions.
+AC_PROG_GCC_TRADITIONAL
+AC_FUNC_MEMCMP
+AC_FUNC_SETVBUF_REVERSED
+AC_TYPE_SIGNAL
+AC_FUNC_STRFTIME
+AC_REPLACE_FUNCS(strdup strerror strcasecmp)
+AC_CHECK_FUNCS(flock fcntl uname gethostname sysinfo getdomainname)
+AC_CHECK_FUNCS(stricmp random rand snprintf vsnprintf)
+
+if test "$ac_cv_func_uname" = 'yes'
+then
+	AC_MSG_CHECKING([for field domainname in struct utsname])
+	AC_TRY_RUN([
+	#include <sys/utsname.h>
+	
+	main(int argc, char **argv)
+	{
+		struct utsname uts;
+		uts.domainname[0] = '\0';
+	}
+	],
+	AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_STRUCT_UTSNAME_DOMAINNAME),
+	AC_MSG_RESULT(no)
+	)
+fi
+
+AC_MSG_CHECKING([for /dev/urandom])
+if test -c /dev/urandom
+then
+	AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_DEV_URANDOM)
+else
+	AC_MSG_RESULT(no)
+fi
+
+dnl Determine PATH setting
+echo $ac_n "using the following PATH setting for exec'ed programs... $ac_c" 1>&6
+AC_ARG_WITH(secure-path,
+[  --with-secure-path      PATH setting for exec'ed programs],
+[
+        AC_MSG_RESULT($withval)
+        RC_SECURE_PATH=$withval
+],
+[
+        AC_MSG_RESULT(/bin:/usr/bin:/usr/local/bin)
+	RC_SECURE_PATH=/bin:/usr/bin:/usr/local/bin
+]
+)
+
+dnl Checking which syslog facility to use
+AC_MSG_CHECKING(which syslog facility to use)
+AC_ARG_WITH(facility,
+[  --with-facility         Syslog facility to use],
+[
+        AC_MSG_RESULT($withval)
+        RC_LOG_FACILITY=$withval
+],
+[
+        AC_MSG_RESULT(LOG_DAEMON)
+        RC_LOG_FACILITY=LOG_DAEMON
+]
+)
+
+dnl RADIUS_116
+AC_MSG_CHECKING(whether to include Livingston's RADIUS server 1.16 kludge)
+AC_ARG_ENABLE(radius-116,
+[  --enable-radius-116     Include support for Livingston's RADIUS server 1.16],
+[
+        AC_MSG_RESULT(yes)
+	AC_DEFINE(RADIUS_116)
+	AC_MSG_WARN([!! This is a bug in Livingston's RADIUS server v1.16. There])
+	AC_MSG_WARN([!! is a patch included with radiusclient which fixes this])
+	AC_MSG_WARN([!! problem. See patches/radiusd-1.16.accounting.diff. With])
+	AC_MSG_WARN([!! the patched RADIUS server you no longer need to activate])
+	AC_MSG_WARN([!! this hack.])
+],
+[
+        AC_MSG_RESULT(no)
+]
+)
+
+dnl SCP
+AC_MSG_CHECKING(whether to add service type hints derived from username prefix)
+AC_ARG_ENABLE(scp,
+[  --enable-scp            Add service type hints derived from username prefix],
+[
+        AC_MSG_RESULT(yes)
+	AC_DEFINE(SCP)
+],
+[
+        AC_MSG_RESULT(no)
+]
+)
+
+AC_SUBST(RC_SECURE_PATH)
+AC_SUBST(RC_LOG_FACILITY)
+
+AM_CONFIG_HEADER(config.h)
+LTLIBOBJS=`echo "$LIBOBJS" | sed 's/\.o/.lo/g'`
+AC_SUBST(LTLIBOBJS)
+AC_OUTPUT([
+Makefile
+include/Makefile lib/Makefile src/Makefile man/Makefile etc/Makefile
+doc/Makefile patches/Makefile
+login.radius/Makefile login.radius/migs/Makefile
+], [test -z "$CONFIG_HEADERS" || echo timestamp > stamp-h])
