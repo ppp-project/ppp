@@ -18,12 +18,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.31 1996/01/18 03:21:53 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.32 1996/04/04 03:59:33 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <signal.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -71,8 +72,7 @@ char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char default_devnam[MAXPATHLEN];	/* name of default device */
-static pid_t	pid;		/* Our pid */
-static pid_t	pgrpid;		/* Process Group ID */
+static pid_t pid;		/* Our pid */
 static uid_t uid;		/* Our real user-id */
 
 int ttyfd = -1;			/* Serial port file descriptor */
@@ -80,8 +80,6 @@ int ttyfd = -1;			/* Serial port file descriptor */
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
-
-static int loop_fd = -1;	/* fd for loopback device */
 
 u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
 u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
@@ -139,13 +137,13 @@ struct protent *protocols[] = {
     NULL
 };
 
+int
 main(argc, argv)
     int argc;
     char *argv[];
 {
     int i, nonblock, fdflags;
     struct sigaction sa;
-    struct cmd *cmdp;
     FILE *pidfile;
     char *p;
     struct passwd *pw;
@@ -187,11 +185,19 @@ main(argc, argv)
 	exit(1);
     }
 
+    /*
+     * Check that the options given are valid and consistent.
+     */
     sys_check_options();
     auth_check_options();
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
+    if (demand && connector == 0) {
+	fprintf(stderr, "%s: connect script required for demand-dialling\n",
+		progname);
+	exit(1);
+    }
 
     /*
      * If the user has specified the default device name explicitly,
@@ -667,8 +673,14 @@ close_tty()
     disestablish_ppp(ttyfd);
 
     /* drop dtr to hang up */
-    if (modem)
+    if (modem) {
 	setdtr(ttyfd, FALSE);
+	/*
+	 * This sleep is in case the serial port has CLOCAL set by default,
+	 * and consequently will reassert DTR when we close the device.
+	 */
+	sleep(1);
+    }
 
     restore_tty(ttyfd);
 
@@ -738,9 +750,7 @@ untimeout(func, arg)
     void (*func)();
     caddr_t arg;
 {
-    struct itimerval itv;
     struct callout **copp, *freep;
-    int reschedule = 0;
   
     MAINDEBUG((LOG_DEBUG, "Untimeout %lx:%lx.", (long) func, (long) arg));
   
