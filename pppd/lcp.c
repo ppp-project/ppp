@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.7 1994/05/27 01:01:49 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.8 1994/05/30 02:38:49 paulus Exp $";
 #endif
 
 /*
@@ -35,11 +35,6 @@ static char rcsid[] = "$Id: lcp.c,v 1.7 1994/05/27 01:01:49 paulus Exp $";
 #include <sys/time.h>
 #include <netinet/in.h>
 
-#ifdef _linux_		/* Needs ppp ioctls */
-#include <net/if.h>
-#include <linux/ppp.h>
-#endif
-
 #include "pppd.h"
 #include "ppp.h"
 #include "fsm.h"
@@ -48,6 +43,10 @@ static char rcsid[] = "$Id: lcp.c,v 1.7 1994/05/27 01:01:49 paulus Exp $";
 #include "chap.h"
 #include "upap.h"
 #include "ipcp.h"
+
+#ifdef _linux_		/* Needs ppp ioctls */
+#include <linux/ppp.h>
+#endif
 
 /* global vars */
 fsm lcp_fsm[NPPP];			/* LCP fsm structure (global)*/
@@ -1272,8 +1271,13 @@ lcp_up(f)
     ppp_send_config(f->unit, MIN(ao->mru, (ho->neg_mru? ho->mru: MTU)),
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
+    /*
+     * If the asyncmap hasn't been negotiated, we really should
+     * set the receive asyncmap to ffffffff, but we set it to 0
+     * for backwards contemptibility.
+     */
     ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): MTU),
-		    (go->neg_asyncmap? go->asyncmap: 0xffffffff),
+		    (go->neg_asyncmap? go->asyncmap: 0x00000000),
 		    go->neg_pcompression, go->neg_accompression);
 
     if (ho->neg_mru)
