@@ -4,6 +4,7 @@ PPP Client Support for Microsoft's CHAP-80
 Eric Rosenquist          rosenqui@strataware.com
 (updated by Paul Mackerras)
 (updated by Al Longyear)
+(updated by Farrell Woods)
 
 INTRODUCTION
 
@@ -45,8 +46,23 @@ place, but I didn't need it myself so I didn't implement it.
 BUILDING THE PPPD
 
 MS-CHAP uses a combination of MD4 hashing and DES encryption for
-authentication.  You'll need to get Eric Young's libdes library in
-order to use my MS-CHAP extensions.  You can find it in:
+authentication.  You may need to get Eric Young's libdes library in
+order to use my MS-CHAP extensions.  A lot of UNIX systems already
+have DES encryption available via the crypt(3), encrypt(3) and
+setkey(3) interfaces.  Some may (such as that on Digital UNIX)
+provide only the encryption mechanism and will not perform
+decryption.  This is okay.  We only need to encrypt to perform
+MS-CHAP authentication.
+
+If you have encrypt/setkey available, then hopefully you need only
+define these two things in your Makefile: -DUSE_CRYPT and -DCHAPMS.
+Skip the paragraphs below about obtaining and building libdes.  Do
+the "make clean" and "make" as described below.  Linux users
+should not need to modify their Makefiles.  Instead,
+just do "make CHAPMS=1 USE_CRYPT=1".
+
+If you don't have encrypt and setkey, you will need Eric Young's
+libdes library.  You can find it in:
 
 ftp://ftp.funet.fi/pub/crypt/mirrors/ftp.psy.uq.oz.au/DES/libdes-3.06.tar.gz
 
@@ -59,6 +75,8 @@ It is also available on many other sites (ask Archie).
 I used libdes-3.06, but hopefully anything newer than that will work
 also.  Get the library, build and test it on your system, and install
 it somewhere (typically /usr/local/lib and /usr/local/include).
+
+
 
 You should now be ready to (re)compile the PPPD.  Go to the pppd
 subdirectory and make sure the Makefile contains "-DCHAPMS" in the
@@ -172,6 +190,12 @@ library.  If DES checks out, the md4.c routines are probably failing
 (system byte ordering may be a problem) or my code is screwing up.  I've
 only got access to a Linux system, so you're on your own for anything else.
 
+Another thing that might cause problems is that some RAS servers won't
+respond at all to LCP config requests without seeing the word "CLIENT"
+from the other end.  If you see pppd sending out LCP config requests
+without getting any reply, try putting something in your chat script
+to send the word CLIENT after the modem has connected.
+
 If everything compiles cleanly, but fails at authentication time, then
 it might be a case of the MD4 or DES code screwing up.  The following
 small program can be used to test the MS-CHAP code to see if it
@@ -186,7 +210,7 @@ produces a known response:
 
 int main(argc, argv)
     int     argc;
-    char    *argv[0];
+    char    *argv[];
 {
     u_char          challenge[8];
     int             challengeInt[sizeof(challenge)];

@@ -2,21 +2,16 @@ This file (README.osf) contains instructions for installing ppp-2.3 on a
 Digital Alpha-based system running Digital UNIX (aka DEC OSF/1)
 version 2.0 through version 3.2F.  Digial UNIX version 3.2G and beyond
 are not supported by this package, since PPP is an integral component
-of those releases.
+of those releases.  (Although it *is* possible to install this software
+on V3.2G and later of Digital UNIX, I would discourage this activity
+because it's likely to break the "update install" feature of Digital
+UNIX.  You were warned...)
 
-If you would like to be on a mailing list concerning the ppp package,
-send mail to srt@cs.unt.edu and let me know.  This mailing list should
-not have any regular traffic --- I will use it only if bugs are reported
-to notify everyone of bug-fixes.
+If you encounter bugs in this using this PPP package under Digital
+UNIX then please let me (ftw@zk3.dec.com) know.  I can't promise
+quick turnaround but I should be able to address issues eventually.
 
-Note for users of the ppp-2.1.2 package:  I have included a fix
-for the non-STREAMS tty drivers in this release.  If you were using
-version 2.1.2 with a hardware serial port, then you probably used the
-"rlogin-kludge" that I described in the README that came with 2.1.2.
-You don't need this any more, and will have a more efficient connection
-if you get rid of this old work-around.
-
-Below are the steps for installing PPP on a DEC AXP system running OSF/1.
+Below are the steps for installing PPP on Digital UNIX.
 You must do all of the following as "root".
 
 1.  Make the kernel sources, daemon, chat, and pppstat program by typing 
@@ -104,10 +99,6 @@ You must do all of the following as "root".
 
 9.  Reboot and you're ready to go!
 
-Hopefully, that should work with no hitches.  If there are problems, or
-if I have made a mistake in these instructions, please let me know.
-
-Steve Tate
-University of North Texas
-srt@cs.unt.edu
+Hopefully, that should work with no hitches.  If you find any bugs, or
+errors in these instructions, contact Farrell Woods <ftw@zk3.dec.com>.
 
