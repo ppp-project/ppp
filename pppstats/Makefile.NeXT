@@ -1,16 +1,18 @@
 #
 # pppstats makefile
-# $Id: Makefile.NeXT,v 1.2 1997/03/04 03:44:38 paulus Exp $
+# $Id: Makefile.NeXT,v 1.3 1998/03/25 02:20:35 paulus Exp $
 #
 
 ARCHFLAGS = 
+
 BINDIR = /usr/local/ppp/bin
 MANDIR = /usr/local/ppp/man
 
-CFLAGS = -O -posix $(ARCHFLAGS) -I..
+CFLAGS = -O -D_POSIX_SOURCE $(ARCHFLAGS) -I../include
 
 SRCS = pppstats.c
 OBJS = pppstats.o
+LIBS = ../NeXT/libposix/libposix.o
 
 MANPAGES = chat.8
 
@@ -18,7 +20,7 @@ MANPAGES = chat.8
 all: pppstats
 
 pppstats: $(OBJS)
-	$(CC) -o pppstats $(CFLAGS) $(OBJS)
+	$(CC) -o pppstats $(CFLAGS) $(OBJS) $(LIBS)
 
 install:
 	/bin/mkdirs $(MANDIR)/man8 $(BINDIR) 
