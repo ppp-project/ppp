@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.16 1994/12/12 22:54:59 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.17 1995/04/24 05:58:06 paulus Exp $";
 #endif
 
 /*
@@ -59,6 +59,8 @@ u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
 static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
 static u_int32_t lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
+
+static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
 
 #ifdef _linux_
 u_int32_t idle_timer_running = 0;
@@ -689,12 +691,13 @@ lcp_nakci(f, p, len)
 {
     lcp_options *go = &lcp_gotoptions[f->unit];
     lcp_options *wo = &lcp_wantoptions[f->unit];
-    u_char cilen, citype, cichar, *next;
+    u_char citype, cichar, *next;
     u_short cishort;
     u_int32_t cilong;
     lcp_options no;		/* options we've seen Naks for */
     lcp_options try;		/* options to request next time */
     int looped_back = 0;
+    int cilen;
 
     BZERO(&no, sizeof(no));
     try = *go;
@@ -772,21 +775,67 @@ lcp_nakci(f, p, len)
 	       if (cishort <= wo->mru || cishort < DEFMRU)
 		   try.mru = cishort;
 	       );
+
     /*
      * Add any characters they want to our (receive-side) asyncmap.
      */
     NAKCILONG(CI_ASYNCMAP, neg_asyncmap,
 	      try.asyncmap = go->asyncmap | cilong;
 	      );
+
     /*
-     * If they can't cope with our CHAP hash algorithm, we'll have
-     * to stop asking for CHAP.  We haven't got any other algorithm.
+     * If they've nak'd our authentication-protocol, check whether
+     * they are proposing a different protocol, or a different
+     * hash algorithm for CHAP.
      */
-    NAKCICHAP(CI_AUTHTYPE, neg_chap,
-	      try.neg_chap = 0;
-	      );
+    if ((go->neg_chap || go->neg_upap)
+	&& len >= CILEN_SHORT
+	&& p[0] == CI_AUTHTYPE && p[1] >= CILEN_SHORT) {
+	cilen = p[1];
+	INCPTR(2, p);
+        GETSHORT(cishort, p);
+	if (cishort == PPP_PAP && cilen == CILEN_SHORT) {
+	    /*
+	     * If they are asking for PAP, then they don't want to do CHAP.
+	     * If we weren't asking for CHAP, then we were asking for PAP,
+	     * in which case this Nak is bad.
+	     */
+	    if (!go->neg_chap)
+		goto bad;
+	    go->neg_chap = 0;
+
+	} else if (cishort == PPP_CHAP && cilen == CILEN_CHAP) {
+	    GETCHAR(cichar, p);
+	    if (go->neg_chap) {
+		/*
+		 * We were asking for CHAP/MD5; they must want a different
+		 * algorithm.  If they can't do MD5, we'll have to stop
+		 * asking for CHAP.
+		 */
+		if (cichar != go->chap_mdtype)
+		    go->neg_chap = 0;
+	    } else {
+		/*
+		 * Stop asking for PAP if we were asking for it.
+		 */
+		go->neg_upap = 0;
+	    }
+
+	} else {
+	    /*
+	     * We don't recognize what they're suggesting.
+	     * Stop asking for what we were asking for.
+	     */
+	    if (go->neg_chap)
+		go->neg_chap = 0;
+	    else
+		go->neg_upap = 0;
+	    p += cilen - CILEN_SHORT;
+	}
+    }
+
     /*
-     * Peer shouldn't send Nak for UPAP, protocol compression or
+     * Peer shouldn't send Nak for protocol compression or
      * address/control compression requests; they should send
      * a Reject instead.  If they send a Nak, treat it as a Reject.
      */
@@ -795,6 +844,7 @@ lcp_nakci(f, p, len)
 		   try.neg_upap = 0;
 		   );
     }
+
     /*
      * If they can't cope with our link quality protocol, we'll have
      * to stop asking for LQR.  We haven't got any other protocol.
@@ -806,6 +856,7 @@ lcp_nakci(f, p, len)
 	     else
 		 try.lqr_period = cilong;
 	     );
+
     /*
      * Check for a looped-back line.
      */
@@ -969,6 +1020,7 @@ lcp_rejci(f, p, len)
 	if (cishort != val || cichar != digest) \
 	    goto bad; \
 	try.neg = 0; \
+	try.neg_upap = 0; \
 	LCPDEBUG((LOG_INFO,"lcp_rejci rejected chap opt %d", opt)); \
     }
 #define REJCILONG(opt, neg, val) \
@@ -1056,7 +1108,8 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
-    u_char *ucp = inp;		/* Pointer to current output char */
+    u_char *rejp;		/* Pointer to next char in reject frame */
+    u_char *nakp;		/* Pointer to next char in Nak frame */
     int l = *lenp;		/* Length left */
 
     /*
@@ -1068,6 +1121,8 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
      * Process all his options.
      */
     next = inp;
+    nakp = nak_buffer;
+    rejp = inp;
     while (l) {
 	orc = CONFACK;			/* Assume success */
 	cip = p = next;			/* Remember begining of CI */
@@ -1103,10 +1158,9 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     */
 	    if (cishort < MINMRU) {
 		orc = CONFNAK;		/* Nak CI */
-		if( !reject_if_disagree ){
-		    DECPTR(sizeof (short), p);	/* Backup */
-		    PUTSHORT(MINMRU, p);	/* Give him a hint */
-		}
+		PUTCHAR(CI_MRU, nakp);
+		PUTCHAR(CILEN_SHORT, nakp);
+		PUTSHORT(MINMRU, nakp);	/* Give him a hint */
 		break;
 	    }
 	    ho->neg_mru = 1;		/* Remember he sent MRU */
@@ -1129,10 +1183,9 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     */
 	    if ((ao->asyncmap & ~cilong) != 0) {
 		orc = CONFNAK;
-		if( !reject_if_disagree ){
-		    DECPTR(sizeof(u_int32_t), p);
-		    PUTLONG(ao->asyncmap | cilong, p);
-		}
+		PUTCHAR(CI_ASYNCMAP, nakp);
+		PUTCHAR(CILEN_LONG, nakp);
+		PUTLONG(ao->asyncmap | cilong, nakp);
 		break;
 	    }
 	    ho->neg_asyncmap = 1;
@@ -1143,6 +1196,9 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    LCPDEBUG((LOG_INFO, "lcp_reqci: rcvd AUTHTYPE"));
 	    if (cilen < CILEN_SHORT ||
 		!(ao->neg_upap || ao->neg_chap)) {
+		/*
+		 * Reject the option if we're not willing to authenticate.
+		 */
 		orc = CONFREJ;
 		break;
 	    }
@@ -1161,33 +1217,46 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     */
 
 	    if (cishort == PPP_PAP) {
-		if (!ao->neg_upap ||	/* we don't want to do PAP */
-		    ho->neg_chap ||	/* or we've already accepted CHAP */
+		if (ho->neg_chap ||	/* we've already accepted CHAP */
 		    cilen != CILEN_SHORT) {
 		    LCPDEBUG((LOG_WARNING,
 			      "lcp_reqci: rcvd AUTHTYPE PAP, rejecting..."));
 		    orc = CONFREJ;
 		    break;
 		}
+		if (!ao->neg_upap) {	/* we don't want to do PAP */
+		    orc = CONFNAK;	/* NAK it and suggest CHAP */
+		    PUTCHAR(CI_AUTHTYPE, nakp);
+		    PUTCHAR(CILEN_CHAP, nakp);
+		    PUTSHORT(PPP_CHAP, nakp);
+		    PUTCHAR(ao->chap_mdtype, nakp);
+		    break;
+		}
 		ho->neg_upap = 1;
 		break;
 	    }
 	    if (cishort == PPP_CHAP) {
-		if (!ao->neg_chap ||	/* we don't want to do CHAP */
-		    ho->neg_upap ||	/* or we've already accepted UPAP */
+		if (ho->neg_upap ||	/* we've already accepted PAP */
 		    cilen != CILEN_CHAP) {
 		    LCPDEBUG((LOG_INFO,
 			      "lcp_reqci: rcvd AUTHTYPE CHAP, rejecting..."));
 		    orc = CONFREJ;
 		    break;
 		}
+		if (!ao->neg_chap) {	/* we don't want to do CHAP */
+		    orc = CONFNAK;	/* NAK it and suggest PAP */
+		    PUTCHAR(CI_AUTHTYPE, nakp);
+		    PUTCHAR(CILEN_SHORT, nakp);
+		    PUTSHORT(PPP_PAP, nakp);
+		    break;
+		}
 		GETCHAR(cichar, p);	/* get digest type*/
 		if (cichar != ao->chap_mdtype) {
 		    orc = CONFNAK;
-		    if( !reject_if_disagree ){
-			DECPTR(sizeof (u_char), p);
-			PUTCHAR(ao->chap_mdtype, p);
-		    }
+		    PUTCHAR(CI_AUTHTYPE, nakp);
+		    PUTCHAR(CILEN_CHAP, nakp);
+		    PUTSHORT(PPP_CHAP, nakp);
+		    PUTCHAR(ao->chap_mdtype, nakp);
 		    break;
 		}
 		ho->chap_mdtype = cichar; /* save md type */
@@ -1197,9 +1266,19 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 
 	    /*
 	     * We don't recognize the protocol they're asking for.
-	     * Reject it.
+	     * Nak it with something we're willing to do.
+	     * (At this point we know ao->neg_upap || ao->neg_chap.)
 	     */
-	    orc = CONFREJ;
+	    orc = CONFNAK;
+	    PUTCHAR(CI_AUTHTYPE, nakp);
+	    if (ao->neg_chap) {
+		PUTCHAR(CILEN_CHAP, nakp);
+		PUTSHORT(PPP_CHAP, nakp);
+		PUTCHAR(ao->chap_mdtype, nakp);
+	    } else {
+		PUTCHAR(CILEN_SHORT, nakp);
+		PUTSHORT(PPP_PAP, nakp);
+	    }
 	    break;
 
 	case CI_QUALITY:
@@ -1213,15 +1292,19 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    GETSHORT(cishort, p);
 	    GETLONG(cilong, p);
 	    LCPDEBUG((LOG_INFO, "(%x %x)", cishort, (unsigned int) cilong));
-	    if (cishort != PPP_LQR) {
-		orc = CONFREJ;
-		break;
-	    }
 
 	    /*
-	     * Check the reporting period.
+	     * Check the protocol and the reporting period.
 	     * XXX When should we Nak this, and what with?
 	     */
+	    if (cishort != PPP_LQR) {
+		orc = CONFNAK;
+		PUTCHAR(CI_QUALITY, nakp);
+		PUTCHAR(CILEN_LQR, nakp);
+		PUTSHORT(PPP_LQR, nakp);
+		PUTLONG(ao->lqr_period, nakp);
+		break;
+	    }
 	    break;
 
 	case CI_MAGICNUMBER:
@@ -1239,10 +1322,11 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     */
 	    if (go->neg_magicnumber &&
 		cilong == go->magicnumber) {
-		orc = CONFNAK;
-		DECPTR(sizeof(u_int32_t), p);
 		cilong = magic();	/* Don't put magic() inside macro! */
-		PUTLONG(cilong, p);
+		orc = CONFNAK;
+		PUTCHAR(CI_MAGICNUMBER, nakp);
+		PUTCHAR(CILEN_LONG, nakp);
+		PUTLONG(cilong, nakp);
 		break;
 	    }
 	    ho->neg_magicnumber = 1;
@@ -1289,30 +1373,40 @@ endswitch:
 	    else {
 		if (rc == CONFREJ)	/* Rejecting prior CI? */
 		    continue;		/* Don't send this one */
-		if (rc == CONFACK) {	/* Ack'd all prior CIs? */
-		    rc = CONFNAK;	/* Not anymore... */
-		    ucp = inp;		/* Backup */
-		}
+		rc = CONFNAK;
 	    }
 	}
-	if (orc == CONFREJ &&		/* Reject this CI */
-	    rc != CONFREJ) {		/*  but no prior ones? */
+	if (orc == CONFREJ) {		/* Reject this CI */
 	    rc = CONFREJ;
-	    ucp = inp;			/* Backup */
+	    if (cip != rejp)		/* Need to move rejected CI? */
+		BCOPY(cip, rejp, cilen); /* Move it */
+	    INCPTR(cilen, rejp);	/* Update output pointer */
 	}
-	if (ucp != cip)			/* Need to move CI? */
-	    BCOPY(cip, ucp, cilen);	/* Move it */
-	INCPTR(cilen, ucp);		/* Update output pointer */
     }
 
     /*
      * If we wanted to send additional NAKs (for unsent CIs), the
-     * code would go here.  This must be done with care since it might
-     * require a longer packet than we received.  At present there
-     * are no cases where we want to ask the peer to negotiate an option.
+     * code would go here.  The extra NAKs would go at *nakp.
+     * At present there are no cases where we want to ask the
+     * peer to negotiate an option.
      */
 
-    *lenp = ucp - inp;			/* Compute output length */
+    switch (rc) {
+    case CONFACK:
+	*lenp = next - inp;
+	break;
+    case CONFNAK:
+	/*
+	 * Copy the Nak'd options from the nak_buffer to the caller's buffer.
+	 */
+	*lenp = nakp - nak_buffer;
+	BCOPY(nak_buffer, inp, *lenp);
+	break;
+    case CONFREJ:
+	*lenp = rejp - inp;
+	break;
+    }
+
     LCPDEBUG((LOG_INFO, "lcp_reqci: returning CONF%s.", CODENAME(rc)));
     return (rc);			/* Return final code */
 }
