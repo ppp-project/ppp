@@ -5,7 +5,7 @@
    Michael Callahan <callahan@maths.ox.ac.uk>
    Nov. 4 1993 */
 
-/* $Id: ppp.h,v 1.2 1994/05/27 00:56:17 paulus Exp $ */
+/* $Id: ppp.h,v 1.3 1994/05/27 00:59:24 paulus Exp $ */
 
 /* how many PPP units? */
 #define PPP_NRUNIT     4
@@ -180,7 +180,7 @@ struct ppp {
 
   unsigned int		flags;		/* miscellany			*/
 
-  unsigned long		xmit_async_map[8]; /* 1 bit means that given control 
+  ext_accm		xmit_async_map; /* 1 bit means that given control 
 					   character is quoted on output*/
 
   unsigned long		recv_async_map; /* 1 bit means that given control 
