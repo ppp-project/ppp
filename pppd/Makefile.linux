@@ -1,17 +1,21 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.49 2002/06/01 08:47:03 mjb Exp $
+# $Id: Makefile.linux,v 1.50 2002/06/10 13:46:28 dfs Exp $
 #
 
 # Default installation locations
 BINDIR = /usr/sbin
 MANDIR = /usr/man
+INCDIR = /usr/include
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c ecp.c \
 	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c cbcp.c \
 	   demand.c utils.c tty.c sha1.c
-HEADERS =  callout.h pathnames.h patchlevel.h chap.h md5.h chap_ms.h md4.h \
-	   ipxcp.h cbcp.h tdb.h sha1.h
+
+HEADERS = cbcp.h ccp.h chap.h chap_ms.h ecp.h fsm.h ipcp.h \
+	ipxcp.h lcp.h magic.h md4.h md5.h patchlevel.h pathnames.h pppd.h \
+	sha1.h tdb.h upap.h
+
 MANPAGES = pppd.8
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o ecp.o \
 	   auth.o options.o demand.o utils.o sys-linux.o ipxcp.o tty.o sha1.o
@@ -161,6 +165,10 @@ install: pppd
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+
+install-devel:
+	mkdir -p $(INCDIR)/pppd
+	$(INSTALL) -c -m 644 $(HEADERS) $(INCDIR)/pppd
 
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core

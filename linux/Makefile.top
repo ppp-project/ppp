@@ -2,6 +2,7 @@
 
 
 BINDIR = $(DESTDIR)/usr/sbin
+INCDIR = $(DESTDIR)/usr/include
 MANDIR = $(DESTDIR)/usr/man
 ETCDIR = $(DESTDIR)/etc/ppp
 
@@ -15,7 +16,7 @@ all:
 	cd pppstats; $(MAKE) $(MFLAGS) all
 	cd pppdump; $(MAKE) $(MFLAGS) all
 
-install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
+install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp install-devel
 
 install-progs:
 	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
@@ -26,6 +27,9 @@ install-progs:
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets
+
+install-devel:
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) INCDIR=$(INCDIR) $(MFLAGS) install-devel
 
 $(ETCDIR)/options:
 	$(INSTALL) -c -m 644 etc.ppp/options $@
