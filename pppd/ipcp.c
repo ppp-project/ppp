@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.16 1995/04/26 06:46:50 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.17 1995/04/28 06:24:53 paulus Exp $";
 #endif
 
 /*
@@ -575,13 +575,13 @@ ipcp_nakci(f, p, len)
 	case CI_ADDR:
 	    if (go->neg_addr || no.neg_addr || cilen != CILEN_ADDR)
 		goto bad;
-	    try.neg_addr = 1;
 	    try.old_addrs = 0;
 	    GETLONG(l, p);
 	    ciaddr1 = htonl(l);
 	    if (ciaddr1 && go->accept_local)
 		try.ouraddr = ciaddr1;
-	    no.neg_addr = 1;
+	    if (try.ouraddr != 0)
+		no.neg_addr = 1;
 	    break;
 	default:
 	    goto bad;
@@ -783,6 +783,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		 * If neither we nor he knows his address, reject the option.
 		 */
 		orc = CONFREJ;
+		wo->req_addr = 0;	/* don't NAK with 0.0.0.0 later */
 		break;
 	    }
 
@@ -843,6 +844,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		 * Don't ACK an address of 0.0.0.0 - reject it instead.
 		 */
 		orc = CONFREJ;
+		wo->req_addr = 0;	/* don't NAK with 0.0.0.0 later */
 		break;
 	    }
 	
