@@ -539,7 +539,6 @@ mppe_incomp(void *arg, unsigned char *ibuf, int icnt)
 {
     ppp_mppe_state *state = (ppp_mppe_state *) arg;
 
-/* XXX */
     if (state->debug &&
 	(PPP_PROTOCOL(ibuf) >= 0x0021 && PPP_PROTOCOL(ibuf) <= 0x00fa))
 	printk(KERN_DEBUG "mppe_incomp[%d]: incompressible (unencrypted) data! "
