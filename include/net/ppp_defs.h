@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.4 1994/10/23 11:46:45 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.5 1994/12/05 00:32:37 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -78,7 +78,7 @@
 #ifdef	UINT32_T
 typedef UINT32_T	u_int32_t;
 #else
-typedef unsigned long	u_int32_t;
+typedef unsigned int	u_int32_t;
 #endif
 #endif
 
@@ -138,6 +138,15 @@ struct compstat {
 struct ppp_comp_stats {
     struct compstat	c;	/* packet compression statistics */
     struct compstat	d;	/* packet decompression statistics */
+};
+
+/*
+ * The following structure records the time in seconds since
+ * the last NP packet was sent or received.
+ */
+struct ppp_idle {
+    int xmit_idle;		/* time since last NP packet sent */
+    int recv_idle;		/* time since last NP packet received */
 };
 
 #ifndef __P
