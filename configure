@@ -1,0 +1,86 @@
+#!/bin/sh
+# $Id: configure,v 1.1 1995/05/10 00:32:13 paulus Exp $
+
+if [ -d /NeXTStep ]; then
+  system="NeXTStep"
+else
+  system=`uname -s`
+  release=`uname -r`
+fi
+state="unknown"
+
+case $system in
+  NetBSD)
+    makext="bsd";
+    case $release in
+      0.*)	state="ancient";;
+      1.0*)	state="known"; ksrc="netbsd";;
+      1.[1-9]*|[2-9]*)
+		state="late"; ksrc="netbsd";;
+    esac;;
+  SunOS)
+    makext="sun";
+    case $release in
+      [0-3]*)	state="ancient";;
+      4*)	state="known"; ksrc="sunos";;
+    esac;;
+  ULTRIX)
+    makext="ultrix";
+    case $release in
+      [0-3]*)	state="ancient";;
+      4.[01]*)	state="early"; ksrc="ultrix";;
+      4.[234])	state="known"; ksrc="ultrix";;
+    esac;;
+  AIX)
+    makext="aix4";
+    version=`uname -v`
+    case $version.$release in
+      4.1)	state="known"; ksrc="aix4";;
+      4.[2-9]*)	state="late"; ksrc="aix4";;
+    esac;;
+  OSF1)
+    makext="osf";
+    case $release in
+      V[23].*)	state="known"; ksrc="osf1";;
+      V[4-9]*) state="late"; ksrc="osf1";;
+    esac;;
+  Linux)
+    makext="linux";
+    ksrc="linux";
+    state="known";;
+  FreeBSD)
+    makext="bsd";
+    case $release in
+      2.0*)	state="known"; ksrc="freebsd-2.0";;
+      2.[1-9]*)	state="late"; ksrc="freebsd-2.0";;
+    esac;;
+esac
+
+case $state in
+  ancient)
+    echo "This is an old release of a supported OS ($system)."
+    echo "This software cannot be used as-is on this system,"
+    echo "but you may be able to port it.  Good luck!"
+    exit;;
+  early)
+    echo "This is an old release of a supported OS ($system)."
+    echo "This software should install and run on this system,"
+    echo "but it hasn't been tested.";;
+  late)
+    echo "This is a newer release of $system than was available when"
+    echo "this software was released.  It may or may not work.";;
+  unknown)
+    echo "This software has not been ported to this system.  Sorry.";;
+esac
+
+if [ $ksrc ]; then
+  echo "Creating links to Makefiles."
+  rm -f Makefile
+  ln -s $ksrc/Makefile.top Makefile
+  echo "  Makefile -> $ksrc/Makefile.top"
+  for dir in pppd pppstats chat; do
+    rm -f $dir/Makefile
+    ln -s Makefile.$makext $dir/Makefile
+    echo "  $dir/Makefile -> Makefile.$makext"
+  done
+fi
