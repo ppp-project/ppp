@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.13 1994/09/01 00:13:16 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.14 1994/09/16 02:16:13 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1458,16 +1458,41 @@ static int setchapintv(argv)
 static int setbsdcomp(argv)
     char **argv;
 {
-    int bits;
+    int rbits, abits;
+    char *str, *endp;
 
-    if (!int_option(*argv, &bits))
+    str = *argv;
+    abits = rbits = strtol(str, &endp, 0);
+    if (endp != str && *endp == ',') {
+	str = endp + 1;
+	abits = strtol(str, &endp, 0);
+    }
+    if (*endp != 0 || endp == str) {
+	fprintf(stderr, "%s: invalid argument format for bsdcomp option\n",
+		progname);
 	return 0;
-    ccp_wantoptions[0].bsd_compress = 1;
-    ccp_wantoptions[0].bsd_bits = bits;
+    }
+    if (rbits != 0 && (rbits < MIN_BSD_BITS || rbits > MAX_BSD_BITS)
+	|| abits != 0 && (abits < MIN_BSD_BITS || abits > MAX_BSD_BITS)) {
+	fprintf(stderr, "%s: bsdcomp option values must be 0 or %d .. %d\n",
+		progname, MIN_BSD_BITS, MAX_BSD_BITS);
+	return 0;
+    }
+    if (rbits > 0) {
+	ccp_wantoptions[0].bsd_compress = 1;
+	ccp_wantoptions[0].bsd_bits = rbits;
+    } else
+	ccp_wantoptions[0].bsd_compress = 0;
+    if (abits > 0) {
+	ccp_allowoptions[0].bsd_compress = 1;
+	ccp_allowoptions[0].bsd_bits = abits;
+    } else
+	ccp_allowoptions[0].bsd_compress = 0;
     return 1;
 }
 
 static int setnobsdcomp()
 {
+    ccp_wantoptions[0].bsd_compress = 0;
     ccp_allowoptions[0].bsd_compress = 0;
 }
