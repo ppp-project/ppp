@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.4 1995/06/01 02:22:12 paulus Exp $
+ * $Id: ppp.c,v 1.5 1995/06/23 01:38:49 paulus Exp $
  */
 
 /*
@@ -128,6 +128,7 @@ static int send_data __P((mblk_t *, upperstr_t *));
 static void new_ppa __P((queue_t *, mblk_t *));
 static void attach_ppa __P((queue_t *, mblk_t *));
 static void detach_ppa __P((queue_t *, mblk_t *));
+static void debug_dump __P((queue_t *, mblk_t *));
 static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
@@ -394,8 +395,10 @@ pppclose(q, flag, credp)
 	}
     }
 
+#ifdef sun
     if (up->kstats)
 	kstat_delete(up->kstats);
+#endif
 
     q->q_ptr = NULL;
     WR(q)->q_ptr = NULL;
@@ -460,6 +463,7 @@ pppuwput(q, mp)
 	    us->lowerq = lq = lb->l_qbot;
 	    lq->q_ptr = us;
 	    RD(lq)->q_ptr = us;
+	    noenable(RD(lq));
 	    iop->ioc_count = 0;
 	    error = 0;
 	    us->flags &= ~US_LASTMOD;
@@ -562,6 +566,22 @@ pppuwput(q, mp)
 	case PPPIO_LASTMOD:
 	    us->flags |= US_LASTMOD;
 	    error = 0;
+	    break;
+
+	case PPPIO_DEBUG:
+	    if (iop->ioc_count != sizeof(int))
+		break;
+	    n = *(int *)mp->b_cont->b_rptr;
+	    if (n == PPPDBG_DUMP + PPPDBG_DRIVER) {
+		qwriter(q, NULL, debug_dump, PERIM_OUTER);
+		iop->ioc_count = 0;
+		error = 0;
+	    } else {
+		if (us->ppa == 0 || us->ppa->lowerq == 0)
+		    break;
+		putnext(us->ppa->lowerq, mp);
+		error = -1;
+	    }
 	    break;
 
 	default:
@@ -1025,14 +1045,13 @@ pppuwsrv(q)
     mblk_t *mp;
 
     us = (upperstr_t *) q->q_ptr;
+    us->flags &= ~US_BLOCKED;
     while ((mp = getq(q)) != 0) {
 	if (!send_data(mp, us)) {
 	    putbq(q, mp);
 	    break;
 	}
     }
-    if (mp == 0)
-	us->flags &= ~US_BLOCKED;
     return 0;
 }
 
@@ -1047,8 +1066,10 @@ ppplwput(q, mp)
     if (ppa != 0) {		/* why wouldn't it? */
 	ppa->stats.ppp_opackets++;
 	ppa->stats.ppp_obytes += msgdsize(mp);
+#ifdef sun
 	if (ppa->kstats != 0)
 	    KSTAT_NAMED_PTR(ppa->kstats)[2].value.ul++;
+#endif
     }
     putnext(q, mp);
     return 0;
@@ -1080,10 +1101,6 @@ pppursrv(q)
     dl_unitdata_ind_t *ud;
     int proto;
 
-    /*
-     * If this is a control stream and we don't have a lower queue attached,
-     * run the write service routines of other streams attached to this PPA.
-     */
     us = (upperstr_t *) q->q_ptr;
     if (us->flags & US_CONTROL) {
 	/*
@@ -1103,6 +1120,8 @@ pppursrv(q)
 	/*
 	 * A network protocol stream.  Put a DLPI header on each
 	 * packet and send it on.
+	 * (Actually, it seems that the IP module will happily
+	 * accept M_DATA messages without the DL_UNITDATA_IND header.)
 	 */
 	while ((mp = getq(q)) != 0) {
 	    if (!canputnext(q)) {
@@ -1118,6 +1137,7 @@ pppursrv(q)
 		freemsg(mp);
 		continue;
 	    }
+	    hdr->b_datap->db_type = M_PROTO;
 	    ud = (dl_unitdata_ind_t *) hdr->b_wptr;
 	    hdr->b_wptr += sizeof(dl_unitdata_ind_t) + 2 * sizeof(ulong);
 	    hdr->b_cont = mp;
@@ -1134,9 +1154,19 @@ pppursrv(q)
 	       (e.g. PPP_IP) */
 	    ((ulong *)(ud + 1))[0] = us->req_sap;	/* dest SAP */
 	    ((ulong *)(ud + 1))[1] = us->req_sap;	/* src SAP */
-	    putnext(q, mp);
+	    putnext(q, hdr);
 	}
     }
+
+    /*
+     * If this stream is attached to a PPA with a lower queue pair,
+     * enable the read queue's service routine if it has data queued.
+     * XXX there is a possibility that packets could get out of order
+     * if ppplrput now runs before ppplrsrv.
+     */
+    if (us->ppa != 0 && us->ppa->lowerq != 0)
+	qenable(RD(us->ppa->lowerq));
+
     return 0;
 }
 
@@ -1184,15 +1214,19 @@ ppplrput(q, mp)
     case M_CTL:
 	switch (*mp->b_rptr) {
 	case PPPCTL_IERROR:
+#ifdef sun
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[1].value.ul++;
 	    }
+#endif
 	    ppa->stats.ppp_ierrors++;
 	    break;
 	case PPPCTL_OERROR:
+#ifdef sun
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[3].value.ul++;
 	    }
+#endif
 	    ppa->stats.ppp_oerrors++;
 	    break;
 	}
@@ -1232,9 +1266,11 @@ ppplrput(q, mp)
 	    }
 	    ppa->stats.ppp_ipackets++;
 	    ppa->stats.ppp_ibytes += len;
+#ifdef sun
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[0].value.ul++;
 	    }
+#endif
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
 		/*
@@ -1331,4 +1367,34 @@ putctl4(q, type, code, val)
     mp->b_wptr += 4;
     putnext(q, mp);
     return 1;
+}
+
+static void
+debug_dump(q, mp)
+    queue_t *q;			/* not used */
+    mblk_t *mp;			/* not used either */
+{
+    upperstr_t *us;
+    queue_t *uq, *lq;
+
+    cmn_err(CE_CONT, "ppp upper streams:\n");
+    for (us = minor_devs; us != 0; us = us->nextmn) {
+	uq = us->q;
+	cmn_err(CE_CONT, " %d: q=%x rlev=%d wlev=%d flags=0x%b",
+		us->mn, uq, (uq? qsize(uq): 0), (uq? qsize(WR(uq)): 0),
+		us->flags, "\020\1priv\2control\3blocked\4last");
+	cmn_err(CE_CONT, " state=%x sap=%x req_sap=%x", us->state, us->sap,
+		us->req_sap);
+	if (us->ppa == 0)
+	    cmn_err(CE_CONT, " ppa=?\n");
+	else
+	    cmn_err(CE_CONT, " ppa=%d\n", us->ppa->ppa_id);
+	if (us->flags & US_CONTROL) {
+	    lq = us->lowerq;
+	    cmn_err(CE_CONT, "    control for %d lq=%x rlev=%d wlev=%d",
+		    us->ppa_id, lq, (lq? qsize(RD(lq)): 0),
+		    (lq? qsize(lq): 0));
+	    cmn_err(CE_CONT, " mru=%d mtu=%d\n", us->mru, us->mtu);
+	}
+    }
 }
