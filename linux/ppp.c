@@ -51,7 +51,7 @@
 #define PPP_MAX_DEV	256
 #endif
 
-/* $Id: ppp.c,v 1.10 1997/03/04 03:29:58 paulus Exp $
+/* $Id: ppp.c,v 1.11 1997/04/30 05:42:36 paulus Exp $
  * Added dynamic allocation of channels to eliminate
  *   compiled-in limits on the number of channels.
  *
@@ -152,7 +152,7 @@ do {									   \
 
 #define COPY_TO_USER(error,dest,src,size)				  \
 do {									  \
-	error = verify_area (VERIFY_WRITE, (void *) src, size);		  \
+	error = verify_area (VERIFY_WRITE, (void *) dest, size);		  \
 	if (error == 0)							  \
 		memcpy_tofs (dest, src, size);				  \
 } while (0)
@@ -2253,7 +2253,7 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 				if (ppp->flags & SC_DEBUG)
 					printk("ppp%ld: decomp_alloc failed\n",
 					       ppp2dev (ppp)->base_addr);
-				error = ENOBUFS;
+				error = -ENOBUFS;
 			}
 			ppp->flags &= ~SC_DECOMP_RUN;
 		}
@@ -2775,7 +2775,7 @@ ppp_dev_ioctl_comp_stats (struct ppp *ppp, struct ifreq *ifr, struct device *dev
  * Supply the information for the caller.
  */
 	memset (&temp, 0, sizeof(temp));
-	if (error == 0 && dev->flags & IFF_UP) {
+	if (dev->flags & IFF_UP) {
 		if (ppp->sc_xc_state != NULL)
 			(*ppp->sc_xcomp->comp_stat) (ppp->sc_xc_state,
 						     &temp.c);
