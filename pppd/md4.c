@@ -13,10 +13,10 @@
 **          computation.
 **   -- Initialize MD using MDbegin(&MD)
 **   -- For each full block (64 bytes) X you wish to process, call
-**          MDupdate(&MD,X,512)
+**          MD4Update(&MD,X,512)
 **      (512 is the number of bits in a full block.)
 **   -- For the last block (less than 64 bytes) you wish to process,
-**          MDupdate(&MD,X,n)
+**          MD4Update(&MD,X,n)
 **      where n is the number of bits in the partial block. A partial
 **      block terminates the computation, so every MD computation
 **      should terminate by processing a partial block, even if it
@@ -29,17 +29,6 @@
 
 /* Implementation notes:
 ** This implementation assumes that ints are 32-bit quantities.
-** If the machine stores the least-significant byte of an int in the
-** least-addressed byte (e.g., VAX and 8086), then LOWBYTEFIRST
-** should be set to TRUE.  Otherwise (e.g., SUNS), LOWBYTEFIRST
-** should be set to FALSE.  Note that on machines with LOWBYTEFIRST
-** FALSE the routine MDupdate modifies has a side-effect on its input
-** array (the order of bytes in each word are reversed).  If this is
-** undesired a call to MDreverse(X) can reverse the bytes of X back
-** into order after each call to MDupdate.
-**
-** NOTE: LOWBYTEFIRST removed by Eric Rosenquist in favour of run-time
-** detection to simplify build process.
 */
 
 #define TRUE  1
@@ -90,7 +79,7 @@
 #define gg(A,B,C,D,i,s)      A = rot((A + g(B,C,D) + X[i] + C2),s)
 #define hh(A,B,C,D,i,s)      A = rot((A + h(B,C,D) + X[i] + C3),s)
 
-/* MDprint(MDp)
+/* MD4print(MDp)
 ** Print message digest buffer MDp as 32 hexadecimal digits.
 ** Order is from low-order byte of buffer[0] to high-order byte of
 ** buffer[3].
@@ -98,42 +87,30 @@
 ** This is a user-callable routine.
 */
 void
-MDprint(MDp)
-MDptr MDp;
-{ int i,j;
-for (i=0;i<4;i++)
- for (j=0;j<32;j=j+8)
-   printf("%02x",(MDp->buffer[i]>>j) & 0xFF);
+MD4Print(MDp)
+MD4_CTX *MDp;
+{
+  int i,j;
+  for (i=0;i<4;i++)
+    for (j=0;j<32;j=j+8)
+      printf("%02x",(MDp->buffer[i]>>j) & 0xFF);
 }
 
-/* MDbegin(MDp)
+/* MD4Init(MDp)
 ** Initialize message digest buffer MDp.
 ** This is a user-callable routine.
 */
 void
-MDbegin(MDp)
-MDptr MDp;
-{ int i;
-MDp->buffer[0] = I0;
-MDp->buffer[1] = I1;
-MDp->buffer[2] = I2;
-MDp->buffer[3] = I3;
-for (i=0;i<8;i++) MDp->count[i] = 0;
-MDp->done = 0;
-}
-
-/* MDreverse(X)
-** Reverse the byte-ordering of every int in X.
-** Assumes X is an array of 16 ints.
-** The macro revx reverses the byte-ordering of the next word of X.
-*/
-#define revx { t = (*X << 16) | (*X >> 16); \
-  *X++ = ((t & 0xFF00FF00) >> 8) | ((t & 0x00FF00FF) << 8); }
-MDreverse(X)
-unsigned int *X;
-{ register unsigned int t;
-revx; revx; revx; revx; revx; revx; revx; revx;
-revx; revx; revx; revx; revx; revx; revx; revx;
+MD4Init(MDp)
+MD4_CTX *MDp;
+{
+  int i;
+  MDp->buffer[0] = I0;
+  MDp->buffer[1] = I1;
+  MDp->buffer[2] = I2;
+  MDp->buffer[3] = I3;
+  for (i=0;i<8;i++) MDp->count[i] = 0;
+  MDp->done = 0;
 }
 
 /* MDblock(MDp,X)
@@ -143,151 +120,177 @@ revx; revx; revx; revx; revx; revx; revx; revx;
 ** This routine is not user-callable.
 */
 static void
-MDblock(MDp,X)
-MDptr MDp;
-unsigned int *X;
+MDblock(MDp,Xb)
+MD4_CTX *MDp;
+unsigned char *Xb;
 {
-register unsigned int tmp, A, B, C, D;
-static int low_byte_first = -1;
+  register unsigned int tmp, A, B, C, D;
+  unsigned int X[16];
+  int i;
 
-if (low_byte_first == -1) {
-    low_byte_first = (htons((unsigned short int)1) != 1);
+  for (i = 0; i < 16; ++i) {
+    X[i] = Xb[0] + (Xb[1] << 8) + (Xb[2] << 16) + (Xb[3] << 24);
+    Xb += 4;
+  }
+
+  A = MDp->buffer[0];
+  B = MDp->buffer[1];
+  C = MDp->buffer[2];
+  D = MDp->buffer[3];
+  /* Update the message digest buffer */
+  ff(A , B , C , D ,  0 , fs1); /* Round 1 */
+  ff(D , A , B , C ,  1 , fs2);
+  ff(C , D , A , B ,  2 , fs3);
+  ff(B , C , D , A ,  3 , fs4);
+  ff(A , B , C , D ,  4 , fs1);
+  ff(D , A , B , C ,  5 , fs2);
+  ff(C , D , A , B ,  6 , fs3);
+  ff(B , C , D , A ,  7 , fs4);
+  ff(A , B , C , D ,  8 , fs1);
+  ff(D , A , B , C ,  9 , fs2);
+  ff(C , D , A , B , 10 , fs3);
+  ff(B , C , D , A , 11 , fs4);
+  ff(A , B , C , D , 12 , fs1);
+  ff(D , A , B , C , 13 , fs2);
+  ff(C , D , A , B , 14 , fs3);
+  ff(B , C , D , A , 15 , fs4);
+  gg(A , B , C , D ,  0 , gs1); /* Round 2 */
+  gg(D , A , B , C ,  4 , gs2);
+  gg(C , D , A , B ,  8 , gs3);
+  gg(B , C , D , A , 12 , gs4);
+  gg(A , B , C , D ,  1 , gs1);
+  gg(D , A , B , C ,  5 , gs2);
+  gg(C , D , A , B ,  9 , gs3);
+  gg(B , C , D , A , 13 , gs4);
+  gg(A , B , C , D ,  2 , gs1);
+  gg(D , A , B , C ,  6 , gs2);
+  gg(C , D , A , B , 10 , gs3);
+  gg(B , C , D , A , 14 , gs4);
+  gg(A , B , C , D ,  3 , gs1);
+  gg(D , A , B , C ,  7 , gs2);
+  gg(C , D , A , B , 11 , gs3);
+  gg(B , C , D , A , 15 , gs4);
+  hh(A , B , C , D ,  0 , hs1); /* Round 3 */
+  hh(D , A , B , C ,  8 , hs2);
+  hh(C , D , A , B ,  4 , hs3);
+  hh(B , C , D , A , 12 , hs4);
+  hh(A , B , C , D ,  2 , hs1);
+  hh(D , A , B , C , 10 , hs2);
+  hh(C , D , A , B ,  6 , hs3);
+  hh(B , C , D , A , 14 , hs4);
+  hh(A , B , C , D ,  1 , hs1);
+  hh(D , A , B , C ,  9 , hs2);
+  hh(C , D , A , B ,  5 , hs3);
+  hh(B , C , D , A , 13 , hs4);
+  hh(A , B , C , D ,  3 , hs1);
+  hh(D , A , B , C , 11 , hs2);
+  hh(C , D , A , B ,  7 , hs3);
+  hh(B , C , D , A , 15 , hs4);
+  MDp->buffer[0] += A;
+  MDp->buffer[1] += B;
+  MDp->buffer[2] += C;
+  MDp->buffer[3] += D;
 }
 
-if (low_byte_first == 0) {
-    MDreverse(X);
-}
-
-A = MDp->buffer[0];
-B = MDp->buffer[1];
-C = MDp->buffer[2];
-D = MDp->buffer[3];
-/* Update the message digest buffer */
-ff(A , B , C , D ,  0 , fs1); /* Round 1 */
-ff(D , A , B , C ,  1 , fs2);
-ff(C , D , A , B ,  2 , fs3);
-ff(B , C , D , A ,  3 , fs4);
-ff(A , B , C , D ,  4 , fs1);
-ff(D , A , B , C ,  5 , fs2);
-ff(C , D , A , B ,  6 , fs3);
-ff(B , C , D , A ,  7 , fs4);
-ff(A , B , C , D ,  8 , fs1);
-ff(D , A , B , C ,  9 , fs2);
-ff(C , D , A , B , 10 , fs3);
-ff(B , C , D , A , 11 , fs4);
-ff(A , B , C , D , 12 , fs1);
-ff(D , A , B , C , 13 , fs2);
-ff(C , D , A , B , 14 , fs3);
-ff(B , C , D , A , 15 , fs4);
-gg(A , B , C , D ,  0 , gs1); /* Round 2 */
-gg(D , A , B , C ,  4 , gs2);
-gg(C , D , A , B ,  8 , gs3);
-gg(B , C , D , A , 12 , gs4);
-gg(A , B , C , D ,  1 , gs1);
-gg(D , A , B , C ,  5 , gs2);
-gg(C , D , A , B ,  9 , gs3);
-gg(B , C , D , A , 13 , gs4);
-gg(A , B , C , D ,  2 , gs1);
-gg(D , A , B , C ,  6 , gs2);
-gg(C , D , A , B , 10 , gs3);
-gg(B , C , D , A , 14 , gs4);
-gg(A , B , C , D ,  3 , gs1);
-gg(D , A , B , C ,  7 , gs2);
-gg(C , D , A , B , 11 , gs3);
-gg(B , C , D , A , 15 , gs4);
-hh(A , B , C , D ,  0 , hs1); /* Round 3 */
-hh(D , A , B , C ,  8 , hs2);
-hh(C , D , A , B ,  4 , hs3);
-hh(B , C , D , A , 12 , hs4);
-hh(A , B , C , D ,  2 , hs1);
-hh(D , A , B , C , 10 , hs2);
-hh(C , D , A , B ,  6 , hs3);
-hh(B , C , D , A , 14 , hs4);
-hh(A , B , C , D ,  1 , hs1);
-hh(D , A , B , C ,  9 , hs2);
-hh(C , D , A , B ,  5 , hs3);
-hh(B , C , D , A , 13 , hs4);
-hh(A , B , C , D ,  3 , hs1);
-hh(D , A , B , C , 11 , hs2);
-hh(C , D , A , B ,  7 , hs3);
-hh(B , C , D , A , 15 , hs4);
-MDp->buffer[0] += A;
-MDp->buffer[1] += B;
-MDp->buffer[2] += C;
-MDp->buffer[3] += D;
-}
-
-/* MDupdate(MDp,X,count)
-** Input: MDp -- an MDptr
-**        X -- a pointer to an array of unsigned characters.
+/* MD4Update(MDp,X,count)
+** Input: X -- a pointer to an array of unsigned characters.
 **        count -- the number of bits of X to use.
 **          (if not a multiple of 8, uses high bits of last byte.)
 ** Update MDp using the number of bits of X given by count.
 ** This is the basic input routine for an MD4 user.
 ** The routine completes the MD computation when count < 512, so
-** every MD computation should end with one call to MDupdate with a
+** every MD computation should end with one call to MD4Update with a
 ** count less than 512.  A call with count 0 will be ignored if the
 ** MD has already been terminated (done != 0), so an extra call with
 ** count 0 can be given as a "courtesy close" to force termination
 ** if desired.
 */
 void
-MDupdate(MDp,X,count)
-MDptr MDp;
+MD4Update(MDp,X,count)
+MD4_CTX *MDp;
 unsigned char *X;
 unsigned int count;
-{ unsigned int i, tmp, bit, byte, mask;
-unsigned char XX[64];
-unsigned char *p;
-/* return with no error if this is a courtesy close with count
-** zero and MDp->done is true.
+{
+  unsigned int i, tmp, bit, byte, mask;
+  unsigned char XX[64];
+  unsigned char *p;
+
+  /* return with no error if this is a courtesy close with count
+  ** zero and MDp->done is true.
+  */
+  if (count == 0 && MDp->done) return;
+  /* check to see if MD is already done and report error */
+  if (MDp->done)
+  { printf("\nError: MD4Update MD already done."); return; }
+
+  /* Add count to MDp->count */
+  tmp = count;
+  p = MDp->count;
+  while (tmp)
+  { tmp += *p;
+  *p++ = tmp;
+  tmp = tmp >> 8;
+  }
+
+  /* Process data */
+  if (count == 512)
+  { /* Full block of data to handle */
+    MDblock(MDp,X);
+  }
+  else if (count > 512) /* Check for count too large */
+  {
+    printf("\nError: MD4Update called with illegal count value %d.",
+	   count);
+    return;
+  }
+  else /* partial block -- must be last block so finish up */
+  {
+    /* Find out how many bytes and residual bits there are */
+    byte = count >> 3;
+    bit =  count & 7;
+    /* Copy X into XX since we need to modify it */
+    for (i=0;i<=byte;i++)   XX[i] = X[i];
+    for (i=byte+1;i<64;i++) XX[i] = 0;
+    /* Add padding '1' bit and low-order zeros in last byte */
+    mask = 1 << (7 - bit);
+    XX[byte] = (XX[byte] | mask) & ~( mask - 1);
+    /* If room for bit count, finish up with this block */
+    if (byte <= 55)
+    {
+      for (i=0;i<8;i++) XX[56+i] = MDp->count[i];
+      MDblock(MDp,XX);
+    }
+    else /* need to do two blocks to finish up */
+    {
+      MDblock(MDp,XX);
+      for (i=0;i<56;i++) XX[i] = 0;
+      for (i=0;i<8;i++)  XX[56+i] = MDp->count[i];
+      MDblock(MDp,XX);
+    }
+    /* Set flag saying we're done with MD computation */
+    MDp->done = 1;
+  }
+}
+
+/*
+** Finish up MD4 computation and return message digest.
 */
-if (count == 0 && MDp->done) return;
-/* check to see if MD is already done and report error */
-if (MDp->done)
-	  { printf("\nError: MDupdate MD already done."); return; }
-/* Add count to MDp->count */
-tmp = count;
-p = MDp->count;
-while (tmp)
- { tmp += *p;
-   *p++ = tmp;
-   tmp = tmp >> 8;
- }
-/* Process data */
-if (count == 512)
- { /* Full block of data to handle */
-   MDblock(MDp,(unsigned int *)X);
- }
-else if (count > 512) /* Check for count too large */
- { printf("\nError: MDupdate called with illegal count value %d."
-		  ,count);
-   return;
- }
-else /* partial block -- must be last block so finish up */
- { /* Find out how many bytes and residual bits there are */
-   byte = count >> 3;
-   bit =  count & 7;
-   /* Copy X into XX since we need to modify it */
-   for (i=0;i<=byte;i++)   XX[i] = X[i];
-   for (i=byte+1;i<64;i++) XX[i] = 0;
-   /* Add padding '1' bit and low-order zeros in last byte */
-   mask = 1 << (7 - bit);
-   XX[byte] = (XX[byte] | mask) & ~( mask - 1);
-   /* If room for bit count, finish up with this block */
-   if (byte <= 55)
-	 { for (i=0;i<8;i++) XX[56+i] = MDp->count[i];
-	   MDblock(MDp,(unsigned int *)XX);
-	 }
-   else /* need to do two blocks to finish up */
-	 { MDblock(MDp,(unsigned int *)XX);
-	   for (i=0;i<56;i++) XX[i] = 0;
-	   for (i=0;i<8;i++)  XX[56+i] = MDp->count[i];
-	   MDblock(MDp,(unsigned int *)XX);
-	 }
-   /* Set flag saying we're done with MD computation */
-   MDp->done = 1;
- }
+void
+MD4Final(buf, MD)
+unsigned char *buf;
+MD4_CTX *MD;
+{
+  int i, j;
+  unsigned int w;
+
+  MD4Update(MD, NULL, 0);
+  for (i = 0; i < 4; ++i) {
+    w = MD->buffer[i];
+    for (j = 0; j < 4; ++j) {
+      *buf++ = w;
+      w >>= 8;
+    }
+  }
 }
 
 /*
