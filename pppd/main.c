@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.84 1999/08/24 05:31:10 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.85 1999/08/24 05:59:15 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1698,7 +1698,7 @@ reap_kids(waitfor)
 
     got_sigchld = 0;
     if (n_children == 0)
-	return;
+	return 0;
     while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
 	   && pid != 0) {
 	--n_children;
