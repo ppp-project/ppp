@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.64 2004/10/31 22:09:03 paulus Exp $
+# $Id: Makefile.linux,v 1.65 2004/11/01 03:49:20 paulus Exp $
 #
 
 # Default installation locations
@@ -171,8 +171,10 @@ LIBS	+= -ldl
 endif
 
 ifdef FILTER
+ifneq ($(wildcard /usr/include/pcap-bpf.h),)
 LIBS    += -lpcap
 CFLAGS  += -DPPP_FILTER
+endif
 endif
 
 ifdef HAVE_INET6
