@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.7 1995/04/24 05:59:12 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.8 1995/07/04 12:32:26 paulus Exp $";
 #endif
 
 /*
@@ -189,9 +189,6 @@ ChapRechallenge(arg)
     ChapGenChallenge(cstate);
     ChapSendChallenge(cstate);
     cstate->serverstate = CHAPSS_RECHALLENGE;
-
-    if (cstate->chal_interval != 0)
-	TIMEOUT(ChapRechallenge, (caddr_t) cstate, cstate->chal_interval);
 }
 
 
