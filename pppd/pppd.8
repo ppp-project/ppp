@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.19 1996/07/01 01:19:01 paulus Exp $
+.\" $Id: pppd.8,v 1.20 1996/07/03 06:48:29 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -34,12 +34,12 @@ NCP for establishing and configuring the Internet Protocol (IP)
 .SH FREQUENTLY USED OPTIONS
 .TP
 .I <tty_name>
-Communicate over the named device.  The string "/dev/"
-is prepended if necessary.  If no device name is given,
-or if the name of the controlling terminal is given,
+Communicate over the named device.  The string "/dev/" is prepended if
+necessary.  If no device name is given, or if the name of the terminal
+connected to the standard input is given,
 .I pppd
-will use the controlling terminal, and will not fork to put itself in
-the background.
+will use that terminal, and will not fork to put itself in the
+background.
 .TP
 .I <speed>
 Set the baud rate to <speed> (a decimal number).  On systems such as
@@ -125,8 +125,8 @@ Enables the "passive" option in the LCP.  With this option,
 will attempt to initiate a connection; if no reply is received from
 the peer,
 .I pppd
-will then just wait passively for a valid LCP packet from the peer
-(instead of exiting, as it does without this option).
+will then just wait passively for a valid LCP packet from the peer,
+instead of exiting, as it would without this option.
 .SH OPTIONS
 .TP
 .I <local_IP_address>\fB:\fI<remote_IP_address>
@@ -146,20 +146,6 @@ negotiation, unless the
 and/or
 .B ipcp-accept-remote
 options are given, respectively.
-.TP
-.B active-filter \fIfilter-expression
-Specifies a packet filter to be applied to data packets to determine
-which packets are to be regarded as link activity, and therefore reset
-the idle timer, or cause the link to be brought up in demand-dialling
-mode.  This option is useful in conjunction with the
-\fBidle\fR option if there are packets being sent or received
-regularly over the link (for example, routing information packets)
-which would otherwise prevent the link from ever appearing to be idle.
-The \fIfilter-expression\fR syntax is as described for tcpdump(1),
-except that qualifiers which are inappropriate for a PPP link, such as
-\fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
-expression should be enclosed in single-quotes to prevent whitespace
-in the expression from being interpreted by the shell.
 .TP
 .B bsdcomp \fInr,nt
 Request that the peer compress packets that it sends, using the
@@ -224,7 +210,8 @@ connecting to the peer.  When traffic is available, \fBpppd\fR will
 connect to the peer and perform negotiation, authentication, etc.
 When this is completed, \fBpppd\fR will commence passing data packets
 (i.e., IP packets) across the link.  The persist, idle and holdoff
-options are often useful in conjuction with this option.
+options are often useful in conjuction with this option.  (Note that
+this option does \fInot\fR imply the persist option.)
 .TP
 .B domain \fI<d>
 Append the domain name <d> to the local host name for authentication
@@ -393,7 +380,12 @@ will not change the state of the DTR (Data Terminal Ready) signal.
 .TP
 .B login
 Use the system password database for authenticating the peer using
-PAP, and record the user in the system wtmp file.
+PAP, and record the user in the system wtmp file.  Note that if the
+/etc/ppp/pap-secrets file exists, the peer must have an entry in that
+file as well as the system password database to be allowed access.
+.TP
+.B maxconnect \fIn
+Terminate the connection after \fIn\fR seconds.
 .TP
 .B modem
 Use the modem control lines.  This option is the default.  With this
@@ -461,8 +453,9 @@ Disables Deflate compression; \fBpppd\fR will not request or agree to
 compress packets using the Deflate scheme.
 .TP
 .B nodetach
-Don't detach from the controlling terminal.  Without this option,
-if a serial device other than its controlling terminal is specified,
+Don't detach from the controlling terminal.  Without this option, if a
+serial device other than the terminal on the standard input is
+specified,
 .I pppd
 will fork to become a background process.
 .TP
@@ -535,20 +528,6 @@ Set the maximum time that
 will wait for the peer to authenticate itself with PAP to
 <n> seconds (0 means no limit).
 .TP
-.B pass-filter \fIfilter-expression
-Specifies a packet filter to applied to data packets being sent or
-received to determine which packets should be allowed to pass.
-Packets which are rejected by the filter are silently discarded.  This
-option can be used to provide protection against IP address spoofing
-and other attacks.
-The \fIfilter-expression\fR syntax is as described for tcpdump(1),
-except that qualifiers which are inappropriate for a PPP link, such as
-\fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
-expression should be enclosed in single-quotes to prevent whitespace
-in the expression from being interpreted by the shell.  Note that it
-is possible to apply different constraints to incoming and outgoing
-packets using the \fBinbound\fR and \fBoutbound\fR qualifiers.
-.TP
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
 the connection.
@@ -594,7 +573,7 @@ ancient versions of \fIpppd\fR).
 Enforce the use of the hostname as the name of the local system for
 authentication purposes (overrides the
 .B name
-option).
+option).  This option can be useful in the /etc/ppp/options file.
 .TP
 .B user \fI<u>
 Set the user name to use for authenticating this machine with the peer
@@ -605,6 +584,11 @@ Sets the number of connection slots to be used by the Van Jacobson
 TCP/IP header compression and decompression code to \fIn\fR, which
 must be between 2 and 16 (inclusive).
 .TP
+.B welcome \fIscript
+Run the executable or shell command specified by \fIscript\fR before
+initiating PPP negotiation, after the connect script (if any) has
+completed.
+.TP
 .B xonxoff
 Use software flow control (i.e. XON/XOFF) to control the flow of data on
 the serial port.  This option is only implemented on Linux systems
@@ -612,12 +596,19 @@ at present.
 .SH OPTIONS FILES
 Options can be taken from files as well as the command line.  
 .I pppd
-reads options from the files /etc/ppp/options and ~/.ppprc before
-looking at the command line.  An options file is parsed into a series
-of words, delimited by whitespace.  Whitespace can be included in a
-word by enclosing the word in quotes (").  A backslash (\\) quotes the
-following character.  A hash (#) starts a comment, which continues
-until the end of the line.
+reads options from the files /etc/ppp/options, ~/.ppprc and
+/etc/ppp/options.\fIttyname\fR before processing the options on the
+command line.  (In fact, the command-line options are scanned to find
+the terminal name before the options.\fIttyname\fR file is read.)  In
+forming the name of the options.\fIttyname\fR file, the initial /dev/
+is removed from the terminal name, and any remaining / characters are
+replaced with dots.
+.PP
+An options file is parsed into a series of words, delimited by
+whitespace.  Whitespace can be included in a word by enclosing the
+word in quotes (").  A backslash (\\) quotes the following character.
+A hash (#) starts a comment, which continues until the end of the
+line.
 .SH AUTHENTICATION
 .I pppd
 provides system administrators with sufficient access control that PPP
@@ -632,12 +623,11 @@ users may use.
 .LP
 The default behaviour of
 .I pppd
-is to agree to authenticate if requested, and to not
-require authentication from the peer.  However, 
+is to agree to authenticate if requested, and to not require
+authentication from the peer.  However,
 .I pppd
-will not agree to
-authenticate itself with a particular protocol if it has no secrets
-which could be used to do so.
+will not agree to authenticate itself with a particular protocol if it
+has no secrets which could be used to do so.
 .LP
 Authentication is based on secrets, which are selected from secrets
 files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP).
@@ -645,20 +635,25 @@ Both secrets files have the same format, and both can store secrets
 for several combinations of server (authenticating peer) and client
 (peer being authenticated).  Note that
 .I pppd
-can be both a server
-and client, and that different protocols can be used in the two
-directions if desired.
+can be both a server and client, and that different protocols can be
+used in the two directions if desired.
 .LP
 A secrets file is parsed into words as for a options file.  A secret
 is specified by a line containing at least 3 words, in the order
-client name, server name, secret.  Any following words on the same line are
-taken to be a list of acceptable IP addresses for that client.  If
-there are only 3 words on the line, it is assumed that any IP address
-is OK; to disallow all IP addresses, use "-".  If the secret starts
-with an `@', what follows is assumed to be the name of a file from
-which to read the secret.  A "*" as the client or server name matches
-any name.  When selecting a secret, \fIpppd\fR takes the best match, i.e.
-the match with the fewest wildcards.
+client name, server name, secret.  Any following words on the same
+line are taken to be a list of acceptable IP addresses for that
+client.  If there are only 3 words on the line, it is assumed that any
+IP address is OK; to disallow all IP addresses, use "-".  A word
+starting with "!" indicates that the specified address is \fInot\fR
+acceptable.  An address may be followed by "/" and a number \fIn\fR,
+to indicate a whole subnet, i.e. all addresses which have the same
+value in the most significant \fIn\fR bits.
+.LP
+If the
+secret starts with an `@', what follows is assumed to be the name of a
+file from which to read the secret.  A "*" as the client or server
+name matches any name.  When selecting a secret, \fIpppd\fR takes the
+best match, i.e.  the match with the fewest wildcards.
 .LP
 Thus a secrets file contains both secrets for use in authenticating
 other hosts, plus secrets which we use for authenticating ourselves to
@@ -680,7 +675,7 @@ else use the hostname of this machine (with the domain appended, if given)
 .LP
 When authenticating ourselves using PAP, there is also a `username'
 which is the local name by default, but can be set with the \fBuser\fR
-option or the \fB+ua\fR option.
+option.
 .LP
 The remote name is set as follows:
 .TP 3
@@ -834,26 +829,39 @@ process.  This signal acts as a toggle.
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for \fIpppd\fR process on ppp interface unit \fIn\fR.
 .TP
+.B /etc/ppp/auth-up
+A program or script which is executed after the remote system
+successfully authenticates itself.  It is executed with the parameters
+.IP
+\fIinterface-name peer-name user-name tty-device speed\fR
+.IP and with its standard input, output and error redirected to
+\fB/dev/null\fR.  This program or script is executed with the real and
+effective user-IDs set to \fBroot\fR, and with an empty environment.
+.TP
+.B /etc/ppp/auth-down
+A program or script which is executed when the link goes down, if
+/etc/ppp/auth-up was previously executed.  It is executed in the same
+manner with the same parameters as /etc/ppp/auth-up.
+.TP
 .B /etc/ppp/ip-up
 A program or script which is executed when the link is available for
 sending and receiving IP packets (that is, IPCP has come up).  It is
 executed with the parameters
 .IP
 \fIinterface-name tty-device speed local-IP-address
-remote-IP-address\fR
+remote-IP-address ipparam\fR
 .IP
 and with its standard input,
 output and error streams redirected to \fB/dev/null\fR.
 .IP
-This program or script is executed with the same real and effective
-user-ID as \fIpppd\fR, that is, at least the effective user-ID and
-possibly the real user-ID will be \fBroot\fR.  This is so that it can
+This program or script is executed with the real and effective
+user-IDs set to \fBroot\fR.  This is so that it can
 be used to manipulate routes, run privileged daemons (e.g.
 \fBsendmail\fR), etc.  Be careful that the contents of the
 /etc/ppp/ip-up and /etc/ppp/ip-down scripts do not compromise your
 system's security.
 .IP
-This program or script is executed without an environment, so you
+This program or script is executed with an empty environment, so you
 must either specify a PATH or use full pathnames (e.g. \fI/sbin/route\fR,
 as opposed to \fIroute\fR).
 .TP
@@ -861,9 +869,8 @@ as opposed to \fIroute\fR).
 A program or script which is executed when the link is no longer
 available for sending and receiving IP packets.  This script can be
 used for undoing the effects of the /etc/ppp/ip-up script.  It is
-invoked with the same parameters as the ip-up script, and the same
-security considerations apply, since it is executed with the same
-effective and real user-IDs as \fIpppd\fR.
+invoked in the same manner and with the same parameters as the ip-up
+script, and the same security considerations apply.
 .TP
 .B /etc/ppp/ipx-up
 A program or script which is executed when the link is available for
@@ -890,21 +897,19 @@ NLSP      to indicate that Novell NLSP should be used
 RIP NLSP  to indicate that both RIP/SAP and NLSP should be used
 .br
 .IP
-This program or script is executed with the same real and effective
-user-ID as \fIpppd\fR, that is, at least the effective user-ID and
-possibly the real user-ID will be \fBroot\fR.  This is so that it can
-be used to manipulate routes, run privileged daemons (e.g.
-\fBripd\fR), etc.  Be careful that the contents of the
-/etc/ppp/ipx-up and /etc/ppp/ipx-down scripts do not compromise your
-system's security.
+This program or script is executed with the real and effective
+user-IDs set to \fBroot\fR, and with an empty environment.  This is so
+that it can be used to manipulate routes, run privileged daemons (e.g.
+\fBripd\fR), etc.  Be careful that the contents of the /etc/ppp/ipx-up
+and /etc/ppp/ipx-down scripts do not compromise your system's
+security.
 .TP
 .B /etc/ppp/ipx-down
 A program or script which is executed when the link is no longer
 available for sending and receiving IPX packets.  This script can be
 used for undoing the effects of the /etc/ppp/ipx-up script.  It is
-invoked with the same parameters as the ipx-up script, and the same
-security considerations apply, since it is executed with the same
-effective and real user-IDs as \fIpppd\fR.
+invoked in the same manner and with the same parameters as the ipx-up
+script, and the same security considerations apply.
 .TP
 .B /etc/ppp/pap-secrets
 Usernames, passwords and IP addresses for PAP authentication.
@@ -922,7 +927,7 @@ User default options, read before command-line options.
 .TP
 .B /etc/ppp/options.\fIttyname
 System default options for the serial port being used, read after
-command-line options.  In forming the \fIttyname\fR part of this
+~/.ppprc.  In forming the \fIttyname\fR part of this
 filename, an initial /dev/ is stripped from the port name (if
 present), and any slashes in the remaining part are converted to
 dots.
@@ -970,8 +975,10 @@ restore the serial device settings, and exit.
 This signal causes \fBpppd\fR to terminate the link, restore the
 serial device settings, and close the serial device.  If the
 \fBpersist\fR option has been specified, \fBpppd\fR will try to reopen
-the serial device and start another connection.  Otherwise \fBpppd\fR
-will exit.
+the serial device and start another connection (after the holdoff
+period).  Otherwise \fBpppd\fR will exit.  If this signal is received
+during the holdoff period, it causes \fBpppd\fR to end the holdoff
+period immediately.
 .TP
 .B SIGUSR2
 This signal causes
