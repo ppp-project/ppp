@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.10 1997/04/30 05:44:43 paulus Exp $
+ * $Id: ppp.c,v 1.11 1997/05/22 06:45:32 paulus Exp $
  */
 
 /*
@@ -1250,7 +1250,7 @@ pass_packet(us, mp, outbound)
     int pass;
     upperstr_t *ppa;
 
-    if (us->ppa == 0) {
+    if ((ppa = us->ppa) == 0) {
 	freemsg(mp);
 	return 0;
     }
@@ -1267,7 +1267,7 @@ pass_packet(us, mp, outbound)
 
     if (pass < 0) {
 	/* pass only if link already up, and don't update time */
-	if (us->ppa->lowerq == 0) {
+	if (ppa->lowerq == 0) {
 	    freemsg(mp);
 	    return 0;
 	}
