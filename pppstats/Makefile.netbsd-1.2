@@ -1,0 +1,10 @@
+#	$Id: Makefile.netbsd-1.2,v 1.1 1997/04/30 06:00:07 paulus Exp $
+
+PROG=	pppstats
+SRCS=	pppstats.c
+CFLAGS+=-I.. -D_BITYPES
+MAN8=	pppstats.8
+MAN=	pppstats.cat8
+BINDIR=	/usr/sbin
+
+.include <bsd.prog.mk>
