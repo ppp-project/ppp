@@ -70,7 +70,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: ppp_tty.c,v 1.7 1997/03/04 03:27:28 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.8 1997/04/30 05:42:08 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -103,6 +103,9 @@
 #include <net/pppcompress.h>
 #endif
 
+#ifdef PPP_FILTER
+#include <net/bpf.h>
+#endif
 #include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 #include <net/if_pppvar.h>

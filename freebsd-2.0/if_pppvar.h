@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.4 1997/03/04 03:27:28 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.5 1997/04/30 05:42:08 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -75,6 +75,10 @@ struct ppp_softc {
 	void	*sc_rc_state;		/* receive decompressor state */
 	time_t	sc_last_sent;		/* time (secs) last NP pkt sent */
 	time_t	sc_last_recv;		/* time (secs) last NP pkt rcvd */
+#ifdef PPP_FILTER
+	struct	bpf_program sc_pass_filt;   /* filter for packets to pass */
+	struct	bpf_program sc_active_filt; /* filter for "non-idle" packets */
+#endif /* PPP_FILTER */
 #ifdef	VJC
 	struct	vjcompress *sc_comp; 	/* vjc control buffer */
 #endif
