@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.3 1994/05/24 11:21:10 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.4 1994/09/01 00:14:03 paulus Exp $";
 #endif
 
 /*
@@ -446,15 +446,16 @@ fsm_rconfack(f, id, inp, len)
     FSMDEBUG((LOG_INFO, "fsm_rconfack(%s): Rcvd id %d.",
 	      PROTO_NAME(f), id));
 
-    if (id != f->reqid)		/* Expected id? */
-	return;			/* Nope, toss... */
-    if( !(f->callbacks->ackci? (*f->callbacks->ackci)(f, inp, len): (len == 0)) ){
+    if (id != f->reqid || f->seen_ack)		/* Expected id? */
+	return;					/* Nope, toss... */
+    if( !(f->callbacks->ackci? (*f->callbacks->ackci)(f, inp, len):
+	  (len == 0)) ){
 	/* Ack is bad - ignore it */
 	FSMDEBUG((LOG_INFO, "%s: received bad Ack (length %d)",
 		  PROTO_NAME(f), len));
 	return;
     }
-    f->reqid = -1;
+    f->seen_ack = 1;
 
     switch (f->state) {
     case CLOSED:
@@ -468,7 +469,7 @@ fsm_rconfack(f, id, inp, len)
 	break;
 
     case ACKRCVD:
-	/* Huh? an extra Ack? oh well... */
+	/* Huh? an extra valid Ack? oh well... */
 	fsm_sconfreq(f, 0);
 	f->state = REQSENT;
 	break;
@@ -507,16 +508,16 @@ fsm_rconfnakrej(f, code, id, inp, len)
     FSMDEBUG((LOG_INFO, "fsm_rconfnakrej(%s): Rcvd id %d.",
 	      PROTO_NAME(f), id));
 
-    if (id != f->reqid)		/* Expected id? */
-	return;			/* Nope, toss... */
+    if (id != f->reqid || f->seen_ack)	/* Expected id? */
+	return;				/* Nope, toss... */
     proc = (code == CONFNAK)? f->callbacks->nakci: f->callbacks->rejci;
-    if( !proc || !proc(f, inp, len) ){
+    if (!proc || !proc(f, inp, len)) {
 	/* Nak/reject is bad - ignore it */
 	FSMDEBUG((LOG_INFO, "%s: received bad %s (length %d)",
 		  PROTO_NAME(f), (code==CONFNAK? "Nak": "reject"), len));
 	return;
     }
-    f->reqid = -1;
+    f->seen_ack = 1;
 
     switch (f->state) {
     case CLOSED:
@@ -714,6 +715,8 @@ fsm_sconfreq(f, retransmit)
 	f->retransmits = f->maxconfreqtransmits;
 	f->reqid = ++f->id;
     }
+
+    f->seen_ack = 0;
 
     /*
      * Make up the request packet

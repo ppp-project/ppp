@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: fsm.h,v 1.2 1994/04/11 07:18:35 paulus Exp $
+ * $Id: fsm.h,v 1.3 1994/09/01 00:14:03 paulus Exp $
  */
 
 /*
@@ -66,6 +66,7 @@ typedef struct fsm {
     int flags;			/* Contains option bits */
     u_char id;			/* Current id */
     u_char reqid;		/* Current request id */
+    u_char seen_ack;		/* Have received valid Ack/Nak/Rej to Req */
     int timeouttime;		/* Timeout time in milliseconds */
     int maxconfreqtransmits;	/* Maximum Configure-Request transmissions */
     int retransmits;		/* Number of retransmissions left */
