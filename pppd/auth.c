@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.40 1999/01/19 23:59:14 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.41 1999/02/26 10:38:50 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -154,10 +154,7 @@ static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
 static void free_wordlist __P((struct wordlist *));
 static void auth_script __P((char *));
 static void set_allowed_addrs __P((int, struct wordlist *));
-
-#ifdef OLD_OPTIONS
 static int setupapfile __P((char **));
-#endif
 
 /*
  * Authentication-related options.
@@ -170,7 +167,7 @@ option_t auth_options[] = {
     { "refuse-pap", o_bool, &refuse_pap,
       "Don't agree to auth to peer with PAP", 1 },
     { "-pap", o_bool, &refuse_pap,
-      "Don't allow UPAP authentication with peer", 1 },
+      "Don't allow PAP authentication with peer", 1 },
     { "require-chap", o_bool, &lcp_wantoptions[0].neg_chap,
       "Require CHAP authentication from peer", 1, &auth_required },
     { "+chap", o_bool, &lcp_wantoptions[0].neg_chap,
@@ -196,14 +193,11 @@ option_t auth_options[] = {
       "Use system password database for PAP", 1 },
     { "papcrypt", o_bool, &cryptpap,
       "PAP passwords are encrypted", 1 },
-#if OLD_OPTIONS
     { "+ua", o_special, setupapfile,
       "Get PAP user and password from file" },
-#endif
     { NULL }
 };
 
-#if OLD_OPTIONS
 /*
  * setupapfile - specifies UPAP info for authenticating with peer.
  */
@@ -245,7 +239,6 @@ setupapfile(argv)
 
     return (1);
 }
-#endif
 
 
 /*
@@ -1533,6 +1526,8 @@ scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
 
 	/*
 	 * Check if the given IP address is allowed by the wordlist.
+	 * XXX accepts this entry even if it has no allowed IP addresses
+	 * if they didn't specify a remote IP address. XXX
 	 */
 	if (ipaddr != 0 && !ip_addr_check(ipaddr, alist)) {
 	    free_wordlist(alist);

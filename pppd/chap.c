@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.16 1998/11/07 06:59:26 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.17 1999/02/26 10:38:51 paulus Exp $";
 #endif
 
 /*
@@ -66,7 +66,7 @@ static option_t chap_option_list[] = {
       "Set interval for rechallenge" },
 #ifdef MSLANMAN
     { "ms-lanman", o_bool, &ms_lanman,
-      "Use LanMan psswd when using MS-CHAP", 1 },
+      "Use LanMan passwd when using MS-CHAP", 1 },
 #endif
     { NULL }
 };

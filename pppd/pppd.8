@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.30 1998/11/07 06:59:29 paulus Exp $
+.\" $Id: pppd.8,v 1.31 1999/02/26 10:38:52 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -76,7 +76,10 @@ characters, use the \fIescape\fR option.
 .TP
 .B auth
 Require the peer to authenticate itself before allowing network
-packets to be sent or received.
+packets to be sent or received.  If neither this option nor the
+\fInoauth\fR option is specified, the default is that pppd will not
+require the peer to authenticate, but will then only allow it to use
+IP addresses to which the system does not already have a route.
 .TP
 .B call \fIname
 Read options from the file /etc/ppp/peers/\fIname\fR.  This file may
@@ -468,7 +471,9 @@ specified is ORed with the default netmask.  The default netmask is
 chosen based on the negotiated remote IP address; it is the
 appropriate network mask for the class of the remote IP address, ORed
 with the netmasks for any non point-to-point network interfaces in the
-system which are on the same network.
+system which are on the same network.  (Note: on some platforms, pppd
+will always use 255.255.255.255 for the netmask, if that is the only
+appropriate value for a point-to-point interface.)
 .TP
 .B noaccomp
 Disable Address/Control compression in both directions (send and
@@ -476,7 +481,7 @@ receive).
 .TP
 .B noauth
 Do not require the peer to authenticate itself.  This option is
-privileged if the \fIauth\fR option is specified in /etc/ppp/options.
+privileged.
 .TP
 .B nobsdcomp
 Disables BSD-Compress compression; \fBpppd\fR will not request or
@@ -639,7 +644,8 @@ the `passive' option with ancient versions of pppd).
 .B usehostname
 Enforce the use of the hostname (with domain name appended, if given)
 as the name of the local system for authentication purposes (overrides
-the \fIname\fR option).
+the \fIname\fR option).  This option is not normally needed since the
+\fIname\fR option is privileged.
 .TP
 .B user \fIname
 Sets the name used for authenticating the local system to the peer to
@@ -680,22 +686,25 @@ options within an options file.
 provides system administrators with sufficient access control that PPP
 access to a server machine can be provided to legitimate users without
 fear of compromising the security of the server or the network it's
-on.  In part this is provided by the /etc/ppp/options file, where the
-administrator can place options to restrict the ways in which pppd can
-be used, and in part by the PAP and CHAP secrets files, where the
-administrator can restrict the set of IP addresses which individual
-users may use.
+on.  This control is provided through restrictions on which IP
+addresses the peer may use, based on its authenticated identity (if
+any), and through restrictions on which options a non-privileged user
+may use.  Several of pppd's options are privileged, in particular
+those which permit potentially insecure configurations; these options
+are only accepted in files which are under the control of the system
+administrator, or if pppd is being run by root.
 .PP
-The normal way that pppd should be set up is to have the \fIauth\fR
-option in the /etc/ppp/options file.  (This may become the default in
-later releases.)  If users wish to use pppd to dial out to a peer
-which will refuse to authenticate itself (such as an internet service
-provider), the system administrator should create an options file
-under /etc/ppp/peers containing the \fInoauth\fR option, the name of
-the serial port to use, and the \fIconnect\fR option (if required),
-plus any other appropriate options.  In this way, pppd can be set up
-to allow non-privileged users to make unauthenticated connections only
-to trusted peers.
+The default behaviour of pppd is to allow an unauthenticated peer
+to use a given IP address if the system does not already have a
+route to that IP address already.  For example, a system with a
+permanent connection to the wider internet will normally have a
+default route, and thus all peers will have to authenticate themselves
+in order to set up a connection.  On such a system, the \fIauth\fR
+option should be used in /etc/ppp/options so that pppd will ask the
+peer to authenticate itself.  On the other hand, a system where the
+PPP link is the only connection to the internet will not normally have
+a default route, so the peer will be able to use almost any IP address
+without authenticating itself.
 .PP
 As indicated above, some security-sensitive options are privileged,
 which means that they may not be used by an ordinary non-privileged
