@@ -16,7 +16,7 @@ if [ -n "$USEPEERDNS" -a -f /etc/ppp/resolv.conf ]; then
 		cp /etc/resolv.conf /etc/ppp/resolv.prev
 		grep domain /etc/ppp/resolv.prev > /etc/resolv.conf
 		grep search /etc/ppp/resolv.prev >> /etc/resolv.conf
-		cat /etc/ppp/resolv.conf /etc >> /etc/resolv.conf
+		cat /etc/ppp/resolv.conf >> /etc/resolv.conf
 	else
 		cp /etc/ppp/resolv.conf /etc
 	fi
