@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.42 2001/05/23 03:39:50 paulus Exp $
+# $Id: Makefile.linux,v 1.43 2002/01/14 14:25:09 dfs Exp $
 #
 
 # Default installation locations
@@ -9,13 +9,12 @@ MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c cbcp.c \
-	   demand.c utils.c multilink.c tdb.c tty.c
+	   demand.c utils.c tty.c
 HEADERS =  callout.h pathnames.h patchlevel.h chap.h md5.h chap_ms.h md4.h \
 	   ipxcp.h cbcp.h tdb.h
 MANPAGES = pppd.8
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	   auth.o options.o demand.o utils.o sys-linux.o ipxcp.o multilink.o \
-	   tdb.o tty.o
+	   auth.o options.o demand.o utils.o sys-linux.o ipxcp.o tty.o
 
 all: pppd
 
@@ -48,6 +47,16 @@ endif
 # doesn't yet.
 #FILTER=y
 
+# Uncomment the next line to enable multilink PPP (enabled by default)
+# Linux distributions: Please leave multilink ENABLED in your builds
+# of pppd!
+HAVE_MULTILINK=y
+
+# Uncomment the next line to enable the TDB database (enabled by default.)
+# If you enable multilink, then TDB is automatically enabled also.
+# Linux distributions: Please leave TDB ENABLED in your builds.
+USE_TDB=y
+
 HAS_SHADOW=y
 #USE_PAM=y
 #HAVE_INET6=y
@@ -56,7 +65,7 @@ PLUGIN=y
 
 INCLUDE_DIRS= -I../include
 
-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MULTILINK -DHAVE_MMAP
+COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
@@ -85,6 +94,21 @@ endif
 ifdef USE_PAM
 CFLAGS   += -DUSE_PAM
 LIBS     := -lpam -ldl $(LIBS)
+endif
+
+# Multi-linnk
+ifdef HAVE_MULTILINK
+	USE_TDB=y
+	CFLAGS += -DHAVE_MULTILINK
+	PPPDSRCS += multilink.c
+	PPPDOBJS += multilink.o
+endif
+
+# TDB
+ifdef USE_TDB
+	CFLAGS += -DUSE_TDB=1
+	PPPDSRCS += tdb.c
+	PPPDOBJS += tdb.o
 endif
 
 # Lock library binary for Linux is included in 'linux' subdirectory.

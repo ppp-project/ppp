@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.109 2002/01/11 18:10:16 etbe Exp $"
+#define RCSID	"$Id: main.c,v 1.110 2002/01/14 14:25:10 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -54,7 +54,10 @@
 #include "chap.h"
 #include "ccp.h"
 #include "pathnames.h"
+
+#ifdef USE_TDB
 #include "tdb.h"
+#endif
 
 #ifdef CBCP_SUPPORT
 #include "cbcp.h"
@@ -94,7 +97,11 @@ volatile int status;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
+
+#ifdef USE_TDB
 TDB_CONTEXT *pppdb;		/* database for storing status etc. */
+#endif
+
 char db_key[32];
 
 int (*holdoff_hook) __P((void)) = NULL;
@@ -170,10 +177,14 @@ static void open_ccp __P((int));
 static void bad_signal __P((int));
 static void holdoff_end __P((void *));
 static int reap_kids __P((int waitfor));
+
+#ifdef USE_TDB
 static void update_db_entry __P((void));
 static void add_db_key __P((const char *));
 static void delete_db_key __P((const char *));
 static void cleanup_db __P((void));
+#endif
+
 static void handle_events __P((void));
 static void print_link_stats __P((void));
 
@@ -353,6 +364,7 @@ main(argc, argv)
      */
     sys_init();
 
+#ifdef USE_TDB
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
 	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
@@ -364,6 +376,7 @@ main(argc, argv)
 	    multilink = 0;
 	}
     }
+#endif
 
     /*
      * Detach ourselves from the terminal, if required,
@@ -400,11 +413,14 @@ main(argc, argv)
 	/*
 	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
+#ifdef USE_TDB
 	tdb_writelock(pppdb);
+#endif
 	fd_loop = open_ppp_loopback();
 	set_ifunit(1);
+#ifdef USE_TDB
 	tdb_writeunlock(pppdb);
-
+#endif
 	/*
 	 * Configure the interface and mark it up, etc.
 	 */
@@ -454,17 +470,23 @@ main(argc, argv)
 	    goto fail;
 
 	/* set up the serial device as a ppp interface */
+#ifdef USE_TDB
 	tdb_writelock(pppdb);
+#endif
 	fd_ppp = the_channel->establish_ppp(devfd);
 	if (fd_ppp < 0) {
+#ifdef USE_TDB
 	    tdb_writeunlock(pppdb);
+#endif
 	    status = EXIT_FATAL_ERROR;
 	    goto disconnect;
 	}
 
 	if (!demand && ifunit >= 0)
 	    set_ifunit(1);
+#ifdef USE_TDB
 	tdb_writeunlock(pppdb);
+#endif
 
 	/*
 	 * Start opening the connection and wait for
@@ -1042,8 +1064,11 @@ cleanup()
 	warn("unable to delete pid file %s: %m", linkpidfile);
     linkpidfile[0] = 0;
 
+#ifdef USE_TDB
     if (pppdb != NULL)
 	cleanup_db();
+#endif
+
 }
 
 void
@@ -1690,13 +1715,17 @@ script_setenv(var, value, iskey)
     if (script_env != 0) {
 	for (i = 0; (p = script_env[i]) != 0; ++i) {
 	    if (strncmp(p, var, varl) == 0 && p[varl] == '=') {
+#ifdef USE_TDB
 		if (p[-1] && pppdb != NULL)
 		    delete_db_key(p);
+#endif
 		free(p-1);
 		script_env[i] = newstring;
+#ifdef USE_TDB
 		if (iskey && pppdb != NULL)
 		    add_db_key(newstring);
 		update_db_entry();
+#endif
 		return;
 	    }
 	}
@@ -1723,11 +1752,13 @@ script_setenv(var, value, iskey)
     script_env[i] = newstring;
     script_env[i+1] = 0;
 
+#ifdef USE_TDB
     if (pppdb != NULL) {
 	if (iskey)
 	    add_db_key(newstring);
 	update_db_entry();
     }
+#endif
 }
 
 /*
@@ -1746,18 +1777,23 @@ script_unsetenv(var)
 	return;
     for (i = 0; (p = script_env[i]) != 0; ++i) {
 	if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
+#ifdef USE_TDB
 	    if (p[-1] && pppdb != NULL)
 		delete_db_key(p);
+#endif
 	    free(p-1);
 	    while ((script_env[i] = script_env[i+1]) != 0)
 		++i;
 	    break;
 	}
     }
+#ifdef USE_TDB
     if (pppdb != NULL)
 	update_db_entry();
+#endif
 }
 
+#ifdef USE_TDB
 /*
  * update_db_entry - update our entry in the database.
  */
@@ -1840,3 +1876,4 @@ cleanup_db()
 	if (p[-1])
 	    delete_db_key(p);
 }
+#endif /* USE_TDB */
