@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.11 1995/05/01 00:25:38 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.12 1995/06/30 00:40:06 paulus Exp $";
 #endif
 
 /*
@@ -915,6 +915,7 @@ get_ether_addr(ipaddr, hwaddr)
     struct ifreq ifreq;
     struct ifconf ifc;
     struct ifreq ifs[MAX_IFS];
+    struct ifdevea ifdevea;
 
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
@@ -961,26 +962,17 @@ get_ether_addr(ipaddr, hwaddr)
     syslog(LOG_INFO, "found interface %s for proxy arp", ifr->ifr_name);
 
     /*
-     * Now scan through again looking for a link-level address
-     * for this interface.
+     * Grab the physical address for this interface.
      */
-    ifp = ifr;
-    for (ifr = ifc.ifc_req; ifr < ifend; ) {
-        if (strcmp(ifp->ifr_name, ifr->ifr_name) == 0
-            && ifr->ifr_addr.sa_family == AF_DLI) {
-            /*
-             * Found the link-level address - copy it out
-             */
-            dla = (struct sockaddr_dl *)&ifr->ifr_addr;
-            hwaddr->sa_family = AF_UNSPEC;
-            BCOPY(dla, hwaddr->sa_data, sizeof(hwaddr->sa_data));
-            return 1;
-        }
-        ifr = (struct ifreq *) ((char *)&ifr->ifr_addr + sizeof(struct sockaddr)
-);
+    strncpy(ifdevea.ifr_name, ifr->ifr_name, sizeof(ifdevea.ifr_name));
+    if (ioctl(sockfd, SIOCRPHYSADDR, &ifdevea) < 0) {
+	syslog(LOG_ERR, "Couldn't get h/w address for %s: %m", ifr->ifr_name);
+	return 0;
     }
 
-    return 0;
+    hwaddr->sa_family = AF_UNSPEC;
+    BCOPY(ifdevea.current_pa, hwaddr->sa_data, 6);
+    return 1;
 }
 
 /*
