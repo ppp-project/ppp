@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.17 1999/03/08 05:34:16 paulus Exp $
+ * $Id: ppp.c,v 1.18 1999/03/22 05:55:59 paulus Exp $
  */
 
 /*
@@ -1967,6 +1967,25 @@ ppplrput(q, mp)
     mblk_t *mp;
 {
     queue_t *uq;
+    struct iocblk *iop;
+
+    switch (mp->b_datap->db_type) {
+    case M_IOCTL:
+	iop = (struct iocblk *) mp->b_rptr;
+	iop->ioc_error = EINVAL;
+	mp->b_datap->db_type = M_IOCNAK;
+	qreply(q, mp);
+	return 0;
+    case M_FLUSH:
+	if (*mp->b_rptr & FLUSHR)
+	    flushq(q, FLUSHDATA);
+	if (*mp->b_rptr & FLUSHW) {
+	    *mp->b_rptr &= ~FLUSHR;
+	    qreply(q, mp);
+	} else
+	    freemsg(mp);
+	return 0;
+    }
 
     /*
      * If we can't get the lower lock straight away, queue this one
