@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.14 1995/06/23 01:52:17 paulus Exp $
+ * $Id: bsd-comp.c,v 1.15 1995/07/11 06:38:15 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -78,6 +78,7 @@
 #endif
 #define ALLOCATE(n)	kalloc((n))
 #define FREE(p, n)	kfree((p), (n))
+#define BSD_LITTLE_ENDIAN
 #endif
 
 #ifdef __aix4__
