@@ -18,13 +18,14 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.59 1999/05/14 01:09:03 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.60 1999/07/21 00:24:31 paulus Exp $";
 #endif
 
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <syslog.h>
@@ -73,6 +74,7 @@ u_int32_t netmask = 0;		/* IP netmask to set on interface */
 bool	lockflag = 0;		/* Create lock file to lock the serial dev */
 bool	nodetach = 0;		/* Don't detach from controlling tty */
 bool	updetach = 0;		/* Detach once link is up */
+char	*initializer = NULL;	/* Script to initialize physical link */
 char	*connector = NULL;	/* Script to establish physical link */
 char	*disconnector = NULL;	/* Script to disestablish physical link */
 char	*welcomer = NULL;	/* Script to run after phys link estab. */
@@ -96,6 +98,7 @@ extern option_t auth_options[];
 extern struct stat devstat;
 extern int prepass;		/* Doing pre-pass to find device name */
 
+struct option_info initializer_info;
 struct option_info connector_info;
 struct option_info disconnector_info;
 struct option_info welcomer_info;
@@ -111,6 +114,7 @@ pcap_t  pc;			/* Fake struct pcap so we can compile expr */
 char *current_option;		/* the name of the option being parsed */
 int  privileged_option;		/* set iff the current option came from root */
 char *option_source;		/* string saying where the option came from */
+bool log_to_file;		/* log_to_fd is a file opened by us */
 
 /*
  * Prototypes
@@ -127,6 +131,7 @@ static int callfile __P((char **));
 static int showversion __P((char **));
 static int showhelp __P((char **));
 static void usage __P((void));
+static int setlogfile __P((char **));
 
 #ifdef PPP_FILTER
 static int setpassfilter __P((char **));
@@ -163,6 +168,9 @@ option_t general_options[] = {
       "Lock serial device with UUCP-style lock file", 1 },
     { "-all", o_special_noarg, noopt,
       "Don't request/allow any LCP or IPCP options (useless)" },
+    { "init", o_string, &initializer,
+      "A program to initialize the device",
+      OPT_A2INFO | OPT_PRIVFIX, &initializer_info },
     { "connect", o_string, &connector,
       "A program to set up a connection",
       OPT_A2INFO | OPT_PRIVFIX, &connector_info },
@@ -174,9 +182,9 @@ option_t general_options[] = {
       OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
     { "pty", o_string, &ptycommand,
       "Script to run on pseudo-tty master side",
-      OPT_A2INFO | OPT_PRIVFIX | OPT_PREPASS, &ptycommand_info },
+      OPT_A2INFO | OPT_PRIVFIX | OPT_DEVNAM, &ptycommand_info },
     { "notty", o_bool, &notty,
-      "Input/output is not a tty", OPT_PREPASS | 1 },
+      "Input/output is not a tty", OPT_DEVNAM | 1 },
     { "record", o_string, &record_file,
       "Record characters sent/received to file" },
     { "maxconnect", o_int, &maxconnect,
@@ -212,7 +220,7 @@ option_t general_options[] = {
     { "nopersist", o_bool, &persist,
       "Turn off persist option" },
     { "demand", o_bool, &demand,
-      "Dial on demand", 1, &persist },
+      "Dial on demand", OPT_INITONLY | 1, &persist },
     { "--version", o_special_noarg, showversion,
       "Show version number" },
     { "--help", o_special_noarg, showhelp,
@@ -223,6 +231,11 @@ option_t general_options[] = {
       "Use synchronous HDLC serial encoding", 1 },
     { "logfd", o_int, &log_to_fd,
       "Send log messages to this file descriptor" },
+    { "logfile", o_special, setlogfile,
+      "Append log messages to this file" },
+    { "nolog", o_int, &log_to_fd,
+      "Don't send log messages to any file",
+      OPT_NOARG | OPT_VAL(-1) },
     { "nologfd", o_int, &log_to_fd,
       "Don't send log messages to any file descriptor",
       OPT_NOARG | OPT_VAL(-1) },
@@ -409,6 +422,11 @@ options_from_file(filename, must_exist, check_prot, priv)
 		argv[i] = args[i];
 	    }
 	    current_option = cmd;
+	    if ((opt->flags & OPT_DEVEQUIV) && devnam_fixed) {
+		option_error("the %s option may not be used in the %s file",
+			     cmd, filename);
+		goto err;
+	    }
 	    if (!process_option(opt, argv))
 		goto err;
 	    continue;
@@ -493,6 +511,64 @@ options_for_tty()
 }
 
 /*
+ * options_from_list - process a string of options in a wordlist.
+ */
+int
+options_from_list(w, priv)
+    struct wordlist *w;
+    int priv;
+{
+    char *argv[MAXARGS];
+    option_t *opt;
+    int i, ret = 0;
+
+    privileged_option = priv;
+    option_source = "secrets file";
+
+    while (w != NULL) {
+	/*
+	 * First see if it's a command.
+	 */
+	opt = find_option(w->word);
+	if (opt != NULL) {
+	    int n = n_arguments(opt);
+	    struct wordlist *w0 = w;
+	    for (i = 0; i < n; ++i) {
+		w = w->next;
+		if (w == NULL) {
+		    option_error(
+			"In secrets file: too few parameters for option '%s'",
+			w0->word);
+		    goto err;
+		}
+		argv[i] = w->word;
+	    }
+	    current_option = w0->word;
+	    if (!process_option(opt, argv))
+		goto err;
+	    continue;
+	}
+
+	/*
+	 * Maybe a tty name, speed or IP address?
+	 */
+	if ((i = setdevname(w->word)) == 0
+	    && (i = setspeed(w->word)) == 0
+	    && (i = setipaddr(w->word)) == 0) {
+	    option_error("In secrets file: unrecognized option '%s'",
+			 w->word);
+	    goto err;
+	}
+	if (i < 0)		/* error */
+	    goto err;
+    }
+    ret = 1;
+
+err:
+    return ret;
+}
+
+/*
  * find_option - scan the option lists for the various protocols
  * looking for an entry with the given name.
  * This could be optimized by using a hash table.
@@ -531,9 +607,12 @@ process_option(opt, argv)
     char *sv;
     int (*parser) __P((char **));
 
-    if (prepass && (opt->flags & OPT_PREPASS) == 0)
+    if ((opt->flags & OPT_PREPASS) == 0 && prepass)
 	return 1;
-
+    if ((opt->flags & OPT_INITONLY) && phase != PHASE_INITIALIZE) {
+	option_error("it's too late to use the %s option", opt->name);
+	return 0;
+    }
     if ((opt->flags & OPT_PRIV) && !privileged_option) {
 	option_error("using the %s option requires root privilege", opt->name);
 	return 0;
@@ -1229,6 +1308,14 @@ setdevname(cp)
 	return -1;
     }
 
+    if (phase != PHASE_INITIALIZE) {
+	option_error("device name cannot be changed after initialization");
+	return -1;
+    } else if (devnam_fixed) {
+	option_error("per-tty options file may not specify device name");
+	return -1;
+    }
+
     if (devnam_info.priv && !privileged_option) {
 	option_error("device name cannot be overridden");
 	return -1;
@@ -1369,4 +1456,28 @@ setxonxoff(argv)
 
     crtscts = -2;
     return (1);
+}
+
+static int
+setlogfile(argv)
+    char **argv;
+{
+    int fd, err;
+
+    if (!privileged_option)
+	seteuid(getuid());
+    fd = open(*argv, O_WRONLY | O_APPEND);
+    err = errno;
+    if (!privileged_option)
+	seteuid(0);
+    if (fd < 0) {
+	errno = err;
+	option_error("Can't open log file %s: %m", *argv);
+	return 0;
+    }
+    if (log_to_file && log_to_fd >= 0)
+	close(log_to_fd);
+    log_to_fd = fd;
+    log_to_file = 1;
+    return 1;
 }

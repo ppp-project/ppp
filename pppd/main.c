@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.79 1999/05/13 00:35:23 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.80 1999/07/21 00:24:31 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -85,6 +85,7 @@ int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
 struct stat devstat;		/* result of stat() on devnam */
 int prepass = 0;		/* doing prepass to find device name */
+int devnam_fixed;		/* set while in options.ttyxx file */
 volatile int status;		/* exit status for pppd */
 
 static int fd_ppp = -1;		/* fd for talking PPP */
@@ -287,24 +288,13 @@ main(argc, argv)
      * The per-tty options file should not change
      * ptycommand, notty or devnam.
      */
+    devnam_fixed = 1;
     if (!using_pty) {
-	int save_defdev = default_device;
-
-	default_device = 1;
 	if (!options_for_tty())
 	    exit(EXIT_OPTION_ERROR);
-	if (notty || ptycommand != NULL) {
-	    option_error("%s option may not be used in per-tty options file",
-			 notty? "notty": "pty");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	if (!default_device) {
-	    option_error("per-tty options file may not specify device name");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	default_device = save_defdev;
     }
 
+    devnam_fixed = 0;
     if (!parse_args(argc-1, argv+1))
 	exit(EXIT_OPTION_ERROR);
 
@@ -551,6 +541,8 @@ main(argc, argv)
 	    info("Starting link");
 	}
 
+	phase = PHASE_SERIALCONN;
+
 	/*
 	 * Get a pty master/slave pair if the pty, notty, or record
 	 * options were specified.
@@ -622,7 +614,7 @@ main(argc, argv)
 
 	    /*
 	     * Set line speed, flow control, etc.
-	     * If we have a non-null connection script,
+	     * If we have a non-null connection or initializer script,
 	     * on most systems we set CLOCAL for now so that we can talk
 	     * to the modem before carrier comes up.  But this has the
 	     * side effect that we might miss it if CD drops before we
@@ -630,7 +622,8 @@ main(argc, argv)
 	     * successfully to the modem with CLOCAL clear and CD down,
 	     * we could clear CLOCAL at this point.
 	     */
-	    set_up_tty(ttyfd, (connector != NULL && connector[0] != 0));
+	    set_up_tty(ttyfd, ((connector != NULL && connector[0] != 0)
+			       || initializer != NULL));
 	    real_ttyfd = ttyfd;
 	}
 
@@ -669,9 +662,7 @@ main(argc, argv)
 	}
 
 	/* run connection script */
-	if (connector && connector[0]) {
-	    MAINDEBUG(("Connecting with <%s>", connector));
-
+	if ((connector && connector[0]) || initializer) {
 	    if (real_ttyfd != -1) {
 		if (!default_device && modem) {
 		    setdtr(real_ttyfd, 0);	/* in case modem is off hook */
@@ -680,15 +671,29 @@ main(argc, argv)
 		}
 	    }
 
-	    if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
-		error("Connect script failed");
-		status = EXIT_CONNECT_FAILED;
-		goto fail;
-	    }
-	    if (kill_link)
-		goto disconnect;
+	    if (initializer && initializer[0]) {
+		if (device_script(initializer, ttyfd, ttyfd, 0) < 0) {
+		    error("Initializer script failed");
+		    status = EXIT_INIT_FAILED;
+		    goto fail;
+		}
+		if (kill_link)
+		    goto disconnect;
 
-	    info("Serial connection established.");
+		info("Serial port initialized.");
+	    }
+
+	    if (connector && connector[0]) {
+		if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
+		    error("Connect script failed");
+		    status = EXIT_CONNECT_FAILED;
+		    goto fail;
+		}
+		if (kill_link)
+		    goto disconnect;
+
+		info("Serial connection established.");
+	    }
 
 	    /* set line speed, flow control, etc.;
 	       clear CLOCAL if modem option */
@@ -886,6 +891,7 @@ main(argc, argv)
     }
 
     /* Wait for scripts to finish */
+    /* XXX should have a timeout here */
     while (n_children > 0) {
 	if (debug) {
 	    struct subprocess *chp;

@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.7 1999/05/12 06:19:46 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.8 1999/07/21 00:24:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -31,7 +31,6 @@ static char rcsid[] = "$Id: cbcp.c,v 1.7 1999/05/12 06:19:46 paulus Exp $";
 #include "cbcp.h"
 #include "fsm.h"
 #include "lcp.h"
-#include "ipcp.h"
 
 /*
  * Options.
@@ -384,7 +383,7 @@ cbcp_resp(us)
 	PUTCHAR(len , bufp);
 	PUTCHAR(0, bufp);
 	cbcp_send(us, CBCP_RESP, buf, len);
-	(*ipcp_protent.open)(us->us_unit);
+	start_networks();
 	return;
     }
 }

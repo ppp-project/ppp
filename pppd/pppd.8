@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.40 1999/05/13 00:34:04 paulus Exp $
+.\" $Id: pppd.8,v 1.41 1999/07/21 00:24:32 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -131,6 +131,13 @@ with hex values 0x20 - 0x3f or 0x5e.
 .B file \fIname
 Read options from file \fIname\fR (the format is described below).
 The file must be readable by the user who has invoked pppd.
+.TP
+.B init \fIscript
+Run the executable or shell command specified by \fIscript\fR to
+initialize the serial line.  This script would typically use the
+chat(8) program to configure the modem to enable auto answer.  A value
+for this option from a privileged source cannot be overridden by a
+non-privileged user.
 .TP
 .B lock
 Specifies that pppd should create a UUCP-style lock file for the
@@ -424,6 +431,18 @@ Don't use the modem control lines.  With this option, pppd will ignore
 the state of the CD (Carrier Detect) signal from the modem and will
 not change the state of the DTR (Data Terminal Ready) signal.
 .TP
+.B logfd \fIn
+Send log messages to file descriptor \fIn\fR.  Pppd will send log
+messages to at most one file or file descriptor (as well as sending
+the log messages to syslog), so this option and the \fBlogfile\fR
+option are mutually exclusive.  The default is for pppd to send log
+messages to stdout (file descriptor 1), unless the serial port is
+already open on stdout.
+.TP
+.B logfile \fIfilename
+Append log messages to the file \fIfilename\fR (as well as sending the
+log messages to syslog).  The file is opened with the privileges of
+the user who invoked pppd, in append mode.
 .B login
 Use the system password database for authenticating the peer using
 PAP, and record the user in the system wtmp file.  Note that the peer
@@ -538,6 +557,9 @@ Disable the IPXCP and IPX protocols.  This option should only be
 required if the peer is buggy and gets confused by requests from pppd
 for IPXCP negotiation.
 .TP
+.B nolog
+Do not send log messages to a file or file descriptor.  This option
+cancels the \fBlogfd\fR and \fBlogfile\fR options.
 .B nomagic
 Disable magic number negotiation.  With this option, pppd cannot
 detect a looped-back line.  This option should only be needed if the
@@ -696,11 +718,22 @@ The device used by pppd with this option must have sync support.
 Currently supports Microgate SyncLink adapters
 under Linux and FreeBSD 2.2.8 and later.
 .TP
+.B updetach
+With this option, pppd will detach from its controlling terminal once
+it has successfully established the ppp connection (to the point where
+the first network control protocol, usually the IP control protocol,
+has come up).
+.TP
 .B usehostname
 Enforce the use of the hostname (with domain name appended, if given)
 as the name of the local system for authentication purposes (overrides
 the \fIname\fR option).  This option is not normally needed since the
 \fIname\fR option is privileged.
+.TP
+.B usepeerdns
+Ask the peer for up to 2 DNS server addresses.  The addresses supplied
+by the peer (if any) are passed to the /etc/ppp/ip-up script in the
+environment variables DNS1 and DNS2.
 .TP
 .B user \fIname
 Sets the name used for authenticating the local system to the peer to
@@ -1115,6 +1148,9 @@ The link was terminated by the modem hanging up.
 .TP
 .B 17
 The PPP negotiation failed because serial loopback was detected.
+.TP
+.B 18
+The init script failed (returned a non-zero exit status).
 .SH SCRIPTS
 Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.41 1999/05/14 01:09:03 paulus Exp $
+ * $Id: pppd.h,v 1.42 1999/07/21 00:24:32 paulus Exp $
  */
 
 /*
@@ -97,7 +97,10 @@ typedef struct {
 #define OPT_A2COPY	0x200000 /* addr2 -> second location to rcv value */
 #define OPT_ENABLE	0x400000 /* use *addr2 as enable for option */
 #define OPT_PRIVFIX	0x800000 /* can't be overridden if noauth */
-#define OPT_PREPASS	0x1000000/* do this opt in pre-pass to find device */
+#define OPT_PREPASS	0x1000000 /* do this opt in pre-pass to find device */
+#define OPT_INITONLY	0x2000000 /* option can only be set in init phase */
+#define OPT_DEVEQUIV	0x4000000 /* equiv to device name */
+#define OPT_DEVNAM	(OPT_PREPASS | OPT_INITONLY | OPT_DEVEQUIV)
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
 
@@ -121,6 +124,12 @@ struct permitted_ip {
 struct pppd_stats {
     unsigned int	bytes_in;
     unsigned int	bytes_out;
+};
+
+/* Used for storing a sequence of words.  Usually malloced. */
+struct wordlist {
+    struct wordlist	*next;
+    char		*word;
 };
 
 /*
@@ -150,6 +159,7 @@ extern int	using_pty;	/* using pty as device (notty or pty opt.) */
 extern int	log_to_fd;	/* logging to this fd as well as syslog */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 extern volatile int status;	/* exit status for pppd */
+extern int	devnam_fixed;	/* can no longer change devnam */
 
 /*
  * Variables set by command-line options.
@@ -166,6 +176,7 @@ extern u_int32_t netmask;	/* IP netmask to set on interface */
 extern bool	lockflag;	/* Create lock file to lock the serial dev */
 extern bool	nodetach;	/* Don't detach from controlling tty */
 extern bool	updetach;	/* Detach from controlling tty when link up */
+extern char	*initializer;	/* Script to initialize physical link */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
@@ -207,13 +218,14 @@ extern char *option_source;	/* string saying where the option came from */
  */
 #define PHASE_DEAD		0
 #define PHASE_INITIALIZE	1
-#define PHASE_DORMANT		2
-#define PHASE_ESTABLISH		3
-#define PHASE_AUTHENTICATE	4
-#define PHASE_CALLBACK		5
-#define PHASE_NETWORK		6
-#define PHASE_TERMINATE		7
-#define PHASE_HOLDOFF		8
+#define PHASE_SERIALCONN	2
+#define PHASE_DORMANT		3
+#define PHASE_ESTABLISH		4
+#define PHASE_AUTHENTICATE	5
+#define PHASE_CALLBACK		6
+#define PHASE_NETWORK		7
+#define PHASE_TERMINATE		8
+#define PHASE_HOLDOFF		9
 
 /*
  * The following struct gives the addresses of procedures to call
@@ -298,6 +310,7 @@ void link_required __P((int));	  /* we are starting to use the link */
 void link_terminated __P((int));  /* we are finished with the link */
 void link_down __P((int));	  /* the LCP layer has left the Opened state */
 void link_established __P((int)); /* the link is up; authenticate now */
+void start_networks __P((void));  /* start all the network control protos */
 void np_up __P((int, int));	  /* a network protocol has come up */
 void np_down __P((int, int));	  /* a network protocol has gone down */
 void np_finished __P((int, int)); /* a network protocol no longer needs link */
@@ -410,8 +423,8 @@ int  options_from_file __P((char *filename, int must_exist, int check_prot,
 				/* Parse options from an options file */
 int  options_from_user __P((void)); /* Parse options from user's .ppprc */
 int  options_for_tty __P((void)); /* Parse options from /etc/ppp/options.tty */
-void scan_args __P((int argc, char **argv));
-				/* Look for tty name in command-line args */
+int  options_from_list __P((struct wordlist *, int privileged));
+				/* Parse options from a wordlist */
 int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
 void option_error __P((char *fmt, ...));
@@ -431,6 +444,7 @@ struct option_info {
 };
 
 extern struct option_info devnam_info;
+extern struct option_info initializer_info;
 extern struct option_info connector_info;
 extern struct option_info disconnector_info;
 extern struct option_info welcomer_info;
@@ -516,6 +530,7 @@ extern struct option_info ptycommand_info;
 #define EXIT_PEER_DEAD		15
 #define EXIT_HANGUP		16
 #define EXIT_LOOPBACK		17
+#define EXIT_INIT_FAILED	18
 
 /*
  * Debug macros.  Slightly useful for finding bugs in pppd, not particularly

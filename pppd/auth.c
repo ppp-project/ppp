@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.53 1999/05/13 00:33:05 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.54 1999/07/21 00:24:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -78,12 +78,6 @@ static char rcsid[] = "$Id: auth.c,v 1.53 1999/05/13 00:33:05 paulus Exp $";
 #endif
 #include "pathnames.h"
 
-/* Used for storing a sequence of words.  Usually malloced. */
-struct wordlist {
-    struct wordlist	*next;
-    char		*word;
-};
-
 /* Bits in scan_authfile return value */
 #define NONWILD_SERVER	1
 #define NONWILD_CLIENT	2
@@ -101,6 +95,9 @@ static int logged_in;
 
 /* List of addresses which the peer may use. */
 static struct permitted_ip *addresses[NUM_PPP];
+
+/* Extra options to apply, from the secrets file entry for the peer. */
+static struct wordlist *extra_options;
 
 /* Number of network protocols which we have opened. */
 static int num_np_open;
@@ -432,6 +429,20 @@ network_phase(unit)
     }
 #endif
 
+    /*
+     * Process extra options from the secrets file
+     */
+    if (extra_options) {
+	options_from_list(extra_options, 1);
+	free_wordlist(extra_options);
+	extra_options = 0;
+    }
+    start_networks();
+}
+
+void
+start_networks()
+{
     phase = PHASE_NETWORK;
 #if 0
     if (!demand)
@@ -563,7 +574,6 @@ np_up(unit, proto)
 	/*
 	 * At this point we consider that the link has come up successfully.
 	 */
-	need_holdoff = 0;
 	status = EXIT_OK;
 
 	if (idle_time_limit > 0)
@@ -628,6 +638,7 @@ check_idle(arg)
 	/* link is idle: shut it down. */
 	notice("Terminating connection due to lack of activity.");
 	lcp_close(0, "Link inactive");
+	need_holdoff = 0;
 	status = EXIT_IDLE_TIMEOUT;
     } else {
 	TIMEOUT(check_idle, NULL, idle_time_limit - itime);
@@ -1266,14 +1277,16 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 
 /*
  * set_allowed_addrs() - set the list of allowed addresses.
+ * Also looks for `--' indicating options to apply for this peer
+ * and leaves the following words in extra_options.
  */
 static void
 set_allowed_addrs(unit, addrs)
     int unit;
     struct wordlist *addrs;
 {
-    int n = 0;
-    struct wordlist *ap;
+    int n;
+    struct wordlist *ap, **pap;
     struct permitted_ip *ip;
     char *ptr_word, *ptr_mask;
     struct hostent *hp;
@@ -1285,9 +1298,23 @@ set_allowed_addrs(unit, addrs)
     if (addresses[unit] != NULL)
 	free(addresses[unit]);
     addresses[unit] = NULL;
+    if (extra_options != NULL)
+	free_wordlist(extra_options);
+    extra_options = NULL;
 
-    for (ap = addrs; ap != NULL; ap = ap->next)
-	++n;
+    /*
+     * Count the number of IP addresses given, and chop off
+     * any extra options for this peer.
+     */
+    for (n = 0, pap = &addrs; (ap = *pap) != NULL; pap = &ap->next, ++n) {
+	if (strcmp(ap->word, "--") == 0) {
+	    /* rest are options */
+	    *pap = 0;
+	    extra_options = ap->next;
+	    free(ap);
+	    break;
+	}
+    }
     if (n == 0)
 	return;
     ip = (struct permitted_ip *) malloc((n + 1) * sizeof(struct permitted_ip));
