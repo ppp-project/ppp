@@ -825,13 +825,10 @@ register char *s;
 	    die();
 	    }
 
-	strcpy(s, s1);
-	abort_string[n_aborts++] = s;
+	abort_string[n_aborts++] = s1;
 
 	if (verbose)
 	    {
-	    register char *s1 = s;
-
 	    logf("abort on (");
 
 	    for (s1 = s; *s1; ++s1)
