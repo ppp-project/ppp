@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.17 1999/05/13 00:31:34 paulus Exp $
+# $Id: configure,v 1.18 1999/09/13 20:57:53 masputra Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -24,7 +24,8 @@ case $system in
     case $release in
       [0-3]*)	state="ancient";;
       4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
-      5*)	state="known"; ksrc="svr4"; makext="sol2";;
+      5.[1-6]*)	state="known"; ksrc="svr4"; makext="sol2";;
+      5.[789]*)	state="known"; ksrc="svr4"; makext="sol2"; lp64="y";
     esac;;
   ULTRIX)
     makext="ultrix";
@@ -102,15 +103,25 @@ case $state in
     echo "in this distribution.  Sorry.";;
 esac
 
+orig_makext=$makext
+
 if [ -d "$ksrc" ]; then
   echo "Creating links to Makefiles."
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
   echo "  Makefile -> $ksrc/Makefile.top"
   if [ $ksrc = svr4 ]; then
+    # Point to 64-bit Makefile extension
+    if [ $lp64 = y ]; then 
+      makext=$makext-64 
+    fi
     rm -f $ksrc/Makefile
     ln -s Makefile.$makext $ksrc/Makefile
     echo "  $ksrc/Makefile -> Makefile.$makext"
+    # Restore extension
+    if [ $lp64 = y ]; then 
+      makext=$orig_makext 
+    fi
   fi
   for dir in pppd pppstats chat pppdump; do
     rm -f $dir/Makefile
