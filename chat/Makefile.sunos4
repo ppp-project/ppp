@@ -2,10 +2,9 @@
 # Makefile for chat on suns
 #
 
-BINDIR = /usr/local/etc
-MANDIR = /usr/local/man
+include ../sunos4/Makedefs
 
-INSTALL= install -o root -g daemon
+CFLAGS = -DSUNOS $(COPTS)
 
 all:	chat
 
