@@ -73,7 +73,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.4 1994/12/13 03:30:21 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.5 1995/05/02 02:48:32 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -278,21 +278,30 @@ pppread(tp, uio, flag)
     register int s;
     int error = 0;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0)
-	return 0;		/* end of file */
-    if (sc == NULL || tp != (struct tty *) sc->sc_devp)
+    if (sc == NULL)
 	return 0;
+    /*
+     * Loop waiting for input, checking that nothing disasterous
+     * happens in the meantime.
+     */
     s = splimp();
-    while (sc->sc_inq.ifq_head == NULL && tp->t_line == PPPDISC) {
+    for (;;) {
+	if (tp != (struct tty *) sc->sc_devp || tp->t_line != PPPDISC) {
+	    splx(s);
+	    return 0;
+	}
+	if (sc->sc_inq.ifq_head != NULL)
+	    break;
+	if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
+	    && (tp->t_state & TS_ISOPEN)) {
+	    splx(s);
+	    return 0;		/* end of file */
+	}
 	if (tp->t_state & (TS_ASYNC | TS_NBIO)) {
 	    splx(s);
 	    return (EWOULDBLOCK);
 	}
 	sleep((caddr_t) &tp->t_rawq, TTIPRI);
-    }
-    if (tp->t_line != PPPDISC) {
-	splx(s);
-	return (-1);
     }
 
     /* Pull place-holder byte out of canonical queue */
@@ -523,7 +532,7 @@ pppstart(tp)
 	|| sc == NULL || tp != (struct tty *) sc->sc_devp) {
 	if (tp->t_oproc != NULL)
 	    (*tp->t_oproc)(tp);
-	return;
+	return 0;
     }
 
     idle = 0;
@@ -683,6 +692,8 @@ pppstart(tp)
 	timeout(ppp_timeout, (void *) sc, 1);
 	sc->sc_flags |= SC_TIMEOUT;
     }
+
+    return 0;
 }
 
 /*
@@ -749,7 +760,7 @@ pppinput(c, tp)
 
     sc = (struct ppp_softc *) tp->t_sc;
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
-	return;
+	return 0;
 
     s = spltty();
     ++tk_nin;
@@ -791,7 +802,7 @@ pppinput(c, tp)
 	    } else
 		sc->sc_flags &= ~(SC_FLUSH | SC_ESCAPED);
 	    splx(s);
-	    return;
+	    return 0;
 	}
 
 	if (ilen < PPP_HDRLEN + PPP_FCSLEN) {
@@ -802,7 +813,7 @@ pppinput(c, tp)
 		sc->sc_flags |= SC_PKTLOST;
 	    }
 	    splx(s);
-	    return;
+	    return 0;
 	}
 
 	/*
@@ -826,19 +837,19 @@ pppinput(c, tp)
 
 	pppgetm(sc);
 	splx(s);
-	return;
+	return 0;
     }
 
     if (sc->sc_flags & SC_FLUSH) {
 	if (sc->sc_flags & SC_LOG_FLUSH)
 	    ppplogchar(sc, c);
 	splx(s);
-	return;
+	return 0;
     }
 
     if (c < 0x20 && (sc->sc_rasyncmap & (1 << c))) {
 	splx(s);
-	return;
+	return 0;
     }
 
     if (sc->sc_flags & SC_ESCAPED) {
@@ -847,7 +858,7 @@ pppinput(c, tp)
     } else if (c == PPP_ESCAPE) {
 	sc->sc_flags |= SC_ESCAPED;
 	splx(s);
-	return;
+	return 0;
     }
 
     /*
@@ -935,7 +946,7 @@ pppinput(c, tp)
     *sc->sc_mp++ = c;
     sc->sc_fcs = PPP_FCS(sc->sc_fcs, c);
     splx(s);
-    return;
+    return 0;
 
  flush:
     if (!(sc->sc_flags & SC_FLUSH)) {
@@ -945,6 +956,7 @@ pppinput(c, tp)
 	    ppplogchar(sc, c);
     }
     splx(s);
+    return 0;
 }
 
 #define MAX_DUMP_BYTES	128
