@@ -73,9 +73,9 @@ Do not include any compression or flow control options in your PPPoE
 configuration.  They will be ignored.
 
 Again, here it is assumed that the reader is familiar with the general
-process of configuring PPP.  The step outlined here refer only to the
+process of configuring PPP.  The steps outlined here refer only to the
 steps and configuration options which are PPPoE specific, and it is
-assumed that the reader will configured other aspects of the system
+assumed that the reader will also configure other aspects of the system
 (e.g. PAP authentication parameters).
 
 3.  Advanced Functionality
