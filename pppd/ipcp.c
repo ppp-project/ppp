@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.6 1994/05/24 05:57:56 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.7 1994/05/24 11:21:52 paulus Exp $";
 #endif
 
 /*
@@ -493,10 +493,6 @@ ipcp_nakci(f, p, len)
 	len -= cilen; \
 	INCPTR(2, p); \
 	GETSHORT(cishort, p); \
-	if (cilen == CILEN_VJ) { \
-	    GETCHAR(cimaxslotindex, p); \
-            GETCHAR(cicflag, p); \
-        } \
 	no.neg = 1; \
         code \
     }
@@ -526,6 +522,8 @@ ipcp_nakci(f, p, len)
      */
     NAKCIVJ(CI_COMPRESSTYPE, neg_vj,
 	    if (cilen == CILEN_VJ) {
+		GETCHAR(cimaxslotindex, p);
+		GETCHAR(cicflag, p);
 		if (cishort == IPCP_VJ_COMP) {
 		    try.old_vj = 0;
 		    if (cimaxslotindex < go->maxslotindex)

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.2 1994/04/18 04:01:50 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.3 1994/05/24 11:21:10 paulus Exp $";
 #endif
 
 /*
@@ -407,6 +407,8 @@ fsm_rconfreq(f, id, inp, len)
 	code = (*f->callbacks->reqci)(f, inp, &len, reject_if_disagree);
     } else if (len)
 	code = CONFREJ;			/* Reject all CI */
+    else
+	code = CONFACK;
 
     /* send the Ack, Nak or Rej to the peer */
     fsm_sdata(f, code, id, inp, len);
@@ -716,11 +718,11 @@ fsm_sconfreq(f, retransmit)
     /*
      * Make up the request packet
      */
+    outp = outpacket_buf + DLLHEADERLEN + HEADERLEN;
     if( f->callbacks->cilen && f->callbacks->addci ){
 	cilen = (*f->callbacks->cilen)(f);
 	if( cilen > peer_mru[f->unit] - HEADERLEN )
 	    cilen = peer_mru[f->unit] - HEADERLEN;
-	outp = outpacket_buf + DLLHEADERLEN + HEADERLEN;
 	if (f->callbacks->addci)
 	    (*f->callbacks->addci)(f, outp, &cilen);
     } else
