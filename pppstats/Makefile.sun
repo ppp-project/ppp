@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.sun,v 1.4 1994/09/19 04:15:17 paulus Exp $
+# $Id: Makefile.sun,v 1.5 1995/04/28 06:16:19 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -11,12 +11,15 @@ COPTS = -O
 COMPILE_FLAGS = -DSTREAMS
 LIBS =
 
+INSTALL= install -o root -g daemon
+
 CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
 
 all: pppstats
 
-install:
-	install -c pppstats $(BINDIR)/pppstats
+install: pppstats
+	$(INSTALL) -c pppstats $(BINDIR)/pppstats
+	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)/man8/pppstats.8
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
@@ -27,7 +30,3 @@ clean:
 depend:
 	cpp -M $(CFLAGS) $(PPPSTATSRCS) >.depend
 #	makedepend $(CFLAGS) $(PPPSTATSRCS)
-
-saber_pppstats:
-	#setopt load_flags $(CFLAGS)
-	#load $(PPPSTATSRCS)
