@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.120 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.121 2003/02/24 11:26:57 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1455,8 +1455,12 @@ device_script(program, in, out, dont_wait)
     }
 
     /* dup in and out to fds > 2 */
+    fd = in;
     in = dup(in);
+    close(fd);
+    fd = out;
     out = dup(out);
+    close(fd);
     if (log_to_fd >= 0) {
 	errfd = dup(log_to_fd);
     } else {
