@@ -1,13 +1,15 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.4 1994/05/18 06:34:46 paulus Exp $
+ * $Id: pathnames.h,v 1.5 1994/09/01 00:32:56 paulus Exp $
  */
 
-#if defined(STREAMS) || defined(ultrix)
-#define _PATH_PIDFILE 	"/etc/ppp"
+#ifdef HAVE_PATHS_H
+#include <paths.h>
+
 #else
-#define _PATH_PIDFILE 	"/var/run"
+#define _PATH_VARRUN 	"/etc/ppp/"
+#define _PATH_DEVNULL	"/dev/null"
 #endif
 
 #define _PATH_UPAPFILE 	"/etc/ppp/pap-secrets"
