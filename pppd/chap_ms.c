@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.11 1998/11/24 19:30:38 christos Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.12 1998/11/24 19:38:05 christos Exp $";
 #endif
 
 #ifdef CHAPMS
@@ -261,6 +261,12 @@ ChapMS_NT(rchallenge, rchallenge_len, secret, secret_len, response)
     MS_ChapResponse    *response;
 {
     int			i;
+#ifdef __NetBSD__
+    /* NetBSD uses the libc md4 routines which take bytes instead of bits */
+    int			mdlen = secret_len * 2;
+#else
+    int			mdlen = secret_len * 2 * 8;
+#endif
     MD4_CTX		md4Context;
     u_char		hash[MD4_SIGNATURE_SIZE];
     u_char		unicodePassword[MAX_NT_PASSWORD * 2];
@@ -272,7 +278,7 @@ ChapMS_NT(rchallenge, rchallenge_len, secret, secret_len, response)
 	unicodePassword[i * 2] = (u_char)secret[i];
 
     MD4Init(&md4Context);
-    MD4Update(&md4Context, unicodePassword, secret_len * 2);
+    MD4Update(&md4Context, unicodePassword, mdlen);
 
     MD4Final(hash, &md4Context); 	/* Tell MD4 we're done */
 
