@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.11 1994/08/09 06:29:14 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.12 1994/08/22 00:36:38 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -54,7 +54,7 @@ char *strdup __ARGS((char *));
 #endif
 
 #ifndef GIDSET_TYPE
-#define GIDSET_TYPE	int
+#define GIDSET_TYPE	gid_t
 #endif
 
 /*
@@ -141,7 +141,7 @@ extern int nodetach;
 extern char *connector;
 extern char *disconnector;
 extern int inspeed;
-extern char devname[];
+extern char devnam[];
 extern int default_device;
 extern u_long netmask;
 extern int detach;
@@ -430,9 +430,9 @@ options_for_tty()
     char *dev, *path;
     int ret;
 
-    dev = strrchr(devname, '/');
+    dev = strrchr(devnam, '/');
     if (dev == NULL)
-	dev = devname;
+	dev = devnam;
     else
 	++dev;
     if (strcmp(dev, "tty") == 0)
@@ -1069,8 +1069,8 @@ setdevname(cp)
 	return -1;
     }
   
-    (void) strncpy(devname, cp, MAXPATHLEN);
-    devname[MAXPATHLEN-1] = 0;
+    (void) strncpy(devnam, cp, MAXPATHLEN);
+    devnam[MAXPATHLEN-1] = 0;
     default_device = FALSE;
   
     return 1;
