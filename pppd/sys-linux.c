@@ -442,8 +442,9 @@ int establish_ppp (int tty_fd)
 	 */
 	set_ppp_fd (tty_fd);
 	if (ioctl(tty_fd, PPPIOCGUNIT, &x) < 0) {	
-	    if ( ! ok_error (errno))
-		fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
+	    if (ok_error (errno))
+		goto err;
+	    fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
 	}
 	/* Check that we got the same unit again. */
 	if (looped && x != ifunit)

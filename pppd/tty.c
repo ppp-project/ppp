@@ -20,7 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.2 2000/07/06 11:17:03 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.3 2000/07/24 14:58:15 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -331,6 +331,7 @@ int connect_tty()
 			if (!persist || err != EINTR)
 				return -1;
 		}
+		real_ttyfd = ttyfd;
 		if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
 		    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
 			warn("Couldn't reset non-blocking mode on device: %m");
@@ -356,7 +357,6 @@ int connect_tty()
 		 */
 		set_up_tty(ttyfd, ((connector != NULL && connector[0] != 0)
 				   || initializer != NULL));
-		real_ttyfd = ttyfd;
 	}
 
 	/*

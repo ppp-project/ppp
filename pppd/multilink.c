@@ -129,7 +129,6 @@ mp_join_bundle()
 			      epdisc_to_str(&ho->endpoint));
 	if (bundle_name)
 		p += slprintf(p, bundle_id+l-p, "/%v", bundle_name);
-	dbglog("bundle_id = %s", bundle_id+7);
 
 	/*
 	 * For demand mode, we only need to configure the bundle
@@ -360,12 +359,10 @@ str_to_epdisc(ep, str)
 		if (i == 0 || str[i] != 0)
 			return 0;
 		set_ip_epdisc(ep, addr);
-		dbglog("str_to_epdisc -> %s", epdisc_to_str(ep));
 		return 1;
 	}
 	if (i == EPD_MAC && get_if_hwaddr(ep->value, str) >= 0) {
 		ep->length = 6;
-		dbglog("str_to_epdisc -> %s", epdisc_to_str(ep));
 		return 1;
 	}
 
@@ -388,7 +385,6 @@ str_to_epdisc(ep, str)
 	if (*str != 0 || (ep->class == EPD_MAC && l != 6))
 		return 0;
 	ep->length = l;
-	dbglog("str_to_epdisc -> %s", epdisc_to_str(ep));
 	return 1;
 }
 

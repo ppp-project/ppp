@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.65 2000/04/15 01:27:10 masputra Exp $"
+#define RCSID	"$Id: auth.c,v 1.66 2000/07/24 14:58:14 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -145,6 +145,8 @@ static enum script_state auth_state = s_down;
 static enum script_state auth_script_state = s_down;
 static pid_t auth_script_pid = 0;
 
+static int used_login;		/* peer authenticated against login database */
+
 /*
  * Option variables.
  */
@@ -190,6 +192,7 @@ static int  setupapfile __P((char **));
 static int  privgroup __P((char **));
 static int  set_noauth_addr __P((char **));
 static void check_access __P((FILE *, char *));
+static int  wordlist_count __P((struct wordlist *));
 
 /*
  * Authentication-related options.
@@ -318,10 +321,10 @@ set_noauth_addr(argv)
     char **argv;
 {
     char *addr = *argv;
-    int l = strlen(addr);
+    int l = strlen(addr) + 1;
     struct wordlist *wp;
 
-    wp = (struct wordlist *) malloc(sizeof(struct wordlist) + l + 1);
+    wp = (struct wordlist *) malloc(sizeof(struct wordlist) + l);
     if (wp == NULL)
 	novm("allow-ip argument");
     wp->word = (char *) (wp + 1);
@@ -424,8 +427,8 @@ link_established(unit)
 	 * boot it out.
 	 */
 	if (noauth_addrs != NULL) {
-	    set_allowed_addrs(unit, noauth_addrs, NULL);
-	} else if (!wo->neg_upap || !null_login(unit)) {
+	    set_allowed_addrs(unit, NULL, NULL);
+	} else if (!wo->neg_upap || uselogin || !null_login(unit)) {
 	    warn("peer refused to authenticate: terminating link");
 	    lcp_close(unit, "peer refused to authenticate");
 	    status = EXIT_PEER_AUTH_FAILED;
@@ -434,6 +437,7 @@ link_established(unit)
     }
 
     new_phase(PHASE_AUTHENTICATE);
+    used_login = 0;
     auth = 0;
     if (go->neg_chap) {
 	ChapAuthPeer(unit, our_name, go->chap_mdtype);
@@ -915,21 +919,29 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	check_access(f, filename);
 	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename) < 0) {
 	    warn("no PAP secret found for %s", user);
-	} else if (secret[0] != 0) {
-	    /* password given in pap-secrets - must match */
-	    if ((!cryptpap && strcmp(passwd, secret) == 0)
-		|| strcmp(crypt(passwd, secret), secret) == 0)
-		ret = UPAP_AUTHACK;
-	    else
-		warn("PAP authentication failure for %s", user);
-	} else if (uselogin) {
-	    /* empty password in pap-secrets and login option */
-	    ret = plogin(user, passwd, msg);
-	    if (ret == UPAP_AUTHNAK)
-		warn("PAP login failure for %s", user);
 	} else {
-	    /* empty password in pap-secrets and login option not used */
+	    /*
+	     * If the secret is "@login", it means to check
+	     * the password against the login database.
+	     */
+	    int login_secret = strcmp(secret, "@login") == 0;
 	    ret = UPAP_AUTHACK;
+	    if (uselogin || login_secret) {
+		/* login option or secret is @login */
+		ret = plogin(user, passwd, msg);
+		if (ret == UPAP_AUTHNAK)
+		    warn("PAP login failure for %s", user);
+		else
+		    used_login = 1;
+	    }
+	    if (secret[0] != 0 && !login_secret) {
+		/* password given in pap-secrets - must match */
+		if ((cryptpap || strcmp(passwd, secret) != 0)
+		    && strcmp(crypt(passwd, secret), secret) != 0) {
+		    ret = UPAP_AUTHNAK;
+		    warn("PAP authentication failure for %s", user);
+		}
+	    }
 	}
 	fclose(f);
     }
@@ -1426,7 +1438,7 @@ set_allowed_addrs(unit, addrs, opts)
     struct wordlist *opts;
 {
     int n;
-    struct wordlist *ap, **pap;
+    struct wordlist *ap, **plink;
     struct permitted_ip *ip;
     char *ptr_word, *ptr_mask;
     struct hostent *hp;
@@ -1445,13 +1457,17 @@ set_allowed_addrs(unit, addrs, opts)
     /*
      * Count the number of IP addresses given.
      */
-    for (n = 0, pap = &addrs; (ap = *pap) != NULL; pap = &ap->next)
-	++n;
+    n = wordlist_count(addrs) + wordlist_count(noauth_addrs);
     if (n == 0)
 	return;
     ip = (struct permitted_ip *) malloc((n + 1) * sizeof(struct permitted_ip));
     if (ip == 0)
 	return;
+
+    /* temporarily append the noauth_addrs list to addrs */
+    for (plink = &addrs; *plink != NULL; plink = &(*plink)->next)
+	;
+    *plink = noauth_addrs;
 
     n = 0;
     for (ap = addrs; ap != NULL; ap = ap->next) {
@@ -1542,6 +1558,7 @@ set_allowed_addrs(unit, addrs, opts)
 	if (~mask == 0 && suggested_ip == 0)
 	    suggested_ip = a;
     }
+    *plink = NULL;
 
     ip[n].permit = 0;		/* make the last entry forbid all addresses */
     ip[n].base = 0;		/* to terminate the list */
@@ -1731,25 +1748,26 @@ scan_authfile(f, client, server, secret, addrs, opts, filename)
 	if (newline)
 	    continue;
 
-	/*
-	 * Special syntax: @filename means read secret from file.
-	 */
-	if (word[0] == '@') {
-	    strlcpy(atfile, word+1, sizeof(atfile));
-	    if ((sf = fopen(atfile, "r")) == NULL) {
-		warn("can't open indirect secret file %s", atfile);
-		continue;
-	    }
-	    check_access(sf, atfile);
-	    if (!getword(sf, word, &xxx, atfile)) {
-		warn("no secret in indirect secret file %s", atfile);
+	if (secret != NULL) {
+	    /*
+	     * Special syntax: @/pathname means read secret from file.
+	     */
+	    if (word[0] == '@' && word[1] == '/') {
+		strlcpy(atfile, word+1, sizeof(atfile));
+		if ((sf = fopen(atfile, "r")) == NULL) {
+		    warn("can't open indirect secret file %s", atfile);
+		    continue;
+		}
+		check_access(sf, atfile);
+		if (!getword(sf, word, &xxx, atfile)) {
+		    warn("no secret in indirect secret file %s", atfile);
+		    fclose(sf);
+		    continue;
+		}
 		fclose(sf);
-		continue;
 	    }
-	    fclose(sf);
-	}
-	if (secret != NULL)
 	    strlcpy(lsecret, word, sizeof(lsecret));
+	}
 
 	/*
 	 * Now read address authorization info and make a wordlist.
@@ -1803,6 +1821,20 @@ scan_authfile(f, client, server, secret, addrs, opts, filename)
 	free_wordlist(addr_list);
 
     return best_flag;
+}
+
+/*
+ * wordlist_count - return the number of items in a wordlist
+ */
+static int
+wordlist_count(wp)
+    struct wordlist *wp;
+{
+    int n;
+
+    for (n = 0; wp != NULL; wp = wp->next)
+	++n;
+    return n;
 }
 
 /*
