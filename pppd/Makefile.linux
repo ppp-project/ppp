@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.19 1997/03/04 03:35:05 paulus Exp $
+# $Id: Makefile.linux,v 1.20 1997/04/30 05:48:39 paulus Exp $
 #
 
 # Default installation locations
@@ -28,7 +28,11 @@ endif
 #
 COPTS = -O2 # -g
 VER = 2.3.0
-LIBS = -lcrypt -lbsd
+LIBS =
+
+ifneq ($(wildcard /usr/lib/libcrypt*),)
+LIBS += -lcrypt
+endif
 
 # The INCLUDE_DIRS must include the standard headers before the local
 # ones. If you just had -I.. then the order would be reversed. So, use
@@ -42,8 +46,15 @@ CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
 ifdef CHAPMS
 CFLAGS   += -DCHAPMS=1
+ifndef USE_CRYPT
 LIBS     := -ldes $(LIBS)
+else
+CFLAGS   += -DUSE_CRYPT=1
+endif
 PPPDOBJS += md4.o chap_ms.o
+ifdef MSLANMAN
+CFLAGS   += -DMSLANMAN=1
+endif
 endif
 
 ifdef HAS_SHADOW
