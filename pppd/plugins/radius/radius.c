@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.25 2004/04/12 05:16:37 kad Exp $";
+"$Id: radius.c,v 1.26 2004/10/28 00:22:54 paulus Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -74,7 +74,7 @@ static int radius_chap_verify(char *user, char *ourname, int id,
 			      struct chap_digest_type *digest,
 			      unsigned char *challenge,
 			      unsigned char *response,
-			      unsigned char *message, int message_space);
+			      char *message, int message_space);
 
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
@@ -329,7 +329,7 @@ static int
 radius_chap_verify(char *user, char *ourname, int id,
 		   struct chap_digest_type *digest,
 		   unsigned char *challenge, unsigned char *response,
-		   unsigned char *message, int message_space)
+		   char *message, int message_space)
 {
     VALUE_PAIR *send, *received;
     UINT4 av_type;
