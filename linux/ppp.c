@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990625==
+ *  ==FILEVERSION 990910==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.31 1999/08/13 01:56:03 paulus Exp $ */
+/* $Id: ppp.c,v 1.32 1999/09/11 12:09:31 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -104,7 +104,7 @@
 #endif
 
 #undef PPP_VERSION
-#define PPP_VERSION	"2.3.9"
+#define PPP_VERSION	"2.3.10"
 
 #if LINUX_VERSION_CODE >= VERSION(2,1,4)
 
