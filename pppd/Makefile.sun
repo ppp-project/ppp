@@ -1,13 +1,13 @@
 #
 # pppd makefile for Suns
-# $Id: Makefile.sun,v 1.5 1994/05/24 11:30:39 paulus Exp $
+# $Id: Makefile.sun,v 1.6 1994/05/25 06:28:42 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
-	auth.c options.c lock.c sys-bsd.c sys-str.c sys-ultrix.c
+	auth.c options.c lock.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
@@ -16,12 +16,11 @@ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
 
 # CC = gcc
 DEBUG_FLAGS =
-# SECURE_FLAGS = -DREQ_SYSOPTIONS=1
 COMPILE_FLAGS = -DSTREAMS
 COPTS = -O
 LIBS = -lkvm
 
-CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
+CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 
 SOURCE= RELNOTES Makefile \
 	$(PPPDSRCS) $(HEADERS) $(MANPAGES)
