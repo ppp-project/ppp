@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.26 1996/07/01 05:32:37 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.27 1997/03/04 03:43:53 paulus Exp $";
 #endif
 
 /*
@@ -119,7 +119,7 @@ sys_cleanup()
     if (ifaddrs[0] != 0)
 	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
-	cifdefaultroute(0, default_route_gateway);
+	cifdefaultroute(0, 0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
 }
@@ -929,7 +929,8 @@ sifaddr(u, o, h, m)
 	    return 0;
 	}
 	syslog(LOG_WARNING,
-	       "Couldn't set interface address: Address already exists");
+	       "Couldn't set interface address: Address %s already exists",
+		ip_ntoa(o));
     }
     ifaddrs[0] = o;
     ifaddrs[1] = h;
@@ -966,9 +967,9 @@ cifaddr(u, o, h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(u, g)
+sifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     return dodefaultroute(g, 's');
 }
@@ -977,9 +978,9 @@ sifdefaultroute(u, g)
  * cifdefaultroute - delete a default route through the address given.
  */
 int
-cifdefaultroute(u, g)
+cifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     return dodefaultroute(g, 'c');
 }

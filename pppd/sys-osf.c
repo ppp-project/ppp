@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.10 1996/07/01 01:20:17 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.11 1997/03/04 03:43:53 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -182,7 +182,7 @@ sys_cleanup()
     if (ifaddrs[0])
 	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
-	cifdefaultroute(0, default_route_gateway);
+	cifdefaultroute(0, 0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
 }
@@ -1220,9 +1220,9 @@ cifaddr(u, o, h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(u, g)
+sifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     struct ortentry rt;
 
@@ -1244,9 +1244,9 @@ sifdefaultroute(u, g)
  * cifdefaultroute - delete a default route through the address given.
  */
 int
-cifdefaultroute(u, g)
+cifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     struct ortentry rt;
 
@@ -1398,9 +1398,9 @@ get_ether_addr(ipaddr, hwaddr)
 
 #define	WTMPFILE	"/usr/adm/wtmp"
 
-int
+void
 logwtmp(line, name, host)
-    char *line, *name, *host;
+    const char *line, *name, *host;
 {
     int fd;
     struct stat buf;

@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.19 1996/08/28 06:42:54 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.20 1997/03/04 03:43:54 paulus Exp $";
 #endif
 
 /*
@@ -116,7 +116,7 @@ sys_cleanup()
     if (ifaddrs[0])
 	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
-	cifdefaultroute(0, default_route_gateway);
+	cifdefaultroute(0, 0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
 }
@@ -979,7 +979,9 @@ cifaddr(u, o, h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(u, g)
+sifdefaultroute(u, l, g)
+    int unit;
+    u_int32_t l, g;
 {
     struct rtentry rt;
 
@@ -1000,7 +1002,9 @@ sifdefaultroute(u, g)
  * cifdefaultroute - delete a default route through the address given.
  */
 int
-cifdefaultroute(u, g)
+cifdefaultroute(u, l, g)
+    int unit;
+    u_int32_t l, g;
 {
     struct rtentry rt;
 
@@ -1249,9 +1253,9 @@ char *strdup( in ) char *in;
 
 #define	WTMPFILE	"/usr/adm/wtmp"
 
-int
+void
 logwtmp(line, name, host)
-    char *line, *name, *host;
+    const char *line, *name, *host;
 {
     int fd;
     struct stat buf;

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.14 1996/09/26 06:23:50 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.15 1997/03/04 03:43:54 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -204,7 +204,7 @@ sys_cleanup()
     if (if_is_up)
 	sifdown(0);
     if (default_route_gateway)
-	cifdefaultroute(0, default_route_gateway);
+	cifdefaultroute(0, default_route_gateway, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
 }
@@ -1098,8 +1098,10 @@ cifaddr(u, o, h)
     int u;
     u_int32_t o, h;
 {
-#if 0
+#if defined(__USLC__)		/* was: #if 0 */
+    cifroute(unit, ouraddr, hisaddr);
     if (ipmuxid >= 0) {
+	syslog(LOG_NOTICE, "Removing ppp interface unit");
 	if (ioctl(ipfd, I_UNLINK, ipmuxid) < 0) {
 	    syslog(LOG_ERR, "Can't remove ppp interface unit: %m");
 	    return 0;
@@ -1114,12 +1116,15 @@ cifaddr(u, o, h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(u, g)
+sifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     struct rtentry rt;
 
+#if defined(__USLC__)
+    g = l;			/* use the local address as gateway */
+#endif
     memset(&rt, 0, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
@@ -1140,12 +1145,15 @@ sifdefaultroute(u, g)
  * cifdefaultroute - delete a default route through the address given.
  */
 int
-cifdefaultroute(u, g)
+cifdefaultroute(u, l, g)
     int u;
-    u_int32_t g;
+    u_int32_t l, g;
 {
     struct rtentry rt;
 
+#if defined(__USLC__)
+    g = l;			/* use the local address as gateway */
+#endif
     memset(&rt, 0, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
@@ -1492,9 +1500,9 @@ GetMask(addr)
 /*
  * logwtmp - write an accounting record to the /var/adm/wtmp file.
  */
-int
+void
 logwtmp(line, name, host)
-    char *line, *name, *host;
+    const char *line, *name, *host;
 {
     static struct utmpx utmpx;
 
@@ -1510,7 +1518,6 @@ logwtmp(line, name, host)
     }
     gettimeofday(&utmpx.ut_tv, NULL);
     updwtmpx("/var/adm/wtmpx", &utmpx);
-    return 0;
 }
 
 /*
@@ -1622,4 +1629,30 @@ unlock()
 	unlink(lock_file);
 	lock_file[0] = 0;
     }
+}
+
+
+/*
+ * cifroute - delete a route through the addresses given.
+ */
+int
+cifroute(u, our, his)
+    int u;
+    u_int32_t our, his;
+{
+    struct rtentry rt;
+
+    memset(&rt, 0, sizeof(rt));
+    rt.rt_dst.sa_family = AF_INET;
+    INET_ADDR(rt.rt_dst) = his;
+    rt.rt_gateway.sa_family = AF_INET;
+    INET_ADDR(rt.rt_gateway) = our;
+    rt.rt_flags = RTF_HOST;
+
+    if (ioctl(ipfd, SIOCDELRT, &rt) < 0) {
+	syslog(LOG_ERR, "Can't delete route: %m");
+	return 0;
+    }
+
+    return 1;
 }
