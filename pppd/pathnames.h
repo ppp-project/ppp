@@ -1,7 +1,7 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.15 2002/11/02 19:48:13 carlsonj Exp $
+ * $Id: pathnames.h,v 1.16 2004/11/13 12:02:22 paulus Exp $
  */
 
 #ifdef HAVE_PATHS_H
@@ -45,12 +45,12 @@
 #endif /* IPX_CHANGE */
 
 #ifdef __STDC__
-#define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd.tdb"
+#define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd2.tdb"
 #else /* __STDC__ */
 #ifdef HAVE_PATHS_H
-#define _PATH_PPPDB	"/var/run/pppd.tdb"
+#define _PATH_PPPDB	"/var/run/pppd2.tdb"
 #else
-#define _PATH_PPPDB	"/etc/ppp/pppd.tdb"
+#define _PATH_PPPDB	"/etc/ppp/pppd2.tdb"
 #endif
 #endif /* __STDC__ */
 

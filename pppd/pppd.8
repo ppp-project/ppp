@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.80 2004/11/08 11:50:00 paulus Exp $
+.\" $Id: pppd.8,v 1.81 2004/11/13 12:02:22 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -1653,6 +1653,12 @@ Process-ID for pppd process on ppp interface unit \fIn\fR.
 Process-ID for pppd process for logical link \fIname\fR (see the
 \fIlinkname\fR option).
 .TP
+.B /var/run/pppd2.tdb
+Database containing information about pppd processes, interfaces and
+links, used for matching links to bundles in multilink operation.  May
+be examined by external programs to obtain information about running
+pppd instances, the interfaces and devices they are using, IP address
+assignments, etc.
 .B /etc/ppp/pap-secrets
 Usernames, passwords and IP addresses for PAP authentication.  This
 file should be owned by root and not readable or writable by any other

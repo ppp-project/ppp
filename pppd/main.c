@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.146 2004/11/12 11:21:41 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.147 2004/11/13 12:02:22 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -481,14 +481,8 @@ main(argc, argv)
 	/*
 	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
-#ifdef USE_TDB
-	tdb_writelock(pppdb);
-#endif
 	fd_loop = open_ppp_loopback();
 	set_ifunit(1);
-#ifdef USE_TDB
-	tdb_writeunlock(pppdb);
-#endif
 	/*
 	 * Configure the interface and mark it up, etc.
 	 */
@@ -1920,6 +1914,41 @@ script_unsetenv(var)
 #ifdef USE_TDB
     if (pppdb != NULL)
 	update_db_entry();
+#endif
+}
+
+/*
+ * Any arbitrary string used as a key for locking the database.
+ * It doesn't matter what it is as long as all pppds use the same string.
+ */
+#define PPPD_LOCK_KEY	"pppd lock"
+
+/*
+ * lock_db - get an exclusive lock on the TDB database.
+ * Used to ensure atomicity of various lookup/modify operations.
+ */
+void lock_db()
+{
+#ifdef USE_TDB
+	TDB_DATA key;
+
+	key.dptr = PPPD_LOCK_KEY;
+	key.dsize = strlen(key.dptr);
+	tdb_chainlock(pppdb, key);
+#endif
+}
+
+/*
+ * unlock_db - remove the exclusive lock obtained by lock_db.
+ */
+void unlock_db()
+{
+#ifdef USE_TDB
+	TDB_DATA key;
+
+	key.dptr = PPPD_LOCK_KEY;
+	key.dsize = strlen(key.dptr);
+	tdb_chainunlock(pppdb, key);
 #endif
 }
 

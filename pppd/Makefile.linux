@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.65 2004/11/01 03:49:20 paulus Exp $
+# $Id: Makefile.linux,v 1.66 2004/11/13 12:02:22 paulus Exp $
 #
 
 # Default installation locations
@@ -153,9 +153,9 @@ endif
 # TDB
 ifdef USE_TDB
 	CFLAGS += -DUSE_TDB=1
-	PPPDSRCS += tdb.c
-	PPPDOBJS += tdb.o
-	HEADERS += tdb.h
+	PPPDSRCS += tdb.c spinlock.c
+	PPPDOBJS += tdb.o spinlock.o
+	HEADERS += tdb.h spinlock.h
 endif
 
 # Lock library binary for Linux is included in 'linux' subdirectory.

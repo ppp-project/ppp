@@ -193,7 +193,7 @@ mp_join_bundle()
 	 * Check if the bundle ID is already in the database.
 	 */
 	unit = -1;
-	tdb_writelock(pppdb);
+	lock_db();
 	key.dptr = bundle_id;
 	key.dsize = p - bundle_id;
 	pid = tdb_fetch(pppdb, key);
@@ -221,7 +221,7 @@ mp_join_bundle()
 			set_ifunit(0);
 			script_setenv("BUNDLE", bundle_id + 7, 0);
 			make_bundle_links(1);
-			tdb_writeunlock(pppdb);
+			unlock_db();
 			info("Link attached to %s", ifname);
 			return 1;
 		}
@@ -234,7 +234,7 @@ mp_join_bundle()
 	netif_set_mtu(0, mtu);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
 	make_bundle_links(0);
-	tdb_writeunlock(pppdb);
+	unlock_db();
 	info("New bundle %s created", ifname);
 	multilink_master = 1;
 	return 0;
@@ -242,9 +242,9 @@ mp_join_bundle()
 
 void mp_exit_bundle()
 {
-	tdb_writelock(pppdb);
+	lock_db();
 	remove_bundle_link();
-	tdb_writeunlock(pppdb);
+	unlock_db();
 }
 
 static void sendhup(char *str)
@@ -271,13 +271,13 @@ void mp_bundle_terminated()
 		script_unsetenv("IFNAME");
 	}
 
-	tdb_writelock(pppdb);
+	lock_db();
 	destroy_bundle();
 	iterate_bundle_links(sendhup);
 	key.dptr = blinks_id;
 	key.dsize = strlen(blinks_id);
 	tdb_delete(pppdb, key);
-	tdb_writeunlock(pppdb);
+	unlock_db();
 	
 new_phase(PHASE_DEAD);
 }
