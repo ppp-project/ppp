@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.6 1994/09/21 06:47:37 paulus Exp $
+ * $Id: lcp.h,v 1.7 1995/05/19 03:25:53 paulus Exp $
  */
 
 /*
@@ -83,5 +83,6 @@ void lcp_sprotrej __P((int, u_char *, int));
 int  lcp_printpkt __P((u_char *, int,
 		       void (*) __P((void *, char *, ...)), void *));
 
-extern int lcp_warnloops;	/* Warn about a loopback this often */
-#define DEFWARNLOOPS	10	/* Default value for above */
+/* Default number of times we receive our magic number from the peer
+   before deciding the link is looped-back. */
+#define DEFLOOPBACKFAIL	5
