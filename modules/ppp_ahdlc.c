@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.2 1996/06/26 00:54:01 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.3 1996/08/28 06:35:50 paulus Exp $
  */
 
 /*
@@ -216,7 +216,7 @@ ahdlc_wput(q, mp)
 		break;
 	    bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)state->xaccm,
 		  iop->ioc_count);
-	    state->xaccm[2] &= 0x40000000;	/* don't escape 0x5e */
+	    state->xaccm[2] &= ~0x40000000;	/* don't escape 0x5e */
 	    state->xaccm[3] |= 0x60000000;	/* do escape 0x7d, 0x7e */
 	    iop->ioc_count = 0;
 	    error = 0;
