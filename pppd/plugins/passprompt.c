@@ -74,6 +74,8 @@ static int promptpass(char *user, char *passwd)
 	if (red == 0)
 	    break;
 	if (red < 0) {
+	    if (errno == EINTR)
+		continue;
 	    error("Can't read secret from %s: %m", promptprog);
 	    readgood = -1;
 	    break;
