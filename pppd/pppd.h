@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.29 1999/03/12 06:07:20 paulus Exp $
+ * $Id: pppd.h,v 1.30 1999/03/16 02:51:06 paulus Exp $
  */
 
 /*
@@ -307,8 +307,8 @@ void sys_cleanup __P((void));	/* Restore system state before exiting */
 int  sys_check_options __P((void)); /* Check options specified */
 void sys_close __P((void));	/* Clean up in a child before execing */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
-void open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
-void establish_ppp __P((int));	/* Turn serial port into a ppp interface */
+int  open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
+int  establish_ppp __P((int));	/* Turn serial port into a ppp interface */
 void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
 void disestablish_ppp __P((int)); /* Restore port to normal operation */
 void clean_check __P((void));	/* Check if line was 8-bit clean */
@@ -318,9 +318,8 @@ void setdtr __P((int, int));	/* Raise or lower port's DTR line */
 void output __P((int, u_char *, int)); /* Output a PPP packet */
 void wait_input __P((struct timeval *));
 				/* Wait for input, with timeout */
-void wait_loop_output __P((struct timeval *));
-				/* Wait for pkt from loopback, with timeout */
-void wait_time __P((struct timeval *)); /* Wait for given length of time */
+void add_fd __P((int));		/* Add fd to set to wait for */
+void remove_fd __P((int));	/* Remove fd from set to wait for */
 int  read_packet __P((u_char *)); /* Read PPP packet */
 int  get_loop_output __P((void)); /* Read pkts from loopback */
 void ppp_send_config __P((int, int, u_int32_t, int, int));
@@ -496,49 +495,49 @@ extern struct option_info welcomer_info;
 #endif /* LOG_PPP */
 
 #ifdef DEBUGMAIN
-#define MAINDEBUG(x)	if (debug) syslog x
+#define MAINDEBUG(x)	if (debug) dbglog x
 #else
 #define MAINDEBUG(x)
 #endif
 
 #ifdef DEBUGSYS
-#define SYSDEBUG(x)	if (debug) syslog x
+#define SYSDEBUG(x)	if (debug) dbglog x
 #else
 #define SYSDEBUG(x)
 #endif
 
 #ifdef DEBUGFSM
-#define FSMDEBUG(x)	if (debug) syslog x
+#define FSMDEBUG(x)	if (debug) dbglog x
 #else
 #define FSMDEBUG(x)
 #endif
 
 #ifdef DEBUGLCP
-#define LCPDEBUG(x)	if (debug) syslog x
+#define LCPDEBUG(x)	if (debug) dbglog x
 #else
 #define LCPDEBUG(x)
 #endif
 
 #ifdef DEBUGIPCP
-#define IPCPDEBUG(x)	if (debug) syslog x
+#define IPCPDEBUG(x)	if (debug) dbglog x
 #else
 #define IPCPDEBUG(x)
 #endif
 
 #ifdef DEBUGUPAP
-#define UPAPDEBUG(x)	if (debug) syslog x
+#define UPAPDEBUG(x)	if (debug) dbglog x
 #else
 #define UPAPDEBUG(x)
 #endif
 
 #ifdef DEBUGCHAP
-#define CHAPDEBUG(x)	if (debug) syslog x
+#define CHAPDEBUG(x)	if (debug) dbglog x
 #else
 #define CHAPDEBUG(x)
 #endif
 
 #ifdef DEBUGIPXCP
-#define IPXCPDEBUG(x)	if (debug) syslog x
+#define IPXCPDEBUG(x)	if (debug) dbglog x
 #else
 #define IPXCPDEBUG(x)
 #endif
