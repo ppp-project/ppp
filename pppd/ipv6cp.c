@@ -95,10 +95,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.8 2000/04/04 07:06:50 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.9 2000/04/15 01:27:11 masputra Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.8 2000/04/04 07:06:50 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.9 2000/04/15 01:27:11 masputra Exp $"
 
 /*
  * TODO: 
@@ -179,7 +179,7 @@ static fsm_callbacks ipv6cp_callbacks = { /* IPV6CP callback routines */
 static int setifaceid __P((char **arg));
 
 static option_t ipv6cp_option_list[] = {
-    { "ipv6", o_special, setifaceid,
+    { "ipv6", o_special, (void *)setifaceid,
       "Set interface identifiers for IPV6" },
     { "noipv6", o_bool, &ipv6cp_protent.enabled_flag,
       "Disable IPv6 and IPv6CP" },
@@ -916,14 +916,14 @@ ipv6cp_reqci(f, inp, len, reject_if_disagree)
 		orc = CONFREJ;
 		break;
 	    }
-#else
-	    orc = CONFREJ;
-	    break;
-#endif
 
 	    ho->neg_vj = 1;
 	    ho->vj_protocol = cishort;
 	    break;
+#else
+	    orc = CONFREJ;
+	    break;
+#endif
 
 	default:
 	    orc = CONFREJ;
@@ -1423,7 +1423,7 @@ ipv6cp_printpkt(p, plen, printer, arg)
     case TERMREQ:
 	if (len > 0 && *p >= ' ' && *p < 0x7f) {
 	    printer(arg, " ");
-	    print_string(p, len, printer, arg);
+	    print_string((char *)p, len, printer, arg);
 	    p += len;
 	    len = 0;
 	}

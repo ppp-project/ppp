@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.51 2000/04/13 12:05:57 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.52 2000/04/15 01:27:12 masputra Exp $"
 
 /*
  * TODO:
@@ -96,7 +96,7 @@ static option_t lcp_option_list[] = {
       "Set passive mode", 1 },
     { "silent", o_bool, &lcp_wantoptions[0].silent,
       "Set silent mode", 1 },
-    { "escape", o_special, setescape,
+    { "escape", o_special, (void *)setescape,
       "List of character codes to escape on transmission" },
     { "lcp-echo-failure", o_int, &lcp_echo_fails,
       "Set number of consecutive echo failures to indicate link failure" },
@@ -1986,7 +1986,7 @@ lcp_printpkt(p, plen, printer, arg)
     case TERMREQ:
 	if (len > 0 && *p >= ' ' && *p < 0x7f) {
 	    printer(arg, " ");
-	    print_string(p, len, printer, arg);
+	    print_string((char *)p, len, printer, arg);
 	    p += len;
 	    len = 0;
 	}

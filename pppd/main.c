@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.93 2000/04/13 12:05:59 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.94 2000/04/15 01:27:13 masputra Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -83,7 +83,7 @@ static uid_t uid;		/* Our real user-id */
 static int conn_running;	/* we have a [dis]connector running */
 
 int ttyfd;			/* Serial port file descriptor */
-mode_t tty_mode = -1;		/* Original access permissions to tty */
+mode_t tty_mode = (mode_t)-1;	/* Original access permissions to tty */
 int baud_rate;			/* Actual bits/second for serial device */
 int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
@@ -2143,7 +2143,7 @@ open_socket(dest)
     sad.sin_family = AF_INET;
     sad.sin_port = htons(port);
     sad.sin_addr.s_addr = host;
-    if (connect(sock, &sad, sizeof(sad)) < 0) {
+    if (connect(sock, (struct sockaddr *)&sad, sizeof(sad)) < 0) {
 	error("Can't connect to %s: %m", dest);
 	close(sock);
 	return -1;

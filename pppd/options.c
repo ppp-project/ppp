@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.73 2000/04/13 12:05:16 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.74 2000/04/15 01:27:13 masputra Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -192,7 +192,7 @@ option_t general_options[] = {
       "Set time in seconds before disconnecting idle link" },
     { "lock", o_bool, &lockflag,
       "Lock serial device with UUCP-style lock file", 1 },
-    { "-all", o_special_noarg, noopt,
+    { "-all", o_special_noarg, (void *)noopt,
       "Don't request/allow any LCP or IPCP options (useless)" },
     { "init", o_string, &initializer,
       "A program to initialize the device",
@@ -227,21 +227,21 @@ option_t general_options[] = {
       "Set alternate hardware (DTR/CTS) flow control", OPT_NOARG|OPT_VAL(2) },
     { "nocdtrcts", o_int, &crtscts,
       "Disable hardware flow control", OPT_NOARG|OPT_VAL(-1) },
-    { "xonxoff", o_special_noarg, setxonxoff,
+    { "xonxoff", o_special_noarg, (void *)setxonxoff,
       "Set software (XON/XOFF) flow control" },
-    { "domain", o_special, setdomain,
+    { "domain", o_special, (void *)setdomain,
       "Add given domain name to hostname" },
     { "mtu", o_int, &lcp_allowoptions[0].mru,
       "Set our MTU", OPT_LIMITS, NULL, MAXMRU, MINMRU },
-    { "netmask", o_special, setnetmask,
+    { "netmask", o_special, (void *)setnetmask,
       "set netmask" },
     { "modem", o_bool, &modem,
       "Use modem control lines", 1 },
     { "local", o_bool, &modem,
       "Don't use modem control lines" },
-    { "file", o_special, readfile,
+    { "file", o_special, (void *)readfile,
       "Take options from a file", OPT_PREPASS },
-    { "call", o_special, callfile,
+    { "call", o_special, (void *)callfile,
       "Take options from a privileged file", OPT_PREPASS },
     { "persist", o_bool, &persist,
       "Keep on reopening connection after close", 1 },
@@ -249,18 +249,18 @@ option_t general_options[] = {
       "Turn off persist option" },
     { "demand", o_bool, &demand,
       "Dial on demand", OPT_INITONLY | 1, &persist },
-    { "--version", o_special_noarg, showversion,
+    { "--version", o_special_noarg, (void *)showversion,
       "Show version number" },
-    { "--help", o_special_noarg, showhelp,
+    { "--help", o_special_noarg, (void *)showhelp,
       "Show brief listing of options" },
-    { "-h", o_special_noarg, showhelp,
+    { "-h", o_special_noarg, (void *)showhelp,
       "Show brief listing of options" },
     { "sync", o_bool, &sync_serial,
       "Use synchronous HDLC serial encoding", 1 },
     { "logfd", o_int, &log_to_fd,
       "Send log messages to this file descriptor",
       0, &log_to_specific_fd },
-    { "logfile", o_special, setlogfile,
+    { "logfile", o_special, (void *)setlogfile,
       "Append log messages to this file" },
     { "nolog", o_int, &log_to_fd,
       "Don't send log messages to any file",
@@ -296,7 +296,7 @@ option_t general_options[] = {
       "Bundle name for multilink" },
 #endif /* HAVE_MULTILINK */
 #ifdef PLUGIN
-    { "plugin", o_special, loadplugin,
+    { "plugin", o_special, (void *)loadplugin,
       "Load a plug-in module into pppd", OPT_PRIV },
 #endif
 
@@ -1601,7 +1601,7 @@ loadplugin(argv)
 	option_error("Couldn't load plugin %s", arg);
 	return 0;
     }
-    init = dlsym(handle, "plugin_init");
+    init = (void (*)(void))dlsym(handle, "plugin_init");
     if (init == 0) {
 	option_error("%s has no initialization entry point", arg);
 	dlclose(handle);

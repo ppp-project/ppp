@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.53 2000/04/04 07:06:49 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.54 2000/04/15 01:27:11 masputra Exp $"
 
 /*
  * TODO:
@@ -115,7 +115,7 @@ static option_t ipcp_option_list[] = {
     { "-vjccomp", o_bool, &ipcp_wantoptions[0].cflag,
       "Disable VJ connection-ID compression", OPT_A2COPY,
       &ipcp_allowoptions[0].cflag },
-    { "vj-max-slots", 1, setvjslots,
+    { "vj-max-slots", 1, (void *)setvjslots,
       "Set maximum VJ header slots" },
     { "ipcp-accept-local", o_bool, &ipcp_wantoptions[0].accept_local,
       "Accept peer's address for us", 1 },
@@ -125,9 +125,9 @@ static option_t ipcp_option_list[] = {
       "Set ip script parameter" },
     { "noipdefault", o_bool, &disable_defaultip,
       "Don't use name for default IP adrs", 1 },
-    { "ms-dns", 1, setdnsaddr,
+    { "ms-dns", 1, (void *)setdnsaddr,
       "DNS address for the peer's use" },
-    { "ms-wins", 1, setwinsaddr,
+    { "ms-wins", 1, (void *)setwinsaddr,
       "Nameserver for SMB over TCP/IP for peer" },
     { "ipcp-restart", o_int, &ipcp_fsm[0].timeouttime,
       "Set timeout for IPCP" },
@@ -1793,7 +1793,7 @@ ipcp_printpkt(p, plen, printer, arg)
     case TERMREQ:
 	if (len > 0 && *p >= ' ' && *p < 0x7f) {
 	    printer(arg, " ");
-	    print_string(p, len, printer, arg);
+	    print_string((char *)p, len, printer, arg);
 	    p += len;
 	    len = 0;
 	}

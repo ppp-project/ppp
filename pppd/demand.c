@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: demand.c,v 1.12 1999/08/13 06:46:12 paulus Exp $";
+#define RCSID	"$Id: demand.c,v 1.13 2000/04/15 01:27:11 masputra Exp $"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -216,7 +216,7 @@ loop_chars(p, n)
 	    if (!escape_flag && !flush_flag
 		&& framelen > 2 && fcs == PPP_GOODFCS) {
 		framelen -= 2;
-		if (loop_frame(frame, framelen))
+		if (loop_frame((unsigned char *)frame, framelen))
 		    rv = 1;
 	    }
 	    framelen = 0;

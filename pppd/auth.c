@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.64 2000/04/13 12:05:57 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.65 2000/04/15 01:27:10 masputra Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -229,14 +229,14 @@ option_t auth_options[] = {
       "Use system password database for PAP", 1 },
     { "papcrypt", o_bool, &cryptpap,
       "PAP passwords are encrypted", 1 },
-    { "+ua", o_special, setupapfile,
+    { "+ua", o_special, (void *)setupapfile,
       "Get PAP user and password from file" },
     { "password", o_string, passwd,
       "Password for authenticating us to the peer", OPT_STATIC,
       NULL, MAXSECRETLEN },
-    { "privgroup", o_special, privgroup,
+    { "privgroup", o_special, (void *)privgroup,
       "Allow group members to use privileged options", OPT_PRIV },
-    { "allow-ip", o_special, set_noauth_addr,
+    { "allow-ip", o_special, (void *)set_noauth_addr,
       "Set IP address(es) which can be used without authentication",
       OPT_PRIV },
     { NULL }
