@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.5 1996/08/28 06:36:30 paulus Exp $
+ * $Id: ppp_comp.c,v 1.6 1996/09/14 05:19:18 paulus Exp $
  */
 
 /*
@@ -91,6 +91,10 @@ static struct qinit w_init = {
     ppp_comp_wput, ppp_comp_wsrv, NULL, NULL, NULL, &minfo, NULL
 };
 
+#if defined(SVR4) && !defined(SOL2)
+int pcmpdevflag = 0;
+#define ppp_compinfo pcmpinfo
+#endif
 struct streamtab ppp_compinfo = {
     &r_init, &w_init, NULL, NULL
 };
@@ -148,8 +152,12 @@ extern task_t first_task;
  * List of compressors we know about.
  */
 
+#if DO_BSD_COMPRESS
 extern struct compressor ppp_bsd_compress;
+#endif
+#if DO_DEFLATE
 extern struct compressor ppp_deflate;
+#endif
 
 struct compressor *ppp_compressors[] = {
 #if DO_BSD_COMPRESS

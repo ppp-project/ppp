@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.3 1996/08/28 06:35:50 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.4 1996/09/14 05:19:18 paulus Exp $
  */
 
 /*
@@ -79,6 +79,10 @@ static struct qinit winit = {
     ahdlc_wput, NULL, NULL, NULL, NULL, &minfo, NULL
 };
 
+#if defined(SVR4) && !defined(SOL2)
+int phdldevflag = 0;
+#define ppp_ahdlcinfo phdlinfo
+#endif
 struct streamtab ppp_ahdlcinfo = {
     &rinit, &winit, NULL, NULL
 };
