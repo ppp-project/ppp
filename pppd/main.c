@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.80 1999/07/21 00:24:31 paulus Exp $";
+static const char rcsid[] = "$Id: main.c,v 1.81 1999/08/12 04:17:07 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -87,6 +87,7 @@ struct stat devstat;		/* result of stat() on devnam */
 int prepass = 0;		/* doing prepass to find device name */
 int devnam_fixed;		/* set while in options.ttyxx file */
 volatile int status;		/* exit status for pppd */
+int unsuccess;			/* # unsuccessful connection attempts */
 
 static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
@@ -498,6 +499,7 @@ main(argc, argv)
 	ttyfd = -1;
 	real_ttyfd = -1;
 	status = EXIT_OK;
+	++unsuccess;
 
 	if (demand) {
 	    /*
@@ -856,7 +858,7 @@ main(argc, argv)
 	    pidfilename[0] = 0;
 	}
 
-	if (!persist)
+	if (!persist || (maxfail > 0 && unsuccess >= maxfail))
 	    break;
 
 	kill_link = 0;

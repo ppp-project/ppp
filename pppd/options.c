@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.60 1999/07/21 00:24:31 paulus Exp $";
+static const char rcsid[] = "$Id: options.c,v 1.61 1999/08/12 04:17:07 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -93,6 +93,7 @@ char	*record_file = NULL;	/* File to record chars sent/received */
 int	using_pty = 0;
 bool	sync_serial = 0;	/* Device is synchronous serial device */
 int	log_to_fd = 1;		/* send log messages to this fd too */
+int	maxfail;		/* max # of unsuccessful connection attempts */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -239,6 +240,8 @@ option_t general_options[] = {
     { "nologfd", o_int, &log_to_fd,
       "Don't send log messages to any file descriptor",
       OPT_NOARG | OPT_VAL(-1) },
+    { "maxfail", o_int, &maxfail,
+      "Maximum number of unsuccessful connection attempts to allow" },
 
 #ifdef PPP_FILTER
     { "pdebug", o_int, &dflag,
