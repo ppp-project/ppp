@@ -18,7 +18,7 @@
  *		(614)451-1883
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.5 1995/01/11 03:14:45 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.6 1995/04/28 06:21:50 paulus Exp $";
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -112,10 +112,10 @@ void delay __P((void));
 int  get_string __P((register char *string));
 int  put_string __P((register char *s));
 int  write_char __P((int c));
-int  put_char __P((char c));
+int  put_char __P((int c));
 int  get_char __P((void));
 void chat_send __P((register char *s));
-char *character __P((char c));
+char *character __P((int c));
 void chat_expect __P((register char *s));
 char *clean __P((register char *s, int sending));
 void break_sequence __P((void));
@@ -707,7 +707,7 @@ register char *s;
     }
 
 char *character(c)
-char c;
+int c;
     {
     static char string[10];
     char *meta;
@@ -818,7 +818,7 @@ int get_char()
     }
 
 int put_char(c)
-char c;
+int c;
     {
     int status;
 
