@@ -333,6 +333,9 @@ mppe_compress(void *arg, unsigned char *ibuf, unsigned char *obuf,
     obuf += PPP_HDRLEN;
 
     state->ccount = (state->ccount + 1) % MPPE_CCOUNT_SPACE;
+    if (state->debug >= 7)
+	printk(KERN_DEBUG "mppe_compress[%d]: ccount %d\n", state->unit,
+	       state->ccount);
     obuf[0] = state->ccount >> 8;
     obuf[1] = state->ccount & 0xff;
 
@@ -423,6 +426,9 @@ mppe_decompress(void *arg, unsigned char *ibuf, int isize, unsigned char *obuf,
     osize = isize - MPPE_OVHD - 2;
 
     ccount = MPPE_CCOUNT(ibuf);
+    if (state->debug >= 7)
+	printk(KERN_DEBUG "mppe_decompress[%d]: ccount %d\n", state->unit,
+	       ccount);
 
     /* sanity checks -- terminate with extreme prejudice */
     if (!(MPPE_BITS(ibuf) & MPPE_BIT_ENCRYPTED)) {
