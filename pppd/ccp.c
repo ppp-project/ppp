@@ -1,9 +1,34 @@
 /*
  * ccp.c - PPP Compression Control Protocol.
+ *
+ * Copyright (c) 1994 The Australian National University.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, provided that the above copyright
+ * notice appears in all copies.  This software is provided without any
+ * warranty, express or implied. The Australian National University
+ * makes no representations about the suitability of this software for
+ * any purpose.
+ *
+ * IN NO EVENT SHALL THE AUSTRALIAN NATIONAL UNIVERSITY BE LIABLE TO ANY
+ * PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+ * ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
+ * THE AUSTRALIAN NATIONAL UNIVERSITY HAVE BEEN ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
+ *
+ * THE AUSTRALIAN NATIONAL UNIVERSITY SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ * ON AN "AS IS" BASIS, AND THE AUSTRALIAN NATIONAL UNIVERSITY HAS NO
+ * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
+ * OR MODIFICATIONS.
+ *
+ * $Id: ccp.c,v 1.3 1994/09/01 00:16:20 paulus Exp $
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.2 1994/08/22 00:38:36 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.3 1994/09/01 00:16:20 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -436,11 +461,20 @@ ccp_reqci(f, p, lenp, dont_nak)
 /*
  * CCP has come up - inform the kernel driver.
  */
+static char *up_strings[] = {
+    "no ", "receive ", "transmit ", ""
+};
+
 static void
 ccp_up(f)
     fsm *f;
 {
+    ccp_options *go = &ccp_gotoptions[f->unit];
+    ccp_options *ho = &ccp_hisoptions[f->unit];
+
     ccp_flags_set(f->unit, 1, 1);
+    syslog(LOG_INFO, "%scompression enabled",
+	   up_strings[(go->bsd_compress? 1: 0) + (ho->bsd_compress? 2: 0)]);
 }
 
 /*
@@ -454,6 +488,7 @@ ccp_down(f)
 	UNTIMEOUT(ccp_rack_timeout, (caddr_t) f);
     ccp_localstate[f->unit] = 0;
     ccp_flags_set(f->unit, 1, 0);
+    syslog(LOG_NOTICE, "Compression disabled.");
 }
 
 /*
@@ -532,8 +567,11 @@ ccp_printpkt(p, plen, printer, arg)
 }
 
 /*
- * We have received a packet that the decompressor failed to decompress.
- * Issue a reset-req (if we haven't issued one recently).
+ * We have received a packet that the decompressor failed to
+ * decompress.  Here we would expect to issue a reset-request,
+ * but Motorola has a patent on that, so instead we log a message
+ * and take CCP down :-(.  (See US patent 5,130,993; international
+ * patent publication number WO 91/10289; Australian patent 73296/91.)
  */
 void
 ccp_datainput(unit, pkt, len)
@@ -545,12 +583,26 @@ ccp_datainput(unit, pkt, len)
 
     f = &ccp_fsm[unit];
     if (f->state == OPENED) {
-	if (!(ccp_localstate[unit] & RACK_PENDING)) {
+	syslog(LOG_ERR, "Lost compression sync: disabling compression");
+	ccp_close(unit);
+    }
+}
+
+/*
+ * ccp_req_reset - Request that the peer reset the compression
+ * dictionary.
+ */
+void
+ccp_req_reset(f)
+    fsm *f;
+{
+    if (f->state == OPENED) {
+	if (!(ccp_localstate[f->unit] & RACK_PENDING)) {
 	    fsm_sdata(f, RESETREQ, f->reqid = ++f->id, NULL, 0);
 	    TIMEOUT(ccp_rack_timeout, (caddr_t) f, RACKTIMEOUT);
-	    ccp_localstate[unit] |= RACK_PENDING;
+	    ccp_localstate[f->unit] |= RACK_PENDING;
 	} else
-	    ccp_localstate[unit] |= RREQ_REPEAT;
+	    ccp_localstate[f->unit] |= RREQ_REPEAT;
     }
 }
 
