@@ -3,7 +3,12 @@
 # Copyright 2002 Roaring Penguin Software Inc.
 #
 
-MANDIR=/usr/man
+DESTDIR = @DESTDIR@
+MANDIR = $(DESTDIR)/man/man8
+LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+
+INSTALL	= install -o root
+
 PLUGIN=radius.so radattr.so radrealms.so
 CFLAGS=-I../.. -I../../../include -Iradiusclient/include -O2
 
@@ -33,8 +38,8 @@ install: all
 	$(INSTALL) -s -c -m 755 radius.so $(LIBDIR)
 	$(INSTALL) -s -c -m 755 radattr.so $(LIBDIR)
 	$(INSTALL) -s -c -m 755 radrealms.so $(LIBDIR)
-	$(INSTALL) -c -m 444 pppd-radius.8 $(MANDIR)/man8
-	$(INSTALL) -c -m 444 pppd-radattr.8 $(MANDIR)/man8
+	$(INSTALL) -c -m 444 pppd-radius.8 $(MANDIR)
+	$(INSTALL) -c -m 444 pppd-radattr.8 $(MANDIR)
 
 radius.so: radiusclient/lib/.libs/libradiusclient.a radius.o
 	gcc -o radius.so -shared radius.o radiusclient/lib/.libs/libradiusclient.a
@@ -55,11 +60,11 @@ radrealms.o: radrealms.c
 	gcc $(CFLAGS) -c -o radrealms.o -fPIC radrealms.c
 
 radiusclient/lib/.libs/libradiusclient.a:
-	test -r radiusclient/Makefile ||           \
-		(cd radiusclient;                  \
-		 ./configure --prefix=/usr         \
-			     --sysconfdir=/etc     \
-			     --enable-shared       \
+	test -r radiusclient/Makefile ||            \
+		(cd radiusclient;                   \
+		 ./configure --prefix=@PREFIX@      \
+			     --sysconfdir=@SYSCONF@ \
+			     --enable-shared        \
 			     --enable-static)
 	$(MAKE) -C radiusclient
 

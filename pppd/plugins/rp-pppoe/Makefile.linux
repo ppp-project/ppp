@@ -10,8 +10,13 @@
 # This program may be distributed according to the terms of the GNU
 # General Public License, version 2 or (at your option) any later version.
 #
-# $Id: Makefile.linux,v 1.2 2004/01/13 03:57:55 paulus Exp $
+# $Id: Makefile.linux,v 1.3 2004/10/29 00:12:27 paulus Exp $
 #***********************************************************************
+
+DESTDIR = @DESTDIR@
+LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+
+INSTALL	= install -o root
 
 # Version is set ONLY IN THE MAKEFILE!  Don't delete this!
 VERSION=3.3
@@ -21,7 +26,7 @@ CFLAGS=$(COPTS) -I../../../include/linux
 all: rp-pppoe.so
 
 rp-pppoe.so: libplugin.a plugin.o
-	gcc -o rp-pppoe.so -shared plugin.o libplugin.a
+	$(CC) -o rp-pppoe.so -shared plugin.o libplugin.a
 
 install: all
 	$(INSTALL) -d -m 755 $(LIBDIR)
@@ -31,20 +36,20 @@ clean:
 	rm -f *.o *.so
 
 plugin.o: plugin.c
-	gcc '-DRP_VERSION="$(VERSION)"' $(CFLAGS) -I../../..  -c -o plugin.o -fPIC plugin.c
+	$(CC) '-DRP_VERSION="$(VERSION)"' $(CFLAGS) -I../../..  -c -o plugin.o -fPIC plugin.c
 
 libplugin.a: discovery.o if.o common.o debug.o
-	ar -rc $@ $^
+	$(AR) -rc $@ $^
 
 discovery.o: discovery.c
-	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o discovery.o -fPIC discovery.c
+	$(CC) $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o discovery.o -fPIC discovery.c
 
 if.o: if.c
-	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o if.o -fPIC if.c
+	$(CC) $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o if.o -fPIC if.c
 
 debug.o: debug.c
-	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o debug.o -fPIC debug.c
+	$(CC) $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o debug.o -fPIC debug.c
 
 common.o: common.c
-	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o common.o -fPIC common.c
+	$(CC) $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o common.o -fPIC common.c
 

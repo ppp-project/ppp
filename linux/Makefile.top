@@ -1,10 +1,10 @@
 # PPP top-level Makefile for Linux.
 
-
-BINDIR = $(DESTDIR)/usr/sbin
-INCDIR = $(DESTDIR)/usr/include
-MANDIR = $(DESTDIR)/usr/man
-ETCDIR = $(DESTDIR)/etc/ppp
+DESTDIR = @DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+INCDIR = $(DESTDIR)/include
+MANDIR = $(DESTDIR)/man
+ETCDIR = @SYSCONF@/ppp
 
 # uid 0 = root
 INSTALL= install
@@ -16,20 +16,20 @@ all:
 	cd pppstats; $(MAKE) $(MFLAGS) all
 	cd pppdump; $(MAKE) $(MFLAGS) all
 
-install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp install-devel
+install: $(BINDIR) $(MANDIR)/man8 install-progs install-devel
 
 install-progs:
-	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
-	cd pppd/plugins; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
-	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
-	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
-	cd pppdump; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) $(MFLAGS) install
+	cd chat; $(MAKE) $(MFLAGS) install
+	cd pppd/plugins; $(MAKE) $(MFLAGS) install
+	cd pppd; $(MAKE) $(MFLAGS) install
+	cd pppstats; $(MAKE) $(MFLAGS) install
+	cd pppdump; $(MAKE) $(MFLAGS) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets
 
 install-devel:
-	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) INCDIR=$(INCDIR) $(MFLAGS) install-devel
+	cd pppd; $(MAKE) $(MFLAGS) install-devel
 
 $(ETCDIR)/options:
 	$(INSTALL) -c -m 644 etc.ppp/options $@

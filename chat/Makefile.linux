@@ -1,4 +1,8 @@
-#	$Id: Makefile.linux,v 1.10 2004/01/13 03:57:55 paulus Exp $
+#	$Id: Makefile.linux,v 1.11 2004/10/29 00:12:27 paulus Exp $
+
+DESTDIR = @DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/man
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DSIGTYPE=void			# Standard definition

@@ -1,12 +1,15 @@
 #!/bin/sh
-# $Id: configure,v 1.31 2004/01/17 05:47:55 carlsonj Exp $
+# $Id: configure,v 1.32 2004/10/29 00:12:26 paulus Exp $
+
+# Where to install stuff by default
+DESTDIR=/usr/local
+SYSCONF=/etc
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
 #  else
   system=`uname -s`
   release=`uname -r`
-  machine=`uname -p`
   arch=`uname -m`
 #  fi
 state="unknown"
@@ -133,26 +136,49 @@ case $state in
     echo "Configuring for $system";;
 esac
 
+# Parse arguments
+while [ $# -gt 0 ]; do
+    arg=$1
+    val=
+    shift
+    case $arg in
+	*=*)
+	    val=`expr "x$arg" : 'x[^=]*=\(.*\)'`
+	    arg=`expr "x$arg" : 'x\([^=]*\)=.*'`
+	    ;;
+	--prefix|--sysconf)
+	    if [ $# -eq 0 ]; then
+		echo "error: the $arg argument requires a value" 1>&2
+		exit 1
+	    fi
+	    val=$1
+	    shift
+	    ;;
+    esac
+    case $arg in
+	--prefix)	DESTDIR=$val ;;
+	--sysconfdir)	SYSCONF=$val ;;
+    esac
+done
+
+mkmkf() {
+    rm -f $2
+    echo "  $2 <= $1"
+    sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" $1 >$2
+}
+
 if [ -d "$ksrc" ]; then
-  echo "Creating links to Makefiles."
-  rm -f Makefile
-  ln -s $ksrc/Makefile.top Makefile
-  echo "  Makefile -> $ksrc/Makefile.top"
-  rm -f Makedefs.com
-  ln -s $ksrc/Makedefs$compiletype Makedefs.com
-  echo "  $ksrc/Makedefs$compiletype -> Makedefs.com"
-  for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe pppd/plugins/radius; do
-    rm -f $dir/Makefile
+  echo "Creating Makefiles."
+  mkmkf $ksrc/Makefile.top Makefile
+  mkmkf $ksrc/Makedefs$compiletype Makedefs.com
+  for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe \
+      pppd/plugins/radius; do
     if [ -f $dir/Makefile.$makext ]; then
-      ln -s Makefile.$makext $dir/Makefile
-      echo "  $dir/Makefile -> Makefile.$makext"
+      mkmkf $dir/Makefile.$makext $dir/Makefile
     fi
   done
   if [ "$archvariant" ]; then
-    makext=$makext$archvariant
-    rm -f $ksrc/Makefile
-    ln -s Makefile.$makext $ksrc/Makefile
-    echo "  $ksrc/Makefile -> Makefile.$makext"
+    mkmkf Makefile.$makext $ksrc/Makefile
   fi
 else
   echo "Unable to locate kernel source $ksrc"

@@ -1,12 +1,13 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.61 2004/10/28 00:15:08 paulus Exp $
+# $Id: Makefile.linux,v 1.62 2004/10/29 00:12:27 paulus Exp $
 #
 
 # Default installation locations
-BINDIR = $(DESTDIR)/usr/sbin
-MANDIR = $(DESTDIR)/usr/man
-INCDIR = $(DESTDIR)/usr/include
+DESTDIR = @DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/man/man8
+INCDIR = $(DESTDIR)/include
 
 TARGETS = pppd
 
@@ -202,7 +203,7 @@ install: pppd
 	$(INSTALL) -s -c -m 555 pppd $(BINDIR)/pppd
 	if chgrp pppusers $(BINDIR)/pppd 2>/dev/null; then \
 	  chmod o-rx,u+s $(BINDIR)/pppd; fi
-	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)/man8
+	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o pppd $(PPPDOBJS) $(LIBS)

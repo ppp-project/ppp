@@ -1,7 +1,10 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.5 2002/10/27 12:56:26 fcusack Exp $
+# $Id: Makefile.linux,v 1.6 2004/10/29 00:12:27 paulus Exp $
 #
+DESTDIR = @DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/man/man8
 
 PPPSTATSRCS = pppstats.c
 PPPSTATOBJS = pppstats.o
@@ -18,9 +21,9 @@ CFLAGS = $(COPTS) $(COMPILE_FLAGS)
 all: pppstats
 
 install: pppstats
-	-mkdir -p $(MANDIR)/man8
-	$(INSTALL) -s -c pppstats $(BINDIR)/pppstats
-	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)/man8/pppstats.8
+	-mkdir -p $(MANDIR)
+	$(INSTALL) -s -c pppstats $(BINDIR)
+	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)

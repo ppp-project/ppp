@@ -4,6 +4,11 @@ CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS	= -shared
 INSTALL	= install -o root
 
+DESTDIR = @DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/man
+LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+
 SUBDIRS := rp-pppoe
 # Uncomment the next line to include the radius authentication plugin
 # SUBDIRS += radius
@@ -21,13 +26,11 @@ all:	$(PLUGINS)
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
-LIBDIR	= $(DESTDIR)/usr/lib/pppd/$(VERSION)
 
 install: $(PLUGINS)
 	$(INSTALL) -d $(LIBDIR)
 	$(INSTALL) $? $(LIBDIR)
-	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d INSTALL=$(INSTALL) \
-				LIBDIR=$(LIBDIR) install; done
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d install; done
 
 clean:
 	rm -f *.o *.so *.a
