@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.9 1999/09/08 01:13:46 masputra Exp $"
+#define RCSID	"$Id: utils.c,v 1.10 2000/03/27 01:36:48 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -555,7 +555,7 @@ logit(level, fmt, args)
     va_list args;
 {
     int n;
-    char buf[256];
+    char buf[1024];
 
     n = vslprintf(buf, sizeof(buf), fmt, args);
     syslog(level, "%s", buf);
