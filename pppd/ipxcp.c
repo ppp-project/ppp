@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.1 1995/12/18 03:32:59 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.2 1996/07/01 01:14:25 paulus Exp $";
 #endif
 
 /*
@@ -83,10 +83,36 @@ static fsm_callbacks ipxcp_callbacks = { /* IPXCP callback routines */
     "IPXCP"			/* String name of protocol */
 };
 
+/*
+ * Protocol entry points.
+ */
+
+static void ipxcp_init __P((int));
+static void ipxcp_open __P((int));
+static void ipxcp_close __P((int, char *));
+static void ipxcp_lowerup __P((int));
+static void ipxcp_lowerdown __P((int));
+static void ipxcp_input __P((int, u_char *, int));
+static void ipxcp_protrej __P((int));
+static int  ipxcp_printpkt __P((u_char *, int,
+				void (*) __P((void *, char *, ...)), void *));
+
 struct protent ipxcp_protent = {
-    PPP_IPXCP, ipxcp_init, ipxcp_input, ipxcp_protrej,
-    ipxcp_lowerup, ipxcp_lowerdown, ipxcp_open, ipxcp_close,
-    ipxcp_printpkt, NULL, 0, "IPXCP"
+    PPP_IPXCP,
+    ipxcp_init,
+    ipxcp_input,
+    ipxcp_protrej,
+    ipxcp_lowerup,
+    ipxcp_lowerdown,
+    ipxcp_open,
+    ipxcp_close,
+    ipxcp_printpkt,
+    NULL,
+    0,
+    "IPXCP",
+    NULL,
+    NULL,
+    NULL
 };
 
 
@@ -128,7 +154,7 @@ u_int32_t ipxaddr;
 /*
  * ipxcp_init - Initialize IPXCP.
  */
-void
+static void
 ipxcp_init(unit)
     int unit;
 {
@@ -216,7 +242,7 @@ u_char *node;
 /*
  * ipxcp_open - IPXCP is allowed to come up.
  */
-void
+static void
 ipxcp_open(unit)
     int unit;
 {
@@ -226,7 +252,7 @@ ipxcp_open(unit)
 /*
  * ipxcp_close - Take IPXCP down.
  */
-void
+static void
 ipxcp_close(unit, reason)
     int unit;
     char *reason;
@@ -238,20 +264,18 @@ ipxcp_close(unit, reason)
 /*
  * ipxcp_lowerup - The lower layer is up.
  */
-void
+static void
 ipxcp_lowerup(unit)
     int unit;
 {
-    extern int ipx_enabled;
-
-    fsm_lowerup(&ipxcp_fsm[unit], ipx_enabled);
+    fsm_lowerup(&ipxcp_fsm[unit]);
 }
 
 
 /*
  * ipxcp_lowerdown - The lower layer is down.
  */
-void
+static void
 ipxcp_lowerdown(unit)
     int unit;
 {
@@ -262,7 +286,7 @@ ipxcp_lowerdown(unit)
 /*
  * ipxcp_input - Input IPXCP packet.
  */
-void
+static void
 ipxcp_input(unit, p, len)
     int unit;
     u_char *p;
@@ -277,7 +301,7 @@ ipxcp_input(unit, p, len)
  *
  * Pretend the lower layer went down, so we shut up.
  */
-void
+static void
 ipxcp_protrej(unit)
     int unit;
 {
@@ -1236,12 +1260,12 @@ ipxcp_script(f, script)
 /*
  * ipxcp_printpkt - print the contents of an IPXCP packet.
  */
-char *ipxcp_codenames[] = {
+static char *ipxcp_codenames[] = {
     "ConfReq", "ConfAck", "ConfNak", "ConfRej",
     "TermReq", "TermAck", "CodeRej"
 };
 
-int
+static int
 ipxcp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
@@ -1345,6 +1369,16 @@ ipxcp_printpkt(p, plen, printer, arg)
 		printer(arg, " %.2x", code);
 	    }
 	    printer(arg, ">");
+	}
+	break;
+
+    case TERMACK:
+    case TERMREQ:
+	if (len > 0 && *p >= ' ' && *p < 0x7f) {
+	    printer(arg, " ");
+	    print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
 	}
 	break;
     }
