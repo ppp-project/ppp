@@ -21,7 +21,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.3 2002/03/01 14:39:18 dfs Exp $";
+"$Id: radius.c,v 1.4 2002/03/01 15:16:51 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -397,44 +397,46 @@ radius_setparams(VALUE_PAIR *vp, char *msg)
      */
 
     while (vp) {
-	switch (vp->attribute) {
-	case PW_SERVICE_TYPE:
-	    /* check for service type       */
-	    /* if not FRAMED then exit      */
-	    if (vp->lvalue != PW_FRAMED) {
-		slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
-			 vp->lvalue, rstate.user);
-		return -1;
-	    }
-	    break;
-	case PW_FRAMED_PROTOCOL:
-	    /* check for framed protocol type       */
-	    /* if not PPP then also exit            */
-	    if (vp->lvalue != PW_PPP) {
-		slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
-			 vp->lvalue, rstate.user);
-		return -1;
-	    }
-	    break;
-
-	case PW_FRAMED_IP_ADDRESS:
-	    /* seting up remote IP addresses */
-	    remote = vp->lvalue;
-	    if (remote == 0xffffffff) {
-		/* 0xffffffff means user should be allowed to select one */
-		rstate.any_ip_addr_ok = 1;
-	    } else if (remote != 0xfffffffe) {
-		/* 0xfffffffe means NAS should select an ip address */
-		remote = htonl(vp->lvalue);
-		if (bad_ip_adrs (remote)) {
-		    slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
-			     remote, rstate.user);
+	if (vp->vendorcode == VENDOR_NONE) {
+	    switch (vp->attribute) {
+	    case PW_SERVICE_TYPE:
+		/* check for service type       */
+		/* if not FRAMED then exit      */
+		if (vp->lvalue != PW_FRAMED) {
+		    slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
+			     vp->lvalue, rstate.user);
 		    return -1;
 		}
-		rstate.choose_ip = 1;
-		rstate.ip_addr = remote;
-	    }
+		break;
+	    case PW_FRAMED_PROTOCOL:
+		/* check for framed protocol type       */
+		/* if not PPP then also exit            */
+		if (vp->lvalue != PW_PPP) {
+		    slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
+			     vp->lvalue, rstate.user);
+		    return -1;
+		}
+		break;
+
+	    case PW_FRAMED_IP_ADDRESS:
+		/* seting up remote IP addresses */
+		remote = vp->lvalue;
+		if (remote == 0xffffffff) {
+		    /* 0xffffffff means user should be allowed to select one */
+		    rstate.any_ip_addr_ok = 1;
+		} else if (remote != 0xfffffffe) {
+		    /* 0xfffffffe means NAS should select an ip address */
+		    remote = htonl(vp->lvalue);
+		    if (bad_ip_adrs (remote)) {
+			slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
+				 remote, rstate.user);
+			return -1;
+		    }
+		    rstate.choose_ip = 1;
+		    rstate.ip_addr = remote;
+		}
 	    break;
+	    }
 	}
 	vp = vp->next;
     }
@@ -733,4 +735,3 @@ char *radius_logged_in_user(void)
 {
     return rstate.user;
 }
-
