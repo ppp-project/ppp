@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 960302==
+ *  ==FILEVERSION 960926==
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -70,13 +70,11 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <net/if_arp.h>
-
-#undef   PACKETPTR
-#define  PACKETPTR 1
 #include <linux/ppp-comp.h>
-#undef   PACKETPTR
 
 #include "zlib.c"
+
+#define USEMEMPOOL	0	/* use kmalloc, not memPool routines */
 
 /*
  * State for a Deflate (de)compressor.
@@ -87,6 +85,7 @@ struct ppp_deflate_state {
     int		unit;
     int		mru;
     int		debug;
+    int		in_alloc;	/* set when we're in [de]comp_alloc */
     z_stream	strm;
     struct compstat stats;
 };
@@ -115,6 +114,7 @@ static void	z_comp_reset __P((void *state));
 static void	z_decomp_reset __P((void *state));
 static void	z_comp_stats __P((void *state, struct compstat *stats));
 
+#if USEMEMPOOL
 /*
  * This is a small set of memory allocation routines.  I created them so
  * that all memory allocation from the kernel takes place at the
@@ -189,6 +189,7 @@ MemChunk *freePool;
     printk(KERN_DEBUG "\n");
 }
 #endif
+#endif /* USEMEMPOOL */
 
 /*
  * Space allocation and freeing routines for use by zlib routines.
@@ -199,6 +200,9 @@ zfree(arg, ptr, nbytes)
     void *ptr;
     unsigned int nbytes;
 {
+#if !USEMEMPOOL
+    kfree(ptr);
+#else
     MemPool *memPool = (MemPool *)arg;
     MemChunk *mprev = 0, *node;
     MemChunk *new = (void *)(((unsigned char *)ptr) - sizeof(MemChunk));
@@ -248,6 +252,7 @@ zfree(arg, ptr, nbytes)
 	    new->m_next = node;
 	}
     }
+#endif /* USEMEMPOOL */
 }
 
 void *
@@ -255,6 +260,11 @@ zalloc(arg, items, size)
     void *arg;
     unsigned int items, size;
 {
+#if !USEMEMPOOL
+    struct ppp_deflate_state *state = arg;
+
+    return kmalloc(items * size, state->in_alloc? GFP_KERNEL: GFP_ATOMIC);
+#else
     MemPool *memPool = (MemPool *)arg;
     MemChunk *mprev = 0, *node;
 
@@ -290,6 +300,7 @@ zalloc(arg, items, size)
     printk(KERN_DEBUG
 	   "zalloc(%d)... Out of memory in Pool!\n", size - sizeof(MemChunk)); 
     return NULL;
+#endif /* USEMEMPOOL */
 }
 
 static void
@@ -300,7 +311,9 @@ z_comp_free(arg)
 
     if (state) {
 	    deflateEnd(&state->strm);
+#if USEMEMPOOL
 	    memPoolFree(&state->strm.opaque);
+#endif
 	    kfree(state);
 	    MOD_DEC_USE_COUNT;
     }
@@ -336,17 +349,23 @@ z_comp_alloc(options, opt_len)
     state->strm.zalloc  = zalloc;
     state->strm.zfree   = zfree;
     state->w_size       = w_size;
+    state->in_alloc = 1;
 
+#if USEMEMPOOL
     if (!memPoolAlloc(&state->strm.opaque, 0x50000)) {
 	z_comp_free(state);
 	return NULL;
     }
+#else
+    state->strm.opaque = state;
+#endif
 
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
 	z_comp_free(state);
 	return NULL;
     }
+    state->in_alloc = 0;
     return (void *) state;
 }
 
@@ -379,6 +398,7 @@ z_comp_reset(arg)
     void *arg;
 {
     struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
+
     state->seqno = 0;
     deflateReset(&state->strm);
 }
@@ -399,7 +419,7 @@ z_compress(arg, rptr, obuf, isize, osize)
      */
     proto = PPP_PROTOCOL(rptr);
     if (proto > 0x3fff || proto == 0xfd || proto == 0xfb)
-	return isize;
+	return 0;
 
     /* Don't generate compressed packets which are larger than
        the uncompressed packet. */
@@ -432,8 +452,9 @@ z_compress(arg, rptr, obuf, isize, osize)
     for (;;) {
 	r = deflate(&state->strm, Z_PACKET_FLUSH);
 	if (r != Z_OK) {
-	    printk(KERN_DEBUG "z_compress: deflate returned %d (%s)\n",
-		   r, (state->strm.msg? state->strm.msg: ""));
+	    if (state->debug)
+		printk(KERN_DEBUG "z_compress: deflate returned %d (%s)\n",
+		       r, (state->strm.msg? state->strm.msg: ""));
 	    break;
 	}
 	if (state->strm.avail_out == 0) {
@@ -484,7 +505,9 @@ z_decomp_free(arg)
 
     if (state) {
 	    inflateEnd(&state->strm);
+#if USEMEMPOOL
 	    memPoolFree(&state->strm.opaque);
+#endif
 	    kfree(state);
 	    MOD_DEC_USE_COUNT;
     }
@@ -520,16 +543,22 @@ z_decomp_alloc(options, opt_len)
     state->strm.next_out = NULL;
     state->strm.zalloc   = zalloc;
     state->strm.zfree    = zfree;
+    state->in_alloc = 1;
 
+#if USEMEMPOOL
     if (!memPoolAlloc(&state->strm.opaque, 0x10000)) {
 	z_decomp_free(state);
 	return NULL;
     }
+#else
+    state->strm.opaque = state;
+#endif
 
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	z_decomp_free(state);
 	return NULL;
     }
+    state->in_alloc = 0;
     return (void *) state;
 }
 
@@ -593,17 +622,19 @@ z_decompress(arg, ibuf, isize, obuf, osize)
     int osize;
 {
     struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
-    int olen, seq, i, r, decode_proto;
-    unsigned char hdr[PPP_HDRLEN + DEFLATE_OVHD];
-    unsigned char *rptr, *wptr;
+    int olen, seq, r;
+    int decode_proto, overflow;
+    unsigned char overflow_buf[1];
 
-    rptr = ibuf;
-    wptr = obuf;
-    for (i = 0; i < PPP_HDRLEN + DEFLATE_OVHD; ++i)
-	hdr[i] = *rptr++;
+    if (isize <= PPP_HDRLEN + DEFLATE_OVHD) {
+	if (state->debug)
+	    printk(KERN_DEBUG "z_decompress%d: short packet (len=%d)\n",
+		   state->unit, isize);
+	return DECOMP_ERROR;
+    }
 
     /* Check the sequence number. */
-    seq = (hdr[PPP_HDRLEN] << 8) + hdr[PPP_HDRLEN+1];
+    seq = (ibuf[PPP_HDRLEN] << 8) + ibuf[PPP_HDRLEN+1];
     if (seq != state->seqno) {
 	if (state->debug)
 	    printk(KERN_DEBUG "z_decompress%d: bad seq # %d, expected %d\n",
@@ -616,20 +647,21 @@ z_decompress(arg, ibuf, isize, obuf, osize)
      * Fill in the first part of the PPP header.  The protocol field
      * comes from the decompressed data.
      */
-    wptr[0] = PPP_ADDRESS(hdr);
-    wptr[1] = PPP_CONTROL(hdr);
-    wptr[2] = 0;
+    obuf[0] = PPP_ADDRESS(ibuf);
+    obuf[1] = PPP_CONTROL(ibuf);
+    obuf[2] = 0;
 
     /*
      * Set up to call inflate.  We set avail_out to 1 initially so we can
      * look at the first byte of the output and decide whether we have
      * a 1-byte or 2-byte protocol field.
      */
-    state->strm.next_in = rptr;
+    state->strm.next_in = ibuf + PPP_HDRLEN + DEFLATE_OVHD;
     state->strm.avail_in = isize - (PPP_HDRLEN + DEFLATE_OVHD);
-    state->strm.next_out = wptr + 3;
+    state->strm.next_out = obuf + 3;
     state->strm.avail_out = 1;
     decode_proto = 1;
+    overflow = 0;
 
     /*
      * Call inflate, supplying more input or output as needed.
@@ -644,30 +676,36 @@ z_decompress(arg, ibuf, isize, obuf, osize)
 	}
 	if (state->strm.avail_out != 0)
 	    break;		/* all done */
-	if (state->strm.avail_out == 0) {
-	    if (decode_proto) {
-		state->strm.avail_out = osize - PPP_HDRLEN;
-		if ((wptr[3] & 1) == 0) {
-		    /* 2-byte protocol field */
-		    wptr[2] = wptr[3];
-		    --state->strm.next_out;
-		    ++state->strm.avail_out;
-		}
-		decode_proto = 0;
-	    } else {
-		if (state->debug)
-		    printk(KERN_DEBUG "z_decompress%d: ran out of mru\n",
-		       state->unit);
-		return DECOMP_FATALERROR;
+	if (decode_proto) {
+	    state->strm.avail_out = osize - PPP_HDRLEN;
+	    if ((obuf[3] & 1) == 0) {
+		/* 2-byte protocol field */
+		obuf[2] = obuf[3];
+		--state->strm.next_out;
+		++state->strm.avail_out;
 	    }
+	    decode_proto = 0;
+	} else if (!overflow) {
+	    /*
+	     * We've filled up the output buffer; the only way to
+	     * find out whether inflate has any more characters left
+	     * is to give it another byte of output space.
+	     */
+	    state->strm.next_out = overflow_buf;
+	    state->strm.avail_out = 1;
+	    overflow = 1;
+	} else {
+	    if (state->debug)
+		printk(KERN_DEBUG "z_decompress%d: ran out of mru\n",
+		       state->unit);
+	    return DECOMP_FATALERROR;
 	}
     }
 
     if (decode_proto)
 	return DECOMP_ERROR;
 
-    olen = (osize - state->strm.avail_out);
-
+    olen = osize - state->strm.avail_out;
     state->stats.unc_bytes += olen;
     state->stats.unc_packets++;
     state->stats.comp_bytes += isize;
@@ -686,13 +724,12 @@ z_incomp(arg, ibuf, icnt)
     int icnt;
 {
     struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
-    unsigned char *rptr = ibuf;
     int proto, r;
 
     /*
      * Check that the protocol is one we handle.
      */
-    proto = PPP_PROTOCOL(rptr);
+    proto = PPP_PROTOCOL(ibuf);
     if (proto > 0x3fff || proto == 0xfd || proto == 0xfb)
 	return;
 
@@ -704,7 +741,7 @@ z_incomp(arg, ibuf, icnt)
      * at the either the 1st or 2nd byte of the protocol field,
      * depending on whether the protocol value is compressible.
      */
-    state->strm.next_in = rptr + 3;
+    state->strm.next_in = ibuf + 3;
     state->strm.avail_in = icnt - 3;
     if (proto > 0xff) {
 	--state->strm.next_in;
@@ -758,6 +795,7 @@ struct compressor ppp_deflate = {
     z_comp_stats,		/* decomp_stat */
 };
 
+#ifdef MODULE
 /*************************************************************
  * Module support routines
  *************************************************************/
@@ -781,3 +819,4 @@ cleanup_module(void)
 	else
 	        ppp_unregister_compressor (&ppp_deflate);
 }
+#endif
