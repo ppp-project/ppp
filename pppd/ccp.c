@@ -23,12 +23,10 @@
  * ON AN "AS IS" BASIS, AND THE AUSTRALIAN NATIONAL UNIVERSITY HAS NO
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
- *
- * $Id: ccp.c,v 1.3 1994/09/01 00:16:20 paulus Exp $
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.3 1994/09/01 00:16:20 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.4 1994/09/16 02:14:31 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -90,6 +88,19 @@ static fsm_callbacks ccp_callbacks = {
 #define CI_BSD_COMPRESS	0x21
 
 /*
+ * Information relating to BSD Compress configuration options.
+ */
+#define BSD_NBITS(x)		((x) & 0x1F)
+#define BSD_VERSION(x)		((x) >> 5)
+#define BSD_CURRENT_VERSION	1
+#define BSD_MAKE_OPT(v, n)	(((v) << 5) | (n))
+
+/*
+ * Do we want / did we get any compression?
+ */
+#define ANY_COMPRESS(opt)	((opt).bsd_compress)
+
+/*
  * Local state (mainly for handling reset-reqs and reset-acks
  */
 static int ccp_localstate[NPPP];
@@ -134,7 +145,7 @@ ccp_open(unit)
 
     if (f->state != OPENED)
 	ccp_flags_set(unit, 1, 0);
-    if (!ccp_wantoptions[unit].bsd_compress)
+    if (!ANY_COMPRESS(ccp_wantoptions[unit]))
 	f->flags |= OPT_SILENT;
     fsm_open(f);
 }
@@ -179,7 +190,16 @@ ccp_input(unit, p, len)
     u_char *p;
     int len;
 {
-    fsm_input(&ccp_fsm[unit], p, len);
+    fsm *f = &ccp_fsm[unit];
+    int oldstate;
+
+    /*
+     * Check for a terminate-request so we can print a message.
+     */
+    oldstate = f->state;
+    fsm_input(f, p, len);
+    if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED)
+	syslog(LOG_NOTICE, "Compression disabled by peer.");
 }
 
 /*
@@ -240,8 +260,8 @@ ccp_resetci(f)
     if (go->bsd_compress) {
 	opt_buf[0] = CI_BSD_COMPRESS;
 	opt_buf[1] = CILEN_BSD;
-	opt_buf[2] = go->bsd_bits;
-	if (!ccp_test(f->unit, opt_buf, 3, 0))
+	opt_buf[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
+	if (!ccp_test(f->unit, opt_buf, CILEN_BSD, 0))
 	    go->bsd_compress = 0;
     }
 }
@@ -273,8 +293,11 @@ ccp_addci(f, p, lenp)
     if (go->bsd_compress) {
 	p[0] = CI_BSD_COMPRESS;
 	p[1] = CILEN_BSD;
-	p[2] = go->bsd_bits;
-	p += 3;
+	p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
+	if (ccp_test(f->unit, p, CILEN_BSD, 0))
+	    p += CILEN_BSD;
+	else
+	    go->bsd_compress = 0;
     }
     *lenp = p - p0;
 }
@@ -292,11 +315,11 @@ ccp_ackci(f, p, len)
     ccp_options *go = &ccp_gotoptions[f->unit];
 
     if (go->bsd_compress) {
-	if (len != 3 || p[0] != CI_BSD_COMPRESS
-	    || p[1] != CILEN_BSD || p[2] != go->bsd_bits)
+	if (len < CILEN_BSD || p[0] != CI_BSD_COMPRESS || p[1] != CILEN_BSD
+	    || p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
 	    return 0;
-	p += 3;
-	len -= 3;
+	p += CILEN_BSD;
+	len -= CILEN_BSD;
     }
     if (len != 0)
 	return 0;
@@ -320,14 +343,17 @@ ccp_nakci(f, p, len)
     memset(&no, 0, sizeof(no));
     try = *go;
 
-    if (go->bsd_compress && len >= CILEN_BSD && p[0] == CI_BSD_COMPRESS
-	&& p[1] == CILEN_BSD) {
+    if (go->bsd_compress && !no.bsd_compress && len >= CILEN_BSD
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD) {
 	no.bsd_compress = 1;
 	/*
-	 * Peer wants us to use a different number of bits.
+	 * Peer wants us to use a different number of bits
+	 * or a different version.
 	 */
-	if (p[2] < go->bsd_bits)
-	    try.bsd_bits = p[2];
+	if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION)
+	    try.bsd_compress = 0;
+	else if (BSD_NBITS(p[2]) < go->bsd_bits)
+	    try.bsd_bits = BSD_NBITS(p[2]);
 	p += CILEN_BSD;
 	len -= CILEN_BSD;
     }
@@ -358,9 +384,9 @@ ccp_rejci(f, p, len)
 
     try = *go;
 
-    if (go->bsd_compress && len >= CILEN_BSD && p[0] == CI_BSD_COMPRESS
-	&& p[1] == CILEN_BSD) {
-	if (p[2] != go->bsd_bits)
+    if (go->bsd_compress && len >= CILEN_BSD
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD) {
+	if (p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
 	    return 0;
 	try.bsd_compress = 0;
 	p += CILEN_BSD;
@@ -390,7 +416,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 {
     int ret, newret;
     u_char *p0, *retp;
-    int len, clen, type;
+    int len, clen, type, nb;
     ccp_options *ho = &ccp_hisoptions[f->unit];
     ccp_options *ao = &ccp_allowoptions[f->unit];
 
@@ -419,19 +445,22 @@ ccp_reqci(f, p, lenp, dont_nak)
 		}
 
 		ho->bsd_compress = 1;
-		ho->bsd_bits = p[2];
-		if (ho->bsd_bits < MIN_BSD_BITS
-		    || ho->bsd_bits > ao->bsd_bits) {
+		ho->bsd_bits = nb = BSD_NBITS(p[2]);
+		if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION
+		    || nb > ao->bsd_bits) {
 		    newret = CONFNAK;
+		    nb = ao->bsd_bits;
+		} else if (nb < MIN_BSD_BITS) {
+		    newret = CONFREJ;
 		} else if (!ccp_test(f->unit, p, CILEN_BSD, 1)) {
-		    if (ho->bsd_bits > MIN_BSD_BITS)
+		    if (nb > MIN_BSD_BITS) {
+			--nb;
 			newret = CONFNAK;
-		    else
+		    } else
 			newret = CONFREJ;
 		}
 		if (newret == CONFNAK && !dont_nak) {
-		    p[2] = (ho->bsd_bits < ao->bsd_bits? MIN_BSD_BITS:
-			    ao->bsd_bits);
+		    p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, nb);
 		}
 
 		break;
@@ -461,10 +490,6 @@ ccp_reqci(f, p, lenp, dont_nak)
 /*
  * CCP has come up - inform the kernel driver.
  */
-static char *up_strings[] = {
-    "no ", "receive ", "transmit ", ""
-};
-
 static void
 ccp_up(f)
     fsm *f;
@@ -473,8 +498,10 @@ ccp_up(f)
     ccp_options *ho = &ccp_hisoptions[f->unit];
 
     ccp_flags_set(f->unit, 1, 1);
-    syslog(LOG_INFO, "%scompression enabled",
-	   up_strings[(go->bsd_compress? 1: 0) + (ho->bsd_compress? 2: 0)]);
+    if (go->bsd_compress || ho->bsd_compress)
+	syslog(LOG_NOTICE, "%s enabled",
+	       go->bsd_compress? ho->bsd_compress? "Compression":
+	       "Receive compression": "Transmit compression");
 }
 
 /*
@@ -488,7 +515,6 @@ ccp_down(f)
 	UNTIMEOUT(ccp_rack_timeout, (caddr_t) f);
     ccp_localstate[f->unit] = 0;
     ccp_flags_set(f->unit, 1, 0);
-    syslog(LOG_NOTICE, "Compression disabled.");
 }
 
 /*
@@ -547,7 +573,8 @@ ccp_printpkt(p, plen, printer, arg)
 	    switch (code) {
 	    case CI_BSD_COMPRESS:
 		if (optlen >= CILEN_BSD) {
-		    printer(arg, "bsd %d", p[2]);
+		    printer(arg, "bsd v%d %d", BSD_VERSION(p[2]),
+			    BSD_NBITS(p[2]));
 		    p += CILEN_BSD;
 		}
 		break;
@@ -568,10 +595,15 @@ ccp_printpkt(p, plen, printer, arg)
 
 /*
  * We have received a packet that the decompressor failed to
- * decompress.  Here we would expect to issue a reset-request,
- * but Motorola has a patent on that, so instead we log a message
- * and take CCP down :-(.  (See US patent 5,130,993; international
- * patent publication number WO 91/10289; Australian patent 73296/91.)
+ * decompress.  Here we would expect to issue a reset-request, but
+ * Motorola has a patent on resetting the compressor as a result of
+ * detecting an error in the decompressed data after decompression.
+ * (See US patent 5,130,993; international patent publication number
+ * WO 91/10289; Australian patent 73296/91.)
+ *
+ * So we ask the kernel whether the error was detected after
+ * decompression; if it was, we take CCP down, thus disabling
+ * compression :-(, otherwise we issue the reset-request.
  */
 void
 ccp_datainput(unit, pkt, len)
@@ -583,26 +615,25 @@ ccp_datainput(unit, pkt, len)
 
     f = &ccp_fsm[unit];
     if (f->state == OPENED) {
-	syslog(LOG_ERR, "Lost compression sync: disabling compression");
-	ccp_close(unit);
-    }
-}
-
-/*
- * ccp_req_reset - Request that the peer reset the compression
- * dictionary.
- */
-void
-ccp_req_reset(f)
-    fsm *f;
-{
-    if (f->state == OPENED) {
-	if (!(ccp_localstate[f->unit] & RACK_PENDING)) {
-	    fsm_sdata(f, RESETREQ, f->reqid = ++f->id, NULL, 0);
-	    TIMEOUT(ccp_rack_timeout, (caddr_t) f, RACKTIMEOUT);
-	    ccp_localstate[f->unit] |= RACK_PENDING;
-	} else
-	    ccp_localstate[f->unit] |= RREQ_REPEAT;
+	if (ccp_fatal_error(unit)) {
+	    /*
+	     * Disable compression by taking CCP down.
+	     */
+	    syslog(LOG_ERR, "Lost compression sync: disabling compression");
+	    ccp_close(unit);
+	} else {
+	    /*
+	     * Send a reset-request to reset the peer's compressor.
+	     * We don't do that if we are still waiting for an
+	     * acknowledgement to a previous reset-request.
+	     */
+	    if (!(ccp_localstate[f->unit] & RACK_PENDING)) {
+		fsm_sdata(f, RESETREQ, f->reqid = ++f->id, NULL, 0);
+		TIMEOUT(ccp_rack_timeout, (caddr_t) f, RACKTIMEOUT);
+		ccp_localstate[f->unit] |= RACK_PENDING;
+	    } else
+		ccp_localstate[f->unit] |= RREQ_REPEAT;
+	}
     }
 }
 
