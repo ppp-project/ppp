@@ -1,0 +1,26 @@
+--- linux-2.6.2/drivers/net/Kconfig	2003-09-27 20:50:52.000000000 -0400
++++ linux-2.6.2/drivers/net/Kconfig	2003-10-08 19:06:10.000000000 -0400
+@@ -2310,6 +2310,12 @@
+ 	  module; it is called bsd_comp and will show up in the directory
+ 	  modules once you have said "make modules". If unsure, say N.
+ 
++config PPP_MPPE
++       tristate "PPP MPPE compression (encryption)"
++       depends on PPP
++       ---help---
++         Support for the MPPE Encryption protocol.
++
+ config PPPOE
+ 	tristate "PPP over Ethernet (EXPERIMENTAL)"
+ 	depends on EXPERIMENTAL && PPP
+--- linux-2.6.2/drivers/net/Makefile	2003-09-27 20:50:14.000000000 -0400
++++ linux-2.6.2/drivers/net/Makefile	2003-10-08 19:00:42.000000000 -0400
+@@ -101,6 +101,8 @@
+ obj-$(CONFIG_PPP_SYNC_TTY) += ppp_synctty.o
+ obj-$(CONFIG_PPP_DEFLATE) += ppp_deflate.o
+ obj-$(CONFIG_PPP_BSDCOMP) += bsd_comp.o
++obj-$(CONFIG_PPP_MPPE) += ppp_mppe.o
++ppp_mppe-objs := ppp_mppe_compress.o sha1.o arcfour.o
+ obj-$(CONFIG_PPPOE) += pppox.o pppoe.o
+ 
+ obj-$(CONFIG_SLIP) += slip.o

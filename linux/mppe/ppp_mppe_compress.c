@@ -1,11 +1,9 @@
 /*
- *  ==FILEVERSION 20020521==
- *
  * ppp_mppe_compress.c - interface MPPE to the PPP code.
- * This version is for use with Linux kernel 2.2.19+ and 2.4.x.
+ * This version is for use with Linux kernel 2.2.19+, 2.4.18+ and 2.6.2+.
  *
  * By Frank Cusack <frank@google.com>.
- * Copyright (c) 2002 Google, Inc.
+ * Copyright (c) 2002,2003,2004 Google, Inc.
  * All rights reserved.
  *
  * Permission to use, copy, modify, and distribute this software and its
@@ -13,10 +11,16 @@
  * notice appears in all copies.  This software is provided without any
  * warranty, express or implied.
  *
+ * Changelog:
+ *      2/15/04 - TS: added #include <version.h> and testing for Kernel
+ *                    version before using 
+ *                    MOD_DEC_USAGE_COUNT/MOD_INC_USAGE_COUNT which are
+ *                    deprecated in 2.6
  */
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/slab.h>
@@ -170,7 +174,11 @@ mppe_alloc(unsigned char *options, int optlen)
     if (state == NULL)
 	return NULL;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+    try_module_get(THIS_MODULE);
+#else
     MOD_INC_USE_COUNT;
+#endif
     memset(state, 0, sizeof(*state));
 
     /* Save keys. */
@@ -194,7 +202,11 @@ mppe_free(void *arg)
 
     if (state) {
 	kfree(state);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+	module_put(THIS_MODULE);
+#else
 	MOD_DEC_USE_COUNT;
+#endif
     }
 }
 

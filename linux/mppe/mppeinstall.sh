@@ -15,9 +15,12 @@ fi
 set -- ${1%/}
 # strip leading /path/to/linux- and trailing -release
 ver=`echo "${1##*/}" | sed -e 's/linux-//' -e 's/-.*//'`
-if ! expr "$ver" : 2.[24] >/dev/null ; then
-    echo "$0: Unable to determine kernel version ($ver)" >&2
-    exit 1
+if ! expr "$ver" : 2.[246] >/dev/null ; then
+    ver=`echo "${1##*/}" | sed -e 's/kernel-source-//' -e 's/-.*//'`
+    if ! expr "$ver" : 2.[246] >/dev/null ; then
+        echo "$0: Unable to determine kernel version ($ver)" >&2
+        exit 1
+    fi
 fi
 
 # build patch files list
@@ -37,6 +40,8 @@ elif expr $ver : 2.4 >/dev/null ; then
 	echo "$0: unable to determine kernel version" >&2
 	exit 1
     fi
+elif expr $ver : 2.6 >/dev/null ; then
+    patchfiles=`echo $patchdir/linux-2.6*.patch`
 fi
 
 echo "Detected kernel version $ver"
