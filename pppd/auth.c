@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.34 1997/11/27 06:36:50 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.35 1997/11/27 06:49:15 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -48,6 +48,9 @@ static char rcsid[] = "$Id: auth.c,v 1.34 1997/11/27 06:36:50 paulus Exp $";
 #include <sys/socket.h>
 #include <utmp.h>
 #include <fcntl.h>
+#if defined(_PATH_LASTLOG) && defined(_linux_)
+#include <lastlog.h>
+#endif
 
 #include <netdb.h>
 #include <netinet/in.h>
