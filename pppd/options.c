@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.18 1995/04/26 06:46:09 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.19 1995/04/27 00:20:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1249,19 +1249,6 @@ setnetmask(argv)
     netmask = mask;
     return (1);
 }
-
-/*
- * Return user specified netmask. A value of zero means no netmask has
- * been set. 
- */
-/* ARGSUSED */
-u_int32_t
-GetMask(addr)
-    u_int32_t addr;
-{
-    return(netmask);
-}
-
 
 static int
 setcrtscts()
