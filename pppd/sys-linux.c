@@ -166,7 +166,6 @@ static int get_flags (int fd);
 static void set_flags (int fd, int flags);
 static int translate_speed (int bps);
 static int baud_rate_of (int speed);
-static char *path_to_route (void);
 static void close_route_table (void);
 static int open_route_table (void);
 static int read_route_table (struct rtentry *rt);
@@ -361,6 +360,8 @@ int establish_ppp (int tty_fd)
  * The current PPP device will be the tty file.
  */
     set_ppp_fd (tty_fd);
+    if (new_style_driver)
+	add_fd(tty_fd);
 /*
  * Ensure that the tty device is in exclusive mode.
  */
@@ -451,6 +452,8 @@ int establish_ppp (int tty_fd)
 
 void disestablish_ppp(int tty_fd)
 {
+    if (new_style_driver)
+	remove_fd(tty_fd);
     if (!hungup) {
 /*
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
@@ -840,7 +843,7 @@ void remove_fd(int fd)
 
 int read_packet (unsigned char *buf)
 {
-    int len;
+    int len, nr;
 
     len = PPP_MRU + PPP_HDRLEN;
     if (new_style_driver) {
@@ -848,13 +851,15 @@ int read_packet (unsigned char *buf)
 	*buf++ = PPP_UI;
 	len -= 2;
     }
-    len = read(ppp_dev_fd, buf, len);
-    if (len < 0) {
+    nr = read(ppp_fd, buf, len);
+    if (new_style_driver && nr < 0 && (errno == EWOULDBLOCK || errno == EIO))
+	nr = read(ppp_dev_fd, buf, len);
+    if (nr < 0) {
 	if (errno == EWOULDBLOCK || errno == EIO)
 	    return -1;
 	fatal("read: %m(%d)", errno);
     }
-    return new_style_driver? len+2: len;
+    return (new_style_driver && nr > 0)? nr+2: nr;
 }
 
 /********************************************************************
@@ -1076,31 +1081,23 @@ static char *path_to_procfs(const char *tail)
     FILE *fp;
 
     if (proc_path_len == 0) {
+	/* Default the mount location of /proc */
+	strlcpy (proc_path, "/proc", sizeof(proc_path));
+	proc_path_len = 5;
 	fp = fopen(MOUNTED, "r");
-	if (fp == NULL) {
-	    /* Default the mount location of /proc */
-	    strlcpy (proc_path, "/proc", sizeof(proc_path));
-	    proc_path_len = 5;
-
-	} else {
+	if (fp != NULL) {
 	    while ((mntent = getmntent(fp)) != NULL) {
 		if (strcmp(mntent->mnt_type, MNTTYPE_IGNORE) == 0)
 		    continue;
-		if (strcmp(mntent->mnt_type, "proc") == 0)
+		if (strcmp(mntent->mnt_type, "proc") == 0) {
+		    strlcpy(proc_path, mntent->mnt_dir, sizeof(proc_path));
+		    proc_path_len = strlen(proc_path);
 		    break;
+		}
 	    }
 	    fclose (fp);
-	    if (mntent == 0)
-		proc_path_len = -1;
-	    else {
-		strlcpy(proc_path, mntent->mnt_dir, sizeof(proc_path));
-		proc_path_len = strlen(proc_path);
-	    }
 	}
     }
-
-    if (proc_path_len < 0)
-	return 0;
 
     strlcpy(proc_path + proc_path_len, tail,
 	    sizeof(proc_path) - proc_path_len);
@@ -1108,7 +1105,7 @@ static char *path_to_procfs(const char *tail)
 }
 
 /*
- * path_to_route - determine the path to the proc file system data
+ * /proc/net/route parsing stuff.
  */
 #define ROUTE_MAX_COLS	12
 FILE *route_fd = (FILE *) 0;
@@ -1117,25 +1114,9 @@ static int route_dev_col, route_dest_col, route_gw_col;
 static int route_flags_col, route_mask_col;
 static int route_num_cols;
 
-static char *path_to_route (void);
 static int open_route_table (void);
 static void close_route_table (void);
 static int read_route_table (struct rtentry *rt);
-
-/********************************************************************
- *
- * path_to_route - find the path to the route tables in the proc file system
- */
-
-static char *path_to_route (void)
-{
-    char *path;
-
-    path = path_to_procfs("/net/route");
-    if (path == 0)
-	error("proc file system not mounted");
-    return path;
-}
 
 /********************************************************************
  *
@@ -1162,13 +1143,10 @@ static int open_route_table (void)
 
     close_route_table();
 
-    path = path_to_route();
-    if (path == NULL)
-        return 0;
-
+    path = path_to_procfs("/net/route");
     route_fd = fopen (path, "r");
     if (route_fd == NULL) {
-        error("can't open %s: %m (%d)", path, errno);
+        error("can't open routing table %s: %m", path);
         return 0;
     }
 
