@@ -28,6 +28,8 @@ extern struct streamtab ppp_compinfo;
 cfg_subsys_attr_t ppp_attributes[] = {
     {"", 0, 0, 0, 0, 0, 0}
 };
+#else
+typedef sysconfig_op_t cfg_op_t;
 #endif
 
 int
