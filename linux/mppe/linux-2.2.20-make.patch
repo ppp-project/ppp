@@ -1,6 +1,31 @@
---- linux/drivers/net/Makefile.orig	Fri Nov  2 08:39:07 2001
-+++ linux/drivers/net/Makefile	Tue Mar 19 09:31:06 2002
-@@ -325,11 +325,13 @@
+--- linux/drivers/net/Makefile.orig	Mon Mar 25 11:38:09 2002
++++ linux/drivers/net/Makefile	Mon Mar 25 11:42:18 2002
+@@ -26,6 +26,8 @@
+ CONFIG_BSDCOMP_MODULE  :=
+ CONFIG_PPPDEF_BUILTIN :=
+ CONFIG_PPPDEF_MODULE  :=
++CONFIG_PPPMPPE_BUILTIN :=
++CONFIG_PPPMPPE_MODULE  :=
+ CONFIG_7990_BUILTIN :=
+ CONFIG_7990_MODULE :=
+ CONFIG_82596_BUILTIN :=
+@@ -40,6 +42,7 @@
+     CONFIG_BSDCOMP_BUILTIN = y
+     CONFIG_SLHC_BUILTIN = y
+     CONFIG_PPPDEF_BUILTIN = y
++    CONFIG_PPPMPPE_BUILTIN = y
+   endif
+ else
+   ifeq ($(CONFIG_ISDN),m)
+@@ -47,6 +50,7 @@
+       CONFIG_BSDCOMP_MODULE = y
+       CONFIG_SLHC_MODULE = y
+       CONFIG_PPPDEF_MODULE = y
++      CONFIG_PPPMPPE_MODULE = y
+     endif
+   endif
+ endif
+@@ -325,11 +329,13 @@
  CONFIG_BSDCOMP_BUILTIN = y
  CONFIG_SLHC_BUILTIN = y
  CONFIG_PPPDEF_BUILTIN = y
@@ -14,7 +39,7 @@
    MX_OBJS += ppp.o
    endif
  endif
-@@ -1100,6 +1102,17 @@
+@@ -1120,6 +1126,17 @@
    endif
  endif
  
@@ -32,12 +57,10 @@
  ifeq ($(CONFIG_ARIADNE2),y)
  L_OBJS += ariadne2.o
  CONFIG_8390_BUILTIN = y
-@@ -1449,3 +1462,8 @@
+@@ -1469,3 +1486,6 @@
  
  rcpci.o: rcpci45.o rclanmtl.o
  	$(LD) -r -o rcpci.o rcpci45.o rclanmtl.o
 +
-+ifdef CONFIG_PPPMPPE_MODULE
 +ppp_mppe.o: $(PPPMPPE_OBJS)
 +	$(LD) -r -o $@ $(PPPMPPE_OBJS)
-+endif

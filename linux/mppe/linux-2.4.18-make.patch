@@ -1,0 +1,44 @@
+--- linux/drivers/net/Config.in.orig	Mon Mar 25 09:07:26 2002
++++ linux/drivers/net/Config.in	Mon Mar 25 11:18:03 2002
+@@ -279,6 +279,7 @@
+    dep_tristate '  PPP support for sync tty ports' CONFIG_PPP_SYNC_TTY $CONFIG_PPP
+    dep_tristate '  PPP Deflate compression' CONFIG_PPP_DEFLATE $CONFIG_PPP
+    dep_tristate '  PPP BSD-Compress compression' CONFIG_PPP_BSDCOMP $CONFIG_PPP
++   dep_tristate '  PPP MPPE compression (encryption)' CONFIG_PPP_MPPE $CONFIG_PPP
+    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+       dep_tristate '  PPP over Ethernet (EXPERIMENTAL)' CONFIG_PPPOE $CONFIG_PPP
+    fi
+--- linux/drivers/net/Makefile.orig	Mon Mar 25 09:07:26 2002
++++ linux/drivers/net/Makefile	Mon Mar 25 11:58:11 2002
+@@ -18,8 +18,9 @@
+ export-objs     :=	8390.o arlan.o aironet4500_core.o aironet4500_card.o \
+ 			ppp_async.o ppp_generic.o slhc.o pppox.o auto_irq.o \
+ 			net_init.o mii.o
+-list-multi	:=	rcpci.o
++list-multi	:=	rcpci.o ppp_mppe.o
+ rcpci-objs	:=	rcpci45.o rclanmtl.o
++ppp_mppe-objs	:=	ppp_mppe_compress.o sha1.o arcfour.o
+ 
+ ifeq ($(CONFIG_TULIP),y)
+   obj-y += tulip/tulip.o
+@@ -139,6 +140,14 @@
+ obj-$(CONFIG_PPP_BSDCOMP) += bsd_comp.o
+ obj-$(CONFIG_PPPOE) += pppox.o pppoe.o
+ 
++ifeq ($(CONFIG_PPP_MPPE),y)
++  obj-y += $(ppp_mppe-objs)
++else
++  ifeq ($(CONFIG_PPP_MPPE),m)
++    obj-m += ppp_mppe.o
++  endif
++endif
++
+ obj-$(CONFIG_SLIP) += slip.o
+ ifeq ($(CONFIG_SLIP_COMPRESSED),y)
+   obj-$(CONFIG_SLIP) += slhc.o
+@@ -237,3 +246,5 @@
+ rcpci.o: $(rcpci-objs)
+ 	$(LD) -r -o $@ $(rcpci-objs)
+ 
++ppp_mppe.o: $(ppp_mppe-objs)
++	$(LD) -r -o $@ $(ppp_mppe-objs)

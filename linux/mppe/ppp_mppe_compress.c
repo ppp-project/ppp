@@ -2,7 +2,7 @@
  *  ==FILEVERSION 20020320==
  *
  * ppp_mppe_compress.c - interface MPPE to the PPP code.
- * This version is for use with Linux kernel 2.2.x (ppp driver 2.3.x).
+ * This version is for use with Linux kernel 2.2.19+ and 2.4.x.
  *
  * By Frank Cusack <frank@google.com>.
  * Copyright (c) 2002 Google, Inc.
@@ -19,7 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 
 #include <linux/ppp_defs.h>
@@ -559,7 +559,7 @@ mppe_incomp(void *arg, unsigned char *ibuf, int icnt)
  * Module interface table
  *************************************************************/
 
-/* These are in ppp.c */
+/* These are in ppp.c (2.2.x) or ppp_generic.c (2.4.x) */
 extern int  ppp_register_compressor   (struct compressor *cp);
 extern void ppp_unregister_compressor (struct compressor *cp);
 
@@ -583,7 +583,19 @@ struct compressor ppp_mppe = {
     mppe_comp_stats,	/* decomp_stat */
 };
 
-__initfunc(int ppp_mppe_install(void))
+/* 2.2 compatibility defines */
+#ifndef __init
+#define __init
+#endif
+#ifndef __exit
+#define __exit
+#endif
+#ifndef MODULE_LICENSE
+#define MODULE_LICENSE(license)
+#endif
+
+int __init
+ppp_mppe_init(void)
 {  
     int answer = ppp_register_compressor(&ppp_mppe);
 
@@ -592,20 +604,12 @@ __initfunc(int ppp_mppe_install(void))
     return answer;
 }
 
-#ifdef MODULE
+void __exit
+ppp_mppe_cleanup(void)
+{
+    ppp_unregister_compressor(&ppp_mppe);
+}
 
-int
-init_module(void)
-{
-    return ppp_mppe_install();
-}
-     
-void
-cleanup_module(void)
-{
-    if (MOD_IN_USE)
-	printk(KERN_INFO "PPP MPPE Compression module busy\n");
-    else
-	ppp_unregister_compressor(&ppp_mppe);
-}
-#endif
+module_init(ppp_mppe_init);
+module_exit(ppp_mppe_cleanup);
+MODULE_LICENSE("BSD without advertisement clause");
