@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.7 1994/11/22 02:42:09 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.8 1995/04/24 05:35:27 paulus Exp $";
 #endif
 
 /*
@@ -27,6 +27,7 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.7 1994/11/22 02:42:09 paulus Exp $"
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include <string.h>
 #include <termios.h>
@@ -52,6 +53,10 @@ static int initdisc = -1;	/* Initial TTY discipline */
 static int	restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
 
+static char *lock_file;
+
+int sockfd;			/* socket for doing interface ioctls */
+
 /*
  * sys_init - System-dependent initialization.
  */
@@ -59,6 +64,12 @@ void
 sys_init()
 {
     openlog("pppd", LOG_PID);
+
+    /* Get an internet socket for doing socket ioctl's on. */
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	syslog(LOG_ERR, "Couldn't create IP socket: %m");
+	die(1);
+    }
 }
 
 /*
@@ -484,12 +495,9 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int pcomp, accomp;
 {
     u_int x;
-    struct ifreq ifr;
 
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    ifr.ifr_mtu = mtu;
-    if (ioctl(s, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
+    if (ioctl(fd, PPPIOCSMTU, &mtu) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSMTU): %m");
 	quit();
     }
 
@@ -650,12 +658,12 @@ sifup(u)
     struct npioctl npi;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
     ifr.ifr_flags |= IFF_UP;
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
@@ -715,12 +723,12 @@ sifdown(u)
     }
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
     } else {
 	ifr.ifr_flags &= ~IFF_UP;
-	if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	    rv = 0;
 	}
@@ -751,19 +759,19 @@ sifaddr(u, o, h, m)
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
-    if (ioctl(s, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
         syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
         ret = 0;
     }
     ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = h;
-    if (ioctl(s, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
         syslog(LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m");
         ret = 0;
     }
     if (m != 0) {
         ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
         syslog(LOG_INFO, "Setting interface mask to %s\n", ip_ntoa(m));
-        if (ioctl(s, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
+        if (ioctl(sockfd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
             syslog(LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
             ret = 0;
         }
@@ -787,7 +795,7 @@ cifaddr(u, o, h)
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = o;
     rt.rt_flags = RTF_HOST;
-    if (ioctl(s, SIOCDELRT, (caddr_t) &rt) < 0) {
+    if (ioctl(sockfd, SIOCDELRT, (caddr_t) &rt) < 0) {
         syslog(LOG_ERR, "ioctl(SIOCDELRT): %m");
         return 0;
     }
@@ -806,7 +814,7 @@ sifdefaultroute(u, g)
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
-    if (ioctl(s, SIOCADDRT, &rt) < 0) {
+    if (ioctl(sockfd, SIOCADDRT, &rt) < 0) {
         syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
         return 0;
     }
@@ -825,7 +833,7 @@ cifdefaultroute(u, g)
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
-    if (ioctl(s, SIOCDELRT, &rt) < 0)
+    if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
         syslog(LOG_WARNING, "default route ioctl(SIOCDELRT): %m");
 }
 
@@ -853,7 +861,7 @@ sifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
-    if (ioctl(s, SIOCSARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
 	return 0;
     }
@@ -874,7 +882,7 @@ cifproxyarp(unit, hisaddr)
     BZERO(&arpreq, sizeof(arpreq));
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
-    if (ioctl(s, SIOCDARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
 	return 0;
     }
@@ -901,7 +909,7 @@ get_ether_addr(ipaddr, hwaddr)
 
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
-    if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
@@ -920,7 +928,7 @@ get_ether_addr(ipaddr, hwaddr)
              * Check that the interface is up, and not point-to-point
              * or loopback.
              */
-            if (ioctl(s, SIOCGIFFLAGS, &ifreq) < 0)
+            if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
                 continue;
             if ((ifreq.ifr_flags &
                  (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
@@ -929,7 +937,7 @@ get_ether_addr(ipaddr, hwaddr)
             /*
              * Get its netmask and check that it's on the right subnet.
              */
-            if (ioctl(s, SIOCGIFNETMASK, &ifreq) < 0)
+            if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
                 continue;
             mask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
             if ((ipaddr & mask) != (ina & mask))
@@ -1023,4 +1031,79 @@ logwtmp(line, name, host)
 	    (void)ftruncate(fd, buf.st_size);
     }
     close(fd);
+}
+
+/*
+ * Routines for locking and unlocking the serial device, moved here
+ * from chat.c.
+ */
+
+#define LOCK_PREFIX	"/usr/spool/uucp/LCK.."
+
+/*
+ * lock - create a lock file for the named device
+ */
+int
+lock(dev)
+    char *dev;
+{
+    int fd, pid, n;
+    char *p;
+
+    if ((p = strrchr(dev, '/')) != NULL)
+	dev = p + 1;
+    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
+    if (lock_file == NULL)
+	novm("lock file name");
+    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+
+    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
+	if (errno == EEXIST
+	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
+	    /* Read the lock file to find out who has the device locked */
+	    n = read(fd, &pid, sizeof(pid));
+	    if (n <= 0) {
+		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		close(fd);
+	    } else {
+		if (kill(pid, 0) == -1 && errno == ESRCH) {
+		    /* pid no longer exists - remove the lock file */
+		    if (unlink(lock_file) == 0) {
+			close(fd);
+			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			       dev, pid);
+			continue;
+		    } else
+			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			       dev);
+		} else
+		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+			   dev, pid);
+	    }
+	    close(fd);
+	} else
+	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	free(lock_file);
+	lock_file = NULL;
+	return -1;
+    }
+
+    pid = getpid();
+    write(fd, &pid, sizeof pid);
+
+    close(fd);
+    return 0;
+}
+
+/*
+ * unlock - remove our lockfile
+ */
+void
+unlock()
+{
+    if (lock_file) {
+	unlink(lock_file);
+	free(lock_file);
+	lock_file = NULL;
+    }
 }
