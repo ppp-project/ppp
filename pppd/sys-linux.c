@@ -143,13 +143,6 @@ static void set_flags (int flags)
 
 void sys_init(void)
   {
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-      {
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-      }
-    
     /* Get an internet socket for doing socket ioctls. */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0)
@@ -178,23 +171,6 @@ void sys_cleanup()
     if (has_proxy_arp)
 	cifproxyarp(0, proxy_arp_addr);
 }
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-
-void note_debug_level (void)
-  {
-    if (debug)
-      {
-	MAINDEBUG ((LOG_INFO, "Debug turned ON, Level %d", debug));
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-      }
-    else
-      {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-      }
-  }
 
 /*
  * set_kdebugflag - Define the debugging level for the kernel
