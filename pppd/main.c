@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.44 1998/02/04 01:40:59 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.45 1998/03/25 01:28:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -90,6 +90,9 @@ int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
 int redirect_stderr;		/* Connector's stderr should go to file */
+
+char **script_env;		/* Env. variable values for scripts */
+int s_env_nalloc;		/* # words avail at script_env */
 
 u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
 u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
@@ -169,12 +172,15 @@ main(argc, argv)
     sigset_t mask;
     struct protent *protp;
     struct stat statbuf;
+    char numbuf[16];
 
     phase = PHASE_INITIALIZE;
     p = ttyname(0);
     if (p)
 	strcpy(devnam, p);
     strcpy(default_devnam, devnam);
+
+    script_env = NULL;
 
     /* Initialize syslog facilities */
 #ifdef ULTRIX
@@ -192,6 +198,8 @@ main(argc, argv)
 
     uid = getuid();
     privileged = uid == 0;
+    sprintf(numbuf, "%d", uid);
+    script_setenv("UID", numbuf);
 
     /*
      * Initialize to the standard option set, then parse, in order,
@@ -200,7 +208,7 @@ main(argc, argv)
      */
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         (*protp->init)(0);
-  
+
     progname = *argv;
 
     if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
@@ -237,6 +245,10 @@ main(argc, argv)
 	option_error("connect script required for demand-dialling\n");
 	exit(1);
     }
+
+    script_setenv("DEVICE", devnam);
+    sprintf(numbuf, "%d", baud_rate);
+    script_setenv("SPEED", numbuf);
 
     /*
      * If the user has specified the default device name explicitly,
@@ -360,6 +372,7 @@ main(argc, argv)
 
 	syslog(LOG_INFO, "Using interface ppp%d", ifunit);
 	(void) sprintf(ifname, "ppp%d", ifunit);
+	script_setenv("IFNAME", ifname);
 
 	/* write pid to file */
 	(void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
@@ -508,7 +521,8 @@ main(argc, argv)
 	    
 	    syslog(LOG_INFO, "Using interface ppp%d", ifunit);
 	    (void) sprintf(ifname, "ppp%d", ifunit);
-	    
+	    script_setenv("IFNAME", ifname);
+
 	    /* write pid to file */
 	    (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
 	    if ((pidfile = fopen(pidfilename, "w")) != NULL) {
@@ -1056,7 +1070,7 @@ device_script(program, in, out)
 	}
 	if (redirect_stderr) {
 	    close(2);
-	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
 	    if (errfd >= 0 && errfd != 2) {
 		dup2(errfd, 2);
 		close(errfd);
@@ -1095,7 +1109,6 @@ run_program(prog, args, must_exist)
     int must_exist;
 {
     int pid;
-    char *nullenv[1];
 
     pid = fork();
     if (pid == -1) {
@@ -1140,8 +1153,7 @@ run_program(prog, args, must_exist)
 	/* SysV recommends a second fork at this point. */
 
 	/* run the program; give it a null environment */
-	nullenv[0] = NULL;
-	execve(prog, args, nullenv);
+	execve(prog, args, script_env);
 	if (must_exist || errno != ENOENT)
 	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
 	_exit(-1);
@@ -1565,4 +1577,79 @@ vfmtmsg(buf, buflen, fmt, args)
     }
     *buf = 0;
     return buf - buf0;
+}
+
+/*
+ * script_setenv - set an environment variable value to be used
+ * for scripts that we run (e.g. ip-up, auth-up, etc.)
+ */
+void
+script_setenv(var, value)
+    char *var, *value;
+{
+    int vl = strlen(var);
+    int i;
+    char *p, *newstring;
+
+    newstring = (char *) malloc(vl + strlen(value) + 2);
+    if (newstring == 0)
+	return;
+    strcpy(newstring, var);
+    newstring[vl] = '=';
+    strcpy(newstring+vl+1, value);
+
+    /* check if this variable is already set */
+    if (script_env != 0) {
+	for (i = 0; (p = script_env[i]) != 0; ++i) {
+	    if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
+		free(p);
+		script_env[i] = newstring;
+		return;
+	    }
+	}
+    } else {
+	i = 0;
+	script_env = (char **) malloc(16 * sizeof(char *));
+	if (script_env == 0)
+	    return;
+	s_env_nalloc = 16;
+    }
+
+    /* reallocate script_env with more space if needed */
+    if (i + 1 >= s_env_nalloc) {
+	int new_n = i + 17;
+	char **newenv = (char **) realloc((void *)script_env,
+					  new_n * sizeof(char *));
+	if (newenv == 0)
+	    return;
+	script_env = newenv;
+	s_env_nalloc = new_n;
+    }
+
+    script_env[i] = newstring;
+    script_env[i+1] = 0;
+}
+
+/*
+ * script_unsetenv - remove a variable from the environment
+ * for scripts.
+ */
+void
+script_unsetenv(var)
+    char *var;
+{
+    int vl = strlen(var);
+    int i;
+    char *p;
+
+    if (script_env == 0)
+	return;
+    for (i = 0; (p = script_env[i]) != 0; ++i) {
+	if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
+	    free(p);
+	    while ((script_env[i] = script_env[i+1]) != 0)
+		++i;
+	    break;
+	}
+    }
 }
