@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: fsm.h,v 1.9 2002/12/04 23:03:32 paulus Exp $
+ * $Id: fsm.h,v 1.10 2004/11/13 02:28:15 paulus Exp $
  */
 
 /*
@@ -76,6 +76,7 @@ typedef struct fsm {
     int retransmits;		/* Number of retransmissions left */
     int maxtermtransmits;	/* Maximum Terminate-Request transmissions */
     int nakloops;		/* Number of nak loops since last ack */
+    int rnakloops;		/* Number of naks received */
     int maxnakloops;		/* Maximum number of nak loops tolerated */
     struct fsm_callbacks *callbacks;	/* Callback routines */
     char *term_reason;		/* Reason for closing protocol */
@@ -93,7 +94,7 @@ typedef struct fsm_callbacks {
     int  (*ackci)		/* ACK our Configuration Information */
 		__P((fsm *, u_char *, int));
     int  (*nakci)		/* NAK our Configuration Information */
-		__P((fsm *, u_char *, int));
+		__P((fsm *, u_char *, int, int));
     int  (*rejci)		/* Reject our Configuration Information */
 		__P((fsm *, u_char *, int));
     int  (*reqci)		/* Request peer's Configuration Information */

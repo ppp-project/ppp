@@ -28,7 +28,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.47 2004/11/04 10:02:26 paulus Exp $"
+#define RCSID	"$Id: ccp.c,v 1.48 2004/11/13 02:28:15 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -209,7 +209,7 @@ static void ccp_resetci __P((fsm *));
 static int  ccp_cilen __P((fsm *));
 static void ccp_addci __P((fsm *, u_char *, int *));
 static int  ccp_ackci __P((fsm *, u_char *, int));
-static int  ccp_nakci __P((fsm *, u_char *, int));
+static int  ccp_nakci __P((fsm *, u_char *, int, int));
 static int  ccp_rejci __P((fsm *, u_char *, int));
 static int  ccp_reqci __P((fsm *, u_char *, int *, int));
 static void ccp_up __P((fsm *));
@@ -894,7 +894,7 @@ ccp_ackci(f, p, len)
  * Returns 1 iff the nak was OK.
  */
 static int
-ccp_nakci(f, p, len)
+ccp_nakci(f, p, len, treat_as_reject)
     fsm *f;
     u_char *p;
     int len;

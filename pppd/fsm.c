@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: fsm.c,v 1.22 2004/02/02 03:57:19 carlsonj Exp $"
+#define RCSID	"$Id: fsm.c,v 1.23 2004/11/13 02:28:15 paulus Exp $"
 
 /*
  * TODO:
@@ -496,6 +496,7 @@ fsm_rconfack(f, id, inp, len)
 	return;
     }
     f->seen_ack = 1;
+    f->rnakloops = 0;
 
     switch (f->state) {
     case CLOSED:
@@ -544,17 +545,29 @@ fsm_rconfnakrej(f, code, id, inp, len)
     u_char *inp;
     int len;
 {
-    int (*proc) __P((fsm *, u_char *, int));
     int ret;
+    int treat_as_reject;
 
     if (id != f->reqid || f->seen_ack)	/* Expected id? */
 	return;				/* Nope, toss... */
-    proc = (code == CONFNAK)? f->callbacks->nakci: f->callbacks->rejci;
-    if (!proc || !(ret = proc(f, inp, len))) {
-	/* Nak/reject is bad - ignore it */
-	error("Received bad configure-nak/rej: %P", inp, len);
-	return;
+
+    if (code == CONFNAK) {
+	++f->rnakloops;
+	treat_as_reject = (f->rnakloops >= f->maxnakloops);
+	if (f->callbacks->nakci == NULL
+	    || !(ret = f->callbacks->nakci(f, inp, len, treat_as_reject))) {
+	    error("Received bad configure-nak: %P", inp, len);
+	    return;
+	}
+    } else {
+	f->rnakloops = 0;
+	if (f->callbacks->rejci == NULL
+	    || !(ret = f->callbacks->rejci(f, inp, len))) {
+	    error("Received bad configure-rej: %P", inp, len);
+	    return;
+	}
     }
+
     f->seen_ack = 1;
 
     switch (f->state) {
@@ -741,6 +754,7 @@ fsm_sconfreq(f, retransmit)
 	if( f->callbacks->resetci )
 	    (*f->callbacks->resetci)(f);
 	f->nakloops = 0;
+	f->rnakloops = 0;
     }
 
     if( !retransmit ){

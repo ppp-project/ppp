@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.73 2004/11/12 11:42:46 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.74 2004/11/13 02:28:15 paulus Exp $"
 
 /*
  * TODO:
@@ -206,7 +206,7 @@ static void lcp_resetci __P((fsm *));	/* Reset our CI */
 static int  lcp_cilen __P((fsm *));		/* Return length of our CI */
 static void lcp_addci __P((fsm *, u_char *, int *)); /* Add our CI to pkt */
 static int  lcp_ackci __P((fsm *, u_char *, int)); /* Peer ack'd our CI */
-static int  lcp_nakci __P((fsm *, u_char *, int)); /* Peer nak'd our CI */
+static int  lcp_nakci __P((fsm *, u_char *, int, int)); /* Peer nak'd our CI */
 static int  lcp_rejci __P((fsm *, u_char *, int)); /* Peer rej'd our CI */
 static int  lcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv peer CI */
 static void lcp_up __P((fsm *));		/* We're UP */
@@ -924,10 +924,11 @@ bad:
  *	1 - Nak was good.
  */
 static int
-lcp_nakci(f, p, len)
+lcp_nakci(f, p, len, treat_as_reject)
     fsm *f;
     u_char *p;
     int len;
+    int treat_as_reject;
 {
     lcp_options *go = &lcp_gotoptions[f->unit];
     lcp_options *wo = &lcp_wantoptions[f->unit];
@@ -1184,7 +1185,9 @@ lcp_nakci(f, p, len)
      */
     if (go->neg_mrru) {
 	NAKCISHORT(CI_MRRU, neg_mrru,
-		   if (cishort <= wo->mrru)
+		   if (treat_as_reject)
+		       try.neg_mrru = 0;
+		   else if (cishort <= wo->mrru)
 		       try.mrru = cishort;
 		   );
     }

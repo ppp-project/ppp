@@ -42,7 +42,7 @@
 
 #ifdef IPX_CHANGE
 
-#define RCSID	"$Id: ipxcp.c,v 1.22 2003/07/28 12:25:41 carlsonj Exp $"
+#define RCSID	"$Id: ipxcp.c,v 1.23 2004/11/13 02:28:15 paulus Exp $"
 
 /*
  * TODO:
@@ -82,7 +82,7 @@ static void ipxcp_resetci __P((fsm *));	/* Reset our CI */
 static int  ipxcp_cilen __P((fsm *));		/* Return length of our CI */
 static void ipxcp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
 static int  ipxcp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipxcp_nakci __P((fsm *, u_char *, int));	/* Peer nak'd our CI */
+static int  ipxcp_nakci __P((fsm *, u_char *, int, int));/* Peer nak'd our CI */
 static int  ipxcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
 static int  ipxcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
 static void ipxcp_up __P((fsm *));		/* We're UP */
@@ -763,10 +763,11 @@ ipxcp_ackci(f, p, len)
  */
 
 static int
-ipxcp_nakci(f, p, len)
+ipxcp_nakci(f, p, len, treat_as_reject)
     fsm *f;
     u_char *p;
     int len;
+    int treat_as_reject;
 {
     u_char citype, cilen, *next;
     u_short s;
@@ -792,7 +793,9 @@ ipxcp_nakci(f, p, len)
 	    no.neg_nn = 1;
 
 	    GETLONG(l, p);
-	    if (l && ao->accept_network)
+	    if (treat_as_reject)
+		try.neg_nn = 0;
+	    else if (l && ao->accept_network)
 		try.our_network = l;
 	    break;
 
@@ -801,8 +804,10 @@ ipxcp_nakci(f, p, len)
 		goto bad;
 	    no.neg_node = 1;
 
-	    if (!zero_node (p) && ao->accept_local &&
-		! compare_node (p, ho->his_node))
+	    if (treat_as_reject)
+		try.neg_node = 0;
+	    else if (!zero_node (p) && ao->accept_local &&
+		     ! compare_node (p, ho->his_node))
 		copy_node (p, try.our_node);
 	    break;
 

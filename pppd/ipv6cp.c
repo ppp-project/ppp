@@ -135,10 +135,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ipv6cp.c,v 1.19 2004/01/13 03:59:37 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.20 2004/11/13 02:28:15 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.19 2004/01/13 03:59:37 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.20 2004/11/13 02:28:15 paulus Exp $"
 
 /*
  * TODO: 
@@ -186,7 +186,7 @@ static void ipv6cp_resetci __P((fsm *));	/* Reset our CI */
 static int  ipv6cp_cilen __P((fsm *));	        /* Return length of our CI */
 static void ipv6cp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
 static int  ipv6cp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipv6cp_nakci __P((fsm *, u_char *, int));	/* Peer nak'd our CI */
+static int  ipv6cp_nakci __P((fsm *, u_char *, int, int));/* Peer nak'd our CI */
 static int  ipv6cp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
 static int  ipv6cp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
 static void ipv6cp_up __P((fsm *));		/* We're UP */
@@ -670,10 +670,11 @@ bad:
  *	1 - Nak was good.
  */
 static int
-ipv6cp_nakci(f, p, len)
+ipv6cp_nakci(f, p, len, treat_as_reject)
     fsm *f;
     u_char *p;
     int len;
+    int treat_as_reject;
 {
     ipv6cp_options *go = &ipv6cp_gotoptions[f->unit];
     u_char citype, cilen, *next;
@@ -719,19 +720,21 @@ ipv6cp_nakci(f, p, len)
      * from our idea, only if the accept_{local,remote} flag is set.
      */
     NAKCIIFACEID(CI_IFACEID, neg_ifaceid,
-	      if (go->accept_local) {
-		  while (eui64_iszero(ifaceid) || 
-			 eui64_equals(ifaceid, go->hisid)) /* bad luck */
-		      eui64_magic(ifaceid);
-		  try.ourid = ifaceid;
-		  IPV6CPDEBUG(("local LL address %s", llv6_ntoa(ifaceid)));
-	      }
-	      );
+		 if (treat_as_reject) {
+		     try.neg_ifaceid = 0;
+		 } else if (go->accept_local) {
+		     while (eui64_iszero(ifaceid) || 
+			    eui64_equals(ifaceid, go->hisid)) /* bad luck */
+			 eui64_magic(ifaceid);
+		     try.ourid = ifaceid;
+		     IPV6CPDEBUG(("local LL address %s", llv6_ntoa(ifaceid)));
+		 }
+		 );
 
 #ifdef IPV6CP_COMP
     NAKCIVJ(CI_COMPRESSTYPE, neg_vj,
 	    {
-		if (cishort == IPV6CP_COMP) {
+		if (cishort == IPV6CP_COMP && !treat_as_reject) {
 		    try.vj_protocol = cishort;
 		} else {
 		    try.neg_vj = 0;

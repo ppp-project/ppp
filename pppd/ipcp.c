@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.67 2004/11/08 11:45:59 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.68 2004/11/13 02:28:15 paulus Exp $"
 
 /*
  * TODO:
@@ -103,7 +103,7 @@ static void ipcp_resetci __P((fsm *));	/* Reset our CI */
 static int  ipcp_cilen __P((fsm *));	        /* Return length of our CI */
 static void ipcp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
 static int  ipcp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipcp_nakci __P((fsm *, u_char *, int));	/* Peer nak'd our CI */
+static int  ipcp_nakci __P((fsm *, u_char *, int, int));/* Peer nak'd our CI */
 static int  ipcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
 static int  ipcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
 static void ipcp_up __P((fsm *));		/* We're UP */
@@ -961,10 +961,11 @@ bad:
  *	1 - Nak was good.
  */
 static int
-ipcp_nakci(f, p, len)
+ipcp_nakci(f, p, len, treat_as_reject)
     fsm *f;
     u_char *p;
     int len;
+    int treat_as_reject;
 {
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     u_char cimaxslotindex, cicflag;
@@ -1040,11 +1041,17 @@ ipcp_nakci(f, p, len)
      * from our idea, only if the accept_{local,remote} flag is set.
      */
     NAKCIADDRS(CI_ADDRS, !go->neg_addr && go->old_addrs,
-	       if (go->accept_local && ciaddr1) { /* Do we know our address? */
-		   try.ouraddr = ciaddr1;
-	       }
-	       if (go->accept_remote && ciaddr2) { /* Does he know his? */
-		   try.hisaddr = ciaddr2;
+	       if (treat_as_reject) {
+		   try.old_addrs = 0;
+	       } else {
+		   if (go->accept_local && ciaddr1) {
+		       /* take his idea of our address */
+		       try.ouraddr = ciaddr1;
+		   }
+		   if (go->accept_remote && ciaddr2) {
+		       /* take his idea of his address */
+		       try.hisaddr = ciaddr2;
+		   }
 	       }
 	);
 
@@ -1055,7 +1062,9 @@ ipcp_nakci(f, p, len)
      * the peer wants.
      */
     NAKCIVJ(CI_COMPRESSTYPE, neg_vj,
-	    if (cilen == CILEN_VJ) {
+	    if (treat_as_reject) {
+		try.neg_vj = 0;
+	    } else if (cilen == CILEN_VJ) {
 		GETCHAR(cimaxslotindex, p);
 		GETCHAR(cicflag, p);
 		if (cishort == IPCP_VJ_COMP) {
@@ -1078,18 +1087,29 @@ ipcp_nakci(f, p, len)
 	    );
 
     NAKCIADDR(CI_ADDR, neg_addr,
-	      if (go->accept_local && ciaddr1) { /* Do we know our address? */
+	      if (treat_as_reject) {
+		  try.neg_addr = 0;
+	      } else if (go->accept_local && ciaddr1) {
+		  /* take his idea of our address */
 		  try.ouraddr = ciaddr1;
 	      }
 	      );
 
     NAKCIDNS(CI_MS_DNS1, req_dns1,
-	    try.dnsaddr[0] = cidnsaddr;
-	    );
+	     if (treat_as_reject) {
+		 try.req_dns1 = 0;
+	     } else {
+		 try.dnsaddr[0] = cidnsaddr;
+	     }
+	     );
 
     NAKCIDNS(CI_MS_DNS2, req_dns2,
-	    try.dnsaddr[1] = cidnsaddr;
-	    );
+	     if (treat_as_reject) {
+		 try.req_dns2 = 0;
+	     } else {
+		 try.dnsaddr[1] = cidnsaddr;
+	     }
+	     );
 
     /*
      * There may be remaining CIs, if the peer is requesting negotiation
