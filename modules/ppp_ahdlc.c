@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.5 1997/03/04 03:31:51 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.6 1997/04/30 05:44:58 paulus Exp $
  */
 
 /*
@@ -42,6 +42,9 @@
 #include <sys/ddi.h>
 #else
 #include <sys/user.h>
+#ifdef __osf__
+#include <sys/cmn_err.h>
+#endif
 #endif /* SVR4 */
 
 #include <net/ppp_defs.h>
@@ -168,7 +171,7 @@ MOD_OPEN(ahdlc_open)
 	WR(q)->q_ptr = (caddr_t) sp;
 	sp->xaccm[0] = ~0;
 	sp->xaccm[3] = 0x60000000;
-	sp->mru = 1500;
+	sp->mru = PPP_MRU;
 	++ppp_ahdlc_count;
 	qprocson(q);
     }
