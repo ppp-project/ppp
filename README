@@ -17,7 +17,7 @@ This software consists of two parts:
 - Kernel code, which establishes a network interface and passes
 packets between the serial port, the kernel networking code and the
 PPP daemon (pppd).  This code is implemented using STREAMS modules on
-SunOS 4.x and Solaris, and as a line discipline under Linux and FreeBSD.
+Solaris, and as a line discipline under Linux.
 
 - The PPP daemon (pppd), which negotiates with the peer to establish
 the link and sets up the ppp network interface.  Pppd includes support
@@ -185,7 +185,7 @@ questions like this that I get.
 If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
-Linux			Paul Mackerras <paulus@linuxcare.com>
+Linux			Paul Mackerras <paulus@samba.org>
 Solaris			James Carlson <carlson@workingcode.com>
 
 
@@ -205,4 +205,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.29 2003/06/29 10:04:10 paulus Exp $)
+($Id: README,v 1.30 2003/11/27 21:32:03 paulus Exp $)

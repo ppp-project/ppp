@@ -4,7 +4,7 @@
 		Paul Mackerras
 		8 March 2001
 
-		for ppp-2.4.1
+		for ppp-2.4.2
 
 1. Introduction
 ---------------
@@ -169,9 +169,8 @@ unsubscribe linux-ppp
 To send a message to the list, email it to linux-ppp@vger.kernel.org.
 You don't have to be subscribed to send messages to the list.
 
-You can also email me (paulus@linuxcare.com.au) but I am overloaded
-with email and I can't respond to most messages I get in a timely
-fashion.
+You can also email me (paulus@samba.org) but I am overloaded with
+email and I can't respond to most messages I get in a timely fashion.
 
 There are also several relevant news groups, such as comp.protocols.ppp,
 comp.os.linux.networking, or comp.os.linux.setup.
