@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.67 1999/03/25 01:30:32 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.68 1999/03/30 04:22:57 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -110,6 +110,7 @@ u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
 u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
 
 static int n_children;		/* # child processes still running */
+static int got_sigchld;		/* set if we have received a SIGCHLD */
 
 static int locked;		/* lock() has succeeded */
 
@@ -482,7 +483,8 @@ main(argc, argv)
 		}
 		if (get_loop_output())
 		    break;
-		reap_kids(0);
+		if (got_sigchld)
+		    reap_kids(0);
 	    }
 	    remove_fd(fd_loop);
 	    if (kill_link && !persist)
@@ -710,7 +712,8 @@ main(argc, argv)
 		}
 		open_ccp_flag = 0;
 	    }
-	    reap_kids(0);	/* Don't leave dead kids lying around */
+	    if (got_sigchld)
+		reap_kids(0);	/* Don't leave dead kids lying around */
 	}
 
 	/*
@@ -799,7 +802,8 @@ main(argc, argv)
 		    kill_link = 0;
 		    phase = PHASE_DORMANT; /* allow signal to end holdoff */
 		}
-		reap_kids(0);
+		if (got_sigchld)
+		    reap_kids(0);
 	    } while (phase == PHASE_HOLDOFF);
 	    if (!persist)
 		break;
@@ -1197,12 +1201,13 @@ term(sig)
 
 /*
  * chld - Catch SIGCHLD signal.
- * Calls reap_kids to get status for any dead kids.
+ * Sets a flag so we will call reap_kids in the mainline.
  */
 static void
 chld(sig)
     int sig;
 {
+    got_sigchld = 1;
     if (waiting)
 	siglongjmp(sigjmp, 1);
 }
@@ -1314,12 +1319,13 @@ device_script(program, in, out, dont_wait)
 	    if (out == 0)
 		out = dup(out);
 	    dup2(in, 0);
-	    if (in != out)
+	    if (in > 2)
 		close(in);
 	}
 	if (out != 1) {
 	    dup2(out, 1);
-	    close(out);
+	    if (out > 2)
+		close(out);
 	}
 	if (real_ttyfd > 2)
 	    close(real_ttyfd);
@@ -1512,6 +1518,7 @@ reap_kids(waitfor)
     int pid, status;
     struct subprocess *chp, **prevp;
 
+    got_sigchld = 0;
     if (n_children == 0)
 	return;
     while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
