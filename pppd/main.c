@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.46 1998/03/26 04:46:04 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.47 1998/03/30 06:25:34 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -105,6 +105,7 @@ char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 
 /* Prototypes for procedures local to this file. */
 
+static void create_pidfile __P((void));
 static void cleanup __P((void));
 static void close_tty __P((void));
 static void get_input __P((void));
@@ -165,7 +166,6 @@ main(argc, argv)
 {
     int i, fdflags;
     struct sigaction sa;
-    FILE *pidfile;
     char *p;
     struct passwd *pw;
     struct timeval timo;
@@ -373,15 +373,7 @@ main(argc, argv)
 	(void) sprintf(ifname, "ppp%d", ifunit);
 	script_setenv("IFNAME", ifname);
 
-	/* write pid to file */
-	(void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
-	if ((pidfile = fopen(pidfilename, "w")) != NULL) {
-	    fprintf(pidfile, "%d\n", pid);
-	    (void) fclose(pidfile);
-	} else {
-	    syslog(LOG_ERR, "Failed to create pid file %s: %m", pidfilename);
-	    pidfilename[0] = 0;
-	}
+	create_pidfile();	/* write pid to file */
 
 	/*
 	 * Configure the interface and mark it up, etc.
@@ -522,16 +514,7 @@ main(argc, argv)
 	    (void) sprintf(ifname, "ppp%d", ifunit);
 	    script_setenv("IFNAME", ifname);
 
-	    /* write pid to file */
-	    (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
-	    if ((pidfile = fopen(pidfilename, "w")) != NULL) {
-		fprintf(pidfile, "%d\n", pid);
-		(void) fclose(pidfile);
-	    } else {
-		syslog(LOG_ERR, "Failed to create pid file %s: %m",
-		       pidfilename);
-		pidfilename[0] = 0;
-	    }
+	    create_pidfile();	/* write pid to file */
 	}
 
 	/*
@@ -636,6 +619,28 @@ detach()
 	die(1);
     }
     detached = 1;
+    pid = getpid();
+    /* update pid file if it has been written already */
+    if (pidfilename[0])
+	create_pidfile();
+}
+
+/*
+ * Create a file containing our process ID.
+ */
+static void
+create_pidfile()
+{
+    FILE *pidfile;
+
+    (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
+    if ((pidfile = fopen(pidfilename, "w")) != NULL) {
+	fprintf(pidfile, "%d\n", pid);
+	(void) fclose(pidfile);
+    } else {
+	syslog(LOG_ERR, "Failed to create pid file %s: %m", pidfilename);
+	pidfilename[0] = 0;
+    }
 }
 
 /*
