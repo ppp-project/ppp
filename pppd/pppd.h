@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.8 1995/04/26 06:46:31 paulus Exp $
+ * $Id: pppd.h,v 1.9 1995/10/27 03:40:12 paulus Exp $
  */
 
 /*
@@ -26,8 +26,10 @@
 #ifndef __PPPD_H__
 #define __PPPD_H__
 
+#include <stdio.h>		/* for FILE */
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
+#include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
 
 #define NUM_PPP	1		/* One PPP interface supported (per process) */
@@ -98,21 +100,99 @@ extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 /*
  * Prototypes.
  */
-void quit __P((void));	/* Cleanup and exit */
-void timeout __P((void (*)(), caddr_t, int));
-				/* Look-alike of kernel's timeout() */
-void untimeout __P((void (*)(), caddr_t));
-				/* Look-alike of kernel's untimeout() */
-void output __P((int, u_char *, int));
-				/* Output a PPP packet */
+
+/* Procedures exported from main.c. */
+void die __P((int));		/* Cleanup and exit */
+void quit __P((void));		/* like die(1) */
+void novm __P((char *));	/* Say we ran out of memory, and die */
+void timeout __P((void (*func)(), caddr_t arg, int t));
+				/* Call func(arg) after t seconds */
+void untimeout __P((void (*func)(), caddr_t arg));
+				/* Cancel call to func(arg) */
+int run_program __P((char *prog, char **args, int must_exist));
+				/* Run program prog with args in child */
 void demuxprotrej __P((int, int));
 				/* Demultiplex a Protocol-Reject */
+void format_packet __P((u_char *, int, void (*) (void *, char *, ...),
+		void *));	/* Format a packet in human-readable form */
+void log_packet __P((u_char *, int, char *));
+				/* Format a packet and log it with syslog */
+void print_string __P((char *, int,  void (*) (void *, char *, ...),
+		void *));	/* Format a string for output */
+
+/* Procedures exported from auth.c */
+void link_required __P((int));	  /* we are starting to use the link */
+void link_terminated __P((int));  /* we are finished with the link */
+void link_down __P((int));	  /* the LCP layer has left the Opened state */
+void link_established __P((int)); /* the link is up; authenticate now */
+void auth_peer_fail __P((int, int));
+				/* peer failed to authenticate itself */
+void auth_peer_success __P((int, int));
+				/* peer successfully authenticated itself */
+void auth_withpeer_fail __P((int, int));
+				/* we failed to authenticate ourselves */
+void auth_withpeer_success __P((int, int));
+				/* we successfully authenticated ourselves */
+void check_auth_options __P((void));
+				/* check authentication options supplied */
 int  check_passwd __P((int, char *, int, char *, int, char **, int *));
 				/* Check peer-supplied username/password */
 int  get_secret __P((int, char *, char *, char *, int *, int));
 				/* get "secret" for chap */
-u_int32_t GetMask __P((u_int32_t)); /* get netmask for address */
-void die __P((int));
+int  auth_ip_addr __P((int, u_int32_t));
+				/* check if IP address is authorized */
+int  bad_ip_adrs __P((u_int32_t));
+				/* check if IP address is unreasonable */
+void check_access __P((FILE *, char *));
+				/* check permissions on secrets file */
+
+/* Procedures exported from sys-*.c */
+void sys_init __P((void));	/* Do system-dependent initialization */
+void sys_cleanup __P((void));	/* Restore system state before exiting */
+void note_debug_level __P((void)); /* Note change in debug level */
+int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
+void establish_ppp __P((void));	/* Turn serial port into a ppp interface */
+void disestablish_ppp __P((void)); /* Restore port to normal operation */
+void set_up_tty __P((int, int)); /* Set up port's speed, parameters, etc. */
+void restore_tty __P((void));	/* Restore port's original parameters */
+void setdtr __P((int, int));	/* Raise or lower port's DTR line */
+void output __P((int, u_char *, int)); /* Output a PPP packet */
+void wait_input __P((struct timeval *));
+				/* Wait for input, with timeout */
+int  read_packet __P((u_char *)); /* Read PPP packet */
+void ppp_send_config __P((int, int, u_int32_t, int, int));
+				/* Configure i/f transmit parameters */
+void ppp_set_xaccm __P((int, ext_accm));
+				/* Set extended transmit ACCM */
+void ppp_recv_config __P((int, int, u_int32_t, int, int));
+				/* Configure i/f receive parameters */
+int  ccp_test __P((int, u_char *, int, int));
+				/* Test support for compression scheme */
+void ccp_flags_set __P((int, int, int));
+				/* Set kernel CCP state */
+int  ccp_fatal_error __P((int)); /* Test for fatal decomp error in kernel */
+int  sifvjcomp __P((int, int, int, int));
+				/* Configure VJ TCP header compression */
+int  sifup __P((int));		/* Configure i/f up (for IP) */
+int  sifdown __P((int));	/* Configure i/f down (for IP) */
+int  sifaddr __P((int, u_int32_t, u_int32_t, u_int32_t));
+				/* Configure IP addresses for i/f */
+int  cifaddr __P((int, u_int32_t, u_int32_t));
+				/* Reset i/f IP addresses */
+int  sifdefaultroute __P((int, u_int32_t));
+				/* Create default route through i/f */
+int  cifdefaultroute __P((int, u_int32_t));
+				/* Delete default route through i/f */
+int  sifproxyarp __P((int, u_int32_t));
+				/* Add proxy ARP entry for peer */
+int  cifproxyarp __P((int, u_int32_t));
+				/* Delete proxy ARP entry for peer */
+u_int32_t GetMask __P((u_int32_t)); /* Get appropriate netmask for address */
+int  lock __P((char *));	/* Create lock file for device */
+void unlock __P((void));	/* Delete previously-created lock file */
+int  daemon __P((int, int));	/* Detach us from terminal session */
+int  logwtmp __P((char *, char *, char *));
+				/* Write entry to wtmp file */
 
 /*
  * Inline versions of get/put char/short/long.

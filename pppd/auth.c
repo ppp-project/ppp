@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.17 1995/08/16 01:37:22 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.18 1995/10/27 03:39:53 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -96,8 +96,7 @@ static struct wordlist *addresses[NUM_PPP];
 #define CHAP_WITHPEER	4
 #define CHAP_PEER	8
 
-/* Prototypes */
-void check_access __P((FILE *, char *));
+/* Prototypes for procedures local to this file. */
 
 static void network_phase __P((int));
 static int  login __P((char *, char *, char **, int *));
