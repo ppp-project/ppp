@@ -49,7 +49,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.38 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: chap.c,v 1.39 2003/02/16 22:32:14 paulus Exp $"
 
 /*
  * TODO:
@@ -100,6 +100,7 @@ static option_t chap_option_list[] = {
       "Set max #xmits for challenge", OPT_PRIO },
     { "chap-interval", o_int, &chap[0].chal_interval,
       "Set interval for rechallenge", OPT_PRIO },
+#ifdef MSCHAP
 #ifdef MSLANMAN
     { "ms-lanman", o_bool, &ms_lanman,
       "Use LanMan passwd when using MS-CHAP", 1 },
@@ -109,6 +110,7 @@ static option_t chap_option_list[] = {
       "specify CHAP challenge" },
     { "mschap2-peer-challenge", o_string, &mschap2_peer_challenge,
       "specify CHAP peer challenge" },
+#endif
 #endif
     { NULL }
 };
