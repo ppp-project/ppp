@@ -62,7 +62,10 @@ main(ac, av)
 		perror(p);
 		exit(1);
 	    }
-	    dumplog(f);
+	    if (pppmode)
+		dumpppp(f);
+	    else
+		dumplog(f);
 	    fclose(f);
 	}
     }
@@ -76,13 +79,12 @@ dumplog(f)
     int c, n, k, col;
     int nb, c2;
     unsigned char buf[16];
+    time_t t;
 
-    if (pppmode) {
-	dumpppp(f);
-	return;
-    }
     while ((c = getc(f)) != EOF) {
-	if (c == 1 || c == 2) {
+	switch (c) {
+	case 1:
+	case 2:
 	    if (reverse)
 		c = 3 - c;
 	    printf("%s %c", c==1? "sent": "rcvd", hexmode? ' ': '"');
@@ -138,20 +140,31 @@ dumplog(f)
 	    } else
 		putchar('"');
 	    printf("\n");
-	} else if (c == 3 || c == 4) {
+	    break;
+	case 3:
+	case 4:
 	    printf("end %s\n", c==3? "send": "recv");
-	} else if (c == 5 || c == 6) {
+	    break;
+	case 5:
+	case 6:
 	    n = getc(f);
 	    if (c == 5) {
 		for (c = 3; c > 0; --c)
 		    n = (n << 8) + getc(f);
 	    }
 	    printf("time %.1fs\n", (double) n / 10);
-	} else {
+	    break;
+	case 7:
+	    t = getc(f);
+	    t = (t << 8) + getc(f);
+	    t = (t << 8) + getc(f);
+	    t = (t << 8) + getc(f);
+	    printf("start %s", ctime(&t));
+	    break;
+	default:
 	    printf("?%.2x\n");
 	}
     }
-    exit(0);
 }
 
 /*
@@ -220,11 +233,14 @@ dumpppp(f)
     unsigned char *d;
     unsigned short fcs;
     struct pkt *pkt;
+    time_t t;
 
     spkt.cnt = rpkt.cnt = 0;
     spkt.esc = rpkt.esc = 0;
     while ((c = getc(f)) != EOF) {
-	if (c == 1 || c == 2) {
+	switch (c) {
+	case 1:
+	case 2:
 	    if (reverse)
 		c = 3 - c;
 	    dir = c==1? "sent": "rcvd";
@@ -357,7 +373,9 @@ dumpppp(f)
 		    break;
 		}
 	    }
-	} else if (c == 3 || c == 4) {
+	    break;
+	case 3:
+	case 4:
 	    if (reverse)
 		c = 7 - c;
 	    dir = c==3? "send": "recv";
@@ -366,14 +384,24 @@ dumpppp(f)
 	    if (pkt->cnt > 0)
 		printf("  [%d bytes in incomplete packet]", pkt->cnt);
 	    printf("\n");
-	} else if (c == 5 || c == 6) {
+	    break;
+	case 5:
+	case 6:
 	    n = getc(f);
 	    if (c == 5) {
 		for (c = 3; c > 0; --c)
 		    n = (n << 8) + getc(f);
 	    }
 	    printf("time %.1fs\n", (double) n / 10);
-	} else {
+	    break;
+	case 7:
+	    t = getc(f);
+	    t = (t << 8) + getc(f);
+	    t = (t << 8) + getc(f);
+	    t = (t << 8) + getc(f);
+	    printf("start %s", ctime(&t));
+	    break;
+	default:
 	    printf("?%.2x\n");
 	}
     }
