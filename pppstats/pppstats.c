@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.22 1998/03/31 23:48:03 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.23 1998/07/07 04:23:04 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -57,11 +57,12 @@ static char rcsid[] = "$Id: pppstats.c,v 1.22 1998/03/31 23:48:03 paulus Exp $";
 #else
 /* Linux */
 #if __GLIBC__ >= 2
+#include <asm/types.h>		/* glibc 2 conflicts with linux/types.h */
 #include <net/if.h>
 #else
+#include <linux/types.h>
 #include <linux/if.h>
 #endif
-#include <linux/types.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
 #endif /* _linux_ */
@@ -173,17 +174,25 @@ get_ppp_cstats(csp)
     }
 
 #ifdef _linux_
+    if (creq.stats.c.bytes_out == 0) {
+	creq.stats.c.bytes_out = creq.stats.c.comp_bytes + creq.stats.c.inc_bytes;
+	creq.stats.c.in_count = creq.stats.c.unc_bytes;
+    }
     if (creq.stats.c.bytes_out == 0)
 	creq.stats.c.ratio = 0.0;
     else
-	creq.stats.c.ratio = (double) creq.stats.c.in_count /
-			     (double) creq.stats.c.bytes_out;
+	creq.stats.c.ratio = 256.0 * creq.stats.c.in_count /
+			     creq.stats.c.bytes_out;
 
+    if (creq.stats.d.bytes_out == 0) {
+	creq.stats.d.bytes_out = creq.stats.d.comp_bytes + creq.stats.d.inc_bytes;
+	creq.stats.d.in_count = creq.stats.d.unc_bytes;
+    }
     if (creq.stats.d.bytes_out == 0)
 	creq.stats.d.ratio = 0.0;
     else
-	creq.stats.d.ratio = (double) creq.stats.d.in_count /
-			     (double) creq.stats.d.bytes_out;
+	creq.stats.d.ratio = 256.0 * creq.stats.d.in_count /
+			     creq.stats.d.bytes_out;
 #endif
 
     *csp = creq.stats;
@@ -318,26 +327,26 @@ intpr()
 		       W(d.comp_packets),
 		       KBPS(W(d.inc_bytes)),
 		       W(d.inc_packets),
-		       ccs.d.ratio * 256.0);
+		       ccs.d.ratio / 256.0);
 		printf(" | %8.3f %6u %8.3f %6u %6.2f",
 		       KBPS(W(c.comp_bytes)),
 		       W(c.comp_packets),
 		       KBPS(W(c.inc_bytes)),
 		       W(c.inc_packets),
-		       ccs.c.ratio * 256.0);
+		       ccs.c.ratio / 256.0);
 	    } else {
 		printf("%8u %6u %8u %6u %6.2f",
 		       W(d.comp_bytes),
 		       W(d.comp_packets),
 		       W(d.inc_bytes),
 		       W(d.inc_packets),
-		       ccs.d.ratio * 256.0);
+		       ccs.d.ratio / 256.0);
 		printf(" | %8u %6u %8u %6u %6.2f",
 		       W(c.comp_bytes),
 		       W(c.comp_packets),
 		       W(c.inc_bytes),
 		       W(c.inc_packets),
-		       ccs.c.ratio * 256.0);
+		       ccs.c.ratio / 256.0);
 	    }
 	
 	} else {
