@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.32 1996/04/04 03:59:33 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.33 1996/05/28 00:49:10 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -52,6 +52,10 @@ static char rcsid[] = "$Id: main.c,v 1.32 1996/04/04 03:59:33 paulus Exp $";
 #include "pathnames.h"
 #include "patchlevel.h"
 
+#if defined(SUNOS4)
+extern char *strerror();
+#endif
+
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
 #endif /* IPX_CHANGE */
@@ -76,6 +80,7 @@ static pid_t pid;		/* Our pid */
 static uid_t uid;		/* Our real user-id */
 
 int ttyfd = -1;			/* Serial port file descriptor */
+mode_t tty_mode = -1;		/* Original access permissions to tty */
 
 int phase;			/* where the link is at */
 int kill_link;
@@ -120,6 +125,10 @@ extern	char	*getlogin __P((void));
 #define	O_NONBLOCK	O_NDELAY
 #endif
 
+#ifdef PRIMITIVE_SYSLOG
+#define setlogmask(x)
+#endif
+
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
@@ -150,14 +159,24 @@ main(argc, argv)
     struct timeval timo;
     sigset_t mask;
     struct protent *protp;
+    struct stat statbuf;
 
+    phase = PHASE_INITIALIZE;
     p = ttyname(0);
     if (p)
 	strcpy(devnam, p);
     strcpy(default_devnam, devnam);
 
+    /* Initialize syslog facilities */
+#ifdef PRIMITIVE_SYSLOG
+    openlog("pppd", LOG_PID);
+#else
+    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
+    setlogmask(LOG_UPTO(LOG_INFO));
+#endif
+
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
-	perror("couldn't get hostname");
+	syslog(LOG_ERR, "couldn't get hostname: %m");
 	die(1);
     }
     hostname[MAXNAMELEN-1] = 0;
@@ -211,6 +230,8 @@ main(argc, argv)
      */
     sys_init();
     magic_init();
+    if (debug)
+	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     /*
      * Detach ourselves from the terminal, if required,
@@ -301,6 +322,13 @@ main(argc, argv)
 #endif
 
     /*
+     * Apparently we can get a SIGPIPE when we call syslog, if
+     * syslogd has died and been restarted.  Ignoring it seems
+     * be sufficient.
+     */
+    signal(SIGPIPE, SIG_IGN);
+
+    /*
      * If we're doing dial-on-demand, set up the interface now.
      */
     if (demand) {
@@ -385,6 +413,16 @@ main(argc, argv)
 	}
 	hungup = 0;
 	kill_link = 0;
+
+	/*
+	 * Do the equivalent of `mesg n' to stop broadcast messages.
+	 */
+	if (fstat(ttyfd, &statbuf) < 0
+	    || fchmod(ttyfd, statbuf.st_mode & ~(S_IWGRP | S_IWOTH)) < 0) {
+	    syslog(LOG_WARNING,
+		   "Couldn't restrict write permissions to %s: %m", devnam);
+	} else
+	    tty_mode = statbuf.st_mode;
 
 	/* run connection script */
 	if (connector && connector[0]) {
@@ -684,6 +722,9 @@ close_tty()
 
     restore_tty(ttyfd);
 
+    if (tty_mode != (mode_t) -1)
+	chmod(devnam, tty_mode);
+
     close(ttyfd);
     ttyfd = -1;
 }
@@ -873,7 +914,11 @@ toggle_debug(sig)
     int sig;
 {
     debug = !debug;
-    note_debug_level();
+    if (debug) {
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+    } else {
+	setlogmask(LOG_UPTO(LOG_WARNING));
+    }
 }
 
 
@@ -925,6 +970,7 @@ device_script(program, in, out)
 
     if (pid == 0) {
 	sys_close();
+	closelog();
 	dup2(in, 0);
 	dup2(out, 1);
 	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
@@ -981,6 +1027,7 @@ run_program(prog, args, must_exist)
 
 	/* Ensure that nothing of our device environment is inherited. */
 	sys_close();
+	closelog();
 	close (0);
 	close (1);
 	close (2);
@@ -1104,55 +1151,39 @@ format_packet(p, len, printer, arg)
     }
 }
 
-#ifdef __STDC__
-#include <stdarg.h>
-
 static void
+#if __STDC__
 pr_log(void *arg, char *fmt, ...)
-{
-    int n;
-    va_list pvar;
-    char buf[256];
-
-    va_start(pvar, fmt);
-    vsprintf(buf, fmt, pvar);
-    va_end(pvar);
-
-    n = strlen(buf);
-    if (linep + n + 1 > line + sizeof(line)) {
-	syslog(LOG_DEBUG, "%s", line);
-	linep = line;
-    }
-    strcpy(linep, buf);
-    linep += n;
-}
-
-#else /* __STDC__ */
-#include <varargs.h>
-
-static void
-pr_log(arg, fmt, va_alist)
-void *arg;
-char *fmt;
-va_dcl
-{
-    int n;
-    va_list pvar;
-    char buf[256];
-
-    va_start(pvar);
-    vsprintf(buf, fmt, pvar);
-    va_end(pvar);
-
-    n = strlen(buf);
-    if (linep + n + 1 > line + sizeof(line)) {
-	syslog(LOG_DEBUG, "%s", line);
-	linep = line;
-    }
-    strcpy(linep, buf);
-    linep += n;
-}
+#else
+pr_log(va_alist)
+    va_dcl
 #endif
+{
+    int n;
+    va_list pvar;
+    char buf[256];
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    void *arg;
+    char *fmt;
+    va_start(pvar);
+    arg = va_arg(pvar, void *);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vsprintf(buf, fmt, pvar);
+    va_end(pvar);
+
+    n = strlen(buf);
+    if (linep + n + 1 > line + sizeof(line)) {
+	syslog(LOG_DEBUG, "%s", line);
+	linep = line;
+    }
+    strcpy(linep, buf);
+    linep += n;
+}
 
 /*
  * print_string - print a readable representation of a string using
@@ -1187,4 +1218,175 @@ novm(msg)
 {
     syslog(LOG_ERR, "Virtual memory exhausted allocating %s\n", msg);
     die(1);
+}
+
+/*
+ * fmtmsg - format a message into a buffer.  Like sprintf except we
+ * also specify the length of the output buffer, and we handle
+ * %r (recursive format), %m (error message) and %I (IP address) formats.
+ * Doesn't do floating-point formats.
+ * Returns the number of chars put into buf.
+ */
+int
+fmtmsg __V((char *buf, int buflen, char *fmt, ...))
+{
+    va_list args;
+    int n;
+
+#if __STDC__
+    va_start(args, fmt);
+#else
+    char *buf;
+    int buflen;
+    char *fmt;
+    va_start(args);
+    buf = va_arg(args, char *);
+    buflen = va_arg(args, int);
+    fmt = va_arg(args, char *);
+#endif
+    n = vfmtmsg(buf, buflen, fmt, args);
+    va_end(args);
+    return n;
+}
+
+/*
+ * vfmtmsg - like fmtmsg, takes a va_list instead of a list of args.
+ */
+int
+vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
+{
+    int c, i, n;
+    int width, prec;
+    int base, len, neg;
+    unsigned long val;
+    char *str, *f, *buf0;
+    va_list a;
+    char num[32];
+    static char hexchars[16] = "0123456789abcdef";
+
+    buf0 = buf;
+    --buflen;
+    while (buflen > 0) {
+	for (f = fmt; *f != '%' && *f != 0; ++f)
+	    ;
+	if (f > fmt) {
+	    len = f - fmt;
+	    if (len > buflen)
+		len = buflen;
+	    memcpy(buf, fmt, len);
+	    buf += len;
+	    buflen -= len;
+	    fmt = f;
+	}
+	if (*fmt == 0)
+	    break;
+	c = *++fmt;
+	width = prec = 0;
+	while (isdigit(c)) {
+	    width = width * 10 + c - '0';
+	    c = *++fmt;
+	}
+	if (c == '.') {
+	    c = *++fmt;
+	    while (isdigit(c)) {
+		prec = prec * 10 + c - '0';
+		c = *++fmt;
+	    }
+	}
+	str = 0;
+	base = 0;
+	neg = 0;
+	++fmt;
+	switch (c) {
+	case 'd':
+	    i = va_arg(args, int);
+	    if (i < 0) {
+		neg = 1;
+		val = -i;
+	    } else
+		val = i;
+	    base = 10;
+	    break;
+	case 'o':
+	    val = va_arg(args, unsigned int);
+	    base = 8;
+	    break;
+	case 'x':
+	    val = va_arg(args, unsigned int);
+	    base = 16;
+	    break;
+	case 'p':
+	    val = (unsigned long) va_arg(args, void *);
+	    base = 16;
+	    neg = 2;
+	    break;
+	case 's':
+	    str = va_arg(args, char *);
+	    break;
+	case 'c':
+	    num[0] = va_arg(args, int);
+	    num[1] = 0;
+	    str = num;
+	    break;
+	case 'm':
+	    str = strerror(errno);
+	    break;
+	case 'I':
+	    str = ip_ntoa(va_arg(args, u_int32_t));
+	    break;
+	case 'r':
+	    f = va_arg(args, char *);
+	    a = va_arg(args, va_list);
+	    n = vfmtmsg(buf, buflen + 1, f, a);
+	    buf += n;
+	    buflen -= n;
+	    continue;
+	default:
+	    *buf++ = '%';
+	    if (c != '%')
+		--fmt;		/* so %z outputs %z etc. */
+	    --buflen;
+	    continue;
+	}
+	if (base != 0) {
+	    str = num + sizeof(num);
+	    *--str = 0;
+	    while (str > num + neg) {
+		*--str = hexchars[val % base];
+		val = val / base;
+		if (--prec <= 0 && val == 0)
+		    break;
+	    }
+	    switch (neg) {
+	    case 1:
+		*--str = '-';
+		break;
+	    case 2:
+		*--str = 'x';
+		*--str = '0';
+		break;
+	    }
+	    len = num + sizeof(num) - 1 - str;
+	} else {
+	    len = strlen(str);
+	    if (prec > 0 && len > prec)
+		len = prec;
+	}
+	if (width > 0) {
+	    if (width > buflen)
+		width = buflen;
+	    if ((n = width - len) > 0) {
+		buflen -= n;
+		for (; n > 0; --n)
+		    *buf++ = ' ';
+	    }
+	}
+	if (len > buflen)
+	    len = buflen;
+	memcpy(buf, str, len);
+	buf += len;
+	buflen -= len;
+    }
+    *buf = 0;
+    return buf - buf0;
 }
