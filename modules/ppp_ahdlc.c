@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.7 1998/03/24 23:52:35 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.8 1998/05/04 06:11:50 paulus Exp $
  */
 
 /*
@@ -395,12 +395,14 @@ stuff_frame(q, mp)
 	goto bomb;
 
     /*
-     * Put in an initial flag for now.  We'll remove it later
-     * if we decide we don't need it.
+     * Put in an initial flag, unless the serial driver currently has
+     * packets still to be transmitted in its queue.
      */
     dp = op->b_wptr;
-    *dp++ = PPP_FLAG;
-    --olen;
+    if (qsize(q->q_next) == 0) {
+	*dp++ = PPP_FLAG;
+	--olen;
+    }
 
     /*
      * For LCP packets with code values between 1 and 7 (Conf-Req
@@ -511,12 +513,6 @@ stuff_frame(q, mp)
     *dp++ = c;
     *dp++ = PPP_FLAG;
     op->b_wptr = dp;
-
-    /*
-     * Remove the initial flag, if possible.
-     */
-    if (qsize(q->q_next) > 0)
-	++omsg->b_rptr;
 
     /*
      * Update statistics.
