@@ -601,7 +601,7 @@ void set_up_tty(int tty_fd, int local)
 
     setdtr(tty_fd, 1);
     if (tcgetattr(tty_fd, &tios) < 0) {
-	if (!ok_errno(errno))
+	if (!ok_error(errno))
 	    fatal("tcgetattr: %m(%d)", errno);
 	return;
     }
@@ -656,7 +656,7 @@ void set_up_tty(int tty_fd, int local)
     }
 
     if (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0)
-	if (!ok_errno(errno))
+	if (!ok_error(errno))
 	    fatal("tcsetattr: %m");
     
     baud_rate    = baud_rate_of(speed);
@@ -867,7 +867,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 	
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (!ok_errno(errno))
+	if (!ok_error(errno))
 	    fatal("ioctl(PPPIOCSASYNCMAP): %m(%d)", errno);
 	return;
     }
@@ -921,7 +921,7 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 
     SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	if (!ok_errno(errno))
+	if (!ok_error(errno))
 	    error("ioctl(PPPIOCSRASYNCMAP): %m(%d)", errno);
     }
 
