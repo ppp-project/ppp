@@ -40,7 +40,7 @@
 
 #include "pppd.h"
 #include "ppp.h"
-#include "ppp_str.h"
+#include <net/ppp_str.h>
 
 #ifndef ifr_mtu
 #define ifr_mtu		ifr_metric
