@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.4 1994/04/18 04:09:27 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.5 1994/05/09 02:33:41 paulus Exp $";
 #endif
 
 /*
@@ -43,7 +43,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.4 1994/04/18 04:09:27 paulus Exp $";
 #include "ppp.h"
 
 static int initdisc = -1;		/* Initial TTY discipline */
-
+extern int kdebugflag;
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
