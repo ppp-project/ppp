@@ -78,7 +78,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chat.c,v 1.17 1997/11/27 06:37:15 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.18 1998/02/04 01:35:49 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -130,9 +130,17 @@ static char rcsid[] = "$Id: chat.c,v 1.17 1997/11/27 06:37:15 paulus Exp $";
 #define O_NONBLOCK	O_NDELAY
 #endif
 
+#ifdef SUNOS
+extern int sys_nerr;
+extern char *sys_errlist[];
+#define memmove(to, from, n)	bcopy(from, to, n)
+#define strerror(n)		((unsigned)(n) < sys_nerr? sys_errlist[(n)] :\
+				 "unknown error")
+#endif
+
 /*************** Micro getopt() *********************************************/
 #define	OPTION(c,v)	(_O&2&&**v?*(*v)++:!c||_O&4?0:(!(_O&1)&& \
-				((--c,++v),_O=4,c)&&**v=='-'&&v[0][1]?*++*v=='-'\
+				(--c,++v),_O=4,c&&**v=='-'&&v[0][1]?*++*v=='-'\
 				&&!v[0][1]?(--c,++v,0):(_O=2,*(*v)++):0))
 #define	OPTARG(c,v)	(_O&2?**v||(++v,--c)?(_O=1,--c,*v++): \
 				(_O=4,(char*)0):(char*)0)
@@ -1004,7 +1012,6 @@ register char *s;
 
     if (clear_abort_next) {
 	char *s1;
-	char *s2 = s;
 	int   i;
         int   old_max;
 	int   pack = 0;
@@ -1055,7 +1062,6 @@ register char *s;
 
     if (clear_report_next) {
 	char *s1;
-        char *s2 = s;
 	int   i;
 	int   old_max;
 	int   pack = 0;
@@ -1478,7 +1484,6 @@ vfmtmsg(buf, buflen, fmt, args)
     const char *f;
     unsigned char *p;
     char num[32];
-    time_t t;
     static char hexchars[] = "0123456789abcdef";
 
     buf0 = buf;
