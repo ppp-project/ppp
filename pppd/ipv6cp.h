@@ -95,7 +95,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.h,v 1.2 1999/08/25 04:15:51 paulus Exp $
+ * $Id: ipv6cp.h,v 1.3 1999/09/30 19:57:45 masputra Exp $
  */
 
 /*
@@ -114,6 +114,9 @@ typedef struct ipv6cp_options {
     int opt_local;		/* ourtoken set by option */
     int opt_remote;		/* histoken set by option */
     int use_ip;			/* use IP as interface identifier */
+#if defined(SOL2)
+    int use_persistent;		/* use uniquely persistent value for address */
+#endif /* defined(SOL2) */
     int neg_vj;			/* Van Jacobson Compression? */
     u_short vj_protocol;	/* protocol value to use in VJ option */
     eui64_t ourid, hisid;	/* Interface identifiers */

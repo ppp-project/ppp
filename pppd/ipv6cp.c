@@ -95,10 +95,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.5 1999/09/11 12:04:22 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.6 1999/09/30 19:57:45 masputra Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.5 1999/09/11 12:04:22 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.6 1999/09/30 19:57:45 masputra Exp $"
 
 /*
  * TODO: 
@@ -192,7 +192,10 @@ static option_t ipv6cp_option_list[] = {
       "Accept peer's interface identifier for us", 1 },
     { "ipv6cp-use-ipaddr", o_bool, &ipv6cp_allowoptions[0].use_ip,
       "Use (default) IPv4 address as interface identifier", 0 },
-
+#if defined(SOL2)
+    { "ipv6cp-use-persistent", o_bool, &ipv6cp_wantoptions[0].use_persistent,
+      "Use uniquely-available persistent value for link local address", 1 },
+#endif /* defined(SOL2) */
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
       "Set timeout for IPv6CP" },
     { "ipv6cp-max-terminate", o_int, &ipv6cp_fsm[0].maxtermtransmits,
@@ -995,6 +998,28 @@ ipv6_check_options()
 {
     ipv6cp_options *wo = &ipv6cp_wantoptions[0];
 
+#if defined(SOL2)
+    /*
+     * Persistent link-local id is only used when user has not explicitly
+     * configure/hard-code the id
+     */
+    if ((wo->use_persistent) && (!wo->opt_local) && (!wo->opt_remote)) {
+
+	/* 
+	 * On systems where there are no Ethernet interfaces used, there
+	 * may be other ways to obtain a persistent id. Right now, it
+	 * will fall back to using magic [see eui64_magic] below when
+	 * an EUI-48 from MAC address can't be obtained. Other possibilities
+	 * include obtaining EEPROM serial numbers, or some other unique
+	 * yet persistent number. On Sparc platforms, this is possible,
+	 * but too bad there's no standards yet for x86 machines.
+	 */
+	if (ether_to_eui64(&wo->ourid)) {
+	    wo->opt_local = 1;
+	}
+    }
+#endif
+
     if (!wo->opt_local) {	/* init interface identifier */
 	if (wo->use_ip && eui64_iszero(wo->ourid)) {
 	    eui64_setlo32(wo->ourid, ntohl(ipcp_wantoptions[0].ouraddr));
@@ -1031,9 +1056,14 @@ ipv6_demand_conf(u)
 {
     ipv6cp_options *wo = &ipv6cp_wantoptions[u];
 
-#if defined(__linux__) || (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+#if defined(__linux__) || defined(SOL2) || (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+#if defined(SOL2)
+    if (!sif6up(u))
+	return 0;
+#else
     if (!sifup(u))
 	return 0;
+#endif /* defined(SOL2) */
 #endif    
     if (!sif6addr(u, wo->ourid, wo->hisid))
 	return 0;
@@ -1130,7 +1160,7 @@ ipv6cp_up(f)
 	/*
 	 * Set LL addresses
 	 */
-#if !defined(__linux__) && !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+#if !defined(__linux__) && !defined(SOL2) && !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
 	if (!sif6addr(f->unit, go->ourid, ho->hisid)) {
 	    if (debug)
 		warn("sif6addr failed");
@@ -1140,14 +1170,23 @@ ipv6cp_up(f)
 #endif
 
 	/* bring the interface up for IPv6 */
+#if defined(SOL2)
+	if (!sif6up(f->unit)) {
+	    if (debug)
+		warn("sifup failed (IPV6)");
+	    ipv6cp_close(f->unit, "Interface configuration failed");
+	    return;
+	}
+#else
 	if (!sifup(f->unit)) {
 	    if (debug)
 		warn("sifup failed (IPV6)");
 	    ipv6cp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
+#endif /* defined(SOL2) */
 
-#if defined(__linux__) || (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+#if defined(__linux__) || defined(SOL2) || (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
 	if (!sif6addr(f->unit, go->ourid, ho->hisid)) {
 	    if (debug)
 		warn("sif6addr failed");
@@ -1165,6 +1204,12 @@ ipv6cp_up(f)
     ipv6cp_is_up = 1;
 
     /*
+     * In Solaris, neighbor discovery and router advertisement are done
+     * automatically by in.ndpd daemon when the interface comes up or down
+     * and /etc/inet/ndpd.conf is configured properly
+     */
+#if !defined(SOL2)
+    /*
      * Execute the ipv6-up script, like this:
      *	/etc/ppp/ipv6-up interface tty speed local-LL remote-LL
      */
@@ -1172,6 +1217,7 @@ ipv6cp_up(f)
 	ipv6cp_script_state = s_up;
 	ipv6cp_script(_PATH_IPV6UP);
     }
+#endif /* !defined(SOL2) */
 }
 
 
@@ -1204,7 +1250,11 @@ ipv6cp_down(f)
     } else {
 	sifnpmode(f->unit, PPP_IPV6, NPMODE_DROP);
 #if !defined(__linux__) && !(defined(SVR4) && (defined(SNI) || defined(__USLC)))
+#if defined(SOL2)
+	sif6down(f->unit);
+#else
 	sifdown(f->unit);
+#endif /* defined(SOL2) */
 #endif
 	ipv6cp_clear_addrs(f->unit, 
 			   ipv6cp_gotoptions[f->unit].ourid,
@@ -1214,11 +1264,18 @@ ipv6cp_down(f)
 #endif
     }
 
+    /*
+     * In Solaris, neighbor discovery and router advertisement are done
+     * automatically by in.ndpd daemon when the interface comes up or down
+     * and /etc/inet/ndpd.conf is configured properly
+     */
+#if !defined(SOL2)
     /* Execute the ipv6-down script */
     if (ipv6cp_script_state == s_up && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_down;
 	ipv6cp_script(_PATH_IPV6DOWN);
     }
+#endif /* !defined(SOL2) */
 }
 
 
