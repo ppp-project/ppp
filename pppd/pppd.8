@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.63 2002/05/21 17:26:49 dfs Exp $
+.\" $Id: pppd.8,v 1.64 2002/06/01 08:47:34 mjb Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -191,7 +191,7 @@ except that qualifiers which are inappropriate for a PPP link, such as
 \fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
 expression should be enclosed in single-quotes to prevent whitespace
 in the expression from being interpreted by the shell. This option
-is currently only available under NetBSD, and then only
+is currently only available under NetBSD or Linux, and then only
 if both the kernel and pppd were compiled with PPP_FILTER defined.
 .TP
 .B allow-ip \fIaddress(es)
