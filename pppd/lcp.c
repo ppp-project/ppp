@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.28 1996/10/08 04:35:02 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.29 1997/03/04 03:39:56 paulus Exp $";
 #endif
 
 /*
@@ -232,7 +232,8 @@ lcp_close(unit, reason)
 {
     fsm *f = &lcp_fsm[unit];
 
-    phase = PHASE_TERMINATE;
+    if (phase != PHASE_DEAD)
+	phase = PHASE_TERMINATE;
     if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
 	/*
 	 * This action is not strictly according to the FSM in RFC1548,
