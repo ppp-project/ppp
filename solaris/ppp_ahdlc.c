@@ -41,7 +41,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.1 2000/04/18 23:51:28 masputra Exp $
+ * $Id: ppp_ahdlc.c,v 1.2 2002/09/18 02:17:20 carlsonj Exp $
  */
 
 /*
@@ -527,7 +527,6 @@ ahdlc_rput(q, mp)
     switch (mp->b_datap->db_type) {
     case M_DATA:
 	ahdlc_decode(q, mp);
-	freemsg(mp);
 	break;
 
     case M_HANGUP:
@@ -715,26 +714,6 @@ ahdlc_decode(q, mp)
     ahdlc_state_t   *state;
     mblk_t	    *om;
     uchar_t	    *dp;
-    ushort_t	    fcs;
-#if defined(SOL2)
-    mblk_t	    *zmp;
-#endif /* SOL2 */
-
-#if defined(SOL2)
-    /*
-     * In case the driver (or something below) doesn't send
-     * data upstream in one message block, concatenate everything
-     */
-    if (!((mp->b_wptr - mp->b_rptr == msgdsize(mp)) && 
-         ((intpointer_t)mp->b_rptr % sizeof(intpointer_t) == 0))) {
-
-	zmp = msgpullup(mp, -1);
-	freemsg(mp);
-	mp = zmp;
-	if (mp == 0)
-	    return; 
-    }
-#endif /* SOL2 */
 
     state = (ahdlc_state_t *) q->q_ptr;
 
@@ -744,6 +723,7 @@ ahdlc_decode(q, mp)
 
     state->stats.ppp_ibytes += msgdsize(mp);
 
+    for (; mp != 0; om = mp->b_cont, freeb(mp), mp = om)
     for (dp = mp->b_rptr; dp < mp->b_wptr; dp++) {
 
 	/*
