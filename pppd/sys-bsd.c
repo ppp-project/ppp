@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.3 1994/04/11 07:16:50 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.4 1994/04/18 04:09:27 paulus Exp $";
 #endif
 
 /*
@@ -32,7 +32,6 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.3 1994/04/11 07:16:50 paulus Exp $";
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/errno.h>
-#include <sys/wait.h>
 
 #include <net/if.h>
 #include <net/if_ppp.h>
@@ -43,7 +42,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.3 1994/04/11 07:16:50 paulus Exp $";
 #include "pppd.h"
 #include "ppp.h"
 
-static int initdisc;		/* Initial TTY discipline */
+static int initdisc = -1;		/* Initial TTY discipline */
 
 
 /*
@@ -53,6 +52,7 @@ void
 establish_ppp()
 {
     int pppdisc = PPPDISC;
+    int x;
 
     if (ioctl(fd, TIOCGETD, &initdisc) < 0) {
 	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
@@ -70,6 +70,19 @@ establish_ppp()
 	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m");
 	die(1);
     }
+
+    /*
+     * Enable debug in the driver if requested.
+     */
+    if (kdebugflag) {
+	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_WARNING, "ioctl (PPPIOCGFLAGS): %m");
+	} else {
+	    x |= (kdebugflag & 0xFF) * SC_DEBUG;
+	    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+		syslog(LOG_WARNING, "ioctl(PPPIOCSFLAGS): %m");
+	}
+    }
 }
 
 
@@ -80,8 +93,37 @@ establish_ppp()
 void
 disestablish_ppp()
 {
-    if (ioctl(fd, TIOCSETD, &initdisc) < 0)
-	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+    int x;
+    char *s;
+
+    if (initdisc >= 0) {
+	/*
+	 * Check whether the link seems not to be 8-bit clean.
+	 */
+	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) == 0) {
+	    s = NULL;
+	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP)) {
+	    case SC_RCV_B7_0:
+		s = "bit 7 set to 1";
+		break;
+	    case SC_RCV_B7_1:
+		s = "bit 7 set to 0";
+		break;
+	    case SC_RCV_EVNP:
+		s = "odd parity";
+		break;
+	    case SC_RCV_ODDP:
+		s = "even parity";
+		break;
+	    }
+	    if (s != NULL) {
+		syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
+		syslog(LOG_WARNING, "All received characters had %s", s);
+	    }
+	}
+	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
+	    syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+    }
 }
 
 
@@ -164,9 +206,23 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     }
 }
 
+
+/*
+ * ppp_set_xaccm - set the extended transmit ACCM for the interface.
+ */
+void
+ppp_set_xaccm(unit, accm)
+    int unit;
+    ext_accm accm;
+{
+    if (ioctl(fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
+	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
+}
+
+
 /*
  * ppp_recv_config - configure the receive-side characteristics of
- * the ppp interface.  At present this does nothing.
+ * the ppp interface.
  */
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
@@ -222,12 +278,14 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 }
 
 /*
- * sifup - Config the interface up.
+ * sifup - Config the interface up and enable IP packets to pass.
  */
 int
 sifup(u)
 {
     struct ifreq ifr;
+    u_int x;
+
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
@@ -238,27 +296,51 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	return 0;
+    }
+    x |= SC_ENABLE_IP;
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	return 0;
+    }
     return 1;
 }
 
 /*
- * sifdown - Config the interface down.
+ * sifdown - Config the interface down and disable IP.
  */
 int
 sifdown(u)
 {
     struct ifreq ifr;
+    u_int x;
+    int rv;
+
+    rv = 1;
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	rv = 0;
+    } else {
+	x &= ~SC_ENABLE_IP;
+	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	    rv = 0;
+	}
+    }
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
-	return 0;
+	rv = 0;
+    } else {
+	ifr.ifr_flags &= ~IFF_UP;
+	if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+	    rv = 0;
+	}
     }
-    ifr.ifr_flags &= ~IFF_UP;
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
-	return 0;
-    }
-    return 1;
+    return rv;
 }
 
 /*
@@ -492,11 +574,11 @@ get_ether_addr(ipaddr, hwaddr)
     return 0;
 }
 
+
 /*
  * ppp_available - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
-
 int
 ppp_available()
 {
@@ -511,43 +593,4 @@ ppp_available()
     close(s);
 
     return ok;
-}
-
-/*
- * run-program - execute a program with given arguments.
- * Returns the exit status, or -1 if an error occurred.
- * If the program can't be executed, logs an error unless
- * must_exist is 0 and the program file doesn't exist.
- */
-
-int
-run_program(prog, args, must_exist)
-    char *prog;
-    char **args;
-    int must_exist;
-{
-    pid_t pid;
-    int status;
-
-    pid = fork();
-    if (pid == -1) {
-	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
-	return -1;
-    }
-    if (pid == 0) {
-	execv(prog, args);
-	if (must_exist || errno != ENOENT)
-	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
-	_exit(-1);
-    }
-    if (waitpid(pid, &status, 0) == -1) {
-	syslog(LOG_ERR, "waitpid: %m");
-	return -1;
-    }
-    if (WIFSIGNALED(status)) {
-	syslog(LOG_INFO, "%s terminated with signal %d", prog,
-	       WTERMSIG(status));
-	return -1;
-    }
-    return WEXITSTATUS(status);
 }

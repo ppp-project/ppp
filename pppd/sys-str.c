@@ -32,7 +32,6 @@
 #include <sys/time.h>
 #include <sys/stream.h>
 #include <sys/stropts.h>
-#include <sys/wait.h>
 
 #include <net/if.h>
 #include <net/route.h>
@@ -41,6 +40,7 @@
 
 #include "pppd.h"
 #include "ppp.h"
+#include <net/if_ppp.h>
 #include <net/ppp_str.h>
 
 #ifndef ifr_mtu
@@ -52,8 +52,16 @@ static struct	modlist {
     char	modname[FMNAMESZ+1];
 } str_modules[MAXMODULES];
 static int	str_module_count = 0;
+static int	pushed_ppp;
 
 extern int hungup;		/* has the physical layer been disconnected? */
+extern int kdebugflag;
+
+#define PAI_FLAGS_B7_0		0x100
+#define PAI_FLAGS_B7_1		0x200
+#define PAI_FLAGS_PAR_EVEN	0x400
+#define PAI_FLAGS_PAR_ODD	0x800
+#define PAI_FLAGS_HIBITS	0xF00
 
 /*
  * ppp_available - check if this kernel supports PPP.
@@ -88,8 +96,6 @@ establish_ppp()
 	str_module_count++;
     }
 
-    MAINDEBUG((LOG_INFO, "about to push modules..."));
-
     /* now push the async/fcs module */
     if (ioctl(fd, I_PUSH, "pppasync") < 0) {
 	syslog(LOG_ERR, "ioctl(I_PUSH, ppp_async): %m");
@@ -101,6 +107,7 @@ establish_ppp()
 	syslog(LOG_ERR, "ioctl(I_PUSH, ppp_if): %m");
 	die(1);
     }
+    pushed_ppp = 1;
     if (ioctl(fd, I_SETSIG, S_INPUT) < 0) {
 	syslog(LOG_ERR, "ioctl(I_SETSIG, S_INPUT): %m");
 	die(1);
@@ -124,15 +131,10 @@ establish_ppp()
 	die(1);
     }
 
-    /* if debug, set debug flags in driver */
-    {
-	int flags = debug ? 0x3 : 0;
-	if (ioctl(fd, SIOCSIFDEBUG, &flags) < 0) {
-	    syslog(LOG_ERR, "ioctl(SIOCSIFDEBUG): %m");
-	}
+    /* Set debug flags in driver */
+    if (ioctl(fd, SIOCSIFDEBUG, &kdebugflag) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCSIFDEBUG): %m");
     }
-
-    MAINDEBUG((LOG_INFO, "done pushing modules, ifunit %d", ifunit));
 }
 
 /*
@@ -143,7 +145,8 @@ establish_ppp()
 void
 disestablish_ppp()
 {
-    /*EMPTY*/
+    int flags;
+    char *s;
 
     if (hungup) {
 	/* we can't push or pop modules after the stream has hung up */
@@ -151,12 +154,40 @@ disestablish_ppp()
 	return;
     }
 
+    if (pushed_ppp) {
+	/*
+	 * Check whether the link seems not to be 8-bit clean.
+	 */
+	if (ioctl(fd, SIOCGIFDEBUG, (caddr_t) &flags) == 0) {
+	    s = NULL;
+	    switch (~flags & PAI_FLAGS_HIBITS) {
+	    case PAI_FLAGS_B7_0:
+		s = "bit 7 set to 1";
+		break;
+	    case PAI_FLAGS_B7_1:
+		s = "bit 7 set to 0";
+		break;
+	    case PAI_FLAGS_PAR_EVEN:
+		s = "odd parity";
+		break;
+	    case PAI_FLAGS_PAR_ODD:
+		s = "even parity";
+		break;
+	    }
+	    if (s != NULL) {
+		syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
+		syslog(LOG_WARNING, "All received characters had %s", s);
+	    }
+	}
+    }
+
     while (ioctl(fd, I_POP, 0) == 0)	/* pop any we pushed */
 	;
+    pushed_ppp = 0;
   
     for (; str_module_count > 0; str_module_count--) {
 	if (ioctl(fd, I_PUSH, str_modules[str_module_count-1].modname)) {
-	    syslog(LOG_ERR, "str_restore: couldn't push module %s: %m",
+	    syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
 		   str_modules[str_module_count-1].modname);
 	} else {
 	    MAINDEBUG((LOG_INFO, "str_restore: pushed module %s",
@@ -249,22 +280,36 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	quit();
     }
 
-    c = pcomp;
+    c = (pcomp? 1: 0);
     if(ioctl(fd, SIOCSIFCOMPPROT, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
 	quit();
     }
 
-    c = accomp;
+    c = (accomp? 1: 0);
     if(ioctl(fd, SIOCSIFCOMPAC, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
 	quit();
     }
 }
 
+
+/*
+ * ppp_set_xaccm - set the extended transmit ACCM for the interface.
+ */
+void
+ppp_set_xaccm(unit, accm)
+    int unit;
+    ext_accm accm;
+{
+    if (ioctl(fd, SIOCSIFXASYNCMAP, accm) < 0 && errno != ENOTTY)
+	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
+}
+
+
 /*
  * ppp_recv_config - configure the receive-side characteristics of
- * the ppp interface.  At present this just sets the MRU.
+ * the ppp interface.
  */
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
@@ -278,17 +323,19 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	syslog(LOG_ERR, "ioctl(SIOCSIFMRU): %m");
     }
 
-#ifdef notyet
-    if(ioctl(fd, SIOCSIFRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(fd, SIOCSIFRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFRASYNCMAP): %m");
     }
 
-    c = accomp;
-    if(ioctl(fd, SIOCSIFRCOMPAC, &c) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFRCOMPAC): %m");
-	quit();
+    c = 2 + (pcomp? 1: 0);
+    if(ioctl(fd, SIOCSIFCOMPPROT, &c) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
     }
-#endif	/* notyet */
+
+    c = 2 + (accomp? 1: 0);
+    if (ioctl(fd, SIOCSIFCOMPAC, &c) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
+    }
 }
 
 /*
@@ -298,9 +345,10 @@ int
 sifvjcomp(u, vjcomp, cidcomp, maxcid)
     int u, vjcomp, cidcomp, maxcid;
 {
-    char x = vjcomp;
+    char x;
 
-    if(ioctl(fd, SIOCSIFVJCOMP, (caddr_t) &x) < 0) {
+    x = (vjcomp? 1: 0) + (cidcomp? 0: 2) + (maxcid << 4);
+    if (ioctl(fd, SIOCSIFVJCOMP, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFVJCOMP): %m");
 	return 0;
     }
@@ -464,7 +512,7 @@ sifproxyarp(unit, hisaddr)
      * as our local address.
      */
     if (!get_ether_addr(hisaddr, &arpreq.arp_ha)) {
-	syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
+	syslog(LOG_WARNING, "Cannot determine ethernet address for proxy ARP");
 	return 0;
     }
 
@@ -644,61 +692,4 @@ get_ether_addr(ipaddr, hwaddr)
 
     /* couldn't find one */
     return 0;
-}
-
-
-/*
- * run-program - execute a program with given arguments,
- * but don't wait for it.
- * If the program can't be executed, logs an error unless
- * must_exist is 0 and the program file doesn't exist.
- */
-static int n_children;
-
-int
-run_program(prog, args, must_exist)
-    char *prog;
-    char **args;
-    int must_exist;
-{
-    int pid;
-
-    pid = fork();
-    if (pid == -1) {
-	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
-	return -1;
-    }
-    if (pid == 0) {
-	execv(prog, args);
-	if (must_exist || errno != ENOENT)
-	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
-	_exit(-1);
-    }
-    MAINDEBUG(("Script %s started; pid = %d", prog, pid));
-    ++n_children;
-    return 0;
-}
-
-
-/*
- * reap_kids - get status from any dead child processes,
- * and log a message for abnormal terminations.
- */
-void
-reap_kids()
-{
-    int pid, status;
-
-    if (n_children == 0)
-	return;
-    if ((pid = waitpid(-1, &status, WNOHANG)) == -1) {
-	if (errno != ECHILD)
-	    syslog(LOG_ERR, "waitpid: %m");
-	return;
-    }
-    --n_children;
-    if (WIFSIGNALED(status)) {
-	syslog(LOG_WARNING, "child process %d terminated with signal %d",
-	       pid, WTERMSIG(status));
-    }
 }
