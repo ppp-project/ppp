@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.66 2003/03/04 05:13:59 fcusack Exp $"
+#define RCSID	"$Id: lcp.c,v 1.67 2003/05/09 11:49:46 carlsonj Exp $"
 
 /*
  * TODO:
@@ -1603,11 +1603,11 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		}
 		if (!ao->neg_upap) {	/* we don't want to do PAP */
 		    orc = CONFNAK;	/* NAK it and suggest CHAP or EAP */
+		    PUTCHAR(CI_AUTHTYPE, nakp);
 		    if (ao->neg_eap) {
 			PUTCHAR(CILEN_SHORT, nakp);
 			PUTSHORT(PPP_EAP, nakp);
 		    } else {
-			PUTCHAR(CI_AUTHTYPE, nakp);
 			PUTCHAR(CILEN_CHAP, nakp);
 			PUTSHORT(PPP_CHAP, nakp);
 			PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakp);
