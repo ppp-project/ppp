@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.39 1999/03/19 01:29:44 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.40 1999/03/19 04:23:47 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -559,7 +559,8 @@ wait_input(timo)
 /*
  * add_fd - add an fd to the set that wait_input waits for.
  */
-void add_fd(int fd)
+void add_fd(fd)
+    int fd;
 {
     FD_SET(fd, &in_fds);
     if (fd > max_in_fd)
@@ -569,7 +570,8 @@ void add_fd(int fd)
 /*
  * remove_fd - remove an fd from the set that wait_input waits for.
  */
-void remove_fd(int fd)
+void remove_fd(fd)
+    int fd;
 {
     FD_CLR(fd, &in_fds);
 }
@@ -788,6 +790,26 @@ get_idle_time(u, ip)
     struct ppp_idle *ip;
 {
     return ioctl(ppp_fd, PPPIOCGIDLE, ip) >= 0;
+}
+
+/*
+ * get_ppp_stats - return statistics for the link.
+ */
+int
+get_ppp_stats(u, stats)
+    int u;
+    struct ppp_stats *stats;
+{
+    struct ifpppstatsreq req;
+
+    memset (&req, 0, sizeof (req));
+    strlcpy(req.ifr_name, interface, sizeof(req.ifr_name));
+    if (ioctl(sockfd, SIOCGPPPSTATS, &req) < 0) {
+	error("Couldn't get PPP statistics: %m");
+	return 0;
+    }
+    *stats = req.stats;
+    return 1;
 }
 
 

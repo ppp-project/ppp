@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.62 1999/03/19 01:26:41 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.63 1999/03/19 04:23:40 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -115,6 +115,11 @@ char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 GIDSET_TYPE groups[NGROUPS_MAX];/* groups the user is in */
 int ngroups;			/* How many groups valid in groups */
 
+static struct timeval start_time;	/* Time when link was started. */
+
+struct ppp_stats link_stats;
+int link_stats_valid;
+
 /* Prototypes for procedures local to this file. */
 
 static void create_pidfile __P((void));
@@ -190,6 +195,7 @@ main(argc, argv)
     struct protent *protp;
     struct stat statbuf;
     char numbuf[16];
+    struct timeval now;
 
     phase = PHASE_INITIALIZE;
     p = ttyname(0);
@@ -562,6 +568,7 @@ main(argc, argv)
 	 * incoming events (reply, timeout, etc.).
 	 */
 	notice("Connect: %s <--> %s", ifname, devnam);
+	gettimeofday(&start_time, NULL);
 	lcp_lowerup(0);
 	lcp_open(0);		/* Start protocol */
 	open_ccp_flag = 0;
@@ -592,6 +599,19 @@ main(argc, argv)
 		open_ccp_flag = 0;
 	    }
 	    reap_kids();	/* Don't leave dead kids lying around */
+	}
+
+	/*
+	 * Print connect time and statistics.
+	 */
+	if (gettimeofday(&now, NULL) >= 0) {
+	    int t = now.tv_sec - start_time.tv_sec;
+	    t = (t + 5) / 6;	/* now in 1/10ths of minutes */
+	    info("Connect time %d.%d minutes", t/10, t%10);
+	}
+	if (link_stats_valid) {
+	    info("Send %d bytes, received %d bytes",
+		 link_stats.p.ppp_obytes, link_stats.p.ppp_ibytes);
 	}
 
 	/*
@@ -1883,7 +1903,10 @@ script_unsetenv(var)
  * always leaves destination null-terminated (for len > 0).
  */
 size_t
-strlcpy(char *dest, const char *src, size_t len)
+strlcpy(dest, src, len)
+    char *dest;
+    const char *src;
+    size_t len;
 {
     size_t ret = strlen(src);
 
@@ -1903,7 +1926,10 @@ strlcpy(char *dest, const char *src, size_t len)
  * always leaves destination null-terminated (for len > 0).
  */
 size_t
-strlcat(char *dest, const char *src, size_t len)
+strlcat(dest, src, len)
+    char *dest;
+    const char *src;
+    size_t len;
 {
     size_t dlen = strlen(dest);
 

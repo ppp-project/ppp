@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.16 1999/03/19 01:29:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.17 1999/03/19 04:23:50 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -618,6 +618,44 @@ wait_input(timo)
 }
 
 /*
+ * add_fd - add an fd to the set that wait_input waits for.
+ */
+void add_fd(fd)
+    int fd;
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n)
+	if (pollfds[n].fd == fd)
+	    return;
+    if (n_pollfds < MAX_POLLFDS) {
+	pollfds[n_pollfds].fd = fd;
+	pollfds[n_pollfds].events = POLLIN | POLLPRI | POLLHUP;
+	++n_pollfds;
+    } else
+	error("Too many inputs!");
+}
+
+/*
+ * remove_fd - remove an fd from the set that wait_input waits for.
+ */
+void remove_fd(fd)
+    int fd;
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n) {
+	if (pollfds[n].fd == fd) {
+	    while (++n < n_pollfds)
+		pollfds[n-1] = pollfds[n];
+	    --n_pollfds;
+	    break;
+	}
+    }
+}
+
+#if 0
+/*
  * wait_loop_output - wait until there is data available on the
  * loopback, for the length of time specified by *timo (indefinite
  * if timo is NULL).
@@ -643,7 +681,7 @@ wait_time(timo)
     if (n < 0 && errno != EINTR)
 	fatal("select: %m");
 }
-
+#endif
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -819,6 +857,21 @@ get_idle_time(u, ip)
     struct ppp_idle *ip;
 {
     return strioctl(pppfd, PPPIO_GIDLE, ip, 0, sizeof(struct ppp_idle)) >= 0;
+}
+
+/*
+ * get_ppp_stats - return statistics for the link.
+ */
+int
+get_ppp_stats(u, stats)
+    int u;
+    struct ppp_stats *stats;
+{
+    if (strioctl(pppfd, PPPIO_GETSTAT, stats, 0, sizeof(*stats)) < 0) {
+	error("Couldn't get link statistics: %m");
+	return 0;
+    }
+    return 1;
 }
 
 

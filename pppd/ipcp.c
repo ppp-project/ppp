@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.42 1999/03/19 01:19:31 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.43 1999/03/19 04:23:39 paulus Exp $";
 #endif
 
 /*
@@ -1520,6 +1520,8 @@ ipcp_down(f)
     fsm *f;
 {
     IPCPDEBUG(("ipcp: down"));
+    if (get_ppp_stats(f->unit, &link_stats))
+	link_stats_valid = 1;
     if (ipcp_is_up) {
 	ipcp_is_up = 0;
 	np_down(f->unit, PPP_IP);

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.32 1999/03/19 01:28:27 paulus Exp $
+ * $Id: pppd.h,v 1.33 1999/03/19 04:23:45 paulus Exp $
  */
 
 /*
@@ -27,6 +27,7 @@
 #define __PPPD_H__
 
 #include <stdio.h>		/* for FILE */
+#include <limits.h>		/* for NGROUPS_MAX */
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
@@ -130,6 +131,8 @@ extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
 extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
+extern struct ppp_stats link_stats; /* byte/packet counts etc. for link */
+extern int	link_stats_valid; /* set if link_stats is valid */
 
 /*
  * Variables set by command-line options.
@@ -302,6 +305,7 @@ void demand_unblock __P((void)); /* set all NPs to pass packets */
 void demand_discard __P((void)); /* set all NPs to discard packets */
 void demand_rexmit __P((int));	/* retransmit saved frames for an NP */
 int  loop_chars __P((unsigned char *, int)); /* process chars from loopback */
+int  loop_frame __P((unsigned char *, int)); /* should we bring link up? */
 
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
@@ -337,6 +341,8 @@ void ccp_flags_set __P((int, int, int));
 int  ccp_fatal_error __P((int)); /* Test for fatal decomp error in kernel */
 int  get_idle_time __P((int, struct ppp_idle *));
 				/* Find out how long link has been idle */
+int  get_ppp_stats __P((int, struct ppp_stats *));
+				/* Return link statistics */
 int  sifvjcomp __P((int, int, int, int));
 				/* Configure VJ TCP header compression */
 int  sifup __P((int));		/* Configure i/f up (for IP) */

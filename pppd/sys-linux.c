@@ -966,6 +966,29 @@ get_idle_time(u, ip)
 
 /********************************************************************
  *
+ * get_ppp_stats - return statistics for the link.
+ */
+int
+get_ppp_stats(u, stats)
+    int u;
+    struct ppp_stats *stats;
+{
+    struct ifpppstatsreq req;
+
+    memset (&req, 0, sizeof (req));
+
+    req.stats_ptr = (caddr_t) &req.stats;
+    strlcpy(req.ifr__name, ifname, sizeof(req.ifr__name));
+    if (ioctl(sock_fd, SIOCGPPPSTATS, &req) < 0) {
+	error("Couldn't get PPP statistics: %m");
+	return 0;
+    }
+    *stats = req.stats;
+    return 1;
+} 
+
+/********************************************************************
+ *
  * ccp_fatal_error - returns 1 if decompression was disabled as a
  * result of an error detected after decompression of a packet,
  * 0 otherwise.  This is necessary because of patent nonsense.

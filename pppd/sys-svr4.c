@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.27 1999/03/19 01:29:50 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.28 1999/03/19 04:23:52 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -683,7 +683,8 @@ wait_input(timo)
 /*
  * add_fd - add an fd to the set that wait_input waits for.
  */
-void add_fd(int fd)
+void add_fd(fd)
+    int fd;
 {
     int n;
 
@@ -701,7 +702,8 @@ void add_fd(int fd)
 /*
  * remove_fd - remove an fd from the set that wait_input waits for.
  */
-void remove_fd(int fd)
+void remove_fd(fd)
+    int fd;
 {
     int n;
 
@@ -928,6 +930,21 @@ get_idle_time(u, ip)
     struct ppp_idle *ip;
 {
     return strioctl(pppfd, PPPIO_GIDLE, ip, 0, sizeof(struct ppp_idle)) >= 0;
+}
+
+/*
+ * get_ppp_stats - return statistics for the link.
+ */
+int
+get_ppp_stats(u, stats)
+    int u;
+    struct ppp_stats *stats;
+{
+    if (strioctl(pppfd, PPPIO_GETSTAT, stats, 0, sizeof(*stats)) < 0) {
+	error("Couldn't get link statistics: %m");
+	return 0;
+    }
+    return 1;
 }
 
 #if 0

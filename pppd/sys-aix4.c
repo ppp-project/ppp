@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.18 1999/03/19 01:29:40 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.19 1999/03/19 04:23:46 paulus Exp $";
 #endif
 
 /*
@@ -581,7 +581,8 @@ wait_input(timo)
 /*
  * add_fd - add an fd to the set that wait_input waits for.
  */
-void add_fd(int fd)
+void add_fd(fd)
+    int fd;
 {
     int n;
 
@@ -599,7 +600,8 @@ void add_fd(int fd)
 /*
  * remove_fd - remove an fd from the set that wait_input waits for.
  */
-void remove_fd(int fd)
+void remove_fd(fd)
+    int fd;
 {
     int n;
 
