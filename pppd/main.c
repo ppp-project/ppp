@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.43 1997/11/27 06:09:20 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.44 1998/02/04 01:40:59 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -40,7 +40,6 @@ static char rcsid[] = "$Id: main.c,v 1.43 1997/11/27 06:09:20 paulus Exp $";
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <net/if.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -69,7 +68,7 @@ extern char *strerror();
 #endif
 
 /* interface vars */
-char ifname[IFNAMSIZ];		/* Interface name */
+char ifname[32];		/* Interface name */
 int ifunit;			/* Interface unit number */
 
 char *progname;			/* Name of this program */
