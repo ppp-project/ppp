@@ -95,10 +95,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.6 1999/09/30 19:57:45 masputra Exp $ 
+ * $Id: ipv6cp.c,v 1.7 1999/10/08 01:08:18 masputra Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.6 1999/09/30 19:57:45 masputra Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.7 1999/10/08 01:08:18 masputra Exp $"
 
 /*
  * TODO: 
@@ -1204,12 +1204,6 @@ ipv6cp_up(f)
     ipv6cp_is_up = 1;
 
     /*
-     * In Solaris, neighbor discovery and router advertisement are done
-     * automatically by in.ndpd daemon when the interface comes up or down
-     * and /etc/inet/ndpd.conf is configured properly
-     */
-#if !defined(SOL2)
-    /*
      * Execute the ipv6-up script, like this:
      *	/etc/ppp/ipv6-up interface tty speed local-LL remote-LL
      */
@@ -1217,7 +1211,6 @@ ipv6cp_up(f)
 	ipv6cp_script_state = s_up;
 	ipv6cp_script(_PATH_IPV6UP);
     }
-#endif /* !defined(SOL2) */
 }
 
 
@@ -1264,18 +1257,11 @@ ipv6cp_down(f)
 #endif
     }
 
-    /*
-     * In Solaris, neighbor discovery and router advertisement are done
-     * automatically by in.ndpd daemon when the interface comes up or down
-     * and /etc/inet/ndpd.conf is configured properly
-     */
-#if !defined(SOL2)
     /* Execute the ipv6-down script */
     if (ipv6cp_script_state == s_up && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_down;
 	ipv6cp_script(_PATH_IPV6DOWN);
     }
-#endif /* !defined(SOL2) */
 }
 
 
