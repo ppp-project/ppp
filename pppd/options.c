@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.31 1996/05/27 00:04:47 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.32 1996/07/01 01:18:23 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -99,11 +99,13 @@ char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	cryptpap;		/* Passwords in pap-secrets are encrypted */
 int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
+int	refuse_pap = 0;		/* Set to say we won't do PAP */
+int	refuse_chap = 0;	/* Set to say we won't do CHAP */
 
 /*
  * Prototypes
  */
-static int setdevname __P((char *));
+static int setdevname __P((char *, int));
 static int setipaddr __P((char *));
 static int setdebug __P((void));
 static int setkdebug __P((char **));
@@ -187,10 +189,6 @@ static int setipparam __P((char **));
 static int setpapcrypt __P((void));
 static int setidle __P((char **));
 static int setholdoff __P((char **));
-#if 0
-static int setpassfilter __P((char **));
-static int setactivefilter __P((char **));
-#endif
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
@@ -329,10 +327,6 @@ static struct cmd {
     {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
     {"idle", 1, setidle},		/* idle time limit (seconds) */
     {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
-#if 0
-    {"pass-filter", 1, setpassfilter},	/* set filter for packets to pass */
-    {"active-filter", 1, setactivefilter}, /* set filter for active pkts */
-#endif
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -428,7 +422,7 @@ parse_args(argc, argv)
 	    /*
 	     * Maybe a tty name, speed or IP address?
 	     */
-	    if ((ret = setdevname(arg)) == 0
+	    if ((ret = setdevname(arg, 0)) == 0
 		&& (ret = setspeed(arg)) == 0
 		&& (ret = setipaddr(arg)) == 0) {
 		option_error("unrecognized option '%s'", arg);
@@ -440,6 +434,38 @@ parse_args(argc, argv)
 	}
     }
     return 1;
+}
+
+/*
+ * scan_args - scan the command line arguments to get the tty name,
+ * if specified.
+ */
+void
+scan_args(argc, argv)
+    int argc;
+    char **argv;
+{
+    char *arg;
+    struct cmd *cmdp;
+
+    while (argc > 0) {
+	arg = *argv++;
+	--argc;
+
+	/* Skip options and their arguments */
+	for (cmdp = cmds; cmdp->cmd_name; cmdp++)
+	    if (!strcmp(arg, cmdp->cmd_name))
+		break;
+
+	if (cmdp->cmd_name != NULL) {
+	    argc -= cmdp->num_args;
+	    argv += cmdp->num_args;
+	    continue;
+	}
+
+	/* Check if it's a tty name and copy it if so */
+	(void) setdevname(arg, 1);
+    }
 }
 
 /*
@@ -511,7 +537,7 @@ options_from_file(filename, must_exist, check_prot)
 	    /*
 	     * Maybe a tty name, speed or IP address?
 	     */
-	    if ((ret = setdevname(cmd)) == 0
+	    if ((ret = setdevname(cmd, 0)) == 0
 		&& (ret = setspeed(cmd)) == 0
 		&& (ret = setipaddr(cmd)) == 0) {
 		option_error("In file %s: unrecognized option '%s'",
@@ -1112,7 +1138,7 @@ setsilent()
 static int
 nopap()
 {
-    lcp_allowoptions[0].neg_upap = 0;
+    refuse_pap = 1;
     return (1);
 }
 
@@ -1178,7 +1204,7 @@ setupapfile(argv)
 static int
 nochap()
 {
-    lcp_allowoptions[0].neg_chap = 0;
+    refuse_chap = 1;
     return (1);
 }
 
@@ -1390,8 +1416,9 @@ setspeed(arg)
  * setdevname - Set the device name.
  */
 static int
-setdevname(cp)
+setdevname(cp, quiet)
     char *cp;
+    int quiet;
 {
     struct stat statbuf;
     char dev[MAXPATHLEN];
@@ -1410,7 +1437,7 @@ setdevname(cp)
      * Check if there is a device by this name.
      */
     if (stat(cp, &statbuf) < 0) {
-	if (errno == ENOENT)
+	if (errno == ENOENT || quiet)
 	    return 0;
 	option_error("Couldn't stat %s: %m", cp);
 	return -1;
@@ -2115,14 +2142,14 @@ setipxnode(argv)
 static int
 setipxproto()
 {
-    ipx_enabled = 1;		/* Enable IPXCP and IPX protocol */
+    ipxcp_protent.enabled_flag = 1;
     return 1;
 }
 
 static int
 resetipxproto()
 {
-    ipx_enabled = 0;		/* Disable IPXCP and IPX protocol */
+    ipxcp_protent.enabled_flag = 0;
     return 1;
 }
 #endif /* IPX_CHANGE */
