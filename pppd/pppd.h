@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.42 1999/07/21 00:24:32 paulus Exp $
+ * $Id: pppd.h,v 1.43 1999/08/12 04:22:53 paulus Exp $
  */
 
 /*
@@ -160,6 +160,7 @@ extern int	log_to_fd;	/* logging to this fd as well as syslog */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 extern volatile int status;	/* exit status for pppd */
 extern int	devnam_fixed;	/* can no longer change devnam */
+extern int	unsuccess;	/* # unsuccessful connection attempts */
 
 /*
  * Variables set by command-line options.
@@ -183,7 +184,7 @@ extern char	*welcomer;	/* Script to welcome client after connection */
 extern char	*ptycommand;	/* Command to run on other side of pty */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
 extern char	user[MAXNAMELEN];/* Our name for authenticating ourselves */
-extern char	passwd[MAXSECRETLEN];	/* Password for PAP */
+extern char	passwd[MAXSECRETLEN];	/* Password for PAP or CHAP */
 extern bool	auth_required;	/* Peer is required to authenticate */
 extern bool	persist;	/* Reopen link after it goes down */
 extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
@@ -198,6 +199,7 @@ extern int	holdoff;	/* Dead time before restarting */
 extern bool	notty;		/* Stdin/out is not a tty */
 extern char	*record_file;	/* File to record chars sent/received */
 extern bool	sync_serial;	/* Device is synchronous serial device */
+extern int	maxfail;	/* Max # of unsuccessful connection attempts */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -531,6 +533,7 @@ extern struct option_info ptycommand_info;
 #define EXIT_HANGUP		16
 #define EXIT_LOOPBACK		17
 #define EXIT_INIT_FAILED	18
+#define EXIT_AUTH_TOPEER_FAILED	19
 
 /*
  * Debug macros.  Slightly useful for finding bugs in pppd, not particularly

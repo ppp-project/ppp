@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.42 1999/08/04 15:53:13 johnsonm Exp $
+.\" $Id: pppd.8,v 1.43 1999/08/12 04:22:53 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -454,6 +454,10 @@ system password database to be allowed access.
 Terminate the connection when it has been available for network
 traffic for \fIn\fR seconds (i.e. \fIn\fR seconds after the first
 network control protocol comes up).
+.TP
+.B maxfail \fIn
+Terminate after \fIn\fR consecutive failed connection attempts.  A
+value of 0 means no limit.  The default value is 10.
 .TP
 .B modem
 Use the modem control lines.  This option is the default.  With this
@@ -1152,6 +1156,9 @@ The PPP negotiation failed because serial loopback was detected.
 .TP
 .B 18
 The init script failed (returned a non-zero exit status).
+.TP
+.B 19
+We failed to authenticate ourselves to the peer.
 .SH SCRIPTS
 Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
