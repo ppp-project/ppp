@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.3 1994/04/18 03:59:28 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.4 1994/05/18 05:59:43 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -696,6 +696,10 @@ auth_ip_addr(unit, addr)
     struct hostent *hp;
     struct wordlist *addrs;
 
+    /* don't allow loopback or multicast address */
+    if (bad_ip_adrs(addr))
+	return 0;
+
     if ((addrs = addresses[unit]) == NULL)
 	return 1;		/* no restriction */
 
@@ -715,6 +719,20 @@ auth_ip_addr(unit, addr)
 	    return 1;
     }
     return 0;			/* not in list => can't have it */
+}
+
+/*
+ * bad_ip_adrs - return 1 if the IP address is one we don't want
+ * to use, such as an address in the loopback net or a multicast address.
+ * addr is in network byte order.
+ */
+int
+bad_ip_adrs(addr)
+    u_long addr;
+{
+    addr = ntohl(addr);
+    return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET
+	|| IN_MULTICAST(addr) || IN_BADCLASS(addr);
 }
 
 /*
