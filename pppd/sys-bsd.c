@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.5 1994/05/09 02:33:41 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.6 1994/05/24 11:27:56 paulus Exp $";
 #endif
 
 /*
@@ -282,6 +282,7 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
  */
 int
 sifup(u)
+    int u;
 {
     struct ifreq ifr;
     u_int x;
@@ -313,6 +314,7 @@ sifup(u)
  */
 int
 sifdown(u)
+    int u;
 {
     struct ifreq ifr;
     u_int x;
@@ -357,6 +359,8 @@ sifdown(u)
  */
 int
 sifaddr(u, o, h, m)
+    int u;
+    u_long o, h, m;
 {
     struct ifaliasreq ifra;
 
@@ -386,6 +390,8 @@ sifaddr(u, o, h, m)
  */
 int
 cifaddr(u, o, h)
+    int u;
+    u_long o, h;
 {
     struct ifaliasreq ifra;
 
@@ -407,6 +413,8 @@ cifaddr(u, o, h)
  */
 int
 sifdefaultroute(u, g)
+    int u;
+    u_long g;
 {
     struct ortentry rt;
 
@@ -426,6 +434,8 @@ sifdefaultroute(u, g)
  */
 int
 cifdefaultroute(u, g)
+    int u;
+    u_long g;
 {
     struct ortentry rt;
 
