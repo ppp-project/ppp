@@ -1,6 +1,6 @@
 #
 # pppd makefile for OSF/1 on DEC Alpha
-# $Id: Makefile.osf,v 1.9 1999/04/12 06:24:44 paulus Exp $
+# $Id: Makefile.osf,v 1.10 1999/04/27 22:31:18 varadhan Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -20,7 +20,7 @@ COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int -D_SOCKADDR_LEN -DCHAPMS \
 COPTS = -g
 LIBS = 
 
-CFLAGS = -I../include $(COPTS) $(COMPILE_FLAGS)
+CFLAGS = -I. -I../include $(COPTS) $(COMPILE_FLAGS)
 
 all: pppd
 
