@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.6 1994/05/26 06:37:19 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.7 1994/05/27 01:01:49 paulus Exp $";
 #endif
 
 /*
@@ -26,6 +26,7 @@ static char rcsid[] = "$Id: lcp.c,v 1.6 1994/05/26 06:37:19 paulus Exp $";
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <syslog.h>
 #include <assert.h>
 #include <sys/ioctl.h>
@@ -34,7 +35,10 @@ static char rcsid[] = "$Id: lcp.c,v 1.6 1994/05/26 06:37:19 paulus Exp $";
 #include <sys/time.h>
 #include <netinet/in.h>
 
-#include <string.h>
+#ifdef _linux_		/* Needs ppp ioctls */
+#include <net/if.h>
+#include <linux/ppp.h>
+#endif
 
 #include "pppd.h"
 #include "ppp.h"
