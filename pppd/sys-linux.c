@@ -2073,9 +2073,6 @@ void logwtmp (const char *line, const char *name, const char *host)
     while ((utp = getutent()) && (utp->ut_pid != mypid))
         /* nothing */;
 
-    /* Is this call really necessary? There is another one after the 'put' */
-    endutent();
-    
     if (utp)
 	memcpy(&ut, utp, sizeof(ut));
     else
