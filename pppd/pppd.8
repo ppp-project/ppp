@@ -1,57 +1,73 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.71 2003/04/25 08:57:58 fcusack Exp $
+.\" $Id: pppd.8,v 1.72 2003/06/11 00:11:11 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
 .\" IP indented paragraph
 .\" TP hanging label
+.\" 
+.\" Copyright (c) 1993-2003 Paul Mackerras <paulus@samba.org>
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHORS DISCLAIM ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
 .TH PPPD 8
 .SH NAME
-pppd \- Point to Point Protocol daemon
+pppd \- Point-to-Point Protocol Daemon
 .SH SYNOPSIS
 .B pppd
 [
-.I tty_name
-] [
-.I speed
-] [
 .I options
 ]
 .SH DESCRIPTION
 .LP
-The Point-to-Point Protocol (PPP) provides a method for transmitting
-datagrams over serial point-to-point links.  PPP
-is composed of three parts: a method for encapsulating datagrams over
-serial links, an extensible Link Control Protocol (LCP), and
-a family of Network Control Protocols (NCP) for establishing
-and configuring different network-layer protocols.
-.LP
-The encapsulation scheme is provided by driver code in the kernel.
-Pppd provides the basic LCP, authentication support, and an NCP for
-establishing and configuring the Internet Protocol (IP) (called the IP
-Control Protocol, IPCP).
+PPP is the protocol used for establishing internet links over dial-up
+modems, DSL connections, and many other types of point-to-point
+links.  The \fIpppd\fR daemon works together with the kernel PPP
+driver to establish and maintain a PPP link with another system
+(called the \fIpeer\fR) and to negotiate Internet Protocol (IP)
+addresses for each end of the link.  Pppd can also authenticate the
+peer and/or supply authentication information to the peer.  PPP can be
+used with other network protocols besides IP, but such use is becoming
+increasingly rare.
 .SH FREQUENTLY USED OPTIONS
 .TP
-.I <tty_name>
-Communicate over the named device.  The string "/dev/" is prepended if
-necessary.  If no device name is given, or if the name of the terminal
+.I ttyname
+Use the serial port called \fIttyname\fR to communicate with the
+peer.  The string "/dev/" is prepended to \fIttyname\fR to form the
+name of the device to open.  If no device name is given, or if the
+name of the terminal
 connected to the standard input is given, pppd will use that terminal,
 and will not fork to put itself in the background.  A value for this
 option from a privileged source cannot be overridden by a
 non-privileged user.
 .TP
-.I <speed>
-Set the baud rate to <speed> (a decimal number).  On systems such as
+.I speed
+An option that is a decimal number is taken as the desired baud rate
+for the serial device.  On systems such as
 4.4BSD and NetBSD, any speed can be specified.  Other systems
-(e.g. SunOS) allow only a limited set of speeds.
+(e.g. Linux, SunOS) only support the commonly-used baud rates.
 .TP
-.B asyncmap \fI<map>
-Set the async character map to <map>.  This map describes which
-control characters cannot be successfully received over the serial
-line.  Pppd will ask the peer to send these characters as a 2-byte
-escape sequence.  The argument is a 32 bit hex number with each bit
-representing a character to escape.  Bit 0 (00000001) represents the
-character 0x00; bit 31 (80000000) represents the character 0x1f or ^_.
+.B asyncmap \fImap
+This option sets the Async-Control-Character-Map (ACCM) for this end
+of the link.  The ACCM is a set of 32 bits, one for each of the
+ASCII control characters with values from 0 to 31, where a 1 bit
+indicates that the corresponding control character should not be used
+in PPP packets sent to this system.  The map is encoded as a
+hexadecimal number (without a leading 0x) where the least significant
+bit (00000001) represents character 0 and the most significant bit
+(80000000) represents character 31.
+Pppd will ask the peer to send these characters as a 2-byte
+escape sequence.
 If multiple \fIasyncmap\fR options are given, the values are ORed
 together.  If no \fIasyncmap\fR option is given, no async character
 map will be negotiated for the receive direction; the peer should then
@@ -73,15 +89,21 @@ or include .. as a pathname component.  The format of the options file
 is described below.
 .TP
 .B connect \fIscript
-Use the executable or shell command specified by \fIscript\fR to set
-up the serial line.  This script would typically use the chat(8)
-program to dial the modem and start the remote ppp session.  A value
+Usually there is something which needs to be done to prepare the link
+before the PPP protocol can be started; for instance, with a dial-up
+modem, commands need to be sent to the modem to dial the appropriate
+phone number.  This option specifies an command for pppd to execute
+(by passing it to a shell) before attempting to start PPP negotiation.
+The chat (8) program is often useful here, as it provides a way to
+send arbitrary strings to a modem and respond to received characters.
+A value
 for this option from a privileged source cannot be overridden by a
 non-privileged user.
 .TP
 .B crtscts
-Use hardware flow control (i.e. RTS/CTS) to control the flow of
-data on the serial port.  If neither the \fIcrtscts\fR, the
+Specifies that pppd should set the serial port to use hardware flow
+control using the RTS and CTS signals in the RS-232 interface.
+If neither the \fIcrtscts\fR, the
 \fInocrtscts\fR, the \fIcdtrcts\fR nor the \fInocdtrcts\fR option
 is given, the hardware flow control setting for the serial port is
 left unchanged.
@@ -89,7 +111,7 @@ Some serial ports (such as Macintosh serial ports) lack a true
 RTS output. Such serial ports use this mode to implement
 unidirectional flow control. The serial port will
 suspend transmission when requested by the modem (via CTS)
-but will be unable to request the modem stop sending to the
+but will be unable to request the modem to stop sending to the
 computer. This mode retains the ability to use DTR as
 a modem control line.
 .TP
@@ -100,8 +122,9 @@ This entry is removed when the PPP connection is broken.  This option
 is privileged if the \fInodefaultroute\fR option has been specified.
 .TP
 .B disconnect \fIscript
-Run the executable or shell command specified by \fIscript\fR after
-pppd has terminated the link.  This script could, for example, issue
+Execute the command specified by \fIscript\fR, by passing it to a
+shell, after
+pppd has terminated the link.  This command could, for example, issue
 commands to the modem to cause it to hang up if hardware modem control
 signals were not available.  The disconnect script is not run if the
 modem has already hung up.  A value for this option from a privileged
@@ -115,14 +138,14 @@ specified as a list of hex numbers separated by commas.  Note that
 almost any character can be specified for the \fIescape\fR option,
 unlike the \fIasyncmap\fR option which only allows control characters
 to be specified.  The characters which may not be escaped are those
-with hex values 0x20 - 0x3f or 0x5e.
+with hex values 0x20 \- 0x3f or 0x5e.
 .TP
 .B file \fIname
 Read options from file \fIname\fR (the format is described below).
 The file must be readable by the user who has invoked pppd.
 .TP
 .B init \fIscript
-Run the executable or shell command specified by \fIscript\fR to
+Execute the command specified by \fIscript\fR, by passing it to a shell, to
 initialize the serial line.  This script would typically use the
 chat(8) program to configure the modem to enable auto answer.  A value
 for this option from a privileged source cannot be overridden by a
@@ -134,17 +157,19 @@ serial device to ensure exclusive access to the device.
 .TP
 .B mru \fIn
 Set the MRU [Maximum Receive Unit] value to \fIn\fR. Pppd
-will ask the peer to send packets of no more than \fIn\fR bytes.  The
-minimum MRU value is 128.  The default MRU value is 1500.  A value of
-296 is recommended for slow links (40 bytes for TCP/IP header + 256
-bytes of data).  (Note that for IPv6 MRU must be at least 1280)
+will ask the peer to send packets of no more than \fIn\fR bytes.
+The value of \fIn\fR must be between 128 and 16384; the default is 1500.
+A value of
+296 works well on very slow links (40 bytes for TCP/IP header + 256
+bytes of data).
+Note that for the IPv6 protocol, the MRU must be at least 1280.
 .TP
 .B mtu \fIn
 Set the MTU [Maximum Transmit Unit] value to \fIn\fR.  Unless the
 peer requests a smaller value via MRU negotiation, pppd will
 request that the kernel networking code send data packets of no more
-than \fIn\fR bytes through the PPP network interface.  (Note that for 
-IPv6 MTU must be at least 1280)
+than \fIn\fR bytes through the PPP network interface.  Note that for 
+the IPv6 protocol, the MTU must be at least 1280.
 .TP
 .B passive
 Enables the "passive" option in the LCP.  With this option, pppd will
@@ -637,17 +662,6 @@ will be used as the name to send to the peer when authenticating the
 local system to the peer.  (Note that pppd does not append the domain
 name to \fIname\fR.)
 .TP
-.B netmask \fIn
-Set the interface netmask to \fIn\fR, a 32 bit netmask in "decimal dot"
-notation (e.g. 255.255.255.0).  If this option is given, the value
-specified is ORed with the default netmask.  The default netmask is
-chosen based on the negotiated remote IP address; it is the
-appropriate network mask for the class of the remote IP address, ORed
-with the netmasks for any non point-to-point network interfaces in the
-system which are on the same network.  (Note: on some platforms, pppd
-will always use 255.255.255.255 for the netmask, if that is the only
-appropriate value for a point-to-point interface.)
-.TP
 .B noaccomp
 Disable Address/Control compression in both directions (send and
 receive).
@@ -1138,7 +1152,7 @@ systems, as well as secrets for pppd to use when authenticating other
 systems to itself.
 .LP
 Each line in a secrets file contains one secret.  A given secret is
-specific to a particular combination of client and server - it can
+specific to a particular combination of client and server \- it can
 only be used by that client to authenticate itself to that server.
 Thus each line in a secrets file has at least 3 fields: the name of
 the client, the name of the server, and the secret.  These fields may
@@ -1392,9 +1406,11 @@ stream.
 .LP
 Messages are sent to the syslog daemon using facility LOG_DAEMON.
 (This can be overridden by recompiling pppd with the macro
-LOG_PPP defined as the desired facility.)  In order to see the error
-and debug messages, you will need to edit your /etc/syslog.conf file
-to direct the messages to the desired output device or file.
+LOG_PPP defined as the desired facility.)  See the syslog(8)
+documentation for details of where the syslog daemon will write the
+messages.  On most systems, the syslog daemon uses the
+/etc/syslog.conf file to specify the destination(s) for syslog
+messages.  You may need to edit that file to suit.
 .LP
 The \fIdebug\fR option causes the contents of all control packets sent
 or received to be logged, that is, all LCP, PAP, CHAP, EAP, or IPCP packets.
@@ -1711,7 +1727,8 @@ Carlson, J.; et al.,
 .I EAP SRP-SHA1 Authentication Protocol.
 July 2001.
 .SH NOTES
-The following signals have the specified effect when sent to pppd.
+Some limited degree of control can be exercised over a running pppd
+process by sending it a signal from the list below.
 .TP
 .B SIGINT, SIGTERM
 These signals cause pppd to terminate the link (by closing LCP),
@@ -1735,7 +1752,7 @@ of a fatal decompression error.  (Fatal decompression errors generally
 indicate a bug in one or other implementation.)
 
 .SH AUTHORS
-Paul Mackerras (Paul.Mackerras@cs.anu.edu.au), based on earlier work by
+Paul Mackerras (Paul.Mackerras@samba.org), based on earlier work by
 Drew Perkins,
 Brad Clements,
 Karl Fox,
