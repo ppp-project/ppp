@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.8 1994/09/16 02:32:09 paulus Exp $
+.\" $Id: pppd.8,v 1.9 1995/04/24 05:53:35 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -265,10 +265,10 @@ domain option to set the domain name to Quotron.COM.
 Use the modem control lines.  This option is the default.  With this
 option,
 .B pppd
-will wait for the carrier detect signal from the modem to be asserted
+will wait for the CD (Carrier Detect) signal from the modem to be asserted
 when opening the serial device
-(unless a connect script is specified), and it will drop the data
-terminal ready signal briefly when the connection is terminated and before
+(unless a connect script is specified), and it will drop the DTR (Data
+Terminal Ready) signal briefly when the connection is terminated and before
 executing the connect script.
 On Ultrix, this option implies hardware
 flow control, as for the \fBcrtscts\fR option.  
@@ -283,8 +283,8 @@ transmitted packets be printed.
 .B local
 Don't use the modem control lines.  With this option,
 .B pppd
-will ignore the state of the carrier detect signal from the modem and
-will not change the state of the data terminal ready signal.
+will ignore the state of the CD (Carrier Detect) signal from the modem and
+will not change the state of the DTR (Data Terminal Ready) signal.
 .TP
 .B mtu \fI<n>
 Set the MTU [Maximum Transmit Unit] value to \fI<n>\fR.  Unless the
