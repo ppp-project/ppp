@@ -66,6 +66,7 @@ static struct termios inittermios;	/* Initial TTY termios */
 static int sockfd;		/* socket for doing interface ioctls */
 
 static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t ipaddrs[2];	/* Local and remote addrs we've set */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
@@ -169,6 +170,8 @@ void sys_cleanup()
 
     if (if_is_up)
 	sifdown(0);
+    if (ipaddrs[0])
+	cifaddr(0, ipaddrs[0], ipaddrs[1]);
     /* XXX maybe we need to delete the route through the interface */
     if (has_default_route)
 	cifdefaultroute(0, default_route_gateway);
@@ -961,6 +964,9 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
         syslog (LOG_ERR, "ioctl(SIOCADDRT) device route: %m");
         return (0);
       }
+
+    ipaddrs[0] = our_adr;
+    ipaddrs[1] = his_adr;
     return 1;
   }
 
@@ -972,6 +978,8 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
 int cifaddr (int unit, int our_adr, int his_adr)
   {
     struct rtentry rt;
+
+    ipaddrs[0] = 0;
 /*
  *  Delete the route through the device
  */
