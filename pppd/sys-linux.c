@@ -102,6 +102,7 @@ static int ppp_fd = -1;		/* fd which is set to PPP discipline */
 static int sock_fd = -1;	/* socket for doing interface ioctls */
 static int slave_fd = -1;
 static int master_fd = -1;
+static int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
 static int max_in_fd;		/* highest fd set in in_fds */
@@ -113,6 +114,8 @@ static int driver_patch        = 0;
 static int driver_is_old       = 0;
 static int restore_term        = 0;	/* 1 => we've munged the terminal */
 static struct termios inittermios;	/* Initial TTY termios */
+
+static int new_style_driver = 0;
 
 static char loop_name[20];
 static unsigned char inbuf[512]; /* buffer for chars read from loopback */
@@ -133,8 +136,8 @@ static int kernel_version;
 		    IFF_POINTOPOINT | IFF_LOOPBACK  | IFF_NOARP)
 
 /* Prototypes for procedures local to this file. */
-static int get_flags (void);
-static void set_flags (int flags);
+static int get_flags (int fd);
+static void set_flags (int fd, int flags);
 static int translate_speed (int bps);
 static int baud_rate_of (int speed);
 static char *path_to_route (void);
@@ -165,14 +168,19 @@ extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
 extern int hungup;
 
+/* new_fd is the fd of a tty */
 static void set_ppp_fd (int new_fd)
 {
 	SYSDEBUG ((LOG_DEBUG, "setting ppp_fd to %d\n", new_fd));
 	ppp_fd = new_fd;
+	if (!new_style_driver)
+		ppp_dev_fd = new_fd;
 }
 
 static int still_ppp(void)
 {
+	if (new_style_driver)
+		return 1;
 	if (!hungup || ppp_fd == slave_fd)
 		return 1;
 	if (slave_fd >= 0) {
@@ -187,11 +195,11 @@ static int still_ppp(void)
  * Functions to read and set the flags value in the device driver
  */
 
-static int get_flags (void)
+static int get_flags (int fd)
 {    
     int flags;
 
-    if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &flags) < 0) {
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &flags) < 0) {
 	if ( ok_error (errno) )
 	    flags = 0;
 	else
@@ -204,13 +212,13 @@ static int get_flags (void)
 
 /********************************************************************/
 
-static void set_flags (int flags)
+static void set_flags (int fd, int flags)
 {    
     SYSDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
 
-    if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0) {
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0) {
 	if (! ok_error (errno) )
-	    fatal("ioctl(PPPIOCSFLAGS, %x): %m(%d)", flags, errno);
+	    fatal("ioctl(PPPIOCSFLAGS, %x): %m", flags, errno);
     }
 }
 
@@ -222,12 +230,23 @@ static void set_flags (int flags)
 void sys_init(void)
 {
     int osmaj, osmin, ospatch;
+    int flags;
 
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-    
+
+    if (new_style_driver) {
+	ppp_dev_fd = open("/dev/ppp", O_RDWR);
+	if (ppp_dev_fd < 0)
+	    fatal("Couldn't open /dev/ppp: %m");
+	flags = fcntl(ppp_dev_fd, F_GETFL);
+	if (flags == -1
+	    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	    warn("Couldn't set /dev/ppp to nonblock: %m");
+    }
+
     /* Get an internet socket for doing socket ioctls. */
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd < 0) {
@@ -275,6 +294,8 @@ void sys_cleanup(void)
 void
 sys_close(void)
 {
+    if (new_style_driver)
+	close(ppp_dev_fd);
     if (sock_fd >= 0)
 	close(sock_fd);
     if (slave_fd >= 0)
@@ -291,7 +312,7 @@ sys_close(void)
 
 static int set_kdebugflag (int requested_level)
 {
-    if (ioctl(ppp_fd, PPPIOCSDEBUG, &requested_level) < 0) {
+    if (ioctl(ppp_dev_fd, PPPIOCSDEBUG, &requested_level) < 0) {
 	if ( ! ok_error (errno) )
 	    error("ioctl(PPPIOCSDEBUG): %m");
 	return (0);
@@ -309,6 +330,7 @@ static int set_kdebugflag (int requested_level)
 int establish_ppp (int tty_fd)
 {
     int x;
+
 /*
  * The current PPP device will be the tty file.
  */
@@ -323,54 +345,68 @@ int establish_ppp (int tty_fd)
 /*
  * Demand mode - prime the old ppp device to relinquish the unit.
  */
-    if (demand && ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0)
+    if (!new_style_driver && demand
+	&& ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0)
 	fatal("ioctl(transfer ppp unit): %m(%d)", errno);
 /*
  * Set the current tty to the PPP discpline
  */
-    if (ioctl(ppp_fd, TIOCSETD, &ppp_disc) < 0) {
+    if (ioctl(tty_fd, TIOCSETD, &ppp_disc) < 0) {
 	if ( ! ok_error (errno) )
 	    fatal("ioctl(TIOCSETD): %m(%d)", errno);
     }
 /*
  * Find out which interface we were given.
  */
-    if (ioctl(ppp_fd, PPPIOCGUNIT, &x) < 0) {	
-	if ( ! ok_error (errno))
-	    fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
-    }
-/*
- * Check that we got the same unit again.
- */
-    if (demand) {
-	if (x != ifunit)
+    if (new_style_driver) {
+	if (!demand) {
+	    /* allocate ourselves a ppp unit */
+	    ifunit = -1;
+	    if (ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit) < 0)
+		fatal("Couldn't create new ppp unit: %m");
+	    set_kdebugflag(kdebugflag);
+	} else {
+	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) & ~SC_LOOP_TRAFFIC);
+	}
+	if (ioctl(tty_fd, PPPIOCATTACH, &ifunit) < 0) {
+	    if (errno == EIO)
+		return -1;
+	    fatal("Couldn't attach tty to PPP unit %d: %m", ifunit);
+	}
+    } else {
+	if (ioctl(tty_fd, PPPIOCGUNIT, &x) < 0) {	
+	    if ( ! ok_error (errno))
+		fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
+	}
+	/* Check that we got the same unit again. */
+	if (demand && x != ifunit)
 	    fatal("transfer_ppp failed: wanted unit %d, got %d", ifunit, x);
+	ifunit = x;
     }
 
-    ifunit = x;
 /*
  * Enable debug in the driver if requested.
  */
     if (!demand)
 	set_kdebugflag (kdebugflag);
 
-    set_flags (get_flags() & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
-			       SC_RCV_EVNP | SC_RCV_ODDP));
+    set_flags(tty_fd, get_flags(tty_fd) & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
+					    SC_RCV_EVNP | SC_RCV_ODDP));
 
     SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
+
 /*
  * Fetch the initial file flags and reset blocking mode on the file.
  */
-    initfdflags = fcntl(ppp_fd, F_GETFL);
-
+    initfdflags = fcntl(tty_fd, F_GETFL);
     if (initfdflags == -1 ||
-	fcntl(ppp_fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	fcntl(tty_fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
 	if ( ! ok_error (errno))
 	    warn("Couldn't set device to non-blocking mode: %m");
     }
 
-    return ppp_fd;
+    return ppp_dev_fd;
 }
 
 /********************************************************************
@@ -424,16 +460,10 @@ void clean_check(void)
 	    s = NULL;
 	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP)) {
 	    case SC_RCV_B7_0:
-	    case SC_RCV_B7_0 | SC_RCV_EVNP:
-	    case SC_RCV_B7_0 | SC_RCV_ODDP:
-	    case SC_RCV_B7_0 | SC_RCV_ODDP | SC_RCV_EVNP:
 		s = "all had bit 7 set to 1";
 		break;
 		
 	    case SC_RCV_B7_1:
-	    case SC_RCV_B7_1 | SC_RCV_EVNP:
-	    case SC_RCV_B7_1 | SC_RCV_ODDP:
-	    case SC_RCV_B7_1 | SC_RCV_ODDP | SC_RCV_EVNP:
 		s = "all had bit 7 set to 0";
 		break;
 		
@@ -697,8 +727,14 @@ void output (int unit, unsigned char *p, int len)
 {
     if (debug)
 	dbglog("sent %P", p, len);
-    
-    if (write(ppp_fd, p, len) < 0) {
+
+    if (len < PPP_HDRLEN)
+	return;
+    if (new_style_driver) {
+	p += 2;
+	len -= 2;
+    }
+    if (write(ppp_dev_fd, p, len) < 0) {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS
 	    || errno == ENXIO || errno == EIO || errno == EINTR)
 	    warn("write: warning: %m (%d)", errno);
@@ -743,42 +779,6 @@ void remove_fd(int fd)
     FD_CLR(fd, &in_fds);
 }
 
-#if 0
-/********************************************************************
- *
- * wait_loop_output - wait until there is data available on the
- * loopback, for the length of time specified by *timo (indefinite
- * if timo is NULL).
- */
-void wait_loop_output(timo)
-    struct timeval *timo;
-{
-    fd_set ready;
-    int n;
-
-    FD_ZERO(&ready);
-    FD_SET(master_fd, &ready);
-    n = select(master_fd + 1, &ready, NULL, &ready, timo);
-    if (n < 0 && errno != EINTR)
-	fatal("select: %m(%d)", errno);
-}
-
-/********************************************************************
- *
- * wait_time - wait for a given length of time or until a
- * signal is received.
- */
-
-void wait_time(timo)
-    struct timeval *timo;
-{
-    int n;
-
-    n = select(0, NULL, NULL, NULL, timo);
-    if (n < 0 && errno != EINTR)
-        fatal("select: %m(%d)", errno);
-}
-#endif
 
 /********************************************************************
  *
@@ -788,14 +788,20 @@ void wait_time(timo)
 int read_packet (unsigned char *buf)
 {
     int len;
-  
-    len = read(ppp_fd, buf, PPP_MTU + PPP_HDRLEN);
+
+    len = PPP_MRU + PPP_HDRLEN;
+    if (new_style_driver) {
+	*buf++ = PPP_ALLSTATIONS;
+	*buf++ = PPP_UI;
+	len -= 2;
+    }
+    len = read(ppp_dev_fd, buf, len);
     if (len < 0) {
 	if (errno == EWOULDBLOCK || errno == EIO)
 	    return -1;
 	fatal("read: %m(%d)", errno);
     }
-    return len;
+    return new_style_driver? len+2: len;
 }
 
 /********************************************************************
@@ -808,20 +814,25 @@ int
 get_loop_output(void)
 {
     int rv = 0;
-    int n  = read(master_fd, inbuf, sizeof(inbuf));
+    int n;
 
-    while (n > 0) {
+    if (new_style_driver) {
+	while ((n = read_packet(inpacket_buf)) > 0)
+	    if (loop_frame(inpacket_buf, n))
+		rv = 1;
+	return rv;
+    }
+
+    while ((n = read(master_fd, inbuf, sizeof(inbuf))) > 0)
 	if (loop_chars(inbuf, n))
 	    rv = 1;
-	n = read(master_fd, inbuf, sizeof(inbuf));
-    }
 
     if (n == 0)
 	fatal("eof on loopback");
 
     if (errno != EWOULDBLOCK)
 	fatal("read from loopback: %m(%d)", errno);
-    
+
     return rv;
 }
 
@@ -859,11 +870,11 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 	return;
     }
     
-    x = get_flags();
+    x = get_flags(ppp_fd);
     x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
     x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
     x = sync_serial ? x | SC_SYNC : x & ~SC_SYNC;
-    set_flags(x);
+    set_flags(ppp_fd, x);
 }
 
 /********************************************************************
@@ -890,8 +901,6 @@ void ppp_set_xaccm (int unit, ext_accm accm)
 
 void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 {
-    u_int x;
-
     SYSDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
 /*
  * If we were called because the link has gone down then there is nothing
@@ -906,16 +915,14 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 	if ( ! ok_error (errno))
 	    error("ioctl(PPPIOCSMRU): %m(%d)", errno);
     }
+    if (new_style_driver && ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+	error("Couldn't set MRU in generic PPP layer: %m");
 
     SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	if (!ok_error(errno))
 	    error("ioctl(PPPIOCSRASYNCMAP): %m(%d)", errno);
     }
-
-    x = get_flags();
-    x = !accomp? x | SC_REJ_COMP_AC: x &~ SC_REJ_COMP_AC;
-    set_flags (x);
 }
 
 /********************************************************************
@@ -933,7 +940,7 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
     data.length   = opt_len;
     data.transmit = for_transmit;
 
-    if (ioctl(ppp_fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+    if (ioctl(ppp_dev_fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
 	return 1;
 
     return (errno == ENOBUFS)? 0: -1;
@@ -947,10 +954,10 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 void ccp_flags_set (int unit, int isopen, int isup)
 {
     if (still_ppp()) {
-	int x = get_flags();
+	int x = get_flags(ppp_dev_fd);
 	x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
 	x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
-	set_flags (x);
+	set_flags (ppp_dev_fd, x);
     }
 }
 
@@ -963,7 +970,7 @@ get_idle_time(u, ip)
     int u;
     struct ppp_idle *ip;
 {
-    return ioctl(ppp_fd, PPPIOCGIDLE, ip) >= 0;
+    return ioctl(ppp_dev_fd, PPPIOCGIDLE, ip) >= 0;
 } 
 
 /********************************************************************
@@ -999,7 +1006,7 @@ get_ppp_stats(u, stats)
 
 int ccp_fatal_error (int unit)
 {
-    int x = get_flags();
+    int x = get_flags(ppp_dev_fd);
 
     return x & SC_DC_FERROR;
 }
@@ -1605,7 +1612,7 @@ ppp_registered(void)
 
 int ppp_available(void)
 {
-    int s, ok;
+    int s, ok, fd;
     struct ifreq ifr;
     int    size;
     int    my_version, my_modification, my_patch;
@@ -1617,6 +1624,18 @@ int ppp_available(void)
 	"module, try `/sbin/modprobe -v ppp'.  If that fails, check that\n"
 	"ppp.o exists in /lib/modules/`uname -r`/net.\n"
 	"See README.linux file in the ppp distribution for more details.\n";
+
+    fd = open("/dev/ppp", O_RDWR);
+    if (fd >= 0) {
+	new_style_driver = 1;
+
+	/* XXX should get from driver */
+	driver_version = 2;
+	driver_modification = 4;
+	driver_patch = 0;
+	close(fd);
+	return 1;
+    }
 
 /*
  * Open a socket for doing the ioctl operations.
@@ -1770,151 +1789,6 @@ void logwtmp (const char *line, const char *name, const char *host)
     }
 }
 
-#if 0
-/********************************************************************
- * Code for locking/unlocking the serial device.
- * This code is derived from chat.c.
- */
-
-#ifndef LOCK_PREFIX
-#define LOCK_PREFIX	"/var/lock/LCK.."
-#endif
-
-static char *lock_file;
-
-/*
- * lock - create a lock file for the named device
- */
-
-int lock (char *dev)
-{
-#ifdef LOCKLIB
-    int result;
-    lock_file = strdup(dev);
-    if (lock_file == NULL)
-	novm("lock file name");
-    result = mklock (dev, (void *) 0);
-
-    if (result > 0) {
-        notice("Device %s is locked by pid %d", dev, result);
-	free (lock_file);
-	lock_file = NULL;
-	result = -1;
-    }
-    else {
-        if (result < 0) {
-	    error("Can't create lock file %s", lock_file);
-	    free (lock_file);
-	    lock_file = NULL;
-	    result = -1;
-	}
-    }
-    return (result);
-#else
-    char hdb_lock_buffer[12];
-    int fd, n;
-    int pid = getpid();
-    char *p;
-    size_t l;
-
-    p = strrchr(dev, '/');
-    if (p != NULL)
-	dev = ++p;
-
-    l = strlen(LOCK_PREFIX) + strlen(dev) + 1;
-    lock_file = malloc(l);
-    if (lock_file == NULL)
-	novm("lock file name");
-
-    slprintf(lock_file, l, "%s%s", LOCK_PREFIX, dev);
-/*
- * Attempt to create the lock file at this point.
- */
-    while (1) {
-	fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644);
-	if (fd >= 0) {
-	    pid = getpid();
-#ifndef PID_BINARY
-	    slprintf(hdb_lock_buffer, sizeof(hdb_lock_buffer), "%010d\n", pid);
-	    write (fd, hdb_lock_buffer, 11);
-#else
-	    write(fd, &pid, sizeof (pid));
-#endif
-	    close(fd);
-	    return 0;
-	}
-/*
- * If the file exists then check to see if the pid is stale
- */
-	if (errno == EEXIST) {
-	    fd = open(lock_file, O_RDONLY, 0);
-	    if (fd < 0) {
-		if (errno == ENOENT) /* This is just a timing problem. */
-		    continue;
-		break;
-	    }
-
-	    /* Read the lock file to find out who has the device locked */
-	    n = read (fd, hdb_lock_buffer, 11);
-	    close (fd);
-	    if (n < 0) {
-		error("Can't read pid from lock file %s", lock_file);
-		break;
-	    }
-
-	    /* See the process still exists. */
-	    if (n > 0) {
-#ifndef PID_BINARY
-		hdb_lock_buffer[n] = '\0';
-		sscanf (hdb_lock_buffer, " %d", &pid);
-#else
-		pid = ((int *) hdb_lock_buffer)[0];
-#endif
-		if (pid == 0 || pid == getpid()
-		    || (kill(pid, 0) == -1 && errno == ESRCH))
-		    n = 0;
-	    }
-
-	    /* If the process does not exist then try to remove the lock */
-	    if (n == 0 && unlink (lock_file) == 0) {
-		notice("Removed stale lock on %s (pid %d)",
-			dev, pid);
-		continue;
-	    }
-
-	    notice("Device %s is locked by pid %d", dev, pid);
-	    break;
-	}
-
-	error("Can't create lock file %s: %m(%d)", lock_file, errno);
-	break;
-    }
-
-    free(lock_file);
-    lock_file = NULL;
-    return -1;
-#endif
-}
-
-
-/********************************************************************
- *
- * unlock - remove our lockfile
- */
-
-void unlock(void)
-{
-    if (lock_file) {
-#ifdef LOCKLIB
-	(void) rmlock (lock_file, (void *) 0);
-#else
-	unlink(lock_file);
-#endif
-	free(lock_file);
-	lock_file = NULL;
-    }
-}
-#endif
 
 /********************************************************************
  *
@@ -1923,10 +1797,10 @@ void unlock(void)
 
 int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 {
-    u_int x = get_flags();
+    u_int x = get_flags(ppp_dev_fd);
 
     if (vjcomp) {
-        if (ioctl (ppp_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
+        if (ioctl (ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 	    if (! ok_error (errno))
 		error("ioctl(PPPIOCSMAXCID): %m(%d)", errno);
 	    vjcomp = 0;
@@ -1935,7 +1809,7 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 
     x = vjcomp  ? x | SC_COMP_TCP     : x &~ SC_COMP_TCP;
     x = cidcomp ? x & ~SC_NO_TCP_CCID : x | SC_NO_TCP_CCID;
-    set_flags (x);
+    set_flags (ppp_dev_fd, x);
 
     return 1;
 }
@@ -2201,6 +2075,17 @@ open_ppp_loopback(void)
 {
     int flags;
 
+    if (new_style_driver) {
+	/* allocate ourselves a ppp unit */
+	ifunit = -1;
+	if (ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit) < 0)
+	    fatal("Couldn't create PPP unit: %m");
+	set_flags(ppp_dev_fd, SC_LOOP_TRAFFIC);
+	set_kdebugflag(kdebugflag);
+	ppp_fd = -1;
+	return ppp_dev_fd;
+    }
+
     if (!get_pty(&master_fd, &slave_fd, loop_name, 0))
 	fatal("No free pty for loopback");
     SYSDEBUG(("using %s for loopback", loop_name));
@@ -2248,6 +2133,10 @@ open_ppp_loopback(void)
 void
 restore_loop(void)
 {
+    if (new_style_driver) {
+	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) & SC_LOOP_TRAFFIC);
+	return;
+    }
     if (ppp_fd != slave_fd) {
 	(void) ioctl(ppp_fd, TIOCSETD, &tty_disc);
 	set_ppp_fd(slave_fd);
@@ -2269,11 +2158,11 @@ sifnpmode(u, proto, mode)
 
     npi.protocol = proto;
     npi.mode     = mode;
-    if (ioctl(ppp_fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
+    if (ioctl(ppp_dev_fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
 	if (! ok_error (errno)) {
 	    error("ioctl(PPPIOCSNPMODE, %d, %d): %m (%d)",
 		   proto, mode, errno);
-	    error("ppp_fd=%d slave_fd=%d\n", ppp_fd, slave_fd);
+	    error("ppp_dev_fd=%d slave_fd=%d\n", ppp_dev_fd, slave_fd);
 	}
 	return 0;
     }
@@ -2372,32 +2261,6 @@ int cipxfaddr (int unit)
 #endif
     return result;
 }
-
-#if 0
-/*
- * daemon - Detach us from controlling terminal session.
- */
-int
-daemon(nochdir, noclose)
-    int nochdir, noclose;
-{
-    int pid;
-
-    if ((pid = fork()) < 0)
-	return -1;
-    if (pid != 0)
-	exit(0);		/* parent dies */
-    setsid();
-    if (!nochdir)
-	chdir("/");
-    if (!noclose) {
-	fclose(stdin);		/* don't need stdin, stdout, stderr */
-	fclose(stdout);
-	fclose(stderr);
-    }
-    return 0;
-}
-#endif
 
 /*
  * Use the hostname as part of the random number seed.
