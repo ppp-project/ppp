@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.13 1995/04/24 06:01:54 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.14 1995/04/26 06:46:22 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -399,7 +399,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     } else {
 	check_access(f, filename);
 	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0
-	    || (secret[0] != 0 && strcmp(passwd, secret) != 0
+	    || (secret[0] != 0 && (cryptpap || strcmp(passwd, secret) != 0)
 		&& strcmp(crypt(passwd, secret), secret) != 0)) {
 	    syslog(LOG_WARNING, "upap authentication failure for %s", user);
 	    ret = UPAP_AUTHNAK;
@@ -492,7 +492,7 @@ login(user, passwd, msg, msglen)
 #ifdef HAS_SHADOW
     if ((pw->pw_passwd && pw->pw_passwd[0] == '@'
 	 && pw_auth (pw->pw_passwd+1, pw->pw_name, PW_PPP, NULL))
-    || !valid (passwd, pw)) {
+	|| !valid (passwd, pw)) {
 	return (UPAP_AUTHNAK);
     }
 #else

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.17 1995/04/24 05:54:44 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.18 1995/04/26 06:46:09 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -87,6 +87,7 @@ char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 int	usehostname = 0;	/* Use hostname for our_name */
 int	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
+int	cryptpap;		/* Passwords in pap-secrets are encrypted */
 
 #ifdef _linux_
 int idle_time_limit = 0;
@@ -162,6 +163,7 @@ static int setlcpechofails __P((char **));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
 static int setipparam __P((char **));
+static int setpapcrypt __P((void));
 
 static int number_option __P((char *, long *, int));
 static int readable __P((int fd));
@@ -244,6 +246,7 @@ static struct cmd {
     {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
     {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
     {"ipparam", 1, setipparam},		/* set ip script parameter */
+    {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
 #ifdef _linux_
     {"idle-disconnect", 1, setidle}, /* seconds for disconnect of idle IP */
 #endif
@@ -1510,10 +1513,10 @@ setbsdcomp(argv)
 		progname);
 	return 0;
     }
-    if (rbits != 0 && (rbits < MIN_BSD_BITS || rbits > MAX_BSD_BITS)
-	|| abits != 0 && (abits < MIN_BSD_BITS || abits > MAX_BSD_BITS)) {
+    if (rbits != 0 && (rbits < BSD_MIN_BITS || rbits > BSD_MAX_BITS)
+	|| abits != 0 && (abits < BSD_MIN_BITS || abits > BSD_MAX_BITS)) {
 	fprintf(stderr, "%s: bsdcomp option values must be 0 or %d .. %d\n",
-		progname, MIN_BSD_BITS, MAX_BSD_BITS);
+		progname, BSD_MIN_BITS, BSD_MAX_BITS);
 	return 0;
     }
     if (rbits > 0) {
@@ -1545,6 +1548,13 @@ setipparam(argv)
     if (ipparam == NULL)
 	novm("ipparam string");
 
+    return 1;
+}
+
+static int
+setpapcrypt()
+{
+    cryptpap = 1;
     return 1;
 }
 

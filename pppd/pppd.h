@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.7 1995/04/24 05:52:37 paulus Exp $
+ * $Id: pppd.h,v 1.8 1995/04/26 06:46:31 paulus Exp $
  */
 
 /*
@@ -84,6 +84,7 @@ extern char	remote_name[];	/* Peer's name for authentication */
 extern int	usehostname;	/* Use hostname for our_name */
 extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
+extern int	cryptpap;	/* Others' PAP passwords are encrypted */
 
 /*
  * Values for phase.
