@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.1 1993/11/11 03:54:25 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.2 1994/04/18 04:01:50 paulus Exp $";
 #endif
 
 /*
@@ -29,7 +29,6 @@ static char rcsid[] = "$Id: fsm.c,v 1.1 1993/11/11 03:54:25 paulus Exp $";
 
 #include <stdio.h>
 #include <sys/types.h>
-/*#include <malloc.h>*/
 #include <syslog.h>
 
 #include "ppp.h"
@@ -453,6 +452,7 @@ fsm_rconfack(f, id, inp, len)
 		  PROTO_NAME(f), len));
 	return;
     }
+    f->reqid = -1;
 
     switch (f->state) {
     case CLOSED:
@@ -514,6 +514,7 @@ fsm_rconfnakrej(f, code, id, inp, len)
 		  PROTO_NAME(f), (code==CONFNAK? "Nak": "reject"), len));
 	return;
     }
+    f->reqid = -1;
 
     switch (f->state) {
     case CLOSED:
@@ -556,7 +557,6 @@ fsm_rtermreq(f, id)
     FSMDEBUG((LOG_INFO, "fsm_rtermreq(%s): Rcvd id %d.",
 	      PROTO_NAME(f), id));
 
-    fsm_sdata(f, TERMACK, id, NULL, 0);
     switch (f->state) {
     case ACKRCVD:
     case ACKSENT:
@@ -572,6 +572,8 @@ fsm_rtermreq(f, id)
 	TIMEOUT(fsm_timeout, (caddr_t) f, f->timeouttime);
 	break;
     }
+
+    fsm_sdata(f, TERMACK, id, NULL, 0);
 }
 
 
