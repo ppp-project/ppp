@@ -1,0 +1,49 @@
+# Generated automatically from Makefile.in by configure.
+#***********************************************************************
+#
+# Makefile
+#
+# Makefile for Roaring Penguin's Linux PPPoE plugin.
+#
+# Copyright (C) 2001 Roaring Penguin Software Inc.
+#
+# This program may be distributed according to the terms of the GNU
+# General Public License, version 2 or (at your option) any later version.
+#
+# $Id: Makefile.linux,v 1.1 2001/12/14 02:55:20 mostrows Exp $
+#***********************************************************************
+
+# Version is set ONLY IN THE MAKEFILE!  Don't delete this!
+VERSION=3.3
+
+CFLAGS+=-I../../../include/linux
+all: rp-pppoe.so
+
+rp-pppoe.so: libplugin.a plugin.o
+	gcc -o rp-pppoe.so -shared plugin.o libplugin.a
+
+install: all
+	$(INSTALL) -d -m 755 $(LIBDIR)
+	$(INSTALL) -s -c -m 4550 rp-pppoe.so $(LIBDIR)
+
+clean:
+	rm -f *.o *.so
+
+plugin.o: plugin.c
+	gcc '-DRP_VERSION="$(VERSION)"' $(CFLAGS) -I../../..  -c -o plugin.o -fPIC plugin.c
+
+libplugin.a: discovery.o if.o common.o debug.o
+	ar -rc $@ $^
+
+discovery.o: discovery.c
+	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o discovery.o -fPIC discovery.c
+
+if.o: if.c
+	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o if.o -fPIC if.c
+
+debug.o: debug.c
+	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o debug.o -fPIC debug.c
+
+common.o: common.c
+	gcc $(CFLAGS) '-DVERSION="$(VERSION)"' -c -o common.o -fPIC common.c
+

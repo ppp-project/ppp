@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.26 2001/07/26 20:10:52 paulus Exp $
+# $Id: configure,v 1.27 2001/12/14 02:55:19 mostrows Exp $
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -131,7 +131,7 @@ if [ -d "$ksrc" ]; then
       makext=$orig_makext 
     fi
   fi
-  for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/pppoe; do
+  for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe; do
     rm -f $dir/Makefile
     if [ -f $dir/Makefile.$makext ]; then
       ln -s Makefile.$makext $dir/Makefile

@@ -3,7 +3,7 @@ CFLAGS	= -g -O2 -I.. -I../../include -D_linux_=1 -fPIC
 LDFLAGS	= -shared
 INSTALL	= install -o root
 
-SUBDIRS = pppoe
+SUBDIRS = rp-pppoe
 PLUGINS = minconn.so passprompt.so
 
 # include dependencies if present
@@ -18,12 +18,13 @@ all:	$(PLUGINS)
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
-LIBDIR	= /usr/lib/pppd/$(VERSION)
+LIBDIR	= $(DESTDIR)/usr/lib/pppd/$(VERSION)
 
 install: $(PLUGINS)
 	$(INSTALL) -d $(LIBDIR)
 	$(INSTALL) $? $(LIBDIR)
-	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d LIBDIR=$(LIBDIR) install; done
+	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d INSTALL=$(INSTALL) \
+				LIBDIR=$(LIBDIR) install; done
 
 clean:
 	rm -f *.o *.so *.a
