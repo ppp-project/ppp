@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: if_ppp.h,v 1.4 1994/09/01 00:45:32 paulus Exp $
+ * $Id: if_ppp.h,v 1.5 1994/09/16 01:54:06 paulus Exp $
  */
 
 #ifndef _IF_PPP_H_
@@ -34,6 +34,13 @@ struct ppp_header {
 #define PPP_HDRLEN	4	/* sizeof(struct ppp_header) must be 4 */
 #define PPP_FCSLEN	2	/* octets for FCS */
 
+#define PPP_ADDRESS(p)	(((u_char *)(p))[0])
+#define PPP_CONTROL(p)	(((u_char *)(p))[1])
+#define PPP_PROTOCOL(p)	((((u_char *)(p))[2] << 8) + ((u_char *)(p))[3])
+
+/*
+ * Significant octet values.
+ */
 #define	PPP_ALLSTATIONS	0xff	/* All-Stations broadcast address */
 #define	PPP_UI		0x03	/* Unnumbered Information */
 #define	PPP_FLAG	0x7e	/* Flag Sequence */
@@ -69,40 +76,58 @@ struct ppp_header {
 typedef u_long	ext_accm[8];
 
 /*
+ * What to do with network protocol (NP) packets.
+ */
+enum NPmode {
+    NPMODE_PASS,		/* pass the packet through */
+    NPMODE_DROP,		/* silently drop the packet */
+    NPMODE_ERROR,		/* return an error */
+    NPMODE_QUEUE		/* save it up for later. */
+};
+
+/*
+ * Supported network protocols.  These values are used for
+ * indexing sc_npmode.
+ */
+#define NP_IP	0		/* Internet Protocol */
+#define NUM_NP	1		/* Number of NPs. */
+
+/*
  * Structure describing each ppp unit.
  */
 struct ppp_softc {
-	struct ifnet sc_if;	/* network-visible interface */
-	u_int	sc_flags;	/* see below */
-	void	*sc_devp;	/* pointer to device-dependent structure */
-	int	(*sc_start)();	/* start routine */
-	short	sc_mru;		/* max receive unit */
-	pid_t	sc_xfer;	/* used in xferring unit to another dev */
-	struct	ifqueue sc_inq;	/* TTY side input queue */
-	struct	ifqueue sc_fastq; /* IP interactive output packet queue */
+	struct	ifnet sc_if;		/* network-visible interface */
+	u_int	sc_flags;		/* see below */
+	void	*sc_devp;		/* pointer to device-dep structure */
+	int	(*sc_start)();		/* start routine */
+	short	sc_mru;			/* max receive unit */
+	pid_t	sc_xfer;		/* used in transferring unit */
+	struct	ifqueue sc_inq;		/* TTY side input queue */
+	struct	ifqueue sc_fastq;	/* IP interactive output packet q */
 #ifdef	VJC
-	struct	slcompress sc_comp; /* vjc control buffer */
+	struct	slcompress sc_comp; 	/* vjc control buffer */
 #endif
-	u_int	sc_bytessent;	/* count of octets sent */
-	u_int	sc_bytesrcvd;	/* count of octets received */
-	caddr_t	sc_bpf;		/* hook for BPF */
+	u_int	sc_bytessent;		/* count of octets sent */
+	u_int	sc_bytesrcvd;		/* count of octets received */
+	caddr_t	sc_bpf;			/* hook for BPF */
+	enum	NPmode sc_npmode[NUM_NP]; /* what to do with each NP */
 	struct	compressor *sc_xcomp;	/* transmit compressor */
-	void	*sc_xc_state;	/* transmit compressor state */
+	void	*sc_xc_state;		/* transmit compressor state */
 	struct	compressor *sc_rcomp;	/* receive decompressor */
-	void	*sc_rc_state;	/* receive decompressor state */
+	void	*sc_rc_state;		/* receive decompressor state */
 	
 	/* Device-dependent part for async lines. */
-	ext_accm sc_asyncmap;	/* async control character map */
-	u_long	sc_rasyncmap;	/* receive async control char map */
-	struct	mbuf *sc_outm;	/* mbuf chain being output currently */
-	struct	mbuf *sc_m;	/* pointer to input mbuf chain */
-	struct	mbuf *sc_mc;	/* pointer to current input mbuf */
-	char	*sc_mp;		/* pointer to next char in input mbuf */
-	short	sc_ilen;	/* length of input-packet-so-far */
-	u_short	sc_fcs;		/* FCS so far (input) */
-	u_short	sc_outfcs;	/* FCS so far for output packet */
-	u_char	sc_rawin[16];	/* chars as received */
-	int	sc_rawin_count;	/* # in sc_rawin */
+	ext_accm sc_asyncmap;		/* async control character map */
+	u_long	sc_rasyncmap;		/* receive async control char map */
+	struct	mbuf *sc_outm;		/* mbuf chain currently being output */
+	struct	mbuf *sc_m;		/* pointer to input mbuf chain */
+	struct	mbuf *sc_mc;		/* pointer to current input mbuf */
+	char	*sc_mp;			/* ptr to next char in input mbuf */
+	short	sc_ilen;		/* length of input packet so far */
+	u_short	sc_fcs;			/* FCS so far (input) */
+	u_short	sc_outfcs;		/* FCS so far for output packet */
+	u_char	sc_rawin[16];		/* chars as received */
+	int	sc_rawin_count;		/* # in sc_rawin */
 };
 
 /* flags */
@@ -115,8 +140,8 @@ struct ppp_softc {
 #define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
 #define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
-#define SC_XCOMP_RUN	0x00001000	/* compressor has been inited */
-#define SC_RCOMP_RUN	0x00002000	/* decompressor has been inited */
+#define SC_COMP_RUN	0x00001000	/* compressor has been inited */
+#define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
 #define SC_LOG_INPKT	0x00020000	/* log contents of good pkts recvd */
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
@@ -127,21 +152,17 @@ struct ppp_softc {
 /* state bits */
 #define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
 #define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
+#define SC_VJ_RESET	0x20000000	/* Need to reset the VJ decompressor */
 #define SC_RCV_B7_0	0x01000000	/* have rcvd char with bit 7 = 0 */
 #define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
+#define SC_DC_ERROR	0x00400000	/* non-fatal decomp error detected */
+#define SC_DC_FERROR	0x00800000	/* fatal decomp error detected */
 
 /*
- * What to do with network protocol (NP) packets.
+ * Ioctl definitions.
  */
-
-enum NPmode {
-    NPMODE_PASS,		/* pass the packet through */
-    NPMODE_DROP,		/* silently drop the packet */
-    NPMODE_ERROR,		/* return an error */
-    NPMODE_QUEUE		/* save it up for later. */
-};
 
 struct npioctl {
     int		protocol;	/* PPP procotol, e.g. PPP_IP */
@@ -177,7 +198,6 @@ struct ppp_option_data {
 #define ifr_mtu ifr_ifru.ifru_metric
 #endif
 
-/* old copies of PPP may have defined this */
 #if !defined(ifr_mtu)
 #define ifr_mtu	ifr_metric
 #endif
