@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.54 1999/03/22 05:55:33 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.55 1999/03/24 05:05:24 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -88,6 +88,7 @@ int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
 bool	notty = 0;		/* Stdin/out is not a tty */
 char	*record_file = NULL;	/* File to record chars sent/received */
+int	using_pty = 0;
 
 extern option_t auth_options[];
 
@@ -299,7 +300,7 @@ parse_args(argc, argv)
 
 /*
  * scan_args - scan the command line arguments to get the tty name,
- * if specified.
+ * if specified.  Also checks whether the notty or pty option was given.
  */
 void
 scan_args(argc, argv)
@@ -313,6 +314,9 @@ scan_args(argc, argv)
     while (argc > 0) {
 	arg = *argv++;
 	--argc;
+
+	if (strcmp(arg, "notty") == 0 || strcmp(arg, "pty") == 0)
+	    using_pty = 1;
 
 	/* Skip options and their arguments */
 	opt = find_option(arg);

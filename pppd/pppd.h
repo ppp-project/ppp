@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.34 1999/03/22 05:55:35 paulus Exp $
+ * $Id: pppd.h,v 1.35 1999/03/24 05:05:25 paulus Exp $
  */
 
 /*
@@ -144,6 +144,7 @@ extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
+extern int	using_pty;	/* using pty as device (notty or pty opt.) */
 
 /*
  * Variables set by command-line options.

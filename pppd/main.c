@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.65 1999/03/23 01:23:46 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.66 1999/03/24 05:05:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -246,7 +246,25 @@ main(argc, argv)
     if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user())
 	exit(1);
+    using_pty = notty || ptycommand != NULL;
     scan_args(argc-1, argv+1);	/* look for tty name on command line */
+
+    /*
+     * Work out the device name, if it hasn't already been specified.
+     */
+    if (!using_pty) {
+	p = isatty(0)? ttyname(0): NULL;
+	if (p != NULL) {
+	    if (default_device)
+		strlcpy(devnam, p, sizeof(devnam));
+	    else if (strcmp(devnam, p) == 0)
+		default_device = 1;
+	}
+    }
+
+    /*
+     * Parse the tty options file and the command line.
+     */
     if (!options_for_tty()
 	|| !parse_args(argc-1, argv+1))
 	exit(1);
@@ -279,7 +297,7 @@ main(argc, argv)
 	exit(1);
     }
 
-    if (ptycommand != NULL || notty) {
+    if (using_pty) {
 	if (!default_device) {
 	    option_error("%s option precludes specifying device name",
 			 notty? "notty": "pty");
@@ -293,21 +311,9 @@ main(argc, argv)
 	lockflag = 0;
 	modem = 0;
     } else {
-	/*
-	 * If the user has specified the default device name explicitly,
-	 * pretend they hadn't.
-	 */
-	p = isatty(0)? ttyname(0): NULL;
-	if (p == NULL) {
-	    if (default_device) {
-		option_error("no device specified and stdin is not a tty");
-		exit(1);
-	    }
-	} else {
-	    if (default_device)
-		strlcpy(devnam, p, sizeof(devnam));
-	    else if (strcmp(devnam, p) == 0)
-		default_device = 1;
+	if (devnam[0] == 0) {
+	    option_error("no device specified and stdin is not a tty");
+	    exit(1);
 	}
     }
     if (default_device)
