@@ -1,5 +1,5 @@
 CC	= gcc
-CFLAGS	= -g -O2 -I.. -I../../include -D_linux_=1 -fPIC
+CFLAGS	= -g -O2 -I.. -I../../include -fPIC
 LDFLAGS	= -shared
 INSTALL	= install -o root
 

@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.4 2002/07/25 22:21:14 dfs Exp $
+# $Id: Makefile.linux,v 1.5 2002/10/27 12:56:26 fcusack Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -8,7 +8,7 @@ PPPSTATOBJS = pppstats.o
 
 #CC = gcc
 COPTS = -O
-COMPILE_FLAGS = -D_linux_ -I../include
+COMPILE_FLAGS = -I../include
 LIBS =
 
 INSTALL= install -o root -g daemon

@@ -36,7 +36,7 @@
 #endif
 
 #ifndef lint
-static const char rcsid[] = "$Id: pppstats.c,v 1.28 2000/04/24 02:54:18 masputra Exp $";
+static const char rcsid[] = "$Id: pppstats.c,v 1.29 2002/10/27 12:56:26 fcusack Exp $";
 #endif
 
 #include <stdio.h>
@@ -53,13 +53,13 @@ static const char rcsid[] = "$Id: pppstats.c,v 1.28 2000/04/24 02:54:18 masputra
 #include <sys/ioctl.h>
 
 #ifndef STREAMS
-#if defined(_linux_) && defined(__powerpc__) \
+#if defined(__linux__) && defined(__powerpc__) \
     && (__GLIBC__ == 2 && __GLIBC_MINOR__ == 0)
 /* kludge alert! */
 #undef __GLIBC__
 #endif
 #include <sys/socket.h>		/* *BSD, Linux, NeXT, Ultrix etc. */
-#ifndef _linux_
+#ifndef __linux__
 #include <net/if.h>
 #include <net/ppp_defs.h>
 #include <net/if_ppp.h>
@@ -74,7 +74,7 @@ static const char rcsid[] = "$Id: pppstats.c,v 1.28 2000/04/24 02:54:18 masputra
 #endif
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
-#endif /* _linux_ */
+#endif /* __linux__ */
 
 #else	/* STREAMS */
 #include <sys/stropts.h>	/* SVR4, Solaris 2, SunOS 4, OSF/1, etc. */
@@ -144,7 +144,7 @@ get_ppp_stats(curp)
 
     memset (&req, 0, sizeof (req));
 
-#ifdef _linux_
+#ifdef __linux__
     req.stats_ptr = (caddr_t) &req.stats;
 #undef ifr_name
 #define ifr_name ifr__name
@@ -170,7 +170,7 @@ get_ppp_cstats(csp)
 
     memset (&creq, 0, sizeof (creq));
 
-#ifdef _linux_
+#ifdef __linux__
     creq.stats_ptr = (caddr_t) &creq.stats;
 #undef  ifr_name
 #define ifr_name ifr__name
@@ -190,7 +190,7 @@ get_ppp_cstats(csp)
 	}
     }
 
-#ifdef _linux_
+#ifdef __linux__
     if (creq.stats.c.bytes_out == 0) {
 	creq.stats.c.bytes_out = creq.stats.c.comp_bytes + creq.stats.c.inc_bytes;
 	creq.stats.c.in_count = creq.stats.c.unc_bytes;
@@ -522,7 +522,7 @@ main(argc, argv)
 	    exit(1);
 	}
 
-#ifdef _linux_
+#ifdef __linux__
 #undef  ifr_name
 #define ifr_name ifr_ifrn.ifrn_name
 #endif

@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.52 2002/10/27 12:44:41 fcusack Exp $
+# $Id: Makefile.linux,v 1.53 2002/10/27 12:56:26 fcusack Exp $
 #
 
 # Default installation locations
@@ -76,7 +76,7 @@ MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
 
-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
+COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 

@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.87 2002/10/12 01:28:05 fcusack Exp $"
+#define RCSID	"$Id: auth.c,v 1.88 2002/10/27 12:56:26 fcusack Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -46,7 +46,7 @@
 #include <sys/socket.h>
 #include <utmp.h>
 #include <fcntl.h>
-#if defined(_PATH_LASTLOG) && defined(_linux_)
+#if defined(_PATH_LASTLOG) && defined(__linux__)
 #include <lastlog.h>
 #endif
 

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.18 2002/03/05 15:14:04 dfs Exp $"
+#define RCSID	"$Id: utils.c,v 1.19 2002/10/27 12:56:26 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -818,7 +818,7 @@ dump_packet(const char *tag, unsigned char *p, int len)
 
 /* Procedures for locking the serial device using a lock file. */
 #ifndef LOCK_DIR
-#ifdef _linux_
+#ifdef __linux__
 #define LOCK_DIR	"/var/lock"
 #else
 #ifdef SVR4
