@@ -41,10 +41,10 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.15 1995/07/11 06:38:15 paulus Exp $
+ * $Id: bsd-comp.c,v 1.16 1995/10/27 03:35:49 paulus Exp $
  */
 
-#ifdef __aix4__
+#if defined(aix4) || defined(__aix4__)
 #include <net/net_globals.h>
 #endif
 #include <sys/param.h>
@@ -55,19 +55,19 @@
 #include <net/ppp_defs.h>
 #include <net/ppp_str.h>
 
-#ifdef __svr4__			/* SVR4, including SunOS 5.x */
+#if defined(svr4) || defined(__svr4__)		/* SVR4, including SunOS 5.x */
 # include <sys/kmem.h>
 # define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
 # define FREE(p, n)	kmem_free((p), (n))
 #else				/* SunOS 4.x */
-# ifdef sun
+# if defined(sun) || defined(__sun__)
 #  include <sys/kmem_alloc.h>
 #  define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
 #  define FREE(p, n)	kmem_free((p), (n))
 # endif
 #endif
 
-#ifdef __osf__
+#if defined(osf) || defined(__osf__)
 #include <kern/kalloc.h>
 #ifdef FIRST
 #undef FIRST
@@ -81,7 +81,7 @@
 #define BSD_LITTLE_ENDIAN
 #endif
 
-#ifdef __aix4__
+#if defined(aix4) || defined(__aix4__)
 #define ALLOCATE(n)	xmalloc((n), 0, pinned_heap)
 #define FREE(p, n)	xmfree((p), pinned_heap)
 #endif
