@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.13 1997/03/04 03:45:17 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.14 1998/02/04 01:43:39 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -121,7 +121,6 @@
 #endif
 
 static int	pppsioctl(struct ifnet *, int, caddr_t);
-static int	pppoutput(struct ifnet *, struct mbuf *, struct sockaddr *);
 static void	ppp_requeue __P((struct ppp_softc *));
 static void	ppp_outpkt __P((struct ppp_softc *));
 static void	ppp_ccp __P((struct ppp_softc *, struct mbuf *m, int rcvd));
