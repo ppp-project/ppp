@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.12 1994/09/01 00:24:14 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.13 1994/09/16 02:15:37 paulus Exp $";
 #endif
 
 /*
@@ -252,7 +252,23 @@ lcp_input(unit, p, len)
     u_char *p;
     int len;
 {
-    fsm_input(&lcp_fsm[unit], p, len);
+    int oldstate;
+    fsm *f = &lcp_fsm[unit];
+    lcp_options *go = &lcp_gotoptions[f->unit];
+
+    oldstate = f->state;
+    fsm_input(f, p, len);
+    if (oldstate == REQSENT && f->state == ACKSENT) {
+	/*
+	 * The peer will probably send us an ack soon and then
+	 * immediately start sending packets with the negotiated
+	 * options.  So as to be ready when that happens, we set
+	 * our receive side to accept packets as negotiated now.
+	 */
+	ppp_recv_config(f->unit, MTU,
+			go->neg_asyncmap? go->asyncmap: 0x00000000,
+			go->neg_pcompression, go->neg_accompression);
+    }
 }
 
 
