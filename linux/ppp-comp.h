@@ -120,6 +120,7 @@ struct compressor {
  * Don't you just lurve software patents.
  */
 
+#define DECOMP_OK		0	/* no error occured */
 #define DECOMP_ERROR		1	/* error detected before decomp. */
 #define DECOMP_FATALERROR	2	/* error detected after decomp. */
 
