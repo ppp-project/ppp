@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.29 1995/12/18 03:50:17 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.30 1996/01/01 22:59:26 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -75,26 +75,30 @@ static pid_t	pid;		/* Our pid */
 static pid_t	pgrpid;		/* Process Group ID */
 static uid_t uid;		/* Our real user-id */
 
-int fd = -1;			/* Device file descriptor */
+int ttyfd = -1;			/* Serial port file descriptor */
 
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
 
+static int loop_fd = -1;	/* fd for loopback device */
+
 u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
-static u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
+u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
 
 int hungup;			/* terminal has been hung up */
 static int n_children;		/* # child processes still running */
 
 int baud_rate;			/* Actual bits/second for serial device */
 
+static int locked;		/* lock() has succeeded */
+
 char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 
 /* Prototypes for procedures local to this file. */
 
 static void cleanup __P((void));
-static void close_fd __P((void));
+static void close_tty __P((void));
 static void get_input __P((void));
 static void connect_time_expired __P((caddr_t));
 static void calltimeout __P((void));
@@ -105,6 +109,7 @@ static void chld __P((int));
 static void toggle_debug __P((int));
 static void open_ccp __P((int));
 static void bad_signal __P((int));
+static void holdoff_end __P((void *));
 static int device_script __P((char *, int, int));
 static void reap_kids __P((void));
 static void pr_log __P((void *, char *, ...));
@@ -175,18 +180,18 @@ main(argc, argv)
 	!options_from_user() ||
 	!parse_args(argc-1, argv+1) ||
 	!options_for_tty())
-	die(1);
+	exit(1);
 
     if (!ppp_available()) {
 	fprintf(stderr, no_ppp_msg);
 	exit(1);
     }
 
-#ifdef IPX_CHANGE
-    remove_sys_options();
-#endif /* IPX_CHANGE */
-    check_auth_options();
-    setipdefault();
+    sys_check_options();
+    auth_check_options();
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if (protp->check_options != NULL)
+	    (*protp->check_options)();
 
     /*
      * If the user has specified the default device name explicitly,
@@ -290,63 +295,13 @@ main(argc, argv)
 #endif
 
     /*
-     * Lock the device if we've been asked to.
+     * If we're doing dial-on-demand, set up the interface now.
      */
-    if (lockflag && !default_device)
-	if (lock(devnam) < 0)
-	    die(1);
-
-    do {
-
+    if (demand) {
 	/*
-	 * Open the serial device and set it up to be the ppp interface.
-	 * If we're dialling out, or we don't want to use the modem lines,
-	 * we open it in non-blocking mode, but then we need to clear
-	 * the non-blocking I/O bit.
+	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
-	nonblock = (connector || !modem)? O_NONBLOCK: 0;
-	if ((fd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
-	    syslog(LOG_ERR, "Failed to open %s: %m", devnam);
-	    die(1);
-	}
-	if (nonblock) {
-	    if ((fdflags = fcntl(fd, F_GETFL)) == -1
-		|| fcntl(fd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
-		syslog(LOG_WARNING,
-		       "Couldn't reset non-blocking mode on device: %m");
-	}
-	hungup = 0;
-	kill_link = 0;
-
-	/* run connection script */
-	if (connector && connector[0]) {
-	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
-
-	    /* set line speed, flow control, etc.; set CLOCAL for now */
-	    set_up_tty(fd, 1);
-
-	    /* drop dtr to hang up in case modem is off hook */
-	    if (!default_device && modem) {
-		setdtr(fd, FALSE);
-		sleep(1);
-		setdtr(fd, TRUE);
-	    }
-
-	    if (device_script(connector, fd, fd) < 0) {
-		syslog(LOG_ERR, "Connect script failed");
-		setdtr(fd, FALSE);
-		die(1);
-	    }
-
-	    syslog(LOG_INFO, "Serial connection established.");
-	    sleep(1);		/* give it time to set up its terminal */
-	}
-
-	/* set line speed, flow control, etc.; clear CLOCAL if modem option */
-	set_up_tty(fd, 0);
-
-	/* set up the serial device as a ppp interface */
-	establish_ppp();
+	open_ppp_loopback();
 
 	syslog(LOG_INFO, "Using interface ppp%d", ifunit);
 	(void) sprintf(ifname, "ppp%d", ifunit);
@@ -362,6 +317,123 @@ main(argc, argv)
 	}
 
 	/*
+	 * Configure the interface and mark it up, etc.
+	 */
+	demand_conf();
+    }
+
+    for (;;) {
+
+	if (demand) {
+	    /*
+	     * Don't do anything until we see some activity.
+	     */
+	    phase = PHASE_DORMANT;
+	    kill_link = 0;
+	    demand_unblock();
+	    for (;;) {
+		wait_loop_output(timeleft(&timo));
+		calltimeout();
+		if (kill_link) {
+		    if (!persist)
+			die(0);
+		    kill_link = 0;
+		}
+		if (get_loop_output())
+		    break;
+		reap_kids();
+	    }
+
+	    /*
+	     * Now we want to bring up the link.
+	     */
+	    demand_block();
+	    syslog(LOG_INFO, "Starting link");
+	}
+
+	/*
+	 * Lock the device if we've been asked to.
+	 */
+	if (lockflag && !default_device) {
+	    if (lock(devnam) < 0)
+		goto fail;
+	    locked = 1;
+	}
+
+	/*
+	 * Open the serial device and set it up to be the ppp interface.
+	 * If we're dialling out, or we don't want to use the modem lines,
+	 * we open it in non-blocking mode, but then we need to clear
+	 * the non-blocking I/O bit.
+	 */
+	nonblock = (connector || !modem)? O_NONBLOCK: 0;
+	if ((ttyfd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
+	    syslog(LOG_ERR, "Failed to open %s: %m", devnam);
+	    goto fail;
+	}
+	if (nonblock) {
+	    if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
+		|| fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
+		syslog(LOG_WARNING,
+		       "Couldn't reset non-blocking mode on device: %m");
+	}
+	hungup = 0;
+	kill_link = 0;
+
+	/* run connection script */
+	if (connector && connector[0]) {
+	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
+
+	    /* set line speed, flow control, etc.; set CLOCAL for now */
+	    set_up_tty(ttyfd, 1);
+
+	    /* drop dtr to hang up in case modem is off hook */
+	    if (!default_device && modem) {
+		setdtr(ttyfd, FALSE);
+		sleep(1);
+		setdtr(ttyfd, TRUE);
+	    }
+
+	    if (device_script(connector, ttyfd, ttyfd) < 0) {
+		syslog(LOG_ERR, "Connect script failed");
+		setdtr(ttyfd, FALSE);
+		goto fail;
+	    }
+
+	    syslog(LOG_INFO, "Serial connection established.");
+	    sleep(1);		/* give it time to set up its terminal */
+	}
+
+	/* set line speed, flow control, etc.; clear CLOCAL if modem option */
+	set_up_tty(ttyfd, 0);
+
+	/* run welcome script, if any */
+	if (welcomer && welcomer[0]) {
+	    if (device_script(welcomer, ttyfd, ttyfd) < 0)
+		syslog(LOG_WARNING, "Welcome script failed");
+	}
+
+	/* set up the serial device as a ppp interface */
+	establish_ppp(ttyfd);
+
+	if (!demand) {
+	    
+	    syslog(LOG_INFO, "Using interface ppp%d", ifunit);
+	    (void) sprintf(ifname, "ppp%d", ifunit);
+	    
+	    /* write pid to file */
+	    (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
+	    if ((pidfile = fopen(pidfilename, "w")) != NULL) {
+		fprintf(pidfile, "%d\n", pid);
+		(void) fclose(pidfile);
+	    } else {
+		syslog(LOG_ERR, "Failed to create pid file %s: %m",
+		       pidfilename);
+		pidfilename[0] = 0;
+	    }
+	}
+
+	/*
 	 * Set a timeout to close the connection once the maximum
 	 * connect time has expired.
 	 */
@@ -369,7 +441,7 @@ main(argc, argv)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
 
 	/*
-	 * Block all signals, start opening the connection, and wait for
+	 * Start opening the connection and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
 	syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devnam);
@@ -395,29 +467,75 @@ main(argc, argv)
 	}
 
 	/*
+	 * If we may want to bring the link up again, transfer
+	 * the ppp unit back to the loopback.  Set the
+	 * real serial device back to its normal mode of operation.
+	 */
+	clean_check();
+	if (demand)
+	    restore_loop();
+	disestablish_ppp(ttyfd);
+
+	/*
 	 * Run disconnector script, if requested.
 	 * XXX we may not be able to do this if the line has hung up!
 	 */
-	disestablish_ppp();
-	if (disconnector) {
-	    set_up_tty(fd, 1);
-	    if (device_script(disconnector, fd, fd) < 0) {
+	if (disconnector && !hungup) {
+	    set_up_tty(ttyfd, 1);
+	    if (device_script(disconnector, ttyfd, ttyfd) < 0) {
 		syslog(LOG_WARNING, "disconnect script failed");
 	    } else {
 		syslog(LOG_INFO, "Serial link disconnected.");
 	    }
 	}
 
-	close_fd();
-	if (unlink(pidfilename) < 0 && errno != ENOENT) 
-	    syslog(LOG_WARNING, "unable to delete pid file: %m");
-	pidfilename[0] = 0;
+    fail:
+	close_tty();
+	if (locked) {
+	    unlock();
+	    locked = 0;
+	}
 
-    } while (persist);
+	if (!demand) {
+	    if (unlink(pidfilename) < 0 && errno != ENOENT) 
+		syslog(LOG_WARNING, "unable to delete pid file: %m");
+	    pidfilename[0] = 0;
+	}
+
+	if (!persist)
+	    break;
+
+	if (demand)
+	    demand_discard();
+	if (holdoff > 0) {
+	    phase = PHASE_HOLDOFF;
+	    TIMEOUT(holdoff_end, NULL, holdoff);
+	    do {
+		wait_time(timeleft(&timo));
+		calltimeout();
+		if (kill_link) {
+		    if (!persist)
+			die(0);
+		    kill_link = 0;
+		    phase = PHASE_DORMANT; /* allow signal to end holdoff */
+		}
+		reap_kids();
+	    } while (phase == PHASE_HOLDOFF);
+	}
+    }
 
     die(0);
 }
 
+/*
+ * holdoff_end - called via a timeout when the holdoff period ends.
+ */
+static void
+holdoff_end(arg)
+    void *arg;
+{
+    phase = PHASE_DORMANT;
+}
 
 /*
  * get_input - called when incoming data is available.
@@ -529,33 +647,33 @@ cleanup()
 {
     sys_cleanup();
 
-    if (fd >= 0)
-	close_fd();
+    if (ttyfd >= 0)
+	close_tty();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
 	syslog(LOG_WARNING, "unable to delete pid file: %m");
     pidfilename[0] = 0;
 
-    if (lockflag && !default_device)
+    if (locked)
 	unlock();
 }
 
 /*
- * close_fd - restore the terminal device and close it.
+ * close_tty - restore the terminal device and close it.
  */
 static void
-close_fd()
+close_tty()
 {
-    disestablish_ppp();
+    disestablish_ppp(ttyfd);
 
     /* drop dtr to hang up */
     if (modem)
-	setdtr(fd, FALSE);
+	setdtr(ttyfd, FALSE);
 
-    restore_tty();
+    restore_tty(ttyfd);
 
-    close(fd);
-    fd = -1;
+    close(ttyfd);
+    ttyfd = -1;
 }
 
 
@@ -796,6 +914,7 @@ device_script(program, in, out)
     }
 
     if (pid == 0) {
+	sys_close();
 	dup2(in, 0);
 	dup2(out, 1);
 	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
@@ -851,11 +970,11 @@ run_program(prog, args, must_exist)
 	setgid(getegid());
 
 	/* Ensure that nothing of our device environment is inherited. */
+	sys_close();
 	close (0);
 	close (1);
 	close (2);
-	close (fd);  /* tty interface to the ppp device */
-	/* XXX should call sysdep cleanup procedure here */
+	close (ttyfd);  /* tty interface to the ppp device */
 
         /* Don't pass handles to the PPP device, even by accident. */
 	new_fd = open (_PATH_DEVNULL, O_RDWR);
