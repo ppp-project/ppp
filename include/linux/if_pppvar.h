@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 990325==
+ *  ==FILEVERSION 990806==
  *
  *  NOTE TO MAINTAINERS:
  *   If you modify this file at all, please set the above date.
@@ -133,3 +133,6 @@ struct ppp {
 	/* tty output buffer */
 	unsigned char	obuf[OBUFSIZE];	/* buffer for characters to send */
 };
+
+#define PPP_MAGIC	0x5002
+#define PPP_VERSION	"2.3.7"
