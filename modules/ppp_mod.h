@@ -2,10 +2,6 @@
  * Miscellaneous definitions for PPP STREAMS modules.
  */
 
-#if defined(osf) || defined(__osf__)
-#define OSF1
-#endif
-
 /*
  * Macros for allocating and freeing kernel memory.
  */
@@ -14,6 +10,7 @@
 #define ALLOC_SLEEP(n)		kmem_alloc((n), KM_SLEEP)
 #define ALLOC_NOSLEEP(n)	kmem_alloc((n), KM_NOSLEEP)
 #define FREE(p, n)		kmem_free((p), (n))
+#define NOTSUSER()		(suser()? 0: EPERM)
 #endif
 
 #ifdef SUNOS4
@@ -21,27 +18,58 @@
 #define ALLOC_SLEEP(n)		kmem_alloc((n), KMEM_SLEEP)
 #define ALLOC_NOSLEEP(n)	kmem_alloc((n), KMEM_NOSLEEP)
 #define FREE(p, n)		kmem_free((p), (n))
+#define NOTSUSER()		(suser()? 0: EPERM)
 #endif /* SunOS 4 */
 
-#ifdef OSF1
-#include <kern/kalloc.h>	/* OSF/1 */
+#ifdef __osf__
+#include <sys/malloc.h>
+
+/* caution: this mirrors macros in sys/malloc.h, and uses interfaces
+ * which are subject to change.
+ * The problems are that:
+ *     - the official MALLOC macro wants the lhs of the assignment as an argument,
+ *	 and it takes care of the assignment itself (yuck.)
+ *     - PPP insists on using "FREE" which conflicts with a macro of the same name.
+ *
+ */
+#ifdef BUCKETINDX /* V2.0 */
+#define ALLOC_SLEEP(n)		(void *)malloc((u_long)(n), BUCKETP(n), M_DEVBUF, M_WAITOK)
+#define ALLOC_NOSLEEP(n)	(void *)malloc((u_long)(n), BUCKETP(n), M_DEVBUF, M_NOWAIT)
+#else
+#define ALLOC_SLEEP(n)		(void *)malloc((u_long)(n), BUCKETINDEX(n), M_DEVBUF, M_WAITOK)
+#define ALLOC_NOSLEEP(n)	(void *)malloc((u_long)(n), BUCKETINDEX(n), M_DEVBUF, M_NOWAIT)
+#endif
+
+#ifdef FREE
 #undef FREE
-#define ALLOC_SLEEP(n)		kalloc((n))
-#define ALLOC_NOSLEEP(n)	kalloc((n))
-#define FREE(p, n)		kfree((p), (n))
-#endif /* OSF/1 */
+#endif
+#define FREE(p, n)		free((void *)(p), M_DEVBUF)
+
+#define NO_DLPI 1
+
+#ifndef IFT_PPP
+#define IFT_PPP 0x17
+#endif
+
+#include <sys/proc.h>
+#define NOTSUSER()		(suser(u.u_procp->p_rcred, &u.u_acflag) ? EPERM : 0)
+
+#include "ppp_osf.h"
+
+#endif /* __osf__ */
 
 #ifdef AIX4
 #define ALLOC_SLEEP(n)		xmalloc((n), 0, pinned_heap)	/* AIX V4.x */
 #define ALLOC_NOSLEEP(n)	xmalloc((n), 0, pinned_heap)	/* AIX V4.x */
 #define FREE(p, n)		xmfree((p), pinned_heap)
+#define NOTSUSER()		(suser()? 0: EPERM)
 #endif /* AIX */
 
 /*
  * Macros for printing debugging stuff.
  */
 #ifdef DEBUG
-#ifdef SVR4
+#if defined(SVR4) || defined(__osf__)
 #define DPRINT(f)		cmn_err(CE_CONT, f)
 #define DPRINT1(f, a1)		cmn_err(CE_CONT, f, a1)
 #define DPRINT2(f, a1, a2)	cmn_err(CE_CONT, f, a1, a2)
@@ -63,7 +91,9 @@
 #ifndef SVR4
 typedef unsigned char uchar_t;
 typedef unsigned short ushort_t;
+#ifndef __osf__
 typedef int minor_t;
+#endif
 #endif
 
 /*
@@ -145,12 +175,5 @@ static int name(q, flag)	\
 
 #define OPEN_ERROR(x)		{ u.u_error = (x); return OPENFAIL; }
 #define DRV_OPEN_OK(dev)	return (dev)
-
-#ifdef OSF1
-#include <sys/proc.h>
-#define NOTSUSER()	(suser(u.u_procp->p_rcred, &u.u_acflag))
-#else
-#define NOTSUSER()	(suser()? 0: EPERM)
-#endif
 
 #endif	/* SVR4 */

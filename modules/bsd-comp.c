@@ -39,9 +39,9 @@
 
 /*
  * This version is for use with STREAMS under SunOS 4.x,
- * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
+ * Digital UNIX, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.18 1996/01/18 03:12:53 paulus Exp $
+ * $Id: bsd-comp.c,v 1.19 1996/06/26 00:53:15 paulus Exp $
  */
 
 #ifdef AIX4
@@ -60,7 +60,7 @@
 #endif
 #endif
 
-#ifdef OSF1
+#ifdef __osf__
 #undef FIRST
 #undef LAST
 #define BSD_LITTLE_ENDIAN
@@ -326,6 +326,7 @@ bsd_alloc(options, opt_len, decomp)
     if (opt_len != 3 || options[0] != CI_BSD_COMPRESS || options[1] != 3
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	return NULL;
+
     bits = BSD_NBITS(options[2]);
     switch (bits) {
     case 9:			/* needs 82152 for both directions */
@@ -357,7 +358,11 @@ bsd_alloc(options, opt_len, decomp)
 
     maxmaxcode = MAXCODE(bits);
     newlen = sizeof(*db) + (hsize-1) * (sizeof(db->dict[0]));
+#ifdef __osf__
+    db = (struct bsd_db *) ALLOC_SLEEP(newlen);
+#else
     db = (struct bsd_db *) ALLOC_NOSLEEP(newlen);
+#endif
     if (!db)
 	return NULL;
     bzero(db, sizeof(*db) - sizeof(db->dict));
@@ -365,7 +370,11 @@ bsd_alloc(options, opt_len, decomp)
     if (!decomp) {
 	db->lens = NULL;
     } else {
+#ifdef __osf__
+	db->lens = (u_short *) ALLOC_SLEEP((maxmaxcode+1) * sizeof(db->lens[0]));
+#else
 	db->lens = (u_short *) ALLOC_NOSLEEP((maxmaxcode+1) * sizeof(db->lens[0]));
+#endif
 	if (!db->lens) {
 	    FREE(db, newlen);
 	    return NULL;
