@@ -25,8 +25,9 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-osf.c,v 1.30 1999/08/13 06:46:18 paulus Exp $"
+#define RCSID	"$Id: sys-osf.c,v 1.31 1999/12/23 01:35:28 paulus Exp $"
 
+#include <syslog.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -809,11 +810,13 @@ wait_loop_output(timo)
     wait_input(timo);
 }
 
+#endif
+
 /*
  * wait_time - wait for a given length of time or until a
- * signal is received.
+ * signal is received. Called by ccp_test
  */
-void
+static void
 wait_time(timo)
     struct timeval *timo;
 {
@@ -823,7 +826,6 @@ wait_time(timo)
     if (n < 0 && errno != EINTR)
 	fatal("select: %m");
 }
-#endif
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -1533,61 +1535,7 @@ GetMask(addr)
  */
 int have_route_to(u_int32_t addr)
 {
-	char buf[sizeof(struct rt_msghdr) + (sizeof(struct sockaddr_in))];
-	int status;
-	int s, n;
-	struct rt_msghdr *rtm;
-	struct sockaddr_in *sin;
-	int msglen = sizeof(*rtm) + (sizeof(*sin));
-	char *cp;
-	char msg[2048];
-
-	rtm = (struct rt_msghdr *)buf;
-	memset(rtm, 0, msglen);
-	rtm->rtm_msglen = msglen;
-	rtm->rtm_version = RTM_VERSION;
-	rtm->rtm_type = RTM_GET;
-	rtm->rtm_addrs = RTA_DST;
-	/* rtm->rtm_addrs, rtm_flags  should be set on output */
-
-	sin = (struct sockaddr_in *)((u_char *)rtm + sizeof(*rtm));
-	sin->sin_len = sizeof(*sin);
-	sin->sin_family = AF_INET;
-	sin->sin_addr.s_addr = addr;
-
-        status = 0;
-
-	if ((s = socket(PF_ROUTE, SOCK_RAW, 0)) < 0)
-		return -1;
-	if (write(s, (char *)rtm, msglen) != msglen) {
-		close(s);
-		return status == ESRCH? 0: -1;
-	}
-
-	n = read(s, msg, 2048);
-	close(s);
-	if (n <= 0)
-		return -1;
-
-	rtm = (struct rt_msghdr *) msg;
-	if (rtm->rtm_version != RTM_VERSION)
-		return -1;
-
-	/* here we try to work out if the route is through our own interface */
-	cp = (char *)(rtm + 1);
-	if (rtm->rtm_addrs & RTA_DST) {
-		struct sockaddr *sa = (struct sockaddr *) cp;
-		cp = (char *)(((unsigned long)cp + sa->sa_len
-			       + sizeof(long) - 1) & ~(sizeof(long) - 1));
-	}
-	if (rtm->rtm_addrs & RTA_GATEWAY) {
-		sin = (struct sockaddr_in *) cp;
-		if (sin->sin_addr.s_addr == ifaddrs[0]
-		    || sin->sin_addr.s_addr == ifaddrs[1])
-			return 0; 	/* route is through our interface */
-	}
-
-	return 1;
+	return -1; 
 }
 
 static int
