@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.14 2001/05/23 03:39:14 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.15 2001/11/09 10:33:04 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -790,7 +790,7 @@ dump_packet(const char *tag, unsigned char *p, int len)
 	    return;
     }
 
-    dbglog("%s %P", tag, p - PPP_HDRLEN, len + PPP_HDRLEN);
+    dbglog("%s %P", tag, p, len);
 }
 
 /* Procedures for locking the serial device using a lock file. */
