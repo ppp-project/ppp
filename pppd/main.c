@@ -18,10 +18,8 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.13 1994/05/27 01:02:14 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.14 1994/08/09 06:27:52 paulus Exp $";
 #endif
-
-#define SETSID
 
 #include <stdio.h>
 #include <string.h>
@@ -56,9 +54,9 @@ static char rcsid[] = "$Id: main.c,v 1.13 1994/05/27 01:02:14 paulus Exp $";
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+
 #include <net/if.h>
 
-#include "callout.h"
 #include "ppp.h"
 #include "magic.h"
 #include "fsm.h"
@@ -66,6 +64,7 @@ static char rcsid[] = "$Id: main.c,v 1.13 1994/05/27 01:02:14 paulus Exp $";
 #include "ipcp.h"
 #include "upap.h"
 #include "chap.h"
+#include "ccp.h"
 
 #include "pppd.h"
 #include "pathnames.h"
@@ -107,6 +106,7 @@ int fd = -1;			/* Device file descriptor */
 int s;				/* Socket file descriptor */
 
 int phase;			/* where the link is at */
+int kill_link;
 
 #ifdef SGTTY
 static struct sgttyb initsgttyb;	/* Initial TTY sgttyb */
@@ -116,7 +116,7 @@ static struct termios inittermios;	/* Initial TTY termios */
 
 static int initfdflags = -1;	/* Initial file descriptor flags */
 
-static int restore_term;	/* 1 => we've munged the terminal */
+int restore_term;	/* 1 => we've munged the terminal */
 
 u_char outpacket_buf[MTU+DLLHEADERLEN]; /* buffer for outgoing packet */
 static u_char inpacket_buf[MTU+DLLHEADERLEN]; /* buffer for incoming packet */
@@ -149,17 +149,18 @@ int lockflag = 0;		/* lock the serial device */
 
 /* prototypes */
 static void hup __ARGS((int));
-static void intr __ARGS((int));
 static void term __ARGS((int));
-static void alrm __ARGS((int));
-static void io __ARGS((int));
 static void chld __ARGS((int));
 static void incdebug __ARGS((int));
 static void nodebug __ARGS((int));
-void establish_ppp __ARGS((void));
 
+static void get_input __ARGS((void));
+void establish_ppp __ARGS((void));
+void calltimeout __ARGS((void));
+struct timeval *timeleft __ARGS((struct timeval *));
 void reap_kids __ARGS((void));
 void cleanup __ARGS((int, caddr_t));
+void close_fd __ARGS((void));
 void die __ARGS((int));
 void novm __ARGS((char *));
 
@@ -181,12 +182,14 @@ static struct protent {
     void (*input)();
     void (*protrej)();
     int  (*printpkt)();
+    void (*datainput)();
     char *name;
 } prottbl[] = {
-    { LCP, lcp_init, lcp_input, lcp_protrej, lcp_printpkt, "LCP" },
-    { IPCP, ipcp_init, ipcp_input, ipcp_protrej, ipcp_printpkt, "IPCP" },
-    { UPAP, upap_init, upap_input, upap_protrej, upap_printpkt, "PAP" },
-    { CHAP, ChapInit, ChapInput, ChapProtocolReject, ChapPrintPkt, "CHAP" },
+    { LCP, lcp_init, lcp_input, lcp_protrej, lcp_printpkt, NULL, "LCP" },
+    { IPCP, ipcp_init, ipcp_input, ipcp_protrej, ipcp_printpkt, NULL, "IPCP" },
+    { UPAP, upap_init, upap_input, upap_protrej, upap_printpkt, NULL, "PAP" },
+    { CHAP, ChapInit, ChapInput, ChapProtocolReject, ChapPrintPkt, NULL, "CHAP" },
+    { CCP, ccp_init, ccp_input, ccp_protrej, ccp_printpkt, ccp_datainput, "CCP" },
 };
 
 #define N_PROTO		(sizeof(prottbl) / sizeof(prottbl[0]))
@@ -201,6 +204,7 @@ main(argc, argv)
     FILE *pidfile;
     char *p;
     struct passwd *pw;
+    struct timeval timo;
 
     p = ttyname(0);
     if (p)
@@ -212,7 +216,6 @@ main(argc, argv)
     }
     hostname[MAXNAMELEN-1] = 0;
 
-    pid = getpid();
     uid = getuid();
 
     if (!ppp_available()) {
@@ -254,6 +257,15 @@ main(argc, argv)
 
     magic_init();
 
+    /*
+     * Detach ourselves from the terminal, if required,
+     * and identify who is running us.
+     */
+    if (!default_device && !nodetach && daemon(0, 0) < 0) {
+	perror("daemon");
+	exit(1);
+    }
+    pid = getpid();
     p = getlogin();
     if (p == NULL) {
 	pw = getpwuid(uid);
@@ -264,57 +276,6 @@ main(argc, argv)
     }
     syslog(LOG_NOTICE, "pppd %s.%d started by %s, uid %d",
 	   VERSION, PATCHLEVEL, p, uid);
-
-#ifdef SETSID
-    /*
-     * Make sure we can set the serial device to be our controlling terminal.
-     */
-    if (default_device) {
-	/*
-	 * No device name was specified:
-	 * we are in the device's session already.
-	 */
-	if ((pgrpid = getpgrp(0)) < 0) {
-	    syslog(LOG_ERR, "getpgrp(0): %m");
-	    die(1);
-	}
-
-    } else {
-	/*
-	 * Not default device: make sure we're not a process group leader,
-	 * then become session leader of a new session (so we can make
-	 * our device its controlling terminal and thus get SIGHUPs).
-	 */
-	if (!nodetach) {
-	    /* fork so we're not a process group leader */
-	    if (pid = fork()) {
-		exit(0);	/* parent is finished */
-	    }
-	    if (pid < 0) {
-		syslog(LOG_ERR, "fork: %m");
-		die(1);
-	    }
-	    pid = getpid();	/* otherwise pid is 0 in child */
-	} else {
-	    /*
-	     * try to put ourself into our parent's process group,
-	     * so we're not a process group leader
-	     */
-	    if (setpgrp(pid, getppid()) < 0)
-		syslog(LOG_WARNING, "setpgrp: %m");
-	}
-
-	/* create new session */
-	if ((pgrpid = setsid()) < 0) {
-	    syslog(LOG_ERR, "setsid(): %m");
-	    die(1);
-	}
-    }
-#endif
-
-    if (lockflag && !default_device)
-	if (lock(devname) < 0)
-	    die(1);
 
     /* Get an internet socket for doing socket ioctl's on. */
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -330,12 +291,8 @@ main(argc, argv)
     sigemptyset(&mask);
     sigaddset(&mask, SIGHUP);
     sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGALRM);
-    sigaddset(&mask, SIGIO);
+    sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGCHLD);
-#ifdef	STREAMS
-    sigaddset(&mask, SIGPOLL);
-#endif
 
 #define SIGNAL(s, handler)	{ \
 	sa.sa_handler = handler; \
@@ -348,156 +305,224 @@ main(argc, argv)
     sa.sa_mask = mask;
     sa.sa_flags = 0;
     SIGNAL(SIGHUP, hup);		/* Hangup */
-    SIGNAL(SIGINT, intr);		/* Interrupt */
+    SIGNAL(SIGINT, term);		/* Interrupt */
     SIGNAL(SIGTERM, term);		/* Terminate */
-    SIGNAL(SIGALRM, alrm);		/* Timeout */
-    SIGNAL(SIGIO, io);			/* Input available */
-    SIGNAL(SIGCHLD, chld);		/* Death of child process */
-#ifdef	STREAMS
-    SIGNAL(SIGPOLL, io);		/* Input available */
-#endif
+    SIGNAL(SIGCHLD, chld);
 
     signal(SIGUSR1, incdebug);		/* Increment debug flag */
     signal(SIGUSR2, nodebug);		/* Reset debug flag */
 
     /*
-     * Block SIGIOs and SIGPOLLs for now
+     * Lock the device if we've been asked to.
      */
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGIO);
-#ifdef	STREAMS
-    sigaddset(&mask, SIGPOLL);
-#endif
-    sigprocmask(SIG_BLOCK, &mask, NULL);
+    if (lockflag && !default_device)
+	if (lock(devname) < 0)
+	    die(1);
 
-    /*
-     * Open the serial device and set it up to be the ppp interface.
-     */
-    if ((fd = open(devname, O_RDWR /*| O_NDELAY*/)) < 0) {
-	syslog(LOG_ERR, "open(%s): %m", devname);
-	die(1);
-    }
-    hungup = 0;
+    do {
 
-#ifdef TIOCSCTTY
-    /* set device to be controlling tty */
-    if (!default_device && ioctl(fd, TIOCSCTTY) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCSCTTY): %m");
-	die(1);
-    }
-#endif /* TIOCSCTTY */
-
-    /* run connection script */
-    if (connector) {
-	MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
-
-	/* set line speed, flow control, etc.; set CLOCAL for now */
-	set_up_tty(fd, 1);
-
-	/* drop dtr to hang up in case modem is off hook */
-	if (!default_device && modem) {
-	    setdtr(fd, FALSE);
-	    sleep(1);
-	    setdtr(fd, TRUE);
-	}
-
-	if (device_script(connector, fd, fd) < 0) {
-	    syslog(LOG_ERR, "could not set up connection");
-	    setdtr(fd, FALSE);
+	/*
+	 * Open the serial device and set it up to be the ppp interface.
+	 */
+	if ((fd = open(devname, O_RDWR, 0)) < 0) {
+	    syslog(LOG_ERR, "open(%s): %m", devname);
 	    die(1);
 	}
+	hungup = 0;
+	kill_link = 0;
 
-	syslog(LOG_INFO, "Connected...");
-	sleep(1);		/* give it time to set up its terminal */
-    }
+	/* run connection script */
+	if (connector) {
+	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
+
+	    /* set line speed, flow control, etc.; set CLOCAL for now */
+	    set_up_tty(fd, 1);
+
+	    /* drop dtr to hang up in case modem is off hook */
+	    if (!default_device && modem) {
+		setdtr(fd, FALSE);
+		sleep(1);
+		setdtr(fd, TRUE);
+	    }
+
+	    if (device_script(connector, fd, fd) < 0) {
+		syslog(LOG_ERR, "could not set up connection");
+		setdtr(fd, FALSE);
+		die(1);
+	    }
+
+	    syslog(LOG_INFO, "Connected...");
+	    sleep(1);		/* give it time to set up its terminal */
+	}
   
-    /* set line speed, flow control, etc.; clear CLOCAL if modem option */
-    set_up_tty(fd, 0);
+	/* set line speed, flow control, etc.; clear CLOCAL if modem option */
+	set_up_tty(fd, 0);
 
-    /* set up the serial device as a ppp interface */
-    establish_ppp();
+	/* set up the serial device as a ppp interface */
+	establish_ppp();
 
-    syslog(LOG_INFO, "Using interface ppp%d", ifunit);
-    (void) sprintf(ifname, "ppp%d", ifunit);
+	syslog(LOG_INFO, "Using interface ppp%d", ifunit);
+	(void) sprintf(ifname, "ppp%d", ifunit);
 
-    /* write pid to file */
-    (void) sprintf(pidfilename, "%s/%s.pid", pidpath, ifname);
-    if ((pidfile = fopen(pidfilename, "w")) != NULL) {
-	fprintf(pidfile, "%d\n", pid);
-	(void) fclose(pidfile);
-    } else {
-	syslog(LOG_ERR, "unable to create pid file: %m");
+	/* write pid to file */
+	(void) sprintf(pidfilename, "%s/%s.pid", pidpath, ifname);
+	if ((pidfile = fopen(pidfilename, "w")) != NULL) {
+	    fprintf(pidfile, "%d\n", pid);
+	    (void) fclose(pidfile);
+	} else {
+	    syslog(LOG_ERR, "unable to create pid file: %m");
+	    pidfilename[0] = 0;
+	}
+
+	/*
+	 * Record initial device flags, then set device for
+	 * non-blocking reads.
+	 */
+	if ((initfdflags = fcntl(fd, F_GETFL)) == -1) {
+	    syslog(LOG_ERR, "fcntl(F_GETFL): %m");
+	    die(1);
+	}
+	if (fcntl(fd, F_SETFL, FNDELAY) == -1) {
+	    syslog(LOG_ERR, "fcntl(F_SETFL, FNDELAY): %m");
+	    die(1);
+	}
+  
+	/*
+	 * Block all signals, start opening the connection, and wait for
+	 * incoming events (reply, timeout, etc.).
+	 */
+	syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devname);
+	lcp_lowerup(0);
+	lcp_open(0);		/* Start protocol */
+	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
+	    wait_input(timeleft(&timo));
+	    calltimeout();
+	    if (kill_link) {
+		lcp_close(0);
+		kill_link = 0;
+	    }
+	    get_input();
+	    reap_kids();	/* Don't leave dead kids lying around */
+	}
+
+	/*
+	 * Run disconnector script, if requested
+	 */
+	if (disconnector) {
+	    if (device_script(disconnector, fd, fd) < 0) {
+		syslog(LOG_WARNING, "disconnect script failed");
+		die(1);
+	    }
+
+	    syslog(LOG_INFO, "Disconnected...");
+	}
+
+	close_fd();
+	if (unlink(pidfilename) < 0) 
+	    syslog(LOG_WARNING, "unable to unlink pid file: %m");
 	pidfilename[0] = 0;
-    }
 
-    /*
-     * Set process group of device to our process group so we can get
-     * SIGIOs and SIGHUPs.
-     */
-#ifdef SETSID
-    if (default_device) {
-	int id = tcgetpgrp(fd);
-	if (id != pgrpid) {
-	    syslog(LOG_WARNING, "warning: not in tty's process group");
-	}
-    } else {
-	if (tcsetpgrp(fd, pgrpid) < 0) {
-	    syslog(LOG_ERR, "tcsetpgrp(): %m");
-	    die(1);
-	}
-    }
-#else
-    /* set process group on tty so we get SIGIO's */
-    if (ioctl(fd, TIOCSPGRP, &pgrpid) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCSPGRP): %m");
-	die(1);
-    }
-#endif
+    } while (persist);
 
-    /*
-     * Record initial device flags, then set device to cause SIGIO
-     * signals to be generated.
-     */
-    if ((initfdflags = fcntl(fd, F_GETFL)) == -1) {
-	syslog(LOG_ERR, "fcntl(F_GETFL): %m");
-	die(1);
-    }
+    if (lockflag && !default_device)
+	unlock();
 
-#ifdef _linux_ /* This is a kludge for Linux. FIXME !!! -- later. */
-#undef	FASYNC
-#define FASYNC	0
-#endif
-
-    if (fcntl(fd, F_SETFL, FNDELAY | FASYNC) == -1) {
-	syslog(LOG_ERR, "fcntl(F_SETFL, FNDELAY | FASYNC): %m");
-	die(1);
-    }
-  
-    /*
-     * Block all signals, start opening the connection, and  wait for
-     * incoming signals (reply, timeout, etc.).
-     */
-    syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devname);
-    sigprocmask(SIG_BLOCK, &mask, NULL); /* Block signals now */
-    lcp_lowerup(0);		/* XXX Well, sort of... */
-    lcp_open(0);		/* Start protocol */
-    for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; )
-	sigpause(0);		/* Wait for next signal */
-
-    /*
-     * Run disconnector script, if requested
-     */
-    if (disconnector) {
-	if (device_script(disconnector, fd, fd) < 0) {
-	    syslog(LOG_WARNING, "disconnect script failed");
-	    die(1);
-	}
-
-	syslog(LOG_INFO, "Disconnected...");
-    }
-
-    quit();
+    exit(0);
 }
+
+
+/*
+ * get_input - called when incoming data is available.
+ */
+static void
+get_input()
+{
+    int len, i;
+    u_char *p;
+    u_short protocol;
+
+    for (;;) {			/* Read all available packets */
+	p = inpacket_buf;	/* point to beginning of packet buffer */
+
+	len = read_packet(inpacket_buf);
+	if (len < 0)
+	    return;
+
+	if (len == 0) {
+	    MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
+	    hungup = 1;
+	    lcp_lowerdown(0);	/* serial link is no longer available */
+	    phase = PHASE_DEAD;
+	    return;
+	}
+
+	if (debug /*&& (debugflags & DBG_INPACKET)*/)
+	    log_packet(p, len, "rcvd ");
+
+	if (len < DLLHEADERLEN) {
+	    MAINDEBUG((LOG_INFO, "io(): Received short packet."));
+	    return;
+	}
+
+	p += 2;				/* Skip address and control */
+	GETSHORT(protocol, p);
+	len -= DLLHEADERLEN;
+
+	/*
+	 * Toss all non-LCP packets unless LCP is OPEN.
+	 */
+	if (protocol != LCP && lcp_fsm[0].state != OPENED) {
+	    MAINDEBUG((LOG_INFO,
+		       "io(): Received non-LCP packet when LCP not open."));
+	    return;
+	}
+
+	/*
+	 * Upcall the proper protocol input routine.
+	 */
+	for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
+	    if (prottbl[i].protocol == protocol) {
+		(*prottbl[i].input)(0, p, len);
+		break;
+	    } else if (protocol == (prottbl[i].protocol & ~0x8000)
+		       && prottbl[i].datainput != NULL) {
+		(*prottbl[i].datainput)(0, p, len);
+		break;
+	    }
+
+	if (i == sizeof (prottbl) / sizeof (struct protent)) {
+	    syslog(LOG_WARNING, "input: Unknown protocol (%x) received!",
+		   protocol);
+	    lcp_sprotrej(0, p - DLLHEADERLEN, len + DLLHEADERLEN);
+	}
+    }
+}
+
+
+/*
+ * demuxprotrej - Demultiplex a Protocol-Reject.
+ */
+void
+demuxprotrej(unit, protocol)
+    int unit;
+    u_short protocol;
+{
+    int i;
+
+    /*
+     * Upcall the proper Protocol-Reject routine.
+     */
+    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
+	if (prottbl[i].protocol == protocol) {
+	    (*prottbl[i].protrej)(unit);
+	    return;
+	}
+
+    syslog(LOG_WARNING,
+	   "demuxprotrej: Unrecognized Protocol-Reject for protocol %d!",
+	   protocol);
+}
+
 
 #if B9600 == 9600
 /*
@@ -711,7 +736,7 @@ set_up_tty(fd, local)
     }
 #endif
 
-    baud_rate = baud_rate_of(speed);
+    baud_rate = inspeed = baud_rate_of(speed);
     restore_term = TRUE;
 }
 
@@ -758,30 +783,8 @@ cleanup(status, arg)
     int status;
     caddr_t arg;
 {
-    if (fd >= 0) {
-	/* drop dtr to hang up */
-	if (modem)
-	    setdtr(fd, FALSE);
-
-	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-	    syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
-	initfdflags = -1;
-
-	disestablish_ppp();
-
-	if (restore_term) {
-#ifndef SGTTY
-	    if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
-		syslog(LOG_WARNING, "tcsetattr: %m");
-#else
-	    if (ioctl(fd, TIOCSETP, &initsgttyb) < 0)
-		syslog(LOG_WARNING, "ioctl(TIOCSETP): %m");
-#endif
-	}
-
-	close(fd);
-	fd = -1;
-    }
+    if (fd >= 0)
+	close_fd();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0) 
 	syslog(LOG_WARNING, "unable to unlink pid file: %m");
@@ -791,9 +794,47 @@ cleanup(status, arg)
 	unlock();
 }
 
+/*
+ * close_fd - restore the terminal device and close it.
+ */
+void
+close_fd()
+{
+    /* drop dtr to hang up */
+    if (modem)
+	setdtr(fd, FALSE);
 
-static struct callout *callout = NULL;		/* Callout list */
-static struct timeval schedtime;		/* Time last timeout was set */
+    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
+	syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
+    initfdflags = -1;
+
+    disestablish_ppp();
+
+    if (restore_term) {
+#ifndef SGTTY
+	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	    if (errno != ENXIO)
+		syslog(LOG_WARNING, "tcsetattr: %m");
+#else
+	if (ioctl(fd, TIOCSETP, &initsgttyb) < 0)
+	    syslog(LOG_WARNING, "ioctl(TIOCSETP): %m");
+#endif
+    }
+
+    close(fd);
+    fd = -1;
+}
+
+
+struct	callout {
+	struct timeval	c_time;		/* time at which to call routine */
+	caddr_t		c_arg;		/* argument to routine */
+	void		(*c_func)();	/* routine */
+	struct		callout *c_next;
+};
+
+static struct callout *callout = NULL;	/* Callout list */
+static struct timeval timenow;		/* Current time */
 
 /*
  * timeout - Schedule a timeout.
@@ -807,8 +848,7 @@ timeout(func, arg, time)
     caddr_t arg;
     int time;
 {
-    struct itimerval itv;
-    struct callout *newp, **oldpp;
+    struct callout *newp, *p, **pp;
   
     MAINDEBUG((LOG_DEBUG, "Timeout %x:%x in %d seconds.",
 	       (int) func, (int) arg, time));
@@ -822,40 +862,20 @@ timeout(func, arg, time)
     }
     newp->c_arg = arg;
     newp->c_func = func;
+    gettimeofday(&timenow, NULL);
+    newp->c_time.tv_sec = timenow.tv_sec + time;
+    newp->c_time.tv_usec = timenow.tv_usec;
   
     /*
-     * Find correct place to link it in and decrement its time by the
-     * amount of time used by preceding timeouts.
+     * Find correct place and link it in.
      */
-    for (oldpp = &callout;
-	 *oldpp && (*oldpp)->c_time <= time;
-	 oldpp = &(*oldpp)->c_next)
-	time -= (*oldpp)->c_time;
-    newp->c_time = time;
-    newp->c_next = *oldpp;
-    if (*oldpp)
-	(*oldpp)->c_time -= time;
-    *oldpp = newp;
-  
-    /*
-     * If this is now the first callout then we have to set a new
-     * itimer.
-     */
-    if (callout == newp) {
-	itv.it_interval.tv_sec = itv.it_interval.tv_usec =
-	    itv.it_value.tv_usec = 0;
-	itv.it_value.tv_sec = callout->c_time;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in timeout.",
-		   itv.it_value.tv_sec));
-	if (setitimer(ITIMER_REAL, &itv, NULL)) {
-	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
-	    die(1);
-	}
-	if (gettimeofday(&schedtime, NULL)) {
-	    syslog(LOG_ERR, "gettimeofday: %m");
-	    die(1);
-	}
-    }
+    for (pp = &callout; (p = *pp); pp = &p->c_next)
+	if (p->c_time.tv_sec < newp->c_time.tv_sec
+	    || (p->c_time.tv_sec == newp->c_time.tv_sec
+		&& p->c_time.tv_usec <= newp->c_time.tv_sec))
+	    break;
+    newp->c_next = p;
+    *pp = newp;
 }
 
 
@@ -874,184 +894,98 @@ untimeout(func, arg)
     MAINDEBUG((LOG_DEBUG, "Untimeout %x:%x.", (int) func, (int) arg));
   
     /*
-     * If the first callout is unscheduled then we have to set a new
-     * itimer.
+     * Find first matching timeout and remove it from the list.
      */
-    if (callout &&
-	callout->c_func == func &&
-	callout->c_arg == arg)
-	reschedule = 1;
-  
-    /*
-     * Find first matching timeout.  Add its time to the next timeouts
-     * time.
-     */
-    for (copp = &callout; *copp; copp = &(*copp)->c_next)
-	if ((*copp)->c_func == func &&
-	    (*copp)->c_arg == arg) {
-	    freep = *copp;
+    for (copp = &callout; (freep = *copp); copp = &freep->c_next)
+	if (freep->c_func == func && freep->c_arg == arg) {
 	    *copp = freep->c_next;
-	    if (*copp)
-		(*copp)->c_time += freep->c_time;
 	    (void) free((char *) freep);
 	    break;
 	}
-  
-    if (reschedule) {
-	itv.it_interval.tv_sec = itv.it_interval.tv_usec =
-	    itv.it_value.tv_usec = 0;
-	itv.it_value.tv_sec = callout ? callout->c_time : 0;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in untimeout.",
-		   itv.it_value.tv_sec));
-	if (setitimer(ITIMER_REAL, &itv, NULL)) {
-	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
-	    die(1);
-	}
-	if (gettimeofday(&schedtime, NULL)) {
+}
+
+
+/*
+ * calltimeout - Call any timeout routines which are now due.
+ */
+void
+calltimeout()
+{
+    struct callout *p;
+
+    while (callout != NULL) {
+	p = callout;
+
+	if (gettimeofday(&timenow, NULL) < 0) {
 	    syslog(LOG_ERR, "gettimeofday: %m");
 	    die(1);
 	}
+	if (!(p->c_time.tv_sec < timenow.tv_sec
+	      || (p->c_time.tv_sec == timenow.tv_sec
+		  && p->c_time.tv_usec <= timenow.tv_usec)))
+	    break;		/* no, it's not time yet */
+
+	callout = p->c_next;
+	(*p->c_func)(p->c_arg);
+
+	free((char *) p);
     }
 }
 
 
 /*
- * adjtimeout - Decrement the first timeout by the amount of time since
- * it was scheduled.
+ * timeleft - return the length of time until the next timeout is due.
  */
-void
-adjtimeout()
+struct timeval *
+timeleft(tvp)
+    struct timeval *tvp;
 {
-    struct timeval tv;
-    int timediff;
-  
     if (callout == NULL)
-	return;
-    /*
-     * Make sure that the clock hasn't been warped dramatically.
-     * Account for recently expired, but blocked timer by adding
-     * small fudge factor.
-     */
-    if (gettimeofday(&tv, NULL)) {
-	syslog(LOG_ERR, "gettimeofday: %m");
-	die(1);
-    }
-    timediff = tv.tv_sec - schedtime.tv_sec;
-    if (timediff < 0 ||
-	timediff > callout->c_time + 1)
-	return;
-  
-    callout->c_time -= timediff;	/* OK, Adjust time */
-}
+	return NULL;
 
+    gettimeofday(&timenow, NULL);
+    tvp->tv_sec = callout->c_time.tv_sec - timenow.tv_sec;
+    tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_usec;
+    if (tvp->tv_usec < 0) {
+	tvp->tv_usec += 1000000;
+	tvp->tv_sec -= 1;
+    }
+    if (tvp->tv_sec < 0)
+	tvp->tv_sec = tvp->tv_usec = 0;
+
+    return tvp;
+}
+    
 
 /*
  * hup - Catch SIGHUP signal.
  *
  * Indicates that the physical layer has been disconnected.
+ * We don't rely on this indication; if the user has sent this
+ * signal, we just take the link down.
  */
 static void
 hup(sig)
     int sig;
 {
     syslog(LOG_INFO, "Hangup (SIGHUP)");
-
-    hungup = 1;			/* they hung up on us! */
-    persist = 0;		/* don't try to restart */
-    adjtimeout();		/* Adjust timeouts */
-    lcp_lowerdown(0);		/* Reset connection */
-    quit();			/* and die */
+    kill_link = 1;
 }
 
 
 /*
- * term - Catch SIGTERM signal.
+ * term - Catch SIGTERM signal and SIGINT signal (^C/del).
  *
  * Indicates that we should initiate a graceful disconnect and exit.
  */
+/*ARGSUSED*/
 static void
 term(sig)
     int sig;
 {
-    syslog(LOG_INFO, "Terminating link.");
+    syslog(LOG_INFO, "Terminating on signal %d.", sig);
     persist = 0;		/* don't try to restart */
-    adjtimeout();		/* Adjust timeouts */
-    lcp_close(0);		/* Close connection */
-}
-
-
-/*
- * intr - Catch SIGINT signal (DEL/^C).
- *
- * Indicates that we should initiate a graceful disconnect and exit.
- */
-static void
-intr(sig)
-    int sig;
-{
-    syslog(LOG_INFO, "Interrupt received: terminating link");
-    persist = 0;		/* don't try to restart */
-    adjtimeout();		/* Adjust timeouts */
-    lcp_close(0);		/* Close connection */
-}
-
-
-/*
- * alrm - Catch SIGALRM signal.
- *
- * Indicates a timeout.
- */
-static void
-alrm(sig)
-    int sig;
-{
-    struct itimerval itv;
-    struct callout *freep, *list, *last;
-
-    MAINDEBUG((LOG_DEBUG, "Alarm"));
-
-    if (callout == NULL)
-	return;
-    /*
-     * Get the first scheduled timeout and any that were scheduled
-     * for the same time as a list, and remove them all from callout
-     * list.
-     */
-    list = last = callout;
-    while (last->c_next != NULL && last->c_next->c_time == 0)
-	last = last->c_next;
-    callout = last->c_next;
-    last->c_next = NULL;
-
-    /*
-     * Set a new itimer if there are more timeouts scheduled.
-     */
-    if (callout) {
-	itv.it_interval.tv_sec = itv.it_interval.tv_usec = 0;
-	itv.it_value.tv_usec = 0;
-	itv.it_value.tv_sec = callout->c_time;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in alrm.",
-		   itv.it_value.tv_sec));
-	if (setitimer(ITIMER_REAL, &itv, NULL)) {
-	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
-	    die(1);
-	}
-	if (gettimeofday(&schedtime, NULL)) {
-	    syslog(LOG_ERR, "gettimeofday: %m");
-	    die(1);
-	}
-    }
-
-    /*
-     * Now call all the timeout routines scheduled for this time.
-     */
-    while (list) {
-	(*list->c_func)(list->c_arg);
-	freep = list;
-	list = list->c_next;
-	(void) free((char *) freep);
-    }
-  
+    kill_link = 1;
 }
 
 
@@ -1064,102 +998,6 @@ chld(sig)
     int sig;
 {
     reap_kids();
-}
-
-
-/*
- * io - Catch SIGIO signal.
- *
- * Indicates that incoming data is available.
- */
-static void
-io(sig)
-    int sig;
-{
-    int len, i;
-    u_char *p;
-    u_short protocol;
-    fd_set fdset;
-    struct timeval notime;
-    int ready;
-
-    MAINDEBUG((LOG_DEBUG, "IO signal received"));
-    adjtimeout();		/* Adjust timeouts */
-
-    /* Yup, this is for real */
-    for (;;) {			/* Read all available packets */
-	p = inpacket_buf;	/* point to beginning of packet buffer */
-
-	len = read_packet(inpacket_buf);
-	if (len < 0)
-	    return;
-
-	if (len == 0) {
-	    MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
-	    lcp_lowerdown(0);
-	    return;
-	}
-
-	if (debug /*&& (debugflags & DBG_INPACKET)*/)
-	    log_packet(p, len, "rcvd ");
-
-	if (len < DLLHEADERLEN) {
-	    MAINDEBUG((LOG_INFO, "io(): Received short packet."));
-	    return;
-	}
-
-	p += 2;				/* Skip address and control */
-	GETSHORT(protocol, p);
-	len -= DLLHEADERLEN;
-
-	/*
-	 * Toss all non-LCP packets unless LCP is OPEN.
-	 */
-	if (protocol != LCP && lcp_fsm[0].state != OPENED) {
-	    MAINDEBUG((LOG_INFO,
-		       "io(): Received non-LCP packet when LCP not open."));
-	    return;
-	}
-
-	/*
-	 * Upcall the proper protocol input routine.
-	 */
-	for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
-	    if (prottbl[i].protocol == protocol) {
-		(*prottbl[i].input)(0, p, len);
-		break;
-	    }
-
-	if (i == sizeof (prottbl) / sizeof (struct protent)) {
-	    syslog(LOG_WARNING, "input: Unknown protocol (%x) received!",
-		   protocol);
-	    lcp_sprotrej(0, p - DLLHEADERLEN, len + DLLHEADERLEN);
-	}
-    }
-}
-
-/*
- * demuxprotrej - Demultiplex a Protocol-Reject.
- */
-void
-demuxprotrej(unit, protocol)
-    int unit;
-    u_short protocol;
-{
-    int i;
-
-    /*
-     * Upcall the proper Protocol-Reject routine.
-     */
-    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
-	if (prottbl[i].protocol == protocol) {
-	    (*prottbl[i].protrej)(unit);
-	    return;
-	}
-
-    syslog(LOG_WARNING,
-	   "demuxprotrej: Unrecognized Protocol-Reject for protocol %d!",
-	   protocol);
 }
 
 
