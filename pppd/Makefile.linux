@@ -1,10 +1,11 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.12 1996/05/28 00:53:30 paulus Exp $
+# $Id: Makefile.linux,v 1.13 1996/07/01 01:05:27 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c
+	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c \
+	   demand.c
 HEADERS =  callout.h pathnames.h patchlevel.h chap.h md5.h chap_ms.h md4.h \
 	   ipxcp.h
 MANPAGES = pppd.8
@@ -17,17 +18,26 @@ all: pppd
 # include dependancies if present and backup if as a header file
 ifeq (.depend,$(wildcard .depend))
 include .depend
-HEADERS := $(HEADERS) .depend
 endif
 
 # CC = gcc
 # DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H
+#
 COPTS = -O2 # -g
-VER = 0.2.8
+VER = 2.3.0
 LIBS = -lbsd
+YACC = bison -y
+LEX = flex
 
-CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+# The INCLUDE_DIRS must include the standard headers before the local
+# ones. If you just had -I.. then the order would be reversed. So, use
+# the default location for include files first before the .. location.
+#INCLUDE_DIRS= -I/usr/include -I..
+INCLUDE_DIRS=
+
+COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H
+  
+CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
 ifdef USE_MS_DNS
 CFLAGS   += -DUSE_MS_DNS=1
@@ -41,6 +51,11 @@ endif
 ifdef HAS_SHADOW
 CFLAGS   += -DHAS_SHADOW
 LIBS     += -lshadow
+endif
+
+ifdef USE_PAM
+CFLAGS   += -DUSE_PAM
+LIBS     += -lpam -ldl
 endif
 
 install: pppd
