@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.53 1999/02/26 10:38:51 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.54 1999/03/02 05:36:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1378,10 +1378,12 @@ format_packet(p, len, printer, arg)
 	}
     }
 
-    for (; len > 0; --len) {
+    for (i = 0; i < len && i < 32; ++i) {
 	GETCHAR(x, p);
 	printer(arg, " %.2x", x);
     }
+    if (i < len)
+	printer(arg, " ...");
 }
 
 static void
