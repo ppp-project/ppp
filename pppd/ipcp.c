@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.66 2004/10/28 00:32:32 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.67 2004/11/08 11:45:59 paulus Exp $"
 
 /*
  * TODO:
@@ -696,6 +696,7 @@ ipcp_resetci(f)
 	    wo->accept_remote = 0;
 	}
     }
+    BZERO(&ipcp_hisoptions[f->unit], sizeof(ipcp_options));
 }
 
 
@@ -720,10 +721,8 @@ ipcp_cilen(f)
      * First see if we want to change our options to the old
      * forms because we have received old forms from the peer.
      */
-    if ((wo->neg_addr || wo->old_addrs) && !go->neg_addr && !go->old_addrs) {
-	/* use the old style of address negotiation */
-	go->old_addrs = 1;
-    }
+    if (go->neg_addr && go->old_addrs && !ho->neg_addr && ho->old_addrs)
+	go->neg_addr = 0;
     if (wo->neg_vj && !go->neg_vj && !go->old_vj) {
 	/* try an older style of VJ negotiation */
 	/* use the old style only if the peer did */
