@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.47 1999/09/17 05:20:38 paulus Exp $
+.\" $Id: pppd.8,v 1.48 1999/09/30 19:58:21 masputra Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -184,7 +184,10 @@ omitted. The identifier must be specified in standard ascii notation of
 IPv6 addresses (e.g. ::dead:beef). If the
 \fIipv6cp-use-ipaddr\fR
 option is given, the local identifier is the local IPv4 address (see above).
-Otherwise the identifier is randomized.
+On systems which supports a unique persistent id, such as EUI-48 derived
+from the Ethernet MAC address, \fIipv6cp-use-persistent\fR option can be
+used to replace the \fIipv6 <local>,<remote>\fR option. Otherwise the 
+identifier is randomized.
 .TP
 .B active-filter \fIfilter-expression
 Specifies a packet filter to be applied to data packets to determine
