@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.3 1995/06/23 01:52:36 paulus Exp $
+ * $Id: pppio.h,v 1.4 1995/06/30 00:15:02 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -44,6 +44,7 @@
 #define PPPIO_LASTMOD	_PPPIO(142)	/* mark last ppp module */
 #define PPPIO_GCLEAN	_PPPIO(143)	/* get 8-bit-clean flags */
 #define PPPIO_DEBUG	_PPPIO(144)	/* request debug information */
+#define PPPIO_BIND	_PPPIO(145)	/* bind to SAP */
 
 /*
  * Values for PPPIO_CFLAGS
