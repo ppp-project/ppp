@@ -18,10 +18,11 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.40 1997/03/04 03:41:17 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.41 1997/04/30 05:54:52 paulus Exp $";
 #endif
 
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -107,6 +108,7 @@ static void close_tty __P((void));
 static void get_input __P((void));
 static void calltimeout __P((void));
 static struct timeval *timeleft __P((struct timeval *));
+static void kill_my_pg __P((int));
 static void hup __P((int));
 static void term __P((int));
 static void chld __P((int));
@@ -120,6 +122,7 @@ static void pr_log __P((void *, char *, ...));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
+int main __P((int, char *[]));
 
 #ifdef ultrix
 #undef	O_NONBLOCK
@@ -269,8 +272,8 @@ main(argc, argv)
 	else
 	    p = "(unknown)";
     }
-    syslog(LOG_NOTICE, "pppd %s.%d started by %s, uid %d",
-	   VERSION, PATCHLEVEL, p, uid);
+    syslog(LOG_NOTICE, "pppd %s.%d%s started by %s, uid %d",
+	   VERSION, PATCHLEVEL, IMPLEMENTATION, p, uid);
   
     /*
      * Compute mask of all interesting signals and install signal handlers
@@ -417,23 +420,22 @@ main(argc, argv)
 
 	/*
 	 * Open the serial device and set it up to be the ppp interface.
-	 * If we're dialling out, or we don't want to use the modem lines,
-	 * we open it in non-blocking mode, but then we need to clear
-	 * the non-blocking I/O bit.
+	 * First we open it in non-blocking mode so we can set the
+	 * various termios flags appropriately.  If we aren't dialling
+	 * out and we want to use the modem lines, we reopen it later
+	 * in order to wait for the carrier detect signal from the modem.
 	 */
-	nonblock = (connector || !modem)? O_NONBLOCK: 0;
-	while ((ttyfd = open(devnam, nonblock | O_RDWR, 0)) < 0) {
+	while ((ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0)) < 0) {
 	    if (errno != EINTR)
 		syslog(LOG_ERR, "Failed to open %s: %m", devnam);
 	    if (!persist || errno != EINTR)
 		goto fail;
 	}
-	if (nonblock) {
-	    if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
-		|| fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
-		syslog(LOG_WARNING,
-		       "Couldn't reset non-blocking mode on device: %m");
-	}
+	if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
+	    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
+	    syslog(LOG_WARNING,
+		   "Couldn't reset non-blocking mode on device: %m");
+
 	hungup = 0;
 	kill_link = 0;
 
@@ -473,6 +475,17 @@ main(argc, argv)
 
 	/* set line speed, flow control, etc.; clear CLOCAL if modem option */
 	set_up_tty(ttyfd, 0);
+
+	/* reopen tty if necessary to wait for carrier */
+	if (connector == NULL && modem) {
+	    while ((i = open(devnam, O_RDWR)) < 0) {
+		if (errno != EINTR)
+		    syslog(LOG_ERR, "Failed to reopen %s: %m", devnam);
+		if (!persist || errno != EINTR)
+		    goto fail;
+	    }
+	    close(i);
+	}
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
@@ -586,6 +599,7 @@ main(argc, argv)
     }
 
     die(0);
+    return 0;
 }
 
 /*
@@ -624,7 +638,7 @@ get_input()
     }
 
     if (debug /*&& (debugflags & DBG_INPACKET)*/)
-	log_packet(p, len, "rcvd ");
+	log_packet(p, len, "rcvd ", LOG_DEBUG);
 
     if (len < PPP_HDRLEN) {
 	MAINDEBUG((LOG_INFO, "io(): Received short packet."));
@@ -748,8 +762,8 @@ close_tty()
 
 struct	callout {
     struct timeval	c_time;		/* time at which to call routine */
-    caddr_t		c_arg;		/* argument to routine */
-    void		(*c_func)();	/* routine */
+    void		*c_arg;		/* argument to routine */
+    void		(*c_func) __P((void *)); /* routine */
     struct		callout *c_next;
 };
 
@@ -764,8 +778,8 @@ static struct timeval timenow;		/* Current time */
  */
 void
 timeout(func, arg, time)
-    void (*func)();
-    caddr_t arg;
+    void (*func) __P((void *));
+    void *arg;
     int time;
 {
     struct callout *newp, *p, **pp;
@@ -804,8 +818,8 @@ timeout(func, arg, time)
  */
 void
 untimeout(func, arg)
-    void (*func)();
-    caddr_t arg;
+    void (*func) __P((void *));
+    void *arg;
 {
     struct callout **copp, *freep;
   
@@ -1164,16 +1178,17 @@ char line[256];			/* line to be logged accumulated here */
 char *linep;
 
 void
-log_packet(p, len, prefix)
+log_packet(p, len, prefix, level)
     u_char *p;
     int len;
     char *prefix;
+    int level;
 {
     strcpy(line, prefix);
     linep = line + strlen(line);
     format_packet(p, len, pr_log, NULL);
     if (linep != line)
-	syslog(LOG_DEBUG, "%s", line);
+	syslog(level, "%s", line);
 }
 
 /*
@@ -1339,10 +1354,9 @@ vfmtmsg(buf, buflen, fmt, args)
     int c, i, n;
     int width, prec, fillch;
     int base, len, neg, quoted;
-    unsigned long val;
+    unsigned long val = 0;
     char *str, *f, *buf0;
     unsigned char *p;
-    void *a;
     char num[32];
     time_t t;
     static char hexchars[] = "0123456789abcdef";
@@ -1434,12 +1448,12 @@ vfmtmsg(buf, buflen, fmt, args)
 	    break;
 	case 'r':
 	    f = va_arg(args, char *);
-	    /*
-	     * XXX We assume a va_list is either a pointer or an array, so
-	     * what gets passed for a va_list is like a void * in some sense.
-	     */
-	    a = va_arg(args, void *);
-	    n = vfmtmsg(buf, buflen + 1, f, a);
+#ifndef __powerpc__
+	    n = vfmtmsg(buf, buflen + 1, f, va_arg(args, va_list));
+#else
+	    /* On the powerpc, a va_list is an array of 1 structure */
+	    n = vfmtmsg(buf, buflen + 1, f, va_arg(args, void *));
+#endif
 	    buf += n;
 	    buflen -= n;
 	    continue;
@@ -1470,7 +1484,7 @@ vfmtmsg(buf, buflen, fmt, args)
 		}
 		if (quoted && (c == '"' || c == '\\'))
 		    OUTCHAR('\\');
-		if (c < 0x20 || 0x7f <= c && c < 0xa0) {
+		if (c < 0x20 || (0x7f <= c && c < 0xa0)) {
 		    if (quoted) {
 			OUTCHAR('\\');
 			switch (c) {
