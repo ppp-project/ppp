@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.1 1995/12/11 05:06:42 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.2 1996/06/26 00:54:01 paulus Exp $
  */
 
 /*
- * This file is used under Solaris 2, SVR4, SunOS 4, and OSF/1.
+ * This file is used under Solaris 2, SVR4, SunOS 4, and Digital UNIX.
  */
 #include <sys/types.h>
 #include <sys/param.h>
@@ -66,8 +66,9 @@ static int msg_byte __P((mblk_t *, unsigned int));
 /* Is this LCP packet one we have to transmit using LCP defaults? */
 #define LCP_USE_DFLT(mp)	(1 <= (code = MSG_BYTE((mp), 4)) && code <= 7)
 
+#define PPP_AHDL_ID 0x7d23
 static struct module_info minfo = {
-    0x7d23, "ppp_ahdl", 0, INFPSZ, 4096, 128
+    PPP_AHDL_ID, "ppp_ahdl", 0, INFPSZ, 4096, 128
 };
 
 static struct qinit rinit = {
@@ -623,10 +624,11 @@ unstuff_chars(q, mp)
 		    putnext(q, om);		/* bombs away! */
 		    continue;
 		}
-		DPRINT1("ppp_ahdl: bad fcs %x\n", state->infcs);
+		DPRINT2("ppp%d: bad fcs (len=%d)\n", state->unit, len);
 	    }
 	    if (om != 0)
 		freemsg(om);
+	    state->flags &= ~(IFLUSH|ESCAPED);
 	    state->stats.ppp_ierrors++;
 	    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
 	    continue;
@@ -662,7 +664,8 @@ unstuff_chars(q, mp)
 		 */
 		if (state->inlen >= state->mru + PPP_HDRLEN + PPP_FCSLEN) {
 		    state->flags |= IFLUSH;
-		    DPRINT1("ppp_ahdl: frame too long (%d)\n", state->inlen);
+		    DPRINT2("ppp%d: frame too long (%d)\n",
+			    state->unit, state->inlen);
 		    continue;
 		}
 		om = allocb(IFRAME_BSIZE, BPRI_MED);
