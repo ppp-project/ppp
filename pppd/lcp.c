@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.23 1995/12/18 03:45:32 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.24 1996/01/01 22:57:47 paulus Exp $";
 #endif
 
 /*
@@ -41,11 +41,6 @@ static char rcsid[] = "$Id: lcp.c,v 1.23 1995/12/18 03:45:32 paulus Exp $";
 #include "chap.h"
 #include "magic.h"
 
-#ifdef _linux_		/* Needs ppp ioctls */
-#include <net/if.h>
-#include <linux/if_ppp.h>
-#endif
-
 /* global vars */
 fsm lcp_fsm[NUM_PPP];			/* LCP fsm structure (global)*/
 lcp_options lcp_wantoptions[NUM_PPP];	/* Options that we want to request */
@@ -59,11 +54,6 @@ static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
 static u_int32_t lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
 
 static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
-
-#ifdef _linux_
-u_int32_t idle_timer_running = 0;
-extern int idle_time_limit;
-#endif
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -114,7 +104,7 @@ static fsm_callbacks lcp_callbacks = {	/* LCP callback routines */
 struct protent lcp_protent = {
     PPP_LCP, lcp_init, lcp_input, lcp_protrej,
     lcp_lowerup, lcp_lowerdown, lcp_open, lcp_close,
-    lcp_printpkt, NULL, 1, "LCP"
+    lcp_printpkt, NULL, 1, "LCP", NULL, NULL
 };
 
 int lcp_loopbackfail = DEFLOOPBACKFAIL;
@@ -215,7 +205,7 @@ lcp_close(unit, reason)
 	/*
 	 * This action is not strictly according to the FSM in RFC1548,
 	 * but it does mean that the program terminates if you do a
-	 * lcp_close(0) in passive/silent mode when a connection hasn't
+	 * lcp_close() in passive/silent mode when a connection hasn't
 	 * been established.
 	 */
 	f->state = CLOSED;
@@ -225,58 +215,6 @@ lcp_close(unit, reason)
 	fsm_close(&lcp_fsm[unit], reason);
 }
 
-#ifdef _linux_
-static void IdleTimeCheck __P((caddr_t));
-
-/*
- * Timer expired for the LCP echo requests from this process.
- */
-
-static void
-RestartIdleTimer (f)
-    fsm *f;
-{
-    u_long             delta;
-    struct ppp_idle    ddinfo;
-/*
- * Read the time since the last packet was received.
- */
-    if (ioctl (fd, PPPIOCGIDLE, &ddinfo) < 0) {
-        syslog (LOG_ERR, "ioctl(PPPIOCGIDLE): %m");
-        die (1);
-    }
-/*
- * Compute the time since the last packet was received. If the timer
- *  has expired then disconnect the line.
- */
-    delta = idle_time_limit - (u_long) ddinfo.recv_idle;
-    if (((int) delta <= 0L) && (f->state == OPENED)) {
-        syslog (LOG_NOTICE, "No IP frames received within idle time limit");
-	lcp_close(f->unit, "Idle time limit expired");	/* Reset connection */
-	phase = PHASE_TERMINATE;	/* Mark it down */
-    } else {
-        if ((int) delta <= 0L)
-	    delta = (u_long) idle_time_limit;
-        assert (idle_timer_running==0);
-        TIMEOUT (IdleTimeCheck, (caddr_t) f, delta);
-        idle_timer_running = 1;
-    }
-}
-
-/*
- * IdleTimeCheck - Timer expired on the IDLE detection for IP frames
- */
-
-static void
-IdleTimeCheck (arg)
-    caddr_t arg;
-{
-    if (idle_timer_running != 0) {
-        idle_timer_running = 0;
-        RestartIdleTimer ((fsm *) arg);
-    }
-}
-#endif
 
 /*
  * lcp_lowerup - The lower layer is up.
@@ -287,7 +225,6 @@ lcp_lowerup(unit)
 {
     lcp_options *wo = &lcp_wantoptions[unit];
 
-    sifdown(unit);
     /*
      * Don't use A/C or protocol compression on transmission,
      * but accept A/C and protocol compressed packets
@@ -1489,14 +1426,13 @@ lcp_down(f)
 
     lcp_echo_lowerdown(f->unit);
 
-    sifdown(f->unit);
+    link_down(f->unit);
+
     ppp_send_config(f->unit, PPP_MRU, 0xffffffff, 0, 0);
     ppp_recv_config(f->unit, PPP_MRU,
 		    (go->neg_asyncmap? go->asyncmap: 0x00000000),
 		    go->neg_pcompression, go->neg_accompression);
     peer_mru[f->unit] = PPP_MRU;
-
-    link_down(f->unit);
 }
 
 
@@ -1667,7 +1603,8 @@ void LcpLinkFailure (f)
     fsm *f;
 {
     if (f->state == OPENED) {
-        syslog (LOG_NOTICE, "Excessive lack of response to LCP echo frames.");
+	syslog(LOG_INFO, "No response to %d echo-requests", lcp_echos_pending);
+        syslog(LOG_NOTICE, "Serial link appears to be disconnected.");
         lcp_close(f->unit, "Peer not responding");
 	phase = PHASE_TERMINATE;
     }
@@ -1681,36 +1618,13 @@ static void
 LcpEchoCheck (f)
     fsm *f;
 {
-    long int delta;
-#ifdef __linux__
-    struct ppp_idle    ddinfo;
-/*
- * Read the time since the last packet was received.
- */
-    if (ioctl (fd, PPPIOCGIDLE, &ddinfo) < 0) {
-        syslog (LOG_ERR, "ioctl(PPPIOCGIDLE): %m");
-        die (1);
-    }
-/*
- * Compute the time since the last packet was received. If the timer
- *  has expired then send the echo request and reset the timer to maximum.
- */
-    delta = (long int) lcp_echo_interval - (long int) ddinfo.recv_idle;
-    if (delta < 0L) {
-        LcpSendEchoRequest (f);
-        delta = (int) lcp_echo_interval;
-    }
-
-#else /* Other implementations do not have ability to find delta */
     LcpSendEchoRequest (f);
-    delta = (int) lcp_echo_interval;
-#endif
 
-/*
- * Start the timer for the next interval.
- */
+    /*
+     * Start the timer for the next interval.
+     */
     assert (lcp_echo_timer_running==0);
-    TIMEOUT (LcpEchoTimeout, (caddr_t) f, (u_int32_t) delta);
+    TIMEOUT (LcpEchoTimeout, (caddr_t) f, lcp_echo_interval);
     lcp_echo_timer_running = 1;
 }
 
@@ -1766,25 +1680,24 @@ LcpSendEchoRequest (f)
     u_int32_t lcp_magic;
     u_char pkt[4], *pktp;
 
-/*
- * Detect the failure of the peer at this point.
- */
+    /*
+     * Detect the failure of the peer at this point.
+     */
     if (lcp_echo_fails != 0) {
         if (lcp_echos_pending++ >= lcp_echo_fails) {
             LcpLinkFailure(f);
 	    lcp_echos_pending = 0;
 	}
     }
-/*
- * Make and send the echo request frame.
- */
+
+    /*
+     * Make and send the echo request frame.
+     */
     if (f->state == OPENED) {
         lcp_magic = lcp_gotoptions[f->unit].magicnumber;
 	pktp = pkt;
 	PUTLONG(lcp_magic, pktp);
-      
-        fsm_sdata(f, ECHOREQ,
-		  lcp_echo_number++ & 0xFF, pkt, pktp - pkt);
+        fsm_sdata(f, ECHOREQ, lcp_echo_number++ & 0xFF, pkt, pktp - pkt);
     }
 }
 
@@ -1806,11 +1719,6 @@ lcp_echo_lowerup (unit)
     /* If a timeout interval is specified then start the timer */
     if (lcp_echo_interval != 0)
         LcpEchoCheck (f);
-#ifdef _linux_
-    /* If a idle time limit is given then start it */
-    if (idle_time_limit != 0)
-        RestartIdleTimer (f);
-#endif
 }
 
 /*
@@ -1827,11 +1735,4 @@ lcp_echo_lowerdown (unit)
         UNTIMEOUT (LcpEchoTimeout, (caddr_t) f);
         lcp_echo_timer_running = 0;
     }
-#ifdef _linux_  
-    /* If a idle time limit is running then stop it */
-    if (idle_timer_running != 0) {
-        UNTIMEOUT (IdleTimeCheck, (caddr_t) f);
-        idle_timer_running = 0;
-    }
-#endif
 }
