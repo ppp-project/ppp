@@ -775,16 +775,16 @@ int get_ether_addr (u_long ipaddr, struct sockaddr *hwaddr)
     }
 
     hwaddr->sa_family = ARPHRD_ETHER;
-    memcpy (&hwaddr->sa_data, &ifr->ifr_hwaddr, ETH_ALEN);
+    memcpy (&hwaddr->sa_data, &ifreq.ifr_hwaddr, ETH_ALEN);
 
     MAINDEBUG ((LOG_DEBUG,
 		"proxy arp: found hwaddr %02x:%02x:%02x:%02x:%02x:%02x",
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[0],
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[1],
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[2],
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[3],
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[4],
-		(int) ((unsigned char *) &ifr->ifr_hwaddr)[5]));
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[0],
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[1],
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[2],
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[3],
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[4],
+		(int) ((unsigned char *) &ifreq.ifr_hwaddr)[5]));
     return 1;
 }
 
