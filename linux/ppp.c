@@ -1,7 +1,7 @@
 /*
    PPP for Linux
 
-   $Id: ppp.c,v 1.1 1994/05/27 00:55:25 paulus Exp $
+   $Id: ppp.c,v 1.2 1994/05/30 02:42:55 paulus Exp $
 */
 
 /*
@@ -377,9 +377,9 @@ ppp_changedmtu (struct ppp *ppp, int new_mtu, int new_mru)
   PRINTKN (2,(KERN_INFO "ppp: channel %s mtu = %d, mru = %d\n",
 	      dev->name, new_mtu, new_mru));
 	
-  new_xbuff = (unsigned char *) kmalloc(mtu + 4, GFP_KERNEL);
-  new_rbuff = (unsigned char *) kmalloc(mru + 4, GFP_KERNEL);
-  new_cbuff = (unsigned char *) kmalloc(mru + 4, GFP_KERNEL);
+  new_xbuff = (unsigned char *) kmalloc(mtu + 4, GFP_ATOMIC);
+  new_rbuff = (unsigned char *) kmalloc(mru + 4, GFP_ATOMIC);
+  new_cbuff = (unsigned char *) kmalloc(mru + 4, GFP_ATOMIC);
 /*
  *  If the buffers failed to allocate then complain.
  */
@@ -558,11 +558,7 @@ ppp_open(struct tty_struct *tty)
 
   PRINTKN (2,(KERN_INFO "ppp: channel %s open\n", ppp->dev->name));
 
-#ifdef NEW_TTY_DRIVERS
-  return (0);
-#else
   return (ppp->line);
-#endif
 }
 
 /* called when ppp interface goes "up".  here this just means we start

@@ -40,7 +40,7 @@
 #include <linux/route.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
-#include <net/if_ppp.h>
+#include <signal.h>
 
 #include "pppd.h"
 #include "ppp.h"
@@ -94,7 +94,12 @@ int set_kdebugflag (int requested_level)
 void establish_ppp (void)
 {
     int pppdisc = N_PPP;
-    int sig = SIGIO;
+    int sig	= SIGIO;
+
+    if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
+	die(1);
+    }
 
     if (ioctl(fd, TIOCEXCL, 0) < 0) {
 	syslog (LOG_WARNING, "ioctl(TIOCEXCL): %m");
@@ -116,14 +121,6 @@ void establish_ppp (void)
     }
 
     set_kdebugflag (kdebugflag);
-
-    /*
-     * Set the device to give us a SIGIO when data is available.
-     */
-    if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
-	die(1);
-    }
 }
 
 /*
