@@ -1,11 +1,12 @@
 #
 # Makefile for STREAMS modules for SVR4.
 #
-# $Id: Makefile.svr4,v 1.3 1996/09/14 05:12:17 paulus Exp $
+# $Id: Makefile.svr4,v 1.4 1996/09/26 06:17:52 paulus Exp $
 #
 
-CFLAGS= -D_KERNEL -DSVR4 -I.. -O -DLACHTCP
-CC=	cc
+COPTS = -O
+
+CFLAGS= -D_KERNEL -DSVR4 -DLACHTCP -I.. $(COPTS)
 
 all:	ppp ppp_ahdl ppp_comp
 
