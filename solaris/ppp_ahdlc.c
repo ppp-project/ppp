@@ -49,7 +49,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ppp_ahdlc.c,v 1.3 2002/12/06 09:49:16 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.4 2004/11/15 00:57:54 carlsonj Exp $
  */
 
 /*
@@ -58,6 +58,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stream.h>
+#include <sys/stropts.h>
 #include <sys/errno.h>
 
 #ifdef SVR4
@@ -244,6 +245,7 @@ static u_int32_t paritytab[8] =
 MOD_OPEN(ahdlc_open)
 {
     ahdlc_state_t   *state;
+    mblk_t *mp;
 
     /*
      * Return if it's already opened
@@ -288,7 +290,13 @@ MOD_OPEN(ahdlc_open)
 #endif /* SUNOS4 */
 
     qprocson(q);
-    
+
+    if ((mp = allocb(1, BPRI_HI)) != NULL) {
+	    mp->b_datap->db_type = M_FLUSH;
+	    *mp->b_wptr++ = FLUSHR;
+	    putnext(q, mp);
+    }
+
     return 0;
 }
 

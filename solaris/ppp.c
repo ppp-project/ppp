@@ -32,7 +32,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ppp.c,v 1.2 2002/12/06 09:49:16 paulus Exp $
+ * $Id: ppp.c,v 1.3 2004/11/15 00:57:54 carlsonj Exp $
  */
 
 /*
@@ -1430,7 +1430,8 @@ dlpi_request(q, mp, us)
 #endif
 
     default:
-	cmn_err(CE_CONT, "ppp: unknown dlpi prim 0x%x\n", d->dl_primitive);
+	if (us->flags & US_DBGLOG)
+	    DPRINT1("ppp: unknown dlpi prim 0x%x\n", d->dl_primitive);
 	/* fall through */
     badprim:
 	dlpi_error(q, us, d->dl_primitive, DL_BADPRIM, 0);
