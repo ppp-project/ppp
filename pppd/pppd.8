@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.74 2003/11/27 21:55:19 paulus Exp $
+.\" $Id: pppd.8,v 1.75 2004/01/13 04:04:52 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -217,6 +217,9 @@ expression should be enclosed in single-quotes to prevent whitespace
 in the expression from being interpreted by the shell. This option
 is currently only available under Linux, and requires that the kernel
 was configured to include PPP filtering support (CONFIG_PPP_FILTER).
+Note that it
+is possible to apply different constraints to incoming and outgoing
+packets using the \fBinbound\fR and \fBoutbound\fR qualifiers.
 .TP
 .B allow-ip \fIaddress(es)
 Allow peers to use the given IP address or subnet without
