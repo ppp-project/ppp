@@ -32,12 +32,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.8 1998/04/01 00:15:43 paulus Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.9 1998/09/04 18:48:12 christos Exp $";
 #endif
 
 #ifdef CHAPMS
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <sys/types.h>
