@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.26 1995/12/18 03:49:06 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.27 1996/01/01 23:00:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -77,6 +77,7 @@ int	lockflag = 0;		/* Create lock file to lock the serial dev */
 int	nodetach = 0;		/* Don't detach from controlling tty */
 char	*connector = NULL;	/* Script to establish physical link */
 char	*disconnector = NULL;	/* Script to disestablish physical link */
+char	*welcomer = NULL;	/* Script to run after phys link estab. */
 int	maxconnect = 0;		/* Maximum connect time */
 char	user[MAXNAMELEN];	/* Username for PAP */
 char	passwd[MAXSECRETLEN];	/* Password for PAP */
@@ -91,13 +92,11 @@ char	our_name[MAXNAMELEN];	/* Our name for authentication purposes */
 char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 int	usehostname = 0;	/* Use hostname for our_name */
 int	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
+int	demand = 0;		/* do dial-on-demand */
 char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	cryptpap;		/* Passwords in pap-secrets are encrypted */
-
-#ifdef _linux_
-int idle_time_limit = 0;
-static int setidle __P((char **));
-#endif
+int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
+int	holdoff = 30;		/* # seconds to pause before reconnecting */
 
 /*
  * Prototypes
@@ -128,6 +127,7 @@ static int nomru __P((void));
 static int nopcomp __P((void));
 static int setconnector __P((char **));
 static int setdisconnector __P((char **));
+static int setwelcomer __P((char **));
 static int setmaxconnect __P((char **));
 static int setdomain __P((char **));
 static int setnetmask __P((char **));
@@ -171,10 +171,13 @@ static int setlcpechointv __P((char **));
 static int setlcpechofails __P((char **));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
+static int setdemand __P((void));
 static int setpred1comp __P((void));
 static int setnopred1comp __P((void));
 static int setipparam __P((char **));
 static int setpapcrypt __P((void));
+static int setidle __P((char **));
+static int setholdoff __P((char **));
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
@@ -232,6 +235,7 @@ static struct cmd {
     {"escape", 1, setescape},	/* set chars to escape on transmission */
     {"connect", 1, setconnector}, /* A program to set up a connection */
     {"disconnect", 1, setdisconnector},	/* program to disconnect serial dev. */
+    {"welcome", 1, setwelcomer},/* Script to welcome client */
     {"maxconnect", 1, setmaxconnect},  /* specify a maximum connect time */
     {"crtscts", 0, setcrtscts},	/* set h/w flow control */
     {"-crtscts", 0, setnocrtscts}, /* clear h/w flow control */
@@ -258,6 +262,7 @@ static struct cmd {
     {"proxyarp", 0, setproxyarp}, /* Add proxy ARP entry */
     {"-proxyarp", 0, setnoproxyarp}, /* disable proxyarp option */
     {"persist", 0, setpersist},	/* Keep on reopening connection after close */
+    {"demand", 0, setdemand},	/* Dial on demand */
     {"login", 0, setdologin},	/* Use system password database for UPAP */
     {"noipdefault", 0, setnoipdflt}, /* Don't use name for default IP adrs */
     {"lcp-echo-failure", 1, setlcpechofails}, /* consecutive echo failures */
@@ -284,6 +289,8 @@ static struct cmd {
     {"-predictor1", 0, setnopred1comp},	/* don't allow Predictor-1 */
     {"ipparam", 1, setipparam},		/* set ip script parameter */
     {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
+    {"idle", 1, setidle},		/* idle time limit (seconds) */
+    {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -561,7 +568,6 @@ readable(fd)
  * Quotes, white-space and \ may be escaped with \.
  * \<newline> is ignored.
  */
-
 int
 getword(f, word, newlinep, filename)
     FILE *f;
@@ -1170,7 +1176,7 @@ setconnector(argv)
 {
     connector = strdup(*argv);
     if (connector == NULL)
-	novm("connector string");
+	novm("connect script");
   
     return (1);
 }
@@ -1184,7 +1190,21 @@ setdisconnector(argv)
 {
     disconnector = strdup(*argv);
     if (disconnector == NULL)
-	novm("disconnector string");
+	novm("disconnect script");
+  
+    return (1);
+}
+
+/*
+ * setwelcomer - Set a program to welcome a client after connection
+ */
+static int
+setwelcomer(argv)
+    char **argv;
+{
+    welcomer = strdup(*argv);
+    if (welcomer == NULL)
+	novm("welcome script");
   
     return (1);
 }
@@ -1434,36 +1454,6 @@ setipcpaccr()
 
 
 /*
- * setipdefault - default our local IP address based on our hostname.
- */
-void
-setipdefault()
-{
-    struct hostent *hp;
-    u_int32_t local;
-    ipcp_options *wo = &ipcp_wantoptions[0];
-
-    /*
-     * If local IP address already given, don't bother.
-     */
-    if (wo->ouraddr != 0 || disable_defaultip)
-	return;
-
-    /*
-     * Look up our hostname (possibly with domain name appended)
-     * and take the first IP address as our local IP address.
-     * If there isn't an IP address for our hostname, too bad.
-     */
-    wo->accept_local = 1;	/* don't insist on this default value */
-    if ((hp = gethostbyname(hostname)) == NULL)
-	return;
-    local = *(u_int32_t *)hp->h_addr;
-    if (local != 0 && !bad_ip_adrs(local))
-	wo->ouraddr = local;
-}
-
-
-/*
  * setnetmask - set the netmask to be used on the interface.
  */
 static int
@@ -1510,6 +1500,13 @@ setnodetach()
 {
     nodetach = 1;
     return (1);
+}
+
+static int
+setdemand()
+{
+    demand = 1;
+    return 1;
 }
 
 static int
@@ -1826,14 +1823,19 @@ setpapcrypt()
     return 1;
 }
 
-#ifdef _linux_
-static int setidle (argv)
+static int
+setidle(argv)
     char **argv;
 {
     return int_option(*argv, &idle_time_limit);
 }
-#endif
 
+static int
+setholdoff(argv)
+    char **argv;
+{
+    return int_option(*argv, &holdoff);
+}
 
 #ifdef IPX_CHANGE
 static int
