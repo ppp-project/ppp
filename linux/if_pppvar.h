@@ -42,7 +42,7 @@
  */
 
 /*
- *  ==FILEVERSION 981004==
+ *  ==FILEVERSION 990114==
  *
  *  NOTE TO MAINTAINERS:
  *   If you modify this file at all, please set the above date.
@@ -61,7 +61,8 @@
 #define NP_IP	0		/* Internet Protocol */
 #define NP_IPX	1		/* IPX protocol */
 #define NP_AT	2		/* Appletalk protocol */
-#define NUM_NP	3		/* Number of NPs. */
+#define NP_IPV6	3		/* Internet Protocol */
+#define NUM_NP	4		/* Number of NPs. */
 
 #define OBUFSIZE	256	/* # chars of output buffering */
 

@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.15 1999/01/19 23:57:43 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.16 1999/02/26 06:48:20 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 980704==
+ *  ==FILEVERSION 990226==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -35,7 +35,7 @@
 #ifndef _IF_PPP_H_
 #define _IF_PPP_H_
 
-#if defined(__linux__)
+#if defined(__KERNEL__)
 #include <linux/if.h>
 #include <linux/ioctl.h>
 #include <linux/ppp_defs.h>

@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 981004==
+ *  ==FILEVERSION 990114==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.20 1999/01/19 23:57:44 paulus Exp $ */
+/* $Id: ppp.c,v 1.21 1999/02/26 06:48:21 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -103,7 +103,8 @@
 #include <linux/kerneld.h>
 #endif
 
-#define PPP_VERSION	"2.3.5"
+#undef PPP_VERSION
+#define PPP_VERSION	"2.3.6"
 
 #if LINUX_VERSION_CODE >= VERSION(2,1,4)
 
@@ -144,7 +145,7 @@
 #endif
 
 #if LINUX_VERSION_CODE < VERSION(2,1,57)
-#define signal_pending(tsk)	((tsk)->pending & ~(tsk)->blocked)
+#define signal_pending(tsk)	((tsk)->signal & ~(tsk)->blocked)
 #endif
 
 #if LINUX_VERSION_CODE < VERSION(2,1,60)
@@ -153,6 +154,24 @@ typedef unsigned int	rw_count_t;
 #else
 typedef ssize_t		rw_ret_t;
 typedef size_t		rw_count_t;
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,86)
+#define KFREE_SKB(s)	dev_kfree_skb((s), FREE_WRITE)
+#else
+#define KFREE_SKB(s)	kfree_skb(s)
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,15)
+#define LIBERATE_SKB(s)	((s)->free = 1)
+#else
+#define LIBERATE_SKB(s)	do { } while (0)
+#endif
+
+#if LINUX_VERSION_CODE < VERSION(2,1,95)
+#define SUSER()		suser()
+#else
+#define SUSER()		capable(CAP_NET_ADMIN)
 #endif
 
 /*
@@ -241,7 +260,6 @@ static struct symbol_table ppp_syms = {
 #include <linux/symtab_begin.h>
 	X(ppp_register_compressor),
 	X(ppp_unregister_compressor),
-	X(ppp_crc16_table),
 #include <linux/symtab_end.h>
 };
 #else
@@ -318,7 +336,6 @@ __u16 ppp_crc16_table[256] =
 	0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
-EXPORT_SYMBOL(ppp_crc16_table);
 
 #ifdef CHECK_CHARACTERS
 static __u32 paritytab[8] =
@@ -353,7 +370,9 @@ ppp_first_time(void)
 	 */
 	(void) memset (&ppp_ldisc, 0, sizeof (ppp_ldisc));
 	ppp_ldisc.magic		= TTY_LDISC_MAGIC;
+#if LINUX_VERSION_CODE >= VERSION(2,1,28)
 	ppp_ldisc.name          = "ppp";
+#endif
 	ppp_ldisc.open		= ppp_tty_open;
 	ppp_ldisc.close		= ppp_tty_close;
 	ppp_ldisc.read		= ppp_tty_read;
@@ -441,10 +460,10 @@ ppp_async_release(struct ppp *ppp)
 	struct sk_buff *skb;
 
 	if ((skb = ppp->rpkt) != NULL)
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 	ppp->rpkt = NULL;
 	if ((skb = ppp->tpkt) != NULL)
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 	ppp->tpkt = NULL;
 }
 
@@ -596,7 +615,6 @@ ppp_tty_read(struct tty_struct *tty, struct file *file, __u8 * buf,
 		if (file->f_flags & O_NONBLOCK)
 			break;
 
-		current->timeout = 0;
 		interruptible_sleep_on(&ppp->read_wait);
 		err = -EINTR;
 		if (signal_pending(current))
@@ -629,7 +647,7 @@ ppp_tty_read(struct tty_struct *tty, struct file *file, __u8 * buf,
 		err = -EFAULT;
 
 out:
-	kfree_skb(skb);
+	KFREE_SKB(skb);
 	return err;
 }
 
@@ -676,13 +694,14 @@ ppp_tty_write(struct tty_struct *tty, struct file *file, const __u8 * data,
 		printk(KERN_ERR "ppp_tty_write: no memory\n");
 		return 0;
 	}
+	LIBERATE_SKB(skb);
 	new_data = skb_put(skb, count);
 
 	/*
 	 * Retrieve the user's buffer
 	 */
 	if (COPY_FROM_USER(new_data, data, count)) {
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 		return -EFAULT;
 	}
 
@@ -716,7 +735,7 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 	/*
 	 * The user must have an euid of root to do these requests.
 	 */
-	if (!capable(CAP_NET_ADMIN))
+	if (!SUSER())
 		return -EPERM;
 
 	switch (param2) {
@@ -998,7 +1017,7 @@ flush:
 	ppp->tty_pushing = 1;
 	ppp->stats.ppp_oerrors++;
 	if (ppp->tpkt != 0) {
-		kfree_skb(ppp->tpkt);
+		KFREE_SKB(ppp->tpkt);
 		ppp->tpkt = 0;
 		done = 1;
 	}
@@ -1102,7 +1121,7 @@ ppp_async_encode(struct ppp *ppp)
 		*buf++ = PPP_FLAG;
 		ppp->olim = buf;
 
-		kfree_skb(ppp->tpkt);
+		KFREE_SKB(ppp->tpkt);
 		ppp->tpkt = 0;
 		return 1;
 	}
@@ -1231,7 +1250,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 					       "ppp: tossing frame (%x)\n",
 					       ppp->toss);
 				if (skb != NULL)
-					kfree_skb(skb);
+					KFREE_SKB(skb);
 				if (!(ppp->toss == 0xE0 || ppp->toss == 0x80))
 					++ppp->stats.ppp_ierrors;
 				ppp_receive_error(ppp);
@@ -1280,6 +1299,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 				ppp->toss = 1;
 				continue;
 			}
+			LIBERATE_SKB(skb);
 		}
 
 		/*
@@ -1304,7 +1324,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 			ppp->toss = 0xC0;
 			if (ppp->flags & SC_DEBUG)
 				printk(KERN_DEBUG "rcv frame too long: "
-				       "len=%d mru=%d hroom=%d troom=%d\n",
+				       "len=%ld mru=%d hroom=%d troom=%d\n",
 				       skb->len, ppp->mru, skb_headroom(skb),
 				       skb_tailroom(skb));
 			continue;
@@ -1359,6 +1379,7 @@ typedef struct ppp_proto_struct {
 } ppp_proto_type;
 
 static int rcv_proto_ip		(struct ppp *, struct sk_buff *);
+static int rcv_proto_ipv6	(struct ppp *, struct sk_buff *);
 static int rcv_proto_ipx	(struct ppp *, struct sk_buff *);
 static int rcv_proto_at		(struct ppp *, struct sk_buff *);
 static int rcv_proto_vjc_comp	(struct ppp *, struct sk_buff *);
@@ -1369,6 +1390,7 @@ static int rcv_proto_unknown	(struct ppp *, struct sk_buff *);
 static
 ppp_proto_type proto_list[] = {
 	{ PPP_IP,	  rcv_proto_ip	       },
+	{ PPP_IPV6,	  rcv_proto_ipv6       },
 	{ PPP_IPX,	  rcv_proto_ipx	       },
 	{ PPP_AT,	  rcv_proto_at	       },
 	{ PPP_VJC_COMP,	  rcv_proto_vjc_comp   },
@@ -1531,7 +1553,7 @@ ppp_ioctl(struct ppp *ppp, unsigned int param2, unsigned long param3)
 	/*
 	 * The user must have an euid of root to do these requests.
 	 */
-	if (!capable(CAP_NET_ADMIN))
+	if (!SUSER())
 		return -EPERM;
 
 	switch (param2) {
@@ -1985,7 +2007,7 @@ ppp_receive_frame(struct ppp *ppp, struct sk_buff *skb)
 	if (skb == NULL)
 		return 1;
 	if (skb->len == 0) {
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 1;
 	}
 	data = skb->data;
@@ -2034,13 +2056,14 @@ ppp_receive_frame(struct ppp *ppp, struct sk_buff *skb)
 				printk(KERN_ERR "ppp_recv_frame: no memory\n");
 				new_count = DECOMP_ERROR;
 			} else {
+				LIBERATE_SKB(new_skb);
 				new_count = (*ppp->sc_rcomp->decompress)
 					(ppp->sc_rc_state, data, count,
 					 new_skb->data, ppp->mru + PPP_HDRLEN);
 			}
 			if (new_count > 0) {
 				/* Frame was decompressed OK */
-				kfree_skb(skb);
+				KFREE_SKB(skb);
 				skb = new_skb;
 				count = new_count;
 				data = skb_put(skb, count);
@@ -2055,7 +2078,7 @@ ppp_receive_frame(struct ppp *ppp, struct sk_buff *skb)
 					printk(KERN_INFO "%s: decomp err %d\n",
 					       ppp->name, new_count);
 				if (new_skb != 0)
-					kfree_skb(new_skb);
+					KFREE_SKB(new_skb);
 				if (ppp->slcomp != 0)
 					slhc_toss(ppp->slcomp);
 				++ppp->stats.ppp_ierrors;
@@ -2103,7 +2126,7 @@ ppp_receive_frame(struct ppp *ppp, struct sk_buff *skb)
 	 * Update the appropriate statistic counter.
 	 */
 	if (!(*proto_ptr->func)(ppp, skb)) {
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 		++ppp->stats.ppp_discards;
 	}
 
@@ -2138,9 +2161,6 @@ ppp_rcv_rx(struct ppp *ppp, __u16 proto, struct sk_buff *skb)
 	skb_pull(skb, PPP_HDRLEN);	/* pull off ppp header */
 	skb->mac.raw   = skb->data;
 	ppp->last_recv = jiffies;
-#if LINUX_VERSION_CODE < VERSION(2,1,15)
-	skb->free = 1;
-#endif
 	netif_rx (skb);
 	return 1;
 }
@@ -2155,6 +2175,19 @@ rcv_proto_ip(struct ppp *ppp, struct sk_buff *skb)
 	if ((ppp2dev(ppp)->flags & IFF_UP) && (skb->len > 0)
 	    && ppp->sc_npmode[NP_IP] == NPMODE_PASS)
 		return ppp_rcv_rx(ppp, ETH_P_IP, skb);
+	return 0;
+}
+
+/*
+ * Process the receipt of an IPv6 frame
+ */
+static int
+rcv_proto_ipv6(struct ppp *ppp, struct sk_buff *skb)
+{
+	CHECK_PPP(0);
+	if ((ppp2dev(ppp)->flags & IFF_UP) && (skb->len > 0)
+	    && ppp->sc_npmode[NP_IPV6] == NPMODE_PASS)
+		return ppp_rcv_rx(ppp, ETH_P_IPV6, skb);
 	return 0;
 }
 
@@ -2197,13 +2230,17 @@ rcv_proto_vjc_comp(struct ppp *ppp, struct sk_buff *skb)
 		return 0;
 	new_count = slhc_uncompress(ppp->slcomp, skb->data + PPP_HDRLEN,
 				    skb->len - PPP_HDRLEN);
-	if (new_count < 0) {
+	if (new_count <= 0) {
 		if (ppp->flags & SC_DEBUG)
 			printk(KERN_NOTICE
 			       "ppp: error in VJ decompression\n");
 		return 0;
 	}
-	skb_put(skb, new_count + PPP_HDRLEN - skb->len);
+	new_count += PPP_HDRLEN;
+	if (new_count > skb->len)
+		skb_put(skb, new_count - skb->len);
+	else
+		skb_trim(skb, new_count);
 	return rcv_proto_ip(ppp, skb);
 }
 
@@ -2248,7 +2285,7 @@ rcv_proto_unknown(struct ppp *ppp, struct sk_buff *skb)
 	while (ppp->rcv_q.qlen > PPP_MAX_RCV_QLEN) {
 		struct sk_buff *skb = skb_dequeue(&ppp->rcv_q);
 		if (skb)
-			kfree_skb(skb);
+			KFREE_SKB(skb);
 	}
 
 	wake_up_interruptible (&ppp->read_wait);
@@ -2345,10 +2382,11 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 		new_skb = alloc_skb(ppp->mtu + PPP_HDRLEN, GFP_ATOMIC);
 		if (new_skb == NULL) {
 			printk(KERN_ERR "ppp_send_frame: no memory\n");
-			kfree_skb(skb);
+			KFREE_SKB(skb);
 			ppp->xmit_busy = 0;
 			return;
 		}
+		LIBERATE_SKB(new_skb);
 
 		/* Compress the frame. */
 		new_count = (*ppp->sc_xcomp->compress)
@@ -2358,14 +2396,14 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 		/* Did it compress? */
 		if (new_count > 0 && (ppp->flags & SC_CCP_UP)) {
 			skb_put(new_skb, new_count);
-			kfree_skb(skb);
+			KFREE_SKB(skb);
 			skb = new_skb;
 		} else {
 			/*
 			 * The frame could not be compressed, or it could not
 			 * be sent in compressed form because CCP is down.
 			 */
-			kfree_skb(new_skb);
+			KFREE_SKB(new_skb);
 		}
 	}
 
@@ -2397,6 +2435,7 @@ ppp_vj_compress(struct ppp *ppp, struct sk_buff *skb)
 		printk(KERN_ERR "ppp: no memory for vj compression\n");
 		return skb;
 	}
+	LIBERATE_SKB(new_skb);
 
 	orig_data = data = skb->data + PPP_HDRLEN;
 	len = slhc_compress(ppp->slcomp, data, skb->len - PPP_HDRLEN,
@@ -2405,7 +2444,7 @@ ppp_vj_compress(struct ppp *ppp, struct sk_buff *skb)
 
 	if (data == orig_data) {
 		/* Couldn't compress the data */
-		kfree_skb(new_skb);
+		KFREE_SKB(new_skb);
 		return skb;
 	}
 
@@ -2427,7 +2466,7 @@ ppp_vj_compress(struct ppp *ppp, struct sk_buff *skb)
 	data[2] = 0;
 	data[3] = proto;
 
-	kfree_skb(skb);
+	KFREE_SKB(skb);
 	return new_skb;
 }
 
@@ -2505,7 +2544,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 	if (skb == NULL)
 		return 0;
 	if (skb->data == NULL) {
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 	}
 
@@ -2514,7 +2553,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 	 * queued to be sent.
 	 */
 	if (!ppp->inuse) {
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 	}
 
@@ -2526,7 +2565,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 			printk(KERN_ERR
 			       "ppp_dev_xmit: %s not connected to a TTY!\n",
 			       dev->name);
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 	}
 
@@ -2538,6 +2577,10 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 	case ETH_P_IP:
 		proto = PPP_IP;
 		npmode = ppp->sc_npmode[NP_IP];
+		break;
+	case ETH_P_IPV6:
+		proto = PPP_IPV6;
+		npmode = ppp->sc_npmode[NP_IPV6];
 		break;
 	case ETH_P_IPX:
 		proto = PPP_IPX;
@@ -2552,7 +2595,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 		if (ppp->flags & SC_DEBUG)
 			printk(KERN_INFO "%s: packet for unknown proto %x\n",
 			       ppp->name, ntohs(skb->protocol));
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 	}
 
@@ -2571,7 +2614,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 		 */
 		if (ppp->flags & SC_DEBUG)
 			printk(KERN_DEBUG "%s: returning frame\n", ppp->name);
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 
 	case NPMODE_ERROR:
@@ -2580,7 +2623,7 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 			printk(KERN_DEBUG
 			       "ppp_dev_xmit: dropping (npmode = %d) on %s\n",
 			       npmode, ppp->name);
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		return 0;
 	}
 
@@ -2609,14 +2652,15 @@ ppp_dev_xmit(struct sk_buff *skb, struct device *dev)
 		if (new_skb == NULL) {
 			printk(KERN_ERR "%s: skb hdr alloc failed\n",
 			       ppp->name);
-			dev_kfree_skb(skb);
+			KFREE_SKB(skb);
 			ppp->xmit_busy = 0;
 			ppp_send_frames(ppp);
 			return 0;
 		}
+		LIBERATE_SKB(new_skb);
 		skb_reserve(new_skb, PPP_HDRLEN);
 		memcpy(skb_put(new_skb, skb->len), skb->data, skb->len);
-		dev_kfree_skb(skb);
+		KFREE_SKB(skb);
 		skb = new_skb;
 	}
 
@@ -2738,7 +2782,12 @@ ppp_alloc(void)
 	 */
 	dev = ppp2dev(ppp);
 	dev->name = ppp->name;
+#if LINUX_VERSION_CODE < VERSION(2,1,31)
+	if_num = (ppp_list == 0)? 0: ppp_last->line + 1;
+	sprintf(ppp->name, "ppp%d", if_num);
+#else
 	if_num = dev_alloc_name(dev, "ppp%d");
+#endif
 	if (if_num < 0) {
 		printk(KERN_ERR "ppp: dev_alloc_name failed (%d)\n", if_num);
 		kfree(ppp);
@@ -2830,9 +2879,9 @@ ppp_release(struct ppp *ppp)
 	}
 
 	while ((skb = skb_dequeue(&ppp->rcv_q)) != NULL)
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 	while ((skb = skb_dequeue(&ppp->xmt_q)) != NULL)
-		kfree_skb(skb);
+		KFREE_SKB(skb);
 
 	ppp->inuse = 0;
 	if (ppp->dev.tbusy) {
