@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.11 2002/07/15 11:04:18 kad Exp $";
+"$Id: radius.c,v 1.12 2002/07/24 20:13:12 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -872,6 +872,98 @@ radius_acct_stop(void)
 	/* RADIUS server could be down so make this a warning */
 	syslog(LOG_WARNING,
 		"Accounting STOP failed for %s", rstate.user);
+    }
+    rc_avpair_free(send);
+}
+
+/**********************************************************************
+* %FUNCTION: radius_acct_interim
+* %ARGUMENTS:
+*  None
+* %RETURNS:
+*  Nothing
+* %DESCRIPTION:
+*  Sends an interim accounting message to the RADIUS server
+***********************************************************************/
+static void
+radius_acct_interim(void)
+{
+    UINT4 av_type;
+    VALUE_PAIR *send = NULL;
+    ipcp_options *ho = &ipcp_hisoptions[0];
+    u_int32_t hisaddr;
+    int result;
+
+    if (!rstate.initialized) {
+	return;
+    }
+
+    if (!rstate.accounting_started) {
+	return;
+    }
+
+    rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
+		   0, VENDOR_NONE);
+
+    rc_avpair_add(&send, PW_USER_NAME, rstate.user, 0, VENDOR_NONE);
+
+    av_type = PW_STATUS_ALIVE;
+    rc_avpair_add(&send, PW_ACCT_STATUS_TYPE, &av_type, 0, VENDOR_NONE);
+
+    av_type = PW_FRAMED;
+    rc_avpair_add(&send, PW_SERVICE_TYPE, &av_type, 0, VENDOR_NONE);
+
+    av_type = PW_PPP;
+    rc_avpair_add(&send, PW_FRAMED_PROTOCOL, &av_type, 0, VENDOR_NONE);
+
+    av_type = PW_RADIUS;
+    rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
+
+    /* Update link stats */
+    update_link_stats(0);
+
+    if (link_stats_valid) {
+	link_stats_valid = 0; /* Force later code to update */
+
+	av_type = link_connect_time;
+	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
+
+	av_type = link_stats.bytes_out;
+	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
+
+	av_type = link_stats.bytes_in;
+	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
+
+	av_type = link_stats.pkts_out;
+	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
+
+	av_type = link_stats.pkts_in;
+	rc_avpair_add(&send, PW_ACCT_INPUT_PACKETS, &av_type, 0, VENDOR_NONE);
+    }
+
+    if (*remote_number) {
+	rc_avpair_add(&send, PW_CALLING_STATION_ID,
+		       remote_number, 0, VENDOR_NONE);
+    }
+
+    av_type = PW_ASYNC;
+    rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
+
+    hisaddr = ho->hisaddr;
+    av_type = htonl(hisaddr);
+    rc_avpair_add(&send, PW_FRAMED_IP_ADDRESS , &av_type , 0, VENDOR_NONE);
+
+    if (rstate.acctserver) {
+	result = rc_acct_using_server(rstate.acctserver,
+				      rstate.client_port, send);
+    } else {
+	result = rc_acct(rstate.client_port, send);
+    }
+
+    if (result != OK_RC) {
+	/* RADIUS server could be down so make this a warning */
+	syslog(LOG_WARNING,
+		"Interim accounting failed for %s", rstate.user);
     }
     rc_avpair_free(send);
 }
