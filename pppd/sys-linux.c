@@ -173,8 +173,8 @@ static int ppp_disc = N_PPP;	/* The PPP discpline */
 static int initfdflags = -1;	/* Initial file descriptor flags for fd */
 static int ppp_fd = -1;		/* fd which is set to PPP discipline */
 static int sock_fd = -1;	/* socket for doing interface ioctls */
-static int slave_fd = -1;
-static int master_fd = -1;
+static int slave_fd = -1;	/* pty for old-style demand mode, slave */
+static int master_fd = -1;	/* pty for old-style demand mode, master */
 #ifdef INET6
 static int sock6_fd = -1;
 #endif /* INET6 */
@@ -2790,7 +2790,8 @@ sys_check_options(void)
 
     if (ipxcp_protent.enabled_flag) {
 	struct stat stat_buf;
-	if ((path = path_to_procfs("/net/ipx_interface")) == 0
+	if ((path = path_to_procfs("/net/ipx/interface")) == 0
+	    || (path = path_to_procfs("/net/ipx_interface")) == 0
 	    || lstat(path, &stat_buf) < 0) {
 	    error("IPX support is not present in the kernel\n");
 	    ipxcp_protent.enabled_flag = 0;
