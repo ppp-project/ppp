@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.41 1999/06/24 00:16:38 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.42 1999/07/21 00:18:46 paulus Exp $";
 #endif
 
 /*
@@ -64,7 +64,7 @@ static option_t lcp_option_list[] = {
     { "-as", o_uint32, &lcp_wantoptions[0].asyncmap,
       "Set asyncmap (for received packets)",
       OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
-    { "nomagicnumber", o_bool, &lcp_wantoptions[0].neg_magicnumber,
+    { "nomagic", o_bool, &lcp_wantoptions[0].neg_magicnumber,
       "Disable magic number negotiation (looped-back line detection)",
       OPT_A2COPY, &lcp_allowoptions[0].neg_magicnumber },
     { "-mn", o_bool, &lcp_wantoptions[0].neg_magicnumber,
