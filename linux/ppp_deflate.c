@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 971001==
+ *  ==FILEVERSION 980319==
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -197,7 +197,8 @@ z_comp_alloc(options, opt_len)
 	struct ppp_deflate_state *state;
 	int w_size;
 
-	if (opt_len != CILEN_DEFLATE || options[0] != CI_DEFLATE
+	if (opt_len != CILEN_DEFLATE
+	    || (options[0] != CI_DEFLATE && options[0] != CI_DEFLATE_DRAFT)
 	    || options[1] != CILEN_DEFLATE
 	    || DEFLATE_METHOD(options[2]) != DEFLATE_METHOD_VAL
 	    || options[3] != DEFLATE_CHK_SEQUENCE)
@@ -219,13 +220,15 @@ z_comp_alloc(options, opt_len)
 
 	if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION,
 			 DEFLATE_METHOD_VAL, -w_size, 8, Z_DEFAULT_STRATEGY)
-	    != Z_OK) {
-		z_comp_free(state);
-		return NULL;
-	}
-
+	    != Z_OK)
+		goto out_free;
 	state->strm.zalloc = zalloc;
 	return (void *) state;
+
+out_free:
+	z_comp_free(state);
+	MOD_DEC_USE_COUNT;
+	return NULL;
 }
 
 static int
@@ -236,7 +239,8 @@ z_comp_init(arg, options, opt_len, unit, hdrlen, debug)
 {
 	struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
 
-	if (opt_len < CILEN_DEFLATE || options[0] != CI_DEFLATE
+	if (opt_len < CILEN_DEFLATE
+	    || (options[0] != CI_DEFLATE && options[0] != CI_DEFLATE_DRAFT)
 	    || options[1] != CILEN_DEFLATE
 	    || DEFLATE_METHOD(options[2]) != DEFLATE_METHOD_VAL
 	    || DEFLATE_SIZE(options[2]) != state->w_size
@@ -270,7 +274,7 @@ z_compress(arg, rptr, obuf, isize, osize)
     int isize, osize;
 {
 	struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
-	int r, proto, off, olen;
+	int r, proto, off, olen, oavail;
 	unsigned char *wptr;
 
 	/*
@@ -297,9 +301,10 @@ z_compress(arg, rptr, obuf, isize, osize)
 	wptr += PPP_HDRLEN;
 	wptr[0] = state->seqno >> 8;
 	wptr[1] = state->seqno;
-	wptr += 2;
+	wptr += DEFLATE_OVHD;
+	olen = PPP_HDRLEN + DEFLATE_OVHD;
 	state->strm.next_out = wptr;
-	state->strm.avail_out = osize - (PPP_HDRLEN + 2);
+	state->strm.avail_out = oavail = osize - olen;
 	++state->seqno;
 
 	off = (proto > 0xff) ? 2 : 3;	/* skip 1st proto byte if 0 */
@@ -307,25 +312,23 @@ z_compress(arg, rptr, obuf, isize, osize)
 	state->strm.next_in = rptr;
 	state->strm.avail_in = (isize - off);
 
-	olen = 0;
 	for (;;) {
 		r = deflate(&state->strm, Z_PACKET_FLUSH);
 		if (r != Z_OK) {
 			if (state->debug)
-				printk(KERN_DEBUG "z_compress: deflate returned %d (%s)\n",
-				       r, (state->strm.msg? state->strm.msg: ""));
+				printk(KERN_ERR
+				       "z_compress: deflate returned %d\n", r);
 			break;
 		}
 		if (state->strm.avail_out == 0) {
-			olen += osize;
+			olen += oavail;
 			state->strm.next_out = NULL;
-			state->strm.avail_out = 1000000;
+			state->strm.avail_out = oavail = 1000000;
 		} else {
 			break;		/* all done */
 		}
 	}
-	if (olen < osize)
-		olen += osize - state->strm.avail_out;
+	olen += oavail - state->strm.avail_out;
 
 	/*
 	 * See if we managed to reduce the size of the packet.
@@ -378,7 +381,8 @@ z_decomp_alloc(options, opt_len)
 	struct ppp_deflate_state *state;
 	int w_size;
 
-	if (opt_len != CILEN_DEFLATE || options[0] != CI_DEFLATE
+	if (opt_len != CILEN_DEFLATE
+	    || (options[0] != CI_DEFLATE && options[0] != CI_DEFLATE_DRAFT)
 	    || options[1] != CILEN_DEFLATE
 	    || DEFLATE_METHOD(options[2]) != DEFLATE_METHOD_VAL
 	    || options[3] != DEFLATE_CHK_SEQUENCE)
@@ -398,13 +402,15 @@ z_decomp_alloc(options, opt_len)
 	state->strm.zalloc   = zalloc_init;
 	state->strm.zfree    = zfree;
 
-	if (inflateInit2(&state->strm, -w_size) != Z_OK) {
-		z_decomp_free(state);
-		return NULL;
-	}
-
+	if (inflateInit2(&state->strm, -w_size) != Z_OK)
+		goto out_free;
 	state->strm.zalloc = zalloc;
 	return (void *) state;
+
+out_free:
+	z_decomp_free(state);
+	MOD_DEC_USE_COUNT;
+	return NULL;
 }
 
 static int
@@ -415,7 +421,8 @@ z_decomp_init(arg, options, opt_len, unit, hdrlen, mru, debug)
 {
 	struct ppp_deflate_state *state = (struct ppp_deflate_state *) arg;
 
-	if (opt_len < CILEN_DEFLATE || options[0] != CI_DEFLATE
+	if (opt_len < CILEN_DEFLATE
+	    || (options[0] != CI_DEFLATE && options[0] != CI_DEFLATE_DRAFT)
 	    || options[1] != CILEN_DEFLATE
 	    || DEFLATE_METHOD(options[2]) != DEFLATE_METHOD_VAL
 	    || DEFLATE_SIZE(options[2]) != state->w_size
@@ -638,6 +645,23 @@ struct compressor ppp_deflate = {
 	z_comp_stats,		/* decomp_stat */
 };
 
+struct compressor ppp_deflate_draft = {
+	CI_DEFLATE_DRAFT,	/* compress_proto */
+	z_comp_alloc,		/* comp_alloc */
+	z_comp_free,		/* comp_free */
+	z_comp_init,		/* comp_init */
+	z_comp_reset,		/* comp_reset */
+	z_compress,		/* compress */
+	z_comp_stats,		/* comp_stat */
+	z_decomp_alloc,		/* decomp_alloc */
+	z_decomp_free,		/* decomp_free */
+	z_decomp_init,		/* decomp_init */
+	z_decomp_reset,		/* decomp_reset */
+	z_decompress,		/* decompress */
+	z_incomp,		/* incomp */
+	z_comp_stats,		/* decomp_stat */
+};
+
 #ifdef MODULE
 /*************************************************************
  * Module support routines
@@ -650,6 +674,7 @@ init_module(void)
         if (answer == 0)
                 printk (KERN_INFO
 			"PPP Deflate Compression module registered\n");
+	ppp_register_compressor(&ppp_deflate_draft);
         return answer;
 }
      
@@ -659,7 +684,9 @@ cleanup_module(void)
 	if (MOD_IN_USE)
 		printk (KERN_INFO
 			"Deflate Compression module busy, remove delayed\n");
-	else
+	else {
 	        ppp_unregister_compressor (&ppp_deflate);
+	        ppp_unregister_compressor (&ppp_deflate_draft);
+	}
 }
 #endif
