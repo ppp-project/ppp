@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.97 2000/04/24 02:54:16 masputra Exp $"
+#define RCSID	"$Id: main.c,v 1.98 2000/04/29 12:32:59 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -2417,12 +2417,13 @@ charshunt(ifd, ofd, record_file)
 		n = max_level - olevel;
 	    n = write(ofd, obufp, n);
 	    if (n < 0) {
-		if (errno != EIO) {
+		if (errno == EIO) {
+		    pty_readable = 0;
+		    nobuf = 0;
+		} else if (errno != EAGAIN && errno != EINTR) {
 		    error("Error writing standard output: %m");
 		    break;
 		}
-		pty_readable = 0;
-		nobuf = 0;
 	    } else {
 		obufp += n;
 		nobuf -= n;
@@ -2435,12 +2436,13 @@ charshunt(ifd, ofd, record_file)
 		n = max_level - ilevel;
 	    n = write(pty_master, ibufp, n);
 	    if (n < 0) {
-		if (errno != EIO) {
+		if (errno == EIO) {
+		    stdin_readable = 0;
+		    nibuf = 0;
+		} else if (errno != EAGAIN && errno != EINTR) {
 		    error("Error writing pseudo-tty master: %m");
 		    break;
 		}
-		stdin_readable = 0;
-		nibuf = 0;
 	    } else {
 		ibufp += n;
 		nibuf -= n;
