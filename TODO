@@ -1,5 +1,16 @@
 * Things to do *
 
-1. Implement link quality monitoring
+- How should we handle the case where MTU > MRU?
+  Should we reduce the IP MTU to the link MRU (so TCP MSS is correct)?
 
-2. Implement other network control protocols
+- Provide ways to:
+  + set the IP address, possibly based on the peer's identity
+  + have external checking of PAP user/password, CHAP response
+  + supply the PAP user/password, CHAP secret
+  + decide which tty to use (locking, DTR issues)
+
+- Integrate callback stuff?
+
+- Implement link quality monitoring
+
+- Implement other network control protocols
