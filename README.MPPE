@@ -51,7 +51,7 @@ Reference documents:
     <http://www.ietf.org/rfc/rfc2548.txt> MS RADIUS Attributes
 
 You might be interested in PoPToP, a Linux PPTP server.  You can find it at
-<http://poptop.sourceforge.net/>.
+<http://www.poptop.org/>
 
 RADIUS support for MPPE is from Ralf Hofmann, <ralf.hofmann@elvido.net>.
 
