@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.18 1995/04/27 00:35:43 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.19 1995/04/28 06:26:46 paulus Exp $";
 #endif
 
 /*
@@ -1107,6 +1107,8 @@ logwtmp(line, name, host)
  * network as `addr'.  If we find any, we OR in their netmask to the
  * user-specified netmask.
  */
+#define MAX_IFS		32
+
 u_int32_t
 GetMask(addr)
     u_int32_t addr;
@@ -1136,8 +1138,7 @@ GetMask(addr)
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
-	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ++ifr) {
 	/*
 	 * Check the interface's internet address.
 	 */

@@ -42,7 +42,7 @@
 #include <net/if.h>
 #include <net/ppp_defs.h>
 #include <net/if_arp.h>
-#include <net/if_ppp.h>
+#include <linux/if_ppp.h>
 #include <net/if_route.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
@@ -1184,8 +1184,7 @@ GetMask(addr)
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
-	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
 	/*
 	 * Check the interface's internet address.
 	 */

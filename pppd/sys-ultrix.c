@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.9 1995/04/27 00:45:24 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.10 1995/04/28 06:26:57 paulus Exp $";
 #endif
 
 /*
@@ -1012,7 +1012,7 @@ GetMask(addr)
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
     for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
-	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+	 	((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
 	/*
 	 * Check the interface's internet address.
 	 */
