@@ -40,6 +40,8 @@
 #define ALLOC_NOSLEEP(n)	(void *)malloc((u_long)(n), BUCKETINDEX(n), M_DEVBUF, M_NOWAIT)
 #endif
 
+#define bcanputnext(q, band)	canputnext((q))
+
 #ifdef FREE
 #undef FREE
 #endif
@@ -70,16 +72,25 @@
  */
 #ifdef DEBUG
 #if defined(SVR4) || defined(__osf__)
+#if defined(SNI)
+#include <sys/strlog.h>
+#define STRLOG_ID		4712
+#define DPRINT(f)		strlog(STRLOG_ID, 0, 0, SL_TRACE, f)
+#define DPRINT1(f, a1)		strlog(STRLOG_ID, 0, 0, SL_TRACE, f, a1)
+#define DPRINT2(f, a1, a2)	strlog(STRLOG_ID, 0, 0, SL_TRACE, f, a1, a2)
+#define DPRINT3(f, a1, a2, a3)	strlog(STRLOG_ID, 0, 0, SL_TRACE, f, a1, a2, a3)
+#else
 #define DPRINT(f)		cmn_err(CE_CONT, f)
 #define DPRINT1(f, a1)		cmn_err(CE_CONT, f, a1)
 #define DPRINT2(f, a1, a2)	cmn_err(CE_CONT, f, a1, a2)
 #define DPRINT3(f, a1, a2, a3)	cmn_err(CE_CONT, f, a1, a2, a3)
+#endif /* SNI */
 #else
 #define DPRINT(f)		printf(f)
 #define DPRINT1(f, a1)		printf(f, a1)
 #define DPRINT2(f, a1, a2)	printf(f, a1, a2)
 #define DPRINT3(f, a1, a2, a3)	printf(f, a1, a2, a3)
-#endif /* SVR4 */
+#endif /* SVR4 or OSF */
 
 #else
 #define DPRINT(f)		0
