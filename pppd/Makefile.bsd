@@ -1,10 +1,10 @@
-#	$Id: Makefile.bsd,v 1.5 1994/09/01 00:44:45 paulus Exp $
+#	$Id: Makefile.bsd,v 1.6 1994/09/21 06:47:28 paulus Exp $
 
 BINDIR?= /usr/sbin
-CFLAGS+= -I.. -IHAVE_PATHS_H
+CFLAGS+= -I.. -DHAVE_PATHS_H
 
 PROG=	pppd
-SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	auth.c options.c lock.c sys-bsd.c
 MAN8=	pppd.0
 BINMODE=4555
