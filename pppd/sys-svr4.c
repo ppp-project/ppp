@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.21 1999/03/08 01:46:49 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.22 1999/03/08 04:48:48 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -1729,6 +1729,7 @@ cifroute(u, our, his)
 /*
  * have_route_to - determine if the system has a route to the specified
  * IP address.  Returns 0 if not, 1 if so, -1 if we can't tell.
+ * `addr' is in network byte order.
  * For demand mode to work properly, we have to ignore routes
  * through our own interface.
  */
@@ -1818,7 +1819,7 @@ have_route_to(addr)
 		    syslog(LOG_DEBUG, "have_route_to: dest=%x gw=%x mask=%x\n",
 			   rp->ipRouteDest, rp->ipRouteNextHop,
 			   rp->ipRouteMask);
-		    if (((addr ^ rp->ipRouteDest) && rp->ipRouteMask) == 0
+		    if (((addr ^ rp->ipRouteDest) & rp->ipRouteMask) == 0
 			&& rp->ipRouteNextHop != remote_addr)
 			return 1;
 		}

@@ -1308,7 +1308,8 @@ static int defaultroute_exists (struct rtentry *rt)
 
 /*
  * have_route_to - determine if the system has any route to
- * a given IP address.
+ * a given IP address.  `addr' is in network byte order.
+ * Return value is 1 if yes, 0 if no, -1 if don't know.
  * For demand mode to work properly, we have to ignore routes
  * through our own interface.
  */
@@ -1324,7 +1325,7 @@ int have_route_to(u_int32_t addr)
 	if ((rt.rt_flags & RTF_UP) == 0 || strcmp(rt.rt_dev, ifname) == 0)
 	    continue;
 	if ((addr & ((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr)
-	    == ((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr) {
+	    == ((struct sockaddr_in *)&rt.rt_dst)->sin_addr.s_addr) {
 	    result = 1;
 	    break;
 	}
