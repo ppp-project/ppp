@@ -87,7 +87,7 @@
 #endif
 
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.28 2003/02/26 10:18:10 fcusack Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.29 2003/03/04 06:17:21 fcusack Exp $";
 #endif
 
 #include <stdio.h>
@@ -211,6 +211,7 @@ int say_next = 0, hup_next = 0;
 
 void *dup_mem __P((void *b, size_t c));
 void *copy_of __P((char *s));
+char *grow __P((char *s, char **p, size_t len));
 void usage __P((void));
 void logf __P((const char *fmt, ...));
 void fatal __P((int code, const char *fmt, ...));
@@ -258,6 +259,21 @@ void *copy_of (s)
 char *s;
 {
     return dup_mem (s, strlen (s) + 1);
+}
+
+/* grow a char buffer and keep a pointer offset */
+char *grow(s, p, len)
+char *s;
+char **p;
+size_t len;
+{
+    size_t l = *p - s;		/* save p as distance into s */
+
+    s = realloc(s, len);
+    if (!s)
+	fatal(2, "memory error!");
+    *p = s + l;			/* restore p */
+    return s;
 }
 
 /*
@@ -669,67 +685,78 @@ char *clean(s, sending)
 register char *s;
 int sending;  /* set to 1 when sending (putting) this string. */
 {
-    char temp[STR_LEN], env_str[STR_LEN], cur_chr;
-    register char *s1, *phchar;
+    char cur_chr;
+    char *s1, *p, *phchar;
     int add_return = sending;
+    size_t len = strlen(s) + 3;		/* see len comments below */
+
 #define isoctal(chr)	(((chr) >= '0') && ((chr) <= '7'))
 #define isalnumx(chr)	((((chr) >= '0') && ((chr) <= '9')) \
 			 || (((chr) >= 'a') && ((chr) <= 'z')) \
 			 || (((chr) >= 'A') && ((chr) <= 'Z')) \
 			 || (chr) == '_')
 
-    s1 = temp;
+    p = s1 = malloc(len);
+    if (!p)
+	fatal(2, "memory error!");
     while (*s) {
 	cur_chr = *s++;
 	if (cur_chr == '^') {
 	    cur_chr = *s++;
 	    if (cur_chr == '\0') {
-		*s1++ = '^';
+		*p++ = '^';
 		break;
 	    }
 	    cur_chr &= 0x1F;
 	    if (cur_chr != 0) {
-		*s1++ = cur_chr;
+		*p++ = cur_chr;
 	    }
 	    continue;
 	}
-	
+
 	if (use_env && cur_chr == '$') {		/* ARI */
-	    phchar = env_str;
+	    char c;
+
+	    phchar = s;
 	    while (isalnumx(*s))
-		*phchar++ = *s++;
-	    *phchar = '\0';
-	    phchar = getenv(env_str);
-	    if (phchar)
+		s++;
+	    c = *s;		/* save */
+	    *s = '\0';
+	    phchar = getenv(phchar);
+	    *s = c;		/* restore */
+	    if (phchar) {
+		len += strlen(phchar);
+		s1 = grow(s1, &p, len);
 		while (*phchar)
-		    *s1++ = *phchar++;
+		    *p++ = *phchar++;
+	    }
 	    continue;
 	}
 
 	if (cur_chr != '\\') {
-	    *s1++ = cur_chr;
+	    *p++ = cur_chr;
 	    continue;
 	}
 
 	cur_chr = *s++;
 	if (cur_chr == '\0') {
 	    if (sending) {
-		*s1++ = '\\';
-		*s1++ = '\\';
+		*p++ = '\\';
+		*p++ = '\\';	/* +1 for len */
 	    }
 	    break;
 	}
 
 	switch (cur_chr) {
 	case 'b':
-	    *s1++ = '\b';
+	    *p++ = '\b';
 	    break;
 
 	case 'c':
 	    if (sending && *s == '\0')
 		add_return = 0;
 	    else
-		*s1++ = cur_chr;
+		*p++ = cur_chr;
 	    break;
 
 	case '\\':
@@ -737,29 +764,33 @@ int sending;  /* set to 1 when sending (putting) this string. */
 	case 'p':
 	case 'd':
 	    if (sending)
-		*s1++ = '\\';
-	    *s1++ = cur_chr;
+		*p++ = '\\';
+	    *p++ = cur_chr;
 	    break;
 
 	case 'T':
 	    if (sending && phone_num) {
+		len += strlen(phone_num);
+		s1 = grow(s1, &p, len);
 		for (phchar = phone_num; *phchar != '\0'; phchar++) 
-		    *s1++ = *phchar;
+		    *p++ = *phchar;
 	    }
 	    else {
-		*s1++ = '\\';
-		*s1++ = 'T';
+		*p++ = '\\';
+		*p++ = 'T';
 	    }
 	    break;
 
 	case 'U':
 	    if (sending && phone_num2) {
+		len += strlen(phone_num2);
+		s1 = grow(s1, &p, len);
 		for (phchar = phone_num2; *phchar != '\0'; phchar++) 
-		    *s1++ = *phchar;
+		    *p++ = *phchar;
 	    }
 	    else {
-		*s1++ = '\\';
-		*s1++ = 'U';
+		*p++ = '\\';
+		*p++ = 'U';
 	    }
 	    break;
 
@@ -768,33 +799,33 @@ int sending;  /* set to 1 when sending (putting) this string. */
 	    break;
 
 	case 'r':
-	    *s1++ = '\r';
+	    *p++ = '\r';
 	    break;
 
 	case 'n':
-	    *s1++ = '\n';
+	    *p++ = '\n';
 	    break;
 
 	case 's':
-	    *s1++ = ' ';
+	    *p++ = ' ';
 	    break;
 
 	case 't':
-	    *s1++ = '\t';
+	    *p++ = '\t';
 	    break;
 
 	case 'N':
 	    if (sending) {
-		*s1++ = '\\';
-		*s1++ = '\0';
+		*p++ = '\\';
+		*p++ = '\0';
 	    }
 	    else
-		*s1++ = 'N';
+		*p++ = 'N';
 	    break;
-	    
+
 	case '$':			/* ARI */
 	    if (use_env) {
-		*s1++ = cur_chr;
+		*p++ = cur_chr;
 		break;
 	    }
 	    /* FALL THROUGH */
@@ -813,25 +844,24 @@ int sending;  /* set to 1 when sending (putting) this string. */
 
 		if (cur_chr != 0 || sending) {
 		    if (sending && (cur_chr == '\\' || cur_chr == 0))
-			*s1++ = '\\';
-		    *s1++ = cur_chr;
+			*p++ = '\\';
+		    *p++ = cur_chr;
 		}
 		break;
 	    }
 
 	    if (sending)
-		*s1++ = '\\';
-	    *s1++ = cur_chr;
+		*p++ = '\\';
+	    *p++ = cur_chr;
 	    break;
 	}
     }
 
     if (add_return)
-	*s1++ = '\r';
+	*p++ = '\r';	/* +2 for len */
 
-    *s1++ = '\0'; /* guarantee closure */
-    *s1++ = '\0'; /* terminate the string */
-    return dup_mem (temp, (size_t) (s1 - temp)); /* may have embedded nuls */
+    *p = '\0';		/* +3 for len */
+    return s1;
 }
 
 /*
