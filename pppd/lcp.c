@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.18 1995/04/28 06:25:23 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.19 1995/05/19 03:25:16 paulus Exp $";
 #endif
 
 /*
@@ -113,7 +113,7 @@ static fsm_callbacks lcp_callbacks = {	/* LCP callback routines */
     "LCP"			/* String name of protocol */
 };
 
-int lcp_warnloops = DEFWARNLOOPS; /* Warn about a loopback this often */
+int lcp_loopbackfail = DEFLOOPBACKFAIL;
 
 /*
  * Length of each type of configuration option (in octets)
@@ -862,7 +862,6 @@ lcp_nakci(f, p, len)
      */
     NAKCILONG(CI_MAGICNUMBER, neg_magicnumber,
 	      try.magicnumber = magic();
-	      ++try.numloops;
 	      looped_back = 1;
 	      );
 
@@ -940,9 +939,14 @@ lcp_nakci(f, p, len)
      * OK, the Nak is good.  Now we can update state.
      */
     if (f->state != OPENED) {
+	if (looped_back) {
+	    if (++try.numloops >= lcp_loopbackfail) {
+		syslog(LOG_NOTICE, "Serial line is looped back.");
+		lcp_close(f->unit);
+	    }
+	} else
+	    try.numloops = 0;
 	*go = try;
-	if (looped_back && try.numloops % lcp_warnloops == 0)
-	    syslog(LOG_WARNING, "Serial line appears to be looped back.");
     }
 
     return 1;
@@ -1368,9 +1372,10 @@ endswitch:
 	    continue;			/* Don't send this one */
 
 	if (orc == CONFNAK) {		/* Nak this CI? */
-	    if (reject_if_disagree)	/* Getting fed up with sending NAKs? */
+	    if (reject_if_disagree	/* Getting fed up with sending NAKs? */
+		&& citype != CI_MAGICNUMBER) {
 		orc = CONFREJ;		/* Get tough if so */
-	    else {
+	    } else {
 		if (rc == CONFREJ)	/* Rejecting prior CI? */
 		    continue;		/* Don't send this one */
 		rc = CONFNAK;
