@@ -1,8 +1,7 @@
-The System V Release 4 (svr4) port of this software has been developed
-under Solaris 2, which has some extensions which are not available on
-all SVR4 systems, particularly in the area of multi-thread (MT)
-support in the kernel.  Although the code supplied here may work under
-other SVR4 systems, these instructions are specifically for Solaris 2.
+This file describes the installation process for ppp-2.2 on systems
+running standard System V Release 4 and using the Lachman TCP/IP
+protocol code.  The STREAMS kernel modules and driver for SVR4 are in
+the svr4 directory (and use some code from the modules directory).
 
 Installation.
 *************
@@ -17,16 +16,7 @@ kernel modules.
 
 	make install
 
-This installs pppd, chat and pppstats in /usr/local/bin and the kernel
-modules in /kernel/drv and /kernel/strmod, and creates the /etc/ppp
-directory and populates it with default configuration files.
+This installs pppd, chat and pppstats in /usr/local/bin and adds the
+ppp STREAMS modules and driver to the system configuration.
 
-If your system normally has only one network interface, the default
-Solaris 2 system startup scripts will disable IP forwarding in the IP
-kernel module.  This will prevent the remote machine from using the
-local machine as a gateway to access other hosts.  The solution is to
-create an /etc/ppp/ip-up script containing something like this:
-
-	#!/bin/sh
-	/usr/sbin/ndd -set /dev/ip ip_forwarding 2
-
+3. Rebuild your kernel (with /etc/conf/bin/idbuild) and reboot.
