@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.1 1995/12/11 05:06:40 paulus Exp $
+ * $Id: ppp.c,v 1.2 1995/12/18 03:57:27 paulus Exp $
  */
 
 /*
- * This file is used under Solaris 2 and SunOS 4.
+ * This file is used under Solaris 2, SVR4, and SunOS 4.
  */
 
 #include <sys/types.h>
@@ -38,6 +38,7 @@
 #include <sys/stropts.h>
 #include <sys/errno.h>
 #include <sys/ioccom.h>
+#include <sys/time.h>
 #ifdef SVR4
 #include <sys/cmn_err.h>
 #include <sys/conf.h>
@@ -66,7 +67,7 @@
 #endif
 
 /*
- * The IP module uses this SAP value for IP packets.
+ * The IP module may use this SAP value for IP packets.
  */
 #ifndef ETHERTYPE_IP
 #define ETHERTYPE_IP	0x800
@@ -75,6 +76,8 @@
 #ifndef PPP_MAXMTU
 #define PPP_MAXMTU	65535
 #endif
+
+extern time_t time;
 
 /*
  * Private information; one per upper stream.
@@ -100,6 +103,8 @@ typedef struct upperstr {
     int mru;
     int mtu;
     struct pppstat stats;	/* statistics */
+    time_t last_sent;		/* time last NP packet sent */
+    time_t last_recv;		/* time last NP packet rcvd */
 #ifdef SOL2
     kstat_t *kstats;		/* stats for netstat */
 #endif /* SOL2 */
@@ -282,6 +287,7 @@ pppopen(q, dev, oflag, sflag)
     up->ifflags = IFF_UP | IFF_POINTOPOINT;
 #endif
     up->sap = -1;
+    up->last_sent = up->last_recv = time;
     q->q_ptr = (caddr_t) up;
     WR(q)->q_ptr = (caddr_t) up;
     noenable(WR(q));
@@ -406,6 +412,7 @@ pppuwput(q, mp)
     queue_t *lq;
     int error, n;
     mblk_t *mq;
+    struct ppp_idle *pip;
 
     us = (upperstr_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
@@ -429,6 +436,10 @@ pppuwput(q, mp)
 	    freemsg(mp);
 	    break;
 	}
+#ifdef NO_DLPI
+	if ((us->flags & US_CONTROL) == 0)
+	    us->ppa->last_sent = time;
+#endif
 	if (!send_data(mp, us))
 	    putq(q, mp);
 	break;
@@ -596,6 +607,26 @@ pppuwput(q, mp)
 		putnext(us->ppa->lowerq, mp);
 		error = -1;
 	    }
+	    break;
+
+	case PPPIO_GIDLE:
+	    if ((ppa = us->ppa) == 0)
+		break;
+	    mq = allocb(sizeof(struct ppp_idle), BPRI_HI);
+	    if (mq == 0) {
+		error = ENOSR;
+		break;
+	    }
+	    if (mp->b_cont != 0)
+		freemsg(mp->b_cont);
+	    mp->b_cont = mq;
+	    mq->b_cont = 0;
+	    pip = (struct ppp_idle *) mq->b_wptr;
+	    pip->xmit_idle = time - ppa->last_sent;
+	    pip->recv_idle = time - ppa->last_recv;
+	    mq->b_wptr += sizeof(struct ppp_idle);
+	    iop->ioc_count = sizeof(struct ppp_idle);
+	    error = 0;
 	    break;
 
 #ifdef LACHTCP
@@ -840,9 +871,7 @@ dlpi_request(q, mp, us)
 	   except that we accept ETHERTYPE_IP in place of PPP_IP. */
 	sap = d->bind_req.dl_sap;
 	us->req_sap = sap;
-#if DEBUG
-	cmn_err(CE_CONT, "ppp bind %x\n", sap);
-#endif
+	DPRINT1("ppp bind %x\n", sap);
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
@@ -899,17 +928,16 @@ dlpi_request(q, mp, us)
 	    dlpi_error(q, DL_UNITDATA_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
-	if (us->ppa == 0) {
+	if ((ppa = us->ppa) == 0) {
 	    cmn_err(CE_CONT, "ppp: in state dl_idle but ppa == 0?\n");
 	    break;
 	}
 	len = mp->b_cont == 0? 0: msgdsize(mp->b_cont);
-	if (len > us->ppa->mtu) {
-#if DEBUG
-	    cmn_err(CE_CONT, "dlpi data too large (%d > %d)\n", len, us->mtu);
-#endif
+	if (len > ppa->mtu) {
+	    DPRINT2("dlpi data too large (%d > %d)\n", len, ppa->mtu);
 	    break;
 	}
+	ppa->last_sent = time;
 	/* this assumes PPP_HDRLEN <= sizeof(dl_unitdata_req_t) */
 	if (mp->b_datap->db_ref > 1) {
 	    np = allocb(PPP_HDRLEN, BPRI_HI);
@@ -1402,6 +1430,7 @@ ppplrput(q, mp)
 		    putq(us->q, mp);
 		else
 		    putq(q, mp);
+		ppa->last_recv = time;
 		break;
 	    }
 	}
