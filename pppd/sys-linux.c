@@ -50,10 +50,8 @@
 #define MAX_ADDR_LEN 7
 #endif
 
-#include <linux/ppp_defs.h>
-#include <linux/if_ppp.h>
-
 #if __GLIBC__ >= 2
+#include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
 #include <netinet/if_ether.h>
@@ -65,6 +63,10 @@
 #endif
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <linux/types.h>
+#include <linux/ppp_defs.h>
+#include <linux/if_ppp.h>
 
 #include "pppd.h"
 #include "fsm.h"
