@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.37 1999/03/19 01:24:56 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.38 1999/04/16 11:35:43 paulus Exp $";
 #endif
 
 /*
@@ -1724,7 +1724,7 @@ lcp_printpkt(p, plen, printer, arg)
 		if (olen >= CILEN_CHAR) {
 		    p += 2;
 		    printer(arg, "callback ");
-		    GETSHORT(cishort, p);
+		    GETCHAR(cishort, p);
 		    switch (cishort) {
 		    case CBCP_OPT:
 			printer(arg, "CBCP");
