@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.14 1995/04/26 06:46:22 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.15 1995/05/19 03:16:12 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -66,7 +66,7 @@ static char rcsid[] = "$Id: auth.c,v 1.14 1995/04/26 06:46:22 paulus Exp $";
 #include "ccp.h"
 #include "pathnames.h"
 
-#ifdef sparc
+#if defined(sparc) && !defined(NeXT)
 #include <alloca.h>
 #endif /*sparc*/
 
