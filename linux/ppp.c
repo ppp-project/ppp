@@ -1,7 +1,7 @@
 /*
    PPP for Linux
 
-   $Id: ppp.c,v 1.3 1994/12/08 02:03:55 paulus Exp $
+   $Id: ppp.c,v 1.4 1995/04/28 06:28:22 paulus Exp $
 */
 
 /*
@@ -1994,18 +1994,6 @@ ppp_dev_ioctl_stats (struct ppp *ppp, struct ifreq *ifr)
 			temp.vj.vjs_uncompressedin = ppp->slcomp->sls_i_uncompressed;
 			temp.vj.vjs_compressedin   = ppp->slcomp->sls_i_compressed;
 		}
-/*
- * Frame data compression statistics
- */
-#ifdef PPP_COMPRESS
-		if (ppp->sc_xc_state != NULL)
-			(*ppp->sc_xcomp->comp_stat) (ppp->sc_xc_state,
-						     &temp.c);
-
-		if (ppp->sc_rc_state != NULL)
-			(*ppp->sc_rcomp->decomp_stat) (ppp->sc_rc_state,
-						       &temp.d);
-#endif /* PPP_COMPRESS */
 
 /*
  * Move the data to the caller's buffer
@@ -2014,6 +2002,45 @@ ppp_dev_ioctl_stats (struct ppp *ppp, struct ifreq *ifr)
 	}
 	return error;
 }
+
+#ifdef PPP_COMPRESS
+
+static int
+ppp_dev_ioctl_stats (struct ppp *ppp, struct ifreq *ifr)
+{
+	struct ppp_comp_stats *result, temp;
+	int    error;
+/*
+ * Must have write access to the buffer.
+ */
+	result = (struct ppp_comp_stats *) ifr->ifr_ifru.ifru_data;
+	error = verify_area (VERIFY_WRITE,
+			     result,
+			     sizeof (temp));
+/*
+ * Supply the information for the caller.  Get the frame data compression
+ * statistics and move them out to the caller.
+ */
+	if (error == 0) {
+		memset (&temp, 0, sizeof(temp));
+
+		if (ppp->sc_xc_state != NULL)
+			(*ppp->sc_xcomp->comp_stat) (ppp->sc_xc_state,
+						     &temp.c);
+
+		if (ppp->sc_rc_state != NULL)
+			(*ppp->sc_rcomp->decomp_stat) (ppp->sc_rc_state,
+						       &temp.d);
+
+/*
+ * Move the data to the caller's buffer
+ */
+		memcpy_tofs (result, &temp, sizeof (temp));
+	}
+	return error;
+}
+
+#endif /* PPP_COMPRESS */
 
 /*
  * Callback from the network layer to process the sockioctl functions.
@@ -2031,6 +2058,12 @@ ppp_dev_ioctl (struct device *dev, struct ifreq *ifr, int cmd)
 	case SIOCGPPPSTATS:
 		error = ppp_dev_ioctl_stats (ppp, ifr);
 		break;
+
+#ifdef PPP_COMPRESS
+	case SIOCGPPPCSTATS:
+		error = ppp_dev_ioctl_cstats (ppp, ifr);
+		break;
+#endif /* PPP_COMPRESS */
 
 	case SIOCGPPPVER:
 		error = ppp_dev_ioctl_version (ppp, ifr);
