@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.2 1993/11/23 23:40:53 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.3 1993/12/14 05:16:01 paulus Exp $";
 #endif
 
 #define SETSID
@@ -222,6 +222,11 @@ main(argc, argv)
     hostname[MAXNAMELEN-1] = 0;
 
     pid = getpid();
+
+    if (!ppp_available()) {
+	fprintf(stderr, "Sorry - PPP is not available on this system\n");
+	exit(1);
+    }
 
     /*
      * Initialize to the standard option set, then parse, in order,

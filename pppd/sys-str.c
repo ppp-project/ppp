@@ -22,8 +22,10 @@
  * TODO:
  */
 
+#include <stdio.h>
 #include <errno.h>
 #include <syslog.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -50,7 +52,24 @@ static struct	modlist {
 } str_modules[MAXMODULES];
 static int	str_module_count = 0;
 
-extern int hungup;
+extern int hungup;		/* has the physical layer been disconnected? */
+
+/*
+ * ppp_available - check if this kernel supports PPP.
+ */
+int
+ppp_available()
+{
+    int fd, ret;
+
+    fd = open("/dev/tty", O_RDONLY, 0);
+    if (fd < 0)
+	return 1;		/* can't find out - assume we have ppp */
+    ret = ioctl(fd, I_FIND, "pppasync") >= 0;
+    close(fd);
+    return ret;
+}
+
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
