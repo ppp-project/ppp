@@ -1,6 +1,6 @@
 .\" -*- nroff -*-
 .\" manual page [] for chat 1.8
-.\" $Id: chat.8,v 1.9 1999/09/06 05:10:23 paulus Exp $
+.\" $Id: chat.8,v 1.10 2002/01/11 18:02:45 etbe Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -154,7 +154,7 @@ character, you would have to write something like this:
 .IP
 # Now wait for the prompt and send logout string
 .br
-\'# ' logout
+\&'# ' logout
 .LP
 
 .SH SENDING DATA FROM A FILE
@@ -216,7 +216,7 @@ ECHO OFF
 .br
 SAY "Dialling your ISP...\\n" 
 .br
-\'' ATDT5551212 
+\&'' ATDT5551212 
 .br
 TIMEOUT 120
 .br
@@ -326,13 +326,13 @@ OK\\r\\n  ATD1234567
 .br
 CONNECT \\c
 .br
-\'Callback login:' call_back_ID
+\&'Callback login:' call_back_ID
 .br
 HANGUP OFF
 .br
 ABORT "Bad Login"
 .br
-\'Callback Password:' Call_back_password
+\&'Callback Password:' Call_back_password
 .br
 TIMEOUT 120
 .br
