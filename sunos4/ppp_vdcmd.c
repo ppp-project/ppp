@@ -28,6 +28,7 @@ ppp_vdcmd(fun, vdp, vdi, vds)
     addr_t vdi;
     struct vdstat *vds;
 {
+    static int majnum = -1;
     int n, maj;
 
     switch (fun) {
@@ -46,6 +47,7 @@ ppp_vdcmd(fun, vdp, vdi, vds)
 	cdevsw[maj] = ppp_cdevsw;
 	vd.Drv_cdevsw = &ppp_cdevsw;
 	vdp->vdd_vdtab = (struct vdlinkage *) &vd;
+	majnum = maj;
 	break;
 
     case VDUNLOAD:
@@ -56,6 +58,20 @@ ppp_vdcmd(fun, vdp, vdi, vds)
 	break;
 
     case VDSTAT:
+	/*
+	 * We have to fool the modstat command into thinking
+	 * that this module is actually a driver! This is
+	 * so that installation commands that use the -exec
+	 * option of modload to run a shell script find out
+	 * the block and/or char major numbers of the driver
+	 * loaded (so that the shell script can go off to
+	 * /dev and *MAKE* the bloody device nodes- remember
+	 * they might change from one load to another if
+	 * you don't hardwire the number!).
+	 */
+	vds->vds_magic = VDMAGIC_DRV;
+	vds->vds_modinfo[0] = (char) 0;
+	vds->vds_modinfo[1] = (char) majnum;
 	break;
 
     default:

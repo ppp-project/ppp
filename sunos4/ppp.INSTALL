@@ -64,7 +64,7 @@ case "$0" in
 	echo "Usage: $0 module-id module-type b-major c-major"
 	exit 1
     fi
-    if [ "$2" -ne "12345607" ]; then
+    if [ "$2" -ne "12345607" -a "$2" -ne "12345600" ]; then
 	echo "$0: $2: bad module type"
 	exit 1
     fi
@@ -84,7 +84,7 @@ case "$0" in
 	id=`modstat | grep -w $mod | awk '{print $1}'`
 	if [ x$id = x ]; then
 	    echo "$mod is not loaded."
-	    stat = 1
+	    stat=1
 	else
 	    modunload -id $id
 	fi
