@@ -1,5 +1,5 @@
 /*
- * $Id: sendserver.c,v 1.3 2002/03/05 15:36:17 dfs Exp $
+ * $Id: sendserver.c,v 1.4 2002/04/02 14:09:35 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -190,7 +190,7 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
  *
  */
 
-int rc_send_server (SEND_DATA *data, char *msg)
+int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 {
 	int             sockfd;
 	struct sockaddr salocal;
@@ -279,7 +279,7 @@ int rc_send_server (SEND_DATA *data, char *msg)
 	else
 	{
 		rc_random_vector (vector);
-		memcpy ((char *) auth->vector, (char *) vector, AUTH_VECTOR_LEN);
+		memcpy (auth->vector, vector, AUTH_VECTOR_LEN);
 
 		total_length = rc_pack_list(data->send_pairs, secret, auth) + AUTH_HDR_LEN;
 
@@ -348,6 +348,12 @@ int rc_send_server (SEND_DATA *data, char *msg)
 	data->receive_pairs = rc_avpair_gen(recv_auth);
 
 	close (sockfd);
+	if (info)
+	{
+		memcpy(info->secret, secret, sizeof(info->secret));
+		memcpy(info->request_vector, vector,
+		       sizeof(info->request_vector));
+	}
 	memset (secret, '\0', sizeof (secret));
 
 	if (result != OK_RC) return (result);
@@ -388,8 +394,8 @@ int rc_send_server (SEND_DATA *data, char *msg)
  *
  */
 
-static int rc_check_reply (AUTH_HDR *auth, int bufferlen, char *secret, unsigned char *vector,\
-			   unsigned char seq_nbr)
+static int rc_check_reply (AUTH_HDR *auth, int bufferlen, char *secret,
+			   unsigned char *vector, unsigned char seq_nbr)
 {
 	int             secretlen;
 	int             totallen;

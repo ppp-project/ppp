@@ -1,5 +1,5 @@
 /*
- * $Id: buildreq.c,v 1.2 2002/03/01 14:39:19 dfs Exp $
+ * $Id: buildreq.c,v 1.3 2002/04/02 14:09:35 dfs Exp $
  *
  * Copyright (C) 1995,1997 Lars Fenneberg
  *
@@ -120,14 +120,15 @@ unsigned char rc_get_seqnbr(void)
  */
 
 int rc_auth(UINT4 client_port, VALUE_PAIR *send, VALUE_PAIR **received,
-	    char *msg)
+	    char *msg, REQUEST_INFO *info)
 {
     SERVER *authserver = rc_conf_srv("authserver");
 
     if (!authserver) {
 	return (ERROR_RC);
     }
-    return rc_auth_using_server(authserver, client_port, send, received, msg);
+    return rc_auth_using_server(authserver, client_port, send, received,
+				msg, info);
 }
 
 /*
@@ -146,7 +147,7 @@ int rc_auth_using_server(SERVER *authserver,
 			 UINT4 client_port,
 			 VALUE_PAIR *send,
 			 VALUE_PAIR **received,
-			 char *msg)
+			 char *msg, REQUEST_INFO *info)
 {
 	SEND_DATA       data;
 	UINT4		client_id;
@@ -186,7 +187,7 @@ int rc_auth_using_server(SERVER *authserver,
 		rc_buildreq(&data, PW_ACCESS_REQUEST, authserver->name[i],
 			    authserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg);
+		result = rc_send_server (&data, msg, info);
 	}
 
 	*received = data.receive_pairs;
@@ -230,7 +231,7 @@ int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg)
 		rc_buildreq(&data, PW_ACCESS_REQUEST, authserver->name[i],
 			    authserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg);
+		result = rc_send_server (&data, msg, NULL);
 	}
 
 	*received = data.receive_pairs;
@@ -306,7 +307,7 @@ int rc_acct_using_server(SERVER *acctserver,
 		dtime = time(NULL) - start_time;
 		rc_avpair_assign(adt_vp, &dtime, 0);
 
-		result = rc_send_server (&data, msg);
+		result = rc_send_server (&data, msg, NULL);
 	}
 
 	rc_avpair_free(data.receive_pairs);
@@ -363,7 +364,7 @@ int rc_acct_proxy(VALUE_PAIR *send)
 		rc_buildreq(&data, PW_ACCOUNTING_REQUEST, acctserver->name[i],
 			    acctserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg);
+		result = rc_send_server (&data, msg, NULL);
 	}
 
 	rc_avpair_free(data.receive_pairs);
@@ -406,7 +407,7 @@ int rc_check(char *host, unsigned short port, char *msg)
 	rc_avpair_add(&(data.send_pairs), PW_SERVICE_TYPE, &service_type, 0, VENDOR_NONE);
 
 	rc_buildreq(&data, PW_STATUS_SERVER, host, port, timeout, retries);
-	result = rc_send_server (&data, msg);
+	result = rc_send_server (&data, msg, NULL);
 
 	rc_avpair_free(data.receive_pairs);
 

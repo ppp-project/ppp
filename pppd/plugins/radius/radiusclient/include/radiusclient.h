@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.5 2002/03/05 15:14:06 dfs Exp $
+ * $Id: radiusclient.h,v 1.6 2002/04/02 14:09:34 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -38,8 +38,15 @@
 # define __P(protos) ()
 #endif
 
+#ifndef _UINT4_T
+#ifdef _LP64
+typedef unsigned int UINT4;
+typedef int          INT4;
+#else
 typedef unsigned long UINT4;
-typedef long	      INT4;
+typedef long          INT4;
+#endif
+#endif
 
 #define AUTH_VECTOR_LEN		16
 #define AUTH_PASS_LEN		(3 * 16) /* multiple of 16 */
@@ -159,6 +166,12 @@ typedef struct pw_auth_hdr
 #define PW_MS_CHAP_RESPONSE		1	/* string */
 #define PW_MS_CHAP2_RESPONSE		25	/* string */
 #define PW_MS_CHAP2_SUCCESS		26	/* string */
+#define PW_MS_MPPE_ENCRYPTION_POLICY	7	/* string */
+#define PW_MS_MPPE_ENCRYPTION_TYPE	8	/* string */
+#define PW_MS_MPPE_ENCRYPTION_TYPES PW_MS_MPPE_ENCRYPTION_TYPE
+#define PW_MS_CHAP_MPPE_KEYS		12	/* string */
+#define PW_MS_MPPE_SEND_KEY		16	/* string */
+#define PW_MS_MPPE_RECV_KEY		17	/* string */
 
 /*	Accounting */
 
@@ -319,7 +332,7 @@ typedef struct value_pair
 	int                vendorcode;
 	int                type;
 	UINT4              lvalue;
-	char               strvalue[AUTH_STRING_LEN + 1];
+	u_char             strvalue[AUTH_STRING_LEN + 1];
 	struct value_pair *next;
 } VALUE_PAIR;
 
@@ -344,6 +357,12 @@ typedef struct send_data /* Used to pass information to sendserver() function */
 	VALUE_PAIR     *send_pairs;     /* More a/v pairs to send */
 	VALUE_PAIR     *receive_pairs;  /* Where to place received a/v pairs */
 } SEND_DATA;
+
+typedef struct request_info
+{
+	char		secret[MAX_SECRET_LENGTH + 1];
+	u_char		request_vector[AUTH_VECTOR_LEN];
+} REQUEST_INFO;
 
 #ifndef MIN
 #define MIN(a, b)     ((a) < (b) ? (a) : (b))
@@ -385,8 +404,9 @@ VALUE_PAIR *rc_avpair_readin __P((FILE *));
 
 void rc_buildreq __P((SEND_DATA *, int, char *, unsigned short, int, int));
 unsigned char rc_get_seqnbr __P((void));
-int rc_auth __P((UINT4, VALUE_PAIR *, VALUE_PAIR **, char *));
-int rc_auth_using_server __P((SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **, char *));
+int rc_auth __P((UINT4, VALUE_PAIR *, VALUE_PAIR **, char *, REQUEST_INFO *));
+int rc_auth_using_server __P((SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **,
+			      char *, REQUEST_INFO *));
 int rc_auth_proxy __P((VALUE_PAIR *, VALUE_PAIR **, char *));
 int rc_acct __P((UINT4, VALUE_PAIR *));
 int rc_acct_using_server __P((SERVER *, UINT4, VALUE_PAIR *));
@@ -433,7 +453,7 @@ void rc_log __P((int, const char *, ...));
 
 /*	sendserver.c		*/
 
-int rc_send_server __P((SEND_DATA *, char *));
+int rc_send_server __P((SEND_DATA *, char *, REQUEST_INFO *));
 
 /*	util.c			*/
 

@@ -16,17 +16,23 @@
 *    Copyright (C) 1995,1996,1997,1998 Lars Fenneberg <lf@elemental.net>
 *    Copyright (C) 2002 Roaring Penguin Software Inc.
 *
+* MPPE support is by Ralf Hofmann, <ralf.hofmann@elvido.net>, with
+* modification from Frank Cusack, <frank@google.com>.
+*
 * This plugin may be distributed according to the terms of the GNU
 * General Public License, version 2 or (at your option) any later version.
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.8 2002/04/02 13:55:00 dfs Exp $";
+"$Id: radius.c,v 1.9 2002/04/02 14:09:34 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
 #ifdef CHAPMS
 #include "chap_ms.h"
+#ifdef MPPE
+#include "md5.h"
+#endif
 #endif
 #include "radiusclient.h"
 #include "fsm.h"
@@ -58,11 +64,17 @@ static int radius_chap_auth(char *user,
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
 static void make_username_realm(char *user);
-static int radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg);
+static int radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
+			    REQUEST_INFO *req_info);
 static void radius_choose_ip(u_int32_t *addrp);
 static int radius_init(char *msg);
 static int get_client_port(char *ifname);
 static int radius_allowed_address(u_int32_t addr);
+#ifdef MPPE
+static int radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
+			      chap_state *);
+static int radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info);
+#endif
 
 #ifndef MAXSESSIONID
 #define MAXSESSIONID 32
@@ -227,13 +239,13 @@ radius_pap_auth(char *user,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg);
+				      &received, radius_msg, NULL);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg);
+	result = rc_auth(rstate.client_port, send, &received, radius_msg, NULL);
     }
 
     if (result == OK_RC) {
-	if (radius_setparams(NULL, received, radius_msg) < 0) {
+	if (radius_setparams(NULL, received, radius_msg, NULL) < 0) {
 	    result = ERROR_RC;
 	}
     }
@@ -255,7 +267,7 @@ radius_pap_auth(char *user,
 * %RETURNS:
 *  CHAP_SUCCESS if we can authenticate, CHAP_FAILURE if we cannot.
 * %DESCRIPTION:
-* Performs CHAP, MS-CHAP and MS-CHAPv2 authentication using RADIUS
+* Performs CHAP, MS-CHAP and MS-CHAPv2 authentication using RADIUS.
 ***********************************************************************/
 static int
 radius_chap_auth(char *user,
@@ -268,6 +280,13 @@ radius_chap_auth(char *user,
     static char radius_msg[BUF_LEN];
     int result;
     u_char cpassword[MAX_RESPONSE_LENGTH + 1];
+#ifdef MPPE
+    /* Need the RADIUS secret and Request Authenticator to decode MPPE */
+    REQUEST_INFO request_info, *req_info = &request_info;
+#else
+    REQUEST_INFO *req_info = NULL;
+#endif
+
     radius_msg[0] = 0;
 
     if (radius_init(radius_msg) < 0) {
@@ -377,14 +396,15 @@ radius_chap_auth(char *user,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg);
+				      &received, radius_msg, req_info);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg);
+	result = rc_auth(rstate.client_port, send, &received, radius_msg,
+			 req_info);
     }
 
     if (result == OK_RC) {
 	if (!rstate.done_chap_once) {
-	    if (radius_setparams(cstate, received, radius_msg) < 0) {
+	    if (radius_setparams(cstate, received, radius_msg, req_info) < 0) {
 		error("%s", radius_msg);
 		result = ERROR_RC;
 	    } else {
@@ -438,11 +458,11 @@ make_username_realm(char *user)
 * %RETURNS:
 *  >= 0 on success; -1 on failure
 * %DESCRIPTION:
-*  Parses attributes sent by RADIUS server and sets them in pppd.  Currently,
-*  used only to set IP address and MS-CHAPv2 Authenticator Response.
+*  Parses attributes sent by RADIUS server and sets them in pppd.
 ***********************************************************************/
 static int
-radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg)
+radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
+		 REQUEST_INFO *req_info)
 {
     u_int32_t remote;
     int ms_chap2_success = 0;
@@ -458,57 +478,96 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg)
      */
 
     while (vp) {
-	if ((vp->attribute == PW_SERVICE_TYPE) &&
-	    (vp->vendorcode == VENDOR_NONE)) {
-	    /* check for service type       */
-	    /* if not FRAMED then exit      */
-	    if (vp->lvalue != PW_FRAMED) {
-		slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
-			 vp->lvalue, rstate.user);
-		return -1;
-	    }
-	} else if ((vp->attribute == PW_FRAMED_PROTOCOL) &&
-		   (vp->vendorcode == VENDOR_NONE)) {
-	    /* check for framed protocol type       */
-	    /* if not PPP then also exit            */
-	    if (vp->lvalue != PW_PPP) {
-		slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
-			 vp->lvalue, rstate.user);
-		return -1;
-	    }
-	} else if ((vp->attribute == PW_SESSION_TIMEOUT) &&
-		   (vp->vendorcode == VENDOR_NONE)) {
-	    /* Session timeout */
-	    maxconnect = vp->lvalue;
-	} else if ((vp->attribute == PW_FRAMED_IP_ADDRESS) &&
-		   (vp->vendorcode == VENDOR_NONE)) {
-	    /* seting up remote IP addresses */
-	    remote = vp->lvalue;
-	    if (remote == 0xffffffff) {
-		/* 0xffffffff means user should be allowed to select one */
-		rstate.any_ip_addr_ok = 1;
-	    } else if (remote != 0xfffffffe) {
-		/* 0xfffffffe means NAS should select an ip address */
-		remote = htonl(vp->lvalue);
-		if (bad_ip_adrs (remote)) {
-		    slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
-			     remote, rstate.user);
+	if (vp->vendorcode == VENDOR_NONE) {
+	    switch (vp->attribute) {
+	    case PW_SERVICE_TYPE:
+		/* check for service type       */
+		/* if not FRAMED then exit      */
+		if (vp->lvalue != PW_FRAMED) {
+		    slprintf(msg, BUF_LEN, "RADIUS: wrong service type %ld for %s",
+			     vp->lvalue, rstate.user);
 		    return -1;
 		}
-		rstate.choose_ip = 1;
-		rstate.ip_addr = remote;
+		break;
+
+	    case PW_FRAMED_PROTOCOL:
+		/* check for framed protocol type       */
+		/* if not PPP then also exit            */
+		if (vp->lvalue != PW_PPP) {
+		    slprintf(msg, BUF_LEN, "RADIUS: wrong framed protocol %ld for %s",
+			     vp->lvalue, rstate.user);
+		    return -1;
+		}
+		break;
+
+	    case PW_SESSION_TIMEOUT:
+		/* Session timeout */
+		maxconnect = vp->lvalue;
+		break;
+
+	    case PW_FRAMED_IP_ADDRESS:
+		/* seting up remote IP addresses */
+		remote = vp->lvalue;
+		if (remote == 0xffffffff) {
+		    /* 0xffffffff means user should be allowed to select one */
+		    rstate.any_ip_addr_ok = 1;
+		} else if (remote != 0xfffffffe) {
+		    /* 0xfffffffe means NAS should select an ip address */
+		    remote = htonl(vp->lvalue);
+		    if (bad_ip_adrs (remote)) {
+			slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
+				 remote, rstate.user);
+			return -1;
+		    }
+		    rstate.choose_ip = 1;
+		    rstate.ip_addr = remote;
+		}
+		break;
 	    }
 #ifdef CHAPMS
-	} else if ((vp->attribute == PW_MS_CHAP2_SUCCESS) &&
-		   (vp->vendorcode == VENDOR_MICROSOFT)) {
-	    if ((vp->lvalue != 43) || strncmp(vp->strvalue + 1, "S=", 2)) {
-		slprintf(msg, BUF_LEN, "RADIUS: bad MS-CHAP2-Success packet");
-		return -1;
+	} else if (vp->vendorcode == VENDOR_MICROSOFT) {
+	    switch (vp->attribute) {
+	    case PW_MS_CHAP2_SUCCESS:
+		if ((vp->lvalue != 43) || strncmp(vp->strvalue + 1, "S=", 2)) {
+		    slprintf(msg,BUF_LEN,"RADIUS: bad MS-CHAP2-Success packet");
+		    return -1;
+		}
+		memcpy(cstate->saresponse, vp->strvalue + 3,
+		       MS_AUTH_RESPONSE_LENGTH);
+		cstate->saresponse[MS_AUTH_RESPONSE_LENGTH] = '\0';
+		ms_chap2_success = 1;
+		break;
+
+#ifdef MPPE
+	    case PW_MS_CHAP_MPPE_KEYS:
+		if (radius_setmppekeys(vp, req_info, cstate) < 0) {
+		    slprintf(msg, BUF_LEN,
+			     "RADIUS: bad MS-CHAP-MPPE-Keys attribute");
+		    return -1;
+		}
+		break;
+
+	    case PW_MS_MPPE_SEND_KEY:
+	    case PW_MS_MPPE_RECV_KEY:
+		if (radius_setmppekeys2(vp, req_info) < 0) {
+		    slprintf(msg, BUF_LEN,
+			     "RADIUS: bad MS-MPPE-%s-Key attribute",
+			     (vp->attribute == PW_MS_MPPE_SEND_KEY)?
+			     "Send": "Recv");
+		    return -1;
+		}
+		break;
+#endif /* MPPE */
+#if 0
+	    case PW_MS_MPPE_ENCRYPTION_POLICY:
+	    case PW_MS_MPPE_ENCRYPTION_TYPES:
+	    case PW_MS_PRIMARY_DNS_SERVER:
+	    case PW_MS_SECONDARY_DNS_SERVER:
+	    case PW_MS_PRIMARY_NBNS_SERVER:
+	    case PW_MS_SECONDARY_NBNS_SERVER:
+		break;
+#endif
 	    }
-	    memcpy(cstate->saresponse, vp->strvalue + 3,
-		   MS_AUTH_RESPONSE_LENGTH);
-	    cstate->saresponse[MS_AUTH_RESPONSE_LENGTH] = '\0';
-	    ms_chap2_success = 1;
 #endif /* CHAPMS */
 	}
 	vp = vp->next;
@@ -520,6 +579,130 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg)
 
     return 0;
 }
+
+#ifdef MPPE
+/**********************************************************************
+* %FUNCTION: radius_setmppekeys
+* %ARGUMENTS:
+*  vp -- value pair holding MS-CHAP-MPPE-KEYS attribute
+*  req_info -- radius request information used for encryption
+*  cstate -- chap_state structure for challenge info
+* %RETURNS:
+*  >= 0 on success; -1 on failure
+* %DESCRIPTION:
+*  Decrypt the "key" provided by the RADIUS server for MPPE encryption.
+*  See RFC 2548.
+***********************************************************************/
+static int
+radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info, chap_state *cstate)
+{
+    int i;
+    MD5_CTX Context;
+    u_char  plain[32];
+    u_char  buf[16];
+
+    if (vp->lvalue != 32) {
+	error("RADIUS: Incorrect attribute length (%d) for MS-CHAP-MPPE-Keys",
+	      vp->lvalue);
+	return -1;
+    }
+
+    memcpy(plain, vp->strvalue, sizeof(plain));
+
+    MD5Init(&Context);
+    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
+    MD5Final(buf, &Context);
+
+    for (i = 0; i < 16; i++)
+	plain[i] ^= buf[i];
+
+    MD5Init(&Context);
+    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5Update(&Context, vp->strvalue, 16);
+    MD5Final(buf, &Context);
+
+    for(i = 0; i < 16; i++)
+	plain[i + 16] ^= buf[i];
+
+    /*
+     * Annoying.  The "key" returned is just the NTPasswordHashHash, which
+     * the NAS (us) doesn't need; we only need the start key.  So we have
+     * to generate the start key, sigh.  NB: We do not support the LM-Key.
+     */
+    mppe_set_keys(cstate->challenge, &plain[8]);
+
+    return 0;    
+}
+
+/**********************************************************************
+* %FUNCTION: radius_setmppekeys2
+* %ARGUMENTS:
+*  vp -- value pair holding MS-MPPE-SEND-KEY or MS-MPPE-RECV-KEY attribute
+*  req_info -- radius request information used for encryption
+* %RETURNS:
+*  >= 0 on success; -1 on failure
+* %DESCRIPTION:
+*  Decrypt the key provided by the RADIUS server for MPPE encryption.
+*  See RFC 2548.
+***********************************************************************/
+static int
+radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
+{
+    int i;
+    MD5_CTX Context;
+    u_char  *salt = vp->strvalue;
+    u_char  *crypt = vp->strvalue + 2;
+    u_char  plain[32];
+    u_char  buf[MD5_SIGNATURE_SIZE];
+    char    *type = "Send";
+
+    if (vp->attribute == PW_MS_MPPE_RECV_KEY)
+	type = "Recv";
+
+    if (vp->lvalue != 34) {
+	error("RADIUS: Incorrect attribute length (%d) for MS-MPPE-%s-Key",
+	      vp->lvalue, type);
+	return -1;
+    }
+
+    if ((salt[0] & 0x80) == 0) {
+	error("RADIUS: Illegal salt value for MS-MPPE-%s-Key attribute", type);
+	return -1;
+    }
+
+    memcpy(plain, crypt, 32);
+
+    MD5Init(&Context);
+    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
+    MD5Update(&Context, salt, 2);
+    MD5Final(buf, &Context);
+
+    for (i = 0; i < 16; i++)
+	plain[i] ^= buf[i];
+
+    if (plain[0] != sizeof(mppe_send_key) /* 16 */) {
+	error("RADIUS: Incorrect key length (%d) for MS-MPPE-%s-Key attribute",
+	      (int) plain[0], type);
+	return -1;
+    }
+
+    MD5Init(&Context);
+    MD5Update(&Context, req_info->secret, strlen(req_info->secret));
+    MD5Update(&Context, crypt, 16);
+    MD5Final(buf, &Context);
+
+    plain[16] ^= buf[0]; /* only need the first byte */
+
+    if (vp->attribute == PW_MS_MPPE_SEND_KEY)
+	memcpy(mppe_send_key, plain + 1, 16);
+    else
+	memcpy(mppe_recv_key, plain + 1, 16);
+
+    return 0;
+}
+#endif /* MPPE */
 
 /**********************************************************************
 * %FUNCTION: radius_acct_start

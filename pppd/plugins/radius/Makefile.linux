@@ -5,14 +5,19 @@
 
 MANDIR=/usr/man
 PLUGIN=radius.so radattr.so
-CFLAGS=-I../.. -Iradiusclient/include -O2
+CFLAGS=-I../.. -I../../../include -Iradiusclient/include -O2
 
 # Uncomment the next line to include support for Microsoft's
 # MS-CHAP authentication protocol.
 CHAPMS=y
+# Uncomment the next line to include support for MPPE.
+MPPE=y
 
 ifdef CHAPMS
 CFLAGS += -DCHAPMS=1
+ifdef MPPE
+CFLAGS += -DMPPE=1
+endif
 endif
 
 all: $(PLUGIN)

@@ -1,5 +1,5 @@
 /*
- * $Id: radexample.c,v 1.1 2002/01/22 16:03:04 dfs Exp $
+ * $Id: radexample.c,v 1.2 2002/04/02 14:09:35 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -11,7 +11,7 @@
 
 
 static char	rcsid[] =
-		"$Id: radexample.c,v 1.1 2002/01/22 16:03:04 dfs Exp $";
+		"$Id: radexample.c,v 1.2 2002/04/02 14:09:35 dfs Exp $";
 
 #include	<config.h>
 #include	<includes.h>
@@ -87,7 +87,7 @@ main (int argc, char **argv)
 	if (rc_avpair_add(&send, PW_SERVICE_TYPE, &service, 0, VENDOR_NONE) == NULL)
 		return (ERROR_RC);
 
-	result = rc_auth(0, send, &received, msg);
+	result = rc_auth(0, send, &received, msg, NULL);
 
 	if (result == OK_RC)
 	{

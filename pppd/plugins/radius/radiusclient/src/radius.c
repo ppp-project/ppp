@@ -1,5 +1,5 @@
 /*
- * $Id: radius.c,v 1.1 2002/01/22 16:03:04 dfs Exp $
+ * $Id: radius.c,v 1.2 2002/04/02 14:09:35 dfs Exp $
  *
  * Copyright (C) 1996 Lars Fenneberg
  *
@@ -117,7 +117,7 @@ LFUNC auth_radius(UINT4 client_port, char *username, char *passwd)
 	if (rc_avpair_add(&send, PW_USER_PASSWORD, passwd, 0, VENDOR_NONE) == NULL)
 		return (LFUNC) NULL;
 
-	result = rc_auth(client_port, send, &received, msg);
+	result = rc_auth(client_port, send, &received, msg, NULL);
 
 	if (result == OK_RC)
 	{
