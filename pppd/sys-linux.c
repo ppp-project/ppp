@@ -114,6 +114,8 @@ static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static char *lock_file;
 
 static struct utsname utsname;	/* for the kernel version */
+static int kernel_version;
+#define KVERSION(j,n,p)	((j)*1000000 + (n)*1000 + (p))
 
 #define MAX_IFS		100
 
@@ -222,6 +224,8 @@ static void set_flags (int flags)
 
 void sys_init(void)
   {
+    int osmaj, osmin, ospatch;
+
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
@@ -241,6 +245,9 @@ void sys_init(void)
       }
 
     uname(&utsname);
+    osmaj = osmin = ospatch = 0;
+    sscanf(utsname.release, "%d.%d.%d", &osmaj, &osmin, &ospatch);
+    kernel_version = KVERSION(osmaj, osmin, ospatch);
   }
 
 /********************************************************************
@@ -1304,7 +1311,7 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
-    if (strcmp(utsname.release, "2.1.0") > 0) {
+    if (kernel_version > KVERSION(2,1,0)) {
       SET_SA_FAMILY (rt.rt_genmask, AF_INET);
       ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
     }
@@ -1340,7 +1347,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
-    if (strcmp(utsname.release, "2.1.0") > 0) {
+    if (kernel_version > KVERSION(2,1,0)) {
       SET_SA_FAMILY (rt.rt_genmask, AF_INET);
       ((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = 0L;
     }
@@ -1731,7 +1738,7 @@ ppp_registered(void)
  */
 
 int ppp_available(void)
-  {
+{
     int s, ok;
     struct ifreq ifr;
     int    size;
@@ -1742,9 +1749,9 @@ int ppp_available(void)
  */    
     s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0)
-      {
+    {
 	return 0;
-      }
+    }
     
     strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
@@ -1754,97 +1761,92 @@ int ppp_available(void)
  * flags for the device again.
  */
     if (!ok)
-      {
+    {
 	if (ppp_registered())
-	  {
+	{
 	    strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
 	    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
-	  }
-      }
+	}
+    }
 /*
  * Ensure that the hardware address is for PPP and not something else
  */
     if (ok)
-      {
+    {
         ok = ioctl (s, SIOCGIFHWADDR, (caddr_t) &ifr) >= 0;
-      }
+    }
 
     if (ok && ((ifr.ifr_hwaddr.sa_family & ~0xFF) != ARPHRD_PPP))
-      {
+    {
         ok = 0;
-      }
+    }
 
     if (!ok)
-      {
+    {
 	no_ppp_msg = 
 	  "This system lacks kernel support for PPP.  This could be because\n"
 	  "the PPP kernel module is not loaded, or because the kernel is\n"
 	  "not configured for PPP.  See the README.linux file in the\n"
-	  "ppp-2.3.3 distribution.\n";
-      }
+	  "ppp-2.3.5 distribution.\n";
+    }
 /*
  *  This is the PPP device. Validate the version of the driver at this
  *  point to ensure that this program will work with the driver.
  */
     else
-      {
+    {
 	char   abBuffer [1024];
 
 	ifr.ifr_data = abBuffer;
 	size = ioctl (s, SIOCGPPPVER, (caddr_t) &ifr);
-	ok   = size >= 0;
+	if (size < 0) {
+	    syslog(LOG_ERR, "Couldn't read driver version: %m");
+	    ok = 0;
+	    no_ppp_msg = "Sorry, couldn't verify kernel driver version\n";
 
-	if (ok)
-	  {
-	    decode_version (abBuffer,
-			    &driver_version,
-			    &driver_modification,
-			    &driver_patch);
-	  }
-    
-	if (!ok)
-	  {
-	    driver_version      =
-	    driver_modification =
-	    driver_patch        = 0;
-	  }
+	} else {
+	    decode_version(abBuffer,
+			   &driver_version,
+			   &driver_modification,
+			   &driver_patch);
 /*
  * Validate the version of the driver against the version that we used.
  */
-	decode_version (VERSION,
-			&my_version,
-			&my_modification,
-			&my_patch);
+	    decode_version(VERSION,
+			   &my_version,
+			   &my_modification,
+			   &my_patch);
 
-	/* The version numbers must match */
-	if (driver_version != my_version)
-	  {
-	    ok = 0;
-	  }
-      
-	/* The modification levels must be legal */
-	if (driver_modification < my_modification)
-	  {
-	    if (driver_modification >= 2) {
-	      /* we can cope with 2.2.0 and above */
-	      driver_is_old = 1;
-	    } else {
-	      ok = 0;
+	    /* The version numbers must match */
+	    if (driver_version != my_version)
+	    {
+		ok = 0;
 	    }
-	  }
+      
+	    /* The modification levels must be legal */
+	    if (driver_modification < my_modification)
+	    {
+		if (driver_modification >= 2) {
+		    /* we can cope with 2.2.0 and above */
+		    driver_is_old = 1;
+		} else {
+		    ok = 0;
+		}
+	    }
 
-	close (s);
-	if (!ok)
-	  {
-	    sprintf (route_buffer,
-		     "Sorry - PPP driver version %d.%d.%d is out of date\n",
-		     driver_version, driver_modification, driver_patch);
+	    close (s);
+	    if (!ok)
+	    {
+		sprintf (route_buffer,
+			 "Sorry - PPP driver version %d.%d.%d is out of date\n",
+			 driver_version, driver_modification, driver_patch);
 
-	    no_ppp_msg = route_buffer;
-	  }
-      }
+		no_ppp_msg = route_buffer;
+	    }
+	}
+    }
     return ok;
-  }
+}
 
 /********************************************************************
  *
@@ -2237,7 +2239,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
  *  Set the netmask.
  *  For recent kernels, force the netmask to 255.255.255.255.
  */
-    if (strcmp(utsname.release, "2.1.16") >= 0)
+    if (kernel_version >= KVERSION(2,1,16))
       net_mask = ~0L;
     if (net_mask != 0)
       {
@@ -2254,7 +2256,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Add the device route
  */
-    if (strcmp(utsname.release, "2.1.16") < 0) {
+    if (kernel_version < KVERSION(2,1,16)) {
       SET_SA_FAMILY (rt.rt_dst,     AF_INET);
       SET_SA_FAMILY (rt.rt_gateway, AF_INET);
       rt.rt_dev = ifname;
@@ -2263,7 +2265,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
       ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
       rt.rt_flags = RTF_UP | RTF_HOST;
 
-      if (strcmp(utsname.release, "2.1.0") > 0) {
+      if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
 	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
       }
@@ -2290,7 +2292,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
   {
     struct rtentry rt;
 
-    if (strcmp(utsname.release, "2.1.16") < 0) {
+    if (kernel_version < KVERSION(2,1,16)) {
 /*
  *  Delete the route through the device
  */
@@ -2304,7 +2306,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
       ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
       rt.rt_flags = RTF_UP | RTF_HOST;
 
-      if (strcmp(utsname.release, "2.1.0") > 0) {
+      if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
 	((struct sockaddr_in *) &rt.rt_genmask)->sin_addr.s_addr = -1L;
       }
