@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: fsm.c,v 1.20 2003/06/29 10:06:14 paulus Exp $"
+#define RCSID	"$Id: fsm.c,v 1.21 2004/02/02 02:52:51 carlsonj Exp $"
 
 /*
  * TODO:
@@ -201,6 +201,43 @@ fsm_open(f)
     }
 }
 
+/*
+ * terminate_layer - Start process of shutting down the FSM
+ *
+ * Cancel any timeout running, notify upper layers we're done, and
+ * send a terminate-request message as configured.
+ */
+static void
+terminate_layer(f)
+    fsm *f;
+{
+    if( f->state != OPENED )
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+    else if( f->callbacks->down )
+	(*f->callbacks->down)(f);	/* Inform upper layers we're down */
+
+    /* Init restart counter and send Terminate-Request */
+    f->retransmits = f->maxtermtransmits;
+    fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+	      (u_char *) f->term_reason, f->term_reason_len);
+
+    if (f->retransmits == 0) {
+	/*
+	 * User asked for no terminate requests at all; just close it.
+	 * We've already fired off one Terminate-Request just to be nice
+	 * to the peer, but we're not going to wait for a reply.
+	 */
+	f->state = CLOSED;
+	if( f->callbacks->finished )
+	    (*f->callbacks->finished)(f);
+	return;
+    }
+
+    TIMEOUT(fsm_timeout, f, f->timeouttime);
+    --f->retransmits;
+
+    f->state = CLOSING;
+}
 
 /*
  * fsm_close - Start closing connection.
@@ -230,19 +267,7 @@ fsm_close(f, reason)
     case ACKRCVD:
     case ACKSENT:
     case OPENED:
-	if( f->state != OPENED )
-	    UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
-	else if( f->callbacks->down )
-	    (*f->callbacks->down)(f);	/* Inform upper layers we're down */
-
-	/* Init restart counter, send Terminate-Request */
-	f->retransmits = f->maxtermtransmits;
-	fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
-		  (u_char *) f->term_reason, f->term_reason_len);
-	TIMEOUT(fsm_timeout, f, f->timeouttime);
-	--f->retransmits;
-
-	f->state = CLOSING;
+	terminate_layer(f);
 	break;
     }
 }
@@ -689,17 +714,7 @@ fsm_protreject(f)
 	break;
 
     case OPENED:
-	if( f->callbacks->down )
-	    (*f->callbacks->down)(f);
-
-	/* Init restart counter, send Terminate-Request */
-	f->retransmits = f->maxtermtransmits;
-	fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
-		  (u_char *) f->term_reason, f->term_reason_len);
-	TIMEOUT(fsm_timeout, f, f->timeouttime);
-	--f->retransmits;
-
-	f->state = STOPPING;
+	terminate_layer(f);
 	break;
 
     default:

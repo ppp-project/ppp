@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.131 2004/01/13 04:00:34 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.132 2004/02/02 02:52:51 carlsonj Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1173,6 +1173,7 @@ print_link_stats()
        info("Connect time %d.%d minutes.", t/10, t%10);
        info("Sent %u bytes, received %u bytes.",
 	    link_stats.bytes_out, link_stats.bytes_in);
+       link_stats_valid = 0;
     }
 }
 
