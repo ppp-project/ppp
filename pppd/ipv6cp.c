@@ -90,10 +90,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.15 2001/03/22 00:42:33 paulus Exp $ 
+ * $Id: ipv6cp.c,v 1.16 2002/09/14 08:10:11 etbe Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.15 2001/03/22 00:42:33 paulus Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.16 2002/09/14 08:10:11 etbe Exp $"
 
 /*
  * TODO: 
@@ -193,7 +193,7 @@ static option_t ipv6cp_option_list[] = {
     { "ipv6cp-use-ipaddr", o_bool, &ipv6cp_allowoptions[0].use_ip,
       "Use (default) IPv4 address as interface identifier", 1 },
 
-#if defined(SOL2)
+#if defined(SOL2) || defined(__linux__)
     { "ipv6cp-use-persistent", o_bool, &ipv6cp_wantoptions[0].use_persistent,
       "Use uniquely-available persistent value for link local address", 1 },
 #endif /* defined(SOL2) */
@@ -329,6 +329,8 @@ setifaceid(argv)
 	ipv6cp_protent.enabled_flag = 1;
     return 1;
 }
+
+char *llv6_ntoa(eui64_t ifaceid);
 
 static void
 printifaceid(opt, printer, arg)
@@ -1027,7 +1029,7 @@ ipv6_check_options()
     if (!ipv6cp_protent.enabled_flag)
 	return;
 
-#if defined(SOL2)
+#if defined(SOL2) || defined(__linux__)
     /*
      * Persistent link-local id is only used when user has not explicitly
      * configure/hard-code the id
