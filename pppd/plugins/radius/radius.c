@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.23 2004/03/26 13:27:17 kad Exp $";
+"$Id: radius.c,v 1.24 2004/04/12 05:14:53 kad Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -886,7 +886,7 @@ radius_acct_start(void)
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
 
-    av_type = using_pty ? PW_VIRTUAL : PW_ASYNC;
+    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
@@ -986,7 +986,7 @@ radius_acct_stop(void)
 		       remote_number, 0, VENDOR_NONE);
     }
 
-    av_type = using_pty ? PW_VIRTUAL : PW_ASYNC;
+    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     av_type = PW_NAS_ERROR;
