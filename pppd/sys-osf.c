@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.18 1999/03/12 06:07:22 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.19 1999/03/16 02:57:06 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -46,7 +46,6 @@ static char rcsid[] = "$Id: sys-osf.c,v 1.18 1999/03/12 06:07:22 paulus Exp $";
 #include <sys/socket.h>
 #include <sys/stream.h>
 #include <sys/stropts.h>
-#include <sys/syslog.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/poll.h>
@@ -89,6 +88,10 @@ static u_int32_t ifaddrs[2];	/* local and remote addresses */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
+#define MAX_POLLFDS	32
+static struct pollfd pollfds[MAX_POLLFDS];
+static int n_pollfds;
+
 /* Prototypes for procedures local to this file. */
 static int translate_speed __P((int));
 static int baud_rate_of __P((int));
@@ -110,10 +113,8 @@ sys_init()
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     /* Get an internet socket for doing socket ioctl's on. */
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	syslog(LOG_ERR, "Couldn't create IP socket: %m");
-	die(1);
-    }
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	fatal("Couldn't create IP socket: %m");
 
     if (default_device)
 	tty_sid = getsid((pid_t)0);
@@ -122,54 +123,42 @@ sys_init()
      * Open the ppp device.
      */
     pppfd = open("/dev/streams/ppp", O_RDWR | O_NONBLOCK, 0);
-    if (pppfd < 0) {
-	syslog(LOG_ERR, "Can't open /dev/streams/ppp: %m");
-	die(1);
-    }
+    if (pppfd < 0)
+	fatal("Can't open /dev/streams/ppp: %m");
     if (kdebugflag) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(pppfd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
 
     /* Assign a new PPA and get its unit number. */
-    if (strioctl(pppfd, PPPIO_NEWPPA, &ifunit, 0, sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Can't create new PPP interface: %m");
-	die(1);
-    }
+    if (strioctl(pppfd, PPPIO_NEWPPA, &ifunit, 0, sizeof(int)) < 0)
+	fatal("Can't create new PPP interface: %m");
 
     /*
      * Open the ppp device again and push the if_ppp module on it.
      */
     iffd = open("/dev/streams/ppp", O_RDWR, 0);
-    if (iffd < 0) {
-	syslog(LOG_ERR, "Can't open /dev/streams/ppp (2): %m");
-	die(1);
-    }
+    if (iffd < 0)
+	fatal("Can't open /dev/streams/ppp (2): %m");
     if (kdebugflag) {
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(iffd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
-    if (strioctl(iffd, PPPIO_ATTACH, &ifunit, sizeof(int), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't attach ppp interface to device: %m");
-	die(1);
-    }
-    if (ioctl(iffd, I_PUSH, "if_ppp") < 0) {
-	syslog(LOG_ERR, "Can't push ppp interface module: %m");
-	die(1);
-    }
+    if (strioctl(iffd, PPPIO_ATTACH, &ifunit, sizeof(int), 0) < 0)
+	fatal("Couldn't attach ppp interface to device: %m");
+    if (ioctl(iffd, I_PUSH, "if_ppp") < 0)
+	fatal("Can't push ppp interface module: %m");
     if (kdebugflag) {
 	x = PPPDBG_LOG + PPPDBG_IF;
 	strioctl(iffd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
-    if (strioctl(iffd, PPPIO_NEWPPA, &ifunit, sizeof(int), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't create ppp interface unit: %m");
-	die(1);
-    }
+    if (strioctl(iffd, PPPIO_NEWPPA, &ifunit, sizeof(int), 0) < 0)
+	fatal("Couldn't create ppp interface unit: %m");
     x = PPP_IP;
-    if (strioctl(iffd, PPPIO_BIND, &x, sizeof(int), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't bind ppp interface to IP SAP: %m");
-	die(1);
-    }
+    if (strioctl(iffd, PPPIO_BIND, &x, sizeof(int), 0) < 0)
+	fatal("Couldn't bind ppp interface to IP SAP: %m");
+
+    n_pollfds = 0;
 }
 
 /*
@@ -300,10 +289,10 @@ streamify(int fd)
     struct sigaction sa;
 
     if (streampipe(fdes) != 0)
-	syslog(LOG_ERR, "streampipe(): %m\n");
+	error("streampipe(): %m\n");
     else if (isastream(fdes[0]) == 1) {
 	if ((fret=fork()) < 0) {
-	    syslog(LOG_ERR, "fork(): %m\n");
+	    error("fork(): %m\n");
 	} else if (fret == 0) {
 	    /*  Process to forward things from pipe to tty  */
             sigemptyset(&(sa.sa_mask));
@@ -326,7 +315,7 @@ streamify(int fd)
 		if (FD_ISSET(fd, &readfds)) {
 		    rret = read(fd, buffer, BUFFSIZE);
 		    if (rret == 0) {
-			MAINDEBUG((LOG_DEBUG, "slave died:  EOF on tty."));
+			SYSDEBUG(("slave died:  EOF on tty."));
 			exit(0);
 		    } else {
 			write(fdes[1], buffer, rret);
@@ -335,7 +324,7 @@ streamify(int fd)
 		if (FD_ISSET(fdes[1], &readfds)) {
 		    rret = read(fdes[1], buffer, BUFFSIZE);
 		    if (rret == 0) {
-			MAINDEBUG((LOG_DEBUG, "slave died:  EOF on pipe."));
+			SYSDEBUG(("slave died:  EOF on pipe."));
 			exit(0);
 		    } else {
 			write(fd, buffer, rret);
@@ -362,10 +351,8 @@ establish_ppp(fd)
     int i;
 
     if (isastream(fd) != 1) {
-	if ((ttyfd = fd = streamify(fd)) < 0) {
-	    syslog(LOG_ERR, "Couldn't get a STREAMS module!\n");
-	    die(1);
-	}
+	if ((ttyfd = fd = streamify(fd)) < 0)
+	    fatal("Couldn't get a STREAMS module!\n");
     }
 
     /* Pop any existing modules off the tty stream. */
@@ -373,32 +360,24 @@ establish_ppp(fd)
 	if (ioctl(fd, I_LOOK, tty_modules[i]) < 0
 	    || ioctl(fd, I_POP, 0) < 0)
 	    break;
-        syslog(LOG_ERR, "popping module %s\n", tty_modules[i]);
+        error("popping module %s\n", tty_modules[i]);
     }
 
     tty_nmodules = i;
 
     /* Push the async hdlc module and the compressor module. */
-    if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0) {
-	syslog(LOG_ERR, "Couldn't push PPP Async HDLC module: %m");
-	die(1);
-    }
-    if (ioctl(fd, I_PUSH, "ppp_comp") < 0) {
-	syslog(LOG_ERR, "Couldn't push PPP compression module: %m");
-/*	die(1); */
-    }
+    if (ioctl(fd, I_PUSH, "ppp_ahdl") < 0)
+	fatal("Couldn't push PPP Async HDLC module: %m");
+    if (ioctl(fd, I_PUSH, "ppp_comp") < 0)
+	error("Couldn't push PPP compression module: %m");
 
     /* read mode, message non-discard mode */
-    if (ioctl(fd, I_SRDOPT, RMSGN|RPROTNORM) < 0) {
-        syslog(LOG_ERR, "ioctl(I_SRDOPT, RMSGN): %m");
-        die(1);
-    }
+    if (ioctl(fd, I_SRDOPT, RMSGN|RPROTNORM) < 0)
+        fatal("ioctl(I_SRDOPT, RMSGN): %m");
 
     /* Link the serial port under the PPP multiplexor. */
-    if ((fdmuxid = ioctl(pppfd, I_LINK, fd)) < 0) {
-	syslog(LOG_ERR, "Can't link tty to PPP mux: %m");
-	die(1);
-    }
+    if ((fdmuxid = ioctl(pppfd, I_LINK, fd)) < 0)
+	fatal("Can't link tty to PPP mux: %m");
 
     /* close stdin, stdout, stderr if they might refer to the device */
     if (default_device && !closed_stdio) {
@@ -415,7 +394,7 @@ establish_ppp(fd)
      */
     if ((initfdflags = fcntl(fd, F_GETFL)) == -1
         || fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-        syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+        warn("Couldn't set device to non-blocking mode: %m");
     }
 }
 
@@ -442,13 +421,13 @@ disestablish_ppp(fd)
     if (fdmuxid >= 0) {
 	if (ioctl(pppfd, I_UNLINK, fdmuxid) < 0) {
 	    if (!hungup)
-		syslog(LOG_ERR, "Can't unlink tty from PPP mux: %m");
+		error("Can't unlink tty from PPP mux: %m");
 	}
 	fdmuxid = -1;
 
         /* Reset non-blocking mode on the file descriptor. */
         if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-            syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+            warn("Couldn't restore device fd flags: %m");
         initfdflags = -1;
 
 	if (!hungup) {
@@ -456,7 +435,7 @@ disestablish_ppp(fd)
 		;
 	    for (i = tty_nmodules - 1; i >= 0; --i)
 		if (ioctl(fd, I_PUSH, tty_modules[i]) < 0)
-		    syslog(LOG_ERR, "Couldn't restore tty module %s: %m",
+		    error("Couldn't restore tty module %s: %m",
 			   tty_modules[i]);
 	}
 
@@ -468,9 +447,9 @@ disestablish_ppp(fd)
 	     * seen the M_HANGUP message (it went up through the ppp
 	     * driver to the stream head for our fd to /dev/ppp).
 	     */
-	    syslog(LOG_DEBUG, "sending hangup to %d", tty_sid);
+	    dbglog("sending hangup to %d", tty_sid);
 	    if (kill(tty_sid, SIGHUP) < 0)
-		syslog(LOG_ERR, "couldn't kill pgrp: %m");
+		error("couldn't kill pgrp: %m");
 	}
 	if (orig_ttyfd >= 0) {
 	    close(fd);
@@ -508,8 +487,8 @@ clean_check()
 	break;
     }
     if (s != NULL) {
-	syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
-	syslog(LOG_WARNING, "All received characters had %s", s);
+	warn("Serial link is not 8-bit clean:");
+	warn("All received characters had %s", s);
     }
 }
 
@@ -602,7 +581,7 @@ translate_speed(bps)
     for (speedp = speeds; speedp->speed_int; speedp++)
 	if (bps == speedp->speed_int)
 	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
+    warn("speed %d not supported", bps);
     return 0;
 }
 
@@ -635,10 +614,8 @@ set_up_tty(fd, local)
     int speed;
     struct termios tios;
 
-    if (tcgetattr(fd, &tios) < 0) {
-	syslog(LOG_ERR, "tcgetattr: %m");
-	die(1);
-    }
+    if (tcgetattr(fd, &tios) < 0)
+	fatal("tcgetattr: %m");
 
     if (!restore_term) {
 	inittermios = tios;
@@ -676,17 +653,12 @@ set_up_tty(fd, local)
 	 * We can't proceed if the serial port speed is 0,
 	 * since that implies that the serial port is disabled.
 	 */
-	if (speed == B0) {
-	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
-		   devnam);
-	    die(1);
-	}
+	if (speed == B0)
+	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
-	syslog(LOG_ERR, "tcsetattr: %m");
-	die(1);
-    }
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+	fatal("tcsetattr: %m");
 
     baud_rate = inspeed = baud_rate_of(speed);
     restore_term = 1;
@@ -711,7 +683,7 @@ restore_tty(fd)
 	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (!hungup && errno != ENXIO)
-		syslog(LOG_WARNING, "tcsetattr: %m");
+		warn("tcsetattr: %m");
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
@@ -754,7 +726,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ", LOG_DEBUG);
+	dbglog("sent %P", p, len);
 
     data.len = len;
     data.buf = (caddr_t) p;
@@ -762,7 +734,7 @@ output(unit, p, len)
     while (putmsg(pppfd, NULL, &data, 0) < 0) {
 	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
 	    if (errno != ENXIO)
-		syslog(LOG_ERR, "Couldn't send packet: %m");
+		error("Couldn't send packet: %m");
 	    break;
 	}
 	pfd.fd = pppfd;
@@ -782,17 +754,48 @@ wait_input(timo)
     struct timeval *timo;
 {
     int t;
-    struct pollfd pfd;
 
     t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
-    pfd.fd = pppfd;
-    pfd.events = POLLIN | POLLPRI | POLLHUP;
-    if (poll(&pfd, 1, t) < 0 && errno != EINTR) {
-	syslog(LOG_ERR, "poll: %m");
-	die(1);
+    if (poll(pollfds, n_pollfds, t) < 0 && errno != EINTR)
+	fatal("poll: %m");
+}
+
+/*
+ * add_fd - add an fd to the set that wait_input waits for.
+ */
+void add_fd(int fd)
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n)
+	if (pollfds[n].fd == fd)
+	    return;
+    if (n_pollfds < MAX_POLLFDS) {
+	pollfds[n_pollfds].fd = fd;
+	pollfds[n_pollfds].events = POLLIN | POLLPRI | POLLHUP;
+	++n_pollfds;
+    } else
+	error("Too many inputs!");
+}
+
+/*
+ * remove_fd - remove an fd from the set that wait_input waits for.
+ */
+void remove_fd(int fd)
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n) {
+	if (pollfds[n].fd == fd) {
+	    while (++n < n_pollfds)
+		pollfds[n-1] = pollfds[n];
+	    --n_pollfds;
+	    break;
+	}
     }
 }
 
+#if 0
 /*
  * wait_loop_output - wait until there is data available on the
  * loopback, for the length of time specified by *timo (indefinite
@@ -816,12 +819,10 @@ wait_time(timo)
     int n;
 
     n = select(0, NULL, NULL, NULL, timo);
-    if (n < 0 && errno != EINTR) {
-	syslog(LOG_ERR, "select: %m");
-	die(1);
-    }
+    if (n < 0 && errno != EINTR)
+	fatal("select: %m");
 }
-
+#endif
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -844,8 +845,7 @@ read_packet(buf)
 	if (len < 0) {
 	    if (errno = EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
 		return -1;
-	    syslog(LOG_ERR, "Error reading packet: %m");
-	    die(1);
+	    fatal("Error reading packet: %m");
 	}
 
 	if (ctrl.len <= 0)
@@ -855,7 +855,7 @@ read_packet(buf)
 	 * Got a M_PROTO or M_PCPROTO message.  Huh?
 	 */
 	if (debug)
-	    syslog(LOG_DEBUG, "got ctrl msg len=%d", ctrl.len);
+	    dbglog("got ctrl msg len=%d", ctrl.len);
 
     }
 }
@@ -894,15 +894,15 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
 	if (hungup && errno == ENXIO)
 	    return;
-	syslog(LOG_ERR, "Couldn't set MTU: %m");
+	error("Couldn't set MTU: %m");
     }
     if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't set transmit ACCM: %m");
+	error("Couldn't set transmit ACCM: %m");
     }
     cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
     cf[1] = COMP_PROT | COMP_AC;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
+	error("Couldn't set prot/AC compression: %m");
     }
 }
 
@@ -916,7 +916,7 @@ ppp_set_xaccm(unit, accm)
 {
     if (strioctl(pppfd, PPPIO_XACCM, accm, sizeof(ext_accm), 0) < 0) {
 	if (!hungup || errno != ENXIO)
-	    syslog(LOG_WARNING, "Couldn't set extended ACCM: %m");
+	    warn("Couldn't set extended ACCM: %m");
     }
 }
 
@@ -936,15 +936,15 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     if (strioctl(pppfd, PPPIO_MRU, &mru, sizeof(mru), 0) < 0) {
 	if (hungup && errno == ENXIO)
 	    return;
-	syslog(LOG_ERR, "Couldn't set MRU: %m");
+	error("Couldn't set MRU: %m");
     }
     if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-	syslog(LOG_ERR, "Couldn't set receive ACCM: %m");
+	error("Couldn't set receive ACCM: %m");
     }
     cf[0] = (pcomp? DECOMP_PROT: 0) + (accomp? DECOMP_AC: 0);
     cf[1] = DECOMP_PROT | DECOMP_AC;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	syslog(LOG_ERR, "Couldn't set prot/AC decompression: %m");
+	error("Couldn't set prot/AC decompression: %m");
     }
 }
 
@@ -986,7 +986,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
         wait_time(&tval);
     }
     if (errno != 0)
-	syslog(LOG_ERR, "hard failure trying to get memory for a compressor: %m");
+	error("hard failure trying to get memory for a compressor: %m");
     return (errno == ENOSR)? 0: -1;
 }
 
@@ -1003,7 +1003,7 @@ ccp_flags_set(unit, isopen, isup)
     cf[1] = CCP_ISOPEN | CCP_ISUP | CCP_ERROR | CCP_FATALERROR;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	if (!hungup || errno != ENXIO)
-	    syslog(LOG_ERR, "Couldn't set kernel CCP state: %m");
+	    error("Couldn't set kernel CCP state: %m");
     }
 }
 
@@ -1033,7 +1033,7 @@ ccp_fatal_error(unit)
     cf[0] = cf[1] = 0;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	if (errno != ENXIO && errno != EINVAL)
-	    syslog(LOG_ERR, "Couldn't get compression flags: %m");
+	    error("Couldn't get compression flags: %m");
 	return 0;
     }
     return cf[0] & CCP_FATALERROR;
@@ -1053,7 +1053,7 @@ sifvjcomp(u, vjcomp, xcidcomp, xmaxcid)
 	maxcid[0] = xcidcomp;
 	maxcid[1] = 15;		/* XXX should be rmaxcid */
 	if (strioctl(pppfd, PPPIO_VJINIT, maxcid, sizeof(maxcid), 0) < 0) {
-	    syslog(LOG_ERR, "Couldn't initialize VJ compression: %m");
+	    error("Couldn't initialize VJ compression: %m");
 	}
     }
 
@@ -1062,7 +1062,7 @@ sifvjcomp(u, vjcomp, xcidcomp, xmaxcid)
     cf[1] = COMP_VJC + DECOMP_VJC + COMP_VJCCID + DECOMP_VJCCID;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	if (vjcomp)
-	    syslog(LOG_ERR, "Couldn't enable VJ compression: %m");
+	    error("Couldn't enable VJ compression: %m");
     }
 
     return 1;
@@ -1079,12 +1079,12 @@ sifup(u)
 
     strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't mark interface up (get): %m");
+	error("Couldn't mark interface up (get): %m");
 	return 0;
     }
     ifr.ifr_flags |= IFF_UP;
     if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't mark interface up (set): %m");
+	error("Couldn't mark interface up (set): %m");
 	return 0;
     }
     if_is_up = 1;
@@ -1102,13 +1102,13 @@ sifdown(u)
 
     strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't mark interface down (get): %m");
+	error("Couldn't mark interface down (get): %m");
 	return 0;
     }
     if ((ifr.ifr_flags & IFF_UP) != 0) {
 	ifr.ifr_flags &= ~IFF_UP;
 	if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) < 0) {
-	    syslog(LOG_ERR, "Couldn't mark interface down (set): %m");
+	    error("Couldn't mark interface down (set): %m");
 	    return 0;
 	}
     }
@@ -1130,7 +1130,7 @@ sifnpmode(u, proto, mode)
     npi[0] = proto;
     npi[1] = (int) mode;
     if (strioctl(pppfd, PPPIO_NPMODE, npi, 2 * sizeof(int), 0) < 0) {
-	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
+	error("ioctl(set NP %d mode to %d): %m", proto, mode);
 	return 0;
     }
     return 1;
@@ -1168,7 +1168,7 @@ sifaddr(u, o, h, m)
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if ((ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0)
         && errno != EADDRNOTAVAIL) {
-        syslog(LOG_ERR, "ioctl(SIOCDIFADDR): %m");
+        error("ioctl(SIOCDIFADDR): %m");
         ret = 0;
     }
 
@@ -1182,19 +1182,19 @@ sifaddr(u, o, h, m)
     if (m != 0) {
         ((struct sockaddr_in *)&addreq.ifra_mask)->sin_addr.s_addr = m;
         addreq.ifra_mask.sa_len = sizeof (struct sockaddr);
-        syslog(LOG_INFO, "Setting interface mask to %s\n", ip_ntoa(m));
+        info("Setting interface mask to %s\n", ip_ntoa(m));
     }
 
     /* install new src/dst and (possibly) netmask
      */
     if (ioctl(sockfd, SIOCPIFADDR, &addreq) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCPIFADDR): %m");
+        error("ioctl(SIOCPIFADDR): %m");
         ret = 0;
     }
 
     ifr.ifr_metric = link_mtu;
     if (ioctl(sockfd, SIOCSIPMTU, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
+	error("Couldn't set IP MTU: %m");
         ret = 0;
     }
 
@@ -1222,7 +1222,7 @@ cifaddr(u, o, h)
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCDIFADDR): %m");
+        error("ioctl(SIOCDIFADDR): %m");
         return 0;
     }
     return 1;
@@ -1245,7 +1245,7 @@ sifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, (int)SIOCADDRT, &rt) < 0) {
-        syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
+        error("default route ioctl(SIOCADDRT): %m");
         return 0;
     }
     default_route_gateway = g;
@@ -1269,7 +1269,7 @@ cifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, (int)SIOCDELRT, &rt) < 0) {
-        syslog(LOG_ERR, "default route ioctl(SIOCDELRT): %m");
+        error("default route ioctl(SIOCDELRT): %m");
         return 0;
     }
     default_route_gateway = 0;
@@ -1293,7 +1293,7 @@ sifproxyarp(unit, hisaddr)
      * as our local address.
      */
     if (!get_ether_addr(hisaddr, &arpreq.arp_ha)) {
-        syslog(LOG_WARNING, "Cannot determine ethernet address for proxy ARP");
+        warn("Cannot determine ethernet address for proxy ARP");
         return 0;
     }
 
@@ -1301,7 +1301,7 @@ sifproxyarp(unit, hisaddr)
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
     if (ioctl(sockfd, (int)SIOCSARP, (caddr_t)&arpreq) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
+        error("ioctl(SIOCSARP): %m");
         return 0;
     }
 
@@ -1324,7 +1324,7 @@ cifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     if (ioctl(sockfd, (int)SIOCDARP, (caddr_t)&arpreq) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCDARP): %m");
+        error("ioctl(SIOCDARP): %m");
         return 0;
     }
     proxy_arp_addr = 0;
@@ -1352,7 +1352,7 @@ get_ether_addr(ipaddr, hwaddr)
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
     if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
+	error("ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
 
@@ -1395,7 +1395,7 @@ get_ether_addr(ipaddr, hwaddr)
 
     if (ifr >= ifend)
 	return 0;
-    syslog(LOG_INFO, "found interface %s for proxy arp", ifr->ifr_name);
+    info("found interface %s for proxy arp", ifr->ifr_name);
 
     strlcpy(ifdevreq.ifr_name, sizeof(ifdevreq.ifr_name), ifr->ifr_name);
 
@@ -1466,7 +1466,7 @@ GetMask(addr)
     if (ifc.ifc_req == 0)
 	return mask;
     if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
-	syslog(LOG_WARNING, "Couldn't get system interface list: %m");
+	warn("Couldn't get system interface list: %m");
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
@@ -1582,7 +1582,7 @@ strioctl(fd, cmd, ptr, ilen, olen)
     if (ioctl(fd, I_STR, &str) == -1)
 	return -1;
     if (str.ic_len != olen)
-	syslog(LOG_DEBUG, "strioctl: expected %d bytes, got %d for cmd %x\n",
+	dbglog("strioctl: expected %d bytes, got %d for cmd %x\n",
 	       olen, str.ic_len, cmd);
     return 0;
 }
@@ -1650,33 +1650,33 @@ lock(dev)
 	    n = read(fd, &pid, sizeof(pid));
 #endif
 	    if (n <= 0) {
-		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		error("Can't read pid from lock file %s", lock_file);
 		close(fd);
 	    } else {
 		if (kill(pid, 0) == -1 && errno == ESRCH) {
 		    /* pid no longer exists - remove the lock file */
 		    if (unlink(lock_file) == 0) {
 			close(fd);
-			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			notice("Removed stale lock on %s (pid %d)",
 			       dev, pid);
 			continue;
 		    } else
-			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			warn("Couldn't remove stale lock on %s",
 			       dev);
 		} else
-		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+		    notice("Device %s is locked by pid %d",
 			   dev, pid);
 	    }
 	    close(fd);
 	} else
-	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	    error("Can't create lock file %s: %m", lock_file);
 	free(lock_file);
 	lock_file = NULL;
 	return -1;
     }
 
 #ifdef PIDSTRING
-    sprintf(hdb_lock_buffer, "%10d\n", getpid());
+    slprintf(hdb_lock_buffer, sizeof(hdb_lock_buffer), "%10d\n", getpid());
     write(fd, hdb_lock_buffer, 11);
 #else
     pid = getpid();

@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.15 1999/03/12 06:07:21 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.16 1999/03/16 02:57:05 paulus Exp $";
 #endif
 
 /*
@@ -33,7 +33,6 @@ static char rcsid[] = "$Id: sys-aix4.c,v 1.15 1999/03/12 06:07:21 paulus Exp $";
 #include <stdlib.h>
 */
 #include <errno.h>
-#include <syslog.h>
 #include <termios.h>
 #include <sys/termiox.h>
 #include <fcntl.h>
@@ -78,6 +77,10 @@ static u_int32_t ifaddrs[2];	/* local and remote addresses */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
+#define MAX_POLLFDS	32
+static struct pollfd pollfds[MAX_POLLFDS];
+static int n_pollfds;
+
 /* Prototypes for procedures local to this file. */
 static int translate_speed __P((int));
 static int baud_rate_of __P((int));
@@ -91,10 +94,10 @@ void
 sys_init()
 {
     /* Get an internet socket for doing socket ioctl's on. */
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	syslog(LOG_ERR, "Couldn't create IP socket: %m");
-	die(1);
-    }
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	fatal("Couldn't create IP socket: %m");
+
+    n_pollfds = 0;
 }
 
 /*
@@ -189,45 +192,37 @@ establish_ppp(fd)
 	if (ioctl(fd, I_LOOK, str_modules[str_module_count].modname) < 0 ||
 	    ioctl(fd, I_POP, 0) < 0)
 	    break;
-	MAINDEBUG((LOG_DEBUG, "popped stream module : %s",
+	SYSDEBUG(("popped stream module : %s",
 		   str_modules[str_module_count].modname));
 	str_module_count++;
     }
 
     /* now push the async/fcs module */
-    if (ioctl(fd, I_PUSH, "pppasync") < 0) {
-	syslog(LOG_ERR, "ioctl(I_PUSH, ppp_async): %m");
-	die(1);
-    }
+    if (ioctl(fd, I_PUSH, "pppasync") < 0)
+	fatal("ioctl(I_PUSH, ppp_async): %m");
     /* push the compress module */
     if (ioctl(fd, I_PUSH, "pppcomp") < 0) {
-	syslog(LOG_WARNING, "ioctl(I_PUSH, ppp_comp): %m");
+	warn("ioctl(I_PUSH, ppp_comp): %m");
     }
     /* finally, push the ppp_if module that actually handles the */
     /* network interface */ 
-    if (ioctl(fd, I_PUSH, "pppif") < 0) {
-	syslog(LOG_ERR, "ioctl(I_PUSH, ppp_if): %m");
-	die(1);
-    }
+    if (ioctl(fd, I_PUSH, "pppif") < 0)
+	fatal("ioctl(I_PUSH, ppp_if): %m");
     pushed_ppp = 1;
     /* read mode, message non-discard mode
-    if (ioctl(fd, I_SRDOPT, RMSGN) < 0) {
-	syslog(LOG_ERR, "ioctl(I_SRDOPT, RMSGN): %m");
-	die(1);
-    }
+    if (ioctl(fd, I_SRDOPT, RMSGN) < 0)
+	fatal("ioctl(I_SRDOPT, RMSGN): %m");
 */
     /*
      * Find out which interface we were given.
      * (ppp_if handles this ioctl)
      */
-    if (ioctl(fd, SIOCGETU, &ifunit) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCGETU): %m");
-	die(1);
-    }
+    if (ioctl(fd, SIOCGETU, &ifunit) < 0)
+	fatal("ioctl(SIOCGETU): %m");
 
     /* Set debug flags in driver */
     if (ioctl(fd, SIOCSIFDEBUG, kdebugflag) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFDEBUG): %m");
+	error("ioctl(SIOCSIFDEBUG): %m");
     }
 
     /* close stdin, stdout, stderr if they might refer to the device */
@@ -245,7 +240,7 @@ establish_ppp(fd)
      */
     if ((initfdflags = fcntl(fd, F_GETFL)) == -1
 	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+	warn("Couldn't set device to non-blocking mode: %m");
     }
 }
 
@@ -263,7 +258,7 @@ disestablish_ppp(fd)
 
     /* Reset non-blocking mode on the file descriptor. */
     if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+	warn("Couldn't restore device fd flags: %m");
     initfdflags = -1;
 
     if (hungup) {
@@ -294,8 +289,8 @@ disestablish_ppp(fd)
 		break;
 	    }
 	    if (s != NULL) {
-		syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
-		syslog(LOG_WARNING, "All received characters had %s", s);
+		warn("Serial link is not 8-bit clean:");
+		warn("All received characters had %s", s);
 	    }
 	}
     }
@@ -307,11 +302,11 @@ disestablish_ppp(fd)
     for (; str_module_count > 0; str_module_count--) {
 	if (ioctl(fd, I_PUSH, str_modules[str_module_count-1].modname)) {
 	    if (errno != ENXIO)
-		syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
-		       str_modules[str_module_count-1].modname);
+		warn("str_restore: couldn't push module %s: %m",
+		     str_modules[str_module_count-1].modname);
 	} else {
-	    MAINDEBUG((LOG_INFO, "str_restore: pushed module %s",
-		       str_modules[str_module_count-1].modname));
+	    SYSDEBUG(("str_restore: pushed module %s",
+		      str_modules[str_module_count-1].modname));
 	}
     }
 }
@@ -406,7 +401,7 @@ translate_speed(bps)
     for (speedp = speeds; speedp->speed_int; speedp++)
 	if (bps == speedp->speed_int)
 	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
+    warn("speed %d not supported", bps);
     return 0;
 }
 
@@ -440,10 +435,9 @@ set_up_tty(fd, local)
     struct termios tios;
     struct termiox tiox;
 
-    if (tcgetattr(fd, &tios) < 0) {
-	syslog(LOG_ERR, "tcgetattr: %m");
-	die(1);
-    }
+    if (tcgetattr(fd, &tios) < 0)
+	fatal("tcgetattr: %m");
+
 
     if (!restore_term)
 	inittermios = tios;
@@ -488,17 +482,12 @@ set_up_tty(fd, local)
 	 * We can't proceed if the serial port speed is B0,
 	 * since that implies that the serial port is disabled.
 	 */
-	if (speed == B0) {
-	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
-		   devnam);
-	    die(1);
-	}
+	if (speed == B0)
+	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
-	syslog(LOG_ERR, "tcsetattr: %m");
-	die(1);
-    }
+    if (tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+	fatal("tcsetattr: %m");
 
     baud_rate = inspeed = baud_rate_of(speed);
     restore_term = 1;
@@ -523,7 +512,7 @@ restore_tty(fd)
 	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
-		syslog(LOG_WARNING, "tcsetattr: %m");
+		warn("tcsetattr: %m");
 	restore_term = 0;
     }
 }
@@ -556,7 +545,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ", LOG_DEBUG);
+	dbglog("sent %P", p, len);
 
     str.len = len;
     str.buf = (caddr_t) p;
@@ -564,7 +553,7 @@ output(unit, p, len)
     while (putmsg(ttyfd, NULL, &str, 0) < 0) {
 	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
 	    if (errno != ENXIO)
-		syslog(LOG_ERR, "Couldn't send packet: %m");
+		error("Couldn't send packet: %m");
 	    break;
 	}
 	pfd.fd = ttyfd;
@@ -581,16 +570,47 @@ wait_input(timo)
     struct timeval *timo;
 {
     int t;
-    struct pollfd pfd;
 
     t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
-    pfd.fd = ttyfd;
-    pfd.events = POLLIN | POLLPRI | POLLHUP;
-    if (poll(&pfd, 1, t) < 0 && errno != EINTR) {
-	syslog(LOG_ERR, "poll: %m");
-	die(1);
+    if (poll(pollfds, n_pollfds, t) < 0 && errno != EINTR)
+	fatal("poll: %m");
+}
+
+/*
+ * add_fd - add an fd to the set that wait_input waits for.
+ */
+void add_fd(int fd)
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n)
+	if (pollfds[n].fd == fd)
+	    return;
+    if (n_pollfds < MAX_POLLFDS) {
+	pollfds[n_pollfds].fd = fd;
+	pollfds[n_pollfds].events = POLLIN | POLLPRI | POLLHUP;
+	++n_pollfds;
+    } else
+	error("Too many inputs!");
+}
+
+/*
+ * remove_fd - remove an fd from the set that wait_input waits for.
+ */
+void remove_fd(int fd)
+{
+    int n;
+
+    for (n = 0; n < n_pollfds; ++n) {
+	if (pollfds[n].fd == fd) {
+	    while (++n < n_pollfds)
+		pollfds[n-1] = pollfds[n];
+	    --n_pollfds;
+	    break;
+	}
     }
 }
+
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -613,17 +633,15 @@ read_packet(buf)
 	if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
 	    return -1;
 	}
-	syslog(LOG_ERR, "getmsg %m");
-	die(1);
+	fatal("getmsg %m");
     }
     if (len) 
-	MAINDEBUG((LOG_DEBUG, "getmsg returned 0x%x",len));
+	SYSDEBUG(("getmsg returned 0x%x", len));
     if (ctl.len > 0)
-	syslog(LOG_NOTICE, "got ctrl msg len %d %x %x\n", ctl.len,
-	       ctlbuf[0], ctlbuf[1]);
+	notice("got ctrl msg len %d %x %x\n", ctl.len, ctlbuf[0], ctlbuf[1]);
 
     if (str.len < 0) {
-	MAINDEBUG((LOG_DEBUG, "getmsg short return length %d", str.len));
+	SYSDEBUG(("getmsg short return length %d", str.len));
 	return -1;
     }
 
@@ -646,27 +664,19 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     ifr.ifr_mtu = mtu;
-    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
-	quit();
-    }
+    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
+	fatal("ioctl(SIOCSIFMTU): %m");
 
-    if(ioctl(ttyfd, SIOCSIFASYNCMAP, asyncmap) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFASYNCMAP): %m");
-	quit();
-    }
+    if(ioctl(ttyfd, SIOCSIFASYNCMAP, asyncmap) < 0)
+	fatal("ioctl(SIOCSIFASYNCMAP): %m");
 
     c = (pcomp? 1: 0);
-    if(ioctl(ttyfd, SIOCSIFCOMPPROT, c) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
-	quit();
-    }
+    if(ioctl(ttyfd, SIOCSIFCOMPPROT, c) < 0)
+	fatal("ioctl(SIOCSIFCOMPPROT): %m");
 
     c = (accomp? 1: 0);
-    if(ioctl(ttyfd, SIOCSIFCOMPAC, c) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
-	quit();
-    }
+    if(ioctl(ttyfd, SIOCSIFCOMPAC, c) < 0)
+	fatal("ioctl(SIOCSIFCOMPAC): %m");
 }
 
 
@@ -679,7 +689,7 @@ ppp_set_xaccm(unit, accm)
     ext_accm accm;
 {
     if (ioctl(ttyfd, SIOCSIFXASYNCMAP, accm) < 0 && errno != ENOTTY)
-	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
+	warn("ioctl(set extended ACCM): %m");
 }
 
 
@@ -696,21 +706,21 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     char c;
 
     if (ioctl(ttyfd, SIOCSIFMRU, mru) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFMRU): %m");
+	error("ioctl(SIOCSIFMRU): %m");
     }
 
     if (ioctl(ttyfd, SIOCSIFRASYNCMAP, (caddr_t) asyncmap) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFRASYNCMAP): %m");
+	error("ioctl(SIOCSIFRASYNCMAP): %m");
     }
 
     c = 2 + (pcomp? 1: 0);
     if(ioctl(ttyfd, SIOCSIFCOMPPROT, c) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
+	error("ioctl(SIOCSIFCOMPPROT): %m");
     }
 
     c = 2 + (accomp? 1: 0);
     if (ioctl(ttyfd, SIOCSIFCOMPAC, c) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
+	error("ioctl(SIOCSIFCOMPAC): %m");
     }
 }
 
@@ -746,7 +756,7 @@ ccp_flags_set(unit, isopen, isup)
 
     x = (isopen? 1: 0) + (isup? 2: 0);
     if (ioctl(ttyfd, SIOCSIFCOMP, x) < 0 && errno != ENOTTY)
-	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
+	error("ioctl (SIOCSIFCOMP): %m");
 }
 
 /*
@@ -761,7 +771,7 @@ ccp_fatal_error(unit)
     int x;
 
     if (ioctl(ttyfd, SIOCGIFCOMP, &x) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCGIFCOMP): %m");
+	error("ioctl(SIOCGIFCOMP): %m");
 	return 0;
     }
     return x & CCP_FATALERROR;
@@ -778,7 +788,7 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 
     x = (vjcomp? 1: 0) + (cidcomp? 0: 2) + (maxcid << 4);
     if (ioctl(ttyfd, SIOCSIFVJCOMP, x) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFVJCOMP): %m");
+	error("ioctl(SIOCSIFVJCOMP): %m");
 	return 0;
     }
     return 1;
@@ -795,12 +805,12 @@ sifup(u)
 
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
+	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
     ifr.ifr_flags |= IFF_UP;
     if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+	error("ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
 
@@ -822,7 +832,7 @@ sifnpmode(u, proto, mode)
     npi.protocol = proto;
     npi.mode = mode;
     if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
-	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
+	error("ioctl(set NP %d mode to %d): %m", proto, mode);
 	return 0;
     }
     return 1;
@@ -847,12 +857,12 @@ sifdown(u)
 
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
+        error("ioctl (SIOCGIFFLAGS): %m");
         rv = 0;
     } else {
         ifr.ifr_flags &= ~IFF_UP;
         if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-            syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+            error("ioctl(SIOCSIFFLAGS): %m");
             rv = 0;
         } else
 	    if_is_up = 0;
@@ -882,31 +892,31 @@ sifaddr(u, o, h, m)
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     if (m != 0) {
-        syslog(LOG_INFO, "Setting interface mask to %s\n", ip_ntoa(m));
+        info("Setting interface mask to %s\n", ip_ntoa(m));
         ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
         if (ioctl(sockfd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
-            syslog(LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
+            error("ioctl(SIOCSIFNETMASK): %m");
             ret = 0;
         }
     }
 
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
+        error("ioctl(SIOCSIFADDR): %m");
         ret = 0;
     }
 
     SET_SA_FAMILY(ifr.ifr_dstaddr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = h;
     if (ioctl(sockfd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m");
+        error("ioctl(SIOCSIFDSTADDR): %m");
         ret = 0;
     }
 
     /* XXX is this necessary? */
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
+        error("ioctl(SIOCSIFADDR): %m");
         ret = 0;
     }
 
@@ -934,7 +944,7 @@ cifaddr(u, o, h)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = o;
     rt.rt_flags = RTF_HOST;
     if (ioctl(sockfd, SIOCDELRT, (caddr_t) &rt) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCDELRT): %m");
+	error("ioctl(SIOCDELRT): %m");
 	return 0;
     }
     return 1;
@@ -956,7 +966,7 @@ sifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, SIOCADDRT, &rt) < 0) {
-	syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
+	error("default route ioctl(SIOCADDRT): %m");
 	return 0;
     }
     default_route_gateway = g;
@@ -979,7 +989,7 @@ cifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, SIOCDELRT, &rt) < 0) {
-	syslog(LOG_ERR, "default route ioctl(SIOCDELRT): %m");
+	error("default route ioctl(SIOCDELRT): %m");
 	return 0;
     }
     default_route_gateway = 0;
@@ -1003,7 +1013,7 @@ sifproxyarp(unit, hisaddr)
      * as our local address.
      */
     if (!get_ether_addr(hisaddr, &arpreq.arp_ha)) {
-	syslog(LOG_WARNING, "Cannot determine ethernet address for proxy ARP");
+	warn("Cannot determine ethernet address for proxy ARP");
 	return 0;
     }
 
@@ -1011,7 +1021,7 @@ sifproxyarp(unit, hisaddr)
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
     if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
+	error("ioctl(SIOCSARP): %m");
 	return 0;
     }
 
@@ -1033,7 +1043,7 @@ cifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCDARP): %m");
+	error("ioctl(SIOCDARP): %m");
 	return 0;
     }
     proxy_arp_addr = 0;
@@ -1086,7 +1096,7 @@ static struct nlist nl[] = {
 int kvm_read(int fd, off_t offset, void *buf, int nbytes)
 {
     if (lseek(fd, offset, SEEK_SET) != offset) {
-        syslog(LOG_ERR,"lseek in kmem: %m");
+        error("lseek in kmem: %m");
         return(0);
     }
     return(read(fd, buf, nbytes));
@@ -1118,13 +1128,13 @@ get_ether_addr(ipaddr, hwaddr)
 
 /* Open kernel memory for reading */
     if ((kd = open("/dev/kmem", O_RDONLY)) < 0) {
-        syslog(LOG_ERR, "/dev/kmem: %m");
+        error("/dev/kmem: %m");
         return 0;
     }
 
 /* Fetch namelist */
     if (nlist("/unix", nl) != 0) {
-        syslog(LOG_ERR, "nlist(): %m");
+        error("nlist(): %m");
         return 0;
     }
 
@@ -1135,12 +1145,12 @@ get_ether_addr(ipaddr, hwaddr)
 
     if (kvm_read(kd, nl[N_IFNET].n_value, (char *)&addr, sizeof(addr))
         != sizeof(addr)) {
-        syslog(LOG_ERR, "error reading ifnet addr");
+        error("error reading ifnet addr");
         return 0;
     }
     for ( ; addr && !found; addr = (u_long)ifp->if_next) {
         if (kvm_read(kd, addr, (char *)ac, sizeof(*ac)) != sizeof(*ac)) {
-            syslog(LOG_ERR, "error reading ifnet");
+            error("error reading ifnet");
             return 0;
         }
 
@@ -1155,17 +1165,17 @@ get_ether_addr(ipaddr, hwaddr)
         for (ifap = ifp->if_addrlist; ifap; ifap=ifaddr.ifa.ifa_next) {
             if (kvm_read(kd, (u_long)ifap, (char *)&ifaddr,
                      sizeof(ifaddr)) != sizeof(ifaddr)) {
-                syslog(LOG_ERR, "error reading ifaddr");
+                error("error reading ifaddr");
                 return 0;
             }
             if (kvm_read(kd, (u_long)ifaddr.ifa.ifa_addr, &ifaddrsaddr,
                 sizeof(struct sockaddr_in)) != sizeof(struct sockaddr_in)) {
-                syslog(LOG_ERR, "error reading ifaddrsaddr");
+                error("error reading ifaddrsaddr");
                 return(0);
             }
             if (kvm_read(kd, (u_long)ifaddr.ifa.ifa_netmask, &ifmasksaddr,
                 sizeof(struct sockaddr_in)) != sizeof(struct sockaddr_in)) {
-                syslog(LOG_ERR, "error reading ifmasksaddr");
+                error("error reading ifmasksaddr");
                 return(0);
             }
     /* Check if this interface on the right subnet */
@@ -1180,7 +1190,7 @@ get_ether_addr(ipaddr, hwaddr)
                 ifip = ifinetptr->sin_addr.s_addr;
                 if (kvm_read(kd, (u_long)ifaddr.ifa.ifa_netmask, &ifmasksaddr,
                     sizeof(struct sockaddr_in)) != sizeof(struct sockaddr_in)) {
-                    syslog(LOG_ERR, "error reading ifmasksaddr");
+                    error("error reading ifmasksaddr");
                     return(0);
                 }
                 mask = ifmasksaddr.sin_addr.s_addr;
@@ -1231,7 +1241,7 @@ GetMask(addr)
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
     if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
-	syslog(LOG_WARNING, "ioctl(SIOCGIFCONF): %m");
+	warn("ioctl(SIOCGIFCONF): %m");
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
@@ -1313,8 +1323,7 @@ int lock(char *device)
 	devname = device;
 
     if ((rc = ttylock(devname)) == 0) {
-	devlocked = (char *) malloc(strlen(devname) + 1);
-	sprintf(devlocked,"%s",devname);
+	devlocked = strdup(devname);
     } else
 	devlocked = (char *) 0;
 

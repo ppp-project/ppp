@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.25 1999/03/12 06:07:24 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.26 1999/03/16 02:57:08 paulus Exp $";
 #endif
 
 /*
@@ -30,7 +30,6 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.25 1999/03/12 06:07:24 paulus Exp $
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -71,6 +70,9 @@ static unsigned char inbuf[512]; /* buffer for chars read from loopback */
 
 static int sockfd;		/* socket for doing interface ioctls */
 
+static fd_set in_fds;		/* set of fds that wait_input waits for */
+static int max_in_fd;		/* highest fd set in in_fds */
+
 static int if_is_up;		/* the interface is currently up */
 static u_int32_t ifaddrs[2];	/* local and remote addresses */
 static u_int32_t default_route_gateway;	/* gateway addr for default route */
@@ -90,9 +92,12 @@ sys_init()
 {
     /* Get an internet socket for doing socket ioctl's on. */
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	syslog(LOG_ERR, "Couldn't create IP socket: %m");
+	error("Couldn't create IP socket: %m");
 	die(1);
     }
+
+    FD_ZERO(&in_fds);
+    max_in_fd = 0;
 }
 
 /*
@@ -211,11 +216,11 @@ establish_ppp(fd)
      * Save the old line discipline of fd, and set it to PPP.
      */
     if (ioctl(fd, TIOCGETD, &initdisc) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
+	error("ioctl(TIOCGETD): %m");
 	die(1);
     }
     if (ioctl(fd, TIOCSETD, &pppdisc) < 0) {
-	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	error("ioctl(TIOCSETD): %m");
 	die(1);
     }
 
@@ -223,7 +228,7 @@ establish_ppp(fd)
      * Find out which interface we were given.
      */
     if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {	
-	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m");
+	error("ioctl(PPPIOCGUNIT): %m");
 	die(1);
     }
 
@@ -234,11 +239,11 @@ establish_ppp(fd)
      */
     if (kdebugflag) {
 	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	    syslog(LOG_WARNING, "ioctl (PPPIOCGFLAGS): %m");
+	    warn("ioctl (PPPIOCGFLAGS): %m");
 	} else {
 	    x |= (kdebugflag & 0xFF) * SC_DEBUG;
 	    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
-		syslog(LOG_WARNING, "ioctl(PPPIOCSFLAGS): %m");
+		warn("ioctl(PPPIOCSFLAGS): %m");
 	}
     }
 
@@ -247,7 +252,7 @@ establish_ppp(fd)
      */
     if ((initfdflags = fcntl(fd, F_GETFL)) == -1
 	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+	warn("Couldn't set device to non-blocking mode: %m");
     }
 }
 
@@ -269,12 +274,12 @@ disestablish_ppp(fd)
 {
     /* Reset non-blocking mode on fd. */
     if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+	warn("Couldn't restore device fd flags: %m");
     initfdflags = -1;
 
     /* Restore old line discipline. */
     if (initdisc >= 0 && ioctl(fd, TIOCSETD, &initdisc) < 0)
-	syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	error("ioctl(TIOCSETD): %m");
     initdisc = -1;
 
     if (fd == ppp_fd)
@@ -307,8 +312,8 @@ clean_check()
 	    break;
 	}
 	if (s != NULL) {
-	    syslog(LOG_WARNING, "Serial link is not 8-bit clean:");
-	    syslog(LOG_WARNING, "All received characters had %s", s);
+	    warn("Serial link is not 8-bit clean:");
+	    warn("All received characters had %s", s);
 	}
     }
 }
@@ -403,7 +408,7 @@ translate_speed(bps)
     for (speedp = speeds; speedp->speed_int; speedp++)
 	if (bps == speedp->speed_int)
 	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
+    warn("speed %d not supported", bps);
     return 0;
 }
 
@@ -437,7 +442,7 @@ set_up_tty(fd, local)
     struct termios tios;
 
     if (tcgetattr(fd, &tios) < 0) {
-	syslog(LOG_ERR, "tcgetattr: %m");
+	error("tcgetattr: %m");
 	die(1);
     }
 
@@ -480,22 +485,22 @@ set_up_tty(fd, local)
 	 * since that implies that the serial port is disabled.
 	 */
 	if (speed == B0) {
-	    syslog(LOG_ERR, "Baud rate for %s is 0; need explicit baud rate",
+	    error("Baud rate for %s is 0; need explicit baud rate",
 		   devnam);
 	    die(1);
 	}
     }
 
     if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
-	syslog(LOG_ERR, "tcsetattr: %m");
+	error("tcsetattr: %m");
 	die(1);
     }
 
     x = 0;
     if (ioctl(fd, (crtscts > 0 || modem)? TIOCMODEM: TIOCNMODEM, &x) < 0)
-	syslog(LOG_WARNING, "TIOC(N)MODEM: %m");
+	warn("TIOC(N)MODEM: %m");
     if (ioctl(fd, (local || !modem)? TIOCNCAR: TIOCCAR) < 0)
-	syslog(LOG_WARNING, "TIOC(N)CAR: %m");
+	warn("TIOC(N)CAR: %m");
 
     baud_rate = inspeed = baud_rate_of(speed);
     restore_term = TRUE;
@@ -520,7 +525,7 @@ restore_tty(fd)
 	}
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (errno != ENXIO)
-		syslog(LOG_WARNING, "tcsetattr: %m");
+		warn("tcsetattr: %m");
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = FALSE;
     }
@@ -548,7 +553,7 @@ int fd, on;
 void
 open_ppp_loopback()
 {
-    syslog(LOG_ERR, "open_ppp_loopback called!");
+    error("open_ppp_loopback called!");
     die(1);
 }
 
@@ -563,17 +568,17 @@ output(unit, p, len)
     int len;
 {
     if (debug)
-	log_packet(p, len, "sent ", LOG_DEBUG);
+	dbglog("sent %P", p, len);
 
     if (write(ttyfd, p, len) < 0) {
 	if (errno != EIO)
-	    syslog(LOG_ERR, "write: %m");
+	    error("write: %m");
     }
 }
 
 
 /*
- * wait_input - wait until there is data available on ttyfd,
+ * wait_input - wait until there is data available,
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
@@ -584,16 +589,32 @@ wait_input(timo)
     fd_set ready;
     int n;
 
-    FD_ZERO(&ready);
-    FD_SET(ttyfd, &ready);
+    ready = in_fds;
     n = select(ttyfd+1, &ready, NULL, &ready, timo);
-    if (n < 0 && errno != EINTR) {
-	syslog(LOG_ERR, "select: %m");
-	die(1);
-    }
+    if (n < 0 && errno != EINTR)
+	fatal("select: %m");
 }
 
 
+/*
+ * add_fd - add an fd to the set that wait_input waits for.
+ */
+void add_fd(int fd)
+{
+    FD_SET(fd, &in_fds);
+    if (fd > max_in_fd)
+	max_in_fd = fd;
+}
+
+/*
+ * remove_fd - remove an fd from the set that wait_input waits for.
+ */
+void remove_fd(int fd)
+{
+    FD_CLR(fd, &in_fds);
+}
+
+#if 0
 /*
  * wait_loop_output - wait until there is data available on the
  * loopback, for the length of time specified by *timo (indefinite
@@ -619,11 +640,11 @@ wait_time(timo)
 
     n = select(0, NULL, NULL, NULL, timo);
     if (n < 0 && errno != EINTR) {
-	syslog(LOG_ERR, "select: %m");
+	error("select: %m");
 	die(1);
     }
 }
-
+#endif
 
 /*
  * read_packet - get a PPP packet from the serial device.
@@ -637,7 +658,7 @@ read_packet(buf)
     if ((len = read(ttyfd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
 	if (errno == EWOULDBLOCK || errno == EINTR)
 	    return -1;
-	syslog(LOG_ERR, "read(fd): %m");
+	error("read(fd): %m");
 	die(1);
     }
     return len;
@@ -669,23 +690,23 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     u_int x;
 
     if (ioctl(ppp_fd, PPPIOCSMTU, &mtu) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSMTU): %m");
+	error("ioctl(PPPIOCSMTU): %m");
 	quit();
     }
 
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
+	error("ioctl(PPPIOCSASYNCMAP): %m");
 	quit();
     }
 
     if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	error("ioctl (PPPIOCGFLAGS): %m");
 	quit();
     }
     x = pcomp? x | SC_COMP_PROT: x &~ SC_COMP_PROT;
     x = accomp? x | SC_COMP_AC: x &~ SC_COMP_AC;
     if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	error("ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
 }
@@ -700,7 +721,7 @@ ppp_set_xaccm(unit, accm)
     ext_accm accm;
 {
     if (ioctl(ppp_fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
-	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
+	warn("ioctl(set extended ACCM): %m");
 }
 
 
@@ -717,20 +738,20 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     int x;
 
     if (ioctl(ppp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
+	error("ioctl(PPPIOCSMRU): %m");
 	quit();
     }
     if (ioctl(ppp_fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
+	error("ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
     }
     if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	error("ioctl (PPPIOCGFLAGS): %m");
 	quit();
     }
     x = !accomp? x | SC_REJ_COMP_AC: x &~ SC_REJ_COMP_AC;
     if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	error("ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
 }
@@ -766,13 +787,13 @@ ccp_flags_set(unit, isopen, isup)
     int x;
 
     if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	error("ioctl (PPPIOCGFLAGS): %m");
 	return;
     }
     x = isopen? x | SC_CCP_OPEN: x &~ SC_CCP_OPEN;
     x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
     if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	error("ioctl(PPPIOCSFLAGS): %m");
 }
 
 /*
@@ -787,7 +808,7 @@ ccp_fatal_error(unit)
     int x;
 
     if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
+	error("ioctl(PPPIOCGFLAGS): %m");
 	return 0;
     }
     return x & SC_DC_FERROR;
@@ -815,17 +836,17 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
     u_int x;
 
     if (ioctl(ppp_fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
+	error("ioctl (PPPIOCGFLAGS): %m");
 	return 0;
     }
     x = vjcomp ? x | SC_COMP_TCP: x &~ SC_COMP_TCP;
     x = cidcomp? x & ~SC_NO_TCP_CCID: x | SC_NO_TCP_CCID;
     if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	error("ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
     if (ioctl(ppp_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
-	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	error("ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
     return 1;
@@ -842,12 +863,12 @@ sifup(u)
 
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
+	error("ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
     ifr.ifr_flags |= IFF_UP;
     if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+	error("ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
     if_is_up = 1;
@@ -868,7 +889,7 @@ sifnpmode(u, proto, mode)
     npi.protocol = proto;
     npi.mode = mode;
     if (ioctl(ppp_fd, PPPIOCSNPMODE, &npi) < 0) {
-	syslog(LOG_ERR, "ioctl(set NP %d mode to %d): %m", proto, mode);
+	error("ioctl(set NP %d mode to %d): %m", proto, mode);
 	return 0;
     }
     return 1;
@@ -893,12 +914,12 @@ sifdown(u)
 
     strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
+	error("ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
     } else {
 	ifr.ifr_flags &= ~IFF_UP;
 	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
+	    error("ioctl(SIOCSIFFLAGS): %m");
 	    rv = 0;
 	} else
 	    if_is_up = 0;
@@ -930,20 +951,20 @@ sifaddr(u, o, h, m)
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     if (m != 0) {
         ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
-        syslog(LOG_INFO, "Setting interface mask to %s\n", ip_ntoa(m));
+        info("Setting interface mask to %s\n", ip_ntoa(m));
         if (ioctl(sockfd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
-            syslog(LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
+            error("ioctl(SIOCSIFNETMASK): %m");
             ret = 0;
         }
     }
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
+        error("ioctl(SIOCSIFADDR): %m");
         ret = 0;
     }
     ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = h;
     if (ioctl(sockfd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m");
+        error("ioctl(SIOCSIFDSTADDR): %m");
         ret = 0;
     }
     ifaddrs[0] = o;
@@ -970,7 +991,7 @@ cifaddr(u, o, h)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = o;
     rt.rt_flags = RTF_HOST;
     if (ioctl(sockfd, SIOCDELRT, (caddr_t) &rt) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCDELRT): %m");
+        error("ioctl(SIOCDELRT): %m");
         return 0;
     }
     return 1;
@@ -992,7 +1013,7 @@ sifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, SIOCADDRT, &rt) < 0) {
-        syslog(LOG_ERR, "default route ioctl(SIOCADDRT): %m");
+        error("default route ioctl(SIOCADDRT): %m");
         return 0;
     }
     default_route_gateway = g;
@@ -1015,7 +1036,7 @@ cifdefaultroute(u, l, g)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
     rt.rt_flags = RTF_GATEWAY;
     if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
-        syslog(LOG_WARNING, "default route ioctl(SIOCDELRT): %m");
+        warn("default route ioctl(SIOCDELRT): %m");
     default_route_gateway = 0;
     return 1;
 }
@@ -1037,7 +1058,7 @@ sifproxyarp(unit, hisaddr)
      * as our local address.
      */
     if (!get_ether_addr(hisaddr, &arpreq.arp_ha)) {
-	syslog(LOG_ERR, "Cannot determine ethernet address for proxy ARP");
+	error("Cannot determine ethernet address for proxy ARP");
 	return 0;
     }
 
@@ -1045,7 +1066,7 @@ sifproxyarp(unit, hisaddr)
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
     if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_ERR, "Couldn't add proxy arp entry: %m");
+	error("Couldn't add proxy arp entry: %m");
 	return 0;
     }
 
@@ -1067,7 +1088,7 @@ cifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_WARNING, "Couldn't delete proxy arp entry: %m");
+	warn("Couldn't delete proxy arp entry: %m");
 	return 0;
     }
     proxy_arp_addr = 0;
@@ -1095,7 +1116,7 @@ get_ether_addr(ipaddr, hwaddr)
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
     if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
+	error("ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
 
@@ -1134,14 +1155,14 @@ get_ether_addr(ipaddr, hwaddr)
 
     if (ifr >= ifend)
 	return 0;
-    syslog(LOG_INFO, "found interface %s for proxy arp", ifr->ifr_name);
+    info("found interface %s for proxy arp", ifr->ifr_name);
 
     /*
      * Grab the physical address for this interface.
      */
     strlcpy(ifdevea.ifr_name, sizeof(ifdevea.ifr_name), ifr->ifr_name);
     if (ioctl(sockfd, SIOCRPHYSADDR, &ifdevea) < 0) {
-	syslog(LOG_ERR, "Couldn't get h/w address for %s: %m", ifr->ifr_name);
+	error("Couldn't get h/w address for %s: %m", ifr->ifr_name);
 	return 0;
     }
 
@@ -1183,7 +1204,7 @@ GetMask(addr)
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
     if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
-	syslog(LOG_WARNING, "ioctl(SIOCGIFCONF): %m");
+	warn("ioctl(SIOCGIFCONF): %m");
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
@@ -1328,26 +1349,26 @@ lock(dev)
 	    /* Read the lock file to find out who has the device locked */
 	    n = read(fd, &pid, sizeof(pid));
 	    if (n <= 0) {
-		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		error("Can't read pid from lock file %s", lock_file);
 		close(fd);
 	    } else {
 		if (kill(pid, 0) == -1 && errno == ESRCH) {
 		    /* pid no longer exists - remove the lock file */
 		    if (unlink(lock_file) == 0) {
 			close(fd);
-			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			notice("Removed stale lock on %s (pid %d)",
 			       dev, pid);
 			continue;
 		    } else
-			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			warn("Couldn't remove stale lock on %s",
 			       dev);
 		} else
-		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+		    notice("Device %s is locked by pid %d",
 			   dev, pid);
 	    }
 	    close(fd);
 	} else
-	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	    error("Can't create lock file %s: %m", lock_file);
 	free(lock_file);
 	lock_file = NULL;
 	return -1;
