@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.48 1999/03/06 11:28:10 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.49 1999/03/08 01:47:24 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -222,7 +222,7 @@ option_t general_options[] = {
 #endif
 
 static char *usage_string = "\
-pppd version %s patch level %d%s\n\
+pppd version %s.%d%s\n\
 Usage: %s [ options ], where options are:\n\
 	<device>	Communicate over the named device\n\
 	<speed>		Set the baud rate to <speed>\n\
@@ -656,7 +656,7 @@ showversion(argv)
     char **argv;
 {
     if (phase == PHASE_INITIALIZE) {
-	fprintf(stderr, "pppd version %s patch level %d%s\n",
+	fprintf(stderr, "pppd version %s.%d%s\n",
 		VERSION, PATCHLEVEL, IMPLEMENTATION);
 	exit(0);
     }
