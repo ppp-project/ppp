@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.13 1995/12/18 03:43:40 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.14 1996/01/01 22:55:26 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -40,7 +40,7 @@ static char rcsid[] = "$Id: ccp.c,v 1.13 1995/12/18 03:43:40 paulus Exp $";
 struct protent ccp_protent = {
     PPP_CCP, ccp_init, ccp_input, ccp_protrej,
     ccp_lowerup, ccp_lowerdown, ccp_open, ccp_close,
-    ccp_printpkt, NULL, 1, "CCP"
+    ccp_printpkt, NULL, 1, "CCP", NULL, NULL
 };
 
 fsm ccp_fsm[NUM_PPP];

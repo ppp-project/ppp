@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.9 1995/12/18 03:46:19 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.10 1996/01/01 22:55:28 paulus Exp $";
 #endif
 
 /*
@@ -39,7 +39,7 @@ static char rcsid[] = "$Id: chap.c,v 1.9 1995/12/18 03:46:19 paulus Exp $";
 struct protent chap_protent = {
     PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
     ChapLowerUp, ChapLowerDown, NULL, NULL,
-    ChapPrintPkt, NULL, 1, "CHAP"
+    ChapPrintPkt, NULL, 1, "CHAP", NULL, NULL
 };
 
 chap_state chap[NUM_PPP];		/* CHAP state; one for each unit */
