@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.8 1994/08/22 00:36:38 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.9 1994/09/01 00:12:52 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -76,16 +76,6 @@ struct wordlist {
 
 #define FALSE	0
 #define TRUE	1
-
-extern char user[];
-extern char passwd[];
-extern char devnam[];
-extern char our_name[];
-extern char remote_name[];
-extern char hostname[];
-extern int uselogin;
-extern int usehostname;
-extern int auth_required;
 
 /* Records which authentication operations haven't completed yet. */
 static int auth_pending[NPPP];
@@ -703,9 +693,9 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 int
 auth_ip_addr(unit, addr)
     int unit;
-    u_long addr;
+    uint32 addr;
 {
-    u_long a;
+    uint32 a;
     struct hostent *hp;
     struct wordlist *addrs;
 
@@ -726,7 +716,7 @@ auth_ip_addr(unit, addr)
 		       addrs->word);
 		continue;
 	    } else
-		a = *(u_long *)hp->h_addr;
+		a = *(uint32 *)hp->h_addr;
 	}
 	if (addr == a)
 	    return 1;
@@ -741,7 +731,7 @@ auth_ip_addr(unit, addr)
  */
 int
 bad_ip_adrs(addr)
-    u_long addr;
+    uint32 addr;
 {
     addr = ntohl(addr);
     return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET
