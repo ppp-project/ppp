@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-sunos4.c,v 1.24 1999/08/13 06:46:19 paulus Exp $"
+#define RCSID	"$Id: sys-sunos4.c,v 1.25 1999/12/23 01:38:19 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -614,8 +614,13 @@ wait_input(timo)
     int t;
 
     t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
-    if (poll(pollfds, n_pollfds, t) < 0 && errno != EINTR)
-	fatal("poll: %m");
+    if (poll(pollfds, n_pollfds, t) < 0 && errno != EINTR) {
+	if (errno != EAGAIN)
+	    fatal("poll: %m");
+	/* we can get EAGAIN on a heavily loaded system,
+	 * just wait a short time and try again. */
+	usleep(50000);
+    }
 }
 
 /*
