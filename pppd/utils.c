@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.20 2002/12/04 23:03:33 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.21 2003/03/30 08:26:56 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -830,6 +830,32 @@ dump_packet(const char *tag, unsigned char *p, int len)
     }
 
     dbglog("%s %P", tag, p, len);
+}
+
+/*
+ * complete_read - read a full `count' bytes from fd,
+ * unless end-of-file or an error other than EINTR is encountered.
+ */
+ssize_t
+complete_read(int fd, void *buf, size_t count)
+{
+	size_t done;
+	ssize_t nb;
+	char *ptr = buf;
+
+	for (done = 0; done < count; ) {
+		nb = read(fd, ptr, count - done);
+		if (nb < 0) {
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+		if (nb == 0)
+			break;
+		done += nb;
+		ptr += nb;
+	}
+	return done;
 }
 
 /* Procedures for locking the serial device using a lock file. */

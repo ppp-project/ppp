@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.124 2003/03/04 05:37:22 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.125 2003/03/30 08:26:56 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -822,7 +822,7 @@ detach()
 
     /* wait for parent to finish updating pid & lock files and die */
     close(pipefd[1]);
-    read(pipefd[0], numbuf, 1);
+    complete_read(pipefd[0], numbuf, 1);
     close(pipefd[0]);
 }
 
@@ -852,7 +852,7 @@ create_pidfile(pid)
     slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
 	     _PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
-	fprintf(pidfile, "%d\n", getpid());
+	fprintf(pidfile, "%d\n", pid);
 	(void) fclose(pidfile);
     } else {
 	error("Failed to create pid file %s: %m", pidfilename);
@@ -872,7 +872,7 @@ create_linkpidfile(pid)
     slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
 	     _PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
-	fprintf(pidfile, "%d\n", getpid());
+	fprintf(pidfile, "%d\n", pid);
 	if (ifname[0])
 	    fprintf(pidfile, "%s\n", ifname);
 	(void) fclose(pidfile);
@@ -1428,9 +1428,7 @@ safe_fork()
 	if (pid > 0) {
 		close(pipefd[1]);
 		/* this read() blocks until the close(pipefd[1]) below */
-		while (read(pipefd[0], buf, 1) < 0)
-		    if (errno != EINTR)
-			break;
+		complete_read(pipefd[0], buf, 1);
 		close(pipefd[0]);
 		return pid;
 	}
