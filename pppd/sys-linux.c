@@ -115,7 +115,7 @@ static int get_flags (void)
   {    
     int flags;
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &flags) < 0)
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &flags) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
 	quit();
@@ -129,7 +129,7 @@ static void set_flags (int flags)
   {    
     MAINDEBUG ((LOG_DEBUG, "set flags = %x\n", flags));
 
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &flags) < 0)
+    if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &flags) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS, %x): %m", flags);
 	quit();
@@ -199,7 +199,7 @@ void note_debug_level (void)
 
 int set_kdebugflag (int requested_level)
   {
-    if (ioctl(fd, PPPIOCGDEBUG, &prev_kdebugflag) < 0)
+    if (ioctl(ttyfd, PPPIOCGDEBUG, &prev_kdebugflag) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCGDEBUG): %m");
 	return (0);
@@ -207,7 +207,7 @@ int set_kdebugflag (int requested_level)
     
     if (prev_kdebugflag != requested_level)
       {
-	if (ioctl(fd, PPPIOCSDEBUG, &requested_level) < 0)
+	if (ioctl(ttyfd, PPPIOCSDEBUG, &requested_level) < 0)
 	  {
 	    syslog (LOG_ERR, "ioctl(PPPIOCSDEBUG): %m");
 	    return (0);
@@ -222,7 +222,7 @@ int set_kdebugflag (int requested_level)
  * establish_ppp - Turn the serial port into a ppp interface.
  */
 
-void establish_ppp (void)
+void establish_ppp (int fd)
   {
     int pppdisc = N_PPP;
     int sig	= SIGIO;
@@ -273,7 +273,7 @@ void establish_ppp (void)
  * This shouldn't call die() because it's called from die().
  */
 
-void disestablish_ppp(void)
+void disestablish_ppp(int fd)
   {
     int x;
     char *s;
@@ -283,13 +283,32 @@ void disestablish_ppp(void)
 	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
     initfdflags = -1;
 
-/*
- * Fetch the flags for the device and generate appropriate error
- * messages.
- */
     if (still_ppp() && initdisc >= 0)
       {
-	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) == 0)
+	set_kdebugflag (prev_kdebugflag);
+	
+	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
+	  {
+	    syslog(LOG_WARNING, "ioctl(TIOCSETD): %m");
+	  }
+	
+	if (ioctl(fd, TIOCNXCL, 0) < 0)
+	  {
+	    syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
+	  }
+      }
+    initdisc = -1;
+  }
+
+/*
+ * clean_check - Fetch the flags for the device and generate
+ * appropriate error messages.
+ */
+void clean_check(void)
+  {
+    if (still_ppp() && initdisc >= 0)
+      {
+	if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) == 0)
 	  {
 	    s = NULL;
 	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP))
@@ -328,21 +347,9 @@ void disestablish_ppp(void)
 		syslog(LOG_WARNING, "Problem: %s", s);
 	      }
 	  }
-	
-	set_kdebugflag (prev_kdebugflag);
-	
-	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
-	  {
-	    syslog(LOG_WARNING, "ioctl(TIOCSETD): %m");
-	  }
-	
-	if (ioctl(fd, TIOCNXCL, 0) < 0)
-	  {
-	    syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
-	  }
       }
-    initdisc = -1;
   }
+	
 
 /*
  * List of valid speeds.
@@ -566,7 +573,7 @@ void setdtr (int fd, int on)
  * restore_tty - restore the terminal to the saved settings.
  */
 
-void restore_tty (void)
+void restore_tty (int fd)
   {
     if (restore_term)
       {
@@ -603,7 +610,7 @@ void output (int unit, unsigned char *p, int len)
         log_packet(p, len, "sent ");
       }
     
-    if (write(fd, p, len) < 0)
+    if (write(ttyfd, p, len) < 0)
       {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS
 	    || errno == ENXIO || errno == EIO)
@@ -619,7 +626,7 @@ void output (int unit, unsigned char *p, int len)
   }
 
 /*
- * wait_input - wait until there is data available on fd,
+ * wait_input - wait until there is data available on ttyfd,
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
@@ -630,9 +637,9 @@ void wait_input (struct timeval *timo)
     int n;
     
     FD_ZERO(&ready);
-    FD_SET(fd, &ready);
+    FD_SET(ttyfd, &ready);
 
-    n = select(fd+1, &ready, NULL, &ready, timo);
+    n = select(ttyfd+1, &ready, NULL, &ready, timo);
     if (n < 0 && errno != EINTR)
       {
 	syslog(LOG_ERR, "select: %m");
@@ -648,14 +655,14 @@ int read_packet (unsigned char *buf)
   {
     int len;
   
-    len = read(fd, buf, PPP_MTU + PPP_HDRLEN);
+    len = read(ttyfd, buf, PPP_MTU + PPP_HDRLEN);
     if (len < 0)
       {
 	if (errno == EWOULDBLOCK)
 	  {
 	    return -1;
 	  }
-	syslog(LOG_ERR, "read(fd): %m");
+	syslog(LOG_ERR, "read: %m");
 	die(1);
       }
     return len;
@@ -691,7 +698,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 	  }
 	
 	MAINDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
-	if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
+	if (ioctl(ttyfd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
 	  {
 	    syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
 	    quit();
@@ -713,7 +720,7 @@ void ppp_set_xaccm (int unit, ext_accm accm)
     MAINDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
 		accm[0], accm[1], accm[2], accm[3]));
 
-    if (ioctl(fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
+    if (ioctl(ttyfd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
       {
 	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
       }
@@ -740,13 +747,13 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 /*
  * Set the receiver parameters
  */
-    if (ioctl(fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+    if (ioctl(ttyfd, PPPIOCSMRU, (caddr_t) &mru) < 0)
       {
 	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
       }
 
     MAINDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0)
+    if (ioctl(ttyfd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0)
       {
         syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
@@ -771,7 +778,7 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
     data.length   = opt_len;
     data.transmit = for_transmit;
 
-    if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+    if (ioctl(ttyfd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
       {
 	return 1;
       }
@@ -817,7 +824,7 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 
     if (vjcomp)
       {
-        if (ioctl (fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0)
+        if (ioctl (ttyfd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0)
 	  {
 	    syslog (LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	    vjcomp = 0;

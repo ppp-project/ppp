@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.5 1995/10/27 03:47:32 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.6 1996/01/01 23:07:07 paulus Exp $";
 #endif
 
 /*
@@ -71,7 +71,7 @@ static int	initfdflags = -1; /* Initial file descriptor flags for fd */
 
 static int sockfd;		/* socket for doing interface ioctls */
 
-int ttyfd = -1;   /*  Original ttyfd if we did a streamify()  */
+int orig_ttyfd = -1;   /*  Original ttyfd if we did a streamify()  */
 
 static int	if_is_up;	/* Interface has been marked up */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
@@ -266,7 +266,7 @@ streamify(int fd)
 	    }
 	} else {
 	    close(fdes[1]);
-	    ttyfd = fd;
+	    orig_ttyfd = fd;
 	    return(fdes[0]);
         }
     }
@@ -279,12 +279,13 @@ streamify(int fd)
  * establish_ppp - Turn the serial port into a ppp interface.
  */
 void
-establish_ppp()
+establish_ppp(fd)
+    int fd;
 {
     int ret;
 
     if (isastream(fd) != 1) {
-	if ((fd=streamify(fd)) < 0) {
+	if ((ttyfd = fd = streamify(fd)) < 0) {
 	    syslog(LOG_ERR, "Couldn't get a STREAMS module!\n");
 	    die(1);
 	}
@@ -382,7 +383,8 @@ void prstrstack(int fd)
  * modules.  This shouldn't call die() because it's called from die().
  */
 void
-disestablish_ppp()
+disestablish_ppp(fd)
+    int fd;
 {
     int flags;
     char *s;
@@ -400,10 +402,41 @@ disestablish_ppp()
     }
 
     if (pushed_ppp) {
+	while (ioctl(fd, I_POP, 0) == 0) /* pop any we pushed */
+	    ;
+	pushed_ppp = 0;
+
+	for (; str_module_count > 0; str_module_count--) {
+	    if (ioctl(fd, I_PUSH, str_modules[str_module_count-1].modname)) {
+		if (errno != ENXIO)
+		    syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
+			   str_modules[str_module_count-1].modname);
+	    } else {
+		MAINDEBUG((LOG_INFO, "str_restore: pushed module %s",
+			   str_modules[str_module_count-1].modname));
+	    }
+	}
+
+	if (orig_ttyfd >= 0) {
+	    close(fd);
+	    ttyfd = orig_ttyfd;
+	    fd = -1;
+        }
+    }
+
+}
+
+/*
+ * clean_check - check whether the link seems to be 8-bit clean.
+ */
+void
+clean_check()
+{
+    if (pushed_ppp) {
 	/*
 	 * Check whether the link seems not to be 8-bit clean.
 	 */
-	if (ioctl(fd, (int)SIOCGIFDEBUG, (caddr_t) &flags) == 0) {
+	if (ioctl(ttyfd, (int)SIOCGIFDEBUG, (caddr_t) &flags) == 0) {
 	    s = NULL;
 	    switch (~flags & PAI_FLAGS_HIBITS) {
 	      case PAI_FLAGS_B7_0:
@@ -424,31 +457,8 @@ disestablish_ppp()
 		syslog(LOG_WARNING, "All received characters had %s", s);
 	    }
 	}
-
-	while (ioctl(fd, I_POP, 0) == 0) /* pop any we pushed */
-	    ;
-	pushed_ppp = 0;
-
-	for (; str_module_count > 0; str_module_count--) {
-	    if (ioctl(fd, I_PUSH, str_modules[str_module_count-1].modname)) {
-		if (errno != ENXIO)
-		    syslog(LOG_WARNING, "str_restore: couldn't push module %s: %m",
-			   str_modules[str_module_count-1].modname);
-	    } else {
-		MAINDEBUG((LOG_INFO, "str_restore: pushed module %s",
-			   str_modules[str_module_count-1].modname));
-	    }
-	}
-
-	if (ttyfd >= 0) {
-	    close(fd);
-	    fd = ttyfd;
-	    ttyfd = -1;
-        }
     }
-
 }
-
 
 /*
  * List of valid speeds.
@@ -633,7 +643,8 @@ set_up_tty(fd, local)
  * restore_tty - restore the terminal to the saved settings.
  */
 void
-restore_tty()
+restore_tty(fd)
+    int fd;
 {
     if (restore_term) {
 	if (!default_device) {
@@ -686,13 +697,13 @@ output(unit, p, len)
     str.len = len;
     str.buf = (caddr_t) p;
     retries = 4;
-    while (putmsg(fd, NULL, &str, 0) < 0) {
+    while (putmsg(ttyfd, NULL, &str, 0) < 0) {
 	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
 	    if (errno != ENXIO)
 		syslog(LOG_ERR, "Couldn't send packet: %m");
 	    break;
 	}
-	pfd.fd = fd;
+	pfd.fd = ttyfd;
 	pfd.events = POLLOUT;
 	poll(&pfd, 1, 250);	/* wait for up to 0.25 seconds */
     }
@@ -709,7 +720,7 @@ wait_input(timo)
     struct pollfd pfd;
 
     t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
-    pfd.fd = fd;
+    pfd.fd = ttyfd;
     pfd.events = POLLIN | POLLPRI | POLLHUP;
     if (poll(&pfd, 1, t) < 0 && errno != EINTR) {
 	syslog(LOG_ERR, "poll: %m");
@@ -733,12 +744,12 @@ read_packet(buf)
     ctl.maxlen = sizeof(ctlbuf);
     ctl.buf = (caddr_t) ctlbuf;
     i = 0;
-    len = getmsg(fd, &ctl, &str, &i);
+    len = getmsg(ttyfd, &ctl, &str, &i);
     if (len < 0) {
 	if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
 	    return -1;
 	}
-	syslog(LOG_ERR, "getmsg(fd) %m");
+	syslog(LOG_ERR, "getmsg %m");
 	die(1);
     }
     if (len) 
@@ -776,19 +787,19 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	quit();
     }
 
-    if(ioctl(fd, (int)SIOCSIFASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if(ioctl(ttyfd, (int)SIOCSIFASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFASYNCMAP): %m");
 	quit();
     }
 
     c = (pcomp? 1: 0);
-    if(ioctl(fd, (int)SIOCSIFCOMPPROT, &c) < 0) {
+    if(ioctl(ttyfd, (int)SIOCSIFCOMPPROT, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
 	quit();
     }
 
     c = (accomp? 1: 0);
-    if(ioctl(fd, (int)SIOCSIFCOMPAC, &c) < 0) {
+    if(ioctl(ttyfd, (int)SIOCSIFCOMPAC, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
 	quit();
     }
@@ -803,7 +814,7 @@ ppp_set_xaccm(unit, accm)
     int unit;
     ext_accm accm;
 {
-    if (ioctl(fd, (int)SIOCSIFXASYNCMAP, accm) < 0 && errno != ENOTTY)
+    if (ioctl(ttyfd, (int)SIOCSIFXASYNCMAP, accm) < 0 && errno != ENOTTY)
 	syslog(LOG_WARNING, "ioctl(set extended ACCM): %m");
 }
 
@@ -820,21 +831,21 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 {
     char c;
 
-    if (ioctl(fd, (int)SIOCSIFMRU, &mru) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSIFMRU, &mru) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFMRU): %m");
     }
 
-    if (ioctl(fd, (int)SIOCSIFRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSIFRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFRASYNCMAP): %m");
     }
 
     c = 2 + (pcomp? 1: 0);
-    if(ioctl(fd, (int)SIOCSIFCOMPPROT, &c) < 0) {
+    if(ioctl(ttyfd, (int)SIOCSIFCOMPPROT, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPPROT): %m");
     }
 
     c = 2 + (accomp? 1: 0);
-    if (ioctl(fd, (int)SIOCSIFCOMPAC, &c) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSIFCOMPAC, &c) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFCOMPAC): %m");
     }
 }
@@ -855,7 +866,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     data.length = opt_len;
     data.transmit = for_transmit;
     BCOPY(opt_ptr, data.opt_data, opt_len);
-    if (ioctl(fd, (int)SIOCSCOMPRESS, (caddr_t) &data) >= 0)
+    if (ioctl(ttyfd, (int)SIOCSCOMPRESS, (caddr_t) &data) >= 0)
 	return 1;
     return (errno == ENOSR)? 0: -1;
 }
@@ -870,7 +881,7 @@ ccp_flags_set(unit, isopen, isup)
     int x;
 
     x = (isopen? 1: 0) + (isup? 2: 0);
-    if (ioctl(fd, (int)SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY)
+    if (ioctl(ttyfd, (int)SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY)
 	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
 }
 
@@ -885,7 +896,7 @@ ccp_fatal_error(unit)
 {
     int x;
 
-    if (ioctl(fd, (int)SIOCGIFCOMP, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, (int)SIOCGIFCOMP, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCGIFCOMP): %m");
 	return 0;
     }
@@ -902,7 +913,7 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
     char x;
 
     x = (vjcomp? 1: 0) + (cidcomp? 0: 2) + (maxcid << 4);
-    if (ioctl(fd, (int)SIOCSIFVJCOMP, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSIFVJCOMP, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFVJCOMP): %m");
 	return 0;
     }
@@ -932,7 +943,7 @@ sifup(u)
     if_is_up = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_PASS;
-    if (ioctl(fd, (int)SIOCSETNPMODE, &npi) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSETNPMODE, &npi) < 0) {
 	if (errno != ENOTTY) {
 	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
 	    return 0;
@@ -955,7 +966,7 @@ sifdown(u)
     rv = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_ERROR;
-    if (ioctl(fd, (int)SIOCSETNPMODE, (caddr_t) &npi) < 0) {
+    if (ioctl(ttyfd, (int)SIOCSETNPMODE, (caddr_t) &npi) < 0) {
 	if (errno != ENOTTY) {
 	    syslog(LOG_ERR, "ioctl(SIOCSETNPMODE): %m");
 	    rv = 0;

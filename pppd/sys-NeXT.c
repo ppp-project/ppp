@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.3 1995/12/18 03:30:47 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.4 1996/01/01 23:03:23 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -164,7 +164,8 @@ ppp_available()
  * establish_ppp - Turn the serial port into a ppp interface.
  */
 void
-establish_ppp()
+establish_ppp(fd)
+    int fd;
 {
     int pppdisc = PPPDISC;
     int x;
@@ -214,7 +215,8 @@ establish_ppp()
  * This shouldn't call die() because it's called from die().
  */
 void
-disestablish_ppp()
+disestablish_ppp(fd)
+    int fd;
 {
     int x;
     char *s;
@@ -445,7 +447,8 @@ set_up_tty(fd, local)
  * restore_tty - restore the terminal to the saved settings.
  */
 void
-restore_tty()
+restore_tty(fd)
+    int fd;
 {
     if (restore_term) {
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
@@ -493,7 +496,7 @@ output(unit, p, len)
     if (debug)
 	log_packet(p, len, "sent ");
 
-    if (write(fd, p, len) < 0) {
+    if (write(ttyfd, p, len) < 0) {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS
 	    || errno == ENXIO || errno == EIO) {
 	    syslog(LOG_WARNING, "write: warning: %m");
@@ -506,7 +509,7 @@ output(unit, p, len)
 
 
 /*
- * wait_input - wait until there is data available on fd,
+ * wait_input - wait until there is data available on ttyfd,
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
@@ -518,8 +521,8 @@ wait_input(timo)
     int n;
 
     FD_ZERO(&ready);
-    FD_SET(fd, &ready);
-    n = select(fd+1, &ready, NULL, &ready, timo);
+    FD_SET(ttyfd, &ready);
+    n = select(ttyfd+1, &ready, NULL, &ready, timo);
     if (n < 0 && errno != EINTR) {
 	syslog(LOG_ERR, "select: %m");
 	die(1);
@@ -536,12 +539,12 @@ read_packet(buf)
 {
     int len;
 
-    if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
+    if ((len = read(ttyfd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
 	if (errno == EWOULDBLOCK || errno == EINTR) {
-	    MAINDEBUG((LOG_DEBUG, "read(fd): %m"));
+	    MAINDEBUG((LOG_DEBUG, "read: %m"));
 	    return -1;
 	}
-	syslog(LOG_ERR, "read(fd): %m");
+	syslog(LOG_ERR, "read: %m");
 	die(1);
     }
     return len;
@@ -568,18 +571,18 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	quit();
     }
 
-    if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(ttyfd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
 	quit();
     }
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
 	quit();
     }
     x = pcomp? x | SC_COMP_PROT: x &~ SC_COMP_PROT;
     x = accomp? x | SC_COMP_AC: x &~ SC_COMP_AC;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
@@ -594,7 +597,7 @@ ppp_set_xaccm(unit, accm)
     int unit;
     ext_accm accm;
 {
-    if (ioctl(fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
+    if (ioctl(ttyfd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY)
 	syslog(LOG_WARNING, "ioctl(PPPIOCSXASYNCMAP): %m");
 }
 
@@ -611,20 +614,20 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 {
     int x;
 
-    if (ioctl(fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
+    if (ioctl(ttyfd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
 	quit();
     }
-    if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+    if (ioctl(ttyfd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
     }
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
 	quit();
     }
     x = !accomp? x | SC_REJ_COMP_AC: x &~ SC_REJ_COMP_AC;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
@@ -644,7 +647,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     data.ptr = opt_ptr;
     data.length = opt_len;
     data.transmit = for_transmit;
-    if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+    if (ioctl(ttyfd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
 	return 1;
     return (errno == ENOBUFS)? 0: -1;
 }
@@ -658,13 +661,13 @@ ccp_flags_set(unit, isopen, isup)
 {
     int x;
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
 	return;
     }
     x = isopen? x | SC_CCP_OPEN: x &~ SC_CCP_OPEN;
     x = isup? x | SC_CCP_UP: x &~ SC_CCP_UP;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
+    if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 }
 
@@ -679,7 +682,7 @@ ccp_fatal_error(unit)
 {
     int x;
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
 	return 0;
     }
@@ -695,17 +698,17 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 {
     u_int x;
 
-    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPIOCGFLAGS): %m");
 	return 0;
     }
     x = vjcomp ? x | SC_COMP_TCP: x &~ SC_COMP_TCP;
     x = cidcomp? x & ~SC_NO_TCP_CCID: x | SC_NO_TCP_CCID;
-    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
-    if (ioctl(fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
+    if (ioctl(ttyfd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
@@ -740,18 +743,18 @@ sifup(u)
     if_is_up = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_PASS;
-    if (ioctl(fd, PPPIOCSNPMODE, &npi) < 0) {
+    if (ioctl(ttyfd, PPPIOCSNPMODE, &npi) < 0) {
 	if (errno != ENOTTY) {
 	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
 	    return 0;
 	}
 	/* for backwards compatibility */
-	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	    syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
 	    return 0;
 	}
 	x |= SC_ENABLE_IP;
-	if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
 	    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	    return 0;
 	}
@@ -774,18 +777,18 @@ sifdown(u)
     rv = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_ERROR;
-    if (ioctl(fd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
+    if (ioctl(ttyfd, PPPIOCSNPMODE, (caddr_t) &npi) < 0) {
 	if (errno != ENOTTY) {
 	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE): %m");
 	    rv = 0;
 	} else {
 	    /* backwards compatibility */
-	    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	    if (ioctl(ttyfd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 		syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
 		rv = 0;
 	    } else {
 		x &= ~SC_ENABLE_IP;
-		if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+		if (ioctl(ttyfd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
 		    syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 		    rv = 0;
 		}
