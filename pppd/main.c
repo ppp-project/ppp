@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.123 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.124 2003/03/04 05:37:22 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1428,7 +1428,9 @@ safe_fork()
 	if (pid > 0) {
 		close(pipefd[1]);
 		/* this read() blocks until the close(pipefd[1]) below */
-		read(pipefd[0], buf, 1);
+		while (read(pipefd[0], buf, 1) < 0)
+		    if (errno != EINTR)
+			break;
 		close(pipefd[0]);
 		return pid;
 	}
