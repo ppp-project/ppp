@@ -1,12 +1,11 @@
-PPP for Linux                                             Version 2.3.7
+PPP for Linux                                             Version 2.3.8
 =============                                                  based on
-                                                              ppp-2.3.7
-                                                             March 1999
+                                                              ppp-2.3.8
+                                                               May 1999
 
-Michael Callahan    callahan@maths.ox.ac.uk
-Al Longyear         longyear@netcom.com
 Paul Mackerras      Paul.Mackerras@cs.anu.edu.au
-Nick Walker         nickwalker@email.com
+Al Longyear         longyear@netcom.com
+Michael Callahan    callahan@maths.ox.ac.uk
 
   Contents:
     INTRODUCTION
@@ -84,13 +83,14 @@ Paul Mackerras rewrote and restructured the code for improved
 performance and to make a cleaner separation between the
 network-interface and async TTY parts of the ppp driver.
 
-Nick Walker added the code to query the peer for DNS server addresses.
+Nick Walker added the code to pppd to query the peer for DNS server
+addresses.
 
 
 INSTALLATION
 
 This version of PPP has been tested on various Linux kernel versions
-(most recently 2.0.36 and 2.2.1). It will not work on kernels before
+(most recently 2.0.36 and 2.2.8). It will not work on kernels before
 2.0.0. If you have an earlier kernel, please upgrade to the latest 2.0
 or 2.2 kernel.
 
@@ -165,24 +165,28 @@ set of symbolic links to the makefiles. They should link 'Makefile' to
 
 2. Update the kernel sources.
 
-If you are using a 2.2.x kernel (or a recent 2.1.x kernel), you do not
-need to do this step unless you need the synchronous HDLC support.  If
-your kernel is already configured for PPP, then you only need to do
-steps 5 and 6.  Otherwise, continue at step 3.
+The 2.2.8 kernel contains the same PPP kernel driver as is in this
+release.  In fact the driver in the kernel sources is slightly
+different from the one in this package as it doesn't include the stuff
+which enables the driver in this package to compile in either the 2.0
+or 2.2 kernel environment, but the two are functionally equivalent.
+If you are using a 2.2.8 kernel and your kernel is already configured
+for PPP, then you only need to do steps 5 and 6.  Otherwise, continue
+at step 3.
 
-If you are using a 2.0.x kernel, or you need the synchronous HDLC
-support, you need to update the kernel ppp driver to the version in
-this package.  You will need a copy of the kernel source tree to do
-this.  Issue the command:
+If you are using a kernel earlier than 2.2.8, you can either use the
+driver in this package or upgrade your kernel to 2.2.8.  If you choose
+to use the driver in this package, you will need a copy of the kernel
+source tree to compile the driver.  Issue the command:
 
 make kernel
 
 from the top level directory. This will install the various include
-files and source files into the proper directory for the linux
-kernel. If you don't have the kernel installed in the /usr/src/kernel
-directory then it will not work. Instead it will print a message to
-the effect that you need to specify the kernel location on the
-kinstall command.
+files and source files into the proper directories in the linux kernel
+source tree. If you don't have the kernel installed in the default
+/usr/src/kernel directory then it will not work. Instead it will print
+a message to the effect that you need to specify the kernel location
+on the kinstall command.
 
 The actual message will say:
 

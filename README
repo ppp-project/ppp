@@ -69,8 +69,51 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.7.
+What's new in ppp-2.3.8.
 ************************
+
+* The exit status of pppd will now indicate whether the link was
+  successfully established, or if not, what error was encountered.
+
+* Pppd has two new options: fdlog <n> will send log messages to file
+  descriptor <n> instead of standard output, and nofdlog will stop log
+  messages from being sent to any file descriptor (they will still be
+  sent to syslog).  Pppd now will not send log messages to a file
+  descriptor if the serial port is open on that file descriptor.
+
+* Pppd sets an environment variable called PPPLOGNAME for scripts that
+  it runs, indicating the login name of the user who invoked pppd.
+
+* Pppd sets environment variables CONNECT_TIME, BYTES_SENT and
+  BYTES_RCVD for the ip-down and auth-down scripts indicating the
+  statistics for the connection just terminated.  (CONNECT_TIME is in
+  seconds.)
+
+* If the user has the serial device open on standard input and
+  specifies a symbolic link to the serial device on the command line,
+  pppd will detect this and behave correctly (i.e. not detach from its
+  controlling terminal).  Furthermore, if the serial port is open for
+  reading and writing on standard input, pppd will assume that it is
+  locked by its invoker and not lock it itself.
+
+* Chat now has a feature where if a string to be sent begins with an
+  at sign (@), the rest of the string is taken as the name of a file
+  (regular file or named pipe), and the actual string to send is taken
+  from that file.
+
+* Support for FreeBSD-2.2.8 and 3.0 has been added, thanks to Paul
+  Fulghum.
+
+* The Tru64 (aka Digital Unix aka OSF/1) port has been updated.
+
+* The system panics on Solaris SMP systems related to PPP connections
+  being established and terminated should no longer occur.
+
+* Fixed quite a few bugs.
+
+
+What was new in ppp-2.3.7.
+**************************
 
 * Pppd can now automatically allocate itself a pseudo-tty to use as
   the serial device.  This has made three new options possible:
@@ -380,4 +423,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.16 1999/03/31 06:07:55 paulus Exp $)
+($Id: README,v 1.17 1999/05/13 00:30:16 paulus Exp $)
