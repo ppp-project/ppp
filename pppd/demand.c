@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: demand.c,v 1.13 2000/04/15 01:27:11 masputra Exp $"
+#define RCSID	"$Id: demand.c,v 1.14 2000/12/27 23:27:29 paulus Exp $"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -330,8 +330,11 @@ active_packet(p, len)
 	return 0;
     proto = PPP_PROTOCOL(p);
 #ifdef PPP_FILTER
+    if (pass_filter.bf_len != 0
+	&& bpf_filter(pass_filter.bf_insns, p, len, len) == 0)
+	return 0;
     if (active_filter.bf_len != 0
-	&& bpf_filter(active_filter.bf_insns, frame, len, len) == 0)
+	&& bpf_filter(active_filter.bf_insns, p, len, len) == 0)
 	return 0;
 #endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
