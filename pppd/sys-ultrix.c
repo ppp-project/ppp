@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.17 1996/05/26 23:58:03 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.18 1996/07/01 01:20:29 paulus Exp $";
 #endif
 
 /*
@@ -599,6 +599,7 @@ wait_input(timo)
  * loopback, for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_loop_output(timo)
     struct timeval *timo;
 {
@@ -610,6 +611,7 @@ wait_loop_output(timo)
  * wait_time - wait for a given length of time or until a
  * signal is received.
  */
+void
 wait_time(timo)
     struct timeval *timo;
 {
@@ -800,31 +802,6 @@ get_idle_time(u, ip)
     struct ppp_idle *ip;
 {
     return ioctl(ppp_fd, PPPIOCGIDLE, ip) >= 0;
-}
-
-
-/*
- * set_filters - transfer the pass and active filters to the kernel.
- */
-int
-set_filters(pass, active)
-    struct bpf_program *pass, *active;
-{
-    int ret = 1;
-
-    if (pass->bf_len > 0) {
-	if (ioctl(ppp_fd, PPPIOCSPASS, pass) < 0) {
-	    syslog(LOG_ERR, "Couldn't set pass-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    if (active->bf_len > 0) {
-	if (ioctl(ppp_fd, PPPIOCSACTIVE, active) < 0) {
-	    syslog(LOG_ERR, "Couldn't set active-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    return ret;
 }
 
 
