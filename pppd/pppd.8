@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.82 2004/11/13 12:04:02 paulus Exp $
+.\" $Id: pppd.8,v 1.83 2004/11/13 12:22:49 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -137,7 +137,7 @@ specified as a list of hex numbers separated by commas.  Note that
 almost any character can be specified for the \fIescape\fR option,
 unlike the \fIasyncmap\fR option which only allows control characters
 to be specified.  The characters which may not be escaped are those
-with hex values 0x20 \- 0x3f or 0x5e.
+with hex values 0x20 - 0x3f or 0x5e.
 .TP
 .B file \fIname
 Read options from file \fIname\fR (the format is described below).
@@ -188,21 +188,21 @@ if not specified in any option.  Thus, in simple cases, this option is
 not required.  If a local and/or remote IP address is specified with
 this option, pppd
 will not accept a different value from the peer in the IPCP
-negotiation, unless the \fIipcp-accept-local\fR and/or
-\fIipcp-accept-remote\fR options are given, respectively.
+negotiation, unless the \fIipcp\-accept\-local\fR and/or
+\fIipcp\-accept\-remote\fR options are given, respectively.
 .TP
 .B ipv6 \fI<local_interface_identifier>\fR,\fI<remote_interface_identifier>
 Set the local and/or remote 64-bit interface identifier. Either one may be
 omitted. The identifier must be specified in standard ascii notation of
 IPv6 addresses (e.g. ::dead:beef). If the
-\fIipv6cp-use-ipaddr\fR
+\fIipv6cp\-use\-ipaddr\fR
 option is given, the local identifier is the local IPv4 address (see above).
-On systems which supports a unique persistent id, such as EUI-48 derived
-from the Ethernet MAC address, \fIipv6cp-use-persistent\fR option can be
+On systems which supports a unique persistent id, such as EUI\-48 derived
+from the Ethernet MAC address, \fIipv6cp\-use\-persistent\fR option can be
 used to replace the \fIipv6 <local>,<remote>\fR option. Otherwise the 
 identifier is randomized.
 .TP
-.B active-filter \fIfilter-expression
+.B active\-filter \fIfilter\-expression
 Specifies a packet filter to be applied to data packets to determine
 which packets are to be regarded as link activity, and therefore reset
 the idle timer, or cause the link to be brought up in demand-dialling
@@ -210,7 +210,7 @@ mode.  This option is useful in conjunction with the
 \fBidle\fR option if there are packets being sent or received
 regularly over the link (for example, routing information packets)
 which would otherwise prevent the link from ever appearing to be idle.
-The \fIfilter-expression\fR syntax is as described for tcpdump(1),
+The \fIfilter\-expression\fR syntax is as described for tcpdump(1),
 except that qualifiers which are inappropriate for a PPP link, such as
 \fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
 expression should be enclosed in single-quotes to prevent whitespace
@@ -221,13 +221,13 @@ Note that it
 is possible to apply different constraints to incoming and outgoing
 packets using the \fBinbound\fR and \fBoutbound\fR qualifiers.
 .TP
-.B allow-ip \fIaddress(es)
+.B allow\-ip \fIaddress(es)
 Allow peers to use the given IP address or subnet without
 authenticating themselves.  The parameter is parsed as for each
 element of the list of allowed IP addresses in the secrets files (see
 the AUTHENTICATION section below).
 .TP
-.B allow-number \fInumber
+.B allow\-number \fInumber
 Allow peers to connect from the given telephone number.  A trailing
 `*' character will match all numbers beginning with the leading part.
 .TP
@@ -254,19 +254,19 @@ RTS output. Such serial ports use this mode to implement true
 bi-directional flow control. The sacrifice is that this flow
 control mode does not permit using DTR as a modem control line.
 .TP
-.B chap-interval \fIn
+.B chap\-interval \fIn
 If this option is given, pppd will rechallenge the peer every \fIn\fR
 seconds.
 .TP
-.B chap-max-challenge \fIn
+.B chap\-max\-challenge \fIn
 Set the maximum number of CHAP challenge transmissions to \fIn\fR
 (default 10).
 .TP
-.B chap-restart \fIn
+.B chap\-restart \fIn
 Set the CHAP restart interval (retransmission timeout for challenges)
 to \fIn\fR seconds (default 3).
 .TP
-.B child-timeout \fIn
+.B child\-timeout \fIn
 When exiting, wait for up to \fIn\fR seconds for any child processes
 (such as the command specified with the \fBpty\fR command) to exit
 before exiting.  At the end of the timeout, pppd will send a SIGTERM
@@ -274,7 +274,7 @@ signal to any remaining child processes and exit.  A value of 0 means
 no timeout, that is, pppd will wait until all child processes have
 exited.
 .TP
-.B connect-delay \fIn
+.B connect\-delay \fIn
 Wait for up to \fIn\fR milliseconds after the connect script finishes for
 a valid PPP packet from the peer.  At the end of this time, or when a
 valid PPP packet is received from the peer, pppd will commence
@@ -290,11 +290,11 @@ logged through syslog with facility \fIdaemon\fR and level
 \fIdebug\fR.  This information can be directed to a file by setting up
 /etc/syslog.conf appropriately (see syslog.conf(5)).
 .TP
-.B default-asyncmap
+.B default\-asyncmap
 Disable asyncmap negotiation, forcing all control characters to be
 escaped for both the transmit and the receive direction.
 .TP
-.B default-mru
+.B default\-mru
 Disable MRU [Maximum Receive Unit] negotiation.  With this option,
 pppd will use the default MRU value of 1500 bytes for both the
 transmit and receive direction.
@@ -366,29 +366,29 @@ the MAC type, the value may also be the name of an ethernet or similar
 network interface.  This option is currently only available under
 Linux.
 .TP
-.B eap-interval \fIn
+.B eap\-interval \fIn
 If this option is given and pppd authenticates the peer with EAP
 (i.e., is the server), pppd will restart EAP authentication every
-\fIn\fR seconds.  For EAP SRP-SHA1, see also the \fBsrp-interval\fR
+\fIn\fR seconds.  For EAP SRP\-SHA1, see also the \fBsrp\-interval\fR
 option, which enables lightweight rechallenge.
 .TP
-.B eap-max-rreq \fIn
+.B eap\-max\-rreq \fIn
 Set the maximum number of EAP Requests to which pppd will respond (as
 a client) without hearing EAP Success or Failure.  (Default is 20.)
 .TP
-.B eap-max-sreq \fIn
+.B eap\-max\-sreq \fIn
 Set the maximum number of EAP Requests that pppd will issue (as a
 server) while attempting authentication.  (Default is 10.)
 .TP
-.B eap-restart \fIn
+.B eap\-restart \fIn
 Set the retransmit timeout for EAP Requests when acting as a server
 (authenticator).  (Default is 3 seconds.)
 .TP
-.B eap-timeout \fIn
+.B eap\-timeout \fIn
 Set the maximum time to wait for the peer to send an EAP Request when
 acting as a client (authenticatee).  (Default is 20 seconds.)
 .TP
-.B hide-password
+.B hide\-password
 When logging the contents of PAP packets, this option causes pppd to
 exclude the password string from the log.  This is the default.
 .TP
@@ -403,52 +403,52 @@ Specifies that pppd should disconnect if the link is idle for \fIn\fR
 seconds.  The link is idle when no data packets (i.e. IP packets) are
 being sent or received.  Note: it is not advisable to use this option
 with the \fIpersist\fR option without the \fIdemand\fR option.
-If the \fBactive-filter\fR
+If the \fBactive\-filter\fR
 option is given, data packets which are rejected by the specified
 activity filter also count as the link being idle.
 .TP
-.B ipcp-accept-local
+.B ipcp\-accept\-local
 With this option, pppd will accept the peer's idea of our local IP
 address, even if the local IP address was specified in an option.
 .TP
-.B ipcp-accept-remote
+.B ipcp\-accept\-remote
 With this option, pppd will accept the peer's idea of its (remote) IP
 address, even if the remote IP address was specified in an option.
 .TP
-.B ipcp-max-configure \fIn
+.B ipcp\-max\-configure \fIn
 Set the maximum number of IPCP configure-request transmissions to
 \fIn\fR (default 10).
 .TP
-.B ipcp-max-failure \fIn
+.B ipcp\-max\-failure \fIn
 Set the maximum number of IPCP configure-NAKs returned before starting
 to send configure-Rejects instead to \fIn\fR (default 10).
 .TP
-.B ipcp-max-terminate \fIn
+.B ipcp\-max\-terminate \fIn
 Set the maximum number of IPCP terminate-request transmissions to
 \fIn\fR (default 3).
 .TP
-.B ipcp-restart \fIn
+.B ipcp\-restart \fIn
 Set the IPCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
 .B ipparam \fIstring
-Provides an extra parameter to the ip-up and ip-down scripts.  If this
+Provides an extra parameter to the ip\-up and ip\-down scripts.  If this
 option is given, the \fIstring\fR supplied is given as the 6th
 parameter to those scripts.
 .TP
-.B ipv6cp-max-configure \fIn
+.B ipv6cp\-max\-configure \fIn
 Set the maximum number of IPv6CP configure-request transmissions to
 \fIn\fR (default 10).
 .TP
-.B ipv6cp-max-failure \fIn
+.B ipv6cp\-max\-failure \fIn
 Set the maximum number of IPv6CP configure-NAKs returned before starting
 to send configure-Rejects instead to \fIn\fR (default 10).
 .TP
-.B ipv6cp-max-terminate \fIn
+.B ipv6cp\-max\-terminate \fIn
 Set the maximum number of IPv6CP terminate-request transmissions to
 \fIn\fR (default 3).
 .TP
-.B ipv6cp-restart \fIn
+.B ipv6cp\-restart \fIn
 Set the IPv6CP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
@@ -457,61 +457,61 @@ Enable the IPXCP and IPX protocols.  This option is presently only
 supported under Linux, and only if your kernel has been configured to
 include IPX support.
 .TP
-.B ipx-network \fIn
+.B ipx\-network \fIn
 Set the IPX network number in the IPXCP configure request frame to
 \fIn\fR, a hexadecimal number (without a leading 0x).  There is no
 valid default.  If this option is not specified, the network number is
 obtained from the peer.  If the peer does not have the network number,
 the IPX protocol will not be started.
 .TP
-.B ipx-node \fIn\fB:\fIm
+.B ipx\-node \fIn\fB:\fIm
 Set the IPX node numbers. The two node numbers are separated from each
 other with a colon character. The first number \fIn\fR is the local
 node number. The second number \fIm\fR is the peer's node number. Each
 node number is a hexadecimal number, at most 10 digits long. The node
-numbers on the ipx-network must be unique. There is no valid
+numbers on the ipx\-network must be unique. There is no valid
 default. If this option is not specified then the node numbers are
 obtained from the peer.
 .TP
-.B ipx-router-name \fI<string>
+.B ipx\-router\-name \fI<string>
 Set the name of the router. This is a string and is sent to the peer
 as information data.
 .TP
-.B ipx-routing \fIn
+.B ipx\-routing \fIn
 Set the routing protocol to be received by this option. More than one
-instance of \fIipx-routing\fR may be specified. The '\fInone\fR'
-option (0) may be specified as the only instance of ipx-routing. The
+instance of \fIipx\-routing\fR may be specified. The '\fInone\fR'
+option (0) may be specified as the only instance of ipx\-routing. The
 values may be \fI0\fR for \fINONE\fR, \fI2\fR for \fIRIP/SAP\fR, and
 \fI4\fR for \fINLSP\fR.
 .TP
-.B ipxcp-accept-local
-Accept the peer's NAK for the node number specified in the ipx-node
+.B ipxcp\-accept\-local
+Accept the peer's NAK for the node number specified in the ipx\-node
 option. If a node number was specified, and non-zero, the default is
 to insist that the value be used. If you include this option then you
 will permit the peer to override the entry of the node number.
 .TP
-.B ipxcp-accept-network
+.B ipxcp\-accept\-network
 Accept the peer's NAK for the network number specified in the
-ipx-network option. If a network number was specified, and non-zero, the
+ipx\-network option. If a network number was specified, and non-zero, the
 default is to insist that the value be used. If you include this
 option then you will permit the peer to override the entry of the node
 number.
 .TP
-.B ipxcp-accept-remote
+.B ipxcp\-accept\-remote
 Use the peer's network number specified in the configure request
 frame. If a node number was specified for the peer and this option was
 not specified, the peer will be forced to use the value which you have
 specified.
 .TP
-.B ipxcp-max-configure \fIn
+.B ipxcp\-max\-configure \fIn
 Set the maximum number of IPXCP configure request frames which the
 system will send to \fIn\fR. The default is 10.
 .TP
-.B ipxcp-max-failure \fIn
+.B ipxcp\-max\-failure \fIn
 Set the maximum number of IPXCP NAK frames which the local system will
 send before it rejects the options. The default value is 3.
 .TP
-.B ipxcp-max-terminate \fIn
+.B ipxcp\-max\-terminate \fIn
 Set the maximum nuber of IPXCP terminate request frames before the
 local system considers that the peer is not listening to them. The
 default value is 3.
@@ -536,42 +536,42 @@ to 1) if the \fIproxyarp\fR option is used, and will enable the
 dynamic IP address option (i.e. set /proc/sys/net/ipv4/ip_dynaddr to
 1) in demand mode if the local address changes.
 .TP
-.B lcp-echo-failure \fIn
+.B lcp\-echo\-failure \fIn
 If this option is given, pppd will presume the peer to be dead
-if \fIn\fR LCP echo-requests are sent without receiving a valid LCP
-echo-reply.  If this happens, pppd will terminate the
+if \fIn\fR LCP echo\-requests are sent without receiving a valid LCP
+echo\-reply.  If this happens, pppd will terminate the
 connection.  Use of this option requires a non-zero value for the
-\fIlcp-echo-interval\fR parameter.  This option can be used to enable
+\fIlcp\-echo\-interval\fR parameter.  This option can be used to enable
 pppd to terminate after the physical connection has been broken
 (e.g., the modem has hung up) in situations where no hardware modem
 control lines are available.
 .TP
-.B lcp-echo-interval \fIn
-If this option is given, pppd will send an LCP echo-request frame to
+.B lcp\-echo\-interval \fIn
+If this option is given, pppd will send an LCP echo\-request frame to
 the peer every \fIn\fR seconds.  Normally the peer should respond to
-the echo-request by sending an echo-reply.  This option can be used
-with the \fIlcp-echo-failure\fR option to detect that the peer is no
+the echo\-request by sending an echo\-reply.  This option can be used
+with the \fIlcp\-echo\-failure\fR option to detect that the peer is no
 longer connected.
 .TP
-.B lcp-max-configure \fIn
+.B lcp\-max\-configure \fIn
 Set the maximum number of LCP configure-request transmissions to
 \fIn\fR (default 10).
 .TP
-.B lcp-max-failure \fIn
+.B lcp\-max\-failure \fIn
 Set the maximum number of LCP configure-NAKs returned before starting
 to send configure-Rejects instead to \fIn\fR (default 10).
 .TP
-.B lcp-max-terminate \fIn
+.B lcp\-max\-terminate \fIn
 Set the maximum number of LCP terminate-request transmissions to
 \fIn\fR (default 3).
 .TP
-.B lcp-restart \fIn
+.B lcp\-restart \fIn
 Set the LCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
 .B linkname \fIname\fR
 Sets the logical name of the link to \fIname\fR.  Pppd will create a
-file named \fBppp-\fIname\fB.pid\fR in /var/run (or /etc/ppp on some
+file named \fBppp\-\fIname\fB.pid\fR in /var/run (or /etc/ppp on some
 systems) containing its process ID.  This can be useful in determining
 which instance of pppd is responsible for the link to a given peer
 system.  This is a privileged option.
@@ -597,7 +597,7 @@ the user who invoked pppd, in append mode.
 .B login
 Use the system password database for authenticating the peer using
 PAP, and record the user in the system wtmp file.  Note that the peer
-must have an entry in the /etc/ppp/pap-secrets file as well as the
+must have an entry in the /etc/ppp/pap\-secrets file as well as the
 system password database to be allowed access.
 .TP
 .B maxconnect \fIn
@@ -622,7 +622,7 @@ control, as for the \fIcrtscts\fR option.
 Enables the use of PPP multilink; this is an alias for the `multilink'
 option.  This option is currently only available under Linux.
 .TP
-.B mppe-stateful
+.B mppe\-stateful
 Allow MPPE to use stateful mode.  Stateless mode is still attempted first.
 The default is to disallow stateful mode.  
 .TP
@@ -639,15 +639,15 @@ analogous to the MRU for the individual links.  This option is
 currently only available under Linux, and only has any effect if
 multilink is enabled (see the multilink option).
 .TP
-.B ms-dns \fI<addr>
+.B ms\-dns \fI<addr>
 If pppd is acting as a server for Microsoft Windows clients, this
 option allows pppd to supply one or two DNS (Domain Name Server)
 addresses to the clients.  The first instance of this option specifies
 the primary DNS address; the second instance (if given) specifies the
 secondary DNS address.  (This option was present in some older
-versions of pppd under the name \fBdns-addr\fR.)
+versions of pppd under the name \fBdns\-addr\fR.)
 .TP
-.B ms-wins \fI<addr>
+.B ms\-wins \fI<addr>
 If pppd is acting as a server for Microsoft Windows or "Samba"
 clients, this option allows pppd to supply one or two WINS (Windows
 Internet Name Services) server addresses to the clients.  The first
@@ -760,13 +760,13 @@ available under Linux.
 .B nomppe
 Disables MPPE (Microsoft Point to Point Encryption).  This is the default.
 .TP
-.B nomppe-40
-Disable 40\-bit encryption with MPPE.
+.B nomppe\-40
+Disable 40-bit encryption with MPPE.
 .TP
-.B nomppe-128
-Disable 128\-bit encryption with MPPE.
+.B nomppe\-128
+Disable 128-bit encryption with MPPE.
 .TP
-.B nomppe-stateful
+.B nomppe\-stateful
 Disable MPPE stateful mode.  This is the default.
 .TP
 .B nompshortseq
@@ -789,7 +789,7 @@ default unless the \fIpersist\fR or \fIdemand\fR option has been
 specified.
 .TP
 .B nopredictor1
-Do not accept or agree to Predictor-1 compression.
+Do not accept or agree to Predictor\-1 compression.
 .TP
 .B noproxyarp
 Disable the \fIproxyarp\fR option.  The system administrator who
@@ -820,31 +820,31 @@ connection-ID byte from Van Jacobson compressed TCP/IP headers, nor
 ask the peer to do so.
 .TP
 .B papcrypt
-Indicates that all secrets in the /etc/ppp/pap-secrets file which are
+Indicates that all secrets in the /etc/ppp/pap\-secrets file which are
 used for checking the identity of the peer are encrypted, and thus
 pppd should not accept a password which, before encryption, is
-identical to the secret from the /etc/ppp/pap-secrets file.
+identical to the secret from the /etc/ppp/pap\-secrets file.
 .TP
-.B pap-max-authreq \fIn
+.B pap\-max\-authreq \fIn
 Set the maximum number of PAP authenticate-request transmissions to
 \fIn\fR (default 10).
 .TP
-.B pap-restart \fIn
+.B pap\-restart \fIn
 Set the PAP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
-.B pap-timeout \fIn
+.B pap\-timeout \fIn
 Set the maximum time that pppd will wait for the peer to authenticate
 itself with PAP to \fIn\fR seconds (0 means no limit).
 .TP
-.B pass-filter \fIfilter-expression
+.B pass\-filter \fIfilter\-expression
 Specifies a packet filter to applied to data packets being sent or
 received to determine which packets should be allowed to pass.
 Packets which are rejected by the filter are silently discarded.  This
 option can be used to prevent specific network daemons (such as
 routed) using up link bandwidth, or to provide a very basic firewall
 capability.
-The \fIfilter-expression\fR syntax is as described for tcpdump(1),
+The \fIfilter\-expression\fR syntax is as described for tcpdump(1),
 except that qualifiers which are inappropriate for a PPP link, such as
 \fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
 expression should be enclosed in single-quotes to prevent whitespace
@@ -854,7 +854,7 @@ packets using the \fBinbound\fR and \fBoutbound\fR qualifiers. This
 option is currently only available under Linux, and requires that the
 kernel was configured to include PPP filtering support (CONFIG_PPP_FILTER).
 .TP
-.B password \fIpassword-string
+.B password \fIpassword\-string
 Specifies the password to use for authenticating to the peer.  Use
 of this option is discouraged, as the password is likely to be visible
 to other users on the system (for example, by using ps(1)).
@@ -877,12 +877,12 @@ compression, and agree to compress transmitted frames with Predictor-1
 if requested.  This option has no effect unless the kernel driver
 supports Predictor-1 compression.
 .TP
-.B privgroup \fIgroup-name
-Allows members of group \fIgroup-name\fR to use privileged options.
+.B privgroup \fIgroup\-name
+Allows members of group \fIgroup\-name\fR to use privileged options.
 This is a privileged option.  Use of this option requires care as
-there is no guarantee that members of \fIgroup-name\fR cannot use pppd
+there is no guarantee that members of \fIgroup\-name\fR cannot use pppd
 to become root themselves.  Consider it equivalent to putting the
-members of \fIgroup-name\fR in the kmem or disk group.
+members of \fIgroup\-name\fR in the kmem or disk group.
 .TP
 .B proxyarp
 Add an entry to this system's ARP [Address Resolution Protocol] table
@@ -900,7 +900,7 @@ device name may not be given if this option is used.  (Note: if the
 \fIrecord\fR option is used in conjuction with the \fIpty\fR option,
 the child process will have pipes on its standard input and output.)
 .TP
-.B receive-all
+.B receive\-all
 With this option, pppd will accept all control characters from the
 peer, including those marked in the receive asyncmap.  Without this
 option, pppd will discard those characters as specified in RFC1662.
@@ -924,61 +924,61 @@ to \fIname\fR.
 Set the assumed telephone number of the remote system for authentication
 purposes to \fInumber\fR.
 .TP
-.B refuse-chap
+.B refuse\-chap
 With this option, pppd will not agree to authenticate itself to the
 peer using CHAP.
 .TP
-.B refuse-mschap
+.B refuse\-mschap
 With this option, pppd will not agree to authenticate itself to the
-peer using MS-CHAP.
+peer using MS\-CHAP.
 .TP
-.B refuse-mschap-v2
+.B refuse\-mschap\-v2
 With this option, pppd will not agree to authenticate itself to the
-peer using MS-CHAPv2.
+peer using MS\-CHAPv2.
 .TP
-.B refuse-eap
+.B refuse\-eap
 With this option, pppd will not agree to authenticate itself to the
 peer using EAP.
 .TP
-.B refuse-pap
+.B refuse\-pap
 With this option, pppd will not agree to authenticate itself to the
 peer using PAP.
 .TP
-.B require-chap
+.B require\-chap
 Require the peer to authenticate itself using CHAP [Challenge
 Handshake Authentication Protocol] authentication.
 .TP
-.B require-mppe
+.B require\-mppe
 Require the use of MPPE (Microsoft Point to Point Encryption).  This
 option disables all other compression types.  This option enables
-both 40\-bit and 128\-bit encryption.  In order for MPPE to successfully
-come up, you must have authenticated with either MS-CHAP or MS-CHAPv2.
+both 40-bit and 128-bit encryption.  In order for MPPE to successfully
+come up, you must have authenticated with either MS\-CHAP or MS\-CHAPv2.
 This option is presently only supported under Linux, and only if your
 kernel has been configured to include MPPE support.
 .TP
-.B require-mppe-40
-Require the use of MPPE, with 40\-bit encryption.
+.B require\-mppe\-40
+Require the use of MPPE, with 40-bit encryption.
 .TP
-.B require-mppe-128
-Require the use of MPPE, with 128\-bit encryption.
+.B require\-mppe\-128
+Require the use of MPPE, with 128-bit encryption.
 .TP
-.B require-mschap
-Require the peer to authenticate itself using MS-CHAP [Microsoft Challenge
+.B require\-mschap
+Require the peer to authenticate itself using MS\-CHAP [Microsoft Challenge
 Handshake Authentication Protocol] authentication.
 .TP
-.B require-mschap-v2
-Require the peer to authenticate itself using MS-CHAPv2 [Microsoft Challenge
+.B require\-mschap\-v2
+Require the peer to authenticate itself using MS\-CHAPv2 [Microsoft Challenge
 Handshake Authentication Protocol, Version 2] authentication.
 .TP
-.B require-eap
+.B require\-eap
 Require the peer to authenticate itself using EAP [Extensible
 Authentication Protocol] authentication.
 .TP
-.B require-pap
+.B require\-pap
 Require the peer to authenticate itself using PAP [Password
 Authentication Protocol] authentication.
 .TP
-.B show-password
+.B show\-password
 When logging the contents of PAP packets, this option causes pppd to
 show the password string in the log message.
 .TP
@@ -987,15 +987,15 @@ With this option, pppd will not transmit LCP packets to initiate a
 connection until a valid LCP packet is received from the peer (as for
 the `passive' option with ancient versions of pppd).
 .TP
-.B srp-interval \fIn
-If this parameter is given and pppd uses EAP SRP-SHA1 to authenticate
+.B srp\-interval \fIn
+If this parameter is given and pppd uses EAP SRP\-SHA1 to authenticate
 the peer (i.e., is the server), then pppd will use the optional
 lightweight SRP rechallenge mechanism at intervals of \fIn\fR
-seconds.  This option is faster than \fBeap-interval\fR
-reauthentication because it uses a hash-based mechanism and does not
+seconds.  This option is faster than \fBeap\-interval\fR
+reauthentication because it uses a hash\-based mechanism and does not
 derive a new session key.
 .TP
-.B srp-pn-secret \fIstring
+.B srp\-pn\-secret \fIstring
 Set the long-term pseudonym-generating secret for the server.  This
 value is optional and if set, needs to be known at the server
 (authenticator) side only, and should be different for each server (or
@@ -1003,8 +1003,8 @@ poll of identical servers).  It is used along with the current date to
 generate a key to encrypt and decrypt the client's identity contained
 in the pseudonym.
 .TP
-.B srp-use-pseudonym
-When operating as an EAP SRP-SHA1 client, attempt to use the pseudonym
+.B srp\-use\-pseudonym
+When operating as an EAP SRP\-SHA1 client, attempt to use the pseudonym
 stored in ~/.ppp_psuedonym first as the identity, and save in this
 file any pseudonym offered by the peer during authentication.
 .TP
@@ -1032,7 +1032,7 @@ the \fIname\fR option).  This option is not normally needed since the
 .TP
 .B usepeerdns
 Ask the peer for up to 2 DNS server addresses.  The addresses supplied
-by the peer (if any) are passed to the /etc/ppp/ip-up script in the
+by the peer (if any) are passed to the /etc/ppp/ip\-up script in the
 environment variables DNS1 and DNS2, and the environment variable
 USEPEERDNS will be set to 1.  In addition, pppd will create an
 /etc/ppp/resolv.conf file containing one or two nameserver lines with
@@ -1042,7 +1042,7 @@ the address(es) supplied by the peer.
 Sets the name used for authenticating the local system to the peer to
 \fIname\fR.
 .TP
-.B vj-max-slots \fIn
+.B vj\-max\-slots \fIn
 Sets the number of connection slots to be used by the Van Jacobson
 TCP/IP header compression and decompression code to \fIn\fR, which
 must be between 2 and 16 (inclusive).
@@ -1139,7 +1139,7 @@ challenge packet includes the server's name).  The client must respond
 with a response which includes its name plus a hash value derived from
 the shared secret and the challenge, in order to prove that it knows
 the secret.  EAP supports CHAP-style authentication, and also includes
-the SRP-SHA1 mechanism, which is resistant to dictionary-based attacks
+the SRP\-SHA1 mechanism, which is resistant to dictionary-based attacks
 and does not require a cleartext password on the server side.
 .LP
 The PPP protocol, being symmetrical, allows both peers to require the
@@ -1154,16 +1154,16 @@ pppd will not agree to authenticate itself with a particular protocol
 if it has no secrets which could be used to do so.
 .LP
 Pppd stores secrets for use in authentication in secrets
-files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP,
-MS-CHAP, MS-CHAPv2, and EAP MD5-Challenge, and /etc/ppp/srp-secrets
-for EAP SRP-SHA1).
+files (/etc/ppp/pap\-secrets for PAP, /etc/ppp/chap\-secrets for CHAP,
+MS\-CHAP, MS\-CHAPv2, and EAP MD5-Challenge, and /etc/ppp/srp\-secrets
+for EAP SRP\-SHA1).
 All secrets files have the same format.  The secrets files can
 contain secrets for pppd to use in authenticating itself to other
 systems, as well as secrets for pppd to use when authenticating other
 systems to itself.
 .LP
 Each line in a secrets file contains one secret.  A given secret is
-specific to a particular combination of client and server \- it can
+specific to a particular combination of client and server - it can
 only be used by that client to authenticate itself to that server.
 Thus each line in a secrets file has at least 3 fields: the name of
 the client, the name of the server, and the secret.  These fields may
@@ -1183,7 +1183,7 @@ best match, i.e.  the match with the fewest wildcards.
 .LP
 Any following words on the same line are taken to be a list of
 acceptable IP addresses for that client.  If there are only 3 words on
-the line, or if the first word is "-", then all IP addresses are
+the line, or if the first word is "\-", then all IP addresses are
 disallowed.  To allow any address, use "*".  A word starting with "!"
 indicates that the specified address is \fInot\fR acceptable.  An
 address may be followed by "/" and a number \fIn\fR, to indicate a
@@ -1202,8 +1202,8 @@ field and the name of the local system in the second field.  The
 name of the local system defaults to the hostname, with the domain
 name appended if the \fIdomain\fR option is used.  This default can be
 overridden with the \fIname\fR option, except when the
-\fIusehostname\fR option is used.  (For EAP SRP-SHA1, see the
-srp-entry(8) utility for generating proper validator entries to be
+\fIusehostname\fR option is used.  (For EAP SRP\-SHA1, see the
+srp\-entry(8) utility for generating proper validator entries to be
 used in the "secret" field.)
 .LP
 When pppd is choosing a secret to use in authenticating itself to the
@@ -1232,10 +1232,10 @@ omitted, for better security.
 .LP
 Furthermore, if the \fIlogin\fR option was specified, the username and
 password are also checked against the system password database.  Thus,
-the system administrator can set up the pap-secrets file to allow PPP
+the system administrator can set up the pap\-secrets file to allow PPP
 access only to certain users, and to restrict the set of IP addresses
 that each user can use.  Typically, when using the \fIlogin\fR option,
-the secret in /etc/ppp/pap-secrets would be "", which will match any
+the secret in /etc/ppp/pap\-secrets would be "", which will match any
 password supplied by the peer.  This avoids the need to have the same
 secret in two places.
 .LP
@@ -1252,7 +1252,7 @@ IP addresses, even when the local host generally requires
 authentication.  If the peer refuses to authenticate itself when
 requested, pppd takes that as equivalent to authenticating with PAP
 using the empty string for the username and password.  Thus, by adding
-a line to the pap-secrets file which specifies the empty string for
+a line to the pap\-secrets file which specifies the empty string for
 the client and password, it is possible to allow restricted access to
 hosts which refuse to authenticate themselves.
 .SH ROUTING
@@ -1265,7 +1265,7 @@ Communication with other machines generally requires further
 modification to routing tables and/or ARP (Address Resolution
 Protocol) tables.  In most cases the \fIdefaultroute\fR and/or
 \fIproxyarp\fR options are sufficient for this, but in some cases
-further intervention is required.  The /etc/ppp/ip-up script can be
+further intervention is required.  The /etc/ppp/ip\-up script can be
 used for this.
 .LP
 Sometimes it is desirable to add a default route through the remote
@@ -1304,7 +1304,7 @@ authenticated identity of the peer (if it authenticates itself).  The
 endpoint discriminator is a block of data which is hopefully unique
 for each peer.  Several types of data can be used, including
 locally-assigned strings of bytes, IP addresses, MAC addresses,
-randomly strings of bytes, or E-164 phone numbers.  The endpoint
+randomly strings of bytes, or E\-164 phone numbers.  The endpoint
 discriminator sent to the peer by pppd can be set using the endpoint
 option.
 .LP
@@ -1351,12 +1351,12 @@ administrator to contain something like this:
 .IP
 ttyS0 19200 crtscts
 .br
-connect '/usr/sbin/chat -v -f /etc/ppp/chat-isp'
+connect '/usr/sbin/chat \-v \-f /etc/ppp/chat\-isp'
 .br
 noauth
 .LP
 In this example, we are using chat to dial the ISP's modem and go
-through any logon sequence required.  The /etc/ppp/chat-isp file
+through any logon sequence required.  The /etc/ppp/chat\-isp file
 contains the script used by chat; it could for example contain
 something like this:
 .IP
@@ -1384,7 +1384,7 @@ OK "atdt2468135"
 .br
 "ispts" "\\q^Uppp"
 .br
-"~-^Uppp-~"
+"~\-^Uppp\-~"
 .LP
 See the chat(8) man page for details of chat scripts.
 .LP
@@ -1397,18 +1397,18 @@ pppd proxyarp
 .LP
 To allow a user to use the PPP facilities, you need to allocate an IP
 address for that user's machine and create an entry in
-/etc/ppp/pap-secrets, /etc/ppp/chap-secrets, or /etc/ppp/srp-secrets
+/etc/ppp/pap\-secrets, /etc/ppp/chap\-secrets, or /etc/ppp/srp\-secrets
 (depending on which authentication method the PPP implementation on
 the user's machine supports), so that the user's machine can
 authenticate itself.  For example, if Joe has a machine called
 "joespc" that is to be allowed to dial in to the machine called
 "server" and use the IP address joespc.my.net, you would add an entry
-like this to /etc/ppp/pap-secrets or /etc/ppp/chap-secrets:
+like this to /etc/ppp/pap\-secrets or /etc/ppp/chap\-secrets:
 .IP
 joespc	server	"joe's secret"	joespc.my.net
 .LP
-(See srp-entry(8) for a means to generate the server's entry when
-SRP-SHA1 is in use.)
+(See srp\-entry(8) for a means to generate the server's entry when
+SRP\-SHA1 is in use.)
 Alternatively, you can create a username called (for example) "ppp",
 whose login shell is pppd and whose home directory is /etc/ppp.
 Options to be used when pppd is run this way can be put in
@@ -1587,57 +1587,57 @@ second DNS server address supplied.
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
 .TP
-.B /etc/ppp/auth-up
+.B /etc/ppp/auth\-up
 A program or script which is executed after the remote system
 successfully authenticates itself.  It is executed with the parameters
 .IP
-\fIinterface-name peer-name user-name tty-device speed\fR
+\fIinterface\-name peer\-name user\-name tty\-device speed\fR
 .IP
 Note that this script is not executed if the peer doesn't authenticate
 itself, for example when the \fInoauth\fR option is used.
 .TP
-.B /etc/ppp/auth-down
+.B /etc/ppp/auth\-down
 A program or script which is executed when the link goes down, if
-/etc/ppp/auth-up was previously executed.  It is executed in the same
-manner with the same parameters as /etc/ppp/auth-up.
+/etc/ppp/auth\-up was previously executed.  It is executed in the same
+manner with the same parameters as /etc/ppp/auth\-up.
 .TP
-.B /etc/ppp/ip-up
+.B /etc/ppp/ip\-up
 A program or script which is executed when the link is available for
 sending and receiving IP packets (that is, IPCP has come up).  It is
 executed with the parameters
 .IP
-\fIinterface-name tty-device speed local-IP-address
-remote-IP-address ipparam\fR
+\fIinterface\-name tty\-device speed local\-IP\-address
+remote\-IP\-address ipparam\fR
 .TP
-.B /etc/ppp/ip-down
+.B /etc/ppp/ip\-down
 A program or script which is executed when the link is no longer
 available for sending and receiving IP packets.  This script can be
-used for undoing the effects of the /etc/ppp/ip-up script.  It is
-invoked in the same manner and with the same parameters as the ip-up
+used for undoing the effects of the /etc/ppp/ip\-up script.  It is
+invoked in the same manner and with the same parameters as the ip\-up
 script.
 .TP
-.B /etc/ppp/ipv6-up
-Like /etc/ppp/ip-up, except that it is executed when the link is available 
+.B /etc/ppp/ipv6\-up
+Like /etc/ppp/ip\-up, except that it is executed when the link is available 
 for sending and receiving IPv6 packets. It is executed with the parameters
 .IP
-\fIinterface-name tty-device speed local-link-local-address
-remote-link-local-address ipparam\fR
+\fIinterface\-name tty\-device speed local\-link\-local\-address
+remote\-link\-local\-address ipparam\fR
 .TP
-.B /etc/ppp/ipv6-down
-Similar to /etc/ppp/ip-down, but it is executed when IPv6 packets can no
+.B /etc/ppp/ipv6\-down
+Similar to /etc/ppp/ip\-down, but it is executed when IPv6 packets can no
 longer be transmitted on the link. It is executed with the same parameters 
-as the ipv6-up script.
+as the ipv6\-up script.
 .TP
-.B /etc/ppp/ipx-up
+.B /etc/ppp/ipx\-up
 A program or script which is executed when the link is available for
 sending and receiving IPX packets (that is, IPXCP has come up).  It is
 executed with the parameters
 .IP
-\fIinterface-name tty-device speed network-number local-IPX-node-address
-remote-IPX-node-address local-IPX-routing-protocol remote-IPX-routing-protocol
-local-IPX-router-name remote-IPX-router-name ipparam pppd-pid\fR 
+\fIinterface\-name tty\-device speed network\-number local\-IPX\-node\-address
+remote\-IPX\-node\-address local\-IPX\-routing\-protocol remote\-IPX\-routing\-protocol
+local\-IPX\-router\-name remote\-IPX\-router\-name ipparam pppd\-pid\fR 
 .IP
-The local-IPX-routing-protocol and remote-IPX-routing-protocol field
+The local\-IPX\-routing\-protocol and remote\-IPX\-routing\-protocol field
 may be one of the following:
 .IP
 NONE      to indicate that there is no routing protocol
@@ -1648,19 +1648,19 @@ NLSP      to indicate that Novell NLSP should be used
 .br
 RIP NLSP  to indicate that both RIP/SAP and NLSP should be used
 .TP
-.B /etc/ppp/ipx-down
+.B /etc/ppp/ipx\-down
 A program or script which is executed when the link is no longer
 available for sending and receiving IPX packets.  This script can be
-used for undoing the effects of the /etc/ppp/ipx-up script.  It is
-invoked in the same manner and with the same parameters as the ipx-up
+used for undoing the effects of the /etc/ppp/ipx\-up script.  It is
+invoked in the same manner and with the same parameters as the ipx\-up
 script.
 .SH FILES
 .TP
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.
 .TP
-.B /var/run/ppp-\fIname\fB.pid \fR(BSD or Linux),
-\fB/etc/ppp/ppp-\fIname\fB.pid \fR(others)
+.B /var/run/ppp\-\fIname\fB.pid \fR(BSD or Linux),
+\fB/etc/ppp/ppp\-\fIname\fB.pid \fR(others)
 Process-ID for pppd process for logical link \fIname\fR (see the
 \fIlinkname\fR option).
 .TP
@@ -1670,25 +1670,25 @@ links, used for matching links to bundles in multilink operation.  May
 be examined by external programs to obtain information about running
 pppd instances, the interfaces and devices they are using, IP address
 assignments, etc.
-.B /etc/ppp/pap-secrets
+.B /etc/ppp/pap\-secrets
 Usernames, passwords and IP addresses for PAP authentication.  This
 file should be owned by root and not readable or writable by any other
 user.  Pppd will log a warning if this is not the case.
 .TP
-.B /etc/ppp/chap-secrets
-Names, secrets and IP addresses for CHAP/MS-CHAP/MS-CHAPv2 authentication.
-As for /etc/ppp/pap-secrets, this file should be owned by root and not
+.B /etc/ppp/chap\-secrets
+Names, secrets and IP addresses for CHAP/MS\-CHAP/MS\-CHAPv2 authentication.
+As for /etc/ppp/pap\-secrets, this file should be owned by root and not
 readable or writable by any other user.  Pppd will log a warning if
 this is not the case.
 .TP
-.B /etc/ppp/srp-secrets
+.B /etc/ppp/srp\-secrets
 Names, secrets, and IP addresses for EAP authentication.  As for
-/etc/ppp/pap-secrets, this file should be owned by root and not
+/etc/ppp/pap\-secrets, this file should be owned by root and not
 readable or writable by any other user.  Pppd will log a warning if
 this is not the case.
 .TP
 .B ~/.ppp_pseudonym
-Saved client-side SRP-SHA1 pseudonym.  See the \fIsrp-use-pseudonym\fR
+Saved client-side SRP\-SHA1 pseudonym.  See the \fIsrp\-use\-pseudonym\fR
 option for details.
 .TP
 .B /etc/ppp/options
@@ -1735,7 +1735,7 @@ October 1992.
 .TP
 .B RFC1661
 Simpson, W.A.
-.I The Point\-to\-Point Protocol (PPP).
+.I The Point-to-Point Protocol (PPP).
 July 1994.
 .TP
 .B RFC1662
@@ -1758,9 +1758,9 @@ Wu, T.,
 .I The SRP Authentication and Key Exchange System
 September 2000.
 .TP
-.B draft-ietf-pppext-eap-srp-03.txt
+.B draft\-ietf\-pppext\-eap\-srp\-03.txt
 Carlson, J.; et al.,
-.I EAP SRP-SHA1 Authentication Protocol.
+.I EAP SRP\-SHA1 Authentication Protocol.
 July 2001.
 .SH NOTES
 Some limited degree of control can be exercised over a running pppd

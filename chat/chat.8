@@ -1,6 +1,6 @@
 .\" -*- nroff -*-
 .\" manual page [] for chat 1.8
-.\" $Id: chat.8,v 1.10 2002/01/11 18:02:45 etbe Exp $
+.\" $Id: chat.8,v 1.11 2004/11/13 12:22:49 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -23,81 +23,81 @@ connection between the Point-to-Point Protocol Daemon (\fIpppd\fR) and
 the remote's \fIpppd\fR process.
 .SH OPTIONS
 .TP
-.B -f \fI<chat file>
+.B \-f \fI<chat file>
 Read the chat script from the chat \fIfile\fR. The use of this option
 is mutually exclusive with the chat script parameters. The user must
 have read access to the file. Multiple lines are permitted in the
 file. Space or horizontal tab characters should be used to separate
 the strings.
 .TP
-.B -t \fI<timeout>
+.B \-t \fI<timeout>
 Set the timeout for the expected string to be received. If the string
 is not received within the time limit then the reply string is not
 sent. An alternate reply may be sent or the script will fail if there
 is no alternate reply string. A failed script will cause the
 \fIchat\fR program to terminate with a non-zero error code.
 .TP
-.B -r \fI<report file>
+.B \-r \fI<report file>
 Set the file for output of the report strings. If you use the keyword
 \fIREPORT\fR, the resulting strings are written to this file. If this
 option is not used and you still use \fIREPORT\fR keywords, the
 \fIstderr\fR file is used for the report strings.
 .TP
-.B -e
+.B \-e
 Start with the echo option turned on. Echoing may also be turned on
 or off at specific points in the chat script by using the \fIECHO\fR
 keyword. When echoing is enabled, all output from the modem is echoed
 to \fIstderr\fR.
 .TP
-.B -E
+.B \-E
 Enables environment variable substituion within chat scripts using the
 standard \fI$xxx\fR syntax.
 .TP
-.B -v
+.B \-v
 Request that the \fIchat\fR script be executed in a verbose mode. The
 \fIchat\fR program will then log the execution state of the chat
 script as well as all text received from the modem and the output
 strings sent to the modem.  The default is to log through the SYSLOG;
-the logging method may be altered with the -S and -s flags.
+the logging method may be altered with the \-S and \-s flags.
 .TP
-.B -V
+.B \-V
 Request that the \fIchat\fR script be executed in a stderr verbose
 mode. The \fIchat\fR program will then log all text received from the
 modem and the output strings sent to the modem to the stderr device. This
 device is usually the local console at the station running the chat or
 pppd program.
 .TP
-.B -s
-Use stderr.  All log messages from '-v' and all error messages will be
+.B \-s
+Use stderr.  All log messages from '\-v' and all error messages will be
 sent to stderr.
 .TP
-.B -S
+.B \-S
 Do not use the SYSLOG.  By default, error messages are sent to the
-SYSLOG.  The use of -S will prevent both log messages from '-v' and
+SYSLOG.  The use of \-S will prevent both log messages from '\-v' and
 error messages from being sent to the SYSLOG.
 .TP
-.B -T \fI<phone number>
+.B \-T \fI<phone number>
 Pass in an arbitary string, usually a phone number, that will be
 substituted for the \\T substitution metacharacter in a send string.
 .TP
-.B -U \fI<phone number 2>
+.B \-U \fI<phone number 2>
 Pass in a second string, usually a phone number, that will be
 substituted for the \\U substitution metacharacter in a send string.
 This is useful when dialing an ISDN terminal adapter that requires two 
 numbers.
 .TP
 .B script
-If the script is not specified in a file with the \fI-f\fR option then
+If the script is not specified in a file with the \fI\-f\fR option then
 the script is included as parameters to the \fIchat\fR program.
 .SH CHAT SCRIPT
 .LP
 The \fIchat\fR script defines the communications.
 .LP
-A script consists of one or more "expect-send" pairs of strings,
-separated by spaces, with an optional "subexpect-subsend" string pair,
+A script consists of one or more "expect\-send" pairs of strings,
+separated by spaces, with an optional "subexpect\-subsend" string pair,
 separated by a dash as in the following example:
 .IP
-ogin:-BREAK-ogin: ppp ssword: hello2u2
+ogin:\-BREAK\-ogin: ppp ssword: hello2u2
 .LP
 This line indicates that the \fIchat\fR program should expect the string
 "ogin:". If it fails to receive a login prompt within the time interval
@@ -136,7 +136,7 @@ In actual practice, simple scripts are rare. At the vary least, you
 should include sub-expect sequences should the original string not be
 received. For example, consider the following script:
 .IP
-ogin:--ogin: ppp ssword: hello2u2
+ogin:\-\-ogin: ppp ssword: hello2u2
 .LP
 This would be a better script than the simple one used earlier. This would look
 for the same login: prompt, however, if one was not received, a single
@@ -200,7 +200,7 @@ The \fBSAY\fR directive allows the script to send strings to the user
 at the terminal via standard error.  If \fBchat\fR is being run by
 pppd, and pppd is running as a daemon (detached from its controlling
 terminal), standard error will normally be redirected to the file
-/etc/ppp/connect-errors.
+/etc/ppp/connect\-errors.
 .LP
 \fBSAY\fR strings must be enclosed in single or double quotes. If
 carriage return and line feed are needed in the string to be output,
@@ -268,7 +268,7 @@ This sequence will expect nothing; and then send the string
 ATDT5551212 to dial the telephone. The expected string is
 \fICONNECT\fR. If the string \fICONNECT\fR is received the remainder
 of the script is executed. In addition the program will write to the
-expect-file the string "CONNECT" plus any characters which follow it
+expect\-file the string "CONNECT" plus any characters which follow it
 such as the connection rate.
 .SH CLR_REPORT STRINGS
 This sequence allows for clearing previously set \fBREPORT\fR strings.
@@ -277,8 +277,8 @@ compilation time); \fBCLR_REPORT\fR will reclaim the space for cleared
 entries so that new strings can use that space.
 .SH ECHO
 The echo options controls whether the output from the modem is echoed
-to \fIstderr\fR. This option may be set with the \fI-e\fR option, but
-it can also be controlled by the \fIECHO\fR keyword. The "expect-send"
+to \fIstderr\fR. This option may be set with the \fI\-e\fR option, but
+it can also be controlled by the \fIECHO\fR keyword. The "expect\-send"
 pair \fIECHO\fR \fION\fR enables echoing, and \fIECHO\fR \fIOFF\fR
 disables it. With this keyword you can select which parts of the
 conversation should be visible. For instance, with the following
@@ -342,18 +342,18 @@ HANGUP ON
 .br
 ABORT "NO CARRIER"
 .br
-ogin:--BREAK--ogin: real_account
+ogin:\-\-BREAK\-\-ogin: real_account
 .br
 \fIetc ...\fR
 .LP
 .SH TIMEOUT
-The initial timeout value is 45 seconds. This may be changed using the \fB-t\fR
+The initial timeout value is 45 seconds. This may be changed using the \fB\-t\fR
 parameter.
 .LP
 To change the timeout value for the next expect string, the following
 example may be used:
 .IP
-ATZ OK ATDT5551212 CONNECT TIMEOUT 10 ogin:--ogin: TIMEOUT 5 assword: hello2u2
+ATZ OK ATDT5551212 CONNECT TIMEOUT 10 ogin:\-\-ogin: TIMEOUT 5 assword: hello2u2
 .LP
 This will change the timeout to 10 seconds when it expects the login:
 prompt. The timeout is then changed to 5 seconds when it looks for the
@@ -434,11 +434,11 @@ sequence 'HI TIM' and HI\\sTIM are the same.
 Send or expect a tab character.
 .TP
 .B \\\\T
-Send the phone number string as specified with the \fI-T\fR option
+Send the phone number string as specified with the \fI\-T\fR option
 .I (not valid in expect.)
 .TP
 .B \\\\U
-Send the phone number 2 string as specified with the \fI-U\fR option
+Send the phone number 2 string as specified with the \fI\-U\fR option
 .I (not valid in expect.)
 .TP
 .B \\\\\\\\
@@ -454,7 +454,7 @@ Substitute the sequence with the control character represented by C.
 For example, the character DC1 (17) is shown as \^^Q.
 .I (some characters are not valid in expect.)
 .SH ENVIRONMENT VARIABLES
-Environment variables are available within chat scripts, if  the \fI-E\fR
+Environment variables are available within chat scripts, if  the \fI\-E\fR
 option was specified in the command line. The metacharacter \fI$\fR is used
 to introduce the name of the environment variable to substitute. If the
 substition fails, because the requested environment variable is not set,
@@ -479,7 +479,7 @@ a signal such as SIGINT.
 .TP
 .B 3
 A timeout event occurred when there was an \fIexpect\fR string without
-having a "-subsend" string. This may mean that you did not program the
+having a "\-subsend" string. This may mean that you did not program the
 script correctly for the condition or that some unexpected event has
 occurred and the expected string could not be found.
 .TP

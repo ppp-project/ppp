@@ -8,10 +8,10 @@
 pon, poff, plog \- starts up, shuts down or lists the log of PPP connections
 .SH SYNOPSIS
 .B pon
-[ isp-name [ options ] ]
+[ isp\-name [ options ] ]
 .br
 .B poff
-[ -r ] [ -d ] [ -c ] [ -a ] [ -h ] [ isp-name ]
+[ \-r ] [ \-d ] [ \-c ] [ \-a ] [ \-h ] [ isp\-name ]
 .br
 .B plog
 [ arguments ]
@@ -23,7 +23,7 @@ scripts, which allow users to control PPP connections.
 \fBpon\fP, invoked without arguments, runs the \fI/etc/ppp/ppp_on_boot\fP
 file, if it exists and is executable. Otherwise, a PPP connection will be
 started using configuration from \fI/etc/ppp/peers/provider\fP.
-This is the default behaviour unless an \fBisp-name\fP argument is given.
+This is the default behaviour unless an \fBisp\-name\fP argument is given.
 .PP
 For instance, to use ISP configuration "myisp" run:
 .IP
@@ -57,7 +57,7 @@ causes
 to renegotiate compression.
 .TP
 .B "\-a"
-stops all running ppp connections. If the argument \fBisp-name\fP
+stops all running ppp connections. If the argument \fBisp\-name\fP
 is given it will be ignored.
 .TP
 .B "\-h"
@@ -85,17 +85,17 @@ administrator in group "adm", due to security reasons. Also, to have all
 pppd-generated information in one logfile, that plog can show, you need the
 following line in your \fI/etc/syslog.conf\fP file:
 .PP
-local2.*		-/var/log/ppp.log
+local2.*		\-/var/log/ppp.log
 .RE
 .SH FILES
 .TP
 .I /etc/ppp/options
 PPPd system options file.
 .TP
-.I /etc/ppp/pap-secrets
+.I /etc/ppp/pap\-secrets
 System PAP passwords file.
 .TP
-.I /etc/ppp/chap-secrets
+.I /etc/ppp/chap\-secrets
 System CHAP passwords file.
 .TP
 .I /etc/ppp/peers/
