@@ -46,8 +46,17 @@
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
 #define PPP_HDRLEN	4	/* sizeof(struct ppp_header) must be 4 */
 
+/*
+ * A 32-bit unsigned integral type.
+ */
+#ifdef	UINT32_T
+typedef UINT32_T	u_int32_t;
+#else
+typedef unsigned long	u_int32_t;
+#endif
+
 /* Extended asyncmap - allows any character to be escaped. */
-typedef u_long	ext_accm[8];
+typedef u_int32_t	ext_accm[8];
 
 /*
  * Statistics.
@@ -101,6 +110,14 @@ struct ppp_option_data {
 	u_char	opt_data[MAX_PPP_OPTION];
 };
 
+/* Bit definitions for SIOC[GS]IFCOMP. */
+#define CCP_ISOPEN	1
+#define CCP_ISUP	2
+#define CCP_COMP_RUN	4
+#define CCP_DECOMP_RUN	8
+#define CCP_ERROR	0x10
+#define CCP_FATALERROR	0x20
+
 /*
  * Ioctl definitions.
  */
@@ -110,22 +127,23 @@ struct ppp_option_data {
 #define	SIOCSIFCOMPPROT	_IOW('p', 131, char)
 #define	SIOCSIFMRU	_IOW('p', 132, int)	/* set max receive unit */
 #define	SIOCGIFMRU	_IOR('p', 133, int)	/* get max receive unit */
-#define	SIOCGIFASYNCMAP	_IOR('p', 134, long)	/* get transmit async map */
-#define	SIOCSIFASYNCMAP	_IOW('p', 135, long)	/* set transmit async map */
+#define	SIOCGIFASYNCMAP	_IOR('p', 134, u_int32_t) /* get transmit async map */
+#define	SIOCSIFASYNCMAP	_IOW('p', 135, u_int32_t) /* set transmit async map */
 #define	SIOCGETU	_IOR('p', 136, int)	/* get unit number */
 #define	SIOCSIFVJCOMP	_IOW('p', 137, char)	/* enable/disable VJ comp */
 #define	SIOCGIFDEBUG	_IOR('p', 138, int)	/* get debug flags */
 #define	SIOCSIFDEBUG	_IOW('p', 139, int)	/* set debug flags */
-#define	SIOCGIFRASYNCMAP _IOR('p', 140, long)	/* get receive async map */
-#define	SIOCSIFRASYNCMAP _IOW('p', 141, long)	/* set receive async map */
+#define	SIOCGIFRASYNCMAP _IOR('p', 140, u_int32_t) /* get receive async map */
+#define	SIOCSIFRASYNCMAP _IOW('p', 141, u_int32_t) /* set receive async map */
 #define	SIOCGIFXASYNCMAP _IOR('p', 142, ext_accm)  /* get extended xmit map */
 #define	SIOCSIFXASYNCMAP _IOW('p', 143, ext_accm)  /* set extended xmit map */
 #define	SIOCSETU	_IOW('p', 144, int)	/* set unit number */
 #define SIOCSETNPMODE	_IOW('p', 145, struct npioctl)	/* set NP mode */
 #define SIOCGETNPMODE	_IOWR('p', 146, struct npioctl)	/* get NP mode */
 #define SIOCGETSTATS	_IOR('p', 147, struct ppp_stats)
-#define SIOCSIFCOMP	_IOW('p', 148, int)	/* set CCP closed/open/up */
-#define SIOCSCOMPRESS	_IOW('p', 149, struct ppp_option_data)
+#define SIOCGIFCOMP	_IOR('p', 148, int)	/* get CCP kernel flags */
+#define SIOCSIFCOMP	_IOW('p', 149, int)	/* set CCP closed/open/up */
+#define SIOCSCOMPRESS	_IOW('p', 150, struct ppp_option_data)
 
 #else
 /* traditional C compiler */
@@ -133,24 +151,23 @@ struct ppp_option_data {
 #define	SIOCSIFCOMPPROT	_IOW(p, 131, char)
 #define	SIOCSIFMRU	_IOW(p, 132, int)	/* set max receive unit */
 #define	SIOCGIFMRU	_IOR(p, 133, int)	/* get max receive unit */
-#define	SIOCGIFASYNCMAP	_IOR(p, 134, long)	/* get transmit async map */
-#define	SIOCSIFASYNCMAP	_IOW(p, 135, long)	/* set transmit async map */
+#define	SIOCGIFASYNCMAP	_IOR(p, 134, u_int32_t)	/* get transmit async map */
+#define	SIOCSIFASYNCMAP	_IOW(p, 135, u_int32_t)	/* set transmit async map */
 #define	SIOCGETU	_IOR(p, 136, int)	/* get unit number */
 #define	SIOCSIFVJCOMP	_IOW(p, 137, char)	/* enable/disable VJ comp */
 #define	SIOCGIFDEBUG	_IOR(p, 138, int)	/* get debug flags */
 #define	SIOCSIFDEBUG	_IOW(p, 139, int)	/* set debug flags */
-#define	SIOCGIFRASYNCMAP _IOR(p, 140, long)	/* get receive async map */
-#define	SIOCSIFRASYNCMAP _IOW(p, 141, long)	/* set receive async map */
+#define	SIOCGIFRASYNCMAP _IOR(p, 140, u_int32_t) /* get receive async map */
+#define	SIOCSIFRASYNCMAP _IOW(p, 141, u_int32_t) /* set receive async map */
 #define	SIOCGIFXASYNCMAP _IOR(p, 142, ext_accm) /* get extended xmit map */
 #define	SIOCSIFXASYNCMAP _IOW(p, 143, ext_accm) /* set extended xmit map */
-#define	SIOCSETU	_IOW(p, 136, int)	/* set unit number */
-#define SIOCNPENABLE	_IOW(p, 145, int)	/* enable a network protocol */
-#define SIOCNPDISABLE	_IOW(p, 146, int)	/* disable a network proto. */
-#define SIOCSETNPMODE	_IOW(p, 147, enum NPmode)	/* set NP mode */
-#define SIOCGETNPMODE	_IOR(p, 148, enum NPmode)	/* get NP mode */
-#define SIOCGETSTATS	_IOR(p, 149, struct ppp_stats)
-#define SIOCSIFCOMP	_IOW(p, 148, int)	/* set CCP closed/open/up */
-#define SIOCSCOMPRESS	_IOW(p, 149, struct ppp_option_data)
+#define	SIOCSETU	_IOW(p, 144, int)	/* set unit number */
+#define SIOCSETNPMODE	_IOW(p, 145, struct npioctl)	/* set NP mode */
+#define SIOCGETNPMODE	_IOWR(p, 146, struct npioctl)	/* get NP mode */
+#define SIOCGETSTATS	_IOR(p, 147, struct ppp_stats)
+#define SIOCGIFCOMP	_IOR(p, 148, int)	/* get CCP kernel flags */
+#define SIOCSIFCOMP	_IOW(p, 149, int)	/* set CCP closed/open/up */
+#define SIOCSCOMPRESS	_IOW(p, 150, struct ppp_option_data)
 #endif
 
 /*
