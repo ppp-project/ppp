@@ -135,10 +135,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ipv6cp.c,v 1.18 2003/07/28 12:25:41 carlsonj Exp $ 
+ * $Id: ipv6cp.c,v 1.19 2004/01/13 03:59:37 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.18 2003/07/28 12:25:41 carlsonj Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.19 2004/01/13 03:59:37 paulus Exp $"
 
 /*
  * TODO: 
@@ -1522,7 +1522,6 @@ ipv6cp_printpkt(p, plen, printer, arg)
  */
 #define IP6_HDRLEN	40	/* bytes */
 #define IP6_NHDR_FRAG	44	/* fragment IPv6 header */
-#define IPPROTO_TCP	6
 #define TCP_HDRLEN	20
 #define TH_FIN		0x01
 
