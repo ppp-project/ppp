@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.1 2000/04/18 23:51:26 masputra Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.2 2000/04/21 01:27:57 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -89,8 +89,12 @@
 #include "ipcp.h"
 #include "ccp.h"
 
+#if !defined(PPP_DRV_NAME)
+#define PPP_DRV_NAME	"ppp"
+#endif /* !defined(PPP_DRV_NAME) */
+
 #if !defined(PPP_DEV_NAME)
-#define PPP_DEV_NAME	"/dev/ppp"
+#define PPP_DEV_NAME	"/dev/" PPP_DRV_NAME
 #endif /* !defined(PPP_DEV_NAME) */
 
 #if !defined(AHDLC_MOD_NAME)
@@ -568,7 +572,7 @@ sys_init()
      * will fail, or maybe, I should move them to a later point ?
      * <adi.masputra@sun.com>
      */
-    sprintf(ifname, "ppp%d", ifunit);
+    sprintf(ifname, PPP_DRV_NAME "%d", ifunit);
 #endif /* defined(SOL2) */
     /*
      * Open the ppp device again and link it under the ip multiplexor.
@@ -706,7 +710,7 @@ sys_init()
 
 #if !defined(SOL2)
     /* Set the interface name for the link. */
-    slprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "ppp%d", ifunit);
+    slprintf(ifr.ifr_name, sizeof(ifr.ifr_name), PPP_DRV_NAME "%d", ifunit);
     ifr.ifr_metric = ipmuxid;
     if (strioctl(ipfd, SIOCSIFNAME, (char *)&ifr, sizeof ifr, 0) < 0)
 	fatal("Can't set interface name %s: %m", ifr.ifr_name);
@@ -1497,7 +1501,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_metric = link_mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
-	error("Couldn't set IP MTU: %m");
+	error("Couldn't set IP MTU (%s): %m", ifr.ifr_name);
     }
 
 #if defined(INET6) && defined(SOL2) 
@@ -1510,7 +1514,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     lifr.lifr_mtu = link_mtu;
     if (ioctl(fd, SIOCSLIFMTU, &lifr) < 0) {
 	close(fd);
-	error("Couldn't set IPv6 MTU: %m");
+	error("Couldn't set IPv6 MTU (%s): %m", ifr.ifr_name);
     }
     close(fd);
 #endif /* defined(INET6) && defined(SOL2) */
