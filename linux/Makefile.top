@@ -3,7 +3,7 @@
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 INCDIR = $(DESTDIR)/include
-MANDIR = $(DESTDIR)/man
+MANDIR = $(DESTDIR)/share/man
 ETCDIR = @SYSCONF@/ppp
 
 # uid 0 = root

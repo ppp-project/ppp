@@ -1,6 +1,6 @@
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/man/man8
+MANDIR = $(DESTDIR)/share/man/man8
 
 CFLAGS= -O -I../include/net
 OBJS = pppdump.o bsd-comp.o deflate.o zlib.o

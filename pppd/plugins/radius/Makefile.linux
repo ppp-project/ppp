@@ -4,7 +4,7 @@
 #
 
 DESTDIR = @DESTDIR@
-MANDIR = $(DESTDIR)/man/man8
+MANDIR = $(DESTDIR)/share/man/man8
 LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
 INSTALL	= install -o root

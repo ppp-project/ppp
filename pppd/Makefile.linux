@@ -1,12 +1,12 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.62 2004/10/29 00:12:27 paulus Exp $
+# $Id: Makefile.linux,v 1.63 2004/10/31 21:27:24 paulus Exp $
 #
 
 # Default installation locations
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/man/man8
+MANDIR = $(DESTDIR)/share/man/man8
 INCDIR = $(DESTDIR)/include
 
 TARGETS = pppd

@@ -1,10 +1,10 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.6 2004/10/29 00:12:27 paulus Exp $
+# $Id: Makefile.linux,v 1.7 2004/10/31 21:27:24 paulus Exp $
 #
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/man/man8
+MANDIR = $(DESTDIR)/share/man/man8
 
 PPPSTATSRCS = pppstats.c
 PPPSTATOBJS = pppstats.o
