@@ -1,11 +1,12 @@
 #
 # Makefile for STREAMS modules for SunOS 4.
 #
-# $Id: Makefile,v 1.4 1996/07/01 01:23:08 paulus Exp $
+# $Id: Makefile,v 1.5 1996/08/28 06:43:39 paulus Exp $
 #
 
 ARCH:sh = /bin/arch -k
 #CC = gcc
+LD = /usr/bin/ld		# make sure we don't get gnu ld
 
 BINDIR = /usr/local/etc
 INSTALL = install -o root -g daemon
@@ -19,15 +20,15 @@ MODULES= ppp_mod.o ppp_ahdl_mod.o ppp_comp_mod.o if_ppp_mod.o
 all:	$(MODULES)
 
 ppp_mod.o:	ppp.o ppp_vdcmd.o
-	ld -r -o ppp_mod.o ppp.o ppp_vdcmd.o
+	$(LD) -r -o ppp_mod.o ppp.o ppp_vdcmd.o
 
 ppp_ahdl_mod.o: ppp_ahdlc.o ppp_ahdlc_vdcmd.o
-	ld -r -o ppp_ahdl_mod.o ppp_ahdlc.o ppp_ahdlc_vdcmd.o
+	$(LD) -r -o ppp_ahdl_mod.o ppp_ahdlc.o ppp_ahdlc_vdcmd.o
 
 COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 	ppp_comp_vdcmd.o
 ppp_comp_mod.o: $(COMP_OBJS)
-	ld -r -o $@ $(COMP_OBJS)
+	$(LD) -r -o $@ $(COMP_OBJS)
 
 if_ppp.o: ../modules/if_ppp.c
 	$(CC) $(CFLAGS) -c $?
@@ -47,7 +48,7 @@ zlib.o:	../common/zlib.c
 	$(CC) $(CFLAGS) -c $?
 
 if_ppp_mod.o:	if_ppp.o if_ppp_vdcmd.o
-	ld -r -o if_ppp_mod.o if_ppp.o if_ppp_vdcmd.o
+	$(LD) -r -o if_ppp_mod.o if_ppp.o if_ppp_vdcmd.o
 
 install: all
 	$(INSTALL) $(MODULES) $(BINDIR)
