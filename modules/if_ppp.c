@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.2 1996/08/28 06:35:11 paulus Exp $
+ * $Id: if_ppp.c,v 1.3 1996/09/14 05:11:13 paulus Exp $
  */
 
 /*
@@ -54,6 +54,12 @@
 #else
 #include <sys/sockio.h>
 #include <modules/ppp_mod.h>
+#endif
+
+#ifdef SNIT_SUPPORT
+#include <sys/time.h>
+#include <net/nit_if.h>
+#include <netinet/if_ether.h>
 #endif
 
 #ifdef __osf__
@@ -111,6 +117,11 @@ static int if_ppp_output __P((struct ifnet *, struct mbuf *,
 static int if_ppp_ioctl __P((struct ifnet *, u_int, caddr_t));
 static struct mbuf *make_mbufs __P((mblk_t *, int));
 static mblk_t *make_message __P((struct mbuf *, int));
+
+#ifdef SNIT_SUPPORT
+/* Fake ether header for SNIT */
+static struct ether_header snit_ehdr = {{0}, {0}, ETHERTYPE_IP};
+#endif
 
 #ifndef __osf__
 static void ppp_if_detach __P((struct ifnet *));
@@ -405,10 +416,23 @@ if_ppp_rput(q, mp)
 	    break;
 	}
 
-/* For Digital UNIX, there's space set aside in the header mbuf
+#ifdef SNIT_SUPPORT
+	if (proto == PPP_IP && (ifp->if_flags & IFF_PROMISC)) {
+	    struct nit_if nif;
+
+	    nif.nif_header = (caddr_t) &snit_ehdr;
+	    nif.nif_hdrlen = sizeof(snit_ehdr);
+	    nif.nif_bodylen = len;
+	    nif.nif_promisc = 0;
+	    snit_intr(ifp, mb, &nif);
+	}
+#endif
+
+/*
+ * For Digital UNIX, there's space set aside in the header mbuf
  * for the interface info.
  *
- * For Sun it's smuggled around via a pointer at the front of the mbuf
+ * For Sun it's smuggled around via a pointer at the front of the mbuf.
  */
 #ifdef __osf__
         mb->m_pkthdr.rcvif = ifp;
@@ -498,7 +522,23 @@ if_ppp_output(ifp, m0, dst)
     switch (dst->sa_family) {
     case AF_INET:
 	proto = PPP_IP;
+#ifdef SNIT_SUPPORT
+	if (ifp->if_flags & IFF_PROMISC) {
+	    struct nit_if nif;
+	    struct mbuf *m;
+	    int len;
+
+	    for (len = 0, m = m0; m != NULL; m = m->m_next)
+		len += m->m_len;
+	    nif.nif_header = (caddr_t) &snit_ehdr;
+	    nif.nif_hdrlen = sizeof(snit_ehdr);
+	    nif.nif_bodylen = len;
+	    nif.nif_promisc = 0;
+	    snit_intr(ifp, m0, &nif);
+	}
+#endif
 	break;
+
     default:
 	m_freem(m0);
 	return EAFNOSUPPORT;
@@ -724,10 +764,14 @@ make_message(m, off)
     }
 }
 
-/* Digital UNIX doesn't allow for removing ifnet structures
- * from the list.  Taking the i/f down from pppd will take
- * care of most of the stuff that this code intends to do
- * anyhow
+/*
+ * Digital UNIX doesn't allow for removing ifnet structures
+ * from the list.  But then we're not using this as a loadable
+ * module anyway, so that's OK.
+ *
+ * Under SunOS, this should allow the module to be unloaded.
+ * Unfortunately, it doesn't seem to detach all the references,
+ * so your system may well crash after you unload this module :-(
  */
 #ifndef __osf__
 
