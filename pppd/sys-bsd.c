@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.21 1995/08/16 01:40:23 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.22 1995/10/27 03:46:27 paulus Exp $";
 #endif
 
 /*
@@ -53,15 +53,26 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.21 1995/08/16 01:40:23 paulus Exp $";
 #include "pppd.h"
 
 static int initdisc = -1;	/* Initial TTY discipline */
+static int initfdflags = -1;	/* Initial file descriptor flags for fd */
+
 static int rtm_seq;
 
-static int	restore_term;	/* 1 => we've munged the terminal */
+static int restore_term;	/* 1 => we've munged the terminal */
 static struct termios inittermios; /* Initial TTY termios */
 static struct winsize wsinfo;	/* Initial window size info */
 
 static char *lock_file;		/* name of lock file created */
 
-int sockfd;			/* socket for doing interface ioctls */
+static int sockfd;		/* socket for doing interface ioctls */
+
+static int if_is_up;		/* the interface is currently up */
+static u_int32_t default_route_gateway;	/* gateway addr for default route */
+static u_int32_t proxy_arp_addr;	/* remote addr for proxy arp */
+
+/* Prototypes for procedures local to this file. */
+static int dodefaultroute __P((u_int32_t, int));
+static int get_ether_addr __P((u_int32_t, struct sockaddr_dl *));
+
 
 /*
  * sys_init - System-dependent initialization.
@@ -79,6 +90,31 @@ sys_init()
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
     }
+}
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void
+sys_cleanup()
+{
+    struct ifreq ifr;
+
+    if (if_is_up) {
+	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
+	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
+	    ifr.ifr_flags &= ~IFF_UP;
+	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
+	}
+    }
+
+    if (default_route_gateway)
+	cifdefaultroute(0, default_route_gateway);
+    if (proxy_arp_addr)
+	cifproxyarp(0, proxy_arp_addr);
 }
 
 /*
@@ -158,6 +194,14 @@ establish_ppp()
 		syslog(LOG_WARNING, "ioctl(PPPIOCSFLAGS): %m");
 	}
     }
+
+    /*
+     * Set device for non-blocking reads.
+     */
+    if ((initfdflags = fcntl(fd, F_GETFL)) == -1
+	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+    }
 }
 
 
@@ -170,6 +214,11 @@ disestablish_ppp()
 {
     int x;
     char *s;
+
+    /* Reset non-blocking mode on the file descriptor. */
+    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
+	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+    initfdflags = -1;
 
     if (initdisc >= 0) {
 	/*
@@ -209,6 +258,7 @@ disestablish_ppp()
  *
  * For *BSD, we assume that speed_t values numerically equal bits/second.
  */
+void
 set_up_tty(fd, local)
     int fd, local;
 {
@@ -225,7 +275,7 @@ set_up_tty(fd, local)
     }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-    if (crtscts > 0)
+    if (crtscts > 0 && !local)
 	tios.c_cflag |= CRTSCTS;
     else if (crtscts < 0)
 	tios.c_cflag &= ~CRTSCTS;
@@ -239,8 +289,8 @@ set_up_tty(fd, local)
     tios.c_cc[VMIN] = 1;
     tios.c_cc[VTIME] = 0;
 
-    if (crtscts == 2) {
-	tios.c_iflag |= IXOFF;
+    if (crtscts == -2) {
+	tios.c_iflag |= IXON | IXOFF;
 	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
     }
@@ -298,6 +348,7 @@ restore_tty()
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
+void
 setdtr(fd, on)
 int fd, on;
 {
@@ -316,14 +367,12 @@ output(unit, p, len)
     u_char *p;
     int len;
 {
-    if (unit != 0)
-	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
     if (debug)
 	log_packet(p, len, "sent ");
 
     if (write(fd, p, len) < 0) {
-	syslog(LOG_ERR, "write: %m");
-	die(1);
+	if (errno != EIO)
+	    syslog(LOG_ERR, "write: %m");
     }
 }
 
@@ -333,6 +382,7 @@ output(unit, p, len)
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_input(timo)
     struct timeval *timo;
 {
@@ -452,8 +502,11 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 
 /*
  * ccp_test - ask kernel whether a given compression method
- * is acceptable for use.
+ * is acceptable for use.  Returns 1 if the method and parameters
+ * are OK, 0 if the method is known but the parameters are not OK
+ * (e.g. code size should be reduced), or -1 if the method is unknown.
  */
+int
 ccp_test(unit, opt_ptr, opt_len, for_transmit)
     int unit, opt_len, for_transmit;
     u_char *opt_ptr;
@@ -463,7 +516,9 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
     data.ptr = opt_ptr;
     data.length = opt_len;
     data.transmit = for_transmit;
-    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
+    if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+	return 1;
+    return (errno == ENOBUFS)? 0: -1;
 }
 
 /*
@@ -554,6 +609,7 @@ sifup(u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
+    if_is_up = 1;
     npi.protocol = PPP_IP;
     npi.mode = NPMODE_PASS;
     if (ioctl(fd, PPPIOCSNPMODE, &npi) < 0) {
@@ -618,7 +674,8 @@ sifdown(u)
 	if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	    syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	    rv = 0;
-	}
+	} else
+	    if_is_up = 0;
     }
     return rv;
 }
@@ -654,10 +711,11 @@ sifaddr(u, o, h, m)
 	BZERO(&ifra.ifra_mask, sizeof(ifra.ifra_mask));
     if (ioctl(sockfd, SIOCAIFADDR, (caddr_t) &ifra) < 0) {
 	if (errno != EEXIST) {
-	    syslog(LOG_ERR, "ioctl(SIOCAIFADDR): %m");
+	    syslog(LOG_ERR, "Couldn't set interface address: %m");
 	    return 0;
 	}
-	syslog(LOG_WARNING, "ioctl(SIOCAIFADDR): Address already exists");
+	syslog(LOG_WARNING,
+	       "Couldn't set interface address: Address already exists");
     }
     return 1;
 }
@@ -680,7 +738,7 @@ cifaddr(u, o, h)
     ((struct sockaddr_in *) &ifra.ifra_broadaddr)->sin_addr.s_addr = h;
     BZERO(&ifra.ifra_mask, sizeof(ifra.ifra_mask));
     if (ioctl(sockfd, SIOCDIFADDR, (caddr_t) &ifra) < 0) {
-	syslog(LOG_WARNING, "ioctl(SIOCDIFADDR): %m");
+	syslog(LOG_WARNING, "Couldn't delete interface address: %m");
 	return 0;
     }
     return 1;
@@ -711,7 +769,7 @@ cifdefaultroute(u, g)
 /*
  * dodefaultroute - talk to a routing socket to add/delete a default route.
  */
-int
+static int
 dodefaultroute(g, cmd)
     u_int32_t g;
     int cmd;
@@ -725,7 +783,8 @@ dodefaultroute(g, cmd)
     } rtmsg;
 
     if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
-	syslog(LOG_ERR, "%cifdefaultroute: opening routing socket: %m", cmd);
+	syslog(LOG_ERR, "Couldn't %s default route: socket: %m",
+	       cmd=='s'? "add": "delete");
 	return 0;
     }
 
@@ -745,12 +804,14 @@ dodefaultroute(g, cmd)
 
     rtmsg.hdr.rtm_msglen = sizeof(rtmsg);
     if (write(routes, &rtmsg, sizeof(rtmsg)) < 0) {
-	syslog(LOG_ERR, "%s default route: %m", cmd=='s'? "add": "delete");
+	syslog(LOG_ERR, "Couldn't %s default route: %m",
+	       cmd=='s'? "add": "delete");
 	close(routes);
 	return 0;
     }
 
     close(routes);
+    default_route_gateway = (cmd == 's')? g: 0;
     return 1;
 }
 
@@ -787,7 +848,7 @@ sifproxyarp(unit, hisaddr)
     }
 
     if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
-	syslog(LOG_ERR, "sifproxyarp: opening routing socket: %m");
+	syslog(LOG_ERR, "Couldn't add proxy arp entry: socket: %m");
 	return 0;
     }
 
@@ -805,13 +866,14 @@ sifproxyarp(unit, hisaddr)
     arpmsg.hdr.rtm_msglen = (char *) &arpmsg.hwa - (char *) &arpmsg
 	+ arpmsg.hwa.sdl_len;
     if (write(routes, &arpmsg, arpmsg.hdr.rtm_msglen) < 0) {
-	syslog(LOG_ERR, "add proxy arp entry: %m");
+	syslog(LOG_ERR, "Couldn't add proxy arp entry: %m");
 	close(routes);
 	return 0;
     }
 
     close(routes);
     arpmsg_valid = 1;
+    proxy_arp_addr = hisaddr;
     return 1;
 }
 
@@ -833,17 +895,18 @@ cifproxyarp(unit, hisaddr)
     arpmsg.hdr.rtm_seq = ++rtm_seq;
 
     if ((routes = socket(PF_ROUTE, SOCK_RAW, AF_INET)) < 0) {
-	syslog(LOG_ERR, "sifproxyarp: opening routing socket: %m");
+	syslog(LOG_ERR, "Couldn't delete proxy arp entry: socket: %m");
 	return 0;
     }
 
     if (write(routes, &arpmsg, arpmsg.hdr.rtm_msglen) < 0) {
-	syslog(LOG_ERR, "delete proxy arp entry: %m");
+	syslog(LOG_ERR, "Couldn't delete proxy arp entry: %m");
 	close(routes);
 	return 0;
     }
 
     close(routes);
+    proxy_arp_addr = 0;
     return 1;
 }
 
@@ -881,10 +944,11 @@ sifproxyarp(unit, hisaddr)
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
     if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
+	syslog(LOG_ERR, "Couldn't add proxy arp entry: %m");
 	return 0;
     }
 
+    proxy_arp_addr = hisaddr;
     return 1;
 }
 
@@ -902,9 +966,10 @@ cifproxyarp(unit, hisaddr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = hisaddr;
     if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
-	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
+	syslog(LOG_WARNING, "Couldn't delete proxy arp entry: %m");
 	return 0;
     }
+    proxy_arp_addr = 0;
     return 1;
 }
 #endif	/* RTM_VERSION */
@@ -916,7 +981,7 @@ cifproxyarp(unit, hisaddr)
  */
 #define MAX_IFS		32
 
-int
+static int
 get_ether_addr(ipaddr, hwaddr)
     u_int32_t ipaddr;
     struct sockaddr_dl *hwaddr;
@@ -1125,6 +1190,7 @@ lock(dev)
 /*
  * unlock - remove our lockfile
  */
+void
 unlock()
 {
     if (lock_file) {

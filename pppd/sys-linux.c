@@ -52,6 +52,7 @@
 #include "ipcp.h"
 
 static int initdisc = -1;	/* Initial TTY discipline */
+static int initfdflags = -1;	/* Initial file descriptor flags for fd */
 static int prev_kdebugflag     = 0;
 static int has_default_route   = 0;
 static int has_proxy_arp       = 0;
@@ -61,7 +62,11 @@ static int driver_patch        = 0;
 static int restore_term        = 0;	/* 1 => we've munged the terminal */
 static struct termios inittermios;	/* Initial TTY termios */
 
-int sockfd;			/* socket for doing interface ioctls */
+static int sockfd;		/* socket for doing interface ioctls */
+
+static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t default_route_gateway;	/* Gateway for default route added */
+static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 static char *lock_file;
 
@@ -70,6 +75,20 @@ static char *lock_file;
 #define FLAGS_GOOD (IFF_UP          | IFF_BROADCAST)
 #define FLAGS_MASK (IFF_UP          | IFF_BROADCAST | \
 		    IFF_POINTOPOINT | IFF_LOOPBACK  | IFF_NOARP)
+
+/* Prototypes for procedures local to this file. */
+static int get_flags (void);
+static void set_flags (int flags);
+static int translate_speed (int bps);
+static int baud_rate_of (int speed);
+static char *path_to_route (void);
+static void close_route_table (void);
+static int open_route_table (void);
+static int read_route_table (struct rtentry *rt);
+static int defaultroute_exists (void);
+static int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr);
+static void decode_version (char *buf, int *version, int *mod, int *patch);
+
 
 /*
  * SET_SA_FAMILY - set the sa_family field of a struct sockaddr,
@@ -137,6 +156,24 @@ void sys_init(void)
 	die(1);
       }
   }
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void sys_cleanup()
+{
+    struct ifreq ifr;
+
+    if (if_is_up)
+	sifdown(0);
+    /* XXX maybe we need to delete the route through the interface */
+    if (has_default_route)
+	cifdefaultroute(0, default_route_gateway);
+    if (has_proxy_arp)
+	cifproxyarp(0, proxy_arp_addr);
+}
 
 /*
  * note_debug_level - note a change in the debug level.
@@ -218,6 +255,15 @@ void establish_ppp (void)
 
     MAINDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
+
+    /*
+     * Set device for non-blocking reads.
+     */
+    if ((initfdflags = fcntl(fd, F_GETFL)) == -1
+	|| fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+      {
+	syslog(LOG_WARNING, "Couldn't set device to non-blocking mode: %m");
+      }
   }
 
 /*
@@ -229,6 +275,12 @@ void disestablish_ppp(void)
   {
     int x;
     char *s;
+
+    /* Reset non-blocking mode on the file descriptor. */
+    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
+	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
+    initfdflags = -1;
+
 /*
  * If this is no longer PPP mode then there is nothing that can be done
  * about restoring the previous mode.
@@ -378,7 +430,7 @@ struct speed {
  * Translate from bits/second to a speed_t.
  */
 
-int translate_speed (int bps)
+static int translate_speed (int bps)
   {
     struct speed *speedp;
 
@@ -400,7 +452,7 @@ int translate_speed (int bps)
  * Translate from a speed_t to bits/second.
  */
 
-int baud_rate_of (int speed)
+static int baud_rate_of (int speed)
   {
     struct speed *speedp;
     
@@ -459,8 +511,8 @@ void set_up_tty (int fd, int local)
 	tios.c_cflag |= CRTSCTS;
 	break;
 
-    case 2:
-	tios.c_iflag     |= IXOFF;
+    case -2:
+	tios.c_iflag     |= IXON | IXOFF;
 	tios.c_cc[VSTOP]  = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
 	break;
@@ -552,11 +604,6 @@ void restore_tty (void)
 
 void output (int unit, unsigned char *p, int len)
   {
-    if (unit != 0)
-      {
-	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
-      }
-    
     if (debug)
       {
         log_packet(p, len, "sent ");
@@ -564,8 +611,16 @@ void output (int unit, unsigned char *p, int len)
     
     if (write(fd, p, len) < 0)
       {
-        syslog(LOG_ERR, "write: %m");
-	die(1);
+	if (errno == EWOULDBLOCK || errno == ENOBUFS
+	    || errno == ENXIO || errno == EIO)
+	  {
+	    syslog(LOG_WARNING, "write: warning: %m");
+	  } 
+	else
+	  {
+	    syslog(LOG_ERR, "write: %m");
+	    die(1);
+	  }
       }
   }
 
@@ -724,7 +779,10 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
     data.length   = opt_len;
     data.transmit = for_transmit;
 
-    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
+    if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
+      return 1;
+
+    return (errno == ENOBUFS)? 0: -1;
   }
 
 /*
@@ -801,6 +859,7 @@ int sifup (int u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
       }
+    if_is_up = 1;
     return 1;
   }
 
@@ -827,6 +886,7 @@ int sifdown (int u)
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
       }
+    if_is_up = 0;
     return 1;
   }
 
@@ -1125,6 +1185,7 @@ int sifdefaultroute (int unit, int gateway)
 	  }
       }
     has_default_route = 1;
+    default_route_gateway = g;
     return 1;
   }
 
@@ -1189,6 +1250,7 @@ int sifproxyarp (int unit, u_int32_t his_adr)
 	  }
       }
 
+    proxy_arp_addr = hisaddr;
     has_proxy_arp = 1;
     return 1;
   }
@@ -1222,7 +1284,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
  * the same subnet as ipaddr.
  */
 
-int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
+static int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
   {
     struct ifreq *ifr, *ifend, *ifp;
     int i;
