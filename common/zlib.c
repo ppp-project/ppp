@@ -11,7 +11,7 @@
  * - added Z_PACKET_FLUSH (see zlib.h for details)
  * - added inflateIncomp
  *
- * $Id: zlib.c,v 1.4 1996/10/08 04:38:00 paulus Exp $
+ * $Id: zlib.c,v 1.5 1997/03/04 03:26:35 paulus Exp $
  */
 
 /* 
@@ -89,13 +89,10 @@ extern char *z_errmsg[]; /* indexed by 1-zlib_error */
 
 #if defined(KERNEL) || defined(_KERNEL)
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/systm.h>
 #  define zmemcpy(d, s, n)	bcopy((s), (d), (n))
 #  define zmemzero		bzero
-
-#ifdef FreeBSD
-#define inflate	inflate_ppp
-#endif
 
 #else
 #if defined(__KERNEL__)

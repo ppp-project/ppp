@@ -1,4 +1,4 @@
-/*	$Id: zlib.h,v 1.3 1996/09/26 06:29:53 paulus Exp $	*/
+/*	$Id: zlib.h,v 1.4 1997/03/04 03:26:36 paulus Exp $	*/
 
 /*
  * This file is derived from zlib.h and zconf.h from the zlib-0.95
@@ -376,6 +376,10 @@ extern int inflateInit OF((z_stream *strm));
    inflate().
 */
 
+
+#if defined(__FreeBSD__) && (defined(KERNEL) || defined(_KERNEL))
+#define inflate	inflate_ppp	/* FreeBSD already has an inflate :-( */
+#endif
 
 extern int inflate OF((z_stream *strm, int flush));
 /*
