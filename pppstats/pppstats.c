@@ -37,7 +37,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.11 1995/07/11 06:41:45 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.12 1995/12/11 05:18:59 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -342,6 +342,21 @@ get_ppp_cstats(csp)
 	    exit(1);
 	}
     }
+
+#ifdef _linux_
+    if (creq.stats.c.bytes_out == 0)
+	creq.stats.c.ratio = 0.0;
+    else
+	creq.stats.c.ratio = (double) creq.stats.c.in_count /
+			     (double) creq.stats.c.bytes_out;
+
+    if (creq.stats.d.bytes_out == 0)
+	creq.stats.d.ratio = 0.0;
+    else
+	creq.stats.d.ratio = (double) creq.stats.d.in_count /
+			     (double) creq.stats.d.bytes_out;
+#endif
+
     *csp = creq.stats;
 }
 
