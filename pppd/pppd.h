@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.15 1996/08/28 06:42:10 paulus Exp $
+ * $Id: pppd.h,v 1.16 1996/09/14 05:17:57 paulus Exp $
  */
 
 /*
@@ -441,6 +441,12 @@ extern struct option_info devnam_info;
 #define CHAPDEBUG(x)	if (debug) syslog x
 #else
 #define CHAPDEBUG(x)
+#endif
+
+#ifdef DEBUGIPXCP
+#define IPXCPDEBUG(x)	if (debug) syslog x
+#else
+#define IPXCPDEBUG(x)
 #endif
 
 #ifndef SIGTYPE
