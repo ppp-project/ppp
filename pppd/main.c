@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.7 1994/04/18 04:06:26 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.8 1994/05/01 11:44:43 paulus Exp $";
 #endif
 
 #define SETSID
@@ -390,12 +390,12 @@ main(argc, argv)
     }
 #endif /* TIOCSCTTY */
 
-    /* set line speed, flow control, etc. */
-    set_up_tty(fd);
-
     /* run connection script */
     if (connector) {
 	MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
+
+	/* set line speed, flow control, etc.; set CLOCAL for now */
+	set_up_tty(fd, 1);
 
 	/* drop dtr to hang up in case modem is off hook */
 	if (!default_device && modem) {
@@ -414,6 +414,9 @@ main(argc, argv)
 	sleep(1);		/* give it time to set up its terminal */
     }
   
+    /* set line speed, flow control, etc.; clear CLOCAL if modem option */
+    set_up_tty(fd, 0);
+
     /* set up the serial device as a ppp interface */
     establish_ppp();
 
@@ -617,10 +620,11 @@ baud_rate_of(speed)
 
 /*
  * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
- * at the requested speed, etc.
+ * at the requested speed, etc.  If `local' is true, set CLOCAL
+ * regardless of whether the modem option was specified.
  */
-set_up_tty(fd)
-    int fd;
+set_up_tty(fd, local)
+    int fd, local;
 {
 #ifndef SGTTY
     int speed;
@@ -643,7 +647,7 @@ set_up_tty(fd)
 #endif	/* CRTSCTS */
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
-    if (!modem)
+    if (local || !modem)
 	tios.c_cflag |= CLOCAL;
     tios.c_iflag = IGNBRK | IGNPAR;
     tios.c_oflag = 0;
@@ -1001,6 +1005,8 @@ alrm(sig, code, scp, addr)
 
     MAINDEBUG((LOG_DEBUG, "Alarm"));
 
+    if (callout == NULL)
+	return;
     /*
      * Get the first scheduled timeout and any that were scheduled
      * for the same time as a list, and remove them all from callout
