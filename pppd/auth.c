@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.81 2002/09/01 12:00:15 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.82 2002/09/12 22:38:47 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1358,7 +1358,7 @@ plogin(user, passwd, msg)
     tty = devnam;
     if (strncmp(tty, "/dev/", 5) == 0)
 	tty += 5;
-    logwtmp(tty, user, remote_name);		/* Add wtmp login entry */
+    logwtmp(tty, user, ifname);		/* Add wtmp login entry */
 
 #if defined(_PATH_LASTLOG) && !defined(USE_PAM)
     if (pw != (struct passwd *)NULL) {
