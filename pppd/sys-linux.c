@@ -182,7 +182,6 @@ static void decode_version (char *buf, int *version, int *mod, int *patch);
 static int set_kdebugflag(int level);
 static int ppp_registered(void);
 static int make_ppp_unit(void);
-static void restore_loop(void);	/* Transfer ppp unit back to loopback */
 
 extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
@@ -499,8 +498,6 @@ int tty_establish_ppp (int tty_fd)
 
 void tty_disestablish_ppp(int tty_fd)
 {
-    if (demand)
-	restore_loop();
     if (!hungup) {
 /*
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
@@ -531,10 +528,17 @@ void tty_disestablish_ppp(int tty_fd)
     if (new_style_driver) {
 	close(ppp_fd);
 	ppp_fd = -1;
-	if (!looped && ifunit >= 0 && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
+	if (demand) {
+	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
+	    looped = 1;
+	} else if (ifunit >= 0 && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
 	    error("Couldn't release PPP unit: %m");
 	if (!multilink)
 	    remove_fd(ppp_dev_fd);
+    } else {
+	/* old-style driver */
+	if (demand)
+	    set_ppp_fd(slave_fd);
     }
 }
 
@@ -1168,7 +1172,7 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 
 void ccp_flags_set (int unit, int isopen, int isup)
 {
-    if (still_ppp()) {
+    if (still_ppp() && ifunit >= 0) {
 	int x = get_flags(ppp_dev_fd);
 	x = isopen? x | SC_CCP_OPEN : x &~ SC_CCP_OPEN;
 	x = isup?   x | SC_CCP_UP   : x &~ SC_CCP_UP;
@@ -1236,6 +1240,8 @@ get_ppp_stats(u, stats)
     }
     stats->bytes_in = req.stats.p.ppp_ibytes;
     stats->bytes_out = req.stats.p.ppp_obytes;
+    stats->pkts_in = req.stats.p.ppp_ipackets;
+    stats->pkts_out = req.stats.p.ppp_opackets;
     return 1;
 }
 
@@ -2552,33 +2558,6 @@ open_ppp_loopback(void)
     set_kdebugflag (kdebugflag);
 
     return master_fd;
-}
-
-/********************************************************************
- *
- * restore_loop - reattach the ppp unit to the loopback.
- *
- * The kernel ppp driver automatically reattaches the ppp unit to
- * the loopback if the serial port is set to a line discipline other
- * than ppp, or if it detects a modem hangup.  The former will happen
- * in disestablish_ppp if the latter hasn't already happened, so we
- * shouldn't need to do anything.
- *
- * Just to be sure, set the real serial port to the normal discipline.
- */
-
-static void
-restore_loop(void)
-{
-    looped = 1;
-    if (new_style_driver) {
-	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_LOOP_TRAFFIC);
-	return;
-    }
-    if (ppp_fd != slave_fd) {
-	(void) ioctl(ppp_fd, TIOCSETD, &tty_disc);
-	set_ppp_fd(slave_fd);
-    }
 }
 
 /********************************************************************

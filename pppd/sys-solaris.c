@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.4 2001/03/12 22:59:00 paulus Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.5 2001/04/27 23:16:13 paulus Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1520,7 +1520,7 @@ tty_send_config(mtu, asyncmap, pcomp, accomp)
 }
 
 /*
- * ppp_set_xaccm - set the extended transmit ACCM for the interface.
+ * tty_set_xaccm - set the extended transmit ACCM for the interface.
  */
 void
 tty_set_xaccm(accm)
@@ -1537,7 +1537,7 @@ tty_set_xaccm(accm)
 }
 
 /*
- * ppp_recv_config - configure the receive-side characteristics of
+ * tty_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
 void
@@ -1629,6 +1629,8 @@ get_ppp_stats(u, stats)
     }
     stats->bytes_in = s.p.ppp_ibytes;
     stats->bytes_out = s.p.ppp_obytes;
+    stats->pkts_in = s.p.ppp_ipackets;
+    stats->pkts_out = s.p.ppp_opackets;
     return 1;
 }
 
@@ -1956,12 +1958,6 @@ sifaddr(u, o, h, m)
 	error("Couldn't set remote IP address: %m");
 	ret = 0;
     }
-#if 0	/* now done in ppp_send_config */
-    ifr.ifr_metric = link_mtu;
-    if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
-	error("Couldn't set IP MTU: %m");
-    }
-#endif
 
     remote_addr = h;
     return ret;

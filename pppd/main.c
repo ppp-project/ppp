@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.105 2001/03/12 22:58:59 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.106 2001/04/27 23:16:13 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1087,9 +1087,6 @@ static struct timeval timenow;		/* Current time */
 
 /*
  * timeout - Schedule a timeout.
- *
- * Note that this timeout takes the number of milliseconds, NOT hz (as in
- * the kernel).
  */
 void
 timeout(func, arg, secs, usecs)
@@ -1098,10 +1095,10 @@ timeout(func, arg, secs, usecs)
     int secs, usecs;
 {
     struct callout *newp, *p, **pp;
-  
+
     MAINDEBUG(("Timeout %p:%p in %d.%03d seconds.", func, arg,
-	       time / 1000, time % 1000));
-  
+	       secs, usecs/1000));
+
     /*
      * Allocate timeout.
      */

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.59 2001/03/12 22:58:59 paulus Exp $
+ * $Id: pppd.h,v 1.60 2001/04/27 23:16:13 paulus Exp $
  */
 
 /*
@@ -147,6 +147,8 @@ struct permitted_ip {
 struct pppd_stats {
     unsigned int	bytes_in;
     unsigned int	bytes_out;
+    unsigned int	pkts_in;
+    unsigned int	pkts_out;
 };
 
 /* Used for storing a sequence of words.  Usually malloced. */
@@ -212,11 +214,15 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern char	ppp_devnam[MAXPATHLEN];
+extern int	listen_time;	/* time to listen first (ms) */
 extern struct notifier *pidchange;   /* for notifications of pid changing */
 extern struct notifier *phasechange; /* for notifications of phase changes */
 extern struct notifier *exitnotify;  /* for notification that we're exiting */
 extern struct notifier *sigreceived; /* notification of received signal */
-extern int	listen_time;	/* time to listen first (ms) */
+extern struct notifier *ip_up_notifier; /* IPCP has come up */
+extern struct notifier *ip_down_notifier; /* IPCP has gone down */
+extern struct notifier *auth_up_notifier; /* peer has authenticated */
+extern struct notifier *link_down_notifier; /* link has gone down */
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */

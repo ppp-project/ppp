@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-sunos4.c,v 1.26 2001/03/12 22:59:00 paulus Exp $"
+#define RCSID	"$Id: sys-sunos4.c,v 1.27 2001/04/27 23:16:13 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -735,17 +735,33 @@ get_loop_output()
 }
 
 /*
- * ppp_send_config - configure the transmit characteristics of
+ * netif_set_mtu - set the MTU on the PPP network interface.
+ */
+void
+netif_set_mtu(unit, mtu)
+    int unit, mtu;
+{
+    struct ifreq ifr;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    ifr.ifr_metric = link_mtu;
+    if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
+	error("Couldn't set IP MTU: %m");
+    }
+}
+
+/*
+ * tty_send_config - configure the transmit characteristics of
  * the ppp interface.
  */
 void
-ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
-    int unit, mtu;
+tty_send_config(mtu, asyncmap, pcomp, accomp)
+    int mtu;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int cf[2];
-    struct ifreq ifr;
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
@@ -761,21 +777,13 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	error("Couldn't set prot/AC compression: %m");
     }
-
-    /* set mtu for ip as well */
-    memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-    ifr.ifr_metric = link_mtu;
-    if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
-	error("Couldn't set IP MTU: %m");
-    }
 }
 
 /*
- * ppp_set_xaccm - set the extended transmit ACCM for the interface.
+ * tty_set_xaccm - set the extended transmit ACCM for the interface.
  */
 void
-ppp_set_xaccm(unit, accm)
+tty_set_xaccm(unit, accm)
     int unit;
     ext_accm accm;
 {
@@ -786,12 +794,12 @@ ppp_set_xaccm(unit, accm)
 }
 
 /*
- * ppp_recv_config - configure the receive-side characteristics of
+ * tty_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
 void
-ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
-    int unit, mru;
+tty_recv_config(mru, asyncmap, pcomp, accomp)
+    int mru;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
@@ -872,6 +880,8 @@ get_ppp_stats(u, stats)
     }
     stats->bytes_in = s.p.ppp_ibytes;
     stats->bytes_out = s.p.ppp_obytes;
+    stats->pkts_in = s.p.ppp_ipackets;
+    stats->pkts_out = s.p.ppp_opackets;
     return 1;
 }
 
