@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.130 2003/12/17 08:56:05 kad Exp $"
+#define RCSID	"$Id: main.c,v 1.131 2004/01/13 04:00:34 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -589,7 +589,8 @@ main(argc, argv)
 	 */
     disconnect:
 	new_phase(PHASE_DISCONNECT);
-	the_channel->disconnect();
+	if (the_channel->disconnect)
+	    the_channel->disconnect();
 
     fail:
 	if (the_channel->cleanup)
