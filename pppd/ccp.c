@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.8 1995/04/26 06:47:24 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.9 1995/05/19 03:17:09 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -452,6 +452,8 @@ ccp_reqci(f, p, lenp, dont_nak)
 	    }
 	}
 
+	if (newret == CONFNAK && dont_nak)
+	    newret = CONFREJ;
 	if (!(newret == CONFACK || newret == CONFNAK && ret == CONFREJ)) {
 	    /* we're returning this option */
 	    if (newret == CONFREJ && ret == CONFNAK)
