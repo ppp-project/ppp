@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.70 2000/03/13 23:39:58 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.71 2000/03/27 06:03:03 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -103,6 +103,8 @@ char	linkname[MAXPATHLEN];	/* logical name for link */
 bool	tune_kernel;		/* may alter kernel settings */
 int	connect_delay = 1000;	/* wait this many ms after connect script */
 int	max_data_rate;		/* max bytes/sec through charshunt */
+int	req_unit = -1;		/* requested interface unit */
+bool	multilink = 0;		/* Enable multilink operation */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -276,6 +278,18 @@ option_t general_options[] = {
       "Maximum time (in ms) to wait after connect script finishes" },
     { "datarate", o_int, &max_data_rate,
       "Maximum data rate in bytes/sec (with pty, notty or record option)" },
+    { "unit", o_int, &req_unit,
+      "PPP interface unit number to use if possible", OPT_LLIMIT, 0, 0 },
+#ifdef HAVE_MULTILINK
+    { "multilink", o_bool, &multilink,
+      "Enable multilink operation", 1 },
+    { "nomultilink", o_bool, &multilink,
+      "Disable multilink operation", 0 },
+    { "mp", o_bool, &multilink,
+      "Enable multilink operation", 1 },
+    { "nomp", o_bool, &multilink,
+      "Disable multilink operation", 0 },
+#endif /* HAVE_MULTILINK */
 #ifdef PLUGIN
     { "plugin", o_special, loadplugin,
       "Load a plug-in module into pppd", OPT_PRIV },

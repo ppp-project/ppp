@@ -124,6 +124,7 @@ static int master_fd = -1;
 static int sock6_fd = -1;
 #endif /* INET6 */
 static int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
+static int chindex;		/* channel index (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
 static int max_in_fd;		/* highest fd set in in_fds */
@@ -337,6 +338,8 @@ sys_close(void)
 
 static int set_kdebugflag (int requested_level)
 {
+    if (new_style_driver && ifunit < 0)
+	return 1;
     if (ioctl(ppp_dev_fd, PPPIOCSDEBUG, &requested_level) < 0) {
 	if ( ! ok_error (errno) )
 	    error("ioctl(PPPIOCSDEBUG): %m");
@@ -355,26 +358,23 @@ static int set_kdebugflag (int requested_level)
 int establish_ppp (int tty_fd)
 {
     int x;
+    int fd = -1;
 
-/*
- * The current PPP device will be the tty file.
- */
-    set_ppp_fd (tty_fd);
-    if (new_style_driver)
-	add_fd(tty_fd);
 /*
  * Ensure that the tty device is in exclusive mode.
  */
     if (ioctl(tty_fd, TIOCEXCL, 0) < 0) {
 	if ( ! ok_error ( errno ))
-	    warn("ioctl(TIOCEXCL): %m");
+	    warn("Couldn't make tty exclusive: %m");
     }
 /*
  * Demand mode - prime the old ppp device to relinquish the unit.
  */
     if (!new_style_driver && looped
-	&& ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0)
-	fatal("ioctl(transfer ppp unit): %m(%d)", errno);
+	&& ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0) {
+	error("ioctl(transfer ppp unit): %m");
+	return -1;
+    }
 /*
  * Set the current tty to the PPP discpline
  */
@@ -382,32 +382,71 @@ int establish_ppp (int tty_fd)
 #ifndef N_SYNC_PPP
 #define N_SYNC_PPP 14
 #endif
-    if (new_style_driver)
-	    ppp_disc = sync_serial ? N_SYNC_PPP:N_PPP;
-
+    ppp_disc = (new_style_driver && sync_serial)? N_SYNC_PPP: N_PPP;
     if (ioctl(tty_fd, TIOCSETD, &ppp_disc) < 0) {
-	if ( ! ok_error (errno) )
-	    fatal("ioctl(TIOCSETD): %m(%d)", errno);
+	if ( ! ok_error (errno) ) {
+	    error("Couldn't set tty to PPP discipline: %m");
+	    return -1;
+	}
     }
-/*
- * Find out which interface we were given.
- */
+
     if (new_style_driver) {
-	if (!looped) {
-	    /* allocate ourselves a ppp unit */
-	    ifunit = -1;
-	    if (ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit) < 0)
-		fatal("Couldn't create new ppp unit: %m");
-	    set_kdebugflag(kdebugflag);
-	} else {
+	/* Open another instance of /dev/ppp and connect the channel to it */
+	int flags;
+
+	if (ioctl(tty_fd, PPPIOCGCHAN, &chindex) == -1) {
+	    error("Couldn't get channel number: %m");
+	    goto err;
+	}
+	dbglog("using channel %d", chindex);
+	fd = open("/dev/ppp", O_RDWR);
+	if (fd < 0) {
+	    error("Couldn't reopen /dev/ppp: %m");
+	    goto err;
+	}
+	if (ioctl(fd, PPPIOCATTCHAN, &chindex) < 0) {
+	    error("Couldn't attach to channel %d: %m", chindex);
+	    goto err_close;
+	}
+	flags = fcntl(fd, F_GETFL);
+	if (flags == -1 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	    warn("Couldn't set /dev/ppp (channel) to nonblock: %m");
+	set_ppp_fd(fd);
+
+	ifunit = -1;
+	if (!looped && !multilink) {
+	    /*
+	     * Create a new PPP unit.
+	     */
+	    ifunit = req_unit;
+	    x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	    if (x < 0 && req_unit >= 0 && errno == EEXIST) {
+		warn("Couldn't allocate PPP unit %d as it is already in use");
+		ifunit = -1;
+		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	    }
+	    if (x < 0) {
+		error("Couldn't create new ppp unit: %m");
+		goto err_close;
+	    }
+	}
+
+	if (looped)
 	    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) & ~SC_LOOP_TRAFFIC);
+
+	if (!multilink) {
+	    add_fd(ppp_dev_fd);
+	    if (ioctl(fd, PPPIOCCONNECT, &ifunit) < 0) {
+		error("Couldn't attach to PPP unit %d: %m", ifunit);
+		goto err_close;
+	    }
 	}
-	if (ioctl(tty_fd, PPPIOCATTACH, &ifunit) < 0) {
-	    if (errno == EIO)
-		return -1;
-	    fatal("Couldn't attach tty to PPP unit %d: %m", ifunit);
-	}
+
     } else {
+	/*
+	 * Old-style driver: find out which interface we were given.
+	 */
+	set_ppp_fd (tty_fd);
 	if (ioctl(tty_fd, PPPIOCGUNIT, &x) < 0) {	
 	    if ( ! ok_error (errno))
 		fatal("ioctl(PPPIOCGUNIT): %m(%d)", errno);
@@ -416,32 +455,40 @@ int establish_ppp (int tty_fd)
 	if (looped && x != ifunit)
 	    fatal("transfer_ppp failed: wanted unit %d, got %d", ifunit, x);
 	ifunit = x;
+
+	/*
+	 * Fetch the initial file flags and reset blocking mode on the file.
+	 */
+	initfdflags = fcntl(tty_fd, F_GETFL);
+	if (initfdflags == -1 ||
+	    fcntl(tty_fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
+	    if ( ! ok_error (errno))
+		warn("Couldn't set device to non-blocking mode: %m");
+	}
     }
 
-/*
- * Enable debug in the driver if requested.
- */
-    if (!looped)
-	set_kdebugflag (kdebugflag);
     looped = 0;
 
-    set_flags(tty_fd, get_flags(tty_fd) & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
+    /*
+     * Enable debug in the driver if requested.
+     */
+    if (!looped)
+	set_kdebugflag (kdebugflag);
+
+    set_flags(ppp_fd, get_flags(ppp_fd) & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
 					    SC_RCV_EVNP | SC_RCV_ODDP));
 
     SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
 	    driver_version, driver_modification, driver_patch));
 
-/*
- * Fetch the initial file flags and reset blocking mode on the file.
- */
-    initfdflags = fcntl(tty_fd, F_GETFL);
-    if (initfdflags == -1 ||
-	fcntl(tty_fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-	if ( ! ok_error (errno))
-	    warn("Couldn't set device to non-blocking mode: %m");
-    }
+    return ppp_fd;
 
-    return ppp_dev_fd;
+ err_close:
+    close(fd);
+ err:
+    if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0 && !ok_error(errno))
+	warn("Couldn't reset tty to normal line discipline: %m");
+    return -1;
 }
 
 /********************************************************************
@@ -452,8 +499,6 @@ int establish_ppp (int tty_fd)
 
 void disestablish_ppp(int tty_fd)
 {
-    if (new_style_driver)
-	remove_fd(tty_fd);
     if (!hungup) {
 /*
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
@@ -480,25 +525,42 @@ void disestablish_ppp(int tty_fd)
 	}
     }
     initfdflags = -1;
-    if (new_style_driver && !looped) {
-	if (ioctl(ppp_dev_fd, PPPIOCDETACH) < 0) {
-	    if (errno == ENOTTY) {
-		/* first version of new driver didn't have PPPIOCDETACH */
-		int flags;
 
-		close(ppp_dev_fd);
-		ppp_dev_fd = open("/dev/ppp", O_RDWR);
-		if (ppp_dev_fd < 0)
-		    fatal("Couldn't reopen /dev/ppp: %m");
-		flags = fcntl(ppp_dev_fd, F_GETFL);
-		if (flags == -1
-		    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
-		    warn("Couldn't set /dev/ppp to nonblock: %m");
-	    } else
-		error("Couldn't release PPP unit: %m");
-	}
-	set_ppp_fd(-1);
+    if (new_style_driver) {
+	close(ppp_fd);
+	ppp_fd = -1;
+	if (!looped && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
+	    error("Couldn't release PPP unit: %m");
+	if (!multilink)
+	    remove_fd(ppp_dev_fd);
     }
+}
+
+/*
+ * bundle_attach - attach our link to a given PPP unit.
+ */
+int bundle_attach(int ifnum)
+{
+    int mrru = 1500;
+
+    if (!new_style_driver)
+	return -1;
+
+    if (ioctl(ppp_dev_fd, PPPIOCATTACH, &ifnum) < 0) {
+	error("Couldn't attach to interface unit %d: %m\n", ifnum);
+	return -1;
+    }
+    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_MULTILINK);
+    if (ioctl(ppp_dev_fd, PPPIOCSMRRU, &mrru) < 0)
+	error("Couldn't set interface MRRU: %m");
+
+    if (ioctl(ppp_fd, PPPIOCCONNECT, &ifnum) < 0) {
+	error("Couldn't connect to interface unit %d: %m", ifnum);
+	return -1;
+    }
+
+    dbglog("bundle_attach succeeded");
+    return 0;
 }
 
 /********************************************************************
@@ -781,6 +843,9 @@ void restore_tty (int tty_fd)
 
 void output (int unit, unsigned char *p, int len)
 {
+    int fd = ppp_fd;
+    int proto;
+
     if (debug)
 	dbglog("sent %P", p, len);
 
@@ -789,8 +854,11 @@ void output (int unit, unsigned char *p, int len)
     if (new_style_driver) {
 	p += 2;
 	len -= 2;
+	proto = (p[0] << 8) + p[1];
+	if (!multilink && proto != PPP_LCP)
+	    fd = ppp_dev_fd;
     }
-    if (write(ppp_dev_fd, p, len) < 0) {
+    if (write(fd, p, len) < 0) {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS
 	    || errno == ENXIO || errno == EIO || errno == EINTR)
 	    warn("write: warning: %m (%d)", errno);
@@ -808,11 +876,12 @@ void output (int unit, unsigned char *p, int len)
 
 void wait_input(struct timeval *timo)
 {
-    fd_set ready;
+    fd_set ready, exc;
     int n;
 
     ready = in_fds;
-    n = select(max_in_fd + 1, &ready, NULL, &ready, timo);
+    exc = in_fds;
+    n = select(max_in_fd + 1, &ready, NULL, &exc, timo);
     if (n < 0 && errno != EINTR)
 	fatal("select: %m(%d)", errno);
 }
@@ -852,15 +921,16 @@ int read_packet (unsigned char *buf)
 	len -= 2;
     }
     nr = -1;
-    if (new_style_driver) {
-	nr = read(ppp_dev_fd, buf, len);
-	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
-	    error("read /dev/ppp: %m");
-    }
-    if (nr < 0 && ppp_fd >= 0) {
+    if (ppp_fd >= 0) {
 	nr = read(ppp_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
 	    error("read: %m");
+    }
+    if (nr < 0 && new_style_driver && !multilink) {
+	/* N.B. we read ppp_fd first since LCP packets come in there. */
+	nr = read(ppp_dev_fd, buf, len);
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
+	    error("read /dev/ppp: %m");
     }
     return (new_style_driver && nr > 0)? nr+2: nr;
 }
@@ -916,7 +986,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
 	
-    if (ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
+    if (ifunit >= 0 && ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m(%d)", errno);
 	
     if (!still_ppp())
@@ -975,7 +1045,8 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 	if ( ! ok_error (errno))
 	    error("ioctl(PPPIOCSMRU): %m(%d)", errno);
     }
-    if (new_style_driver && ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+    if (new_style_driver && ifunit >= 0
+	&& ioctl(ppp_dev_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
 	error("Couldn't set MRU in generic PPP layer: %m");
 
     SYSDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
@@ -1694,6 +1765,7 @@ int ppp_available(void)
 
     if (kernel_version >= KVERSION(2,3,13)) {
 	fd = open("/dev/ppp", O_RDWR);
+#if 0
 	if (fd < 0 && errno == ENOENT) {
 	    /* try making it and see if that helps. */
 	    if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
@@ -1707,6 +1779,7 @@ int ppp_available(void)
 		fd = open("/dev/ppp", O_RDWR);
 	    }
 	}
+#endif /* 0 */
 	if (fd >= 0) {
 	    new_style_driver = 1;
 
@@ -1717,6 +1790,7 @@ int ppp_available(void)
 	    close(fd);
 	    return 1;
 	}
+	return 0;
     }
 
 /*
@@ -2281,13 +2355,19 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
 int
 open_ppp_loopback(void)
 {
-    int flags;
+    int flags, x;
 
     looped = 1;
     if (new_style_driver) {
 	/* allocate ourselves a ppp unit */
-	ifunit = -1;
-	if (ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit) < 0)
+	ifunit = req_unit;
+	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	if (x < 0 && req_unit >= 0 && errno == EEXIST) {
+	    warn("Couldn't allocate PPP unit %d as it is already in use");
+	    ifunit = -1;
+	    x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	}
+	if (x < 0)
 	    fatal("Couldn't create PPP unit: %m");
 	set_flags(ppp_dev_fd, SC_LOOP_TRAFFIC);
 	set_kdebugflag(kdebugflag);
@@ -2512,6 +2592,10 @@ sys_check_options(void)
 	option_error("demand dialling is not supported by kernel driver "
 		     "version %d.%d.%d", driver_version, driver_modification,
 		     driver_patch);
+	return 0;
+    }
+    if (multilink && !new_style_driver) {
+	option_error("multilink is not supported by the kernel driver");
 	return 0;
     }
     return 1;

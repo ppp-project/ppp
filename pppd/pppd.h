@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.50 2000/03/13 23:39:58 paulus Exp $
+ * $Id: pppd.h,v 1.51 2000/03/27 06:03:06 paulus Exp $
  */
 
 /*
@@ -217,6 +217,8 @@ extern char	linkname[MAXPATHLEN]; /* logical name for link */
 extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
+extern int	req_unit;	/* interface unit number to use */
+extern bool	multilink;	/* enable multilink operation */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */

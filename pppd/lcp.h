@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.13 1998/11/07 06:59:27 paulus Exp $
+ * $Id: lcp.h,v 1.14 2000/03/27 06:03:00 paulus Exp $
  */
 
 /*
@@ -30,6 +30,9 @@
 #define CI_PCOMPRESSION	7	/* Protocol Field Compression */
 #define CI_ACCOMPRESSION 8	/* Address/Control Field Compression */
 #define CI_CALLBACK	13	/* callback */
+#define CI_MRRU		17	/* max reconstructed receive unit; multilink */
+#define CI_SSNHF	18	/* short sequence numbers for multilink */
+#define CI_EPDISC	19	/* endpoint discriminator */
 
 /*
  * LCP-specific packet types.
@@ -39,6 +42,9 @@
 #define ECHOREP		10	/* Echo Reply */
 #define DISCREQ		11	/* Discard Request */
 #define CBCP_OPT	6	/* Use callback control protocol */
+
+/* maximum length of endpoint discriminator value */
+#define MAX_ENDP_LEN	20
 
 /*
  * The state of options is described by an lcp_options structure.
@@ -56,12 +62,19 @@ typedef struct lcp_options {
     bool neg_accompression;	/* HDLC Address/Control Field Compression? */
     bool neg_lqr;		/* Negotiate use of Link Quality Reports */
     bool neg_cbcp;		/* Negotiate use of CBCP */
+    bool neg_multilink;		/* negotiate multilink (MRRU) */
+    bool neg_ssnhf;		/* negotiate short sequence numbers */
+    bool neg_endpoint;		/* negotiate endpoint discriminator */
     int  mru;			/* Value of MRU */
+    int	 mrru;			/* Value of MRRU, and multilink enable */
     u_char chap_mdtype;		/* which MD type (hashing algorithm) */
     u_int32_t asyncmap;		/* Value of async map */
     u_int32_t magicnumber;
-    int numloops;		/* Number of loops during magic number neg. */
+    int  numloops;		/* Number of loops during magic number neg. */
     u_int32_t lqr_period;	/* Reporting period for LQR 1/100ths second */
+    int  endp_class;		/* endpoint discriminator class */
+    int  endp_len;		/* endpoint discriminator length */
+    u_char endpoint[MAX_ENDP_LEN];	/* endpoint discriminator value */
 } lcp_options;
 
 extern fsm lcp_fsm[];

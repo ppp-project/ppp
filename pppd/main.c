@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.90 2000/03/13 23:39:58 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.91 2000/03/27 06:03:01 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -781,7 +781,7 @@ main(argc, argv)
 	    goto disconnect;
 	}
 
-	if (!demand) {
+	if (!demand && ifunit >= 0) {
 	    
 	    info("Using interface ppp%d", ifunit);
 	    slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);

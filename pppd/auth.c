@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.61 2000/03/13 23:25:46 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.62 2000/03/27 06:02:59 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -509,6 +509,7 @@ start_networks()
     struct protent *protp;
 
     new_phase(PHASE_NETWORK);
+
 #if 0
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
