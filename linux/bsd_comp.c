@@ -39,7 +39,7 @@
 /*
  * This version is for use with contiguous buffers on Linux-derived systems.
  *
- *  ==FILEVERSION 4==
+ *  ==FILEVERSION 5==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, increment the number above.
@@ -684,7 +684,7 @@ static int bsd_compress (void *state, unsigned char *rptr, unsigned char *obuf,
     /* Skip the input header */
     rptr  += PPP_HDRLEN;
     isize -= PPP_HDRLEN;
-    ilen   = ++isize; /* This is off by one, but that is what is in draft! */
+    ilen   = ++isize;	/* Low byte of protocol is counted as input */
 
     while (--ilen > 0)
       {
@@ -773,7 +773,7 @@ nomatch:
     
     OUTPUT(ent);		/* output the last code */
 
-    db->bytes_out    += olen;	/* Do not count bytes from here */
+    db->bytes_out    += olen - PPP_HDRLEN - BSD_OVHD;
     db->uncomp_bytes += isize;
     db->in_count     += isize;
     ++db->uncomp_count;
