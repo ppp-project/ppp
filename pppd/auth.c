@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.37 1998/03/26 04:46:03 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.38 1998/11/02 10:55:19 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1157,7 +1157,7 @@ set_allowed_addrs(unit, addrs)
 	u_int32_t a;
 	struct hostent *hp;
 
-	if (*p != '!' && *p != '-' && strchr(p, '/') == NULL) {
+	if (*p != '!' && *p != '-' && *p != '*' && strchr(p, '/') == NULL) {
 	    hp = gethostbyname(p);
 	    if (hp != NULL && hp->h_addrtype == AF_INET)
 		a = *(u_int32_t *)hp->h_addr;
