@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.19 1999/01/20 00:01:53 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.20 1999/02/26 10:35:34 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -61,6 +61,10 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.19 1999/01/20 00:01:53 paulus Exp $";
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include <netinet/in.h>
+#include <sys/tihdr.h>
+#include <sys/tiuser.h>
+#include <inet/common.h>
+#include <inet/mib2.h>
 
 #include "pppd.h"
 
@@ -621,6 +625,14 @@ restore_tty(fd)
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
+}
+
+/*
+ * hangup_modem - hang up the modem by clearing DTR.
+ */
+void hangup_modem(int ttyfd)
+{
+    setdtr(ttyfd, 0);
 }
 
 /*
@@ -1337,10 +1349,10 @@ get_hw_addr(name, ina, hwaddr)
     if (s < 0)
 	return 0;
     memset(&req, 0, sizeof(req));
-    req.arp_pa.sin_family = AF_INET;
+    req.arp_pa.sa_family = AF_INET;
     INET_ADDR(req.arp_pa) = ina;
     if (ioctl(s, SIOCGARP, &req) < 0) {
-	syslog(LOG_ERR, "Couldn't get ARP entry for %s: %m", inet_itoa(ina));
+	syslog(LOG_ERR, "Couldn't get ARP entry for %s: %m", ip_ntoa(ina));
 	return 0;
     }
     *hwaddr = req.arp_ha;
@@ -1709,4 +1721,107 @@ cifroute(u, our, his)
     }
 
     return 1;
+}
+
+/*
+ * have_route_to - determine if the system has a route to the specified
+ * IP address.  Returns 0 if not, 1 if so, -1 if we can't tell.
+ */
+#ifndef T_CURRENT		/* needed for Solaris 2.5 */
+#define T_CURRENT	MI_T_CURRENT
+#endif
+
+int
+have_route_to(addr)
+    u_int32_t addr;
+{
+    int fd, r, flags, i;
+    struct {
+	struct T_optmgmt_req req;
+	struct opthdr hdr;
+    } req;
+    union {
+	struct T_optmgmt_ack ack;
+	unsigned char space[64];
+    } ack;
+    struct opthdr *rh;
+    struct strbuf cbuf, dbuf;
+    int nroutes;
+    mib2_ipRouteEntry_t routes[8];
+    mib2_ipRouteEntry_t *rp;
+
+    fd = open("/dev/ip", O_RDWR);
+    if (fd < 0) {
+	syslog(LOG_WARNING, "have_route_to: couldn't open /dev/ip: %m");
+	return -1;
+    }
+
+    req.req.PRIM_type = T_OPTMGMT_REQ;
+    req.req.OPT_offset = (char *) &req.hdr - (char *) &req;
+    req.req.OPT_length = sizeof(req.hdr);
+    req.req.MGMT_flags = T_CURRENT;
+
+    req.hdr.level = MIB2_IP;
+    req.hdr.name = 0;
+    req.hdr.len = 0;
+
+    cbuf.buf = (char *) &req;
+    cbuf.len = sizeof(req);
+
+    if (putmsg(fd, &cbuf, NULL, 0) == -1) {
+	syslog(LOG_WARNING, "have_route_to: putmsg: %m");
+	close(fd);
+	return -1;
+    }
+
+    for (;;) {
+	cbuf.buf = (char *) &ack;
+	cbuf.maxlen = sizeof(ack);
+	dbuf.buf = (char *) routes;
+	dbuf.maxlen = sizeof(routes);
+	flags = 0;
+	r = getmsg(fd, &cbuf, &dbuf, &flags);
+	if (r == -1) {
+	    syslog(LOG_WARNING, "have_route_to: getmsg: %m");
+	    close(fd);
+	    return -1;
+	}
+
+	if (cbuf.len < sizeof(struct T_optmgmt_ack)
+	    || ack.ack.PRIM_type != T_OPTMGMT_ACK
+	    || ack.ack.MGMT_flags != T_SUCCESS
+	    || ack.ack.OPT_length < sizeof(struct opthdr)) {
+	    syslog(LOG_DEBUG, "have_route_to: bad message len=%d prim=%d",
+		   cbuf.len, ack.ack.PRIM_type);
+	    close(fd);
+	    return -1;
+	}
+
+	rh = (struct opthdr *) ((char *)&ack + ack.ack.OPT_offset);
+	if (rh->level == 0 && rh->name == 0)
+	    break;
+	if (rh->level != MIB2_IP || rh->name != MIB2_IP_21) {
+	    while (r == MOREDATA)
+		r = getmsg(fd, NULL, &dbuf, &flags);
+	    continue;
+	}
+
+	for (;;) {
+	    nroutes = dbuf.len / sizeof(mib2_ipRouteEntry_t);
+	    for (rp = routes, i = 0; i < nroutes; ++i, ++rp) {
+		if (rp->ipRouteMask != ~0) {
+		    syslog(LOG_DEBUG, "have_route_to: dest=%x gw=%x mask=%x\n",
+			   rp->ipRouteDest, rp->ipRouteNextHop,
+			   rp->ipRouteMask);
+		    if (((addr ^ rp->ipRouteDest) && rp->ipRouteMask) == 0)
+			return 1;
+		}
+	    }
+	    if (r == 0)
+		break;
+	    r = getmsg(fd, NULL, &dbuf, &flags);
+	}
+    }
+    close(fd);
+    return 0;
 }
