@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: demand.c,v 1.17 2003/03/03 05:11:45 paulus Exp $"
+#define RCSID	"$Id: demand.c,v 1.18 2004/10/28 00:15:08 paulus Exp $"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,9 +49,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #ifdef PPP_FILTER
-#include <net/if.h>
-#include <net/bpf.h>
-#include <pcap.h>
+#include <pcap-bpf.h>
 #endif
 
 #include "pppd.h"

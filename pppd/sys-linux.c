@@ -141,7 +141,7 @@
 #endif /* IPX_CHANGE */
 
 #ifdef PPP_FILTER
-#include <net/bpf.h>
+#include <pcap-bpf.h>
 #include <linux/filter.h>
 #endif /* PPP_FILTER */
 

@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.92 2004/01/13 04:02:07 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.93 2004/10/28 00:15:08 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -54,9 +54,17 @@
 #ifdef PLUGIN
 #include <dlfcn.h>
 #endif
+
 #ifdef PPP_FILTER
 #include <pcap.h>
-#include <pcap-int.h>	/* XXX: To get struct pcap */
+/*
+ * DLT_PPP_WITH_DIRECTION is in current libpcap cvs, and should be in
+ * libpcap-0.8.4.  Until that is released, use DLT_PPP - but that means
+ * we lose the inbound and outbound qualifiers.
+ */
+#ifndef DLT_PPP_WITH_DIRECTION
+#define DLT_PPP_WITH_DIRECTION	DLT_PPP
+#endif
 #endif
 
 #include "pppd.h"
@@ -77,9 +85,6 @@ struct option_value {
 /*
  * Option variables and default values.
  */
-#ifdef PPP_FILTER
-int	dflag = 0;		/* Tell libpcap we want debugging */
-#endif
 int	debug = 0;		/* Debug flag */
 int	kdebugflag = 0;		/* Tell kernel to print debug messages */
 int	default_device = 1;	/* Using /dev/tty or equivalent */
@@ -122,7 +127,6 @@ extern struct stat devstat;
 #ifdef PPP_FILTER
 struct	bpf_program pass_filter;/* Filter program for packets to pass */
 struct	bpf_program active_filter; /* Filter program for link-active pkts */
-pcap_t  pc;			/* Fake struct pcap so we can compile expr */
 #endif
 
 char *current_option;		/* the name of the option being parsed */
@@ -286,9 +290,6 @@ option_t general_options[] = {
 #endif
 
 #ifdef PPP_FILTER
-    { "pdebug", o_int, &dflag,
-      "libpcap debugging", OPT_PRIO },
-
     { "pass-filter", 1, setpassfilter,
       "set filter for packets to pass", OPT_PRIO },
 
@@ -1439,13 +1440,18 @@ static int
 setpassfilter(argv)
     char **argv;
 {
-    pc.linktype = DLT_PPP;
-    pc.snapshot = PPP_HDRLEN;
- 
-    if (pcap_compile(&pc, &pass_filter, *argv, 1, netmask) == 0)
-	return 1;
-    option_error("error in pass-filter expression: %s\n", pcap_geterr(&pc));
-    return 0;
+    pcap_t *pc;
+    int ret = 0;
+
+    pc = pcap_open_dead(DLT_PPP_WITH_DIRECTION, 65535);
+    if (pcap_compile(pc, &pass_filter, *argv, 1, netmask) == -1) {
+	option_error("error in pass-filter expression: %s\n",
+		     pcap_geterr(pc));
+	ret = 1;
+    }
+    pcap_close(pc);
+
+    return ret;
 }
 
 /*
@@ -1455,13 +1461,18 @@ static int
 setactivefilter(argv)
     char **argv;
 {
-    pc.linktype = DLT_PPP;
-    pc.snapshot = PPP_HDRLEN;
- 
-    if (pcap_compile(&pc, &active_filter, *argv, 1, netmask) == 0)
-	return 1;
-    option_error("error in active-filter expression: %s\n", pcap_geterr(&pc));
-    return 0;
+    pcap_t *pc;
+    int ret = 0;
+
+    pc = pcap_open_dead(DLT_PPP_WITH_DIRECTION, 65535);
+    if (pcap_compile(pc, &active_filter, *argv, 1, netmask) == -1) {
+	option_error("error in active-filter expression: %s\n",
+		     pcap_geterr(pc));
+	ret = 1;
+    }
+    pcap_close(pc);
+
+    return ret;
 }
 #endif
 
