@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.19 1999/09/17 04:20:10 paulus Exp $
+# $Id: configure,v 1.20 1999/09/17 05:30:57 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -110,16 +110,16 @@ if [ -d "$ksrc" ]; then
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
   echo "  Makefile -> $ksrc/Makefile.top"
-  if [ $ksrc = svr4 ]; then
+  if [ "$ksrc" = svr4 ]; then
     # Point to 64-bit Makefile extension
-    if [ $lp64 = y ]; then 
+    if [ "$lp64" = y ]; then 
       makext=$makext-64 
     fi
     rm -f $ksrc/Makefile
     ln -s Makefile.$makext $ksrc/Makefile
     echo "  $ksrc/Makefile -> Makefile.$makext"
     # Restore extension
-    if [ $lp64 = y ]; then 
+    if [ "$lp64" = y ]; then 
       makext=$orig_makext 
     fi
   fi
