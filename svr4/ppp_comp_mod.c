@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp_mod.c,v 1.1 1995/12/11 05:21:04 paulus Exp $
+ * $Id: ppp_comp_mod.c,v 1.2 1996/01/18 03:23:57 paulus Exp $
  */
 
 /*
@@ -48,7 +48,7 @@ extern struct mod_ops mod_strmodops;
 
 static struct modlstrmod modlstrmod = {
     &mod_strmodops,
-    "PPP async HDLC module",
+    "PPP compression module",
     &fsw
 };
 
