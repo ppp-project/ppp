@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.20 1995/12/18 03:43:04 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.21 1996/01/01 22:53:04 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -85,8 +85,18 @@ struct wordlist {
 
 /* Records which authentication operations haven't completed yet. */
 static int auth_pending[NUM_PPP];
+
+/* Set if we have successfully called login() */
 static int logged_in;
+
+/* List of addresses which the peer may use. */
 static struct wordlist *addresses[NUM_PPP];
+
+/* Number of network protocols which we have opened. */
+static int num_np_open;
+
+/* Number of network protocols which have come up. */
+static int num_np_up;
 
 /* Bits in auth_pending[] */
 #define UPAP_WITHPEER	1
@@ -97,6 +107,7 @@ static struct wordlist *addresses[NUM_PPP];
 /* Prototypes for procedures local to this file. */
 
 static void network_phase __P((int));
+static void check_idle __P((caddr_t));
 static int  login __P((char *, char *, char **, int *));
 static void logout __P((void));
 static int  null_login __P((int));
@@ -146,11 +157,15 @@ link_down(unit)
     struct protent *protp;
 
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+	if (!protp->enabled_flag)
+	    continue;
         if (protp->protocol != PPP_LCP && protp->lowerdown != NULL)
 	    (*protp->lowerdown)(unit);
         if (protp->protocol < 0xC000 && protp->close != NULL)
 	    (*protp->close)(unit);
     }
+    num_np_open = 0;
+    num_np_up = 0;
     phase = PHASE_TERMINATE;
 }
 
@@ -173,7 +188,8 @@ link_established(unit)
      * Tell higher-level protocols that LCP is up.
      */
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
-        if (protp->protocol != PPP_LCP && protp->lowerup != NULL)
+        if (protp->protocol != PPP_LCP && protp->enabled_flag
+	    && protp->lowerup != NULL)
 	    (*protp->lowerup)(unit);
 
     if (auth_required && !(go->neg_chap || go->neg_upap)) {
@@ -224,8 +240,12 @@ network_phase(unit)
 
     phase = PHASE_NETWORK;
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
-        if (protp->protocol < 0xC000 && protp->open != NULL)
+        if (protp->protocol < 0xC000 && protp->enabled_flag
+	    && protp->open != NULL) {
 	    (*protp->open)(unit);
+	    if (protp->protocol != PPP_CCP)
+		++num_np_open;
+	}
 }
 
 /*
@@ -318,10 +338,71 @@ auth_withpeer_success(unit, protocol)
 
 
 /*
- * check_auth_options - called to check authentication options.
+ * np_up - a network protocol has come up.
  */
 void
-check_auth_options()
+np_up(unit, proto)
+    int unit, proto;
+{
+    if (num_np_up == 0 && idle_time_limit > 0) {
+	TIMEOUT(check_idle, NULL, idle_time_limit);
+    }
+    ++num_np_up;
+}
+
+/*
+ * np_down - a network protocol has gone down.
+ */
+void
+np_down(unit, proto)
+    int unit, proto;
+{
+    if (--num_np_up == 0 && idle_time_limit > 0) {
+	UNTIMEOUT(check_idle, NULL);
+    }
+}
+
+/*
+ * np_finished - a network protocol has finished using the link.
+ */
+void
+np_finished(unit, proto)
+    int unit, proto;
+{
+    if (--num_np_open <= 0) {
+	/* no further use for the link: shut up shop. */
+	lcp_close(0, "No network protocols running");
+    }
+}
+
+/*
+ * check_idle - check whether the link has been idle for long
+ * enough that we can shut it down.
+ */
+static void
+check_idle(arg)
+    caddr_t arg;
+{
+    struct ppp_idle idle;
+    time_t itime;
+
+    if (!get_idle_time(0, &idle))
+	return;
+    itime = MIN(idle.xmit_idle, idle.recv_idle);
+    if (itime >= idle_time_limit) {
+	/* link is idle: shut it down. */
+	syslog(LOG_INFO, "Terminating connection due to lack of activity.");
+	lcp_close(0, "Link inactive");
+    } else {
+	TIMEOUT(check_idle, NULL, idle_time_limit - itime);
+    }
+}
+
+/*
+ * auth_check_options - called to check authentication options.
+ */
+void
+auth_check_options()
 {
     lcp_options *wo = &lcp_wantoptions[0];
     lcp_options *ao = &lcp_allowoptions[0];
