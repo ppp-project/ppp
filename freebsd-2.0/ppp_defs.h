@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.1 1996/10/08 04:38:04 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.2 1997/04/30 05:42:20 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -54,10 +54,12 @@
  * Protocol field values.
  */
 #define PPP_IP		0x21	/* Internet Protocol */
+#define PPP_AT		0x29	/* AppleTalk Protocol */
 #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
 #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
 #define PPP_COMP	0xfd	/* compressed packet */
 #define PPP_IPCP	0x8021	/* IP Control Protocol */
+#define PPP_ATCP	0x8029	/* AppleTalk Control Protocol */
 #define PPP_CCP		0x80fd	/* Compression Control Protocol */
 #define PPP_LCP		0xc021	/* Link Control Protocol */
 #define PPP_PAP		0xc023	/* Password Authentication Protocol */
