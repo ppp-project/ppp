@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.14 1998/02/04 01:43:39 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.15 1998/03/25 03:11:35 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -162,6 +162,7 @@ static u_short interactive_ports[8] = {
 
 extern struct compressor ppp_bsd_compress;
 extern struct compressor ppp_deflate;
+extern struct compressor ppp_deflate_draft;
 
 struct compressor *ppp_compressors[] = {
 #if DO_BSD_COMPRESS
@@ -169,6 +170,7 @@ struct compressor *ppp_compressors[] = {
 #endif
 #if DO_DEFLATE
     &ppp_deflate,
+    &ppp_deflate_draft,
 #endif
     NULL
 };
