@@ -3,7 +3,7 @@
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
- * This version is for use with Linux kernel 1.3.X.
+ * This version is for use with Linux kernel 1.3.X and later.
  *
  * Copyright (c) 1994 The Australian National University.
  * All rights reserved.
@@ -554,8 +554,12 @@ z_decompress(arg, ibuf, isize, obuf, osize)
 		}
 	}
 
-	if (decode_proto)
+	if (decode_proto) {
+		if (state->debug)
+			printk(KERN_DEBUG "z_decompress%d: didn't get proto\n",
+			       state->unit);
 		return DECOMP_ERROR;
+	}
 
 	olen = osize + overflow - state->strm.avail_out;
 	state->stats.unc_bytes += olen;

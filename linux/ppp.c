@@ -48,7 +48,7 @@
 #define CHECK_CHARACTERS	1
 #define PPP_COMPRESS		1
 
-/* $Id: ppp.c,v 1.16 1998/03/19 05:02:17 paulus Exp $ */
+/* $Id: ppp.c,v 1.17 1998/03/24 23:54:59 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h> /* for CONFIG_KERNELD */
@@ -1459,6 +1459,10 @@ ppp_doframe (struct ppp *ppp)
 			(*ppp->sc_rcomp->incomp) (ppp->sc_rc_state,
 						  data, count);
 		}
+	} else if (proto == PPP_COMP && (ppp->flags & SC_DEBUG)) {
+		printk(KERN_DEBUG "ppp: frame not decompressed: "
+		       "flags=%x, count=%d, sc_rc_state=%p\n",
+		       ppp->flags, count, ppp->sc_rc_state);
 	}
 /*
  * Process the uncompressed frame.
@@ -1796,6 +1800,9 @@ static void ppp_proto_ccp (struct ppp *ppp, __u8 *dp, int len, int rcvd)
 		}
 		break;
 	}
+	if (ppp->flags & SC_DEBUG)
+		printk(KERN_DEBUG "ppp_proto_ccp: %s code %d, flags=%x\n",
+		       (rcvd? "rcvd": "sent"), CCP_CODE(dp), ppp->flags);
 	restore_flags(flags);
 }
 
@@ -2289,7 +2296,7 @@ out_free:
 }
 
 /*
- * Process the BSD compression IOCTL event for the tty device.
+ * Process the set-compression ioctl.
  */
 
 static int
@@ -2323,7 +2330,7 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 
 	save_flags(flags);
 	cli();
-	ppp->flags &= ~(SC_COMP_RUN | SC_DECOMP_RUN);
+	ppp->flags &= ~(data.transmit? SC_COMP_RUN: SC_DECOMP_RUN);
 	restore_flags(flags);
 
 	cp = find_compressor (ccp_option[0]);
@@ -2391,8 +2398,9 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
                unsigned int param2, unsigned long param3)
 {
 	struct ppp *ppp = tty2ppp (tty);
-	register int temp_i = 0;
+	register int temp_i = 0, oldflags;
 	int error = 0;
+	unsigned long flags;
 /*
  * Verify the status of the PPP device.
  */
@@ -2442,16 +2450,18 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 		if (error != 0)
 			break;
 		temp_i &= SC_MASK;
-		temp_i |= (ppp->flags & ~SC_MASK);
 
-		if ((ppp->flags & SC_CCP_OPEN) &&
-		    (temp_i & SC_CCP_OPEN) == 0)
-			ppp_ccp_closed (ppp);
+		if ((ppp->flags & SC_CCP_OPEN) && (temp_i & SC_CCP_OPEN) == 0)
+			ppp_ccp_closed(ppp);
 
-		if ((ppp->flags | temp_i) & SC_DEBUG)
+		save_flags(flags);
+		cli();
+		oldflags = ppp->flags;
+		ppp->flags = temp_i |= (ppp->flags & ~SC_MASK);
+		restore_flags(flags);
+		if ((oldflags | temp_i) & SC_DEBUG)
 			printk (KERN_INFO
 				"ppp_tty_ioctl: set flags to %x\n", temp_i);
-		ppp->flags = temp_i;
 		break;
 /*
  * Set the compression mode

@@ -1,4 +1,4 @@
-/*	From: if_ppp.h,v 1.3 1995/06/12 11:36:50 paulus Exp */
+/*	$Id: if_ppp.h,v 1.11 1998/03/24 23:54:58 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -65,7 +65,6 @@
 #define SC_REJ_COMP_TCP	0x00000020	/* reject TCP (VJ) comp. on input */
 #define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
-#define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
 #define SC_COMP_RUN	0x00001000	/* compressor has been inited */
 #define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
@@ -73,12 +72,9 @@
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
-#define	SC_MASK		0x0fE0ffff	/* bits that user can change */
+#define	SC_MASK		0x0f0000ff	/* bits that user can change */
 
 /* state bits */
-#define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
-#define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
-#define SC_VJ_RESET	0x20000000	/* Need to reset the VJ decompressor */
 #define SC_XMIT_BUSY	0x10000000	/* ppp_write_wakeup is active */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
