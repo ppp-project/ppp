@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.14 1996/07/01 05:32:57 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.15 1996/08/28 06:43:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -397,6 +397,9 @@ main(argc, argv)
     char *argv[];
 {
     int c;
+#ifdef STREAMS
+    char *dev;
+#endif
 
     interface = "ppp0";
     if ((progname = strrchr(argv[0], '/')) == NULL)
@@ -467,6 +470,11 @@ main(argc, argv)
 	    perror("couldn't create IP socket");
 	    exit(1);
 	}
+
+#ifdef _linux_
+#undef  ifr_name
+#define ifr_name ifr_ifrn.ifrn_name
+#endif
 	strncpy(ifr.ifr_name, interface, sizeof(ifr.ifr_name));
 	if (ioctl(s, SIOCGIFFLAGS, (caddr_t)&ifr) < 0) {
 	    fprintf(stderr, "%s: nonexistent interface '%s' specified\n",
@@ -476,9 +484,14 @@ main(argc, argv)
     }
 
 #else	/* STREAMS */
-    if ((s = open("/dev/ppp", O_RDONLY)) < 0) {
-	fprintf(stderr, "%s: ", progname);
-	perror("couldn't open /dev/ppp");
+#ifdef __osf__
+    dev = "/dev/streams/ppp";
+#else
+    dev = "/dev/ppp";
+#endif
+    if ((s = open(dev, O_RDONLY)) < 0) {
+	fprintf(stderr, "%s: couldn't open ", progname);
+	perror(dev);
 	exit(1);
     }
     if (strioctl(s, PPPIO_ATTACH, &unit, sizeof(int), 0) < 0) {
