@@ -43,7 +43,7 @@
  * Based on draft-ietf-pppext-eap-srp-03.txt.
  */
 
-#define RCSID	"$Id: eap.c,v 1.1 2002/11/02 19:48:12 carlsonj Exp $"
+#define RCSID	"$Id: eap.c,v 1.2 2002/11/14 21:50:12 fcusack Exp $"
 
 /*
  * TODO:
@@ -81,7 +81,9 @@
 static const char rcsid[] = RCSID;
 
 eap_state eap_states[NUM_PPP];		/* EAP state; one for each unit */
+#ifdef USE_SRP
 static char *pn_secret = NULL;		/* Pseudonym generating secret */
+#endif
 
 /*
  * Command-line options.
