@@ -38,10 +38,11 @@
  */
 
 /*
- * $Id: bsd-comp.c,v 1.1 1999/03/23 03:21:57 paulus Exp $
+ * $Id: bsd-comp.c,v 1.2 1999/04/01 07:26:30 paulus Exp $
  */
 
 #include <sys/types.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include "ppp_defs.h"
 #include "ppp-comp.h"

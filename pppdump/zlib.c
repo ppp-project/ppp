@@ -11,7 +11,7 @@
  * - added Z_PACKET_FLUSH (see zlib.h for details)
  * - added inflateIncomp
  *
- * $Id: zlib.c,v 1.1 1999/03/23 03:21:58 paulus Exp $
+ * $Id: zlib.c,v 1.2 1999/04/01 07:26:30 paulus Exp $
  */
 
 
@@ -85,20 +85,15 @@ extern char *z_errmsg[]; /* indexed by 1-zlib_error */
 
          /* functions */
 
-#if defined(KERNEL) || defined(_KERNEL)
-#  define zmemcpy(d, s, n)	bcopy((s), (d), (n))
-#  define zmemzero		bzero
-#else
 #if defined(STDC) && !defined(HAVE_MEMCPY) && !defined(NO_MEMCPY)
 #  define HAVE_MEMCPY
 #endif
 #ifdef HAVE_MEMCPY
-#    define zmemcpy memcpy
-#    define zmemzero(dest, len) memset(dest, 0, len)
+#  define zmemcpy memcpy
+#  define zmemzero(dest, len) memset(dest, 0, len)
 #else
-   extern void zmemcpy  OF((Bytef* dest, Bytef* source, uInt len));
-   extern void zmemzero OF((Bytef* dest, uInt len));
-#endif
+#  define zmemcpy(d, s, n)	bcopy((s), (d), (n))
+#  define zmemzero		bzero
 #endif
 
 /* Diagnostic functions */

@@ -22,6 +22,7 @@ int decompress;
 int mru = 1500;
 
 extern int optind;
+extern char *optarg;
 
 main(ac, av)
     int ac;
