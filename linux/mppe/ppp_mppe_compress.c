@@ -412,9 +412,14 @@ mppe_decompress(void *arg, unsigned char *ibuf, int isize, unsigned char *obuf,
 		   state->unit, isize);
 	return DECOMP_ERROR;
     }
-    /* Strange ... our output size is always LESS than the input size. */
-    /* assert(osize >= isize - MPPE_OVHD - 2); */
 
+    /* Make sure we have enough room to decrypt the packet. */
+    if (osize < isize - MPPE_OVHD - 2) {
+	printk(KERN_DEBUG "mppe_decompress[%d]: osize too small! "
+	       "(have: %d need: %d)\n", state->unit,
+	       osize, isize - MPPE_OVHD - 2);
+	return DECOMP_ERROR;
+    }
     osize = isize - MPPE_OVHD - 2;
 
     ccount = MPPE_CCOUNT(ibuf);
@@ -508,11 +513,11 @@ mppe_decompress(void *arg, unsigned char *ibuf, int isize, unsigned char *obuf,
      * comes from the decrypted data.
      */
     obuf[0] = PPP_ADDRESS(ibuf);	/* +1 */
-    obuf[1] = PPP_CONTROL(ibuf);	/* +2 */
+    obuf[1] = PPP_CONTROL(ibuf);	/* +1 */
     obuf  += 2;
     ibuf  += PPP_HDRLEN + MPPE_OVHD;
     isize -= PPP_HDRLEN + MPPE_OVHD;	/* -6 */
-					/* net: -4 */
+					/* net osize: isize-4 */
 
     /* And finally, decrypt the packet. */
     arcfour_decrypt(&state->arcfour_context, ibuf, isize, obuf);
