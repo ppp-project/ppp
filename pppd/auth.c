@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.96 2004/10/24 23:26:19 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.97 2004/10/28 00:33:47 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1072,8 +1072,8 @@ connect_time_expired(arg)
     void *arg;
 {
     info("Connect time expired");
-    lcp_close(0, "Connect time expired");	/* Close connection */
     status = EXIT_CONNECT_TIME;
+    lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
 /*
