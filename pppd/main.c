@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.133 2004/02/02 03:40:12 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.134 2004/04/12 04:53:00 kad Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1337,6 +1337,9 @@ kill_my_pg(sig)
     int sig;
 {
     struct sigaction act, oldact;
+
+    sigemptyset(&act.sa_mask);
+    sigaddset(&act.sa_mask, sig);
 
     act.sa_handler = SIG_IGN;
     act.sa_flags = 0;
