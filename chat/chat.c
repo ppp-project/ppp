@@ -34,7 +34,7 @@
  *
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.12 1996/06/26 00:51:06 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.13 1997/03/04 03:25:59 paulus Exp $";
 
 #include <stdio.h>
 #include <time.h>
@@ -311,25 +311,6 @@ char **argv;
 	        }
 	    }
 	}
-/*
- * Allow the last of the report string to be gathered before we terminate.
- */
-    while (report_gathering)
-        {
-	int c;
-	c = get_char();
-	if (!iscntrl (c))
-	    {
-	    int rep_len = strlen (report_buffer);
-	    report_buffer[rep_len]     = c;
-	    report_buffer[rep_len + 1] = '\0';
-	    }
-	else
-	    {
-	    report_gathering = 0;
-	    fprintf (report_fp, "chat:  %s\n", report_buffer);
-	    }
-        }
 
     terminate(0);
     }
@@ -435,21 +416,25 @@ Usage: %s [-e] [-v] [-t timeout] [-r report-file] {-f chat-file | chat-script}\n
     exit(1);
     }
 
-char line[256];
+char line[128];
 char *p;
 
 void logf (str)
 const char *str;
-    {
-    p = line + strlen(line);
-    strcat (p, str);
+{
+    int l = strlen(line);
 
-    if (str[strlen(str)-1] == '\n')
-	{
+    if (l + strlen(str) >= sizeof(line)) {
+	syslog(LOG_INFO, "%s", line);
+	l = 0;
+    }
+    strcpy(line + l, str);
+
+    if (str[strlen(str)-1] == '\n') {
 	syslog (LOG_INFO, "%s", line);
 	line[0] = 0;
-	}
     }
+}
 
 void logflush()
     {
@@ -608,7 +593,26 @@ int status;
     {
     echo_stderr(-1);
     if (report_file != (char *) 0 && report_fp != (FILE *) NULL)
-        {
+	{
+/*
+ * Allow the last of the report string to be gathered before we terminate.
+ */
+	if (report_gathering) {
+	    int c, rep_len;
+
+	    rep_len = strlen(report_buffer);
+	    while (rep_len + 1 <= sizeof(report_buffer)) {
+		alarm(1);
+		c = get_char();
+		alarm(0);
+		if (c < 0 || iscntrl(c))
+		    break;
+		report_buffer[rep_len] = c;
+		++rep_len;
+	    }
+	    report_buffer[rep_len] = 0;
+	    fprintf (report_fp, "chat:  %s\n", report_buffer);
+	}
 	if (verbose)
 	    {
 	    fprintf (report_fp, "Closing \"%s\".\n", report_file);
