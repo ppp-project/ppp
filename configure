@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.6 1995/12/11 05:01:37 paulus Exp $
+# $Id: configure,v 1.7 1995/12/18 03:31:30 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -22,7 +22,7 @@ case $system in
   SunOS)
     case $release in
       [0-3]*)	state="ancient";;
-      4*)	state="known"; ksrc="sunos"; makext="sun";;
+      4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
       5*)	state="known"; ksrc="svr4"; makext="sol2";;
     esac;;
   ULTRIX)
