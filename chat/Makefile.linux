@@ -1,7 +1,4 @@
-#	$Id: Makefile.linux,v 1.3 1995/06/30 01:58:21 paulus Exp $
-
-BINDIR=/usr/lib/ppp
-MANDIR=/usr/man
+#	$Id: Makefile.linux,v 1.4 1995/12/11 02:55:14 paulus Exp $
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DPIDSTRING			# I like ascii pid values

@@ -1,13 +1,54 @@
 # PPP top-level Makefile for Linux.
 
+
+BINDIR = /usr/sbin
+MANDIR = /usr/man
+ETCDIR = /etc/ppp
+
+# uid 0 = root
+INSTALL= install -o 0 -g daemon
+
 all:
 	cd chat; $(MAKE) all
 	cd pppd; $(MAKE) all
+	cd pppstats; $(MAKE) all
 
-install:
-	cd chat; $(MAKE) install
-	cd pppd; $(MAKE) install
+install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
+
+install-progs:
+	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+
+install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
+	$(ETCDIR)/chap-secrets
+
+$(ETCDIR)/options:
+	if netstat -rn | grep default >/dev/null; then \
+	  $(INSTALL) -c -m 644 etc.ppp/options $@; \
+	else $(INSTALL) -c -m 644 etc.ppp/options.leaf $@; fi
+$(ETCDIR)/pap-secrets:
+	$(INSTALL) -c -m 600 etc.ppp/pap-secrets $@
+$(ETCDIR)/chap-secrets:
+	$(INSTALL) -c -m 600 etc.ppp/chap-secrets $@
+
+$(BINDIR):
+	$(INSTALL) -d -m 755 $@
+$(MANDIR)/man8:
+	$(INSTALL) -d -m 755 $@
+$(ETCDIR):
+	$(INSTALL) -d -m 755 $@
 
 clean:
+	rm -f core `find . -name '*.[oas]' -print`
+	rm -f core `find . -name 'core' -print`
+	rm -f core `find . -name '*~' -print`
 	cd chat; $(MAKE) clean
 	cd pppd; $(MAKE) clean
+	cd pppstats; $(MAKE) clean
+
+dist-clean:	clean
+	rm -f Makefile `find . -name Makefile -print`
+
+kernel:
+	cd linux; ./kinstall.sh

@@ -134,9 +134,20 @@ CHANGES FROM THE PREVIOUS VERSION
 - There is no limit to the number of ppp devices which you may use. Jim Freeman
   has added code to create them upon demand and to re-use the ones which have
   been closed. There is no code, nor plans to write code, to remove (delete)
-  the un-used devices. So, if your system goes to a spurt and uses 3000 ppp
+  the un-used devices. So, if your system goes to a spurt and uses 256 ppp
   devices, it will remain at that level until you next reload the kernel.
 
+  If you are using modules then you may use the additional setting of
+ 
+  max_dev=#
+
+  where # is the maximum number. The default is set by the define PPP_MAX_DEV
+  and this define may be altered if you are not using modules.
+
+  The BSD compressor may only be loaded as a module. Previous beta versions
+  permitted the compressor to be included into the kernel. This was removed
+  for several reasons, some technical, some less technical and more
+  political (legal).
 
 
 FUTURE PLANS
@@ -144,8 +155,7 @@ FUTURE PLANS
 The IPX support is still minimal. There is code which will only work with
 the 1.3 version of the networking software. The pppd process will still
 require changes to support the IPXCP and a change to the driver to properly
-enable/disable the IPX frames. Jim Freeman is reportily working on the IPX
-support.
+enable/disable the IPX frames.
 
 
 
@@ -216,6 +226,34 @@ automated installation procedure be performed.
 Use the following procedure for all kernel versions. There are six steps
 numbered one through six. Please do them in order and not skip one.
 
+An important note about the use of modules for PPP:
+
+The module support for the Linux system supports a concept of configuring
+the external names so that they pertain to only a specific version of the
+kernel. This is enabled by answering "y)es" to the configuration question
+of "Set version information on all symbols for modules?".
+
+There is a problem with enabling this and the PPP code under some
+circumstances. It will not work if BOTH of the following is true:
+
+a) You elect to load the PPP driver into the kernel; and
+b) You want version information for all other modules.
+
+The problem is one of the module code itself. It is not able to recognize
+that the symbols loaded into the kernel symbol table may not have been
+defined with the new names for the symbols. The symbols defined by the
+PPP code will not have version information attached to them.
+
+The solution to the problem is simple. Don't do both things at the same
+time. The means that it is valid if you either (a) don't use version
+information; or (b) don't put the PPP code into the kernel (use it as a
+module instead) if you want to use version information.
+
+I will see what I can do to get around this limitation. However, for the
+time being, this is a limitation.
+
+
+
 1. Issue the command:
 
 ./configure
@@ -274,7 +312,79 @@ You are free to run the installation script as many times as you
 wish. The additional executions will only change the files which have
 not been changed.
 
-3. Build the kernel.
+3. Verify the Makefile in the kernel.
+
+The drivers/net/Makefile in the kernel must have the proper definition
+for the BSD compression module. As of 2.2.0a, the code will only build
+as a module. This means that if you have had an earlier version of the
+PPP logic and this is an update to the kernel then it is possible that
+the patch to the Makefile did not work and you will be left with a
+kernel which will not build correctly.
+
+Please, read carefully the following.
+
+Look that the kernel version which you are building. If the version is
+1.2.x (1.2.0 though 1.2.99999, whatever) then use the set of entries
+for the 1.2 kernel. If the kernel is for 1.3.x and resembles the lines
+in the 1.3 kernel entry then use those. There is a point in the early
+1.3 kernels where the Makefile actually was that of the 1.2 series.
+Please don't just use the 1.3 kernel change unless your makefile
+RESEMBLES the patch indicated.
+
+I don't know how to stress this enough. If you choose the wrong one
+then the makefile will not work. Your kernel build will fail. In that
+case, use the other one. There are only two variations. Please choose
+the proper one. Only one will work.
+
+Check the makefile. If your kernel is 1.2 then it should be similar to
+the following:
+
+ifdef CONFIG_PPP
+NETDRV_OBJS := $(NETDRV_OBJS) ppp.o
+CONFIG_SLHC = CONFIG_SLHC
+else
+MODULES := $(MODULES) ppp.o
+endif
+ 
+MODULES := $(MODULES) bsd_comp.o
+
+ifdef CONFIG_SLIP
+NETDRV_OBJS := $(NETDRV_OBJS) slip.o
+CONFIG_SLHC = CONFIG_SLHC
+else
+MODULES := $(MODULES) slip.o
+endif
+
+The critical entry is the line which says "MODULES := $(MODULES) bsd_comp.o"
+and that you don't have "NETDRV_OBJS := $(NETDRV_OBJS) ppp.o bsd_comp.o".
+
+IF YOU HAVE THE 1.3 KERNEL, the following is the expected pattern in the
+Makefile.
+
+ifeq ($(CONFIG_PPP),y)
+L_OBJS += ppp.o
+CONFIG_SLHC_BUILTIN = y
+else
+  CONFIG_SLHC_MODULE = y
+  M_OBJS += ppp.o
+  endif
+endif
+ 
+ifneq ($(CONFIG_PPP),n)
+  M_OBJS += bsd_comp.o
+endif
+
+ifeq ($(CONFIG_SLIP),y)
+L_OBJS += slip.o
+CONFIG_SLHC_BUILTIN = y
+else
+  ifeq ($(CONFIG_SLIP),m)
+
+Again, ensure that the statement reads "L_OBJS += ppp.o" and not
+"L_OBJS += ppp.o bsd_comp.o".
+
+
+4. Build the kernel.
 
 You must rebuild the kernel with this package. The driver is totally
 new and will not work with the older daemon and the newer daemon will
@@ -286,10 +396,15 @@ If you wish module support then you need to have the 'modules-1.1.87'
 package installed as the minimum version. Earlier versions of the module
 support will not work properly.
 
+As of this time, the current version for the modules package is
+1.2.0. Even 1.1.87 is old. However, if you only have 1.1.87 then it
+will do as it permits the symbol table references. Please consider
+upgrading the module package however.
+
 Instructions on building the kernel with modules are given in the
 README.modules in the kernel source directory.
 
-4. Build the programs.
+5. Build the programs.
 
 The programs are built next. The command to build the programs is fairly
 simple. Just issue the command:
@@ -298,7 +413,7 @@ make
 
 from the top level directory where this README.linux file is located.
 
-5. Install the programs.
+6. Install the programs.
 
 You may use the command
 
@@ -309,21 +424,24 @@ to install the various programs. They will be installed into the
 executables. The directory name is called BINDIR and is set in the
 file 'linux/Makefile.linux'.
 
-6. Reboot to the new kernel.
+7. Reboot to the new kernel.
 
 After building the new kernel, you will need to actually use it. Reboot
 the Linux system and you may then use the new pppd program.
 
 7. Load optional modules.
 
-If you are using loadable modules for the ppp or bsd compression then
-you must load them after the kernel has been started. The following
-relative order must be maintained.
+If you are using loadable modules for the ppp then you must load them
+after the kernel has been started. The following relative order must
+be maintained.
 
 Sequence    Module      Description
    1        slhc.o      VJ header compression
    2        ppp.o       PPP driver
    3        bsd_comp.o  BSD compression for PPP's compression protocol.
+
+If you only have the bsd comprssor as a module then you may load it without
+regard to any order.
 
 You may elect not to load the BSD compression module if you desire. There
 is a controversy regarding a Motorola software patent and while it is
