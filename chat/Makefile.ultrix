@@ -2,6 +2,9 @@
 # Makefile for chat with ultrix
 #
 
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+
 CFLAGS = -DNO_USLEEP
 
 all:	chat
@@ -11,6 +14,7 @@ chat: chat.o
 
 install: chat
 	install -c chat $(BINDIR)/chat
+	install -c -m 444 chat.8 $(MANDIR)/man8/chat.8
 
 clean:
 	rm -f *~ *.o chat

@@ -1,7 +1,10 @@
 #
 # pppstats makefile
-# $Id: Makefile.ultrix,v 1.3 1995/04/28 06:23:39 paulus Exp $
+# $Id: Makefile.ultrix,v 1.4 1995/06/01 01:32:56 paulus Exp $
 #
+
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
 
 PPPSTATSRCS = pppstats.c
 PPPSTATOBJS = pppstats.o
@@ -17,6 +20,7 @@ all: pppstats
 
 install: pppstats
 	install -c pppstats $(BINDIR)/pppstats
+	install -c -m 444 pppstats.8 $(MANDIR)/man8/pppstats.8
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
