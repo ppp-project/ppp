@@ -4,9 +4,15 @@
 # ppp-2.3.  It is intended to be run in the ppp-2.3 directory.
 #
 # Paul Mackerras	17-Mar-95
+#
+# Modified to match the output of the uname command for FreeBSD 2.1.0
+# and 2.1.5 (and perhaps later).
+#
+# John Lind (john@starfire.mn.org) 18-Nov-96
 
-CONF=$(uname -v | sed 's/.*(\(.*\)).*/\1/')
-SYS=/sys
+KPATH=$(uname -v | sed 's/.*://')
+CONF=$(echo $KPATH | sed 's;.*compile/;;')
+SYS=$(echo $KPATH | sed 's;/compile/.*$;;')
 ARCHDIR=$SYS/i386
 CFILE=$ARCHDIR/conf/$CONF
 SRC=freebsd-2.0
@@ -77,11 +83,11 @@ elif [ $DOMAKE ]; then
   echo "You need to build a new kernel."
   echo "The procedure for doing this involves the following commands."
   echo
-  echo "	cd $SYS/compile/$CONF"
+  echo "	cd $KPATH"
 fi
 if [ $DOMAKE ]; then
   echo "	make"
   echo
-  echo "Then copy the new kernel ($SYS/compile/$CONF/kernel) to /"
+  echo "Then copy the new kernel ($KPATH/kernel) to /"
   echo "and reboot.  (Keep a copy of the old /kernel, just in case.)"
 fi
