@@ -45,6 +45,13 @@ create an /etc/ppp/ip-up script containing something like this:
 
 See the man page for ip(7p) for details.
 
+Snoop support.
+**************
+
+This version includes support for /usr/sbin/snoop. Tests has been done
+on both Solaris 7 and 8. Only IPv4 and IPv6 packets will be sent
+up to streams marked as promiscuous, e.g, snoop et al.
+
 IPv6 Support.
 *************
 
@@ -70,7 +77,7 @@ yet persistent id, such as EEPROM serial numbers, etc.
 64-bit Support.
 ***************
 
-This version has been tested under Solaris 7 (and Solaris 8 Beta) in both 
+This version has been tested under Solaris 7 (and Solaris 8 ) in both 
 32- and 64-bits environments (Ultra class machines). Installing the package
 by executing "make install" will result in additional files residing in
 /kernel/drv/sparcv9 and /kernel/strmod/sparcv9 subdirectories.
