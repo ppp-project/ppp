@@ -1,6 +1,23 @@
 /*
  * ppp_ahdlc.c - STREAMS module for doing PPP asynchronous HDLC.
  *
+ * Re-written by Adi Masputra <adi.masputra@sun.com>, based on 
+ * the original ppp_ahdlc.c
+ *
+ * Copyright (c) 2000 by Sun Microsystems, Inc.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, provided that the above copyright
+ * notice appears in all copies.  
+ *
+ * SUN MAKES NO REPRESENTATION OR WARRANTIES ABOUT THE SUITABILITY OF
+ * THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE, OR NON-INFRINGEMENT.  SUN SHALL NOT BE LIABLE FOR
+ * ANY DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR
+ * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES
+ *
  * Copyright (c) 1994 The Australian National University.
  * All rights reserved.
  *
@@ -24,7 +41,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.11 1999/09/15 23:49:05 masputra Exp $
+ * $Id: ppp_ahdlc.c,v 1.12 2000/01/21 01:04:56 masputra Exp $
  */
 
 /*
@@ -51,31 +68,46 @@
 #include <net/pppio.h>
 #include "ppp_mod.h"
 
-#define IFRAME_BSIZE	512	/* Block size to allocate for input */
-#define OFRAME_BSIZE	4096	/* Don't allocb more than this for output */
+/*
+ * Right now, mutex is only enabled for Solaris 2.x
+ */
+#if defined(SOL2)
+#define USE_MUTEX
+#endif /* SOL2 */
 
 MOD_OPEN_DECL(ahdlc_open);
 MOD_CLOSE_DECL(ahdlc_close);
 static int ahdlc_wput __P((queue_t *, mblk_t *));
 static int ahdlc_rput __P((queue_t *, mblk_t *));
-static void stuff_frame __P((queue_t *, mblk_t *));
-static void unstuff_chars __P((queue_t *, mblk_t *));
+static void ahdlc_encode __P((queue_t *, mblk_t *));
+static void ahdlc_decode __P((queue_t *, mblk_t *));
 static int msg_byte __P((mblk_t *, unsigned int));
 
-/* Extract byte i of message mp. */
+#if defined(SOL2)
+/*
+ * Don't send HDLC start flag is last transmit is within 1.5 seconds -
+ * FLAG_TIME is defined is microseconds
+ */
+#define FLAG_TIME   1500
+#define ABS(x)	    (x >= 0 ? x : (-x))
+#endif /* SOL2 */
+
+/*
+ * Extract byte i of message mp 
+ */
 #define MSG_BYTE(mp, i)	((i) < (mp)->b_wptr - (mp)->b_rptr? (mp)->b_rptr[i]: \
 			 msg_byte((mp), (i)))
 
-/* Is this LCP packet one we have to transmit using LCP defaults? */
+/* 
+ * Is this LCP packet one we have to transmit using LCP defaults? 
+ */
 #define LCP_USE_DFLT(mp)	(1 <= (code = MSG_BYTE((mp), 4)) && code <= 7)
 
-#define PPP_AHDL_ID 0x7d23
+/*
+ * Standard STREAMS declarations
+ */
 static struct module_info minfo = {
-#ifdef PRIOQ
-    PPP_AHDL_ID, "ppp_ahdl", 0, INFPSZ, 640, 512
-#else
-    PPP_AHDL_ID, "ppp_ahdl", 0, INFPSZ, 4096, 128
-#endif PRIOQ
+    0x7d23, "ppp_ahdl", 0, INFPSZ, 32768, 512
 };
 
 static struct qinit rinit = {
@@ -89,32 +121,50 @@ static struct qinit winit = {
 #if defined(SVR4) && !defined(SOL2)
 int phdldevflag = 0;
 #define ppp_ahdlcinfo phdlinfo
-#endif
+#endif /* defined(SVR4) && !defined(SOL2) */
+
 struct streamtab ppp_ahdlcinfo = {
-    &rinit, &winit, NULL, NULL
+    &rinit,			    /* ptr to st_rdinit */
+    &winit,			    /* ptr to st_wrinit */
+    NULL,			    /* ptr to st_muxrinit */
+    NULL,			    /* ptr to st_muxwinit */
+#ifdef _SunOS4
+    NULL			    /* ptr to ptr to st_modlist */
+#endif /* _SunOS4 */
 };
 
-int ppp_ahdlc_count;
-
+/*
+ * Per-stream state structure
+ */
 typedef struct ahdlc_state {
-    int flags;
-    mblk_t *cur_frame;
-    mblk_t *cur_blk;
-    int inlen;
-    ushort infcs;
-    u_int32_t xaccm[8];
-    u_int32_t raccm;
-    int mtu;
-    int mru;
-    int unit;
-    struct pppstat stats;
+#if defined(USE_MUTEX)
+    kmutex_t	    lock;		    /* lock for this structure */
+#endif /* USE_MUTEX */
+    int		    flags;		    /* link flags */
+    mblk_t	    *rx_buf;		    /* ptr to receive buffer */
+    int		    rx_buf_size;	    /* receive buffer size */
+    ushort_t	    infcs;		    /* calculated rx HDLC FCS */
+    u_int32_t	    xaccm[8];		    /* 256-bit xmit ACCM */
+    u_int32_t	    raccm;		    /* 32-bit rcv ACCM */
+    int		    mtu;		    /* interface MTU */
+    int		    mru;		    /* link MRU */
+    int		    unit;		    /* current PPP unit number */
+    struct pppstat  stats;		    /* statistic structure */
+#if defined(SOL2)
+    clock_t	    flag_time;		    /* time in usec between flags */
+    clock_t	    lbolt;		    /* last updated lbolt */
+#endif /* SOL2 */
 } ahdlc_state_t;
 
-/* Values for flags */
+/*
+ * Values for flags 
+ */
 #define ESCAPED		0x100	/* last saw escape char on input */
 #define IFLUSH		0x200	/* flushing input due to error */
 
-/* RCV_B7_1, etc., defined in net/pppio.h, are stored in flags also. */
+/* 
+ * RCV_B7_1, etc., defined in net/pppio.h, are stored in flags also. 
+ */
 #define RCV_FLAGS	(RCV_B7_1|RCV_B7_0|RCV_ODDP|RCV_EVNP)
 
 /*
@@ -155,58 +205,112 @@ static u_short fcstab[256] = {
 	0x7bc7,	0x6a4e,	0x58d5,	0x495c,	0x3de3,	0x2c6a,	0x1ef1,	0x0f78
 };
 
+static u_int32_t paritytab[8] =
+{
+	0x96696996, 0x69969669, 0x69969669, 0x96696996,
+	0x69969669, 0x96696996, 0x96696996, 0x69969669
+};
+
 /*
- * STREAMS module entry points.
+ * STREAMS module open (entry) point
  */
 MOD_OPEN(ahdlc_open)
 {
-    ahdlc_state_t *sp;
+    ahdlc_state_t   *state;
 
-    if (q->q_ptr == 0) {
-	sp = (ahdlc_state_t *) ALLOC_SLEEP(sizeof(ahdlc_state_t));
-	if (sp == 0)
-	    OPEN_ERROR(ENOSR);
-	bzero((caddr_t) sp, sizeof(ahdlc_state_t));
-	q->q_ptr = (caddr_t) sp;
-	WR(q)->q_ptr = (caddr_t) sp;
-	sp->xaccm[0] = ~0;
-	sp->xaccm[3] = 0x60000000;
-	sp->mru = PPP_MRU;
-	++ppp_ahdlc_count;
-	qprocson(q);
+    /*
+     * Return if it's already opened
+     */
+    if (q->q_ptr) {
+	return 0;
     }
+
+    /*
+     * This can only be opened as a module
+     */
+    if (sflag != MODOPEN) {
+	return 0;
+    }
+
+    state = (ahdlc_state_t *) ALLOC_NOSLEEP(sizeof(ahdlc_state_t));
+    if (state == 0)
+	OPEN_ERROR(ENOSR);
+    bzero((caddr_t) state, sizeof(ahdlc_state_t));
+
+    q->q_ptr	 = (caddr_t) state;
+    WR(q)->q_ptr = (caddr_t) state;
+
+#if defined(USE_MUTEX)
+    mutex_init(&state->lock, NULL, MUTEX_DEFAULT, NULL);
+    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
+
+    state->xaccm[0] = ~0;	    /* escape 0x00 through 0x1f */
+    state->xaccm[3] = 0x60000000;   /* escape 0x7d and 0x7e */
+    state->mru	    = PPP_MRU;	    /* default of 1500 bytes */
+#if defined(SOL2)
+    state->flag_time = drv_usectohz(FLAG_TIME);
+#endif /* SOL2 */
+
+#if defined(USE_MUTEX)
+    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */	
+
+    qprocson(q);
+    
     return 0;
 }
 
+/*
+ * STREAMS module close (exit) point
+ */
 MOD_CLOSE(ahdlc_close)
 {
-    ahdlc_state_t *state;
+    ahdlc_state_t   *state;
 
     qprocsoff(q);
-    if (q->q_ptr != 0) {
-	state = (ahdlc_state_t *) q->q_ptr;
-	if (state->cur_frame != 0) {
-	    freemsg(state->cur_frame);
-	    state->cur_frame = 0;
-	}
-	FREE(q->q_ptr, sizeof(ahdlc_state_t));
-	q->q_ptr = NULL;
-	OTHERQ(q)->q_ptr = NULL;
-	--ppp_ahdlc_count;
+
+    state = (ahdlc_state_t *) q->q_ptr;
+
+    if (state == 0) {
+	DPRINT("state == 0 in ahdlc_close\n");
+	return 0;
     }
+
+#if defined(USE_MUTEX)
+    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
+
+    if (state->rx_buf != 0) {
+	freemsg(state->rx_buf);
+	state->rx_buf = 0;
+    }
+
+#if defined(USE_MUTEX)
+    mutex_exit(&state->lock);
+    mutex_destroy(&state->lock);
+#endif /* USE_MUTEX */
+
+    FREE(q->q_ptr, sizeof(ahdlc_state_t));
+    q->q_ptr	     = NULL;
+    OTHERQ(q)->q_ptr = NULL;
+    
     return 0;
 }
 
+/*
+ * Write side put routine
+ */
 static int
 ahdlc_wput(q, mp)
-    queue_t *q;
-    mblk_t *mp;
+    queue_t	*q;
+    mblk_t	*mp;
 {
-    ahdlc_state_t *state;
-    struct iocblk *iop;
-    int error;
-    mblk_t *np;
-    struct ppp_stats *psp;
+    ahdlc_state_t  	*state;
+    struct iocblk  	*iop;
+    int		   	error;
+    mblk_t	   	*np;
+    struct ppp_stats	*psp;
 
     state = (ahdlc_state_t *) q->q_ptr;
     if (state == 0) {
@@ -221,7 +325,7 @@ ahdlc_wput(q, mp)
 	 * A data packet - do character-stuffing and FCS, and
 	 * send it onwards.
 	 */
-	stuff_frame(q, mp);
+	ahdlc_encode(q, mp);
 	freemsg(mp);
 	break;
 
@@ -230,17 +334,24 @@ ahdlc_wput(q, mp)
 	error = EINVAL;
 	switch (iop->ioc_cmd) {
 	case PPPIO_XACCM:
-	    if (iop->ioc_count < sizeof(u_int32_t)
-		|| iop->ioc_count > sizeof(ext_accm))
+	    if ((iop->ioc_count < sizeof(u_int32_t)) || 
+		(iop->ioc_count > sizeof(ext_accm))) {
 		break;
+	    }
 	    if (mp->b_cont == 0) {
 		DPRINT1("ahdlc_wput/%d: PPPIO_XACCM b_cont = 0!\n", state->unit);
 		break;
 	    }
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)state->xaccm,
 		  iop->ioc_count);
 	    state->xaccm[2] &= ~0x40000000;	/* don't escape 0x5e */
 	    state->xaccm[3] |= 0x60000000;	/* do escape 0x7d, 0x7e */
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    iop->ioc_count = 0;
 	    error = 0;
 	    break;
@@ -252,8 +363,14 @@ ahdlc_wput(q, mp)
 		DPRINT1("ahdlc_wput/%d: PPPIO_RACCM b_cont = 0!\n", state->unit);
 		break;
 	    }
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)&state->raccm,
 		  sizeof(u_int32_t));
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    iop->ioc_count = 0;
 	    error = 0;
 	    break;
@@ -267,7 +384,13 @@ ahdlc_wput(q, mp)
 	    if (mp->b_cont != 0)
 		freemsg(mp->b_cont);
 	    mp->b_cont = np;
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    *(int *)np->b_wptr = state->flags & RCV_FLAGS;
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    np->b_wptr += sizeof(int);
 	    iop->ioc_count = sizeof(int);
 	    error = 0;
@@ -316,15 +439,33 @@ ahdlc_wput(q, mp)
     case M_CTL:
 	switch (*mp->b_rptr) {
 	case PPPCTL_MTU:
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    state->mtu = ((unsigned short *)mp->b_rptr)[1];
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    freemsg(mp);
 	    break;
 	case PPPCTL_MRU:
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    state->mru = ((unsigned short *)mp->b_rptr)[1];
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    freemsg(mp);
 	    break;
 	case PPPCTL_UNIT:
+#if defined(USE_MUTEX)
+	    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 	    state->unit = mp->b_rptr[1];
+#if defined(USE_MUTEX)
+	    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	    break;
 	default:
 	    putnext(q, mp);
@@ -338,10 +479,13 @@ ahdlc_wput(q, mp)
     return 0;
 }
 
+/*
+ * Read side put routine
+ */
 static int
 ahdlc_rput(q, mp)
     queue_t *q;
-    mblk_t *mp;
+    mblk_t  *mp;
 {
     ahdlc_state_t *state;
 
@@ -354,19 +498,23 @@ ahdlc_rput(q, mp)
 
     switch (mp->b_datap->db_type) {
     case M_DATA:
-	unstuff_chars(q, mp);
+	ahdlc_decode(q, mp);
 	freemsg(mp);
 	break;
 
     case M_HANGUP:
-	if (state->cur_frame != 0) {
+#if defined(USE_MUTEX)
+	mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
+	if (state->rx_buf != 0) {
 	    /* XXX would like to send this up for debugging */
-	    freemsg(state->cur_frame);
-	    state->cur_frame = 0;
-	    state->cur_blk = 0;
+	    freemsg(state->rx_buf);
+	    state->rx_buf = 0;
 	}
-	state->inlen = 0;
 	state->flags = IFLUSH;
+#if defined(USE_MUTEX)
+	mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 	putnext(q, mp);
 	break;
 
@@ -376,354 +524,311 @@ ahdlc_rput(q, mp)
     return 0;
 }
 
-/* Extract bit c from map m, to determine if c needs to be escaped. */
-#define ESCAPE(c, m)	((m)[(c) >> 5] & (1 << ((c) & 0x1f)))
+/*
+ * Extract bit c from map m, to determine if c needs to be escaped
+ */
+#define IN_TX_MAP(c, m)	((m)[(c) >> 5] & (1 << ((c) & 0x1f)))
 
 static void
-stuff_frame(q, mp)
-    queue_t *q;
-    mblk_t *mp;
+ahdlc_encode(q, mp)
+    queue_t	*q;
+    mblk_t	*mp;
 {
-    ahdlc_state_t *state;
-    int ilen, olen, c, extra, code;
-    mblk_t *omsg, *op, *np;
-    uchar_t *sp, *sp0, *dp, *dp0, *spend;
-    ushort_t fcs;
-    u_int32_t *xaccm, lcp_xaccm[8];
+    ahdlc_state_t	*state;
+    u_int32_t		*xaccm, loc_xaccm[8];
+    ushort_t		fcs;
+    size_t		outmp_len;
+    mblk_t		*outmp, *tmp;
+    uchar_t		*dp, fcs_val;
+    int			is_lcp, code;
+#if defined(SOL2)
+    clock_t		lbolt;
+#endif /* SOL2 */
 
-    state = (ahdlc_state_t *) q->q_ptr;
-    ilen = msgdsize(mp);
+    if (msgdsize(mp) < 4) {
+	return;
+    }
+
+    state = (ahdlc_state_t *)q->q_ptr;
+#if defined(USE_MUTEX)
+    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
 
     /*
-     * We estimate the length of the output packet as
-     * 1.25 * input length + 16 (for initial flag, FCS, final flag, slop).
+     * Allocate an output buffer large enough to handle a case where all
+     * characters need to be escaped
      */
-    olen = ilen + (ilen >> 2) + 16;
-    if (olen > OFRAME_BSIZE)
-	olen = OFRAME_BSIZE;
-    omsg = op = allocb(olen, BPRI_MED);
-    if (omsg == 0)
-	goto bomb;
+    outmp_len = (msgdsize(mp)	 << 1) +		/* input block x 2 */
+		(sizeof(fcs)	 << 2) +		/* HDLC FCS x 4 */
+		(sizeof(uchar_t) << 1);			/* HDLC flags x 2 */
 
+    outmp = allocb(outmp_len, BPRI_MED);
+    if (outmp == NULL) {
+	state->stats.ppp_oerrors++;
+#if defined(USE_MUTEX)
+	mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
+	putctl1(RD(q)->q_next, M_CTL, PPPCTL_OERROR);
+	return;
+    }
+
+#if defined(SOL2)
     /*
-     * Put in an initial flag, unless the serial driver currently has
-     * packets still to be transmitted in its queue.
+     * Check if our last transmit happenned within flag_time, using
+     * the system's LBOLT value in clock ticks
      */
-    dp = op->b_wptr;
+    if (drv_getparm(LBOLT, &lbolt) != -1) {
+	if (ABS((clock32_t)lbolt - state->lbolt) > state->flag_time) {
+	    *outmp->b_wptr++ = PPP_FLAG;
+	} 
+	state->lbolt = lbolt;
+    } else {
+	*outmp->b_wptr++ = PPP_FLAG;
+    }
+#else
+    /*
+     * If the driver below still has a message to process, skip the
+     * HDLC flag, otherwise, put one in the beginning
+     */
     if (qsize(q->q_next) == 0) {
-	*dp++ = PPP_FLAG;
-	--olen;
+	*outmp->b_wptr++ = PPP_FLAG;
     }
+#endif
 
     /*
-     * For LCP packets with code values between 1 and 7 (Conf-Req
-     * to Code-Rej), we must escape all control characters.
+     * All control characters must be escaped for LCP packets with code
+     * values between 1 (Conf-Req) and 7 (Code-Rej).
      */
+    is_lcp = ((MSG_BYTE(mp, 0) == PPP_ALLSTATIONS) && 
+	      (MSG_BYTE(mp, 1) == PPP_UI) && 
+	      (MSG_BYTE(mp, 2) == (PPP_LCP >> 8)) &&
+	      (MSG_BYTE(mp, 3) == (PPP_LCP & 0xff)) &&
+	      LCP_USE_DFLT(mp));
+
     xaccm = state->xaccm;
-    if (MSG_BYTE(mp, 0) == PPP_ALLSTATIONS
-	&& MSG_BYTE(mp, 1) == PPP_UI
-	&& MSG_BYTE(mp, 2) == (PPP_LCP >> 8)
-	&& MSG_BYTE(mp, 3) == (PPP_LCP & 0xFF)
-	&& LCP_USE_DFLT(mp)) {
-	bcopy((caddr_t) state->xaccm, (caddr_t) lcp_xaccm, sizeof(lcp_xaccm));
-	lcp_xaccm[0] = ~0;
-	xaccm = lcp_xaccm;
+    if (is_lcp) {
+	bcopy((caddr_t)state->xaccm, (caddr_t)loc_xaccm, sizeof(loc_xaccm));
+	loc_xaccm[0] = ~0;	/* force escape on 0x00 through 0x1f */
+	xaccm = loc_xaccm;
     }
 
-    sp = mp->b_rptr;
-    fcs = PPP_INITFCS;
-    for (;;) {
-	spend = mp->b_wptr;
-	extra = sp + olen - spend;
-	if (extra < 0) {
-	    spend = sp + olen;
-	    extra = 0;
-	}
-	/*
-	 * We can safely process the input up to `spend'
-	 * without overrunning the output, provided we don't
-	 * hit more than `extra' characters which need to be escaped.
-	 */
-	sp0 = sp;
-	dp0 = dp;
-	while (sp < spend) {
-	    c = *sp;
-	    if (ESCAPE(c, xaccm)) {
-		if (extra > 0)
-		    --extra;
-		else if (sp < spend - 1)
-		    --spend;
-		else
-		    break;
-		fcs = PPP_FCS(fcs, c);
-		*dp++ = PPP_ESCAPE;
-		c ^= PPP_TRANS;
-	    } else
-		fcs = PPP_FCS(fcs, c);
-	    *dp++ = c;
-	    ++sp;
-	}
-	ilen -= sp - sp0;
-	olen -= dp - dp0;
+    fcs = PPP_INITFCS;		/* Initial FCS is 0xffff */
 
-	/*
-	 * At this point, we have emptied an input block
-	 * and/or filled an output block.
-	 */
-	if (sp >= mp->b_wptr) {
-	    /*
-	     * We've emptied an input block.  Advance to the next.
-	     */
-	    mp = mp->b_cont;
-	    if (mp == 0)
-		break;		/* all done */
-	    sp = mp->b_rptr;
-	}
-	if (olen < 2) {
-	    /*
-	     * The output block is full.  Allocate a new one.
-	     */
-	    op->b_wptr = dp;
-	    olen = 2 * ilen + 5;
-	    if (olen > OFRAME_BSIZE)
-		olen = OFRAME_BSIZE;
-	    np = allocb(olen, BPRI_MED);
-	    if (np == 0)
-		goto bomb;
-	    op->b_cont = np;
-	    op = np;
-	    dp = op->b_wptr;
+    /*
+     * Process this block and the rest (if any) attached to the this one
+     */
+    for (tmp = mp; tmp; tmp = tmp->b_cont) {
+	if (tmp->b_datap->db_type == M_DATA) {
+	    for (dp = tmp->b_rptr; dp < tmp->b_wptr; dp++) {
+		fcs = PPP_FCS(fcs, *dp);
+		if (IN_TX_MAP(*dp, xaccm)) {
+		    *outmp->b_wptr++ = PPP_ESCAPE;
+		    *outmp->b_wptr++ = *dp ^ PPP_TRANS;
+		} else {
+		    *outmp->b_wptr++ = *dp;
+		}
+	    }
+	} else {
+	    continue;	/* skip if db_type is something other than M_DATA */
 	}
     }
 
     /*
-     * Append the FCS and closing flag.
-     * This could require up to 5 characters.
+     * Append the HDLC FCS, making sure that escaping is done on any
+     * necessary bytes
      */
-    if (olen < 5) {
-	/* Sigh.  Need another block. */
-	op->b_wptr = dp;
-	np = allocb(5, BPRI_MED);
-	if (np == 0)
-	    goto bomb;
-	op->b_cont = np;
-	op = np;
-	dp = op->b_wptr;
+    fcs_val = (fcs ^ 0xffff) & 0xff;
+    if (IN_TX_MAP(fcs_val, xaccm)) {
+	*outmp->b_wptr++ = PPP_ESCAPE;
+	*outmp->b_wptr++ = fcs_val ^ PPP_TRANS;
+    } else {
+	*outmp->b_wptr++ = fcs_val;
     }
-    c = ~fcs & 0xff;
-    if (ESCAPE(c, xaccm)) {
-	*dp++ = PPP_ESCAPE;
-	c ^= PPP_TRANS;
+
+    fcs_val = ((fcs ^ 0xffff) >> 8) & 0xff;
+    if (IN_TX_MAP(fcs_val, xaccm)) {
+	*outmp->b_wptr++ = PPP_ESCAPE;
+	*outmp->b_wptr++ = fcs_val ^ PPP_TRANS;
+    } else {
+	*outmp->b_wptr++ = fcs_val;
     }
-    *dp++ = c;
-    c = (~fcs >> 8) & 0xff;
-    if (ESCAPE(c, xaccm)) {
-	*dp++ = PPP_ESCAPE;
-	c ^= PPP_TRANS;
-    }
-    *dp++ = c;
-    *dp++ = PPP_FLAG;
-    op->b_wptr = dp;
 
     /*
-     * Update statistics.
+     * And finally, append the HDLC flag, and send it away
      */
-    state->stats.ppp_obytes += msgdsize(omsg);
+    *outmp->b_wptr++ = PPP_FLAG;
+
+    state->stats.ppp_obytes += msgdsize(outmp);
     state->stats.ppp_opackets++;
 
-    /*
-     * Send it on.
-     */
-    putnext(q, omsg);
+#if defined(USE_MUTEX)
+    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
+
+    putnext(q, outmp);
     return;
-
- bomb:
-    if (omsg != 0)
-	freemsg(omsg);
-    state->stats.ppp_oerrors++;
-    putctl1(RD(q)->q_next, M_CTL, PPPCTL_OERROR);
 }
 
-#define UPDATE_FLAGS(c)	{				\
-    if ((c) & 0x80)					\
-	state->flags |= RCV_B7_1;			\
-    else						\
-	state->flags |= RCV_B7_0;			\
-    if (0x6996 & (1 << ((((c) >> 4) ^ (c)) & 0xf)))	\
-	state->flags |= RCV_ODDP;			\
-    else						\
-	state->flags |= RCV_EVNP;			\
-}
+/*
+ * Checks the 32-bit receive ACCM to see if the byte needs un-escaping
+ */
+#define IN_RX_MAP(c, m)	((((unsigned int) (uchar_t) (c)) < 0x20) && \
+			(m) & (1 << (c)))
 
 /*
  * Process received characters.
  */
 static void
-unstuff_chars(q, mp)
+ahdlc_decode(q, mp)
     queue_t *q;
-    mblk_t *mp;
+    mblk_t  *mp;
 {
-    ahdlc_state_t *state;
-    mblk_t *om;
-    uchar_t *cp, *cpend, *dp, *dp0;
-    int c, len, extra;
-    ushort_t fcs;
+    ahdlc_state_t   *state;
+    mblk_t	    *om, *zmp;
+    uchar_t	    *dp;
+    ushort_t	    fcs;
+
+    /*
+     * In case the driver (or something below) doesn't send
+     * data upstream in one message block, concatenate everything
+     */
+    if (!((mp->b_wptr - mp->b_rptr == msgdsize(mp)) && 
+         ((intptr_t)mp->b_rptr % sizeof(intptr_t) == 0))) {
+
+	zmp = msgpullup(mp, -1);
+	freemsg(mp);
+	mp = zmp;
+	if (mp == 0)
+	    return; 
+    }
 
     state = (ahdlc_state_t *) q->q_ptr;
+
+#if defined(USE_MUTEX)
+    mutex_enter(&state->lock);
+#endif /* USE_MUTEX */
+
     state->stats.ppp_ibytes += msgdsize(mp);
-    cp = mp->b_rptr;
-    for (;;) {
+
+    for (dp = mp->b_rptr; dp < mp->b_wptr; dp++) {
+
 	/*
-	 * Advance to next input block if necessary.
+	 * This should detect the lack of 8-bit communication channel
+	 * which is necessary for PPP to work. In addition, it also
+	 * checks on the parity.
 	 */
-	if (cp >= mp->b_wptr) {
-	    mp = mp->b_cont;
-	    if (mp == 0)
-		break;
-	    cp = mp->b_rptr;
-	    continue;
-	}
+	if (*dp & 0x80)
+	    state->flags |= RCV_B7_1;
+	else
+	    state->flags |= RCV_B7_0;
 
-	if ((state->flags & (IFLUSH|ESCAPED)) == 0
-	    && state->inlen > 0 && (om = state->cur_blk) != 0) {
-	    /*
-	     * Process bulk chars as quickly as possible.
-	     */
-	    dp = om->b_wptr;
-	    len = om->b_datap->db_lim - dp; /* max # output bytes */
-	    extra = (mp->b_wptr - cp) - len;/* #input chars - #output bytes */
-	    if (extra < 0) {
-		len += extra;		    /* we'll run out of input first */
-		extra = 0;
-	    }
-	    cpend = cp + len;
-	    dp0 = dp;
-	    fcs = state->infcs;
-	    while (cp < cpend) {
-		c = *cp;
-		if (c == PPP_FLAG)
-		    break;
-		++cp;
-		UPDATE_FLAGS(c);
-		if (c == PPP_ESCAPE) {
-		    if (extra > 0) {
-			--extra;
-			++cpend;
-		    }
-		    if (cp >= cpend || (c = *cp) == PPP_FLAG) {
-			state->flags |= ESCAPED;
-			break;
-		    }
-		    ++cp;
-		    UPDATE_FLAGS(c);
-		    c ^= PPP_TRANS;
-		}
-		*dp++ = c;
-		fcs = PPP_FCS(fcs, c);
-	    }
-	    state->inlen += dp - dp0;
-	    state->infcs = fcs;
-	    om->b_wptr = dp;
-	    if (cp >= mp->b_wptr)
-		continue;	/* advance to the next mblk */
-	}
+	if (paritytab[*dp >> 5] & (1 << (*dp & 0x1f)))
+	    state->flags |= RCV_ODDP;
+	else
+	    state->flags |= RCV_EVNP;
 
-	c = *cp++;
-	UPDATE_FLAGS(c);
-	if (c == PPP_FLAG) {
+	/*
+	 * So we have a HDLC flag ...
+	 */
+	if (*dp == PPP_FLAG) {
+
 	    /*
-	     * End of a frame.
-	     * If the ESCAPE flag is set, the frame ended with
-	     * the frame abort sequence "}~".
+	     * If we think that it marks the beginning of the frame,
+	     * then continue to process the next octects
 	     */
-	    om = state->cur_frame;
-	    len = state->inlen;
-	    state->cur_frame = 0;
-	    state->inlen = 0;
-	    if (len == 0 && (state->flags & IFLUSH) == 0)
+	    if ((state->flags & IFLUSH) ||
+		(state->rx_buf == 0) ||
+		(msgdsize(state->rx_buf) == 0)) {
+
+		state->flags &= ~IFLUSH;
 		continue;
-	    state->stats.ppp_ipackets++;
-	    if (om != 0 && (state->flags & (IFLUSH|ESCAPED)) == 0
-		&& len > PPP_FCSLEN) {
-		if (state->infcs == PPP_GOODFCS) {
-		    adjmsg(om, -PPP_FCSLEN);	/* chop off fcs */
-		    putnext(q, om);		/* bombs away! */
-		    continue;
-		}
-		DPRINT2("ppp%d: bad fcs (len=%d)\n", state->unit, len);
 	    }
-	    if (om != 0)
-		freemsg(om);
-	    state->flags &= ~(IFLUSH|ESCAPED);
-	    state->stats.ppp_ierrors++;
-	    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
+
+	    /*
+	     * We get here because the above condition isn't true,
+	     * in which case the HDLC flag was there to mark the end
+	     * of the frame (or so we think)
+	     */
+	    om = state->rx_buf;
+
+	    if (state->infcs == PPP_GOODFCS) {
+		state->stats.ppp_ipackets++;
+		adjmsg(om, -PPP_FCSLEN);
+		putnext(q, om);
+	    } else {
+		DPRINT2("ppp%d: bad fcs (len=%d)\n",
+                    state->unit, msgdsize(state->rx_buf));
+		freemsg(state->rx_buf);
+		state->flags &= ~(IFLUSH | ESCAPED);
+		state->stats.ppp_ierrors++;
+		putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
+	    }
+
+	    state->rx_buf = 0;
 	    continue;
 	}
 
-	if (state->flags & IFLUSH)
-	    continue;
-	if (state->flags & ESCAPED) {
-	    c ^= PPP_TRANS;
-	    state->flags &= ~ESCAPED;
-	} else if (c == PPP_ESCAPE) {
-	    state->flags |= ESCAPED;
+	if (state->flags & IFLUSH) {
 	    continue;
 	}
-	if (state->inlen == 0) {
+
+	/*
+	 * Allocate a receive buffer, large enough to store a frame (after
+	 * un-escaping) of at least 1500 octets. If MRU is negotiated to
+	 * be more than the default, then allocate that much. In addition,
+	 * we add an extra 32-bytes for a fudge factor
+	 */ 
+	if (state->rx_buf == 0) {
+	    state->rx_buf_size  = (state->mru < PPP_MRU ? PPP_MRU : state->mru);
+	    state->rx_buf_size += (sizeof(u_int32_t) << 3);
+	    state->rx_buf = allocb(state->rx_buf_size, BPRI_MED);
+
 	    /*
-	     * First byte of the frame: allocate the first message block.
+	     * If allocation fails, try again on the next frame
 	     */
-	    om = allocb(IFRAME_BSIZE, BPRI_MED);
-	    if (om == 0) {
+	    if (state->rx_buf == 0) {
 		state->flags |= IFLUSH;
 		continue;
 	    }
-	    state->cur_frame = om;
-	    state->cur_blk = om;
-	    state->infcs = PPP_INITFCS;
+	    state->flags &= ~(IFLUSH | ESCAPED);
+	    state->infcs  = PPP_INITFCS;
+	}
+
+	if (*dp == PPP_ESCAPE) {
+	    state->flags |= ESCAPED;
+	    continue;
+	}
+
+	/*
+	 * Make sure we un-escape the necessary characters, as well as the
+	 * ones in our receive async control character map
+	 */
+	if (state->flags & ESCAPED) {
+	    *dp ^= PPP_TRANS;
+	    state->flags &= ~ESCAPED;
+	} else if (IN_RX_MAP(*dp, state->raccm)) 
+	    continue;
+
+	/*
+	 * Unless the peer lied to us about the negotiated MRU, we should
+	 * never get a frame which is too long. If it happens, toss it away
+	 * and grab the next incoming one
+	 */
+	if (msgdsize(state->rx_buf) < state->rx_buf_size) {
+	    state->infcs = PPP_FCS(state->infcs, *dp);
+	    *state->rx_buf->b_wptr++ = *dp;
 	} else {
-	    om = state->cur_blk;
-	    if (om->b_wptr >= om->b_datap->db_lim) {
-		/*
-		 * Current message block is full.  Allocate another one,
-		 * unless we have run out of MRU.
-		 */
-		if (state->inlen >= state->mru + PPP_HDRLEN + PPP_FCSLEN) {
-		    state->flags |= IFLUSH;
-		    DPRINT2("ppp%d: frame too long (%d)\n",
-			    state->unit, state->inlen);
-		    continue;
-		}
-		om = allocb(IFRAME_BSIZE, BPRI_MED);
-		if (om == 0) {
-		    state->flags |= IFLUSH;
-		    continue;
-		}
-		state->cur_blk->b_cont = om;
-		state->cur_blk = om;
-	    }
+	    DPRINT2("ppp%d: frame too long (%d)\n",
+		state->unit, msgdsize(state->rx_buf));
+	    freemsg(state->rx_buf);
+	    state->rx_buf     = 0;
+	    state->flags     |= IFLUSH;
 	}
-
-	if (state->inlen == 0) {
-	    /*
-	     * We don't do address/control & protocol decompression here,
-	     * but we try to put the first byte at an offset such that
-	     * the info field starts on a word boundary.  The code here
-	     * will do this except for packets with protocol compression
-	     * but not address/control compression.
-	     */
-	    if (c != PPP_ALLSTATIONS) {
-		om->b_wptr += 2;
-		if (c & 1)
-		    ++om->b_wptr;
-		om->b_rptr = om->b_wptr;
-	    }
-	}
-
-	*om->b_wptr++ = c;
-	++state->inlen;
-	state->infcs = PPP_FCS(state->infcs, c);
     }
+
+#if defined(USE_MUTEX)
+    mutex_exit(&state->lock);
+#endif /* USE_MUTEX */
 }
 
 static int
