@@ -1,22 +1,22 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.3 1994/05/25 06:31:10 paulus Exp $
+# $Id: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
-PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	auth.c options.c lock.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
-PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 	auth.o options.o lock.o sys-ultrix.o
 
 # CC = gcc
 DEBUG_FLAGS =
-COMPILE_FLAGS = -DNO_DRAND48
+COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int
 COPTS = -O
 LIBS =
 
