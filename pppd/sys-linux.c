@@ -1157,6 +1157,7 @@ static int read_route_table(struct rtentry *rt)
 	cols[col] = strtok(p, route_delims);
 	if (cols[col] == NULL)
 	    return 0;		/* didn't get enough columns */
+	p = NULL;
     }
 
     ((struct sockaddr_in *) &rt->rt_dst)->sin_addr.s_addr =
