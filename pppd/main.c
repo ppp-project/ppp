@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.34 1996/07/01 01:17:39 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.35 1996/08/28 06:41:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -60,14 +60,6 @@ extern char *strerror();
 #include "ipxcp.h"
 #endif /* IPX_CHANGE */
 
-/*
- * If REQ_SYSOPTIONS is defined to 1, pppd will not run unless
- * /etc/ppp/options exists.
- */
-#ifndef	REQ_SYSOPTIONS
-#define REQ_SYSOPTIONS	1
-#endif
-
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
 int ifunit;			/* Interface unit number */
@@ -78,11 +70,14 @@ static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char default_devnam[MAXPATHLEN];	/* name of default device */
 static pid_t pid;		/* Our pid */
 static uid_t uid;		/* Our real user-id */
+static int conn_running;	/* we have a [dis]connector running */
 
 int ttyfd = -1;			/* Serial port file descriptor */
 mode_t tty_mode = -1;		/* Original access permissions to tty */
 int baud_rate;			/* Actual bits/second for serial device */
 int hungup;			/* terminal has been hung up */
+int privileged;			/* we're running as real uid root */
+int need_holdoff;		/* need holdoff period before restarting */
 
 int phase;			/* where the link is at */
 int kill_link;
@@ -182,6 +177,7 @@ main(argc, argv)
     hostname[MAXNAMELEN-1] = 0;
 
     uid = getuid();
+    privileged = uid == 0;
 
     /*
      * Initialize to the standard option set, then parse, in order,
@@ -193,7 +189,7 @@ main(argc, argv)
   
     progname = *argv;
 
-    if (!options_from_file(_PATH_SYSOPTIONS, REQ_SYSOPTIONS, 0)
+    if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user())
 	exit(1);
     scan_args(argc-1, argv+1);	/* look for tty name on command line */
@@ -202,7 +198,7 @@ main(argc, argv)
 	exit(1);
 
     if (!ppp_available()) {
-	fprintf(stderr, no_ppp_msg);
+	option_error(no_ppp_msg);
 	exit(1);
     }
 
@@ -215,8 +211,7 @@ main(argc, argv)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
     if (demand && connector == 0) {
-	fprintf(stderr, "%s: connect script required for demand-dialling\n",
-		progname);
+	option_error("connect script required for demand-dialling\n");
 	exit(1);
     }
 
@@ -360,6 +355,8 @@ main(argc, argv)
     }
 
     for (;;) {
+
+	need_holdoff = 1;
 
 	if (demand) {
 	    /*
@@ -559,7 +556,7 @@ main(argc, argv)
 
 	if (demand)
 	    demand_discard();
-	if (holdoff > 0) {
+	if (holdoff > 0 && need_holdoff) {
 	    phase = PHASE_HOLDOFF;
 	    TIMEOUT(holdoff_end, NULL, holdoff);
 	    do {
@@ -863,7 +860,24 @@ timeleft(tvp)
 
     return tvp;
 }
-    
+
+
+/*
+ * kill_my_pg - send a signal to our process group, and ignore it ourselves.
+ */
+static void
+kill_my_pg(sig)
+    int sig;
+{
+    struct sigaction act, oldact;
+
+    act.sa_handler = SIG_IGN;
+    act.sa_flags = 0;
+    sigaction(sig, &act, &oldact);
+    kill(-getpgrp(), sig);
+    sigaction(sig, &oldact, NULL);
+}
+
 
 /*
  * hup - Catch SIGHUP signal.
@@ -878,6 +892,9 @@ hup(sig)
 {
     syslog(LOG_INFO, "Hangup (SIGHUP)");
     kill_link = 1;
+    if (conn_running)
+	/* Send the signal to the [dis]connector process(es) also */
+	kill_my_pg(sig);
 }
 
 
@@ -894,6 +911,9 @@ term(sig)
     syslog(LOG_INFO, "Terminating on signal %d.", sig);
     persist = 0;		/* don't try to restart */
     kill_link = 1;
+    if (conn_running)
+	/* Send the signal to the [dis]connector process(es) also */
+	kill_my_pg(sig);
 }
 
 
@@ -950,6 +970,8 @@ bad_signal(sig)
     int sig;
 {
     syslog(LOG_ERR, "Fatal signal %d", sig);
+    if (conn_running)
+	kill_my_pg(SIGTERM);
     die(1);
 }
 
@@ -967,9 +989,11 @@ device_script(program, in, out)
     int status;
     int errfd;
 
+    conn_running = 1;
     pid = fork();
 
     if (pid < 0) {
+	conn_running = 0;
 	syslog(LOG_ERR, "Failed to create child process: %m");
 	die(1);
     }
@@ -1017,6 +1041,7 @@ device_script(program, in, out)
 	syslog(LOG_ERR, "error waiting for (dis)connection process: %m");
 	die(1);
     }
+    conn_running = 0;
 
     return (status == 0 ? 0 : -1);
 }
