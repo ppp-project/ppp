@@ -47,6 +47,7 @@ files, are:
 	OSF/1				README.osf
 	AIX 4.x				README.aix4
 	NeXTStep			README.next
+	Solaris 2			README.svr4
 
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
@@ -70,6 +71,7 @@ What is new in ppp-2.2.
   OSF/1 on DEC Alpha, thanks to Steve Tate (srt@zaphod.csci.unt.edu)
   NextStep 3.2 and 3.3, thanks to Philip-Andrew Prindeville
 	(philipp@res.enst.fr) and Steve Perkins (perkins@cps.msu.edu)
+  Solaris 2
 
 in addition to NetBSD 1.0, SunOS 4.x, Ultrix 4.x, FreeBSD 2.0, and
 Linux.
@@ -165,8 +167,6 @@ This copyright applies to (parts of) the following files:
 
 	sunos/ppp_async.c
 	sunos/ppp_if.c
-	osf1/ppp_async.c
-	osf1/ppp_if.c
 	aix4/ppp_async.c
 	aix4/ppp_if.c
 	net/ppp_str.h

@@ -1,0 +1,32 @@
+The System V Release 4 (svr4) port of this software has been developed
+under Solaris 2, which has some extensions which are not available on
+all SVR4 systems, particularly in the area of multi-thread (MT)
+support in the kernel.  Although the code supplied here may work under
+other SVR4 systems, these instructions are specifically for Solaris 2.
+
+Installation.
+*************
+
+1. Run the configure script and make the user-level programs and the
+kernel modules.
+
+	./configure
+	make
+
+2. Install the programs and kernel modules: as root, do
+
+	make install
+
+This installs pppd, chat and pppstats in /usr/local/bin and the kernel
+modules in /kernel/drv and /kernel/strmod, and creates the /etc/ppp
+directory and populates it with default configuration files.
+
+If your system normally has only one network interface, the default
+Solaris 2 system startup scripts will disable IP forwarding in the IP
+kernel module.  This will prevent the remote machine from using the
+local machine as a gateway to access other hosts.  The solution is to
+create an /etc/ppp/ip-up script containing something like this:
+
+	#!/bin/sh
+	/usr/sbin/ndd -set /dev/ip ip_forwarding 2
+
