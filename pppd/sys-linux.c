@@ -808,14 +808,13 @@ void output (int unit, unsigned char *p, int len)
     if (write(ppp_fd, p, len) < 0)
       {
 	if (errno == EWOULDBLOCK || errno == ENOBUFS
-	    || errno == ENXIO || errno == EIO)
+	    || errno == ENXIO || errno == EIO || errno == EINTR)
 	  {
-	    syslog(LOG_WARNING, "write: warning: %m(%d)", errno);
+	    syslog(LOG_WARNING, "write: warning: %m (%d)", errno);
 	  } 
 	else
 	  {
-	    syslog(LOG_ERR, "write: %m(%d)", errno);
-	    die(1);
+	    syslog(LOG_ERR, "write: %m (%d)", errno);
 	  }
       }
   }
