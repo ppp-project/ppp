@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.43 2002/01/14 14:25:09 dfs Exp $
+# $Id: Makefile.linux,v 1.44 2002/01/14 14:26:31 dfs Exp $
 #
 
 # Default installation locations
@@ -98,7 +98,9 @@ endif
 
 # Multi-linnk
 ifdef HAVE_MULTILINK
+	# Multilink implies the use of TDB
 	USE_TDB=y
+
 	CFLAGS += -DHAVE_MULTILINK
 	PPPDSRCS += multilink.c
 	PPPDOBJS += multilink.o
