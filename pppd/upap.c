@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.19 1999/08/13 06:46:21 paulus Exp $"
+#define RCSID	"$Id: upap.c,v 1.20 1999/08/24 05:29:26 paulus Exp $"
 
 /*
  * TODO:
@@ -433,18 +433,18 @@ upap_rauthack(u, inp, id, len)
      * Parse message.
      */
     if (len < sizeof (u_char)) {
-	UPAPDEBUG(("pap_rauthack: rcvd short packet."));
-	return;
-    }
-    GETCHAR(msglen, inp);
-    if (msglen > 0) {
-	len -= sizeof (u_char);
-	if (len < msglen) {
-	    UPAPDEBUG(("pap_rauthack: rcvd short packet."));
-	    return;
+	UPAPDEBUG(("pap_rauthack: ignoring missing msg-length."));
+    } else {
+	GETCHAR(msglen, inp);
+	if (msglen > 0) {
+	    len -= sizeof (u_char);
+	    if (len < msglen) {
+		UPAPDEBUG(("pap_rauthack: rcvd short packet."));
+		return;
+	    }
+	    msg = (char *) inp;
+	    PRINTMSG(msg, msglen);
 	}
-	msg = (char *) inp;
-	PRINTMSG(msg, msglen);
     }
 
     u->us_clientstate = UPAPCS_OPEN;
@@ -473,18 +473,18 @@ upap_rauthnak(u, inp, id, len)
      * Parse message.
      */
     if (len < sizeof (u_char)) {
-	UPAPDEBUG(("pap_rauthnak: rcvd short packet."));
-	return;
-    }
-    GETCHAR(msglen, inp);
-    if (msglen > 0) {
-	len -= sizeof (u_char);
-	if (len < msglen) {
-	    UPAPDEBUG(("pap_rauthnak: rcvd short packet."));
-	    return;
+	UPAPDEBUG(("pap_rauthnak: ignoring missing msg-length."));
+    } else {
+	GETCHAR(msglen, inp);
+	if (msglen > 0) {
+	    len -= sizeof (u_char);
+	    if (len < msglen) {
+		UPAPDEBUG(("pap_rauthnak: rcvd short packet."));
+		return;
+	    }
+	    msg = (char *) inp;
+	    PRINTMSG(msg, msglen);
 	}
-	msg = (char *) inp;
-	PRINTMSG(msg, msglen);
     }
 
     u->us_clientstate = UPAPCS_BADAUTH;
