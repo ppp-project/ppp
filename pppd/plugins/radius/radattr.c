@@ -15,7 +15,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: radattr.c,v 1.1 2002/01/22 16:03:00 dfs Exp $";
+"$Id: radattr.c,v 1.2 2004/10/28 00:24:40 paulus Exp $";
 
 #include "pppd.h"
 #include "radiusclient.h"
@@ -41,7 +41,12 @@ plugin_init(void)
 {
     radius_attributes_hook = print_attributes;
 
+#if 0
+    /* calling cleanup() on link down is problematic because print_attributes()
+       is called only after PAP or CHAP authentication, but not when the link
+       should go up again for any other reason */
     add_notifier(&link_down_notifier, cleanup, NULL);
+#endif
 
     /* Just in case... */
     add_notifier(&exitnotify, cleanup, NULL);
@@ -65,6 +70,7 @@ print_attributes(VALUE_PAIR *vp)
     char fname[512];
     char name[2048];
     char value[2048];
+    int cnt = 0;
 
     slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ifname);
     fp = fopen(fname, "w");
@@ -78,8 +84,10 @@ print_attributes(VALUE_PAIR *vp)
 	    continue;
 	}
 	fprintf(fp, "%s %s\n", name, value);
+	cnt++;
     }
     fclose(fp);
+    dbglog("RADATTR plugin wrote %d line(s) to file %s.", cnt, fname);
 }
 
 /**********************************************************************
@@ -99,4 +107,5 @@ cleanup(void *opaque, int arg)
 
     slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ifname);
     (void) remove(fname);
+    dbglog("RADATTR plugin removed file %s.", fname);
 }
