@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.47 1998/03/30 06:25:34 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.48 1998/04/28 23:37:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1287,10 +1287,9 @@ pr_log __V((void *arg, char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    vsprintf(buf, fmt, pvar);
+    n = vfmtmsg(buf, sizeof(buf), fmt, pvar);
     va_end(pvar);
 
-    n = strlen(buf);
     if (linep + n + 1 > line + sizeof(line)) {
 	syslog(LOG_DEBUG, "%s", line);
 	linep = line;
