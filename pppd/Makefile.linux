@@ -1,7 +1,11 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.14 1996/08/28 06:37:53 paulus Exp $
+# $Id: Makefile.linux,v 1.15 1996/09/14 05:13:45 paulus Exp $
 #
+
+# Default installation locations
+BINDIR = /usr/sbin
+MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
 	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c \
@@ -21,13 +25,10 @@ include .depend
 endif
 
 # CC = gcc
-# DEBUG_FLAGS = -DDEBUGALL
 #
 COPTS = -O2 # -g
 VER = 2.3.0
-LIBS = -lbsd
-YACC = bison -y
-LEX = flex
+LIBS = -lc -lbsd
 
 # The INCLUDE_DIRS must include the standard headers before the local
 # ones. If you just had -I.. then the order would be reversed. So, use
@@ -35,18 +36,9 @@ LEX = flex
 #INCLUDE_DIRS= -I/usr/include -I..
 INCLUDE_DIRS=
 
-COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -D__BSD_SOURCE
+COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -D__BSD_SOURCE -DIPX_CHANGE
 
-CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
-
-ifdef USE_MS_DNS
-CFLAGS   += -DUSE_MS_DNS=1
-endif
-
-ifdef IPX_CHANGE
-CFLAGS   += -DIPX_CHANGE=1
-PPPDOBJS += ipxcp.o
-endif
+CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
 
 ifdef HAS_SHADOW
 CFLAGS   += -DHAS_SHADOW
@@ -64,7 +56,7 @@ install: pppd
 	install -c -m 555 -o root pppd.8 $(MANDIR)/man8
 
 pppd: $(PPPDOBJS)
-	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS) # -Wl,-M >pppd.map
+	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
 
 clean:
 	rm -f $(PPPDOBJS) pppd *~ #* core
