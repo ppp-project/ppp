@@ -1,4 +1,4 @@
-/*	$Id: ppp_tty.c,v 1.1 1995/12/11 05:17:10 paulus Exp $	*/
+/*	$Id: ppp_tty.c,v 1.2 1996/04/04 03:21:36 paulus Exp $	*/
 
 /*
  * ppp_tty.c - Point-to-Point Protocol (PPP) driver for asynchronous
@@ -92,6 +92,7 @@
 #include <sys/kernel.h>
 #include <sys/conf.h>
 #include <sys/vnode.h>
+#include <sys/systm.h>
 
 #include <net/if.h>
 #include <net/if_types.h>
@@ -103,6 +104,7 @@
 #include <net/slcompress.h>
 #endif
 
+#include <net/bpf.h>
 #include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 #include <net/if_pppvar.h>
@@ -165,9 +167,9 @@ pppopen(dev, tp)
 {
     struct proc *p = curproc;		/* XXX */
     register struct ppp_softc *sc;
-    int error, s, i;
+    int error, s;
 
-    if (error = suser(p->p_ucred, &p->p_acflag))
+    if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	return (error);
 
     s = spltty();
@@ -222,7 +224,6 @@ pppclose(tp, flag)
     int flag;
 {
     register struct ppp_softc *sc;
-    struct mbuf *m;
     int s;
 
     s = spltty();
@@ -317,7 +318,7 @@ pppread(tp, uio, flag)
     splx(s);
 
     for (m = m0; m && uio->uio_resid; m = m->m_next)
-	if (error = uiomove(mtod(m, u_char *), m->m_len, uio))
+	if ((error = uiomove(mtod(m, u_char *), m->m_len, uio)) != 0)
 	    break;
     m_freem(m0);
     return (error);
@@ -358,7 +359,7 @@ pppwrite(tp, uio, flag)
 	len = M_TRAILINGSPACE(m);
 	if (len > uio->uio_resid)
 	    len = uio->uio_resid;
-	if (error = uiomove(mtod(m, u_char *), len, uio)) {
+	if ((error = uiomove(mtod(m, u_char *), len, uio)) != 0) {
 	    m_freem(m0);
 	    return (error);
 	}
@@ -394,7 +395,7 @@ ppptioctl(tp, cmd, data, flag, p)
     error = 0;
     switch (cmd) {
     case PPPIOCSASYNCMAP:
-	if (error = suser(p->p_ucred, &p->p_acflag))
+	if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	    break;
 	sc->sc_asyncmap[0] = *(u_int *)data;
 	break;
@@ -404,7 +405,7 @@ ppptioctl(tp, cmd, data, flag, p)
 	break;
 
     case PPPIOCSRASYNCMAP:
-	if (error = suser(p->p_ucred, &p->p_acflag))
+	if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	    break;
 	sc->sc_rasyncmap = *(u_int *)data;
 	break;
@@ -414,7 +415,7 @@ ppptioctl(tp, cmd, data, flag, p)
 	break;
 
     case PPPIOCSXASYNCMAP:
-	if (error = suser(p->p_ucred, &p->p_acflag))
+	if ((error = suser(p->p_ucred, &p->p_acflag)) != 0)
 	    break;
 	s = spltty();
 	bcopy(data, sc->sc_asyncmap, sizeof(sc->sc_asyncmap));
@@ -537,10 +538,10 @@ pppstart(tp)
     register struct mbuf *m;
     register int len;
     register u_char *start, *stop, *cp;
-    int n, s, ndone, done, idle;
+    int n, ndone, done, idle;
     struct mbuf *m2;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
+    if (((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0)
 	|| sc == NULL || tp != (struct tty *) sc->sc_devp) {
 	if (tp->t_oproc != NULL)
 	    (*tp->t_oproc)(tp);
@@ -570,7 +571,7 @@ pppstart(tp)
 	     * the line may have been idle for some time.
 	     */
 	    if (CCOUNT(&tp->t_outq) == 0) {
-		++sc->sc_bytessent;
+		++sc->sc_stats.ppp_obytes;
 		(void) putc(PPP_FLAG, &tp->t_outq);
 	    }
 
@@ -597,7 +598,7 @@ pppstart(tp)
 		    ndone = n - b_to_q(start, n, &tp->t_outq);
 		    len -= ndone;
 		    start += ndone;
-		    sc->sc_bytessent += ndone;
+		    sc->sc_stats.ppp_obytes += ndone;
 
 		    if (ndone < n)
 			break;	/* packet doesn't fit */
@@ -614,7 +615,7 @@ pppstart(tp)
 			(void) unputc(&tp->t_outq);
 			break;
 		    }
-		    sc->sc_bytessent += 2;
+		    sc->sc_stats.ppp_obytes += 2;
 		    start++;
 		    len--;
 		}
@@ -661,7 +662,7 @@ pppstart(tp)
 			    unputc(&tp->t_outq);
 			break;
 		    }
-		sc->sc_bytessent += q - endseq;
+		sc->sc_stats.ppp_obytes += q - endseq;
 	    }
 
 	    if (!done) {
@@ -676,8 +677,6 @@ pppstart(tp)
 	    m = m2;
 	    if (m == NULL) {
 		/* Finished a packet */
-		sc->sc_if.if_opackets++;
-		sc->sc_if.if_obytes = sc->sc_bytessent;
 		break;
 	    }
 	    sc->sc_outfcs = pppfcs(sc->sc_outfcs, mtod(m, u_char *), m->m_len);
@@ -779,7 +778,7 @@ pppinput(c, tp)
 
     s = spltty();		/* should be unnecessary */
     ++tk_nin;
-    ++sc->sc_bytesrcvd;
+    ++sc->sc_stats.ppp_ibytes;
 
     if (c & TTY_FE) {
 	/* framing error or overrun on this char - abort packet */
@@ -824,7 +823,6 @@ pppinput(c, tp)
     if (c == PPP_FLAG) {
 	ilen = sc->sc_ilen;
 	sc->sc_ilen = 0;
-	sc->sc_if.if_ibytes = sc->sc_bytesrcvd;
 
 	if (sc->sc_rawin_count > 0) 
 	    ppplogchar(sc, -1);
@@ -834,13 +832,14 @@ pppinput(c, tp)
 	 * abort sequence "}~".
 	 */
 	if (sc->sc_flags & (SC_FLUSH | SC_ESCAPED)
-	    || ilen > 0 && sc->sc_fcs != PPP_GOODFCS) {
+	    || (ilen > 0 && sc->sc_fcs != PPP_GOODFCS)) {
 	    sc->sc_flags |= SC_PKTLOST;	/* note the dropped packet */
 	    if ((sc->sc_flags & (SC_FLUSH | SC_ESCAPED)) == 0){
 		if (sc->sc_flags & SC_DEBUG)
 		    printf("ppp%d: bad fcs %x\n", sc->sc_if.if_unit,
 			   sc->sc_fcs);
 		sc->sc_if.if_ierrors++;
+		sc->sc_stats.ppp_ierrors++;
 	    } else
 		sc->sc_flags &= ~(SC_FLUSH | SC_ESCAPED);
 	    splx(s);
@@ -852,6 +851,7 @@ pppinput(c, tp)
 		if (sc->sc_flags & SC_DEBUG)
 		    printf("ppp%d: too short (%d)\n", sc->sc_if.if_unit, ilen);
 		sc->sc_if.if_ierrors++;
+		sc->sc_stats.ppp_ierrors++;
 		sc->sc_flags |= SC_PKTLOST;
 	    }
 	    splx(s);
@@ -993,6 +993,7 @@ pppinput(c, tp)
  flush:
     if (!(sc->sc_flags & SC_FLUSH)) {
 	sc->sc_if.if_ierrors++;
+	sc->sc_stats.ppp_ierrors++;
 	sc->sc_flags |= SC_FLUSH;
 	if (sc->sc_flags & SC_LOG_FLUSH)
 	    ppplogchar(sc, c);
@@ -1011,7 +1012,7 @@ ppplogchar(sc, c)
     if (c >= 0)
 	sc->sc_rawin[sc->sc_rawin_count++] = c;
     if (sc->sc_rawin_count >= sizeof(sc->sc_rawin)
-	|| c < 0 && sc->sc_rawin_count > 0) {
+	|| (c < 0 && sc->sc_rawin_count > 0)) {
 	printf("ppp%d input: ", sc->sc_if.if_unit);
 	pppdumpb(sc->sc_rawin, sc->sc_rawin_count);
 	sc->sc_rawin_count = 0;
