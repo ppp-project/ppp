@@ -18,7 +18,7 @@
  *		(614)451-1883
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.7 1995/05/01 04:14:51 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.8 1995/05/19 04:19:29 paulus Exp $";
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -54,6 +54,10 @@ static char rcsid[] = "$Id: chat.c,v 1.7 1995/05/01 04:14:51 paulus Exp $";
 #else
 #define __P(x)	()
 #define const
+#endif
+
+#ifndef O_NONBLOCK
+#define O_NONBLOCK	FNDELAY
 #endif
 
 /*************** Micro getopt() *********************************************/
@@ -108,7 +112,6 @@ void set_tty_parameters __P((void));
 void break_sequence __P((void));
 void terminate __P((int status));
 void do_file __P((char *chat_file));
-void delay __P((void));
 int  get_string __P((register char *string));
 int  put_string __P((register char *s));
 int  write_char __P((int c));
@@ -387,7 +390,7 @@ int signo;
     if ((flags = fcntl(0, F_GETFL, 0)) == -1)
 	sysfatal("Can't get file mode flags on stdin");
     else
-	if (fcntl(0, F_SETFL, flags | FNDELAY) == -1)
+	if (fcntl(0, F_SETFL, flags | O_NONBLOCK) == -1)
 	    sysfatal("Can't set file mode flags on stdin");
 
     if (verbose)
@@ -403,7 +406,7 @@ void unalarm()
     if ((flags = fcntl(0, F_GETFL, 0)) == -1)
 	sysfatal("Can't get file mode flags on stdin");
     else
-	if (fcntl(0, F_SETFL, flags & ~FNDELAY) == -1)
+	if (fcntl(0, F_SETFL, flags & ~O_NONBLOCK) == -1)
 	    sysfatal("Can't set file mode flags on stdin");
     }
 
@@ -743,7 +746,8 @@ register char *s;
 
 	s1 = clean(s, 0);
 
-	if (strlen(s1) > strlen(s) || strlen(s1) > sizeof fail_buffer - 1)
+	if (strlen(s1) > strlen(s)
+	    || strlen(s1) + 1 > sizeof(fail_buffer))
 	    {
 	    syslog(LOG_WARNING, "Illegal or too-long ABORT string ('%s')", s);
 	    die();
@@ -810,7 +814,7 @@ int get_char()
 	    if ((status = fcntl(0, F_GETFL, 0)) == -1)
 		sysfatal("Can't get file mode flags on stdin");
 	    else
-		if (fcntl(0, F_SETFL, status & ~FNDELAY) == -1)
+		if (fcntl(0, F_SETFL, status & ~O_NONBLOCK) == -1)
 		    sysfatal("Can't set file mode flags on stdin");
 
 	    return (-1);
@@ -823,7 +827,7 @@ int c;
     int status;
     char ch = c;
 
-    delay();
+    usleep(10000);		/* inter-character typing delay (?) */
 
     status = write(1, &ch, 1);
 
@@ -840,7 +844,7 @@ int c;
 	    if ((status = fcntl(0, F_GETFL, 0)) == -1)
 		sysfatal("Can't get file mode flags on stdin");
 	    else
-		if (fcntl(0, F_SETFL, status & ~FNDELAY) == -1)
+		if (fcntl(0, F_SETFL, status & ~O_NONBLOCK) == -1)
 		    sysfatal("Can't set file mode flags on stdin");
 
 	    return (-1);
@@ -1043,8 +1047,7 @@ register char *string;
     return (0);
     }
 
-#ifdef ultrix
-#undef NO_USLEEP
+#ifdef NO_USLEEP
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -1071,18 +1074,3 @@ usleep( usec )				  /* returns 0 if ok, else -1 */
     return select( 0, (long *)0, (long *)0, (long *)0, &delay );
 }
 #endif
-
-/*
- *	Delay an amount appropriate for between typed characters.
- */
-void delay()
-    {
-# ifdef NO_USLEEP
-    register int i;
-
-    for (i = 0; i < 30000; ++i)		/* ... did we just say appropriate? */
-	;
-# else /* NO_USLEEP */
-    usleep(100);
-# endif /* NO_USLEEP */
-    }
