@@ -40,3 +40,5 @@ create an /etc/ppp/ip-up script containing something like this:
 	#!/bin/sh
 	/usr/sbin/ndd -set /dev/ip ip_forwarding 2
 
+Under Solaris 2.6, the value 2 is invalid; use 1 instead.  See the man
+page for ip(7p) for details.
