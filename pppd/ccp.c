@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.35 2002/05/21 17:26:49 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.36 2002/05/28 17:00:57 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -453,7 +453,7 @@ ccp_input(unit, p, len)
 	notice("Compression disabled by peer.");
 #ifdef MPPE
 	if (ccp_gotoptions[unit].mppe) {
-	    notice("MPPE disabled, closing LCP");
+	    error("MPPE disabled, closing LCP");
 	    lcp_close(unit, "MPPE disabled by peer");
 	}
 #endif
@@ -513,6 +513,7 @@ ccp_protrej(unit)
 
 #ifdef MPPE
     if (ccp_gotoptions[unit].mppe)
+	error("MPPE required but peer negotiation failed");
 	lcp_close(unit, "MPPE required but peer negotiation failed");
 #endif
 
@@ -899,8 +900,10 @@ ccp_nakci(f, p, len)
 	    /* Peer must have set options we didn't request (suggest) */
 	    try.mppe = 0;
 
-	if (!try.mppe)
+	if (!try.mppe) {
+	    error("MPPE required but peer negotiation failed");
 	    lcp_close(f->unit, "MPPE required but peer negotiation failed");
+	}
     }
 #endif /* MPPE */
     if (go->deflate && len >= CILEN_DEFLATE
@@ -977,6 +980,7 @@ ccp_rejci(f, p, len)
 #ifdef MPPE
     if (go->mppe && len >= CILEN_MPPE
 	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
+	error("MPPE required but peer refused");
 	lcp_close(f->unit, "MPPE required but peer refused");
 	p += CILEN_MPPE;
 	len -= CILEN_MPPE;
@@ -1314,8 +1318,10 @@ ccp_reqci(f, p, lenp, dont_nak)
 	    *lenp = retp - p0;
     }
 #ifdef MPPE
-    if (ret == CONFREJ && ao->mppe && !seen_ci_mppe)
+    if (ret == CONFREJ && ao->mppe && !seen_ci_mppe) {
+	error("MPPE required but peer negotiation failed");
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
+    }
 #endif
     return ret;
 }
@@ -1431,8 +1437,10 @@ ccp_down(f)
     ccp_localstate[f->unit] = 0;
     ccp_flags_set(f->unit, 1, 0);
 #ifdef MPPE
-    if (ccp_gotoptions[f->unit].mppe)
+    if (ccp_gotoptions[f->unit].mppe) {
+	error("MPPE disabled");
 	lcp_close(f->unit, "MPPE disabled");
+    }
 #endif
 }
 

@@ -60,13 +60,16 @@ BUILDING THE PPPD
 
 The userland component of PPPD has no additional requirements above
 those for MS-CHAP and MS-CHAPv2.  The kernel, however, requires SHA-1
-and ARCFOUR.  Public domain implementations of these are provided.  Until
-such time as MPPE support ships with kernels, you can use the Linux-2.2
-implementation that comes with PPPD.  Run the linux/mppe/mppeinstall.sh
-script, then rebuild your kernel.  The ppp_mppe.o module is added, and the
-ppp.o module (2.2) or ppp_generic.o (2.4) is modified (unfortunately).
-You'll need the new ppp.o/ppp_generic.o since it does the right thing
-for the 4 extra bytes problem discussed above.
+and ARCFOUR.  Public domain implementations of these are provided.
+
+Until such time as MPPE support ships with kernels, you can use
+the Linux 2.2 or 2.4 implementation that comes with PPPD.  Run the
+ppp/linux/mppe/mppeinstall.sh script, giving it the location to your
+kernel source.  Then add the CONFIG_PPP_MPPE option to your config and
+rebuild the kernel.  The ppp_mppe.o module is added, and the ppp.o module
+(2.2) or ppp_generic.o (2.4) is modified (unfortunately).  You'll need
+the new ppp.o/ppp_generic.o since it does the right thing for the 4
+extra bytes problem discussed above.
 
 
 CONFIGURATION
