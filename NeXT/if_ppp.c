@@ -81,7 +81,7 @@
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #if !defined(lint)
-static char sccsid[] = "$Revision: 1.2 $ ($Date: 1997/04/30 05:39:30 $)";
+static char sccsid[] = "$Revision: 1.3 $ ($Date: 1997/07/14 03:49:07 $)";
 #endif /* not lint*/
 
 #define KERNEL 1
@@ -282,7 +282,7 @@ pppattach()
     register struct ppp_softc *sc;
     register int i = 0;
     
-    IOLog("\nPPP version 2.3b3 for NS 3.2 and 3.3\n");
+    IOLog("\nPPP version 2.3.1 for NS 3.2 and 3.3\n");
     IOLog("LKS: %s\n", sccsid);
     IOLog("by  Stephen Perkins, Philip Prindeville, and Pete French\n");
 
