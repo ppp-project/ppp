@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.9 1999/01/19 23:58:35 paulus Exp $
+ * $Id: deflate.c,v 1.10 2001/03/09 01:03:50 paulus Exp $
  */
 
 #ifdef AIX4
@@ -202,7 +202,11 @@ z_comp_alloc(options, opt_len)
 	|| options[3] != DEFLATE_CHK_SEQUENCE)
 	return NULL;
     w_size = DEFLATE_SIZE(options[2]);
-    if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
+    /*
+     * N.B. the 9 below should be DEFLATE_MIN_SIZE (8), but using
+     * 8 will cause kernel crashes because of a bug in zlib.
+     */
+    if (w_size < 9 || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
 
@@ -454,7 +458,11 @@ z_decomp_alloc(options, opt_len)
 	|| options[3] != DEFLATE_CHK_SEQUENCE)
 	return NULL;
     w_size = DEFLATE_SIZE(options[2]);
-    if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
+    /*
+     * N.B. the 9 below should be DEFLATE_MIN_SIZE (8), but using
+     * 8 will cause kernel crashes because of a bug in zlib.
+     */
+    if (w_size < 9 || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
 #ifdef __osf__
