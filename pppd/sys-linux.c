@@ -38,6 +38,7 @@
 #include <mntent.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #include <net/if.h>
 #include <net/ppp_defs.h>
@@ -70,7 +71,7 @@ static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 static char *lock_file;
 
-#define MAX_IFS		32
+#define MAX_IFS		100
 
 #define FLAGS_GOOD (IFF_UP          | IFF_BROADCAST)
 #define FLAGS_MASK (IFF_UP          | IFF_BROADCAST | \
@@ -211,7 +212,8 @@ int set_kdebugflag (int requested_level)
 	    syslog (LOG_ERR, "ioctl(PPPIOCSDEBUG): %m");
 	    return (0);
 	  }
-        MAINDEBUG ((LOG_INFO, "set kernel debugging level to %d", requested_level));
+        MAINDEBUG ((LOG_INFO, "set kernel debugging level to %d",
+		    requested_level));
       }
     return (1);
   }
@@ -282,72 +284,64 @@ void disestablish_ppp(void)
     initfdflags = -1;
 
 /*
- * If this is no longer PPP mode then there is nothing that can be done
- * about restoring the previous mode.
+ * Fetch the flags for the device and generate appropriate error
+ * messages.
  */
-    if (!still_ppp())
-      {
-	initdisc = -1;
-	return;
-      }
-/*
- * Check whether the link seems not to be 8-bit clean.
- */
-    if (initdisc >= 0)
+    if (still_ppp() && initdisc >= 0)
       {
 	if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) == 0)
 	  {
 	    s = NULL;
 	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP))
 	      {
-	    case SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP:
+	      case SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP:
 		s = "nothing was received";
 		break;
-
-	    case SC_RCV_B7_0:
-	    case SC_RCV_B7_0 | SC_RCV_EVNP:
-	    case SC_RCV_B7_0 | SC_RCV_ODDP:
-	    case SC_RCV_B7_0 | SC_RCV_ODDP | SC_RCV_EVNP:
+		
+	      case SC_RCV_B7_0:
+	      case SC_RCV_B7_0 | SC_RCV_EVNP:
+	      case SC_RCV_B7_0 | SC_RCV_ODDP:
+	      case SC_RCV_B7_0 | SC_RCV_ODDP | SC_RCV_EVNP:
 		s = "all had bit 7 set to 1";
 		break;
-
-	    case SC_RCV_B7_1:
-	    case SC_RCV_B7_1 | SC_RCV_EVNP:
-	    case SC_RCV_B7_1 | SC_RCV_ODDP:
-	    case SC_RCV_B7_1 | SC_RCV_ODDP | SC_RCV_EVNP:
+		
+	      case SC_RCV_B7_1:
+	      case SC_RCV_B7_1 | SC_RCV_EVNP:
+	      case SC_RCV_B7_1 | SC_RCV_ODDP:
+	      case SC_RCV_B7_1 | SC_RCV_ODDP | SC_RCV_EVNP:
 		s = "all had bit 7 set to 0";
 		break;
-
-	    case SC_RCV_EVNP:
+		
+	      case SC_RCV_EVNP:
 		s = "all had odd parity";
 		break;
-
-	    case SC_RCV_ODDP:
+		
+	      case SC_RCV_ODDP:
 		s = "all had even parity";
 		break;
 	      }
-
+	    
 	    if (s != NULL)
 	      {
-		syslog(LOG_WARNING, "Receive serial link is not 8-bit clean:");
+		syslog(LOG_WARNING, "Receive serial link is not"
+		       " 8-bit clean:");
 		syslog(LOG_WARNING, "Problem: %s", s);
 	      }
 	  }
-
-        set_kdebugflag (prev_kdebugflag);
+	
+	set_kdebugflag (prev_kdebugflag);
 	
 	if (ioctl(fd, TIOCSETD, &initdisc) < 0)
 	  {
-	    syslog(LOG_ERR, "ioctl(TIOCSETD): %m");
+	    syslog(LOG_WARNING, "ioctl(TIOCSETD): %m");
 	  }
 	
 	if (ioctl(fd, TIOCNXCL, 0) < 0)
 	  {
 	    syslog (LOG_WARNING, "ioctl(TIOCNXCL): %m");
 	  }
-	
-	initdisc = -1;
       }
+    initdisc = -1;
   }
 
 /*
@@ -679,37 +673,35 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
   
     MAINDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
 /*
- * If we were called because the link has gone down then there is nothing
- * which may be done. Just return without incident.
+ * Ensure that the link is still up.
  */
-    if (!still_ppp())
+    if (still_ppp())
       {
-	return;
-      }
 /*
  * Set the MTU and other parameters for the ppp device
  */
-    memset (&ifr, '\0', sizeof (ifr));
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    ifr.ifr_mtu = mtu;
-
-    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
-      {
-	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
-	quit();
-      }
+	memset (&ifr, '\0', sizeof (ifr));
+	strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+	ifr.ifr_mtu = mtu;
+	
+	if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
+	  {
+	    syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
+	    quit();
+	  }
+	
+	MAINDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
+	if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
+	  {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
+	    quit();
+	  }
     
-    MAINDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0)
-      {
-        syslog(LOG_ERR, "ioctl(PPPIOCSASYNCMAP): %m");
-	quit();
+	x = get_flags();
+	x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
+	x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
+	set_flags(x);
       }
-    
-    x = get_flags();
-    x = pcomp  ? x | SC_COMP_PROT : x & ~SC_COMP_PROT;
-    x = accomp ? x | SC_COMP_AC   : x & ~SC_COMP_AC;
-    set_flags(x);
   }
 
 /*
@@ -780,7 +772,9 @@ int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
     data.transmit = for_transmit;
 
     if (ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0)
-      return 1;
+      {
+	return 1;
+      }
 
     return (errno == ENOBUFS)? 0: -1;
   }
@@ -984,10 +978,13 @@ int cifaddr (int unit, int our_adr, int his_adr)
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
 
-    if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
+    if (ioctl(sockfd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
       {
-        syslog (LOG_ERR, "ioctl(SIOCDELRT) device route: %m");
-        return (0);
+	if (still_ppp())
+	  {
+	    syslog (LOG_ERR, "ioctl(SIOCDELRT) device route: %m");
+	    return (0);
+	  }
       }
     return 1;
   }
@@ -997,7 +994,7 @@ int cifaddr (int unit, int our_adr, int his_adr)
  */
 
 FILE *route_fd = (FILE *) 0;
-static char route_buffer [100];
+static char route_buffer [512];
 
 static char *path_to_route (void);
 static int open_route_table (void);
@@ -1077,13 +1074,6 @@ static int open_route_table (void)
         syslog (LOG_ERR, "can not open %s: %m", path);
         return 0;
       }
-
-    /* read and discard the header line. */
-    if (fgets (route_buffer, sizeof (route_buffer), route_fd) == (char *) 0)
-      {
-        close_route_table();
-	return 0;
-      }
     return 1;
   }
 
@@ -1095,18 +1085,34 @@ static int read_route_table (struct rtentry *rt)
   {
     static char delims[] = " \t\n";
     char *dev_ptr, *ptr, *dst_ptr, *gw_ptr, *flag_ptr;
-
-    if (fgets (route_buffer, sizeof (route_buffer), route_fd) == (char *) 0)
-      {
-        return 0;
-      }
-
+	
     memset (rt, '\0', sizeof (struct rtentry));
 
-    dev_ptr  = strtok (route_buffer, delims); /* interface name */
-    dst_ptr  = strtok (NULL,         delims); /* destination address */
-    gw_ptr   = strtok (NULL,         delims); /* gateway */
-    flag_ptr = strtok (NULL,         delims); /* flags */
+    for (;;)
+      {
+	if (fgets (route_buffer, sizeof (route_buffer), route_fd) ==
+	    (char *) 0)
+	  {
+	    return 0;
+	  }
+
+	dev_ptr  = strtok (route_buffer, delims); /* interface name */
+	dst_ptr  = strtok (NULL,         delims); /* destination address */
+	gw_ptr   = strtok (NULL,         delims); /* gateway */
+	flag_ptr = strtok (NULL,         delims); /* flags */
+    
+	if (flag_ptr == (char *) 0) /* assume that we failed, somewhere. */
+	  {
+	    return 0;
+	  }
+	
+	/* Discard that stupid header line which should never
+	 * have been there in the first place !! */
+	if (isxdigit (*dst_ptr) && isxdigit (*gw_ptr) && isxdigit (*flag_ptr))
+	  {
+	    break;
+	  }
+      }
 
     ((struct sockaddr_in *) &rt->rt_dst)->sin_addr.s_addr =
       strtoul (dst_ptr, NULL, 16);
@@ -1205,9 +1211,9 @@ int cifdefaultroute (int unit, int gateway)
 	((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
 	rt.rt_flags = RTF_UP | RTF_GATEWAY;
-	if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
+	if (ioctl(sockfd, SIOCDELRT, &rt) < 0 && errno != ESRCH)
 	  {
-	    if (errno != ENOENT || still_ppp())
+	    if (still_ppp())
 	      {
 		syslog (LOG_ERR, "default route ioctl(SIOCDELRT): %m");
 		return 0;
