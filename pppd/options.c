@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.25 1995/10/27 03:39:14 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.26 1995/12/18 03:49:06 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -44,6 +44,10 @@ static char rcsid[] = "$Id: options.c,v 1.25 1995/10/27 03:39:14 paulus Exp $";
 #include "upap.h"
 #include "chap.h"
 #include "ccp.h"
+
+#ifdef IPX_CHANGE
+#include "ipxcp.h"
+#endif /* IPX_CHANGE */
 
 #include <net/ppp-comp.h>
 
@@ -73,6 +77,7 @@ int	lockflag = 0;		/* Create lock file to lock the serial dev */
 int	nodetach = 0;		/* Don't detach from controlling tty */
 char	*connector = NULL;	/* Script to establish physical link */
 char	*disconnector = NULL;	/* Script to disestablish physical link */
+int	maxconnect = 0;		/* Maximum connect time */
 char	user[MAXNAMELEN];	/* Username for PAP */
 char	passwd[MAXSECRETLEN];	/* Password for PAP */
 int	auth_required = 0;	/* Peer is required to authenticate */
@@ -113,7 +118,7 @@ static int reqchap __P((void));
 static int setspeed __P((char *));
 static int noaccomp __P((void));
 static int noasyncmap __P((void));
-static int noipaddr __P((void));
+static int noip __P((void));
 static int nomagicnumber __P((void));
 static int setasyncmap __P((char **));
 static int setescape __P((char **));
@@ -123,6 +128,7 @@ static int nomru __P((void));
 static int nopcomp __P((void));
 static int setconnector __P((char **));
 static int setdisconnector __P((char **));
+static int setmaxconnect __P((char **));
 static int setdomain __P((char **));
 static int setnetmask __P((char **));
 static int setcrtscts __P((void));
@@ -165,8 +171,30 @@ static int setlcpechointv __P((char **));
 static int setlcpechofails __P((char **));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
+static int setpred1comp __P((void));
+static int setnopred1comp __P((void));
 static int setipparam __P((char **));
 static int setpapcrypt __P((void));
+
+#ifdef IPX_CHANGE
+static int setipxproto __P((void));
+static int resetipxproto __P((void));
+static int setipxanet __P((void));
+static int setipxalcl __P((void));
+static int setipxarmt __P((void));
+static int setipxnetwork __P((char **));
+static int setipxnode __P((char **));
+static int setipxrouter __P((char **));
+static int setipxname __P((char **));
+static int setipxcptimeout __P((char **));
+static int setipxcpterm __P((char **));
+static int setipxcpconf __P((char **));
+static int setipxcpfails __P((char **));
+#endif /* IPX_CHANGE */
+
+#ifdef USE_MS_DNS
+static int setdnsaddr __P((char **));
+#endif
 
 static int number_option __P((char *, u_int32_t *, int));
 static int readable __P((int fd));
@@ -187,7 +215,7 @@ static struct cmd {
     {"-as", 1, setasyncmap},	/* set the desired async map */
     {"-d", 0, setdebug},	/* Increase debugging level */
     {"-detach", 0, setnodetach}, /* don't fork */
-    {"-ip", 0, noipaddr},	/* Disable IP address negotiation */
+    {"-ip", 0, noip},		/* Disable IP and IPCP */
     {"-mn", 0, nomagicnumber},	/* Disable magic number negotiation */
     {"-mru", 0, nomru},		/* Disable mru negotiation */
     {"-p", 0, setpassive},	/* Set passive mode */
@@ -204,6 +232,7 @@ static struct cmd {
     {"escape", 1, setescape},	/* set chars to escape on transmission */
     {"connect", 1, setconnector}, /* A program to set up a connection */
     {"disconnect", 1, setdisconnector},	/* program to disconnect serial dev. */
+    {"maxconnect", 1, setmaxconnect},  /* specify a maximum connect time */
     {"crtscts", 0, setcrtscts},	/* set h/w flow control */
     {"-crtscts", 0, setnocrtscts}, /* clear h/w flow control */
     {"xonxoff", 0, setxonxoff},	/* set s/w flow control */
@@ -251,11 +280,38 @@ static struct cmd {
     {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
     {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
     {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
+    {"predictor1", 0, setpred1comp},	/* request Predictor-1 */
+    {"-predictor1", 0, setnopred1comp},	/* don't allow Predictor-1 */
     {"ipparam", 1, setipparam},		/* set ip script parameter */
     {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
+
+#ifdef IPX_CHANGE
+    {"ipx-network",          1, setipxnetwork}, /* IPX network number */
+    {"ipxcp-accept-network", 0, setipxanet},    /* Accept peer netowrk */
+    {"ipx-node",             1, setipxnode},    /* IPX node number */
+    {"ipxcp-accept-local",   0, setipxalcl},    /* Accept our address */
+    {"ipxcp-accept-remote",  0, setipxarmt},    /* Accept peer's address */
+    {"ipx-routing",          1, setipxrouter},  /* IPX routing proto number */
+    {"ipx-router-name",      1, setipxname},    /* IPX router name */
+    {"ipxcp-restart",        1, setipxcptimeout}, /* Set timeout for IPXCP */
+    {"ipxcp-max-terminate",  1, setipxcpterm},  /* max #xmits for term-reqs */
+    {"ipxcp-max-configure",  1, setipxcpconf},  /* max #xmits for conf-reqs */
+    {"ipxcp-max-failure",    1, setipxcpfails}, /* max #conf-naks for IPXCP */
+#if 0
+    {"ipx-compression", 1, setipxcompression}, /* IPX compression number */
+#endif
+    {"+ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
+    {"-ipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
+#endif /* IPX_CHANGE */
+
 #ifdef _linux_
     {"idle-disconnect", 1, setidle}, /* seconds for disconnect of idle IP */
 #endif
+
+#ifdef USE_MS_DNS
+    {"ms-dns", 1, setdnsaddr},	/* DNS address(es) for the peer's use */
+#endif
+
     {NULL, 0, NULL}
 };
 
@@ -829,6 +885,12 @@ noopt()
     BZERO((char *) &lcp_allowoptions[0], sizeof (struct lcp_options));
     BZERO((char *) &ipcp_wantoptions[0], sizeof (struct ipcp_options));
     BZERO((char *) &ipcp_allowoptions[0], sizeof (struct ipcp_options));
+
+#ifdef IPX_CHANGE
+    BZERO((char *) &ipxcp_wantoptions[0], sizeof (struct ipxcp_options));
+    BZERO((char *) &ipxcp_allowoptions[0], sizeof (struct ipxcp_options));
+#endif /* IPX_CHANGE */
+
     return (1);
 }
 
@@ -857,13 +919,12 @@ noasyncmap()
 
 
 /*
- * noipaddr - Disable IP address negotiation.
+ * noip - Disable IP and IPCP.
  */
 static int
-noipaddr()
+noip()
 {
-    ipcp_wantoptions[0].neg_addr = 0;
-    ipcp_allowoptions[0].neg_addr = 0;
+    ipcp_protent.enabled_flag = 0;
     return (1);
 }
 
@@ -1128,6 +1189,24 @@ setdisconnector(argv)
     return (1);
 }
 
+/*
+ * setmaxconnect - Set the maximum connect time
+ */
+static int
+setmaxconnect(argv)
+    char **argv;
+{
+    int value;
+
+    if (!int_option(*argv, &value))
+      return 0;
+    if (value < 0) {
+      fprintf(stderr, "pppd: maxconnect time must be positive\n");
+      return 0;
+    }
+    maxconnect = value;
+    return 1;
+}
 
 /*
  * setdomain - Set domain name to append to hostname 
@@ -1714,6 +1793,22 @@ setnobsdcomp()
 }
 
 static int
+setpred1comp()
+{
+    ccp_wantoptions[0].predictor_1 = 1;
+    ccp_allowoptions[0].predictor_1 = 1;
+    return 1;
+}
+
+static int
+setnopred1comp()
+{
+    ccp_wantoptions[0].predictor_1 = 0;
+    ccp_allowoptions[0].predictor_1 = 0;
+    return 1;
+}
+
+static int
 setipparam(argv)
     char **argv;
 {
@@ -1738,3 +1833,203 @@ static int setidle (argv)
     return int_option(*argv, &idle_time_limit);
 }
 #endif
+
+
+#ifdef IPX_CHANGE
+static int
+setipxrouter (argv)
+    char **argv;
+{
+    ipxcp_wantoptions[0].neg_router  = 1;
+    ipxcp_allowoptions[0].neg_router = 1;
+    return int_option(*argv, &ipxcp_wantoptions[0].router); 
+}
+
+static int
+setipxname (argv)
+    char **argv;
+{
+    char *dest = ipxcp_wantoptions[0].name;
+    char *src  = *argv;
+    int  count;
+    char ch;
+
+    ipxcp_wantoptions[0].neg_name  = 1;
+    ipxcp_allowoptions[0].neg_name = 1;
+    memset (dest, '\0', sizeof (ipxcp_wantoptions[0].name));
+
+    count = 0;
+    while (*src) {
+        ch = *src++;
+	if (! isalnum (ch) && ch != '_') {
+	    fprintf (stderr,
+		     "%s: IPX router name must be alphanumeric or _\n",
+		     progname);
+	    return 0;
+	}
+
+	if (count >= sizeof (ipxcp_wantoptions[0].name)) {
+	    fprintf (stderr,
+		     "%s: IPX router name is limited to %d characters\n",
+		     progname,
+		     sizeof (ipxcp_wantoptions[0].name) - 1);
+	    return 0;
+	}
+
+	dest[count++] = toupper (ch);
+    }
+
+    return 1;
+}
+
+static int
+setipxcptimeout (argv)
+    char **argv;
+{
+    return int_option(*argv, &ipxcp_fsm[0].timeouttime);
+}
+
+static int
+setipxcpterm (argv)
+    char **argv;
+{
+    return int_option(*argv, &ipxcp_fsm[0].maxtermtransmits);
+}
+
+static int
+setipxcpconf (argv)
+    char **argv;
+{
+    return int_option(*argv, &ipxcp_fsm[0].maxconfreqtransmits);
+}
+
+static int
+setipxcpfails (argv)
+    char **argv;
+{
+    return int_option(*argv, &ipxcp_fsm[0].maxnakloops);
+}
+
+static int
+setipxnetwork(argv)
+    char **argv;
+{
+    ipxcp_wantoptions[0].neg_nn = 1;
+    return int_option(*argv, &ipxcp_wantoptions[0].our_network); 
+}
+
+static int
+setipxanet()
+{
+    ipxcp_wantoptions[0].accept_network = 1;
+    ipxcp_allowoptions[0].accept_network = 1;
+}
+
+static int
+setipxalcl()
+{
+    ipxcp_wantoptions[0].accept_local = 1;
+    ipxcp_allowoptions[0].accept_local = 1;
+}
+
+static int
+setipxarmt()
+{
+    ipxcp_wantoptions[0].accept_remote = 1;
+    ipxcp_allowoptions[0].accept_remote = 1;
+}
+
+static u_char *
+setipxnodevalue(src,dst)
+u_char *src, *dst;
+{
+    int indx;
+    int item;
+
+    for (;;) {
+        if (!isxdigit (*src))
+	    break;
+	
+	for (indx = 0; indx < 5; ++indx) {
+	    dst[indx] <<= 4;
+	    dst[indx] |= (dst[indx + 1] >> 4) & 0x0F;
+	}
+
+	item = toupper (*src) - '0';
+	if (item > 9)
+	    item -= 7;
+
+	dst[5] = (dst[5] << 4) | item;
+	++src;
+    }
+    return src;
+}
+
+static int
+setipxnode(argv)
+    char **argv;
+{
+    char *end;
+
+    memset (&ipxcp_wantoptions[0].our_node[0], 0, 6);
+    memset (&ipxcp_wantoptions[0].his_node[0], 0, 6);
+
+    end = setipxnodevalue (*argv, &ipxcp_wantoptions[0].our_node[0]);
+    if (*end == ':')
+	end = setipxnodevalue (++end, &ipxcp_wantoptions[0].his_node[0]);
+
+    if (*end == '\0') {
+        ipxcp_wantoptions[0].neg_node = 1;
+        return 1;
+    }
+
+    fprintf(stderr, "%s: invalid argument for ipx-node option\n",
+	    progname);
+    return 0;
+}
+
+static int
+setipxproto()
+{
+    ipx_enabled = 1;		/* Enable IPXCP and IPX protocol */
+    return 1;
+}
+
+static int
+resetipxproto()
+{
+    ipx_enabled = 0;		/* Disable IPXCP and IPX protocol */
+    return 1;
+}
+#endif /* IPX_CHANGE */
+
+#ifdef USE_MS_DNS
+/*
+ * setdnsaddr - set the dns address(es)
+ */
+
+static int
+setdnsaddr(argv)
+    char **argv;
+{
+    u_int32_t dns;
+    struct hostent *hp;
+
+    dns = inet_addr(*argv);
+    if (dns == -1) {
+	if ((hp = gethostbyname(*argv)) == NULL) {
+	    fprintf(stderr, "Invalid DNS Address %s\n", *argv);
+	    return 0;
+	}
+	dns = *(u_int32_t *)hp->h_addr;
+    }
+
+    if (ipcp_allowoptions[0].dnsaddr[0] == 0) {
+	ipcp_allowoptions[0].dnsaddr[0] = dns;
+    } else {
+	ipcp_allowoptions[0].dnsaddr[1] = dns;
+    }
+
+    return (1);
+}
+#endif /* USE_MS_DNS */
