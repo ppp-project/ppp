@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.2 1994/04/11 07:13:44 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.3 1994/04/18 04:00:25 paulus Exp $";
 #endif
 
 /*
@@ -55,6 +55,7 @@ lcp_options lcp_wantoptions[NPPP];	/* Options that we want to request */
 lcp_options lcp_gotoptions[NPPP];	/* Options that peer ack'd */
 lcp_options lcp_allowoptions[NPPP];	/* Options we allow peer to request */
 lcp_options lcp_hisoptions[NPPP];	/* Options that we ack'd */
+u_long xmit_accm[NPPP][8];		/* extended transmit ACCM */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -129,7 +130,7 @@ lcp_init(unit)
 					   implementations */
     wo->neg_mru = 1;
     wo->mru = DEFMRU;
-    wo->neg_asyncmap = 1;
+    wo->neg_asyncmap = 0;
     wo->asyncmap = 0;
     wo->neg_chap = 0;			/* Set to 1 on server */
     wo->neg_upap = 0;			/* Set to 1 on server */
@@ -151,6 +152,8 @@ lcp_init(unit)
     ao->neg_accompression = 1;
     ao->neg_lqr = 0;			/* no LQR implementation yet */
 
+    memset(xmit_accm[unit], 0, sizeof(xmit_accm[0]));
+    xmit_accm[unit][3] = 0x60000000;
 }
 
 
@@ -192,9 +195,11 @@ lcp_lowerup(unit)
     int unit;
 {
     sifdown(unit);
+    ppp_set_xaccm(unit, xmit_accm[unit]);
     ppp_send_config(unit, MTU, 0xffffffff, 0, 0);
     ppp_recv_config(unit, MTU, 0, 0, 0);
     peer_mru[unit] = MTU;
+    lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
 
     fsm_lowerup(&lcp_fsm[unit]);
 }
@@ -1219,7 +1224,7 @@ lcp_up(f)
      * set our MRU to the larger of value we wanted and
      * the value we got in the negotiation.
      */
-    ppp_send_config(f->unit, (ho->neg_mru? MIN(ao->mru, ho->mru): MTU),
+    ppp_send_config(f->unit, MIN(ao->mru, (ho->neg_mru? ho->mru: MTU)),
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
     ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): MTU),
@@ -1254,7 +1259,8 @@ lcp_down(f)
     ppp_send_config(f->unit, MTU, 0xffffffff, 0, 0);
     ppp_recv_config(f->unit, MTU, 0, 0, 0);
     peer_mru[f->unit] = MTU;
-    syslog(LOG_NOTICE, "Connection terminated.");
+
+    link_down(f->unit);
 }
 
 
