@@ -318,11 +318,8 @@ void establish_ppp (int tty_fd)
  */
     if (demand && ioctl(slave_fd, PPPIOCXFERUNIT, 0) < 0)
       {
-	if ( ! ok_error ( errno ))
-	  {
-	    syslog(LOG_ERR, "ioctl(transfer ppp unit): %m(%d)", errno);
-	    die(1);
-	  }
+	syslog(LOG_ERR, "ioctl(transfer ppp unit): %m(%d)", errno);
+	die(1);
       }
 /*
  * Set the current tty to the PPP discpline
@@ -357,14 +354,14 @@ void establish_ppp (int tty_fd)
 		   ifunit, x);
 	    die(1);
 	  }
-	ioctl(slave_fd, TIOCSETD, &tty_disc);
       }
 
     ifunit = x;
 /*
  * Enable debug in the driver if requested.
  */
-    set_kdebugflag (kdebugflag);
+    if (!demand)
+      set_kdebugflag (kdebugflag);
 
     set_flags (get_flags() & ~(SC_RCV_B7_0 | SC_RCV_B7_1 |
 			       SC_RCV_EVNP | SC_RCV_ODDP));
@@ -397,23 +394,16 @@ void disestablish_ppp(int tty_fd)
   {
     int x;
     char *s;
-/*
- * Do nothing if the PPP device is controlled by the loopback device
- */
-    if (tty_fd != ppp_fd)
-      {
-	return;
-      }
+
 /*
  * Attempt to restore the previous tty settings
  */
-    if (still_ppp())
+    if (!hungup)
       {
-	set_kdebugflag (0);
 /*
  * Restore the previous line discipline
  */
-	if (ioctl(ppp_fd, TIOCSETD, &tty_disc) < 0)
+	if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0)
 	  {
 	    if ( ! ok_error (errno))
 	      {
@@ -421,7 +411,7 @@ void disestablish_ppp(int tty_fd)
 	      }
 	  }
 	
-	if (ioctl(ppp_fd, TIOCNXCL, 0) < 0)
+	if (ioctl(tty_fd, TIOCNXCL, 0) < 0)
 	  {
 	    if ( ! ok_error (errno))
 	      {
@@ -430,7 +420,7 @@ void disestablish_ppp(int tty_fd)
 	  }
 
 	/* Reset non-blocking mode on fd. */
-	if (initfdflags != -1 && fcntl(ppp_fd, F_SETFL, initfdflags) < 0)
+	if (initfdflags != -1 && fcntl(tty_fd, F_SETFL, initfdflags) < 0)
 	  {
 	    if ( ! ok_error (errno))
 	      {
@@ -459,10 +449,6 @@ void clean_check(void)
 	    s = NULL;
 	    switch (~x & (SC_RCV_B7_0|SC_RCV_B7_1|SC_RCV_EVNP|SC_RCV_ODDP))
 	      {
-	      case SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP:
-		s = "nothing was received";
-		break;
-		
 	      case SC_RCV_B7_0:
 	      case SC_RCV_B7_0 | SC_RCV_EVNP:
 	      case SC_RCV_B7_0 | SC_RCV_ODDP:
@@ -2298,81 +2284,23 @@ open_ppp_loopback(void)
  *
  * restore_loop - reattach the ppp unit to the loopback.
  *
- * The problem with the Linux variant is that the POSIX tty drivers will
- * sieze the line when it is disconnected. In addition, when the device
- * goes down all of the routes are deleted. This means that the tty needs
- * to be re-opened, reconfigured, and the device reconfigured and the routes
- * restored.
+ * The kernel ppp driver automatically reattaches the ppp unit to
+ * the loopback if the serial port is set to a line discipline other
+ * than ppp, or if it detects a modem hangup.  The former will happen
+ * in disestablish_ppp if the latter hasn't already happened, so we
+ * shouldn't need to do anything.
+ *
+ * Just to be sure, set the real serial port to the normal discipline.
  */
 
 void
 restore_loop(void)
   {
-    int  x;
-    int  fdflags;
-    char fname [30];
-/*
- * Take down the existing interface
- */
-    sifdown (0);
-    (void) ioctl(ppp_fd, TIOCSETD, &tty_disc);
-/*
- * Find the existing flags. This works even if the tty has stolen the
- * line discipline.
- */
-    fdflags = fcntl(ppp_fd, F_GETFL);
-    if (fdflags < 0)
+    if (ppp_fd != slave_fd)
       {
-        syslog (LOG_ERR, "retrieve file flags failed: %m(%d)", errno);
-	fdflags = O_NONBLOCK | O_RDWR;
+	(void) ioctl(ppp_fd, TIOCSETD, &tty_disc);
+	set_ppp_fd(slave_fd);
       }
-/*
- * Re-open the file so the we can re-establish the previous discipline
- */
-    sprintf (fname, "/proc/self/fd/%d", ppp_fd);
-    x = open (fname, O_RDWR | O_NONBLOCK, 0);
-    if (x < 0)
-      {
-        syslog (LOG_ERR, "reopen of tty file failed: %m(%d)", errno);
-      }
-/*
- * Transfer the newly opened file (to the same tty) back to the tty
- * file handle.
- */
-    else
-      {
-	dup2 (x, ppp_fd);
-	close (x);
-	fcntl (ppp_fd, F_SETFL, fdflags);
-	set_up_tty(ppp_fd, 0);
-      }
-/*
- * Switch to the tty slave and put that into the PPP discipline.
- */
-    set_ppp_fd(slave_fd);
-
-    if (ioctl(ppp_fd, TIOCSETD, &ppp_disc) < 0)
-      {
-	syslog(LOG_ERR, "ioctl(TIOCSETD): %m(%d)", errno);
-	die(1);
-      }
-/*
- * Fetch the current unit identifier.
- */
-    if (ioctl(ppp_fd, PPPIOCGUNIT, &ifunit) < 0)
-      {	
-	syslog(LOG_ERR, "ioctl(PPPIOCGUNIT): %m(%d)", errno);
-	die(1);
-      }
-/*
- * Restore the parameters for the PPP link.
- */
-    ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
-    ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
-/*
- * Reconfigure the IP addresses for the demand dial system.
- */
-    (void) (ipcp_protent.demand_conf) (0);
   }
 
 /********************************************************************
@@ -2396,6 +2324,7 @@ sifnpmode(u, proto, mode)
 	  {
 	    syslog(LOG_ERR, "ioctl(PPPIOCSNPMODE, %d, %d): %m(%d)",
 		   proto, mode, errno);
+	    syslog(LOG_ERR, "ppp_fd=%d slave_fd=%d\n", ppp_fd, slave_fd);
 	  }
 	return 0;
       }
