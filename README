@@ -69,8 +69,45 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.10.
+What's new in ppp-2.3.11.
 *************************
+
+* Support for Solaris 8 has been added, including support for
+  replumbing and IPV6.
+
+* The Solaris `snoop' utility should now work on ppp interfaces.
+
+* New hooks have been added - pap_logout_hook, ip_up_hook, and
+  ip_down_hook.
+
+* A new `passprompt' plugin is included, thanks to Alan Curry, which
+  makes it possible for pppd to call an external program to get the
+  PAP password to send to the peer.
+
+* The error messages for the situation where authentication is
+  required because the system has a default route have been improved.
+
+* There is a new connect_delay option which specifies how long pppd
+  should pause after the connect script finishes.  Previously this
+  delay was fixed at 1 second.  (This delay terminates as soon as pppd
+  sees a valid PPP frame from the peer.)
+
+* The `hide-password' option is now the default, and there is a new
+  `show-password' option to enable the printing of password strings in
+  the debug output.
+
+* A fairly complete list of the names of PPP protocols has been added
+  so that when pppd rejects a frame because its protocol is not
+  supported, it can print the name of the unsupported protocol.
+
+* Synchronous serial lines are supported under Linux 2.3.x.
+
+* The bug where pppd would not recognize a modem hangup under Linux
+  2.3.x kernels has been fixed.
+
+
+What was new in ppp-2.3.10.
+***************************
 
 * Pppd now supports `plugins', which are pieces of code (packaged as
   shared libraries) which can be loaded into pppd at runtime and which
@@ -514,7 +551,7 @@ questions like this that I get.
 If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
-Linux			Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+Linux			Paul Mackerras <paulus@linuxcare.com>
 Solaris 2		Adi Masputra <adi.masputra@sun.com>
 SunOS 4.x		Adi Masputra <adi.masputra@sun.com>
 Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
@@ -541,4 +578,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.21 1999/09/17 05:20:36 paulus Exp $)
+($Id: README,v 1.22 1999/12/23 01:40:09 paulus Exp $)
