@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.55 2000/06/30 04:54:22 paulus Exp $
+ * $Id: pppd.h,v 1.56 2000/07/06 11:17:03 paulus Exp $
  */
 
 /*
@@ -199,6 +199,7 @@ extern struct notifier *pidchange;   /* for notifications of pid changing */
 extern struct notifier *phasechange; /* for notifications of phase changes */
 extern struct notifier *exitnotify;  /* for notification that we're exiting */
 extern struct notifier *sigreceived; /* notification of received signal */
+extern int	listen_time;	/* time to listen first (ms) */
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */
@@ -355,6 +356,8 @@ void notify __P((struct notifier *, int));
 
 /* Procedures exported from tty.c. */
 void tty_init __P((void));
+void tty_device_check __P((void));
+void tty_check_options __P((void));
 int  connect_tty __P((void));
 void disconnect_tty __P((void));
 void tty_close_fds __P((void));

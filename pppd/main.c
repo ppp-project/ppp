@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.99 2000/06/30 04:54:20 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.100 2000/07/06 11:17:02 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -89,7 +89,6 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
-struct stat devstat;		/* result of stat() on devnam */
 volatile int status;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
@@ -108,6 +107,7 @@ static int fd_loop;		/* fd for getting demand-dial packets */
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
+int listen_time;
 
 static int waiting;
 static sigjmp_buf sigjmp;
@@ -222,13 +222,12 @@ main(argc, argv)
     int argc;
     char *argv[];
 {
-    int i, fdflags, t;
+    int i, t;
     char *p;
     struct passwd *pw;
     struct timeval timo;
     sigset_t mask;
     struct protent *protp;
-    struct stat statbuf;
     char numbuf[16];
 
     new_phase(PHASE_INITIALIZE);
@@ -277,12 +276,13 @@ main(argc, argv)
      */
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         (*protp->init)(0);
+    tty_init();
 
     progname = *argv;
 
     /*
      * Parse, in order, the system options file, the user's options file,
-     * the tty's options file, and the command line arguments.
+     * and the command line arguments.
      */
     if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user()
@@ -290,27 +290,10 @@ main(argc, argv)
 	exit(EXIT_OPTION_ERROR);
 
     /*
-     * Work out the device name, if it hasn't already been specified.
+     * Work out the device name, if it hasn't already been specified,
+     * and parse the tty's options file.
      */
-    using_pty = notty || ptycommand != NULL || pty_socket != NULL;
-    if (!using_pty && default_device) {
-	char *p;
-	if (!isatty(0) || (p = ttyname(0)) == NULL) {
-	    option_error("no device specified and stdin is not a tty");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	strlcpy(devnam, p, sizeof(devnam));
-	if (stat(devnam, &devstat) < 0)
-	    fatal("Couldn't stat default device %s: %m", devnam);
-    }
-
-    /*
-     * Parse the tty options file.
-     * The per-tty options file should not change
-     * ptycommand, pty_socket, notty or devnam.
-     */
-    if (!using_pty && !options_for_tty())
-	exit(EXIT_OPTION_ERROR);
+    tty_device_check();
 
     /*
      * Check that we are running as root.
@@ -338,58 +321,7 @@ main(argc, argv)
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
-    if (demand && connect_script == 0) {
-	option_error("connect script is required for demand-dialling\n");
-	exit(EXIT_OPTION_ERROR);
-    }
-    /* default holdoff to 0 if no connect script has been given */
-    if (connect_script == 0 && !holdoff_specified)
-	holdoff = 0;
-
-    if (using_pty) {
-	if (!default_device) {
-	    option_error("%s option precludes specifying device name",
-			 notty? "notty": "pty");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	if (ptycommand != NULL && notty) {
-	    option_error("pty option is incompatible with notty option");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	if (pty_socket != NULL && (ptycommand != NULL || notty)) {
-	    option_error("socket option is incompatible with pty and notty");
-	    exit(EXIT_OPTION_ERROR);
-	}
-	default_device = notty;
-	lockflag = 0;
-	modem = 0;
-	if (notty && log_to_fd <= 1)
-	    log_to_fd = -1;
-    } else {
-	/*
-	 * If the user has specified a device which is the same as
-	 * the one on stdin, pretend they didn't specify any.
-	 * If the device is already open read/write on stdin,
-	 * we assume we don't need to lock it, and we can open it as root.
-	 */
-	if (fstat(0, &statbuf) >= 0 && S_ISCHR(statbuf.st_mode)
-	    && statbuf.st_rdev == devstat.st_rdev) {
-	    default_device = 1;
-	    fdflags = fcntl(0, F_GETFL);
-	    if (fdflags != -1 && (fdflags & O_ACCMODE) == O_RDWR)
-		privopen = 1;
-	}
-    }
-    if (default_device)
-	nodetach = 1;
-
-    /*
-     * Don't send log messages to the serial port, it tends to
-     * confuse the peer. :-)
-     */
-    if (log_to_fd >= 0 && fstat(log_to_fd, &statbuf) >= 0
-	&& S_ISCHR(statbuf.st_mode) && statbuf.st_rdev == devstat.st_rdev)
-	log_to_fd = -1;
+    tty_check_options();
 
     /*
      * Initialize system-dependent stuff.
@@ -460,6 +392,7 @@ main(argc, argv)
     do_callback = 0;
     for (;;) {
 
+	listen_time = 0;
 	need_holdoff = 1;
 	devfd = -1;
 	status = EXIT_OK;
@@ -546,14 +479,12 @@ main(argc, argv)
 	 * our packets off his tty before he has it set up.
 	 */
 	add_fd(fd_ppp);
-#ifdef XXX
-	if (connect_delay != 0 && (connector != NULL || ptycommand != NULL)) {
+	if (listen_time != 0) {
 	    struct timeval t;
-	    t.tv_sec = connect_delay / 1000;
-	    t.tv_usec = connect_delay % 1000;
+	    t.tv_sec = listen_time / 1000;
+	    t.tv_usec = listen_time % 1000;
 	    wait_input(&t);
 	}
-#endif
 
 	lcp_open(0);		/* Start protocol */
 	open_ccp_flag = 0;

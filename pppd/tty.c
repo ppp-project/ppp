@@ -20,7 +20,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.1 2000/06/30 04:54:23 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.2 2000/07/06 11:17:03 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -70,6 +70,7 @@ int baud_rate;			/* Actual bits/second for serial device */
 char *callback_script;		/* script for doing callback */
 int charshunt_pid;		/* Process ID for charshunt */
 int locked;			/* lock() has succeeded */
+struct stat devstat;		/* result of stat() on devnam */
 
 /* option variables */
 int	crtscts = 0;		/* Use hardware flow control */
@@ -86,7 +87,7 @@ char	*record_file = NULL;	/* File to record chars sent/received */
 int	max_data_rate;		/* max bytes/sec through charshunt */
 bool	sync_serial = 0;	/* Device is synchronous serial device */
 char	*pty_socket = NULL;	/* Socket to connect to pty */
-int	using_pty = 0;
+int	using_pty = 0;		/* we're allocating a pty as the device */
 
 extern uid_t uid;
 extern int kill_link;
@@ -162,6 +163,102 @@ void tty_init()
 {
     add_notifier(&pidchange, maybe_relock, 0);
     add_options(tty_options);
+}
+
+/*
+ * tty_device_check - work out which tty device we are using
+ * and read its options file.
+ */
+void tty_device_check()
+{
+	using_pty = notty || ptycommand != NULL || pty_socket != NULL;
+	if (using_pty)
+		return;
+	if (default_device) {
+		char *p;
+		if (!isatty(0) || (p = ttyname(0)) == NULL) {
+			option_error("no device specified and stdin is not a tty");
+			exit(EXIT_OPTION_ERROR);
+		}
+		strlcpy(devnam, p, sizeof(devnam));
+		if (stat(devnam, &devstat) < 0)
+			fatal("Couldn't stat default device %s: %m", devnam);
+	}
+
+
+	/*
+	 * Parse the tty options file.
+	 * The per-tty options file should not change
+	 * ptycommand, pty_socket, notty or devnam.
+	 * options_for_tty doesn't override options set on the command line,
+	 * except for some privileged options.
+	 */
+	if (!options_for_tty())
+		exit(EXIT_OPTION_ERROR);
+}
+
+/*
+ * tty_check_options - do consistency checks on the options we were given.
+ */
+void
+tty_check_options()
+{
+	struct stat statbuf;
+	int fdflags;
+
+	if (demand && connect_script == 0) {
+		option_error("connect script is required for demand-dialling\n");
+		exit(EXIT_OPTION_ERROR);
+	}
+	/* default holdoff to 0 if no connect script has been given */
+	if (connect_script == 0 && !holdoff_specified)
+		holdoff = 0;
+
+	if (using_pty) {
+		if (!default_device) {
+			option_error("%s option precludes specifying device name",
+				     notty? "notty": "pty");
+			exit(EXIT_OPTION_ERROR);
+		}
+		if (ptycommand != NULL && notty) {
+			option_error("pty option is incompatible with notty option");
+			exit(EXIT_OPTION_ERROR);
+		}
+		if (pty_socket != NULL && (ptycommand != NULL || notty)) {
+			option_error("socket option is incompatible with pty and notty");
+			exit(EXIT_OPTION_ERROR);
+		}
+		default_device = notty;
+		lockflag = 0;
+		modem = 0;
+		if (notty && log_to_fd <= 1)
+			log_to_fd = -1;
+	} else {
+		/*
+		 * If the user has specified a device which is the same as
+		 * the one on stdin, pretend they didn't specify any.
+		 * If the device is already open read/write on stdin,
+		 * we assume we don't need to lock it, and we can open it
+		 * as root.
+		 */
+		if (fstat(0, &statbuf) >= 0 && S_ISCHR(statbuf.st_mode)
+		    && statbuf.st_rdev == devstat.st_rdev) {
+			default_device = 1;
+			fdflags = fcntl(0, F_GETFL);
+			if (fdflags != -1 && (fdflags & O_ACCMODE) == O_RDWR)
+				privopen = 1;
+		}
+	}
+	if (default_device)
+		nodetach = 1;
+
+	/*
+	 * Don't send log messages to the serial port, it tends to
+	 * confuse the peer. :-)
+	 */
+	if (log_to_fd >= 0 && fstat(log_to_fd, &statbuf) >= 0
+	    && S_ISCHR(statbuf.st_mode) && statbuf.st_rdev == devstat.st_rdev)
+		log_to_fd = -1;
 }
 
 /*
@@ -372,6 +469,9 @@ int connect_tty()
 		if (device_script(welcomer, ttyfd, ttyfd, 0) < 0)
 			warn("Welcome script failed");
 	}
+
+	if (connector != NULL || ptycommand != NULL)
+		listen_time = connect_delay;
 
 	return ttyfd;
 }
