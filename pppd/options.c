@@ -18,9 +18,10 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.29 1996/01/18 03:35:38 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.30 1996/04/04 04:00:24 paulus Exp $";
 #endif
 
+#include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
@@ -34,6 +35,7 @@ static char rcsid[] = "$Id: options.c,v 1.29 1996/01/18 03:35:38 paulus Exp $";
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 #include "pathnames.h"
@@ -44,6 +46,7 @@ static char rcsid[] = "$Id: options.c,v 1.29 1996/01/18 03:35:38 paulus Exp $";
 #include "upap.h"
 #include "chap.h"
 #include "ccp.h"
+#include "bpf_compile.h"
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
@@ -97,10 +100,14 @@ char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 int	cryptpap;		/* Passwords in pap-secrets are encrypted */
 int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
+struct	bpf_program pass_filter;/* Filter program for packets to pass */
+struct	bpf_program active_filter; /* Filter program for link-active pkts */
 
 /*
  * Prototypes
  */
+static int setdevname __P((char *));
+static int setipaddr __P((char *));
 static int setdebug __P((void));
 static int setkdebug __P((char **));
 static int setpassive __P((void));
@@ -169,6 +176,7 @@ static int setipcpaccl __P((void));
 static int setipcpaccr __P((void));
 static int setlcpechointv __P((char **));
 static int setlcpechofails __P((char **));
+static int noccp __P((void));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
 static int setdeflate __P((char **));
@@ -180,6 +188,8 @@ static int setipparam __P((char **));
 static int setpapcrypt __P((void));
 static int setidle __P((char **));
 static int setholdoff __P((char **));
+static int setpassfilter __P((char **));
+static int setactivefilter __P((char **));
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
@@ -214,23 +224,36 @@ static struct cmd {
     int num_args;
     int (*cmd_func)();
 } cmds[] = {
-    {"-all", 0, noopt},		/* Don't request/allow any options */
+    {"-all", 0, noopt},		/* Don't request/allow any options (useless) */
+    {"noaccomp", 0, noaccomp},	/* Disable Address/Control compression */
     {"-ac", 0, noaccomp},	/* Disable Address/Control compress */
+    {"default-asyncmap", 0, noasyncmap}, /* Disable asyncmap negoatiation */
     {"-am", 0, noasyncmap},	/* Disable asyncmap negotiation */
     {"-as", 1, setasyncmap},	/* set the desired async map */
     {"-d", 0, setdebug},	/* Increase debugging level */
+    {"nodetach", 0, setnodetach}, /* Don't detach from controlling tty */
     {"-detach", 0, setnodetach}, /* don't fork */
+    {"noip", 0, noip},		/* Disable IP and IPCP */
     {"-ip", 0, noip},		/* Disable IP and IPCP */
+    {"nomagic", 0, nomagicnumber}, /* Disable magic number negotiation */
     {"-mn", 0, nomagicnumber},	/* Disable magic number negotiation */
+    {"default-mru", 0, nomru},	/* Disable MRU negotiation */
     {"-mru", 0, nomru},		/* Disable mru negotiation */
     {"-p", 0, setpassive},	/* Set passive mode */
+    {"nopcomp", 0, nopcomp},	/* Disable protocol field compression */
     {"-pc", 0, nopcomp},	/* Disable protocol field compress */
     {"+ua", 1, setupapfile},	/* Get PAP user and password from file */
+    {"require-pap", 0, reqpap},	/* Require PAP authentication from peer */
     {"+pap", 0, reqpap},	/* Require PAP auth from peer */
+    {"refuse-pap", 0, nopap},	/* Don't agree to auth to peer with PAP */
     {"-pap", 0, nopap},		/* Don't allow UPAP authentication with peer */
+    {"require-chap", 0, reqchap}, /* Require CHAP authentication from peer */
     {"+chap", 0, reqchap},	/* Require CHAP authentication from peer */
+    {"refuse-chap", 0, nochap},	/* Don't agree to auth to peer with CHAP */
     {"-chap", 0, nochap},	/* Don't allow CHAP authentication with peer */
+    {"novj", 0, setnovj},	/* Disable VJ compression */
     {"-vj", 0, setnovj},	/* disable VJ compression */
+    {"novjccomp", 0, setnovjccomp}, /* disable VJ connection-ID compression */
     {"-vjccomp", 0, setnovjccomp}, /* disable VJ connection-ID compression */
     {"vj-max-slots", 1, setvjslots}, /* Set maximum VJ header slots */
     {"asyncmap", 1, setasyncmap}, /* set the desired async map */
@@ -240,6 +263,7 @@ static struct cmd {
     {"welcome", 1, setwelcomer},/* Script to welcome client */
     {"maxconnect", 1, setmaxconnect},  /* specify a maximum connect time */
     {"crtscts", 0, setcrtscts},	/* set h/w flow control */
+    {"nocrtscts", 0, setnocrtscts}, /* clear h/w flow control */
     {"-crtscts", 0, setnocrtscts}, /* clear h/w flow control */
     {"xonxoff", 0, setxonxoff},	/* set s/w flow control */
     {"debug", 0, setdebug},	/* Increase debugging level */
@@ -260,8 +284,10 @@ static struct cmd {
     {"auth", 0, setauth},	/* Require authentication from peer */
     {"file", 1, readfile},	/* Take options from a file */
     {"defaultroute", 0, setdefaultroute}, /* Add default route */
+    {"nodefaultroute", 0, setnodefaultroute}, /* disable defaultroute option */
     {"-defaultroute", 0, setnodefaultroute}, /* disable defaultroute option */
     {"proxyarp", 0, setproxyarp}, /* Add proxy ARP entry */
+    {"noproxyarp", 0, setnoproxyarp}, /* disable proxyarp option */
     {"-proxyarp", 0, setnoproxyarp}, /* disable proxyarp option */
     {"persist", 0, setpersist},	/* Keep on reopening connection after close */
     {"demand", 0, setdemand},	/* Dial on demand */
@@ -285,16 +311,23 @@ static struct cmd {
     {"chap-interval", 1, setchapintv}, /* Set interval for rechallenge */
     {"ipcp-accept-local", 0, setipcpaccl}, /* Accept peer's address for us */
     {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
+    {"noccp", 0, noccp},		/* Disable CCP negotiation */
+    {"-ccp", 0, noccp},			/* Disable CCP negotiation */
     {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
+    {"nobsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
     {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
     {"deflate", 1, setdeflate},		/* request Deflate compression */
+    {"nodeflate", 0, setnodeflate},	/* don't allow Deflate compression */
     {"-deflate", 0, setnodeflate},	/* don't allow Deflate compression */
     {"predictor1", 0, setpred1comp},	/* request Predictor-1 */
+    {"nopredictor1", 0, setnopred1comp},/* don't allow Predictor-1 */
     {"-predictor1", 0, setnopred1comp},	/* don't allow Predictor-1 */
     {"ipparam", 1, setipparam},		/* set ip script parameter */
     {"papcrypt", 0, setpapcrypt},	/* PAP passwords encrypted */
     {"idle", 1, setidle},		/* idle time limit (seconds) */
     {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
+    {"pass-filter", 1, setpassfilter},	/* set filter for packets to pass */
+    {"active-filter", 1, setactivefilter}, /* set filter for active pkts */
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -311,13 +344,11 @@ static struct cmd {
 #if 0
     {"ipx-compression", 1, setipxcompression}, /* IPX compression number */
 #endif
+    {"ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
+    {"noipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
     {"+ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
     {"-ipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
 #endif /* IPX_CHANGE */
-
-#ifdef _linux_
-    {"idle-disconnect", 1, setidle}, /* seconds for disconnect of idle IP */
-#endif
 
 #ifdef USE_MS_DNS
     {"ms-dns", 1, setdnsaddr},	/* DNS address(es) for the peer's use */
@@ -360,7 +391,7 @@ parse_args(argc, argv)
     int argc;
     char **argv;
 {
-    char *arg, *val;
+    char *arg;
     struct cmd *cmdp;
     int ret;
 
@@ -1320,12 +1351,11 @@ setspeed(arg)
 /*
  * setdevname - Set the device name.
  */
-int
+static int
 setdevname(cp)
     char *cp;
 {
     struct stat statbuf;
-    char *tty, *ttyname();
     char dev[MAXPATHLEN];
   
     if (strncmp("/dev/", cp, 5) != 0) {
@@ -1356,7 +1386,7 @@ setdevname(cp)
 /*
  * setipaddr - Set the IP address
  */
-int
+static int
 setipaddr(arg)
     char *arg;
 {
@@ -1750,6 +1780,13 @@ setchapintv(argv)
 }
 
 static int
+noccp()
+{
+    ccp_protent.enabled_flag = 0;
+    return 1;
+}
+
+static int
 setbsdcomp(argv)
     char **argv;
 {
@@ -1886,6 +1923,28 @@ setholdoff(argv)
     char **argv;
 {
     return int_option(*argv, &holdoff);
+}
+
+static int
+setpassfilter(argv)
+    char **argv;
+{
+    if (bpf_compile(&pass_filter, *argv, 1) == 0)
+	return 1;
+    fprintf(stderr, "%s: error in pass-filter expression: %s\n",
+	    progname, bpf_geterr());
+    return 0;
+}
+
+static int
+setactivefilter(argv)
+    char **argv;
+{
+    if (bpf_compile(&active_filter, *argv, 1) == 0)
+	return 1;
+    fprintf(stderr, "%s: error in active-filter expression: %s\n",
+	    progname, bpf_geterr());
+    return 0;
 }
 
 #ifdef IPX_CHANGE
