@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.11 1996/07/01 05:38:25 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.12 1996/09/26 06:18:37 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -189,7 +189,6 @@ pppattach()
 	sc->sc_if.if_mtu = PPP_MTU;
 	sc->sc_if.if_flags = IFF_POINTOPOINT;
 	sc->sc_if.if_type = IFT_PPP;
-	sc->sc_if.if_hdrlen = PPP_HDRLEN;
 	sc->sc_if.if_ioctl = pppsioctl;
 	sc->sc_if.if_output = pppoutput;
 	sc->sc_if.if_snd.ifq_maxlen = IFQ_MAXLEN;
@@ -232,7 +231,7 @@ pppalloc(pid)
     KM_ALLOC(sc->sc_comp, struct slcompress *, sizeof(struct slcompress),
 	   KM_DEVBUF, KM_NOARG);
     if (sc->sc_comp)
-	sl_compress_init(sc->sc_comp, -1);
+	sl_compress_init(sc->sc_comp);
 #endif
 #ifdef PPP_COMPRESS
     sc->sc_xc_state = NULL;
@@ -384,7 +383,7 @@ pppioctl(sc, cmd, data, flag)
 	    return EPERM;
 	if (sc->sc_comp) {
 	    s = splnet();
-	    sl_compress_init(sc->sc_comp, *(int *)data);
+	    sl_compress_setup(sc->sc_comp, *(int *)data);
 	    splx(s);
 	}
 	break;
@@ -730,7 +729,6 @@ pppoutput(ifp, m0, dst)
 	(*sc->sc_start)(sc);
     }
     ifp->if_opackets++;
-    ifp->if_obytes += len;
 
     splx(s);
     return (0);
@@ -794,7 +792,7 @@ ppp_requeue(sc)
 
 /*
  * Transmitter has finished outputting some stuff;
- * remember to call sc->sc_start later at splsoftnet.
+ * remember to call sc->sc_start later at splnet.
  */
 void
 ppp_restart(sc)
@@ -809,7 +807,7 @@ ppp_restart(sc)
 
 /*
  * Get a packet to send.  This procedure is intended to be called at
- * splsoftnet, since it may involve time-consuming operations such as
+ * splnet, since it may involve time-consuming operations such as
  * applying VJ compression, packet compression, address/control and/or
  * protocol field compression to the packet.
  */
@@ -900,13 +898,18 @@ ppp_dequeue(sc)
 	for (mp = m; mp != NULL; mp = mp->m_next)
 	    slen += mp->m_len;
 	clen = (*sc->sc_xcomp->compress)
-	    (sc->sc_xc_state, &mcomp, m, slen,
-	     (sc->sc_flags & SC_CCP_UP? sc->sc_if.if_mtu: 0));
+	    (sc->sc_xc_state, &mcomp, m, slen, sc->sc_if.if_mtu + PPP_HDRLEN);
 	if (mcomp != NULL) {
-	    m_freem(m);
-	    m = mcomp;
-	    cp = mtod(m, u_char *);
-	    protocol = cp[3];
+	    if (sc->sc_flags & SC_CCP_UP) {
+		/* Send the compressed packet instead of the original. */
+		m_freem(m);
+		m = mcomp;
+		cp = mtod(m, u_char *);
+		protocol = cp[3];
+	    } else {
+		/* Can't transmit compressed packets until CCP is up. */
+		m_freem(mcomp);
+	    }
 	}
     }
 #endif	/* PPP_COMPRESS */
@@ -935,7 +938,7 @@ ppp_dequeue(sc)
 }
 
 /*
- * Software interrupt routine, called at splsoftnet.
+ * Software interrupt routine, called at splnet.
  */
 void
 pppintr()
@@ -945,7 +948,7 @@ pppintr()
     struct mbuf *m;
 
     sc = ppp_softc;
-    s = splsoftnet();
+    s = splnet();
     for (i = 0; i < NPPP; ++i, ++sc) {
 	if (!(sc->sc_flags & SC_TBUSY)
 	    && (sc->sc_if.if_snd.ifq_head || sc->sc_fastq.ifq_head)) {
@@ -1356,7 +1359,6 @@ ppp_inproc(sc, m)
     smp_unlock(&lock->lk_ifqueue);
     splx(s);
     ifp->if_ipackets++;
-    ifp->if_ibytes += ilen;
 
     if (rv)
 	(*sc->sc_ctlp)(sc);
