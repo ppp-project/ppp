@@ -11,9 +11,15 @@
  * - added Z_PACKET_FLUSH (see zlib.h for details)
  * - added inflateIncomp
  *
- * $Id: zlib.c,v 1.2 1996/04/04 02:43:28 paulus Exp $
+ * $Id: zlib.c,v 1.3 1996/09/26 06:29:43 paulus Exp $
  */
 
+/* 
+ *  ==FILEVERSION 960926==
+ *
+ * This marker is used by the Linux installation script to determine
+ * whether an up-to-date version of this file is already installed.
+ */
 
 /*+++++*/
 /* zutil.h -- internal interface and configuration of the compression library
@@ -31,10 +37,6 @@
 #define _Z_UTIL_H
 
 #include "zlib.h"
-
-#ifdef STDC
-#  include <string.h>
-#endif
 
 #ifndef local
 #  define local static
@@ -86,9 +88,20 @@ extern char *z_errmsg[]; /* indexed by 1-zlib_error */
          /* functions */
 
 #if defined(KERNEL) || defined(_KERNEL)
+/* Assume we're not being compiled under Linux */
+#include <sys/types.h>
+#include <sys/systm.h>
 #  define zmemcpy(d, s, n)	bcopy((s), (d), (n))
 #  define zmemzero		bzero
+
 #else
+#if defined(__KERNEL__)
+/* Assume this is Linux */
+#include <linux/string.h>
+#define zmemcpy memcpy
+#define zmemzero(dest, len)	memset(dest, 0, len)
+
+#else /* not kernel */
 #if defined(STDC) && !defined(HAVE_MEMCPY) && !defined(NO_MEMCPY)
 #  define HAVE_MEMCPY
 #endif
@@ -99,7 +112,8 @@ extern char *z_errmsg[]; /* indexed by 1-zlib_error */
    extern void zmemcpy  OF((Bytef* dest, Bytef* source, uInt len));
    extern void zmemzero OF((Bytef* dest, uInt len));
 #endif
-#endif
+#endif	/* __KERNEL__ */
+#endif	/* KERNEL */
 
 /* Diagnostic functions */
 #ifdef DEBUG_ZLIB
