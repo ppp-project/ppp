@@ -28,7 +28,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
-#include <file.h>
 #include <utmp.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -364,6 +363,7 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
  */
 int
 sifup(u)
+    int u;
 {
     struct ifreq ifr;
 
@@ -385,6 +385,7 @@ sifup(u)
  */
 int
 sifdown(u)
+    int u;
 {
     struct ifreq ifr;
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
@@ -412,6 +413,8 @@ sifdown(u)
  */
 int
 sifaddr(u, o, h, m)
+    int u;
+    u_long o, h, m;
 {
     int ret;
     struct ifreq ifr;
@@ -446,6 +449,8 @@ sifaddr(u, o, h, m)
  */
 int
 cifaddr(u, o, h)
+    int u;
+    u_long o, h;
 {
     struct rtentry rt;
 
@@ -466,6 +471,8 @@ cifaddr(u, o, h)
  */
 int
 sifdefaultroute(u, g)
+    int u;
+    u_long g;
 {
     struct rtentry rt;
 
@@ -485,6 +492,8 @@ sifdefaultroute(u, g)
  */
 int
 cifdefaultroute(u, g)
+    int u;
+    u_long g;
 {
     struct rtentry rt;
 
@@ -601,7 +610,7 @@ cifproxyarp(unit, hisaddr)
 static struct nlist nl[] = {
 #define N_IFNET 0
 	{ "_ifnet" },
-	0
+	{ 0 }
 };
 
 static void kread();
