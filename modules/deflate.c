@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.1 1996/01/18 03:17:48 paulus Exp $
+ * $Id: deflate.c,v 1.2 1996/04/04 02:44:56 paulus Exp $
  */
 
 #ifdef AIX4
@@ -105,7 +105,7 @@ struct compressor ppp_deflate = {
 /*
  * Space allocation and freeing routines for use by zlib routines.
  */
-void *
+static void *
 zalloc(notused, items, size)
     void *notused;
     u_int items, size;
@@ -113,7 +113,7 @@ zalloc(notused, items, size)
     return ALLOC_NOSLEEP(items * size);
 }
 
-void
+static void
 zfree(notused, ptr, nbytes)
     void *notused;
     void *ptr;
@@ -147,8 +147,8 @@ z_comp_alloc(options, opt_len)
 	return NULL;
 
     state->strm.next_in = NULL;
-    state->strm.zalloc = zalloc;
-    state->strm.zfree = zfree;
+    state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zfree = (free_func) zfree;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
 	FREE(state, sizeof(*state));
@@ -205,7 +205,7 @@ z_comp_reset(arg)
     deflateReset(&state->strm);
 }
 
-int
+static int
 z_compress(arg, mret, mp, orig_len, maxolen)
     void *arg;
     mblk_t **mret;		/* compressed packet (out) */
@@ -379,8 +379,8 @@ z_decomp_alloc(options, opt_len)
 	return NULL;
 
     state->strm.next_out = NULL;
-    state->strm.zalloc = zalloc;
-    state->strm.zfree = zfree;
+    state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zfree = (free_func) zfree;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	FREE(state, sizeof(*state));
 	return NULL;
@@ -453,7 +453,7 @@ z_decomp_reset(arg)
  * bug, so we return DECOMP_FATALERROR for them in order to turn off
  * compression, even though they are detected by inspecting the input.
  */
-int
+static int
 z_decompress(arg, mi, mop)
     void *arg;
     mblk_t *mi, **mop;
