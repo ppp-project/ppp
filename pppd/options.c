@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.33 1996/08/28 06:41:35 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.34 1996/09/14 05:16:56 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -1776,7 +1776,7 @@ setnoauth()
 static int
 setdefaultroute()
 {
-    if (!ipcp_allowoptions[0].default_route && !privileged_option) {
+    if (!ipcp_allowoptions[0].default_route) {
 	option_error("defaultroute option is disabled");
 	return 0;
     }
@@ -1795,7 +1795,7 @@ setnodefaultroute()
 static int
 setproxyarp()
 {
-    if (!ipcp_allowoptions[0].proxy_arp && !privileged_option) {
+    if (!ipcp_allowoptions[0].proxy_arp) {
 	option_error("proxyarp option is disabled");
 	return 0;
     }
