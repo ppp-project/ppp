@@ -1,6 +1,6 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.6 1996/04/04 03:25:09 paulus Exp $
+# $Id: Makefile.ultrix,v 1.7 1996/05/28 00:54:52 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -16,7 +16,7 @@ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 
 # CC = gcc
 DEBUG_FLAGS =
-COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int
+COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int -DPRIMITIVE_SYSLOG
 COPTS = -O
 LIBS =
 
