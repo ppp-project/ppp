@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.15 1995/04/24 05:58:38 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.16 1995/04/26 06:46:50 paulus Exp $";
 #endif
 
 /*
@@ -778,6 +778,12 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		    tl = ntohl(wo->hisaddr);
 		    PUTLONG(tl, p);
 		}
+	    } else if (ciaddr1 == 0 && wo->hisaddr == 0) {
+		/*
+		 * If neither we nor he knows his address, reject the option.
+		 */
+		orc = CONFREJ;
+		break;
 	    }
 
 	    /*
@@ -832,6 +838,12 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		    tl = ntohl(wo->hisaddr);
 		    PUTLONG(tl, p);
 		}
+	    } else if (ciaddr1 == 0 && wo->hisaddr == 0) {
+		/*
+		 * Don't ACK an address of 0.0.0.0 - reject it instead.
+		 */
+		orc = CONFREJ;
+		break;
 	    }
 	
 	    ho->neg_addr = 1;
