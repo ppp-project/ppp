@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: if_ppp.h,v 1.3 1994/04/21 03:28:22 paulus Exp $
+ * $Id: if_ppp.h,v 1.4 1994/09/01 00:45:32 paulus Exp $
  */
 
 #ifndef _IF_PPP_H_
@@ -86,6 +86,10 @@ struct ppp_softc {
 	u_int	sc_bytessent;	/* count of octets sent */
 	u_int	sc_bytesrcvd;	/* count of octets received */
 	caddr_t	sc_bpf;		/* hook for BPF */
+	struct	compressor *sc_xcomp;	/* transmit compressor */
+	void	*sc_xc_state;	/* transmit compressor state */
+	struct	compressor *sc_rcomp;	/* receive decompressor */
+	void	*sc_rc_state;	/* receive decompressor state */
 	
 	/* Device-dependent part for async lines. */
 	ext_accm sc_asyncmap;	/* async control character map */
@@ -108,7 +112,11 @@ struct ppp_softc {
 #define SC_NO_TCP_CCID	0x00000008	/* disable VJ connection-id comp. */
 #define SC_REJ_COMP_AC	0x00000010	/* reject adrs/ctrl comp. on input */
 #define SC_REJ_COMP_TCP	0x00000020	/* reject TCP (VJ) comp. on input */
+#define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
+#define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
 #define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
+#define SC_XCOMP_RUN	0x00001000	/* compressor has been inited */
+#define SC_RCOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
 #define SC_LOG_INPKT	0x00020000	/* log contents of good pkts recvd */
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
@@ -120,9 +128,32 @@ struct ppp_softc {
 #define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
 #define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
 #define SC_RCV_B7_0	0x01000000	/* have rcvd char with bit 7 = 0 */
-#define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 0 */
+#define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
+
+/*
+ * What to do with network protocol (NP) packets.
+ */
+
+enum NPmode {
+    NPMODE_PASS,		/* pass the packet through */
+    NPMODE_DROP,		/* silently drop the packet */
+    NPMODE_ERROR,		/* return an error */
+    NPMODE_QUEUE		/* save it up for later. */
+};
+
+struct npioctl {
+    int		protocol;	/* PPP procotol, e.g. PPP_IP */
+    enum NPmode	mode;
+};
+
+/* Structure describing a CCP configuration option, for PPPIOCSCOMPRESS */
+struct ppp_option_data {
+	u_char	*ptr;
+	u_int	length;
+	int	transmit;
+};
 
 /* this stuff doesn't belong here... */
 #define	PPPIOCGFLAGS	_IOR('t', 90, int)	/* get configuration flags */
@@ -138,6 +169,9 @@ struct ppp_softc {
 #define PPPIOCGXASYNCMAP _IOR('t', 80, ext_accm) /* get extended ACCM */
 #define PPPIOCSXASYNCMAP _IOW('t', 79, ext_accm) /* set extended ACCM */
 #define PPPIOCXFERUNIT	_IO('t', 78)		/* transfer PPP unit */
+#define PPPIOCSCOMPRESS	_IOW('t', 77, struct ppp_option_data)
+#define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
+#define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 
 #ifdef ultrix 
 #define ifr_mtu ifr_ifru.ifru_metric
