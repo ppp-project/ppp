@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.50 2002/06/10 13:46:28 dfs Exp $
+# $Id: Makefile.linux,v 1.51 2002/07/13 06:24:36 kad Exp $
 #
 
 # Default installation locations
@@ -71,6 +71,8 @@ HAS_SHADOW=y
 PLUGIN=y
 
 #CBCP=y
+
+MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
 
@@ -152,6 +154,10 @@ endif
 ifdef CBCP
      PPPDOBJS += cbcp.o
      CFLAGS += -DCBCP_SUPPORT
+endif
+
+ifdef MAXOCTETS
+     CFLAGS += -DMAXOCTETS
 endif
 
 INSTALL= install -o root

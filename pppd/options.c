@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.83 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: options.c,v 1.84 2002/07/13 06:24:36 kad Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -86,6 +86,13 @@ bool	dump_options;		/* print out option values */
 bool	dryrun;			/* print out option values and exit */
 char	*domain;		/* domain name set by domain option */
 
+#ifdef MAXOCTETS
+unsigned int  maxoctets = 0;    /* default - no limit */
+int maxoctets_dir = 0;       /* default - sum of traffic */
+int maxoctets_timeout = 1;   /* default 1 second */ 
+#endif
+
+
 extern option_t auth_options[];
 extern struct stat devstat;
 
@@ -121,6 +128,10 @@ static int loadplugin __P((char **));
 #ifdef PPP_FILTER
 static int setpassfilter __P((char **));
 static int setactivefilter __P((char **));
+#endif
+
+#ifdef MAXOCTETS
+static int setmodir __P((char **));
 #endif
 
 static option_t *find_option __P((const char *name));
@@ -260,6 +271,19 @@ option_t general_options[] = {
 
     { "active-filter", 1, setactivefilter,
       "set filter for active pkts", OPT_PRIO },
+#endif
+
+#ifdef MAXOCTETS
+    { "maxoctets", o_int, &maxoctets,
+      "Set connection traffic limit",
+      OPT_PRIO | OPT_LLIMIT | OPT_NOINCR | OPT_ZEROINF },
+    { "mo", o_int, &maxoctets,
+      "Set connection traffic limit",
+      OPT_ALIAS | OPT_PRIO | OPT_LLIMIT | OPT_NOINCR | OPT_ZEROINF },
+    { "mo-direction", o_special, setmodir,
+      "Set direction for limit traffic (sum,in,out,max)" },
+    { "mo-timeout", o_int, &maxoctets_timeout,
+      "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
 #endif
 
     { NULL }
@@ -902,7 +926,7 @@ print_option(opt, mainopt, printer, arg)
 		break;
 
 	default:
-		printer(arg, "# %s value (type %d??)", opt->name, opt->type);
+		printer(arg, "# %s value (type %d\?\?)", opt->name, opt->type);
 		break;
 	}
 	printer(arg, "\t\t# (from %s)\n", mainopt->source);
@@ -1463,6 +1487,25 @@ setlogfile(argv)
     log_default = 0;
     return 1;
 }
+#ifdef MAXOCTETS
+static int
+setmodir(argv)
+    char **argv;
+{
+    if(*argv == NULL)
+	return 0;
+    if(!strcmp(*argv,"in")) {
+        maxoctets_dir = PPP_OCTETS_DIRECTION_IN;
+    } else if (!strcmp(*argv,"out")) {
+        maxoctets_dir = PPP_OCTETS_DIRECTION_OUT;
+    } else if (!strcmp(*argv,"max")) {
+        maxoctets_dir = PPP_OCTETS_DIRECTION_MAX;
+    } else {
+        maxoctets_dir = PPP_OCTETS_DIRECTION_SUM;
+    }
+    return 1;
+}
+#endif
 
 #ifdef PLUGIN
 static int

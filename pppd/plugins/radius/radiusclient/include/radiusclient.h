@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.6 2002/04/02 14:09:34 dfs Exp $
+ * $Id: radiusclient.h,v 1.7 2002/07/13 06:24:36 kad Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -193,6 +193,11 @@ typedef struct pw_auth_hdr
 #define PW_USER_ID                      222     /* string */
 #define PW_USER_REALM                   223     /* string */
 
+
+/*      Session limits */
+#define PW_SESSION_OCTETS_LIMIT		227    /* integer */
+#define PW_OCTETS_DIRECTION		228    /* integer */
+
 /*	Integer Translations */
 
 /*	SERVICE TYPES	*/
@@ -293,6 +298,13 @@ typedef struct pw_auth_hdr
 #define PW_RADIUS	1
 #define PW_LOCAL	2
 #define PW_REMOTE	3
+
+/*    Session-Octets-Limit    */
+#define PW_OCTETS_DIRECTION_SUM	0
+#define PW_OCTETS_DIRECTION_IN	1
+#define PW_OCTETS_DIRECTION_OUT	2
+#define PW_OCTETS_DIRECTION_MAX	3
+
 
 /* Vendor codes */
 #define VENDOR_NONE     (-1)

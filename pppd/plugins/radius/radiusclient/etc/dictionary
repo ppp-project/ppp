@@ -114,6 +114,14 @@ ATTRIBUTE	Crypt-Password		1006	string
 ATTRIBUTE	Connect-Rate		1007	integer
 
 #
+#       Experimental, implementation specific attributes
+#
+# Limit session traffic
+ATTRIBUTE	Session-Octets-Limit	227	integer
+# What to assume as limit - 0 in+out, 1 in, 2 out, 3 max(in,out)
+ATTRIBUTE	Octets-Direction	228	integer
+
+#
 #	Integer Translations
 #
 
@@ -229,5 +237,11 @@ VALUE		Add-Port-To-IP-Address	Yes			1
 
 #VALUE		Server-Config		Password-Expiration	30
 #VALUE		Server-Config		Password-Warning	5
+
+#       Octets-Direction
+VALUE		Octets-Direction        Sum			0
+VALUE		Octets-Direction        Input			1
+VALUE		Octets-Direction        Output			2
+VALUE		Octets-Direction        Maximum			3
 
 INCLUDE /etc/radiusclient/dictionary.microsoft

@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.77 2002/05/21 17:26:49 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.78 2002/07/13 06:24:36 kad Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -216,6 +216,10 @@ static int  privgroup __P((char **));
 static int  set_noauth_addr __P((char **));
 static void check_access __P((FILE *, char *));
 static int  wordlist_count __P((struct wordlist *));
+
+#ifdef MAXOCTETS
+static void check_maxoctets __P((void *));
+#endif
 
 /*
  * Authentication-related options.
@@ -827,6 +831,11 @@ np_up(unit, proto)
 	if (maxconnect > 0)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
 
+#ifdef MAXOCTETS
+	if (maxoctets > 0)
+	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
+#endif
+
 	/*
 	 * Detach now, if the updetach option was given.
 	 */
@@ -846,6 +855,9 @@ np_down(unit, proto)
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
 	UNTIMEOUT(connect_time_expired, NULL);
+#ifdef MAXOCTETS
+	UNTIMEOUT(check_maxoctets, NULL);
+#endif	
 	new_phase(PHASE_NETWORK);
     }
 }
@@ -862,6 +874,43 @@ np_finished(unit, proto)
 	lcp_close(0, "No network protocols running");
     }
 }
+
+#ifdef MAXOCTETS
+static void
+check_maxoctets(arg)
+    void *arg;
+{
+    int diff;
+    unsigned int used;
+
+    update_link_stats(ifunit);
+    link_stats_valid=0;
+    
+    switch(maxoctets_dir) {
+	case PPP_OCTETS_DIRECTION_IN:
+	    used = link_stats.bytes_in;
+	    break;
+	case PPP_OCTETS_DIRECTION_OUT:
+	    used = link_stats.bytes_out;
+	    break;
+	case PPP_OCTETS_DIRECTION_MAX:
+	    used = (link_stats.bytes_in > link_stats.bytes_out) ? link_stats.bytes_in : link_stats.bytes_out;
+	    break;
+	default:
+	    used = link_stats.bytes_in+link_stats.bytes_out;
+	    break;
+    }
+    diff = maxoctets - used;
+    if(diff < 0) {
+	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
+	lcp_close(0, "Traffic limit");
+	need_holdoff = 0;
+	status = EXIT_TRAFFIC_LIMIT;
+    } else {
+        TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
+    }
+}
+#endif
 
 /*
  * check_idle - check whether the link has been idle for long

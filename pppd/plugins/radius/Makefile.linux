@@ -12,12 +12,17 @@ CFLAGS=-I../.. -I../../../include -Iradiusclient/include -O2
 CHAPMS=y
 # Uncomment the next line to include support for MPPE.
 MPPE=y
+# Uncomment the next lint to include support for traffic limiting
+MAXOCTETS=y
 
 ifdef CHAPMS
 CFLAGS += -DCHAPMS=1
 ifdef MPPE
 CFLAGS += -DMPPE=1
 endif
+endif
+ifdef MAXOCTETS
+CFLAGS += -DMAXOCTETS=1
 endif
 
 all: $(PLUGIN)

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.68 2002/05/21 17:26:49 dfs Exp $
+ * $Id: pppd.h,v 1.69 2002/07/13 06:24:36 kad Exp $
  */
 
 /*
@@ -286,6 +286,20 @@ extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */
 extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
+
+#ifdef MAXOCTETS
+extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
+extern int       maxoctets_dir;      /* Direction :
+				      0 - in+out (default)
+				      1 - in 
+				      2 - out
+				      3 - max(in,out) */
+extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
+#define PPP_OCTETS_DIRECTION_SUM 0
+#define PPP_OCTETS_DIRECTION_IN  1
+#define PPP_OCTETS_DIRECTION_OUT 2
+#define PPP_OCTETS_DIRECTION_MAX 3
+#endif
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -736,6 +750,9 @@ extern void (*snoop_send_hook) __P((unsigned char *p, int len));
 #define EXIT_LOOPBACK		17
 #define EXIT_INIT_FAILED	18
 #define EXIT_AUTH_TOPEER_FAILED	19
+#ifdef MAXOCTETS
+#define EXIT_TRAFFIC_LIMIT	20
+#endif
 
 /*
  * Debug macros.  Slightly useful for finding bugs in pppd, not particularly
