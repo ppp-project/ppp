@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.12 1999/03/16 22:54:39 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.13 1999/03/19 01:22:09 paulus Exp $";
 #endif
 
 /*
@@ -181,6 +181,8 @@ struct protent ipxcp_protent = {
 
 static int ipxcp_is_up;
 
+static char *ipx_ntoa __P((u_int32_t));
+
 /* Used in printing the node number */
 #define NODE(base) base[0], base[1], base[2], base[3], base[4], base[5]
 
@@ -209,7 +211,7 @@ short int internal;
  * Make a string representation of a network IP address.
  */
 
-char *
+static char *
 ipx_ntoa(ipxaddr)
 u_int32_t ipxaddr;
 {
@@ -770,10 +772,6 @@ ipxcp_nakci(f, p, len)
 	p = next;
     }
 
-    /* If there is still anything left, this packet is bad. */
-    if (len != 0)
-	goto bad;
-
     /*
      * Do not permit the peer to force a router protocol which we do not
      * support. However, default to the condition that will accept "NONE".
@@ -787,6 +785,7 @@ ipxcp_nakci(f, p, len)
     
     /*
      * OK, the Nak is good.  Now we can update state.
+     * If there are any options left, we ignore them.
      */
     if (f->state != OPENED)
 	*go = try;
@@ -1340,38 +1339,34 @@ ipxcp_script(f, script)
     strproto_lcl[0] = '\0';
     if (go->neg_router && ((go->router & BIT(IPX_NONE)) == 0)) {
 	if (go->router & BIT(RIP_SAP))
-	    strlcpy (strproto_lcl, sizeof(strproto_lcl), "RIP ");
+	    strlcpy (strproto_lcl, "RIP ", sizeof(strproto_lcl));
 	if (go->router & BIT(NLSP))
-	    strlcat (strproto_lcl, sizeof(strproto_lcl), "NLSP ");
+	    strlcat (strproto_lcl, "NLSP ", sizeof(strproto_lcl));
     }
 
     if (strproto_lcl[0] == '\0')
-	strlcpy (strproto_lcl, sizeof(strproto_lcl), "NONE ");
+	strlcpy (strproto_lcl, "NONE ", sizeof(strproto_lcl));
 
     strproto_lcl[strlen (strproto_lcl)-1] = '\0';
 
     strproto_rmt[0] = '\0';
     if (ho->neg_router && ((ho->router & BIT(IPX_NONE)) == 0)) {
 	if (ho->router & BIT(RIP_SAP))
-	    strlcpy (strproto_rmt, sizeof(strproto_rmt), "RIP ");
+	    strlcpy (strproto_rmt, "RIP ", sizeof(strproto_rmt));
 	if (ho->router & BIT(NLSP))
-	    strlcat (strproto_rmt, sizeof(strproto_rmt), "NLSP ");
+	    strlcat (strproto_rmt, "NLSP ", sizeof(strproto_rmt));
     }
 
     if (strproto_rmt[0] == '\0')
-	strlcpy (strproto_rmt, sizeof(strproto_rmt), "NONE ");
+	strlcpy (strproto_rmt, "NONE ", sizeof(strproto_rmt));
 
     strproto_rmt[strlen (strproto_rmt)-1] = '\0';
 
-    strlcpy (strnetwork, sizeof(strnetwork), ipx_ntoa (go->network));
+    strlcpy (strnetwork, ipx_ntoa (go->network), sizeof(strnetwork));
 
-    slprintf (strlocal, sizeof(strlocal),
-	      "%02X%02X%02X%02X%02X%02X",
-	      NODE(go->our_node));
+    slprintf (strlocal, sizeof(strlocal), "%0.6B", go->our_node);
 
-    slprintf (strremote, sizeof(strremote),
-	      "%02X%02X%02X%02X%02X%02X",
-	      NODE(ho->his_node));
+    slprintf (strremote, sizeof(strremote), "%0.6B", ho->his_node);
 
     argv[0]  = script;
     argv[1]  = ifname;
