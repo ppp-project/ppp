@@ -75,7 +75,12 @@
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
+#if __GLIBC__ >= 2 && \
+    !(defined(__powerpc__) && __GLIBC__ == 2 && __GLIBC_MINOR__ == 0)
+#include <netipx/ipx.h>
+#else
 #include <linux/ipx.h>
+#endif
 #endif /* IPX_CHANGE */
 
 #ifdef LOCKLIB
