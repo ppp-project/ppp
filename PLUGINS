@@ -11,7 +11,7 @@ A plugin is a standard shared library object, typically with a name
 ending in .so.  They are loaded using the standard dlopen() library
 call, so plugins are only supported on systems which support shared
 libraries and the dlopen call.  At present pppd is compiled with
-plugin support only under Linux.
+plugin support only under Linux and Solaris.
 
 Plugins are loaded into pppd using the `plugin' option, which takes
 one argument, the name of a shared object file.  The plugin option is
@@ -27,6 +27,11 @@ the following commands:
 
 	gcc -c -O xyz.c
 	gcc -shared -o xyz.so xyz.o
+
+There are some example plugins in the pppd/plugins directory in the
+ppp distribution.  Currently there is one example, minconn.c, which
+implements a `minconnect' option, which specifies a minimum connect
+time before the idle timeout applies.
 
 Plugins can access global variables within pppd, so it is useful for
 them to #include "pppd.h" from the pppd source directory.
@@ -123,4 +128,4 @@ set *popts to a wordlist containing any extra options for this user
 which pppd should apply at this point.
 
 
-## $Id: PLUGINS,v 1.1 1999/09/11 12:09:31 paulus Exp $ ##
+## $Id: PLUGINS,v 1.2 1999/09/17 06:02:45 paulus Exp $ ##
