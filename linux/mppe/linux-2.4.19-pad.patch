@@ -12,7 +12,7 @@
  	struct sock_fprog pass_filter;	/* filter for packets to pass */
  	struct sock_fprog active_filter;/* filter for pkts to reset idle */
  #endif /* CONFIG_PPP_FILTER */
-+	int		opad;		/* ECP or CCP (MPPE) output padding */
++	int		xpad;		/* ECP or CCP (MPPE) transmit padding */
  };
  
  /*
@@ -33,7 +33,7 @@
 -		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len,
 -				    GFP_ATOMIC);
 +		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len
-+				    + ppp->opad, GFP_ATOMIC);
++				    + ppp->xpad, GFP_ATOMIC);
  		if (new_skb == 0) {
  			printk(KERN_ERR "PPP: no memory (comp pkt)\n");
  			goto drop;
@@ -42,7 +42,7 @@
  		len = ppp->xcomp->compress(ppp->xc_state, skb->data - 2,
  					   new_skb->data, skb->len + 2,
 -					   ppp->dev->mtu + PPP_HDRLEN);
-+					   ppp->dev->mtu + ppp->opad
++					   ppp->dev->mtu + ppp->xpad
 +					   + PPP_HDRLEN);
  		if (len > 0 && (ppp->flags & SC_CCP_UP)) {
  			kfree_skb(skb);
@@ -101,9 +101,9 @@
 +			 * but that seems inefficient compared to this
 +			 * little trick.
 +			 */
-+			ppp->opad = MPPE_PAD;
++			ppp->xpad = MPPE_PAD;
 +		else
-+			ppp->opad = 0;
++			ppp->xpad = 0;
  
  	} else {
  		ppp_recv_lock(ppp);
