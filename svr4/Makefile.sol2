@@ -1,15 +1,15 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2,v 1.4 1996/01/18 03:23:45 paulus Exp $
+# $Id: Makefile.sol2,v 1.5 1996/04/04 04:15:42 paulus Exp $
 #
 
 CFLAGS= -D_KERNEL -DSVR4 -DSOL2 -I.. -O -Xa -w
 
 all:	ppp ppp_ahdl ppp_comp
 
-ppp:	ppp.o ppp_mod.o
-	ld -r -o $@ ppp.o ppp_mod.o
+ppp:	ppp.o ppp_mod.o bpf_filter.o
+	ld -r -o $@ ppp.o ppp_mod.o bpf_filter.o
 
 ppp_ahdl: ppp_ahdlc.o ppp_ahdlc_mod.o
 	ld -r -o $@ ppp_ahdlc.o ppp_ahdlc_mod.o
@@ -19,6 +19,8 @@ COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 ppp_comp: $(COMP_OBJS)
 	ld -r -o $@ $(COMP_OBJS)
 
+bpf_filter.o: ../modules/bpf_filter.c
+	$(CC) $(CFLAGS) -c $?
 bsd-comp.o: ../modules/bsd-comp.c
 	$(CC) $(CFLAGS) -c $?
 deflate.o: ../modules/deflate.c
