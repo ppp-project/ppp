@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.20 1999/07/23 06:53:39 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.21 2000/03/27 06:03:36 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 990717==
+ *  ==FILEVERSION 20000324==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -59,8 +59,11 @@
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
 #define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
 #define SC_LOOP_TRAFFIC	0x00000200	/* send traffic to pppd */
+#define SC_MULTILINK	0x00000400	/* do multilink encapsulation */
+#define SC_MP_SHORTSEQ	0x00000800	/* use short MP sequence numbers */
 #define SC_COMP_RUN	0x00001000	/* compressor has been inited */
 #define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
+#define SC_MP_XSHORTSEQ	0x00004000	/* transmit short MP seq numbers */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
 #define SC_LOG_INPKT	0x00020000	/* log contents of good pkts recvd */
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
@@ -132,7 +135,12 @@ struct ifpppcstatsreq {
 #define PPPIOCGIDLE	_IOR('t', 63, struct ppp_idle) /* get idle time */
 #define PPPIOCNEWUNIT	_IOWR('t', 62, int)	/* create new ppp unit */
 #define PPPIOCATTACH	_IOW('t', 61, int)	/* attach to ppp unit */
-#define PPPIOCDETACH	_IOW('t', 60, int)	/* detach from ppp unit */
+#define PPPIOCDETACH	_IOW('t', 60, int)	/* detach from ppp unit/chan */
+#define PPPIOCSMRRU	_IOW('t', 59, int)	/* set multilink MRU */
+#define PPPIOCCONNECT	_IOW('t', 58, int)	/* connect channel to unit */
+#define PPPIOCDISCONN	_IO('t', 57)		/* disconnect channel */
+#define PPPIOCATTCHAN	_IOW('t', 56, int)	/* attach to ppp channel */
+#define PPPIOCGCHAN	_IOR('t', 55, int)	/* get ppp channel number */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
 #define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)	/* NEVER change this!! */
