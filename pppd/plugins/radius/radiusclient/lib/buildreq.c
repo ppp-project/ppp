@@ -1,5 +1,5 @@
 /*
- * $Id: buildreq.c,v 1.4 2002/10/01 09:51:01 fcusack Exp $
+ * $Id: buildreq.c,v 1.5 2003/04/25 08:10:46 fcusack Exp $
  *
  * Copyright (C) 1995,1997 Lars Fenneberg
  *
@@ -96,7 +96,7 @@ unsigned char rc_get_seqnbr(void)
 {
 	FILE *sf;
 	int tries = 1;
-	int seq_nbr;
+	int seq_nbr, pos;
 	char *seqfile = rc_conf_str("seqfile");
 
 	if ((sf = fopen(seqfile, "a+")) == NULL)
@@ -126,9 +126,13 @@ unsigned char rc_get_seqnbr(void)
 		return rc_guess_seqnbr();
 	}
 
+	pos = ftell(sf);
 	rewind(sf);
 	if (fscanf(sf, "%d", &seq_nbr) != 1) {
-		rc_log(LOG_ERR,"rc_get_seqnbr: fscanf failure: %s", seqfile);
+		if (pos != ftell(sf)) {
+			/* file was not empty */
+			rc_log(LOG_ERR,"rc_get_seqnbr: fscanf failure: %s", seqfile);
+		}
 		seq_nbr = rc_guess_seqnbr();
 	}
 
