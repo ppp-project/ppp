@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.14 1998/03/24 23:52:33 paulus Exp $
+ * $Id: ppp.c,v 1.15 1998/05/04 06:11:35 paulus Exp $
  */
 
 /*
@@ -988,7 +988,7 @@ dlpi_request(q, mp, us)
 	info->dl_primitive = DL_INFO_ACK;
 	info->dl_max_sdu = us->ppa? us->ppa->mtu: PPP_MAXMTU;
 	info->dl_min_sdu = 1;
-	info->dl_addr_length = sizeof(ulong);
+	info->dl_addr_length = sizeof(uint);
 #ifdef DL_OTHER
 	info->dl_mac_type = DL_OTHER;
 #else
@@ -998,7 +998,7 @@ dlpi_request(q, mp, us)
 	info->dl_service_mode = DL_CLDLS;
 	info->dl_provider_style = DL_STYLE2;
 #if DL_CURRENT_VERSION >= 2
-	info->dl_sap_length = sizeof(ulong);
+	info->dl_sap_length = sizeof(uint);
 	info->dl_version = DL_CURRENT_VERSION;
 #endif
 	qreply(q, reply);
@@ -1070,18 +1070,18 @@ dlpi_request(q, mp, us)
 	us->sap = sap;
 	us->state = DL_IDLE;
 
-	if ((reply = allocb(sizeof(dl_bind_ack_t) + sizeof(ulong),
+	if ((reply = allocb(sizeof(dl_bind_ack_t) + sizeof(uint),
 			    BPRI_HI)) == 0)
 	    break;		/* should do bufcall */
 	ackp = (dl_bind_ack_t *) reply->b_wptr;
-	reply->b_wptr += sizeof(dl_bind_ack_t) + sizeof(ulong);
+	reply->b_wptr += sizeof(dl_bind_ack_t) + sizeof(uint);
 	reply->b_datap->db_type = M_PCPROTO;
 	bzero((caddr_t) ackp, sizeof(dl_bind_ack_t));
 	ackp->dl_primitive = DL_BIND_ACK;
 	ackp->dl_sap = sap;
-	ackp->dl_addr_length = sizeof(ulong);
+	ackp->dl_addr_length = sizeof(uint);
 	ackp->dl_addr_offset = sizeof(dl_bind_ack_t);
-	*(ulong *)(ackp+1) = sap;
+	*(uint *)(ackp+1) = sap;
 	qreply(q, reply);
 	break;
 
@@ -1585,7 +1585,7 @@ pppursrv(q)
 #ifndef NO_DLPI
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    mp->b_rptr += PPP_HDRLEN;
-	    hdr = allocb(sizeof(dl_unitdata_ind_t) + 2 * sizeof(ulong),
+	    hdr = allocb(sizeof(dl_unitdata_ind_t) + 2 * sizeof(uint),
 			 BPRI_MED);
 	    if (hdr == 0) {
 		/* XXX should put it back and use bufcall */
@@ -1594,21 +1594,21 @@ pppursrv(q)
 	    }
 	    hdr->b_datap->db_type = M_PROTO;
 	    ud = (dl_unitdata_ind_t *) hdr->b_wptr;
-	    hdr->b_wptr += sizeof(dl_unitdata_ind_t) + 2 * sizeof(ulong);
+	    hdr->b_wptr += sizeof(dl_unitdata_ind_t) + 2 * sizeof(uint);
 	    hdr->b_cont = mp;
 	    ud->dl_primitive = DL_UNITDATA_IND;
-	    ud->dl_dest_addr_length = sizeof(ulong);
+	    ud->dl_dest_addr_length = sizeof(uint);
 	    ud->dl_dest_addr_offset = sizeof(dl_unitdata_ind_t);
-	    ud->dl_src_addr_length = sizeof(ulong);
-	    ud->dl_src_addr_offset = ud->dl_dest_addr_offset + sizeof(ulong);
+	    ud->dl_src_addr_length = sizeof(uint);
+	    ud->dl_src_addr_offset = ud->dl_dest_addr_offset + sizeof(uint);
 #if DL_CURRENT_VERSION >= 2
 	    ud->dl_group_address = 0;
 #endif
 	    /* Send the DLPI client the data with the SAP they requested,
 	       (e.g. ETHERTYPE_IP) rather than the PPP protocol number
 	       (e.g. PPP_IP) */
-	    ((ulong *)(ud + 1))[0] = us->req_sap;	/* dest SAP */
-	    ((ulong *)(ud + 1))[1] = us->req_sap;	/* src SAP */
+	    ((uint *)(ud + 1))[0] = us->req_sap;	/* dest SAP */
+	    ((uint *)(ud + 1))[1] = us->req_sap;	/* src SAP */
 	    putnext(q, hdr);
 #else /* NO_DLPI */
 	    putnext(q, mp);
