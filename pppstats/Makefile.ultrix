@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.ultrix,v 1.1 1994/04/21 03:10:50 paulus Exp $
+# $Id: Makefile.ultrix,v 1.2 1994/09/19 04:17:51 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -16,7 +16,7 @@ CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
 all: pppstats
 
 install:
-	install -c -g kmem pppstats $(BINDIR)/pppstats
+	install -c pppstats $(BINDIR)/pppstats
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
