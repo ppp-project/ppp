@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.25 1995/07/11 06:40:58 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.26 1995/08/10 06:51:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -252,8 +252,8 @@ main(argc, argv)
     SIGNAL(SIGTERM, term);		/* Terminate */
     SIGNAL(SIGCHLD, chld);
 
-    signal(SIGUSR1, toggle_debug);	/* Toggle debug flag */
-    signal(SIGUSR2, open_ccp);		/* Reopen CCP */
+    SIGNAL(SIGUSR1, toggle_debug);	/* Toggle debug flag */
+    SIGNAL(SIGUSR2, open_ccp);		/* Reopen CCP */
 
     /*
      * Lock the device if we've been asked to.
