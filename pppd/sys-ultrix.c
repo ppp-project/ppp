@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.1 1994/04/18 04:11:11 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.2 1994/05/06 04:48:21 paulus Exp $";
 #endif
 
 /*
@@ -27,9 +27,9 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.1 1994/04/18 04:11:11 paulus Exp $"
  */
 
 #include <syslog.h>
-#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/errno.h>
 
@@ -43,7 +43,7 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.1 1994/04/18 04:11:11 paulus Exp $"
 #include "ppp.h"
 
 static int initdisc = -1;		/* Initial TTY discipline */
-
+extern int kdebugflag;
 
 /*
  * establish_ppp - Turn the serial port into a ppp interface.
@@ -52,6 +52,7 @@ void
 establish_ppp()
 {
     int pppdisc = PPPDISC;
+    int x;
 
     if (ioctl(fd, TIOCGETD, &initdisc) < 0) {
 	syslog(LOG_ERR, "ioctl(TIOCGETD): %m");
