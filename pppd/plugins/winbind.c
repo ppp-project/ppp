@@ -557,20 +557,19 @@ winbind_chap_verify(char *user, char *ourname, int id,
 		u_char *lm_response = NULL;
 		int nt_response_size = 0;
 		int lm_response_size = 0;
-		MS_ChapResponse *rmd = (MS_ChapResponse *) response;
 		u_char session_key[16];
 		
 		if (response_len != MS_CHAP_RESPONSE_LEN)
 			break;			/* not even the right length */
 		
 		/* Determine which part of response to verify against */
-		if (rmd->UseNT[0]) {
-			nt_response = rmd->NTResp;
-			nt_response_size = sizeof(rmd->NTResp);
+		if (response[MS_CHAP_USENT]) {
+			nt_response = &response[MS_CHAP_NTRESP];
+			nt_response_size = MS_CHAP_NTRESP_LEN;
 		} else {
 #ifdef MSLANMAN
-			lm_response = rmd->LANManResp;
-			lm_response_size = sizeof(rmd->LANManResp);
+			lm_response = &response[MS_CHAP_LANMANRESP];
+			lm_response_size = MS_CHAP_LANMANRESP_LEN;
 #else
 			/* Should really propagate this into the error packet. */
 			notice("Peer request for LANMAN auth not supported");
@@ -584,12 +583,9 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				  domain,
 				  NULL,
 				  NULL,
-				  challenge,
-				  challenge_len,
-				  lm_response,
-				  lm_response ? lm_response_size: 0,
-				  nt_response,
-				  nt_response ? nt_response_size: 0,
+				  challenge, challenge_len,
+				  lm_response, lm_response_size,
+				  nt_response, nt_response_size,
 				  session_key,
 				  &error_string) == AUTHENTICATED) {
 			mppe_set_keys(challenge, session_key);
@@ -610,7 +606,6 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	
 	case CHAP_MICROSOFT_V2:
 	{
-		MS_Chap2Response *rmd = (MS_Chap2Response *) response;
 		u_char Challenge[8];
 		u_char session_key[MD4_SIGNATURE_SIZE];
 		char *error_string = NULL;
@@ -618,7 +613,8 @@ winbind_chap_verify(char *user, char *ourname, int id,
 		if (response_len != MS_CHAP2_RESPONSE_LEN)
 			break;			/* not even the right length */
 		
-		ChallengeHash(rmd->PeerChallenge, challenge, user, Challenge);
+		ChallengeHash(&response[MS_CHAP2_PEER_CHALLENGE], challenge,
+			      user, Challenge);
 		
 		/* ship off to winbind, and check */
 		
@@ -626,22 +622,20 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				  domain, 
 				  NULL,
 				  NULL,
-				  Challenge,
-				  8,
-				  NULL, 
-				  0,
-				  rmd->NTResp,
-				  sizeof(rmd->NTResp),
-				  
+				  Challenge, 8,
+				  NULL, 0,
+				  &response[MS_CHAP2_NTRESP],
+				  MS_CHAP2_NTRESP_LEN,
 				  session_key,
 				  &error_string) == AUTHENTICATED) {
 			
 			GenerateAuthenticatorResponse(session_key,
-						      rmd->NTResp, rmd->PeerChallenge,
-						      challenge, user,
-						      saresponse);
-			mppe_set_keys2(session_key, rmd->NTResp, MS_CHAP2_AUTHENTICATOR);
-			if (rmd->Flags[0]) {
+				&response[MS_CHAP2_NTRESP],
+				&response[MS_CHAP2_PEER_CHALLENGE],
+				challenge, user, saresponse);
+			mppe_set_keys2(session_key, &response[MS_CHAP2_NTRESP],
+				       MS_CHAP2_AUTHENTICATOR);
+			if (response[MS_CHAP2_FLAGS]) {
 				slprintf(message, message_space, "S=%s", saresponse);
 			} else {
 				slprintf(message, message_space, "S=%s M=%s",
