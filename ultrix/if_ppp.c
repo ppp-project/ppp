@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.6 1995/05/01 01:39:03 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.7 1995/05/19 04:37:42 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -352,7 +352,7 @@ pppioctl(sc, cmd, data, flag)
 	if (!suser())
 	    return EPERM;
 	mtu = *(int *) data;
-	if (mtu < PPP_MRU || mtu > PPP_MAXMRU)
+	if (mtu <= 0 || mtu > PPP_MAXMRU)
 	    return EINVAL;
 	s = splimp();
 	sc->sc_if.if_mtu = mtu;
