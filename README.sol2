@@ -4,13 +4,13 @@ but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the
 modules directory).
 
-This version has been tested under Solaris 2.5.1 and Solaris 2.6.
+This version has been tested under Solaris 2.6.
 
 NOTE: Although the kernel driver and modules have been designed to
 operate correctly on SMP systems, they have not been extensively
 tested on SMP machines.  Some users of SMP Solaris x86 systems have
-reported system problems apparently linked to the use of this
-software.
+reported system problems apparently linked to the use of previous
+versions of this software.  I believe these problems have been fixed.
 
 
 Installation.
@@ -43,7 +43,6 @@ local machine as a gateway to access other hosts.  The solution is to
 create an /etc/ppp/ip-up script containing something like this:
 
 	#!/bin/sh
-	/usr/sbin/ndd -set /dev/ip ip_forwarding 2
+	/usr/sbin/ndd -set /dev/ip ip_forwarding 1
 
-Under Solaris 2.6, the value 2 is invalid; use 1 instead.  See the man
-page for ip(7p) for details.
+See the man page for ip(7p) for details.

@@ -1,11 +1,12 @@
-PPP for Linux                                             Version 2.3.5
+PPP for Linux                                             Version 2.3.6
 =============                                                  based on
-                                                              ppp-2.3.5
-                                                               May 1998
+                                                              ppp-2.3.6
+                                                          February 1999
 
 Michael Callahan    callahan@maths.ox.ac.uk
 Al Longyear         longyear@netcom.com
 Paul Mackerras      Paul.Mackerras@cs.anu.edu.au
+Nick Walker         nickwalker@email.com
 
   Contents:
     INTRODUCTION
@@ -63,13 +64,13 @@ the link down, when it negotiates a graceful disconnect.
 
 CREDITS
 
-I (MJC) wrote the original kernel driver from scratch.  Laurence
-Culhane and Fred van Kempen's slip.c was priceless as a model (a
-perusal of the files will reveal that I often mimicked what slip.c
-did).  Otherwise I just implemented what pppd needs, using RFC1331 as
+Michael Callahan wrote the original kernel driver from scratch.
+Laurence Culhane and Fred van Kempen's slip.c was priceless as a model
+(a perusal of the files will reveal that he often mimicked what slip.c
+did).  Otherwise he just implemented what pppd needs, using RFC1331 as
 a guide.  For the most part, the Linux driver provides the same
 interface as the free 386BSD and SunOS drivers.  The exception is that
-Linux has no support for asynchronous I/O, so I hacked an ioctl into
+Linux had no support for asynchronous I/O, so he hacked an ioctl into
 the PPP kernel module that provides a signal when packets appear and
 made pppd use this instead.
 
@@ -79,24 +80,19 @@ the kernel driver and the OS-independent part of pppd.  His
 contributions to Linux PPP have been immense, and so this release
 is being distributed over both our names.
 
-The pppd program comes from the free distribution of PPP for Suns and
-386BSD machines, maintained by Paul Mackerras.  This package lists
-"thanks to" Brad Parker, Greg Christy, Drew D. Perkins, Rick Adams and
-Chris Torek.
-
-Jim Freeman added the code to support a ppp module and to dynamically
-extend the number of ppp devices. All ppp devices listed in the Space.c
-will be unlinked when the kernel is loaded. This feature makes the use
-of '16 channel' support obsolete.
+Paul Mackerras rewrote and restructured the code for improved
+performance and to make a cleaner separation between the
+network-interface and async TTY parts of the ppp driver.
 
 
+Nick Walker added the code to query the peer for DNS server addresses.
 
 INSTALLATION
 
 This version of PPP has been tested on various Linux kernel versions
-(most recently 2.0.30 and 2.1.24). It will probably not work on
-kernels before 2.0.0. If you have an earlier kernel, please upgrade to
-the latest 2.0 kernel.
+(most recently 2.0.36 and 2.2.1). It will not work on kernels before
+2.0.0. If you have an earlier kernel, please upgrade to the latest 2.0
+or 2.2 kernel.
 
 joining the PPP channel of linux-activists:
 
@@ -156,9 +152,6 @@ The installation procedure has been totally revised for this
 version. Due to feedback from other users, it was felt that a more
 automated installation procedure be performed.
 
-Use the following procedure for all kernel versions. There are six steps
-numbered one through six. Please do them in order and not skip one.
-
 
 1. Issue the command:
 
@@ -170,7 +163,15 @@ set of symbolic links to the makefiles. They should link 'Makefile' to
 'Makefile.linux' in each of the directories.
 
 
-2. Issue the command:
+2. Update the kernel sources.
+
+If you are using a 2.2.x kernel (or a recent 2.1.x kernel), you do not
+need to do this step.  If your kernel is already configured for PPP,
+then you only need to do steps 5 and 6.  Otherwise, continue at step 3.
+
+If you are using a 2.0.x kernel, you need to update the kernel ppp
+driver to the version in this package.  You will need a copy of the
+kernel source tree to do this.  Issue the command:
 
 make kernel
 
@@ -222,15 +223,17 @@ not been changed.
 
 3. Build the kernel.
 
-You must rebuild the kernel with this package. The driver is totally
-new and may not work with the older daemon and the newer daemon will
-not work with the older kernel driver. If you don't know how to build
-a kernel, then you should read the README file in the kernel source
-directory.
+You should rebuild the kernel with this package.  If you use the
+driver that comes with the current 2.0 kernels, it will not support
+Deflate compression or demand-dialling, but apart from that the pppd
+daemon should work.
 
-If you wish module support then you need to have the 'modules-2.0.0'
-package installed as the minimum version. Earlier versions of the module
-support will not work properly. All of the later ones will.
+If you don't know how to build a kernel, then you should read the
+README file in the kernel source directory.
+
+If you want module support then you need to have the 'modules-2.0.0'
+package installed as the minimum version. Earlier versions of the
+module support will not work properly. All of the later ones will.
 
 Instructions on building the kernel with modules are given in the
 README.modules in the kernel source directory.
@@ -262,10 +265,10 @@ You may use the command
 
 make install
 
-to install the various programs. They will be installed into the
-/usr/sbin directory. You may not like this directory for the
-executables. The directory name is called BINDIR and is set in the
-file 'linux/Makefile.linux'.
+(as root) to install the various programs.  They will be installed
+into the /usr/sbin directory.  If you prefer to install the programs
+elsewhere, you can change the definition of BINDIR in the file
+linux/Makefile.top.
 
 Earlier versions of the pppd package used /usr/lib/ppp as the
 directory. This has been changed. If you still have code in
@@ -384,6 +387,10 @@ the names 'hillarypc' and 'chelseapc'.  You can probably find out the
 right domain name to use and the IP numbers of nameservers from
 whoever's providing your PPP link.
 
+Alternatively you may wish to use the option `usepeerdns' and then
+modify your `ip-up' and `ip-down' scripts to automate the process. Or 
+check your messages file to see if pppd recorded the DNS addresses
+supplied by the peer ppp server.
 
 
 CONNECTING TO A PPP SERVER
@@ -798,10 +805,10 @@ the system via ftp. You would not want Joe Hacker using the ppp account
 via ftp.
 
 2. Ensure that the directory /etc/ppp is owned by 'root' and permits
-only write access to the root user.
+write access only to the root user.
 
-3. The files /etc/ppp/options must be owned by root and accessible only
-from that user. Never permit any other user access to this file.
+3. The files /etc/ppp/options must be owned by root and writable only
+by root.
 
 4. The files /etc/ppp/ip-up and /etc/ppp/ip-down will be executed by the
 pppd process while it is root. Ensure that these files are writable only

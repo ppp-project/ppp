@@ -67,8 +67,41 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.5.
+What's new in ppp-2.3.6.
 ************************
+
+* The device name is now a privileged option, meaning a non-privileged
+  user cannot specify the device name on the command line or in their
+  .ppprc file.
+
+* The default behaviour of pppd is now to let a peer which has not
+  authenticated itself (e.g. your ISP) use any IP address to which the
+  system does not already have a route.  (This is currently only
+  supported under Linux, Solaris and Digital Unix; on the other
+  systems, the peer must now authenticate itself unless the noauth
+  option is used.)
+
+* Added new option `usepeerdns', thanks to Nick Walker
+  <nickwalker@email.com>.  If the peer supplies DNS addresses, these
+  will be written to /etc/ppp/resolv.conf.  The ip-up script can then
+  be used to add these addresses to /etc/resolv.conf if desired (see
+  the ip-up.local.add and ip-down.local.add files in the scripts
+  directory).
+
+* The Solaris ppp driver should now work correctly on SMP systems.
+
+* Minor corrections so that the code can compile under Solaris 7,
+  and under Linux with glibc-2.1.
+
+* The Linux kernel driver has been restructured for improved
+  performance.
+
+* Pppd now won't start the ip-down script until the ip-up script has
+  finished.
+
+
+What was new in ppp-2.3.5.
+**************************
 
 * Minor corrections to the Digital UNIX and NetBSD ports.
 
@@ -255,13 +288,13 @@ questions like this that I get.
 If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
-Digital Unix (OSF/1)	Farrell Woods <ftw@zk3.dec.com>
-Linux			Al Longyear <longyear@pobox.com>
-NetBSD			Matthew Green <mrg@eterna.com.au
+Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
+Linux			Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+NetBSD			Matthew Green <mrg@eterna.com.au>
 FreeBSD			Peter Wemm <peter@haywire.DIALix.COM>
 NeXTStep		Steve Perkins <perkins@cps.msu.edu>
 Solaris 2		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
-SunOS 4.x		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+SunOS 4.x		Paul Mackerras (for want of anybody better :-)
 System V Release 4	Matthias Apitz <Matthias.Apitz@SOFTCON.de>
 Ultrix 4.x		Paul Mackerras (for want of anybody better :-)
 
@@ -280,4 +313,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.13 1998/05/04 06:14:31 paulus Exp $)
+($Id: README,v 1.14 1999/03/02 05:25:29 paulus Exp $)
