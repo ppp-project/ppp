@@ -18,14 +18,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.7 1994/05/18 06:34:15 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.8 1994/05/24 11:24:32 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <limits.h>
 #include <termios.h>
 #include <syslog.h>
 #include <string.h>
@@ -52,10 +51,8 @@ static char rcsid[] = "$Id: options.c,v 1.7 1994/05/18 06:34:15 paulus Exp $";
 char *strdup __ARGS((char *));
 #endif
 
-#if defined(ultrix) || defined(sun)
-#define GETGROUPS_TYPE	int
-#else
-#define GETGROUPS_TYPE	gid_t
+#ifndef GIDSET_TYPE
+#define GIDSET_TYPE	int
 #endif
 
 /*
@@ -88,6 +85,7 @@ static int setdisconnector __ARGS((char **));
 static int setdomain __ARGS((char **));
 static int setnetmask __ARGS((char **));
 static int setcrtscts __ARGS((void));
+static int setxonxoff __ARGS((void));
 static int setnodetach __ARGS((void));
 static int setmodem __ARGS((void));
 static int setlocal __ARGS((void));
@@ -118,6 +116,9 @@ static int setchapchal __ARGS((char **));
 static int setchapintv __ARGS((char **));
 static int setipcpaccl __ARGS((void));
 static int setipcpaccr __ARGS((void));
+static int setlcpechointerval __ARGS((char **));
+static int setlcpechofails __ARGS((char **));
+static int setslots __ARGS((char **));
 
 static int number_option __ARGS((char *, long *, int));
 static int readable __ARGS((int fd));
@@ -145,6 +146,9 @@ extern int auth_required;
 extern int proxyarp;
 extern int persist;
 extern int uselogin;
+extern int nslots;
+extern u_long lcp_echo_interval;
+extern u_long lcp_echo_fails;
 extern char our_name[];
 extern char remote_name[];
 int usehostname;
@@ -180,6 +184,8 @@ static struct cmd {
     "connect", 1, setconnector,	/* A program to set up a connection */
     "disconnect", 1, setdisconnector,	/* program to disconnect serial dev. */
     "crtscts", 0, setcrtscts,	/* set h/w flow control */
+    "xonxoff", 0, setxonxoff,	/* set s/w flow control */
+    "-crtscts", 0, setxonxoff,	/* another name for xonxoff */
     "debug", 0, setdebug,	/* Increase debugging level */
     "kdebug", 1, setkdebug,	/* Enable kernel-level debugging */
     "domain", 1, setdomain,	/* Add given domain name to hostname*/
@@ -202,6 +208,8 @@ static struct cmd {
     "persist", 0, setpersist,	/* Keep on reopening connection after close */
     "login", 0, setdologin,	/* Use system password database for UPAP */
     "noipdefault", 0, setnoipdflt, /* Don't use name for default IP adrs */
+    "lcp-echo-failure", 1, setlcpechofails,	/* consecutive echo failures */
+    "lcp-echo-interval", 1, setlcpechointerval,	/* time for lcp echo events */
     "lcp-restart", 1, setlcptimeout,	/* Set timeout for LCP */
     "lcp-max-terminate", 1, setlcpterm,	/* Set max #xmits for term-reqs */
     "lcp-max-configure", 1, setlcpconf,	/* Set max #xmits for conf-reqs */
@@ -210,6 +218,7 @@ static struct cmd {
     "ipcp-max-terminate", 1, setipcpterm, /* Set max #xmits for term-reqs */
     "ipcp-max-configure", 1, setipcpconf, /* Set max #xmits for conf-reqs */
     "ipcp-max-failure", 1, setipcpfails,  /* Set max #conf-naks for IPCP */
+    "ipcp-max-slots", 1, setslots,	/* Set maximum vj header slots */
     "pap-restart", 1, setpaptimeout,	/* Set timeout for UPAP */
     "pap-max-authreq", 1, setpapreqs,	/* Set max #xmits for auth-reqs */
     "chap-restart", 1, setchaptimeout,	/* Set timeout for CHAP */
@@ -221,8 +230,12 @@ static struct cmd {
 };
 
 
+#ifndef IMPLEMENTATION
+#define IMPLEMENTATION ""
+#endif
+
 static char *usage_string = "\
-pppd version %s patch level %d\n\
+pppd version %s patch level %d%s\n\
 Usage: %s [ arguments ], where arguments are:\n\
 	<device>	Communicate over the named device\n\
 	<speed>		Set the baud rate to <speed>\n\
@@ -298,7 +311,8 @@ parse_args(argc, argv)
  */
 usage()
 {
-    fprintf(stderr, usage_string, VERSION, PATCHLEVEL, progname);
+    fprintf(stderr, usage_string, VERSION, PATCHLEVEL, IMPLEMENTATION,
+	    progname);
 }
 
 /*
@@ -386,7 +400,7 @@ options_from_user()
 
     pw = getpwuid(getuid());
     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
-	return;
+	return 1;
     file = _PATH_USEROPT;
     path = malloc(strlen(user) + strlen(file) + 2);
     if (path == NULL)
@@ -436,7 +450,7 @@ readable(fd)
     uid_t uid;
     int ngroups, i;
     struct stat sbuf;
-    GETGROUPS_TYPE groups[NGROUPS_MAX];
+    GIDSET_TYPE groups[NGROUPS_MAX];
 
     uid = getuid();
     if (uid == 0)
@@ -1193,6 +1207,13 @@ setcrtscts()
 }
 
 static int
+setxonxoff()
+{
+    crtscts = 2;
+    return (1);
+}
+
+static int
 setnodetach()
 {
     nodetach = 1;
@@ -1292,6 +1313,22 @@ setdologin()
 }
 
 /*
+ * Functions to set the echo interval for modem-less monitors
+ */
+
+static int setlcpechointerval(argv)
+    char **argv;
+{
+    return int_option(*argv, &lcp_echo_interval, 0);
+}
+
+static int setlcpechofails(argv)
+    char **argv;
+{
+    return int_option(*argv, &lcp_echo_fails, 0);
+}
+
+/*
  * Functions to set timeouts, max transmits, etc.
  */
 static int
@@ -1371,4 +1408,17 @@ static int setchapintv(argv)
     char **argv;
 {
     return int_option(*argv, &chap[0].chal_interval, 0);
+}
+
+static int setslots(argv)
+    char **argv;
+{
+    int value;
+    int answer = int_option(*argv, &value, 0);
+
+    if (answer == 1 && value > 1 && value < 17) {
+        ipcp_wantoptions [0].maxslotindex =
+        ipcp_allowoptions[0].maxslotindex = value - 1;
+    }
+    return answer;
 }
