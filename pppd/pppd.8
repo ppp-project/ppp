@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.53 2000/08/01 01:47:04 paulus Exp $
+.\" $Id: pppd.8,v 1.54 2000/12/27 23:24:13 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -621,10 +621,10 @@ requests from pppd for CCP negotiation.
 .B nocrtscts
 Disable hardware flow control (i.e. RTS/CTS) on the serial port.
 If neither the \fIcrtscts\fR nor the \fInocrtscts\fR nor the
-\fIcdtrcts\fR nor the \fInodtrcts\fR option is given, the hardware
+\fIcdtrcts\fR nor the \fInocdtrcts\fR option is given, the hardware
 flow control setting for the serial port is left unchanged.
 .TP
-.B nodtrcts
+.B nocdtrcts
 This option is a synonym for \fInocrtscts\fR. Either of these options will
 disable both forms of hardware flow control.
 .TP
