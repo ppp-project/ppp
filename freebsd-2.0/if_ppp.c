@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.10 1996/10/08 04:38:03 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.11 1997/03/04 03:27:28 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -127,6 +127,9 @@
 #include <net/ppp-comp.h>
 #endif
 
+static int	pppsioctl __P((struct ifnet *, int, caddr_t));
+static int	pppoutput __P((struct ifnet *, struct mbuf *,
+			       struct sockaddr *, struct rtentry *));
 static void	ppp_requeue __P((struct ppp_softc *));
 static void	ppp_outpkt __P((struct ppp_softc *));
 static void	ppp_ccp __P((struct ppp_softc *, struct mbuf *m, int rcvd));
@@ -310,7 +313,7 @@ pppdealloc(sc)
 int
 pppioctl(sc, cmd, data, flag, p)
     struct ppp_softc *sc;
-    u_long cmd;
+    int cmd;
     caddr_t data;
     int flag;
     struct proc *p;
@@ -487,7 +490,7 @@ pppioctl(sc, cmd, data, flag, p)
 int
 pppsioctl(ifp, cmd, data)
     register struct ifnet *ifp;
-    u_long cmd;
+    int cmd;
     caddr_t data;
 {
     struct proc *p = curproc;	/* XXX */

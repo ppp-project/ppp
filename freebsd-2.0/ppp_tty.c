@@ -70,7 +70,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: ppp_tty.c,v 1.6 1996/07/01 05:25:56 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.7 1997/03/04 03:27:28 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -112,7 +112,7 @@ int	pppopen __P((dev_t dev, struct tty *tp));
 int	pppclose __P((struct tty *tp, int flag));
 int	pppread __P((struct tty *tp, struct uio *uio, int flag));
 int	pppwrite __P((struct tty *tp, struct uio *uio, int flag));
-int	ppptioctl __P((struct tty *tp, u_long cmd, caddr_t data, int flag,
+int	ppptioctl __P((struct tty *tp, int cmd, caddr_t data, int flag,
 		       struct proc *));
 int	pppinput __P((int c, struct tty *tp));
 int	pppstart __P((struct tty *tp));
@@ -397,7 +397,7 @@ pppwrite(tp, uio, flag)
 int
 ppptioctl(tp, cmd, data, flag, p)
     struct tty *tp;
-    u_long cmd;
+    int cmd;
     caddr_t data;
     int flag;
     struct proc *p;
