@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: utils.c,v 1.22 2003/04/07 00:01:46 paulus Exp $"
+#define RCSID	"$Id: utils.c,v 1.23 2004/01/13 04:13:08 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -123,7 +123,7 @@ strlcat(dest, src, len)
 /*
  * slprintf - format a message into a buffer.  Like sprintf except we
  * also specify the length of the output buffer, and we handle
- * %r (recursive format), %m (error message), %v (visible string),
+ * %m (error message), %v (visible string),
  * %q (quoted string), %t (current time) and %I (IP address) formats.
  * Doesn't do floating-point formats.
  * Returns the number of chars put into buf.
@@ -292,6 +292,7 @@ vslprintf(buf, buflen, fmt, args)
 		     (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
 	    str = num;
 	    break;
+#if 0	/* not used, and breaks on S/390, apparently */
 	case 'r':
 	    f = va_arg(args, char *);
 #ifndef __powerpc__
@@ -303,6 +304,7 @@ vslprintf(buf, buflen, fmt, args)
 	    buf += n;
 	    buflen -= n;
 	    continue;
+#endif
 	case 't':
 	    time(&t);
 	    str = ctime(&t);
