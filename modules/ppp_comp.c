@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.3 1996/05/28 00:55:44 paulus Exp $
+ * $Id: ppp_comp.c,v 1.4 1996/06/26 00:54:20 paulus Exp $
  */
 
 /*
- * This file is used under SVR4, Solaris 2, SunOS 4, and OSF/1.
+ * This file is used under SVR4, Solaris 2, SunOS 4, and Digital UNIX.
  */
 
 #include <sys/types.h>
@@ -47,6 +47,11 @@
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include "ppp_mod.h"
+
+#ifdef __osf__
+#include <sys/mbuf.h>
+#include <sys/protosw.h>
+#endif
 
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
@@ -72,8 +77,9 @@ static int msg_byte __P((mblk_t *, unsigned int));
 /* Is this LCP packet one we have to transmit using LCP defaults? */
 #define LCP_USE_DFLT(mp)	(1 <= (code = MSG_BYTE((mp), 4)) && code <= 7)
 
+#define PPP_COMP_ID 0xbadf
 static struct module_info minfo = {
-    0xbadf, "ppp_comp", 0, INFPSZ, 16384, 4096,
+    PPP_COMP_ID, "ppp_comp", 0, INFPSZ, 16384, 4096,
 };
 
 static struct qinit r_init = {
@@ -91,6 +97,19 @@ struct streamtab ppp_compinfo = {
 
 int ppp_comp_count;		/* number of module instances in use */
 
+#ifdef __osf__
+
+static void ppp_comp_alloc __P((comp_state_t *));
+typedef struct memreq {
+    unsigned char *comp;
+    void *mem;
+    int len;
+    int cmd;
+    int ret;
+} memreq_t;
+
+#endif
+
 typedef struct comp_state {
     int		flags;
     int		mru;
@@ -103,7 +122,16 @@ typedef struct comp_state {
     struct vjcompress vj_comp;
     int		vj_last_ierrors;
     struct pppstat stats;
+#ifdef __osf__
+    memreq_t	memreq;
+    thread_t	thread;
+#endif
 } comp_state_t;
+
+
+#ifdef __osf__
+extern task_t first_task;
+#endif
 
 /* Bits in flags are as defined in pppio.h. */
 #define CCP_ERR		(CCP_ERROR | CCP_FATALERROR)
@@ -138,6 +166,9 @@ struct compressor *ppp_compressors[] = {
 MOD_OPEN(ppp_comp_open)
 {
     comp_state_t *cp;
+#ifdef __osf__
+    thread_t thread;
+#endif
 
     if (q->q_ptr == NULL) {
 	cp = (comp_state_t *) ALLOC_SLEEP(sizeof(comp_state_t));
@@ -152,6 +183,11 @@ MOD_OPEN(ppp_comp_open)
 	vj_compress_init(&cp->vj_comp, -1);
 	++ppp_comp_count;
 	qprocson(q);
+#ifdef __osf__
+	if (!(thread = kernel_thread_w_arg(first_task, ppp_comp_alloc, (void *)cp)))
+		OPEN_ERROR(ENOSR);
+	cp->thread = thread;
+#endif
     }
     return 0;
 }
@@ -167,6 +203,12 @@ MOD_CLOSE(ppp_comp_close)
 	    (*cp->xcomp->comp_free)(cp->xstate);
 	if (cp->rstate != NULL)
 	    (*cp->rcomp->decomp_free)(cp->rstate);
+#ifdef __osf__
+	if (!cp->thread)
+	    printf("ppp_comp_close: NULL thread!\n");
+	else
+	    thread_deallocate(cp->thread);
+#endif
 	FREE(cp, sizeof(comp_state_t));
 	q->q_ptr = NULL;
 	OTHERQ(q)->q_ptr = NULL;
@@ -175,6 +217,82 @@ MOD_CLOSE(ppp_comp_close)
     return 0;
 }
 
+#ifdef __osf__
+
+/* thread for calling back to a compressor's memory allocator
+ * Needed for Digital UNIX since it's VM can't handle requests
+ * for large amounts of memory without blocking.  The thread
+ * provides a context in which we can call a memory allocator
+ * that may block.
+ */
+static void
+ppp_comp_alloc(comp_state_t *cp)
+{
+    unsigned char *opt_data;
+    int len, cmd;
+    struct compressor *comp;
+    thread_t thread;
+
+#if (MAJOR_VERSION <= 2)
+
+    /* In 2.x and earlier the argument gets passed
+     * in the thread structure itself.  Yuck.
+     */
+    thread = current_thread();
+    cp = thread->reply_port;
+    thread->reply_port = PORT_NULL;
+
+#endif
+
+    for (;;) {
+	assert_wait((vm_offset_t)&cp->memreq.comp, TRUE);
+	thread_block();
+	opt_data = cp->memreq.comp;
+	len = cp->memreq.len;
+	cmd = cp->memreq.cmd;
+
+        if (cmd == PPPIO_XCOMP) {
+	    comp = cp->xcomp;
+	    cp->memreq.mem = (*comp->comp_alloc)(opt_data, len);
+	} else {
+	    comp = cp->rcomp;
+	    cp->memreq.mem = (*comp->decomp_alloc)(opt_data, len);
+	}
+	if (!cp->memreq.mem)
+	    cp->memreq.ret = ENOSR;
+	else
+	    bcopy(opt_data, cp->memreq.mem, len);
+
+	/* have to free thunk here, since there's
+	 * no guarantee that the user will call the ioctl
+	 * again if we've taken a long time to complete
+	 */
+	FREE(opt_data, len);
+	cp->memreq.ret = 0;
+    }
+}
+
+#endif /* __osf__ */
+
+/* here's the deal with memory allocation under Digital UNIX.
+ * Some other may also benefit from this...
+ * We can't ask for huge chunks of memory in a context where
+ * the caller can't be put to sleep (like, here.)  The alloc
+ * is likely to fail.  Instead we do this: the first time we
+ * get called, kick off a thread to do the allocation.  Return
+ * immediately to the caller with EAGAIN, as an indication that
+ * they should send down the ioctl again.  By the time the
+ * second call comes in it's likely that the memory allocation
+ * thread will have returned with the requested memory.  We will
+ * continue to return EAGAIN however until the thread has completed.
+ * When it has, we return zero (and the memory) if the allocator
+ * was successful and ENOSR otherwise.
+ *
+ * Callers of the RCOMP and XCOMP ioctls are encouraged (but not
+ * required) to loop for some number of iterations with a small
+ * delay in the loop body (for instance a 1/10-th second "sleep"
+ * via select.)
+ */
 static int
 ppp_comp_wput(q, mp)
     queue_t *q;
@@ -258,19 +376,114 @@ ppp_comp_wput(q, mp)
 		    /* here's the handler! */
 		    error = 0;
 		    if (iop->ioc_cmd == PPPIO_XCOMP) {
-			if (cp->xstate != NULL)
+
+			/* A previous call may have fetched memory for a compressor
+			 * that's now being retired or reset.  Free it using it's
+			 * mechanism for freeing stuff.
+			 */
+			if (cp->xstate != NULL) {
 			    (*cp->xcomp->comp_free)(cp->xstate);
+			    cp->xstate = NULL;
+			}
+
+#ifdef __osf__
+			/* Account for an orpahned call to get memory.
+			 * Free that memory up and go on.
+			 *
+			 * The trick is that we need to be able to tell
+			 * the difference between an old call that kicked
+			 * off a thread where the memory was subsequently
+			 * orphaned, and the memory we're really interested
+			 * in.  The thread helps by stamping the memory it
+			 * allocated with the parameters for the compressor
+			 * it belongs to.  If the parameters match then this
+			 * is the memory we want (whether it was an actual
+			 * orphan or not we don't care.)  If the parameters
+			 * don't match then this is an orphan.
+			 *
+			 * Note that cp->memreq.ret is the synchronization
+			 * point: we set it to EAGAIN in this function, then
+			 * wait for the thread to set it to something other
+			 * than EAGAIN before we fool with the data structure
+			 * again.  Basically, if ret != EAGAIN then the thread
+			 * is working and it owns the memreq struture.
+			 */
+			if (cp->memreq.ret == 0 && cp->memreq.mem != NULL &&
+			    bcmp(cp->memreq.mem, opt_data, len)) {
+			    (*cp->xcomp->comp_free)(cp->memreq.mem);
+			    cp->memreq.mem = 0;
+			}
+
+			/* First time through, prime the pump and kick
+			 * off the thread.  Subsequent times though, the thread
+			 * is either busy (ret == EAGAIN) or finsihed (mem != NULL)
+			 * || (ret != 0)
+			 */
+			if (cp->memreq.ret == 0 && cp->memreq.mem == NULL) {
+			    cp->memreq.comp = ALLOC_NOSLEEP(len);
+			    if (!cp->memreq.comp) {
+				printf("gack! can't get memory for thunk\n");
+				return ENOSR;
+			    }
+			    bcopy(opt_data, cp->memreq.comp, len);
+			    cp->memreq.len = len;
+			    cp->memreq.cmd = PPPIO_XCOMP;
+			    cp->xcomp = *comp;
+			    cp->memreq.ret = EAGAIN;
+			    thread_wakeup((vm_offset_t)&cp->memreq.comp);
+			}
+
+			/* Collect results from the thread, and reset the
+			 * mechanism for the next attempt to allocate memory
+			 * If the thread isn't finished (ret == EAGAIN) then
+			 * don't reset and just return.
+			 */
+			if ((error = cp->memreq.ret) != EAGAIN) {
+			    cp->xstate = cp->memreq.mem;
+			    cp->memreq.mem = 0;
+			    cp->memreq.ret = 0;
+			}
+#else
 			cp->xcomp = *comp;
 			cp->xstate = (*comp)->comp_alloc(opt_data, len);
 			if (cp->xstate == NULL)
 			    error = ENOSR;
+#endif
 		    } else {
-			if (cp->rstate != NULL)
+			if (cp->rstate != NULL) {
 			    (*cp->rcomp->decomp_free)(cp->rstate);
+			    cp->rstate = NULL;
+			}
+#ifdef __osf__
+			if (cp->memreq.ret == 0 && cp->memreq.mem != NULL &&
+			    bcmp(cp->memreq.mem, opt_data, len)) {
+			    (*cp->rcomp->comp_free)(cp->memreq.mem);
+			    cp->memreq.mem = 0;
+			}
+			if (cp->memreq.ret == 0 && cp->memreq.mem == NULL) {
+			    cp->memreq.comp = ALLOC_NOSLEEP(len);
+			    if (!cp->memreq.comp) {
+				printf("gack! can't get memory for thunk\n");
+				return ENOSR;
+			    }
+			    bcopy(opt_data, cp->memreq.comp, len);
+			    cp->memreq.len = len;
+			    cp->memreq.cmd = PPPIO_RCOMP;
+			    cp->rcomp = *comp;
+			    cp->memreq.ret = EAGAIN;
+			    thread_wakeup((vm_offset_t)&cp->memreq.comp);
+			}
+			if ((error = cp->memreq.ret) != EAGAIN) {
+			    cp->rstate = cp->memreq.mem;
+			    cp->memreq.mem = 0;
+			    cp->memreq.ret = 0;
+			}
+#else
 			cp->rcomp = *comp;
 			cp->rstate = (*comp)->decomp_alloc(opt_data, len);
 			if (cp->rstate == NULL)
 			    error = ENOSR;
+#endif
 		    }
 		    break;
 		}
@@ -688,14 +901,28 @@ ppp_comp_rsrv(q)
 		 * First reset compressor if an input error has occurred.
 		 */
 		if (cp->stats.ppp_ierrors != cp->vj_last_ierrors) {
+		    DPRINT1("ppp%d: resetting VJ\n", cp->unit);
 		    vj_uncompress_err(&cp->vj_comp);
 		    cp->vj_last_ierrors = cp->stats.ppp_ierrors;
 		}
 
 		vjlen = vj_uncompress_tcp(dp, np->b_wptr - dp, len,
 					  &cp->vj_comp, &iphdr, &iphlen);
-		if (vjlen < 0)
+		if (vjlen < 0) {
+#if DEBUG > 1
+		    int i;
+		    DPRINT2("ppp%d: vj_uncomp_tcp failed, pkt len %d [",
+			    cp->unit, len);
+		    for (i = 0; i < len && i < 8; ++i)
+			DPRINT1(" %x", dp[i]);
+		    DPRINT3("] c=%d u=%d e=%d\n",
+			    cp->vj_comp.stats.vjs_compressedin,
+			    cp->vj_comp.stats.vjs_uncompressedin,
+			    cp->vj_comp.stats.vjs_errorin);
+#endif
+		    ++cp->vj_last_ierrors;  /* so we don't reset next time */
 		    goto bad;
+		}
 
 		/* drop ppp and vj headers off */
 		if (mp != np) {
@@ -736,8 +963,15 @@ ppp_comp_rsrv(q)
 		/*
 		 * "Decompress" a VJ-uncompressed packet.
 		 */
-		if (!vj_uncompress_uncomp(dp, hlen, &cp->vj_comp))
+		cp->vj_last_ierrors = cp->stats.ppp_ierrors;
+		if (!vj_uncompress_uncomp(dp, hlen, &cp->vj_comp)) {
+#if DEBUG > 1
+		    DPRINT2("ppp%d: vj_uncomp_uncomp failed, pkt len %d\n",
+			    cp->unit, len);
+#endif
+		    ++cp->vj_last_ierrors;  /* don't need to reset next time */
 		    goto bad;
+		}
 		mp->b_rptr[3] = PPP_IP;	/* fix up the PPP protocol field */
 	    }
 	}
