@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.10 1994/11/29 01:59:06 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.11 1994/12/05 00:32:37 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -91,32 +91,25 @@ struct ifpppcstatsreq {
 
 /*
  * Ioctl definitions.
- *
- * The IOR nonsense is because there is a bug in NeXTStep for Intel;
- * it doesn't copy back data for _IOR, so we do it ourselves.
  */
-#if defined(NeXT)
-#define IOR	_IOWR
-#else
-#define IOR	_IOR
-#endif
 
-#define	PPPIOCGFLAGS	IOR('t', 90, int)	/* get configuration flags */
+#define	PPPIOCGFLAGS	_IOR('t', 90, int)	/* get configuration flags */
 #define	PPPIOCSFLAGS	_IOW('t', 89, int)	/* set configuration flags */
-#define	PPPIOCGASYNCMAP	IOR('t', 88, int)	/* get async map */
+#define	PPPIOCGASYNCMAP	_IOR('t', 88, int)	/* get async map */
 #define	PPPIOCSASYNCMAP	_IOW('t', 87, int)	/* set async map */
-#define	PPPIOCGUNIT	IOR('t', 86, int)	/* get ppp unit number */
-#define	PPPIOCGRASYNCMAP IOR('t', 85, int)	/* get receive async map */
+#define	PPPIOCGUNIT	_IOR('t', 86, int)	/* get ppp unit number */
+#define	PPPIOCGRASYNCMAP _IOR('t', 85, int)	/* get receive async map */
 #define	PPPIOCSRASYNCMAP _IOW('t', 84, int)	/* set receive async map */
-#define	PPPIOCGMRU	IOR('t', 83, int)	/* get max receive unit */
+#define	PPPIOCGMRU	_IOR('t', 83, int)	/* get max receive unit */
 #define	PPPIOCSMRU	_IOW('t', 82, int)	/* set max receive unit */
 #define	PPPIOCSMAXCID	_IOW('t', 81, int)	/* set VJ max slot ID */
-#define PPPIOCGXASYNCMAP IOR('t', 80, ext_accm) /* get extended ACCM */
+#define PPPIOCGXASYNCMAP _IOR('t', 80, ext_accm) /* get extended ACCM */
 #define PPPIOCSXASYNCMAP _IOW('t', 79, ext_accm) /* set extended ACCM */
 #define PPPIOCXFERUNIT	_IO('t', 78)		/* transfer PPP unit */
 #define PPPIOCSCOMPRESS	_IOW('t', 77, struct ppp_option_data)
 #define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
+#define PPPIOCGIDLE	_IOR('t', 74, struct ppp_idle) /* get idle time */
 
 #define SIOCGPPPSTATS	_IOWR('i', 123, struct ifpppstatsreq)
 #define SIOCGPPPCSTATS	_IOWR('i', 122, struct ifpppcstatsreq)
