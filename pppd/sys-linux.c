@@ -388,6 +388,7 @@ void disestablish_ppp(int tty_fd)
 /*
  * Restore the previous line discipline
  */
+	tcflush(tty_fd, TCIOFLUSH);
 	if (ioctl(tty_fd, TIOCSETD, &tty_disc) < 0) {
 	    if ( ! ok_error (errno))
 		error("ioctl(TIOCSETD, N_TTY): %m");
