@@ -1,4 +1,4 @@
-This file describes the installation process for ppp-2.2 on systems
+This file describes the installation process for ppp-2.3 on systems
 running Solaris 2.  The Solaris 2 and SVR4 ports share a lot of code
 but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the

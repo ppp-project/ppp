@@ -1,4 +1,4 @@
-This file describes the installation process for ppp-2.2 on systems
+This file describes the installation process for ppp-2.3 on systems
 running standard System V Release 4 and using the Lachman TCP/IP
 protocol code.  The STREAMS kernel modules and driver for SVR4 are in
 the svr4 directory (and use some code from the modules directory).

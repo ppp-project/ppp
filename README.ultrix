@@ -2,8 +2,8 @@
 Installing PPP on an Ultrix system requires rebuilding the kernel and
 rebooting, in addition to making and installing the pppd and chat
 programs.  These instructions apply to RISC (MIPS) systems.  This
-software has been tested under Ultrix 4.4; it should also work under
-Ultrix 4.2 or 4.3.
+software should work under Ultrix 4.2, 4.3 or 4.4 (this release has
+not been tested yet).
 
 
 Kernel installation procedure.
@@ -67,22 +67,18 @@ of your old /vmunix in / under a different name.
 
 ********
 
-If you have ppp-2.1.2 or earlier already installed in your kernel,
-some files will already have been modified as required.  The files
-which still need to be modified are:
+If you have ppp-2.2 already installed in your kernel, most files will
+already have been modified as required.  You will need to add some
+entries to /usr/sys/conf/mips/files.mips.  You can do this with a
+command like this (as root):
 
-	/usr/sys/net/net/netisr.h
-	/usr/sys/net/net/conf_net.c
-	/usr/sys/conf/mips/files.mips
+	patch -p -N <ultrix/upgrade
 
-The file ultrix/upgrade is a patch file to modify these files.  The
-upgrade procedure is much the same as the installation procedure
-described above, except that you use ultrix/upgrade in step 2 instead
-of ultrix/patches, and step 4 should already have been done.
+Alternatively, edit /usr/sys/conf/mips/files.mips according to the
+differences shown in ultrix/upgrade.
 
-Earlier versions of ppp-2.x replaced if.o with a modified version.
-This version does not need the modifications, so you can use either
-the original or the modified version.
+Then, proceed with steps 3, 5, 6, 7 above (step 4 should have been
+done already).
 
 
 Installing pppd and chat.
@@ -114,11 +110,9 @@ and
 	and also RO Komm. & Konsult
 	email: robert@robur.slu.se
 
-It was updated to ppp-2.2 by
+It was updated to ppp-2.3 by
 
 	Paul Mackerras
 	Dept. of Computer Science
 	Australian National University
 	paulus@cs.anu.edu.au
-
-(with some assistance from Per Sundstrom).

@@ -1,9 +1,10 @@
-Installation instructions for installing ppp-2.2.1 on FreeBSD and
+Installation instructions for installing ppp-2.3 on FreeBSD and
 NetBSD systems.
 
-This package supports NetBSD-1.1, NetBSD-1.0, FreeBSD-2.0, and
-FreeBSD-1.1.5.1.  It should work on later systems.  Modloading is not
-yet supported.
+This package supports NetBSD-current, NetBSD-1.1, NetBSD-1.0, and
+FreeBSD-2.0.  (The code hasn't been tested under NetBSD-current or
+FreeBSD at this stage.)  Modloading is not supported.  I have code
+which may work on earlier systems; contact me if you need it.
 
 To install PPP, you need to rebuild your kernel to include the latest
 version of the PPP driver, as well as compiling and installing the
@@ -13,14 +14,14 @@ reboot with the new kernel (you'll have to reboot with the new kernel
 before you can run them, of course).
 
 The following commands should compile and install the user-level
-applications (in the ppp-2.2.1 directory):
+applications (in the ppp-2.3b1 directory):
 
 	./configure
 	make
 	make install		(you need to be root for this)
 
 The process of updating the kernel source files is now largely
-automated.  In the ppp-2.2.1 directory, issue the command:
+automated.  In the ppp-2.3b1 directory, issue the command:
 
 	make kernel
 
@@ -39,40 +40,50 @@ You need to update several files in the /sys/net directory, and patch
 some other files under /sys.  The details depend on which operating
 system you're running.
 
-NetBSD-1.1.
-===========
 
-Copy the following files to /sys/net:
-
-	net/ppp-comp.h
-	netbsd-1.1/if_ppp.c
-	netbsd-1.1/ppp_tty.c
-
-
-NetBSD-1.0.
-===========
+NetBSD.
+=======
 
 Copy the following files to /sys/net:
 
 	net/if_ppp.h
 	net/ppp-comp.h
 	net/ppp_defs.h
-	netbsd-1.0/bsd-comp.c
-	netbsd-1.0/if_ppp.c
-	netbsd-1.0/if_pppvar.h
-	netbsd-1.0/netisr.h
-	netbsd-1.0/ppp_tty.c
-	netbsd-1.0/slcompress.c
-	netbsd-1.0/slcompress.h
+	netbsd-1.1/bsd-comp.c
+	netbsd-1.1/if_ppp.c
+	netbsd-1.1/if_pppvar.h
+	netbsd-1.1/ppp-deflate.c
+	netbsd-1.1/ppp_tty.c
+	netbsd-1.1/slcompress.c
+	netbsd-1.1/slcompress.h
+	common/zlib.c
+	common/zlib.h
 
-You then need to patch /sys/conf/files and /sys/conf/files.newconf
-using the commands:
+You may need to edit /sys/conf/files to make sure it contains entries
+for if_ppp.c, ppp_tty.c, bsd-comp.c, ppp-deflate.c and zlib.c.
+Depending on whether your port uses the old-style or new-style config
+files, these entries will look like this (new-style):
 
-	patch -p -N -d /sys/conf <netbsd-1.0/files.patch
-	patch -p -N -d /sys/conf <netbsd-1.0/files.newconf.patch
+	file net/if_ppp.c		ppp		needs-count
+	file net/ppp_tty.c		ppp
+	file net/bsd-comp.c		ppp
+	file net/ppp-deflate.c		ppp
+	file net/zlib.c			ppp
 
-The next step is to patch the file containing the code which
-dispatches software interrupts.  Unfortunately, this code is in the
+or this (old-style):
+
+	net/if_ppp.c		optional ppp device-driver
+	net/ppp_tty.c		optional ppp
+	net/bsd-comp.c		optional ppp
+	net/ppp-deflate.c	optional ppp
+	net/zlib.c		optional ppp
+
+If you use config.old or config.new, you will need to edit
+/sys/conf/files.oldconf or /sys/conf/files.newconf respectively.
+
+For NetBSD-1.0, if you have not previously had ppp-2.2 installed, you
+will need to patch the file containing the code which dispatches
+software interrupts.  Unfortunately, this code is in the
 architecture-dependent files, so the file to patch depends on which
 NetBSD port you are using:
 
@@ -91,6 +102,11 @@ To do the patch, you would use a command something like this:
 
 	patch -p -d /sys/arch/i386/isa <netbsd-1.0/arch/i386/icu.s.patch
 
+You also need to make sure that there is a line like this in
+/sys/net/netisr.h:
+
+#define	NETISR_PPP	26		/* for PPP processing */
+
 
 FreeBSD-2.0.
 ============
@@ -103,42 +119,22 @@ Copy the following files to /sys/net:
 	freebsd-2.0/bsd-comp.c
 	freebsd-2.0/if_ppp.c
 	freebsd-2.0/if_pppvar.h
+	freebsd-2.0/ppp-deflate.c
 	freebsd-2.0/ppp_tty.c
 	freebsd-2.0/pppcompress.c
 	freebsd-2.0/pppcompress.h
+	common/zlib.c
+	common/zlib.h
 
-You then need to patch /sys/conf/files using the command:
+You then need to edit /sys/conf/files to make sure it contains entries
+for if_ppp.c, ppp_tty.c, bsd-comp.c, ppp-deflate.c and zlib.c.  These
+entries should look like this:
 
-	patch -p -N -d /sys/conf <freebsd-2.0/files.patch
-
-
-FreeBSD-1.1.5.1.
-================
-
-Copy the following files to /sys/net:
-
-	net/if_ppp.h
-	net/ppp-comp.h
-	net/ppp_defs.h
-	freebsd-old/bsd-comp.c
-	freebsd-old/if_ppp.c
-	freebsd-old/if_pppvar.h
-	freebsd-old/ppp_tty.c
-	freebsd-old/slcompress.c
-	freebsd-old/slcompress.h
-
-You then need to patch /sys/conf/files using the command:
-
-	patch -p -N -d /sys/conf <freebsd-old/files.patch
-
-Then patch /sys/net/netisr.h with the command:
-
-	patch -p -N -d /sys/net <freebsd-old/netisr.h.patch
-
-The next step is to patch the file containing the code which
-dispatches software interrupts with the following command:
-
-	patch -p -N -d /sys/i386/isa <freebsd-old/icu.s.patch
+	net/if_ppp.c		optional ppp device-driver
+	net/ppp_tty.c		optional ppp
+	net/bsd-comp.c		optional ppp
+	net/ppp-deflate.c	optional ppp
+	net/zlib.c		optional ppp
 
 
 Configuring and making the new kernel.
@@ -153,11 +149,11 @@ If it doesn't, add one.  The `2' is the number of ppp interfaces to
 configure, that is, the maximum number of simultaneous ppp connections
 you will be able to have; change it as required.
 
-Next, run config or config.new in the directory containing the
-configuration file, giving the configuration file name as an argument.
-Then cd to the compilation directory and make the kernel.  For the
-i386 port of NetBSD, with a configuration file called CONF, this
-involves the following commands:
+Next, run config (or config.old or config.new) in the directory
+containing the configuration file, giving the configuration file name
+as an argument.  Then cd to the compilation directory and make the
+kernel.  For the i386 port of NetBSD, with a configuration file called
+CONF, this involves the following commands:
 
 	cd /sys/arch/i386/conf
 	/usr/sbin/config CONF

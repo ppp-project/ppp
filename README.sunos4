@@ -1,10 +1,10 @@
-This file describes the installation process for ppp-2.2 on systems
-running SunOS 4.x (or the equivalent).
+This file describes the installation process for ppp-2.3 on systems
+running SunOS 4.1.x (or the equivalent).
 
 The STREAMS modules in the sunos4 directory provide kernel support for
-PPP on SunOS 4.x systems.  They have been tested under SunOS 4.1.3 on
-a SparcStation 1+.  They should work under earlier SunOS 4.x systems,
-but no guarantees are given.
+PPP on SunOS 4.1.x systems.  They have been tested under SunOS 4.1.3
+on a SparcStation 1+.  They should work under earlier SunOS 4.1.x
+systems, but no guarantees are given.
 
 These modules are designed to be loaded into the running kernel using
 the `modload' command.
@@ -19,8 +19,8 @@ kernel modules.
 	./configure
 	make
 
-2. Install the pppd, pppstats chat programs and the loadable module
-object files (you need to be root to do this):
+2. Install the pppd, pppstats and chat programs and the loadable
+module object files (you need to be root to do this):
 
 	make install
 
@@ -45,3 +45,7 @@ and then create a /dev/ppp.AUTOLOAD file with the command
 
 	touch /dev/ppp.AUTOLOAD
 
+It is not advisable to unload the "if_ppp" module, because it creates
+network interface units, and SunOS does not provide any way to destroy
+network interfaces once created.  If you do unload it, the system will
+probably crash at some later stage.
