@@ -1,12 +1,12 @@
 # PPP top-level Makefile for Linux.
 
 
-BINDIR = /usr/sbin
-MANDIR = /usr/man
-ETCDIR = /etc/ppp
+BINDIR = $(DESTDIR)/usr/sbin
+MANDIR = $(DESTDIR)/usr/man
+ETCDIR = $(DESTDIR)/etc/ppp
 
 # uid 0 = root
-INSTALL= install -o 0 -g daemon
+INSTALL= install
 
 all:
 	cd chat; $(MAKE) $(MFLAGS) all

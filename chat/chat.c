@@ -87,7 +87,7 @@
 #endif
 
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.25 1999/09/06 05:10:23 paulus Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.26 1999/12/23 01:39:54 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1467,7 +1467,8 @@ register char *string;
 
 	if (s >= end) {
 	    if (logged < s - minlen) {
-		logf("%0.*v", s - logged, logged);
+		if (verbose)
+		    logf("%0.*v", s - logged, logged);
 		logged = s;
 	    }
 	    s -= minlen;
