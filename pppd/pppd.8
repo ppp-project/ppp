@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.31 1999/02/26 10:38:52 paulus Exp $
+.\" $Id: pppd.8,v 1.32 1999/03/02 05:32:30 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -37,8 +37,7 @@ Communicate over the named device.  The string "/dev/" is prepended if
 necessary.  If no device name is given, or if the name of the terminal
 connected to the standard input is given, pppd
 will use that terminal, and will not fork to put itself in the
-background.  This option is privileged if the \fInoauth\fR option is
-used.
+background.  This option is privileged.
 .TP
 .I <speed>
 Set the baud rate to <speed> (a decimal number).  On systems such as
@@ -76,9 +75,9 @@ characters, use the \fIescape\fR option.
 .TP
 .B auth
 Require the peer to authenticate itself before allowing network
-packets to be sent or received.  If neither this option nor the
-\fInoauth\fR option is specified, the default is that pppd will not
-require the peer to authenticate, but will then only allow it to use
+packets to be sent or received.  This option is the default if the
+system has a default route.  If neither this option nor the
+\fInoauth\fR option is specified, pppd will only allow the peer to use
 IP addresses to which the system does not already have a route.
 .TP
 .B call \fIname
@@ -264,6 +263,9 @@ specify \fIdomain Quotron.COM\fR.  Pppd would then use the name
 and as the default name to send to the peer when authenticating itself
 to the peer.  This option is privileged.
 .TP
+.B hide-password
+When logging the contents of PAP packets, this option causes pppd to
+exclude the password string from the log.
 .B holdoff \fIn
 Specifies how many seconds to wait before re-initiating the link after
 it terminates.  This option only has any effect if the \fIpersist\fR
