@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.86 2002/09/07 05:15:25 carlsonj Exp $"
+#define RCSID	"$Id: options.c,v 1.87 2002/09/14 08:05:27 etbe Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -677,7 +677,7 @@ process_option(opt, cmd, argv)
 		    break;
 		case OPT_LIMITS:
 		    option_error("%s value must be%s between %d and %d",
-				opt->name, opt->lower_limit, opt->upper_limit);
+				opt->name, zok, opt->lower_limit, opt->upper_limit);
 		    break;
 		}
 		return 0;
