@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.74 1999/04/12 06:24:46 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.75 1999/04/12 06:44:42 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -125,6 +125,20 @@ struct pppd_stats link_stats;
 int link_stats_valid;
 
 static int charshunt_pid;	/* Process ID for charshunt */
+
+/*
+ * We maintain a list of child process pids and
+ * functions to call when they exit.
+ */
+struct subprocess {
+    pid_t	pid;
+    char	*prog;
+    void	(*done) __P((void *));
+    void	*arg;
+    struct subprocess *next;
+};
+
+static struct subprocess *children;
 
 /* Prototypes for procedures local to this file. */
 
@@ -809,8 +823,15 @@ main(argc, argv)
     }
 
     /* Wait for scripts to finish */
-    while (n_children > 0)
+    while (n_children > 0) {
+	if (debug) {
+	    struct subprocess *chp;
+	    dbglog("Waiting for %d child processes...", n_children);
+	    for (chp = children; chp != NULL; chp = chp->next)
+		dbglog("  script %s, pid %d", chp->prog, chp->pid);
+	}
 	reap_kids(1);
+    }
 
     die(0);
     return 0;
@@ -1381,20 +1402,6 @@ device_script(program, in, out, dont_wait)
     return (status == 0 ? 0 : -1);
 }
 
-
-/*
- * We maintain a list of child process pids and
- * functions to call when they exit.
- */
-struct subprocess {
-    pid_t	pid;
-    char	*prog;
-    void	(*done) __P((void *));
-    void	*arg;
-    struct subprocess *next;
-};
-
-struct subprocess *children;
 
 /*
  * run-program - execute a program with given arguments,
