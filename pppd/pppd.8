@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.41 1999/07/21 00:24:32 paulus Exp $
+.\" $Id: pppd.8,v 1.42 1999/08/04 15:53:13 johnsonm Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -443,6 +443,7 @@ already open on stdout.
 Append log messages to the file \fIfilename\fR (as well as sending the
 log messages to syslog).  The file is opened with the privileges of
 the user who invoked pppd, in append mode.
+.TP
 .B login
 Use the system password database for authenticating the peer using
 PAP, and record the user in the system wtmp file.  Note that the peer
