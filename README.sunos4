@@ -19,6 +19,11 @@ kernel modules.
 	./configure
 	make
 
+If you wish to compile using gcc instead of cc, edit the
+sunos4/Makedefs file and uncomment the line saying "CC = gcc".  You
+can also change the C compiler options by editing the COPTS
+definition.
+
 2. Install the pppd, pppstats and chat programs and the loadable
 module object files (you need to be root to do this):
 
@@ -27,7 +32,8 @@ module object files (you need to be root to do this):
 By default, the programs and the loadable module object files go into
 /usr/local/etc.  Doing `make install' also copies a script called
 ppp.INSTALL into /dev, and makes ppp.LOAD, ppp.UNLOAD, ppp.MKDEV and
-ppp.RMDEV links to it.
+ppp.RMDEV links to it.  You can change the installation directories by
+editing sunos4/Makedefs.
 
 3. Load the ppp modules (you need to be root for this too):
 

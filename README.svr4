@@ -12,12 +12,17 @@ kernel modules.
 	./configure
 	make
 
+If you wish to use gcc instead of cc, edit the svr4/Makedefs file and
+uncomment the definition of CC.  You can also change the options
+passed to the C compiler by editing the COPTS definition.
+
 2. Install the programs and kernel modules: as root, do
 
 	make install
 
 This installs pppd, chat and pppstats in /usr/local/bin and adds the
-ppp STREAMS modules and driver to the system configuration.
+ppp STREAMS modules and driver to the system configuration.  You can
+change the installation directories by editing svr4/Makedefs.
 
 3. Rebuild your kernel (with /etc/conf/bin/idbuild) and reboot.
 

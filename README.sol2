@@ -4,6 +4,10 @@ but are not identical.  The STREAMS kernel modules and driver for
 Solaris 2 are in the svr4 directory (and use some code from the
 modules directory).
 
+***NOTE***: this package does not support Solaris 2.6 at present;
+apparently the kernel interface to network interfaces has changed, and
+this package has not yet been adapted correspondingly.  Stay tuned.
+
 Installation.
 *************
 
@@ -13,13 +17,19 @@ kernel modules.
 	./configure
 	make
 
+If you wish to use gcc (or another compiler) instead of Sun's cc, edit
+the svr4/Makedefs file and uncomment the definition of CC.  You can
+also change the options passed to the C compiler by editing the COPTS
+definition.
+
 2. Install the programs and kernel modules: as root, do
 
 	make install
 
 This installs pppd, chat and pppstats in /usr/local/bin and the kernel
 modules in /kernel/drv and /kernel/strmod, and creates the /etc/ppp
-directory and populates it with default configuration files.
+directory and populates it with default configuration files.  You can
+change the installation directories by editing svr4/Makedefs.
 
 If your system normally has only one network interface, the default
 Solaris 2 system startup scripts will disable IP forwarding in the IP
