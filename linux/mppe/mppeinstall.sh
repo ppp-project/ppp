@@ -1,23 +1,48 @@
 #!/bin/sh
 #
-# A quickie script to install MPPE into the 2.2.19+ or 2.4.18 kernel.
+# A quickie script to install MPPE into the 2.2.19+ or 2.4.18+ kernel.
 # Does no error checking!!!
 #
 
 mppe_files="sha1.[ch] arcfour.[ch] ppp_mppe_compress.c"
 
-[ $1 ] || exit 1
-[ -d "$1" ] || exit 1
+if [ -z "$1" -o ! -d "$1" ]; then
+    echo "Usage: $0 <linux-source-dir>" >&2
+    exit 1
+fi
 
-echo -n "Is this a 2.2 kernel or 2.4 kernel: "
-read ver
+# strip any trailing /
+set -- ${1%/}
+# strip leading /path/to/linux-
+ver=`echo "${1##*/}" | sed -e 's/linux-//'` # -e 's/\/$//'
+if ! expr "$ver" : 2.[24] >/dev/null ; then
+    echo "Unable to determine kernel version ($ver)" >&2
+    exit 1
+fi
+
+# build patch files list
+patchdir=`pwd`
+patchfiles=
+if expr $ver : 2.2 >/dev/null ; then
+    patchfiles=$patchdir/linux-2.2.*.patch
+elif expr $ver : 2.4 >/dev/null ; then
+    patchfiles=`echo $patchdir/linux-2.4.18-{include,make}.patch`
+    # need to differentiate a bit
+    rel=${ver##*.}
+    if [ $rel -gt 18 ] ; then
+	patchfiles="$patchfiles $patchdir/linux-2.4.19-pad.patch"
+    else
+	patchfiles="$patchfiles $patchdir/linux-2.4.18-pad.patch"
+    fi
+fi
+
+echo "Detected kernel version $ver"
 echo "I will now patch the kernel in directory $1"
 echo -n "Press ret to continue, CTRL-C to exit: "
 read
 
-patchdir=`pwd`
 pushd "$1" >/dev/null
-for patch in $patchdir/linux-$ver.*.patch; do
+for patch in $patchfiles; do
     patch -p1 < $patch
 done
 

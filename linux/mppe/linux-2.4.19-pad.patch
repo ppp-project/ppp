@@ -1,13 +1,13 @@
---- linux-2.4.18/drivers/net/ppp_generic.c.orig	Mon May 12 01:36:31 2003
-+++ linux-2.4.18/drivers/net/ppp_generic.c	Mon May 12 03:09:13 2003
+--- linux-2.4.19/drivers/net/ppp_generic.c.orig	Mon May 12 01:36:31 2003
++++ linux-2.4.19/drivers/net/ppp_generic.c	Mon May 12 03:09:13 2003
 @@ -99,6 +99,7 @@
- 	spinlock_t	rlock;		/* lock for receive side */
- 	spinlock_t	wlock;		/* lock for transmit side */
- 	int		mru;		/* max receive unit */
+ 	spinlock_t	rlock;		/* lock for receive side 58 */
+ 	spinlock_t	wlock;		/* lock for transmit side 5c */
+ 	int		mru;		/* max receive unit 60 */
 +	int		mru_alloc;	/* MAX(1500,MRU) for dev_alloc_skb() */
- 	unsigned int	flags;		/* control bits */
- 	unsigned int	xstate;		/* transmit state bits */
- 	unsigned int	rstate;		/* receive state bits */
+ 	unsigned int	flags;		/* control bits 64 */
+ 	unsigned int	xstate;		/* transmit state bits 68 */
+ 	unsigned int	rstate;		/* receive state bits 6c */
 @@ -126,6 +127,7 @@
  	struct sock_fprog pass_filter;	/* filter for packets to pass */
  	struct sock_fprog active_filter;/* filter for pkts to reset idle */
