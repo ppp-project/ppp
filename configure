@@ -1,11 +1,13 @@
 #!/bin/sh
-# $Id: configure,v 1.21 1999/09/21 20:35:18 masputra Exp $
+# $Id: configure,v 1.22 1999/09/22 18:40:53 masputra Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
 else
   system=`uname -s`
   release=`uname -r`
+  machine=`uname -p`
+  arch=`uname -m`
 fi
 state="unknown"
 
@@ -21,15 +23,15 @@ case $system in
 		state="late"; ksrc="netbsd-1.2";;
     esac;;
   SunOS)
-    machine=`uname -p`
     case $release in
       [0-3]*)	state="ancient";;
       4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
       5.[1-6]*)	state="known"; ksrc="svr4"; makext="sol2";;
       5.[789]*)	state="known"; ksrc="svr4"; makext="sol2";
-                if [ "$machine" = sparc ]; then 
-		  lp64="y" 
-		fi;;
+              case $arch in
+		sun4u)	lp64='y';;
+		*)	;;
+	      esac;;
     esac;;
   ULTRIX)
     makext="ultrix";
