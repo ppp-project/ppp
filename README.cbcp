@@ -22,12 +22,8 @@ The ietf task group has decided to recommend that the LCP sequence be
 extended to permit the callback operation. For this reason, these
 patches are not 'part' of pppd but are an adjunct to the code.
 
-To enable CBCP support, all that is required is to change the
-appropriate Makefile in the pppd subdirectory to add "-DCBCP_SUPPORT"
-to the CFLAGS definition and add cbcp.o to the list of object files,
-and then recompile pppd.  The patch below does this for Makefile.bsd
-and Makefile.linux. You can patch the Makefiles by running
-patch -p1 < README.cbcp.
+To enable CBCP support, all that is required is to uncomment the line
+in Makefile.linux that sets CBCP=y and recompile pppd.
 
 I use such script to make a callback:
 
@@ -53,42 +49,3 @@ SERVER NAME PASSWORD
 
 You have to use your real login name, remote server name and password.
 
---------------------------------cut here-------------------------------
-diff -ur ppp-2.4.1.orig/pppd/Makefile.bsd ppp-2.4.1/pppd/Makefile.bsd
---- ppp-2.4.1.orig/pppd/Makefile.bsd	Mon Apr 12 08:24:44 1999
-+++ ppp-2.4.1/pppd/Makefile.bsd	Tue Nov 20 02:36:49 2001
-@@ -4,11 +4,11 @@
- # -D_BITYPES is for FreeBSD, which doesn't define anything to
- # tell us that u_int32_t gets defined if <sys/types.h> is included.
- # Remove for older *BSD systems for which this isn't true.
--CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES
-+CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES -DCBCP_SUPPORT
- 
- PROG=	pppd
- SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
--	demand.c auth.c options.c utils.c sys-bsd.c
-+	demand.c auth.c options.c utils.c sys-bsd.c cbcp.c
- MAN=	pppd.cat8
- MAN8=	pppd.8
- BINMODE=4555
-diff -ur ppp-2.4.1.orig/pppd/Makefile.linux ppp-2.4.1/pppd/Makefile.linux
---- ppp-2.4.1.orig/pppd/Makefile.linux	Wed May 23 05:39:50 2001
-+++ ppp-2.4.1/pppd/Makefile.linux	Tue Nov 20 02:40:56 2001
-@@ -15,7 +15,7 @@
- MANPAGES = pppd.8
- PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
- 	   auth.o options.o demand.o utils.o sys-linux.o ipxcp.o multilink.o \
--	   tdb.o tty.o
-+	   tdb.o tty.o cbcp.o
- 
- all: pppd
- 
-@@ -56,7 +56,7 @@
- 
- INCLUDE_DIRS= -I../include
- 
--COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MULTILINK -DHAVE_MMAP
-+COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MULTILINK -DHAVE_MMAP -DCBCP_SUPPORT
- 
- CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
- 
