@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.28 2002/01/22 16:02:56 dfs Exp $
+# $Id: configure,v 1.29 2002/09/07 05:15:25 carlsonj Exp $
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -20,15 +20,35 @@ case $system in
     case $release in
 #      [0-3]*)	state="ancient";;
 #      4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
-      5.[1-6]*)	state="known"; ksrc="solaris"; makext="sol2";;
-      5.[7-9]*)	state="known"; ksrc="solaris"; makext="sol2";
+      5.[7-9]*|5.[1-9][0-9])	state="known"; ksrc="solaris"; makext="sol2";
               case $arch in
-		sun4u)	lp64='y';;
+		sun4u)	archvariant='-64';;
 		*)	;;
 	      esac;;
-    esac;;
-    NetBSD|FreeBSD|ULTRIX|OSF1|NeXTStep|SINIX-?|UNIX_SV|UNIX_System_V)
-      state="notincluded";;
+      5.[1-6]*)	state="known"; ksrc="solaris"; makext="sol2";;
+    esac
+    if [ -x /opt/SUNWspro/bin/cc ] &&
+       /opt/SUNWspro/bin/cc -flags >/dev/null 2>&1; then
+      : # use Sun WorkShop compiler
+    elif gcc --version >/dev/null 2>&1; then
+      archvariant=gcc$archvariant
+      compiletype=.gcc
+      if [ "$arch" = "sun4u" ]; then
+        ( cd /tmp; touch ppp$$.c
+	  gcc -c -m64 ppp$$.c >/dev/null 2>&1 || (
+	    echo "gcc is unable to make 64 bit modules, and your $arch system needs them."
+	    echo "consider upgrading gcc on this machine, or switching to Sun WorkShop."
+	    rm -f ppp$$.c
+	    exit 1
+	  ) || exit 1
+	  rm -f ppp$$.c ppp$$.o
+        ) || exit 1
+      fi
+    else
+      echo "C compiler not found; hoping for the best."
+    fi;;
+  NetBSD|FreeBSD|ULTRIX|OSF1|NeXTStep|SINIX-?|UNIX_SV|UNIX_System_V)
+    state="notincluded";;
 #    NetBSD)
 #      makext="bsd";
 #      case $release in
@@ -111,26 +131,14 @@ case $state in
     echo "in this distribution.  Sorry.";;
 esac
 
-orig_makext=$makext
-
 if [ -d "$ksrc" ]; then
   echo "Creating links to Makefiles."
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
   echo "  Makefile -> $ksrc/Makefile.top"
-  if [ "$ksrc" = solaris ]; then
-    # Point to 64-bit Makefile extension
-    if [ "$lp64" = y ]; then 
-      makext=$makext-64 
-    fi
-    rm -f $ksrc/Makefile
-    ln -s Makefile.$makext $ksrc/Makefile
-    echo "  $ksrc/Makefile -> Makefile.$makext"
-    # Restore extension
-    if [ "$lp64" = y ]; then 
-      makext=$orig_makext 
-    fi
-  fi
+  rm -f Makedefs.com
+  ln -s $ksrc/Makedefs$compiletype Makedefs.com
+  echo "  $ksrc/Makedefs$compiletype -> Makedefs.com"
   for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe pppd/plugins/radius; do
     rm -f $dir/Makefile
     if [ -f $dir/Makefile.$makext ]; then
@@ -138,4 +146,13 @@ if [ -d "$ksrc" ]; then
       echo "  $dir/Makefile -> Makefile.$makext"
     fi
   done
+  if [ "$archvariant" ]; then
+    makext=$makext$archvariant
+    rm -f $ksrc/Makefile
+    ln -s Makefile.$makext $ksrc/Makefile
+    echo "  $ksrc/Makefile -> Makefile.$makext"
+  fi
+else
+  echo "Unable to locate kernel source $ksrc"
+  exit 1
 fi

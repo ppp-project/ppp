@@ -2,7 +2,7 @@
 # Makefile for chat on Solaris 2
 #
 
-include ../solaris/Makedefs
+include ../Makedefs.com
 
 CFLAGS = $(COPTS) -DNO_USLEEP -DSOL2
 

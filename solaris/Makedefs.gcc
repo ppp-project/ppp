@@ -8,5 +8,5 @@ BINDIR = /usr/local/bin
 MANDIR = /usr/local/man
 ETCDIR = /etc/ppp
 
-CC = /opt/SUNWspro/bin/cc
-COPTS = -O -Xa
+CC = gcc
+COPTS = -O2

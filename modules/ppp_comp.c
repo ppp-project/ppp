@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.12 1999/09/15 23:49:06 masputra Exp $
+ * $Id: ppp_comp.c,v 1.13 2002/09/07 05:15:25 carlsonj Exp $
  */
 
 /*
@@ -616,7 +616,7 @@ ppp_comp_wsrv(q)
         if (!bcanputnext(q,mp->b_band))
 #else
         if (!canputnext(q))
-#endif PRIOQ
+#endif /* PRIOQ */
 	{
 	    putbq(q, mp);
 	    break;
@@ -694,7 +694,7 @@ ppp_comp_wsrv(q)
 	    if (cmp != NULL) {
 #ifdef PRIOQ
 		cmp->b_band=mp->b_band;
-#endif PRIOQ
+#endif /* PRIOQ */
 		freemsg(mp);
 		mp = cmp;
 	    }

@@ -1,10 +1,10 @@
 #
 # Generic make definitions for Solaris 2
 #
-# $Id: Makedefs.sol2,v 1.1 2000/04/18 23:51:27 masputra Exp $
+# $Id: Makedefs.sol2,v 1.2 2002/09/07 05:15:25 carlsonj Exp $
 #
 
-include ../solaris/Makedefs
+include ../Makedefs.com
 
 CPPFLAGS	= -D_KERNEL -DSVR4 -DSOL2 -DPRIOQ -DDEBUG -I../include
 CFLAGS		= $(CPPFLAGS) $(COPTS)

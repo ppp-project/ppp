@@ -1,9 +1,9 @@
 #
 # pppdump Makefile for SVR4 systems
-# $Id: Makefile.sol2,v 1.3 2000/04/18 23:51:27 masputra Exp $
+# $Id: Makefile.sol2,v 1.4 2002/09/07 05:15:25 carlsonj Exp $
 #
 
-include ../solaris/Makedefs
+include ../Makedefs.com
 
 CFLAGS= $(COPTS) -I../include/net
 OBJS = pppdump.o bsd-comp.o deflate.o zlib.o

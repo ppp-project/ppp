@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.85 2002/07/18 15:25:04 dfs Exp $"
+#define RCSID	"$Id: options.c,v 1.86 2002/09/07 05:15:25 carlsonj Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -902,7 +902,9 @@ print_option(opt, mainopt, printer, arg)
 			void (*oprt) __P((option_t *,
 					  void ((*)__P((void *, char *, ...))),
 					  void *));
-			oprt = opt->addr2;
+			oprt = (void (*) __P((option_t *,
+					 void ((*)__P((void *, char *, ...))),
+					 void *)))opt->addr2;
 			(*oprt)(opt, printer, arg);
 		} else if (opt->flags & OPT_A2STRVAL) {
 			p = (char *) opt->addr2;

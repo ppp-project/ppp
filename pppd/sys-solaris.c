@@ -42,12 +42,13 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.7 2002/02/12 20:07:09 dfs Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.8 2002/09/07 05:15:25 carlsonj Exp $"
 
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
