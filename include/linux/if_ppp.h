@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.1 1994/12/08 01:59:58 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.2 1995/04/28 06:27:55 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -89,6 +89,13 @@ struct ifpppstatsreq {
     struct ppp_stats stats;		/* statistic information */
 };
 
+struct ppp_ddinfo {
+  unsigned long		ip_sjiffies;	/* time when last IP frame sent */
+  unsigned long		ip_rjiffies;	/* time when last IP frame recvd*/
+  unsigned long		nip_sjiffies;	/* time when last NON-IP sent	*/
+  unsigned long		nip_rjiffies;	/* time when last NON-IP recvd	*/
+};
+
 /*
  * Ioctl definitions.
  */
@@ -115,6 +122,7 @@ struct ifpppstatsreq {
 #define PPPIOCGTIME	_IOR('t', 63, struct ppp_ddinfo) /* Read time info */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
+#define SIOCGPPPCSTATS	(SIOCDEVPRIVATE + 2)
 #define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)
 
 #if !defined(ifr_mtu)
