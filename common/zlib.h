@@ -1,3 +1,12 @@
+/*	$Id: zlib.h,v 1.2 1996/04/04 02:43:58 paulus Exp $	*/
+
+/*
+ * This file is derived from zlib.h and zconf.h from the zlib-0.95
+ * distribution by Jean-loup Gailly and Mark Adler, with some additions
+ * by Paul Mackerras to aid in implementing Deflate compression and
+ * decompression for PPP packets.
+ */
+
 /* zlib.h -- interface of the 'zlib' general purpose compression library
   version 0.95, Aug 16th, 1995.
 
@@ -26,7 +35,100 @@
 #ifndef _ZLIB_H
 #define _ZLIB_H
 
-#include "zconf.h"
+/* #include "zconf.h" */	/* included directly here */
+
+/* zconf.h -- configuration of the zlib compression library
+ * Copyright (C) 1995 Jean-loup Gailly.
+ * For conditions of distribution and use, see copyright notice in zlib.h 
+ */
+
+/* From: zconf.h,v 1.12 1995/05/03 17:27:12 jloup Exp */
+
+/*
+     The library does not install any signal handler. It is recommended to
+  add at least a handler for SIGSEGV when decompressing; the library checks
+  the consistency of the input data whenever possible but may go nuts
+  for some forms of corrupted input.
+ */
+
+/*
+ * Compile with -DMAXSEG_64K if the alloc function cannot allocate more
+ * than 64k bytes at a time (needed on systems with 16-bit int).
+ * Compile with -DUNALIGNED_OK if it is OK to access shorts or ints
+ * at addresses which are not a multiple of their size.
+ * Under DOS, -DFAR=far or -DFAR=__far may be needed.
+ */
+
+#ifndef STDC
+#  if defined(MSDOS) || defined(__STDC__) || defined(__cplusplus)
+#    define STDC
+#  endif
+#endif
+
+#ifdef	__MWERKS__ /* Metrowerks CodeWarrior declares fileno() in unix.h */
+#  include <unix.h>
+#endif
+
+/* Maximum value for memLevel in deflateInit2 */
+#ifndef MAX_MEM_LEVEL
+#  ifdef MAXSEG_64K
+#    define MAX_MEM_LEVEL 8
+#  else
+#    define MAX_MEM_LEVEL 9
+#  endif
+#endif
+
+#ifndef FAR
+#  define FAR
+#endif
+
+/* Maximum value for windowBits in deflateInit2 and inflateInit2 */
+#ifndef MAX_WBITS
+#  define MAX_WBITS   15 /* 32K LZ77 window */
+#endif
+
+/* The memory requirements for deflate are (in bytes):
+            1 << (windowBits+2)   +  1 << (memLevel+9)
+ that is: 128K for windowBits=15  +  128K for memLevel = 8  (default values)
+ plus a few kilobytes for small objects. For example, if you want to reduce
+ the default memory requirements from 256K to 128K, compile with
+     make CFLAGS="-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7"
+ Of course this will generally degrade compression (there's no free lunch).
+
+   The memory requirements for inflate are (in bytes) 1 << windowBits
+ that is, 32K for windowBits=15 (default value) plus a few kilobytes
+ for small objects.
+*/
+
+                        /* Type declarations */
+
+#ifndef OF /* function prototypes */
+#  ifdef STDC
+#    define OF(args)  args
+#  else
+#    define OF(args)  ()
+#  endif
+#endif
+
+typedef unsigned char  Byte;  /* 8 bits */
+typedef unsigned int   uInt;  /* 16 bits or more */
+typedef unsigned long  uLong; /* 32 bits or more */
+
+typedef Byte FAR Bytef;
+typedef char FAR charf;
+typedef int FAR intf;
+typedef uInt FAR uIntf;
+typedef uLong FAR uLongf;
+
+#ifdef STDC
+   typedef void FAR *voidpf;
+   typedef void     *voidp;
+#else
+   typedef Byte FAR *voidpf;
+   typedef Byte     *voidp;
+#endif
+
+/* end of original zconf.h */
 
 #define ZLIB_VERSION "0.95P"
 
@@ -500,8 +602,8 @@ extern int inflateIncomp OF((z_stream *strm));
                         /* checksum functions */
 
 /*
-     These functions are not related to compression but are exported
-   anyway because they might be useful in applications using the
+     This function is not related to compression but is exported
+   anyway because it might be useful in applications using the
    compression library.
 */
 
@@ -520,22 +622,6 @@ extern uLong adler32 OF((uLong adler, Bytef *buf, uInt len));
        adler = adler32(adler, buffer, length);
      }
      if (adler != original_adler) error();
-*/
-
-extern uLong crc32   OF((uLong crc, Bytef *buf, uInt len));
-/*
-     Update a running crc with the bytes buf[0..len-1] and return the updated
-   crc. If buf is NULL, this function returns the required initial value
-   for the crc. Pre- and post-conditioning (one's complement) is performed
-   within this function so it shouldn't be done by the application.
-   Usage example:
-
-     uLong crc = crc32(0L, Z_NULL, 0);
-
-     while (read_buffer(buffer, length) != EOF) {
-       crc = crc32(crc, buffer, length);
-     }
-     if (crc != original_crc) error();
 */
 
 #ifndef _Z_UTIL_H
