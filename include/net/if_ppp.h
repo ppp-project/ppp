@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.6 1994/09/21 00:28:21 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.7 1994/10/21 06:26:15 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -39,26 +39,29 @@
 #define SC_REJ_COMP_TCP	0x00000020	/* reject TCP (VJ) comp. on input */
 #define SC_CCP_OPEN	0x00000040	/* Look at CCP packets */
 #define SC_CCP_UP	0x00000080	/* May send/recv compressed packets */
-#define SC_ENABLE_IP	0x00000100	/* IP packets may be exchanged */
-#define SC_COMP_RUN	0x00001000	/* compressor has been inited */
-#define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
 #define SC_DEBUG	0x00010000	/* enable debug messages */
 #define SC_LOG_INPKT	0x00020000	/* log contents of good pkts recvd */
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
-#define	SC_MASK		0x0fffffff	/* bits that user can change */
-
-/* state bits */
-#define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
-#define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
-#define SC_VJ_RESET	0x20000000	/* Need to reset the VJ decompressor */
 #define SC_RCV_B7_0	0x01000000	/* have rcvd char with bit 7 = 0 */
 #define SC_RCV_B7_1	0x02000000	/* have rcvd char with bit 7 = 1 */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
-#define SC_DC_ERROR	0x00400000	/* non-fatal decomp error detected */
-#define SC_DC_FERROR	0x00800000	/* fatal decomp error detected */
+#define	SC_MASK		0x0fff00ff	/* bits that user can change */
+
+/*
+ * State bits in sc_flags, not changeable by user.
+ */
+#define SC_VJ_RESET	0x00000800	/* need to reset VJ decomp */
+#define SC_COMP_RUN	0x00001000	/* compressor has been inited */
+#define SC_DECOMP_RUN	0x00002000	/* decompressor has been inited */
+#define SC_DC_ERROR	0x00004000	/* non-fatal decomp error detected */
+#define SC_DC_FERROR	0x00008000	/* fatal decomp error detected */
+#define SC_TBUSY	0x10000000	/* xmitter doesn't need a packet yet */
+#define SC_PKTLOST	0x20000000	/* have lost or dropped a packet */
+#define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
+#define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
 
 /*
  * Ioctl definitions.
