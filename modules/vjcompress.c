@@ -23,8 +23,13 @@
  * Modified June 1993 by Paul Mackerras, paulus@cs.anu.edu.au,
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
+ */
+
+/*
+ * This version is used under SunOS 4.x, DEC Alpha OSF/1, AIX 4.x,
+ * and SVR4 systems including Solaris 2.
  *
- * $Id: vjcompress.c,v 1.5 1995/05/19 03:48:34 paulus Exp $
+ * $Id: vjcompress.c,v 1.6 1995/05/29 06:33:55 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -130,19 +135,23 @@ vj_compress_init(comp, max_state)
 
 #define DECODEL(f) { \
 	if (*cp == 0) {\
-		(f) = htonl(ntohl(f) + ((cp[1] << 8) | cp[2])); \
+		u_int32_t tmp = ntohl(f) + ((cp[1] << 8) | cp[2]); \
+		(f) = htonl(tmp); \
 		cp += 3; \
 	} else { \
-		(f) = htonl(ntohl(f) + (u_int32_t)*cp++); \
+		u_int32_t tmp = ntohl(f) + (u_int32_t)*cp++; \
+		(f) = htonl(tmp); \
 	} \
 }
 
 #define DECODES(f) { \
 	if (*cp == 0) {\
-		(f) = htons(ntohs(f) + ((cp[1] << 8) | cp[2])); \
+		u_short tmp = ntohs(f) + ((cp[1] << 8) | cp[2]); \
+		(f) = htons(tmp); \
 		cp += 3; \
 	} else { \
-		(f) = htons(ntohs(f) + (u_int32_t)*cp++); \
+		u_short tmp = ntohs(f) + (u_int32_t)*cp++; \
+		(f) = htons(tmp); \
 	} \
 }
 
@@ -469,6 +478,7 @@ vj_uncompress_tcp(buf, buflen, total_len, comp, hdrp, hlenp)
     register struct cstate *cs;
     register u_short *bp;
     register u_int vjlen;
+    register u_int32_t tmp;
 
     INCR(vjs_compressedin);
     cp = buf;
@@ -503,15 +513,19 @@ vj_uncompress_tcp(buf, buflen, total_len, comp, hdrp, hlenp)
     switch (changes & SPECIALS_MASK) {
     case SPECIAL_I:
 	{
-	    register u_int i = ntohs(cs->cs_ip.ip_len) - cs->cs_hlen;
-	    th->th_ack = htonl(ntohl(th->th_ack) + i);
-	    th->th_seq = htonl(ntohl(th->th_seq) + i);
+	    register u_int32_t i = ntohs(cs->cs_ip.ip_len) - cs->cs_hlen;
+	    /* some compilers can't nest inline assembler.. */
+	    tmp = ntohl(th->th_ack) + i;
+	    th->th_ack = htonl(tmp);
+	    tmp = ntohl(th->th_seq) + i;
+	    th->th_seq = htonl(tmp);
 	}
 	break;
 
     case SPECIAL_D:
-	th->th_seq = htonl(ntohl(th->th_seq) + ntohs(cs->cs_ip.ip_len)
-			   - cs->cs_hlen);
+	/* some compilers can't nest inline assembler.. */
+	tmp = ntohl(th->th_seq) + ntohs(cs->cs_ip.ip_len) - cs->cs_hlen;
+	th->th_seq = htonl(tmp);
 	break;
 
     default:
@@ -530,8 +544,10 @@ vj_uncompress_tcp(buf, buflen, total_len, comp, hdrp, hlenp)
     }
     if (changes & NEW_I) {
 	DECODES(cs->cs_ip.ip_id);
-    } else
-	cs->cs_ip.ip_id = htons(ntohs(cs->cs_ip.ip_id) + 1);
+    } else {
+	cs->cs_ip.ip_id = ntohs(cs->cs_ip.ip_id) + 1;
+	cs->cs_ip.ip_id = htons(cs->cs_ip.ip_id);
+    }
 
     /*
      * At this point, cp points to the first byte of data in the
