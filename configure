@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.33 2004/10/31 21:31:01 paulus Exp $
+# $Id: configure,v 1.34 2004/11/01 03:54:47 paulus Exp $
 
 # Where to install stuff by default
 DESTDIR=/usr/local
@@ -178,7 +178,7 @@ if [ -d "$ksrc" ]; then
 	mkmkf $dir/Makefile.$makext $dir/Makefile
     done
     if [ "$archvariant" ]; then
-	mkmkf Makefile.$makext$archvariant $ksrc/Makefile
+	mkmkf $ksrc/Makefile.$makext$archvariant $ksrc/Makefile
     fi
 else
   echo "Unable to locate kernel source $ksrc"
