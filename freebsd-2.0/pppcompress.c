@@ -40,7 +40,7 @@
  * Van Jacobson (van@helios.ee.lbl.gov), Dec 31, 1989:
  *    - Initial distribution.
  *
- *	$Id: pppcompress.c,v 1.1 1994/12/15 22:27:17 paulus Exp $
+ *	$Id: pppcompress.c,v 1.2 1996/05/24 07:04:14 paulus Exp $
  */
   
 #include <sys/types.h>
@@ -471,9 +471,16 @@ vj_uncompress_tcp_core(buf, buflen, total_len, type, comp, hdrp, hlenp)
 		cs = &comp->rstate[comp->last_recv = ip->ip_p];
 		comp->flags &=~ SLF_TOSS;
 		ip->ip_p = IPPROTO_TCP;
-		hlen = ip->ip_hl;
-		hlen += ((struct tcphdr *)&((int *)ip)[hlen])->th_off;
-		hlen <<= 2;
+		/*
+		 * Calculate the size of the TCP/IP header and make sure that
+		 * we don't overflow the space we have available for it.
+		 */
+		hlen = ip->ip_hl << 2;
+		if (hlen + sizeof(struct tcphdr) > buflen)
+			goto bad;
+		hlen += ((struct tcphdr *)&((char *)ip)[hlen])->th_off << 2;
+		if (hlen > MAX_HDR || hlen > buflen)
+			goto bad;
 		BCOPY(ip, &cs->cs_ip, hlen);
 		cs->cs_hlen = hlen;
 		INCR(sls_uncompressedin)

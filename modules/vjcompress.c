@@ -29,7 +29,7 @@
  * This version is used under SunOS 4.x, DEC Alpha OSF/1, AIX 4.x,
  * and SVR4 systems including Solaris 2.
  *
- * $Id: vjcompress.c,v 1.7 1995/12/11 02:57:49 paulus Exp $
+ * $Id: vjcompress.c,v 1.8 1996/05/24 07:04:26 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -430,8 +430,9 @@ vj_uncompress_err(comp)
  * "Uncompress" a packet of type TYPE_UNCOMPRESSED_TCP.
  */
 int
-vj_uncompress_uncomp(buf, comp)
+vj_uncompress_uncomp(buf, buflen, comp)
     u_char *buf;
+    int buflen;
     struct vjcompress *comp;
 {
     register u_int hlen;
@@ -439,7 +440,12 @@ vj_uncompress_uncomp(buf, comp)
     register struct ip *ip;
 
     ip = (struct ip *) buf;
-    if (ip->ip_p >= MAX_STATES) {
+    hlen = getip_hl(*ip) << 2;
+    if (ip->ip_p >= MAX_STATES
+	|| hlen + sizeof(struct tcphdr) > buflen
+	|| (hlen += getth_off(*((struct tcphdr *)&((char *)ip)[hlen])) << 2)
+	    > buflen
+	|| hlen > MAX_HDR) {
 	comp->flags |= VJF_TOSS;
 	INCR(vjs_errorin);
 	return (0);
@@ -447,9 +453,6 @@ vj_uncompress_uncomp(buf, comp)
     cs = &comp->rstate[comp->last_recv = ip->ip_p];
     comp->flags &=~ VJF_TOSS;
     ip->ip_p = IPPROTO_TCP;
-    hlen = getip_hl(*ip);
-    hlen += getth_off(*((struct tcphdr *)&((int *)ip)[hlen]));
-    hlen <<= 2;
     BCOPY(ip, &cs->cs_ip, hlen);
     cs->cs_hlen = hlen;
     INCR(vjs_uncompressedin);
