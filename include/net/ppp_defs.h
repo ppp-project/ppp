@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.7 1995/08/10 06:49:35 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.8 1996/09/26 06:30:22 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -101,43 +101,43 @@ enum NPmode {
  * Statistics.
  */
 struct pppstat	{
-    u_int	ppp_ibytes;	/* bytes received */
-    u_int	ppp_ipackets;	/* packets received */
-    u_int	ppp_ierrors;	/* receive errors */
-    u_int	ppp_obytes;	/* bytes sent */
-    u_int	ppp_opackets;	/* packets sent */
-    u_int	ppp_oerrors;	/* transmit errors */
+    unsigned int ppp_ibytes;	/* bytes received */
+    unsigned int ppp_ipackets;	/* packets received */
+    unsigned int ppp_ierrors;	/* receive errors */
+    unsigned int ppp_obytes;	/* bytes sent */
+    unsigned int ppp_opackets;	/* packets sent */
+    unsigned int ppp_oerrors;	/* transmit errors */
 };
 
 struct vjstat {
-    u_int	vjs_packets;	/* outbound packets */
-    u_int	vjs_compressed;	/* outbound compressed packets */
-    u_int	vjs_searches;	/* searches for connection state */
-    u_int	vjs_misses;	/* times couldn't find conn. state */
-    u_int	vjs_uncompressedin; /* inbound uncompressed packets */
-    u_int	vjs_compressedin;   /* inbound compressed packets */
-    u_int	vjs_errorin;	/* inbound unknown type packets */
-    u_int	vjs_tossed;	/* inbound packets tossed because of error */
+    unsigned int vjs_packets;	/* outbound packets */
+    unsigned int vjs_compressed; /* outbound compressed packets */
+    unsigned int vjs_searches;	/* searches for connection state */
+    unsigned int vjs_misses;	/* times couldn't find conn. state */
+    unsigned int vjs_uncompressedin; /* inbound uncompressed packets */
+    unsigned int vjs_compressedin; /* inbound compressed packets */
+    unsigned int vjs_errorin;	/* inbound unknown type packets */
+    unsigned int vjs_tossed;	/* inbound packets tossed because of error */
 };
 
 struct ppp_stats {
-    struct pppstat	p;	/* basic PPP statistics */
-    struct vjstat	vj;	/* VJ header compression statistics */
+    struct pppstat p;		/* basic PPP statistics */
+    struct vjstat vj;		/* VJ header compression statistics */
 };
 
 struct compstat {
-    u_int	unc_bytes;	/* total uncompressed bytes */
-    u_int	unc_packets;	/* total uncompressed packets */
-    u_int	comp_bytes;	/* compressed bytes */
-    u_int	comp_packets;	/* compressed packets */
-    u_int	inc_bytes;	/* incompressible bytes */
-    u_int	inc_packets;	/* incompressible packets */
-    u_int	ratio;		/* recent compression ratio << 8 */
+    unsigned int unc_bytes;	/* total uncompressed bytes */
+    unsigned int unc_packets;	/* total uncompressed packets */
+    unsigned int comp_bytes;	/* compressed bytes */
+    unsigned int comp_packets;	/* compressed packets */
+    unsigned int inc_bytes;	/* incompressible bytes */
+    unsigned int inc_packets;	/* incompressible packets */
+    unsigned int ratio;		/* recent compression ratio << 8 */
 };
 
 struct ppp_comp_stats {
-    struct compstat	c;	/* packet compression statistics */
-    struct compstat	d;	/* packet decompression statistics */
+    struct compstat c;		/* packet compression statistics */
+    struct compstat d;		/* packet decompression statistics */
 };
 
 /*
