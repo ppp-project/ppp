@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.80 2001/03/12 22:56:12 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.81 2002/01/11 18:11:51 etbe Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1496,7 +1496,7 @@ loadplugin(argv)
 	warn("Warning: plugin %s has no version information", arg);
     } else if (strcmp(vers, VERSION) != 0) {
 	option_error("Plugin %s is for pppd version %s, this is %s",
-		     vers, VERSION);
+		     arg, vers, VERSION);
 	goto errclose;
     }
     info("Plugin %s loaded.", arg);
