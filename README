@@ -85,6 +85,8 @@ What's new in ppp-2.4.2.
 
 * ipcp-no-addresses and ipcp-no-address options
 
+* remotenumber and allow-number options
+
 * lock filename changes?
 
 
@@ -196,4 +198,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.26 2003/02/16 22:19:47 paulus Exp $)
+($Id: README,v 1.27 2003/04/30 04:55:19 fcusack Exp $)
