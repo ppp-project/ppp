@@ -26,10 +26,9 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.16 1999/03/08 04:49:12 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.17 1999/03/10 03:07:48 paulus Exp $";
 #endif
 
-#define _SOCKADDR_LEN
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -1517,7 +1516,8 @@ int have_route_to(u_int32_t addr)
 	int s, n;
 	struct rt_msghdr *rtm;
 	struct sockaddr_in *sin;
-	int msglen = sizeof(*rtm) + (sizeof(*sin)) ;
+	int msglen = sizeof(*rtm) + (sizeof(*sin));
+	char *cp;
 	char msg[2048];
 
 	rtm = (struct rt_msghdr *)buf;
