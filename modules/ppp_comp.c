@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.7 1997/03/04 03:31:51 paulus Exp $
+ * $Id: ppp_comp.c,v 1.8 1997/04/30 05:45:15 paulus Exp $
  */
 
 /*
@@ -42,6 +42,9 @@
 #include <sys/ddi.h>
 #else
 #include <sys/user.h>
+#ifdef __osf__
+#include <sys/cmn_err.h>
+#endif
 #endif /* SVR4 */
 
 #include <net/ppp_defs.h>
@@ -109,11 +112,10 @@ int ppp_comp_count;		/* number of module instances in use */
 
 static void ppp_comp_alloc __P((comp_state_t *));
 typedef struct memreq {
-    unsigned char *comp;
-    void *mem;
-    int len;
+    unsigned char comp_opts[20];
     int cmd;
-    int ret;
+    int thread_status;
+    char *returned_mem;
 } memreq_t;
 
 #endif
@@ -190,7 +192,7 @@ MOD_OPEN(ppp_comp_open)
 	WR(q)->q_ptr = q->q_ptr = (caddr_t) cp;
 	bzero((caddr_t)cp, sizeof(comp_state_t));
 	cp->mru = PPP_MRU;
-	cp->mtu = PPP_MRU;
+	cp->mtu = PPP_MTU;
 	cp->xstate = NULL;
 	cp->rstate = NULL;
 	vj_compress_init(&cp->vj_comp, -1);
@@ -220,7 +222,7 @@ MOD_CLOSE(ppp_comp_close)
 	if (!cp->thread)
 	    printf("ppp_comp_close: NULL thread!\n");
 	else
-	    thread_deallocate(cp->thread);
+	    thread_terminate(cp->thread);
 #endif
 	FREE(cp, sizeof(comp_state_t));
 	q->q_ptr = NULL;
@@ -241,12 +243,13 @@ MOD_CLOSE(ppp_comp_close)
 static void
 ppp_comp_alloc(comp_state_t *cp)
 {
-    unsigned char *opt_data;
     int len, cmd;
-    struct compressor *comp;
+    unsigned char *compressor_options;
     thread_t thread;
+    void *(*comp_allocator)();
 
-#if (MAJOR_VERSION <= 2)
+
+#if defined(MAJOR_VERSION) && (MAJOR_VERSION <= 2)
 
     /* In 2.x and earlier the argument gets passed
      * in the thread structure itself.  Yuck.
@@ -258,30 +261,29 @@ ppp_comp_alloc(comp_state_t *cp)
 #endif
 
     for (;;) {
-	assert_wait((vm_offset_t)&cp->memreq.comp, TRUE);
+	assert_wait((vm_offset_t)&cp->memreq.thread_status, TRUE);
 	thread_block();
-	opt_data = cp->memreq.comp;
-	len = cp->memreq.len;
+
+	if (thread_should_halt(current_thread()))
+	    thread_halt_self();
 	cmd = cp->memreq.cmd;
-
-        if (cmd == PPPIO_XCOMP) {
-	    comp = cp->xcomp;
-	    cp->memreq.mem = (*comp->comp_alloc)(opt_data, len);
+	compressor_options = &cp->memreq.comp_opts[0];
+	len = compressor_options[1];
+	if (cmd == PPPIO_XCOMP) {
+	    cp->memreq.returned_mem = cp->xcomp->comp_alloc(compressor_options, len);
+	    if (!cp->memreq.returned_mem) {
+		cp->memreq.thread_status = ENOSR;
+	    } else {
+		cp->memreq.thread_status = 0;
+	    }
 	} else {
-	    comp = cp->rcomp;
-	    cp->memreq.mem = (*comp->decomp_alloc)(opt_data, len);
+	    cp->memreq.returned_mem = cp->rcomp->decomp_alloc(compressor_options, len);
+	    if (!cp->memreq.returned_mem) {
+	        cp->memreq.thread_status = ENOSR;
+	    } else {
+		cp->memreq.thread_status = 0;
+	    }
 	}
-	if (!cp->memreq.mem)
-	    cp->memreq.ret = ENOSR;
-	else
-	    bcopy(opt_data, cp->memreq.mem, len);
-
-	/* have to free thunk here, since there's
-	 * no guarantee that the user will call the ioctl
-	 * again if we've taken a long time to complete
-	 */
-	FREE(opt_data, len);
-	cp->memreq.ret = 0;
     }
 }
 
@@ -388,8 +390,8 @@ ppp_comp_wput(q, mp)
 		if ((*comp)->compress_proto == opt_data[0]) {
 		    /* here's the handler! */
 		    error = 0;
+#ifndef __osf__
 		    if (iop->ioc_cmd == PPPIO_XCOMP) {
-
 			/* A previous call may have fetched memory for a compressor
 			 * that's now being retired or reset.  Free it using it's
 			 * mechanism for freeing stuff.
@@ -398,106 +400,72 @@ ppp_comp_wput(q, mp)
 			    (*cp->xcomp->comp_free)(cp->xstate);
 			    cp->xstate = NULL;
 			}
-
-#ifdef __osf__
-			/* Account for an orpahned call to get memory.
-			 * Free that memory up and go on.
-			 *
-			 * The trick is that we need to be able to tell
-			 * the difference between an old call that kicked
-			 * off a thread where the memory was subsequently
-			 * orphaned, and the memory we're really interested
-			 * in.  The thread helps by stamping the memory it
-			 * allocated with the parameters for the compressor
-			 * it belongs to.  If the parameters match then this
-			 * is the memory we want (whether it was an actual
-			 * orphan or not we don't care.)  If the parameters
-			 * don't match then this is an orphan.
-			 *
-			 * Note that cp->memreq.ret is the synchronization
-			 * point: we set it to EAGAIN in this function, then
-			 * wait for the thread to set it to something other
-			 * than EAGAIN before we fool with the data structure
-			 * again.  Basically, if ret != EAGAIN then the thread
-			 * is working and it owns the memreq struture.
-			 */
-			if (cp->memreq.ret == 0 && cp->memreq.mem != NULL &&
-			    bcmp(cp->memreq.mem, opt_data, len)) {
-			    (*cp->xcomp->comp_free)(cp->memreq.mem);
-			    cp->memreq.mem = 0;
-			}
-
-			/* First time through, prime the pump and kick
-			 * off the thread.  Subsequent times though, the thread
-			 * is either busy (ret == EAGAIN) or finsihed (mem != NULL)
-			 * || (ret != 0)
-			 */
-			if (cp->memreq.ret == 0 && cp->memreq.mem == NULL) {
-			    cp->memreq.comp = ALLOC_NOSLEEP(len);
-			    if (!cp->memreq.comp) {
-				printf("gack! can't get memory for thunk\n");
-				return ENOSR;
-			    }
-			    bcopy(opt_data, cp->memreq.comp, len);
-			    cp->memreq.len = len;
-			    cp->memreq.cmd = PPPIO_XCOMP;
-			    cp->xcomp = *comp;
-			    cp->memreq.ret = EAGAIN;
-			    thread_wakeup((vm_offset_t)&cp->memreq.comp);
-			}
-
-			/* Collect results from the thread, and reset the
-			 * mechanism for the next attempt to allocate memory
-			 * If the thread isn't finished (ret == EAGAIN) then
-			 * don't reset and just return.
-			 */
-			if ((error = cp->memreq.ret) != EAGAIN) {
-			    cp->xstate = cp->memreq.mem;
-			    cp->memreq.mem = 0;
-			    cp->memreq.ret = 0;
-			}
-#else
 			cp->xcomp = *comp;
 			cp->xstate = (*comp)->comp_alloc(opt_data, len);
 			if (cp->xstate == NULL)
 			    error = ENOSR;
-#endif
 		    } else {
 			if (cp->rstate != NULL) {
 			    (*cp->rcomp->decomp_free)(cp->rstate);
 			    cp->rstate = NULL;
 			}
-#ifdef __osf__
-			if (cp->memreq.ret == 0 && cp->memreq.mem != NULL &&
-			    bcmp(cp->memreq.mem, opt_data, len)) {
-			    (*cp->rcomp->comp_free)(cp->memreq.mem);
-			    cp->memreq.mem = 0;
-			}
-			if (cp->memreq.ret == 0 && cp->memreq.mem == NULL) {
-			    cp->memreq.comp = ALLOC_NOSLEEP(len);
-			    if (!cp->memreq.comp) {
-				printf("gack! can't get memory for thunk\n");
-				return ENOSR;
-			    }
-			    bcopy(opt_data, cp->memreq.comp, len);
-			    cp->memreq.len = len;
-			    cp->memreq.cmd = PPPIO_RCOMP;
-			    cp->rcomp = *comp;
-			    cp->memreq.ret = EAGAIN;
-			    thread_wakeup((vm_offset_t)&cp->memreq.comp);
-			}
-			if ((error = cp->memreq.ret) != EAGAIN) {
-			    cp->rstate = cp->memreq.mem;
-			    cp->memreq.mem = 0;
-			    cp->memreq.ret = 0;
-			}
-#else
 			cp->rcomp = *comp;
 			cp->rstate = (*comp)->decomp_alloc(opt_data, len);
 			if (cp->rstate == NULL)
 			    error = ENOSR;
-#endif
 		    }
+#else
+		    if ((error = cp->memreq.thread_status) != EAGAIN)
+		    if (iop->ioc_cmd == PPPIO_XCOMP) {
+			if (cp->xstate) {
+			    (*cp->xcomp->comp_free)(cp->xstate);
+			    cp->xstate = 0;
+			}
+			/* sanity check for compressor options
+			 */
+			if (sizeof (cp->memreq.comp_opts) < len) {
+			    printf("can't handle options for compressor %d (%d)\n", opt_data[0],
+				opt_data[1]);
+			    cp->memreq.thread_status = ENOSR;
+			    cp->memreq.returned_mem = 0;
+			}
+			/* fill in request for the thread and kick it off
+			 */
+			if (cp->memreq.thread_status == 0 && !cp->memreq.returned_mem) {
+			    bcopy(opt_data, cp->memreq.comp_opts, len);
+			    cp->memreq.cmd = PPPIO_XCOMP;
+			    cp->xcomp = *comp;
+			    error = cp->memreq.thread_status = EAGAIN;
+			    thread_wakeup((vm_offset_t)&cp->memreq.thread_status);
+			} else {
+			    cp->xstate = cp->memreq.returned_mem;
+			    cp->memreq.returned_mem = 0;
+			    cp->memreq.thread_status = 0;
+			}
+		    } else {
+			if (cp->rstate) {
+			    (*cp->rcomp->decomp_free)(cp->rstate);
+			    cp->rstate = NULL;
+			}
+			if (sizeof (cp->memreq.comp_opts) < len) {
+			    printf("can't handle options for compressor %d (%d)\n", opt_data[0],
+				opt_data[1]);
+			    cp->memreq.thread_status = ENOSR;
+			    cp->memreq.returned_mem = 0;
+			}
+			if (cp->memreq.thread_status == 0 && !cp->memreq.returned_mem) {
+			    bcopy(opt_data, cp->memreq.comp_opts, len);
+			    cp->memreq.cmd = PPPIO_RCOMP;
+			    cp->rcomp = *comp;
+			    error = cp->memreq.thread_status = EAGAIN;
+			    thread_wakeup((vm_offset_t)&cp->memreq.thread_status);
+			} else {
+			    cp->rstate = cp->memreq.returned_mem;
+			    cp->memreq.returned_mem = 0;
+			    cp->memreq.thread_status = 0;
+			}
+		    }
+#endif
 		    break;
 		}
 	    iop->ioc_count = 0;
