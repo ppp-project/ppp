@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.4 1994/10/21 06:27:31 paulus Exp $
+ * $Id: ppp-comp.h,v 1.5 1994/12/05 00:33:33 paulus Exp $
  */
 
 /*
@@ -54,7 +54,7 @@ struct compressor {
 	void	(*decomp_free) __P((void *state));
 	/* Initialize a decompressor */
 	int	(*decomp_init) __P((void *state, u_char *options, int opt_len,
-				    int unit, int mru, int debug));
+				    int unit, int hdrlen, int mru, int debug));
 	/* Reset a decompressor */
 	void	(*decomp_reset) __P((void *state));
 	/* Decompress a packet. */
