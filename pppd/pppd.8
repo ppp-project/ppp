@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.5 1994/05/24 11:27:08 paulus Exp $
+.\" $Id: pppd.8,v 1.6 1994/05/30 06:13:46 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -638,6 +638,10 @@ read before user default options or command-line options.
 .TP
 .B ~/.ppprc
 User default options, read before command-line options.
+.TP
+.B /etc/ppp/options.\fIttyname
+System default options for the serial port being used, read after
+command-line options.
 .SH SEE ALSO
 .TP
 .B RFC1144
