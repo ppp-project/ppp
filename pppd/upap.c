@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.21 1999/09/11 12:09:00 paulus Exp $"
+#define RCSID	"$Id: upap.c,v 1.22 1999/11/15 01:51:53 paulus Exp $"
 
 /*
  * TODO:
@@ -372,7 +372,7 @@ upap_rauthreq(u, inp, id, len)
     /*
      * Parse user/passwd.
      */
-    if (len < sizeof (u_char)) {
+    if (len < 1) {
 	UPAPDEBUG(("pap_rauth: rcvd short packet."));
 	return;
     }
@@ -435,7 +435,7 @@ upap_rauthack(u, inp, id, len)
     /*
      * Parse message.
      */
-    if (len < sizeof (u_char)) {
+    if (len < 1) {
 	UPAPDEBUG(("pap_rauthack: ignoring missing msg-length."));
     } else {
 	GETCHAR(msglen, inp);
@@ -475,7 +475,7 @@ upap_rauthnak(u, inp, id, len)
     /*
      * Parse message.
      */
-    if (len < sizeof (u_char)) {
+    if (len < 1) {
 	UPAPDEBUG(("pap_rauthnak: ignoring missing msg-length."));
     } else {
 	GETCHAR(msglen, inp);

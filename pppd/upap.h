@@ -16,13 +16,13 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: upap.h,v 1.6 1996/07/01 01:21:45 paulus Exp $
+ * $Id: upap.h,v 1.7 1999/11/15 01:51:54 paulus Exp $
  */
 
 /*
  * Packet header = Code, id, length.
  */
-#define UPAP_HEADERLEN	(sizeof (u_char) + sizeof (u_char) + sizeof (u_short))
+#define UPAP_HEADERLEN	4
 
 
 /*

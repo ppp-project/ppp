@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.50 1999/08/24 05:31:09 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.51 1999/11/15 01:51:51 paulus Exp $"
 
 /*
  * TODO:
@@ -264,7 +264,7 @@ setdnsaddr(argv)
     struct hostent *hp;
 
     dns = inet_addr(*argv);
-    if (dns == -1) {
+    if (dns == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
 	    option_error("invalid address parameter '%s' for ms-dns option",
 			 *argv);
@@ -296,7 +296,7 @@ setwinsaddr(argv)
     struct hostent *hp;
 
     wins = inet_addr(*argv);
-    if (wins == -1) {
+    if (wins == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
 	    option_error("invalid address parameter '%s' for ms-wins option",
 			 *argv);

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.45 1999/09/11 12:08:56 paulus Exp $";
+#define RCSID	"$Id: lcp.c,v 1.46 1999/11/15 01:51:51 paulus Exp $";
 
 /*
  * TODO:
@@ -118,9 +118,9 @@ lcp_options lcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 lcp_options lcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
 
-static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
-static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
-static u_int32_t lcp_echo_timer_running = 0;  /* set if a timer is running */
+static int lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
+static int lcp_echo_number   = 0;	/* ID number of next echo frame */
+static int lcp_echo_timer_running = 0;  /* set if a timer is running */
 
 static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
 
@@ -457,7 +457,7 @@ lcp_rprotrej(f, inp, len)
     struct protent *protp;
     u_short prot;
 
-    if (len < sizeof (u_short)) {
+    if (len < 2) {
 	LCPDEBUG(("lcp_rprotrej: Rcvd short Protocol-Reject packet!"));
 	return;
     }
@@ -1852,7 +1852,9 @@ LcpEchoTimeout (arg)
 static void
 lcp_received_echo_reply (f, id, inp, len)
     fsm *f;
-    int id; u_char *inp; int len;
+    int id;
+    u_char *inp;
+    int len;
 {
     u_int32_t magic;
 

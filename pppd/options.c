@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.66 1999/09/11 12:08:58 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.67 1999/11/15 01:51:52 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1413,7 +1413,7 @@ setipaddr(arg)
      */
     if (colon != arg) {
 	*colon = '\0';
-	if ((local = inet_addr(arg)) == -1) {
+	if ((local = inet_addr(arg)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(arg)) == NULL) {
 		option_error("unknown host: %s", arg);
 		return -1;
@@ -1434,7 +1434,7 @@ setipaddr(arg)
      * If colon last character, then no remote addr.
      */
     if (*++colon != '\0') {
-	if ((remote = inet_addr(colon)) == -1) {
+	if ((remote = inet_addr(colon)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(colon)) == NULL) {
 		option_error("unknown host: %s", colon);
 		return -1;
@@ -1478,7 +1478,7 @@ setnetmask(argv)
 	b = strtoul(p, &endp, 0);
 	if (endp == p)
 	    break;
-	if (b < 0 || b > 255) {
+	if (b > 255) {
 	    if (n == 3) {
 		/* accept e.g. 0xffffff00 */
 		p = endp;
