@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.67 2003/05/09 11:49:46 carlsonj Exp $"
+#define RCSID	"$Id: lcp.c,v 1.68 2003/06/11 23:50:53 paulus Exp $"
 
 /*
  * TODO:
@@ -1030,6 +1030,10 @@ lcp_nakci(f, p, len)
     }
 
     /*
+     * NOTE!  There must be no assignments to individual fields of *go in
+     * the code below.  Any such assignment is a BUG!
+     */
+    /*
      * We don't care if they want to send us smaller packets than
      * we want.  Therefore, accept any MRU less than what we asked for,
      * but then ignore the new value when setting the MRU in the kernel.
@@ -1089,7 +1093,7 @@ lcp_nakci(f, p, len)
 		try.neg_eap = 0;
 		/* Try to set up to use their suggestion, if possible */
 		if (CHAP_CANDIGEST(go->chap_mdtype, cichar))
-		    go->chap_mdtype = CHAP_MDTYPE_D(cichar);
+		    try.chap_mdtype = CHAP_MDTYPE_D(cichar);
 	    } else if (go->neg_chap) {
 		/*
 		 * We were asking for our preferred algorithm, they must
@@ -1098,7 +1102,7 @@ lcp_nakci(f, p, len)
 		if (cichar != CHAP_DIGEST(go->chap_mdtype)) {
 		    if (CHAP_CANDIGEST(go->chap_mdtype, cichar)) {
 			/* Use their suggestion if we support it ... */
-			go->chap_mdtype = CHAP_MDTYPE_D(cichar);
+			try.chap_mdtype = CHAP_MDTYPE_D(cichar);
 		    } else {
 			/* ... otherwise, try our next-preferred algorithm. */
 			try.chap_mdtype &= ~(CHAP_MDTYPE(try.chap_mdtype));
