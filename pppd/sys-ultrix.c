@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.3 1994/05/24 11:26:21 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.4 1994/05/25 06:30:49 paulus Exp $";
 #endif
 
 /*
@@ -27,11 +27,14 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.3 1994/05/24 11:26:21 paulus Exp $"
  */
 
 #include <syslog.h>
+#include <utmp.h>
 #include <sys/types.h>
+#include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/errno.h>
+#include <sys/stat.h>
 
 #include <net/if.h>
 
