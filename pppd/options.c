@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.68 1999/11/15 03:55:37 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.69 1999/12/23 01:28:52 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -78,8 +78,8 @@ bool	lockflag = 0;		/* Create lock file to lock the serial dev */
 bool	nodetach = 0;		/* Don't detach from controlling tty */
 bool	updetach = 0;		/* Detach once link is up */
 char	*initializer = NULL;	/* Script to initialize physical link */
-char	*connector = NULL;	/* Script to establish physical link */
-char	*disconnector = NULL;	/* Script to disestablish physical link */
+char	*connect_script = NULL;	/* Script to establish physical link */
+char	*disconnect_script = NULL; /* Script to disestablish physical link */
 char	*welcomer = NULL;	/* Script to run after phys link estab. */
 char	*ptycommand = NULL;	/* Command to run on other side of pty */
 int	maxconnect = 0;		/* Maximum connect time */
@@ -100,14 +100,15 @@ int	log_to_fd = 1;		/* send log messages to this fd too */
 int	maxfail = 10;		/* max # of unsuccessful connection attempts */
 char	linkname[MAXPATHLEN];	/* logical name for link */
 bool	tune_kernel;		/* may alter kernel settings */
+int	connect_delay = 1000;	/* wait this many ms after connect script */
 
 extern option_t auth_options[];
 extern struct stat devstat;
 extern int prepass;		/* Doing pre-pass to find device name */
 
 struct option_info initializer_info;
-struct option_info connector_info;
-struct option_info disconnector_info;
+struct option_info connect_script_info;
+struct option_info disconnect_script_info;
 struct option_info welcomer_info;
 struct option_info devnam_info;
 struct option_info ptycommand_info;
@@ -190,12 +191,12 @@ option_t general_options[] = {
     { "init", o_string, &initializer,
       "A program to initialize the device",
       OPT_A2INFO | OPT_PRIVFIX, &initializer_info },
-    { "connect", o_string, &connector,
+    { "connect", o_string, &connect_script,
       "A program to set up a connection",
-      OPT_A2INFO | OPT_PRIVFIX, &connector_info },
-    { "disconnect", o_string, &disconnector,
+      OPT_A2INFO | OPT_PRIVFIX, &connect_script_info },
+    { "disconnect", o_string, &disconnect_script,
       "Program to disconnect serial device",
-      OPT_A2INFO | OPT_PRIVFIX, &disconnector_info },
+      OPT_A2INFO | OPT_PRIVFIX, &disconnect_script_info },
     { "welcome", o_string, &welcomer,
       "Script to welcome client",
       OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
@@ -267,6 +268,8 @@ option_t general_options[] = {
       "Alter kernel settings as necessary", 1 },
     { "noktune", o_bool, &tune_kernel,
       "Don't alter kernel settings", 0 },
+    { "connect-delay", o_int, &connect_delay,
+      "Maximum time (in ms) to wait after connect script finishes" },
 #ifdef PLUGIN
     { "plugin", o_special, loadplugin,
       "Load a plug-in module into pppd", OPT_PRIV },
