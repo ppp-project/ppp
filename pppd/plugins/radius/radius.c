@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.10 2002/07/13 06:24:36 kad Exp $";
+"$Id: radius.c,v 1.11 2002/07/15 11:04:18 kad Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -511,7 +511,7 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 		break;
 	    case PW_OCTETS_DIRECTION:
 		/* Session traffic limit direction check */
-		maxoctets_dir = vp->lvalue & 3;
+		maxoctets_dir = ( vp->lvalue > 4 ) 0 : vp->lvalue ;
 		break;
 #endif		
 	    case PW_FRAMED_IP_ADDRESS:

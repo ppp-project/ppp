@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.69 2002/07/13 06:24:36 kad Exp $
+ * $Id: pppd.h,v 1.70 2002/07/15 11:04:18 kad Exp $
  */
 
 /*
@@ -295,10 +295,12 @@ extern int       maxoctets_dir;      /* Direction :
 				      2 - out
 				      3 - max(in,out) */
 extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
-#define PPP_OCTETS_DIRECTION_SUM 0
-#define PPP_OCTETS_DIRECTION_IN  1
-#define PPP_OCTETS_DIRECTION_OUT 2
-#define PPP_OCTETS_DIRECTION_MAX 3
+#define PPP_OCTETS_DIRECTION_SUM 	0
+#define PPP_OCTETS_DIRECTION_IN  	1
+#define PPP_OCTETS_DIRECTION_OUT 	2
+#define PPP_OCTETS_DIRECTION_MAX 	3
+/* same as previos, but little different on RADIUS side */
+#define PPP_OCTETS_DIRECTION_MAX2 	4	
 #endif
 
 #ifdef PPP_FILTER
