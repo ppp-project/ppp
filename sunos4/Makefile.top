@@ -26,9 +26,7 @@ install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets
 
 $(ETCDIR)/options:
-	if netstat -rn | grep default >/dev/null; then \
-	  $(INSTALL) -c -m 644 etc.ppp/options $@; \
-	else $(INSTALL) -c -m 644 etc.ppp/options.leaf $@; fi
+	$(INSTALL) -c -m 644 etc.ppp/options $@
 $(ETCDIR)/pap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/pap-secrets $@
 $(ETCDIR)/chap-secrets:
