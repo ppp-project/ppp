@@ -29,13 +29,13 @@
  * This version is used under SunOS 4.x, DEC Alpha OSF/1, AIX 4.x,
  * and SVR4 systems including Solaris 2.
  *
- * $Id: vjcompress.c,v 1.6 1995/05/29 06:33:55 paulus Exp $
+ * $Id: vjcompress.c,v 1.7 1995/12/11 02:57:49 paulus Exp $
  */
 
 #include <sys/types.h>
 #include <sys/param.h>
 
-#ifdef __svr4__
+#ifdef SVR4
 #ifndef __GNUC__
 #include <sys/byteorder.h>	/* for ntohl, etc. */
 #else
@@ -44,12 +44,12 @@
 #endif
 #endif
 
-#ifdef __osf__
+#ifdef OSF1
 #include <net/net_globals.h>
 #endif
 #include <netinet/in.h>
 
-#ifdef __aix4__
+#ifdef AIX4
 #define _NETINET_IN_SYSTM_H_
 typedef u_long  n_long;
 #else
@@ -75,7 +75,7 @@ typedef u_long  n_long;
 #define ovbcopy bcopy
 #endif
 
-#ifdef __osf__
+#ifdef OSF1
 #define getip_hl(base)	(((base).ip_vhl)&0xf)
 #define getth_off(base)	((((base).th_xoff)&0xf0)>>4)
 

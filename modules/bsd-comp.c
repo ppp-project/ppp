@@ -41,10 +41,10 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.16 1995/10/27 03:35:49 paulus Exp $
+ * $Id: bsd-comp.c,v 1.17 1995/12/11 02:57:48 paulus Exp $
  */
 
-#if defined(aix4) || defined(__aix4__)
+#ifdef AIX4
 #include <net/net_globals.h>
 #endif
 #include <sys/param.h>
@@ -54,36 +54,19 @@
 #include <net/if.h>
 #include <net/ppp_defs.h>
 #include <net/ppp_str.h>
+#include "ppp_mod.h"
 
-#if defined(svr4) || defined(__svr4__)		/* SVR4, including SunOS 5.x */
-# include <sys/kmem.h>
-# define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
-# define FREE(p, n)	kmem_free((p), (n))
-#else				/* SunOS 4.x */
-# if defined(sun) || defined(__sun__)
-#  include <sys/kmem_alloc.h>
-#  define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
-#  define FREE(p, n)	kmem_free((p), (n))
-# endif
-#endif
-
-#if defined(osf) || defined(__osf__)
-#include <kern/kalloc.h>
-#ifdef FIRST
-#undef FIRST
-#undef LAST
-#endif
-#ifdef FREE
-#undef FREE
-#endif
-#define ALLOCATE(n)	kalloc((n))
-#define FREE(p, n)	kfree((p), (n))
+#ifdef SVR4
+#include <sys/byteorder.h>
+#ifndef _BIG_ENDIAN
 #define BSD_LITTLE_ENDIAN
 #endif
+#endif
 
-#if defined(aix4) || defined(__aix4__)
-#define ALLOCATE(n)	xmalloc((n), 0, pinned_heap)
-#define FREE(p, n)	xmfree((p), pinned_heap)
+#ifdef OSF1
+#undef FIRST
+#undef LAST
+#define BSD_LITTLE_ENDIAN
 #endif
 
 #define PACKETPTR	mblk_t *
@@ -377,7 +360,7 @@ bsd_alloc(options, opt_len, decomp)
 
     maxmaxcode = MAXCODE(bits);
     newlen = sizeof(*db) + (hsize-1) * (sizeof(db->dict[0]));
-    db = (struct bsd_db *) ALLOCATE(newlen);
+    db = (struct bsd_db *) ALLOC_NOSLEEP(newlen);
     if (!db)
 	return NULL;
     bzero(db, sizeof(*db) - sizeof(db->dict));
@@ -385,7 +368,7 @@ bsd_alloc(options, opt_len, decomp)
     if (!decomp) {
 	db->lens = NULL;
     } else {
-	db->lens = (u_short *) ALLOCATE((maxmaxcode+1) * sizeof(db->lens[0]));
+	db->lens = (u_short *) ALLOC_NOSLEEP((maxmaxcode+1) * sizeof(db->lens[0]));
 	if (!db->lens) {
 	    FREE(db, newlen);
 	    return NULL;
