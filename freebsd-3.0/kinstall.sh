@@ -7,7 +7,10 @@
 # Most of the kernel files are already part of the kernel source
 # but, this updates them for synchronous HDLC operation
 #
-# Paul Fulghum		19-Apr-99
+# Paul Fulghum paulkf@microgate.com		August 11, 1999
+#
+# 990911 - Added patch for ttycom.h that defines new IOCTL for sync support.
+# 
 
 KPATH=$(uname -v | sed 's/.*://')
 CONF=$(echo $KPATH | sed 's;.*compile/;;')
@@ -42,8 +45,56 @@ for f in if_ppp.h if_ppp.c ppp_tty.c ; do
   fi
 done
 
+# Patch files in /usr/src/sys/sys
+
+for f in ttycom.h ; do
+  dest=$SYS/sys/$f
+  patch=$SRC/patch.$f
+  if [ -f $dest ]; then
+     echo -n "Patching $dest..."
+     if patch -s -C -N $dest < $patch 2> /dev/null; then
+	patch -s -N $dest < $patch
+        echo "successful."
+        DOMAKE=yes
+     else
+        if patch -s -C -R $dest < $patch 2> /dev/null; then
+           echo "already applied."
+        else
+           echo "failed (incorrect version or already applied)."
+        fi
+     fi
+  else
+    echo "Warning, file $dest not found"
+  fi
+done
+
+# Patch files in /usr/include/net
+
 for f in if_ppp.h ; do
   dest=/usr/include/net/$f
+  patch=$SRC/patch.$f
+  if [ -f $dest ]; then
+     echo -n "Patching $dest..."
+     if patch -s -C -N $dest < $patch 2> /dev/null; then
+	patch -s -N $dest < $patch
+        echo "successful."
+        DOMAKE=yes
+     else
+        if patch -s -C -R $dest < $patch 2> /dev/null; then
+           echo "already applied."
+        else
+           echo "failed (incorrect version or already applied)."
+        fi
+     fi
+  else
+    echo "Warning, file $dest not found"
+  fi
+done
+
+# Patch files in /usr/include/sys
+
+for f in ttycom.h ; do
+  dest=/usr/include/sys/$f
   patch=$SRC/patch.$f
   if [ -f $dest ]; then
      echo -n "Patching $dest..."
