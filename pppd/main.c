@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.61 1999/03/16 22:54:42 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.62 1999/03/19 01:26:41 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -88,7 +88,7 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
-int log_to_stderr;		/* send log messages to stderr too */
+int log_to_fd;			/* send log messages to this fd too */
 
 static int fd_ppp;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
@@ -120,6 +120,7 @@ int ngroups;			/* How many groups valid in groups */
 static void create_pidfile __P((void));
 static void cleanup __P((void));
 static void close_tty __P((void));
+static void hangup_modem __P((int));
 static void get_input __P((void));
 static void calltimeout __P((void));
 static struct timeval *timeleft __P((struct timeval *));
@@ -131,11 +132,13 @@ static void toggle_debug __P((int));
 static void open_ccp __P((int));
 static void bad_signal __P((int));
 static void holdoff_end __P((void *));
-static int device_script __P((char *, int, int));
+static int device_script __P((char *, int));
 static void reap_kids __P((void));
 static void pr_log __P((void *, char *, ...));
 static void logit __P((int, char *, va_list));
 static void vslp_printer __P((void *, char *, ...));
+static void format_packet __P((u_char *, int, void (*) (void *, char *, ...),
+			       void *));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -191,8 +194,8 @@ main(argc, argv)
     phase = PHASE_INITIALIZE;
     p = ttyname(0);
     if (p)
-	strlcpy(devnam, sizeof(devnam), p);
-    strlcpy(default_devnam, sizeof(default_devnam), devnam);
+	strlcpy(devnam, p, sizeof(devnam));
+    strlcpy(default_devnam, devnam, sizeof(default_devnam));
 
     script_env = NULL;
 
@@ -275,7 +278,7 @@ main(argc, argv)
 	default_device = 1;
     if (default_device)
 	nodetach = 1;
-    log_to_stderr = !default_device;
+    log_to_fd = !default_device? 1: -1;	/* default to stdout */
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -511,7 +514,7 @@ main(argc, argv)
 	     */
 	    set_up_tty(ttyfd, 1);
 
-	    if (device_script(connector, ttyfd, ttyfd) < 0) {
+	    if (device_script(connector, ttyfd) < 0) {
 		error("Connect script failed");
 		goto fail;
 	    }
@@ -538,7 +541,7 @@ main(argc, argv)
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
-	    if (device_script(welcomer, ttyfd, ttyfd) < 0)
+	    if (device_script(welcomer, ttyfd) < 0)
 		warn("Welcome script failed");
 	}
 
@@ -576,11 +579,11 @@ main(argc, argv)
 	    }
 	    waiting = 0;
 	    calltimeout();
+	    get_input();
 	    if (kill_link) {
 		lcp_close(0, "User request");
 		kill_link = 0;
 	    }
-	    get_input();
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
@@ -608,7 +611,7 @@ main(argc, argv)
 	 */
 	if (disconnector && !hungup) {
 	    set_up_tty(ttyfd, 1);
-	    if (device_script(disconnector, ttyfd, ttyfd) < 0) {
+	    if (device_script(disconnector, ttyfd) < 0) {
 		warn("disconnect script failed");
 	    } else {
 		info("Serial link disconnected.");
@@ -686,7 +689,7 @@ detach()
 	die(1);
     }
     detached = 1;
-    log_to_stderr = 0;
+    log_to_fd = -1;
     pid = getpid();
     /* update pid file if it has been written already */
     if (pidfilename[0])
@@ -804,16 +807,7 @@ get_input()
 
 
 /*
- * quit - Clean up state and exit (with an error indication).
- */
-void 
-quit()
-{
-    die(1);
-}
-
-/*
- * die - like quit, except we can specify an exit status.
+ * die - clean up state and exit with the specified status.
  */
 void
 die(status)
@@ -878,7 +872,8 @@ close_tty()
 /*
  * hangup_modem - hang up the modem by clearing DTR.
  */
-void hangup_modem(ttyfd)
+static void
+hangup_modem(ttyfd)
     int ttyfd;
 {
     setdtr(ttyfd, 0);
@@ -1140,9 +1135,9 @@ bad_signal(sig)
  * serial device.
  */
 static int
-device_script(program, in, out)
+device_script(program, inout)
     char *program;
-    int in, out;
+    int inout;
 {
     int pid;
     int status;
@@ -1159,25 +1154,16 @@ device_script(program, in, out)
     if (pid == 0) {
 	sys_close();
 	closelog();
-	if (in == out) {
-	    if (in != 0) {
-		dup2(in, 0);
-		close(in);
-	    }
-	    dup2(0, 1);
-	} else {
-	    if (out == 0)
-		out = dup(out);
-	    if (in != 0) {
-		dup2(in, 0);
-		close(in);
-	    }
-	    if (out != 1) {
-		dup2(out, 1);
-		close(out);
-	    }
+	if (inout == 2) {
+	    /* aargh!!! */
+	    int newio = dup(inout);
+	    close(inout);
+	    inout = newio;
 	}
-	if (!nodetach && !updetach) {
+	if (log_to_fd >= 0) {
+	    if (log_to_fd != 2)
+		dup2(log_to_fd, 2);
+	} else {
 	    close(2);
 	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
 	    if (errfd >= 0 && errfd != 2) {
@@ -1185,6 +1171,11 @@ device_script(program, in, out)
 		close(errfd);
 	    }
 	}
+	if (inout != 0) {
+	    dup2(inout, 0);
+	    close(inout);
+	}
+	dup2(0, 1);
 	setuid(uid);
 	if (getuid() != uid) {
 	    error("setuid failed");
@@ -1371,7 +1362,7 @@ log_packet(p, len, prefix, level)
     char *prefix;
     int level;
 {
-    strlcpy(line, sizeof(line), prefix);
+    strlcpy(line, prefix, sizeof(line));
     linep = line + strlen(line);
     format_packet(p, len, pr_log, NULL);
     if (linep != line)
@@ -1382,7 +1373,7 @@ log_packet(p, len, prefix, level)
  * format_packet - make a readable representation of a packet,
  * calling `printer(arg, format, ...)' to output it.
  */
-void
+static void
 format_packet(p, len, printer, arg)
     u_char *p;
     int len;
@@ -1452,7 +1443,7 @@ pr_log __V((void *arg, char *fmt, ...))
 	syslog(LOG_DEBUG, "%s", line);
 	linep = line;
     }
-    strlcpy(linep, line + sizeof(line) - linep, buf);
+    strlcpy(linep, buf, line + sizeof(line) - linep);
     linep += n;
 }
 
@@ -1891,33 +1882,32 @@ script_unsetenv(var)
  * strlcpy - like strcpy/strncpy, doesn't overflow destination buffer,
  * always leaves destination null-terminated (for len > 0).
  */
-void
-strlcpy(char *dest, size_t len, const char *src)
+size_t
+strlcpy(char *dest, const char *src, size_t len)
 {
-    if (len == 0)
-	return;
-    if (strlen(src) < len)
-	strcpy(dest, src);
-    else {
-	strncpy(dest, src, len - 1);
-	dest[len-1] = 0;
+    size_t ret = strlen(src);
+
+    if (len != 0) {
+	if (ret < len)
+	    strcpy(dest, src);
+	else {
+	    strncpy(dest, src, len - 1);
+	    dest[len-1] = 0;
+	}
     }
+    return ret;
 }
 
 /*
  * strlcat - like strcat/strncat, doesn't overflow destination buffer,
  * always leaves destination null-terminated (for len > 0).
  */
-void
-strlcat(char *dest, size_t len, const char *src)
+size_t
+strlcat(char *dest, const char *src, size_t len)
 {
-    size_t dlen;
+    size_t dlen = strlen(dest);
 
-    if (len == 0)
-	return;
-    dlen = strlen(dest);
-    if (dlen < len - 1)
-	strlcpy(dest + dlen, len - dlen, src);
+    return dlen + strlcpy(dest + dlen, src, (len > dlen? len - dlen: 0));
 }
 
 /*
@@ -1931,14 +1921,14 @@ logit(level, fmt, args)
 {
     int n;
     char buf[256];
-    static char nl = '\n';
 
     n = vslprintf(buf, sizeof(buf), fmt, args);
     syslog(level, "%s", buf);
-    if (log_to_stderr && (level != LOG_DEBUG || debug)) {
-	if (write(2, buf, n) != n
-	    || (buf[n-1] != '\n' && write(2, &nl, 1) != 1))
-	    log_to_stderr = 0;
+    if (log_to_fd >= 0 && (level != LOG_DEBUG || debug)) {
+	if (buf[n-1] != '\n')
+	    buf[n++] = '\n';
+	if (write(log_to_fd, buf, n) != n)
+	    log_to_fd = -1;
     }
 }
 
