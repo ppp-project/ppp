@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.12 1997/07/14 03:51:15 paulus Exp $
+ * $Id: ppp.c,v 1.13 1997/11/27 06:05:36 paulus Exp $
  */
 
 /*
@@ -1859,7 +1859,7 @@ ip_hard_filter(us, mp, outbound)
     switch (proto)
     {
     case PPP_IP:
-	if ((mp->b_wptr - mp->b_rptr) == PPP_HDRLEN) {
+	if ((mp->b_wptr - mp->b_rptr) == PPP_HDRLEN && mp->b_cont != 0) {
 	    temp_mp = mp->b_cont;
     	    len = msgdsize(temp_mp);
 	    hlen = (len < MAX_IPHDR) ? len : MAX_IPHDR;
