@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.53 2000/04/24 07:41:09 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.54 2000/04/27 03:51:18 masputra Exp $"
 
 /*
  * TODO:
@@ -566,8 +566,10 @@ lcp_resetci(f)
 	go->neg_ssnhf = 0;
 	go->neg_endpoint = 0;
     }
+#ifdef HAVE_MULTILINK
     if (noendpoint)
 	ao->neg_endpoint = 0;
+#endif /* HAVE_MULTILINK */
     peer_mru[f->unit] = PPP_MRU;
     auth_reset(f->unit);
 }
