@@ -4,9 +4,9 @@
 
 INSTALL= /usr/sbin/install
 
-BINDIR = /usr/local/bin
-MANDIR = /usr/local/man
-ETCDIR = /etc/ppp
+BINDIR = @DESTDIR@/bin
+MANDIR = @DESTDIR@/man
+ETCDIR = @SYSCONF@/ppp
 
 CC = gcc
 COPTS = -O2
