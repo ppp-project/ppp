@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.23 1999/09/30 19:54:44 masputra Exp $
+ * $Id: ppp.c,v 1.24 1999/10/06 23:00:43 masputra Exp $
  */
 
 /*
@@ -89,9 +89,17 @@
 #define ETHERTYPE_IP	0x800
 #endif
 
-#if !defined(ETHERTYPE_IP6) && defined(SOL2)
-#define ETHERTYPE_IP6	0x86dd
-#endif /* !defined(ETHERTYPE_IP6) && defined(SOL2) */
+#if !defined(ETHERTYPE_IPV6) 
+#define ETHERTYPE_IPV6	0x86dd
+#endif /* !defined(ETHERTYPE_IPV6) */
+
+#if !defined(ETHERTYPE_ALLSAP) && defined(SOL2)
+#define ETHERTYPE_ALLSAP   0
+#endif /* !defined(ETHERTYPE_ALLSAP) && defined(SOL2) */
+
+#if !defined(PPP_ALLSAP) && defined(SOL2)
+#define PPP_ALLSAP  PPP_ALLSTATIONS
+#endif /* !defined(PPP_ALLSAP) && defined(SOL2) */
 
 extern time_t time;
 
@@ -198,6 +206,12 @@ typedef struct upperstr {
 #define US_DBGLOG	0x10	/* log various occurrences */
 #define US_RBLOCKED	0x20	/* flow ctrl has blocked upper read stream */
 
+#if defined(SOL2)
+#if DL_CURRENT_VERSION >= 2
+#define US_PROMISC	0x40	/* stream is promiscuous */
+#endif /* DL_CURRENT_VERSION >= 2 */
+#define US_RAWDATA	0x80	/* raw M_DATA, no DLPI header */
+#endif /* defined(SOL2) */
 
 #ifdef PRIOQ
 static u_char max_band=0;
@@ -257,6 +271,12 @@ static void detach_ppa __P((queue_t *, mblk_t *));
 static void detach_lower __P((queue_t *, mblk_t *));
 static void debug_dump __P((queue_t *, mblk_t *));
 static upperstr_t *find_dest __P((upperstr_t *, int));
+#if defined(SOL2)
+static upperstr_t *find_promisc __P((upperstr_t *, int));
+static mblk_t *prepend_ether __P((upperstr_t *, mblk_t *, int));
+static mblk_t *prepend_udind __P((upperstr_t *, mblk_t *, int));
+static void promisc_sendup __P((upperstr_t *, mblk_t *, int, int));
+#endif /* defined(SOL2) */
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
 static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
@@ -630,6 +650,12 @@ pppuwput(q, mp)
 	    DPRINT3("ppp/%d: ioctl %x count=%d\n",
 		    us->mn, iop->ioc_cmd, iop->ioc_count);
 	switch (iop->ioc_cmd) {
+#if defined(SOL2)
+	case DLIOCRAW:	    /* raw M_DATA mode */
+	    us->flags |= US_RAWDATA;
+	    error = 0;
+	    break;
+#endif /* defined(SOL2) */
 	case I_LINK:
 	    if ((us->flags & US_CONTROL) == 0 || us->lowerq != 0)
 		break;
@@ -1079,7 +1105,7 @@ dlpi_request(q, mp, us)
 	info->dl_max_sdu = us->ppa? us->ppa->mtu: PPP_MAXMTU;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(uint);
-	info->dl_mac_type = DL_OTHER;	/* a bigger lie */
+	info->dl_mac_type = DL_ETHER;	/* a bigger lie */
 	info->dl_current_state = us->state;
 	info->dl_service_mode = DL_CLDLS;
 	info->dl_provider_style = DL_STYLE2;
@@ -1141,11 +1167,15 @@ dlpi_request(q, mp, us)
 #if defined(SOL2)
 	if (us->flags & US_DBGLOG)
 	    DPRINT2("DL_BIND_REQ: ip gives sap = 0x%x, us = 0x%x", sap, us);
-	if (sap == ETHERTYPE_IP)
+
+	if (sap == ETHERTYPE_IP)	    /* normal IFF_IPV4 */
 	    sap = PPP_IP;
-	else if (sap == ETHERTYPE_IP6)
+	else if (sap == ETHERTYPE_IPV6)	    /* when IFF_IPV6 is set */
 	    sap = PPP_IPV6;
+	else if (sap == ETHERTYPE_ALLSAP)   /* snoop gives sap of 0 */
+	    sap = PPP_ALLSAP;
 	else {
+	    DPRINT2("DL_BIND_REQ: unrecognized sap = 0x%x, us = 0x%x", sap, us);
 	    dlpi_error(q, us, DL_BIND_REQ, DL_BADADDR, 0);
 	    break;
 	}
@@ -1216,6 +1246,16 @@ dlpi_request(q, mp, us)
 	    DPRINT2("dlpi data too large (%d > %d)\n", len, ppa->mtu);
 	    break;
 	}
+
+#if defined(SOL2)
+	/*
+	 * Should there be any promiscuous stream(s), send the data
+	 * up for each promiscuous stream that we recognize.
+	 */
+	if (mp->b_cont)
+	    promisc_sendup(ppa, mp->b_cont, us->sap, 0);
+#endif /* defined(SOL2) */
+
 	mp->b_band = 0;
 #ifdef PRIOQ
         /* Extract s_port & d_port from IP-packet, the code is a bit
@@ -1325,7 +1365,26 @@ dlpi_request(q, mp, us)
 	reply->b_wptr += ETHERADDRL;
 	qreply(q, reply);
 	break;
-#endif
+
+#if defined(SOL2)
+    case DL_PROMISCON_REQ:
+	if (size < sizeof(dl_promiscon_req_t))
+	    goto badprim;
+	us->flags |= US_PROMISC;
+	dlpi_ok(q, DL_PROMISCON_REQ);
+	break;
+
+    case DL_PROMISCOFF_REQ:
+	if (size < sizeof(dl_promiscoff_req_t))
+	    goto badprim;
+	us->flags &= ~US_PROMISC;
+	dlpi_ok(q, DL_PROMISCOFF_REQ);
+	break;
+#else
+    case DL_PROMISCON_REQ:	    /* fall thru */
+    case DL_PROMISCOFF_REQ:	    /* fall thru */
+#endif /* defined(SOL2) */
+#endif /* DL_CURRENT_VERSION >= 2 */
 
 #if DL_CURRENT_VERSION >= 2
     case DL_SET_PHYS_ADDR_REQ:
@@ -1333,8 +1392,6 @@ dlpi_request(q, mp, us)
     case DL_SUBS_UNBIND_REQ:
     case DL_ENABMULTI_REQ:
     case DL_DISABMULTI_REQ:
-    case DL_PROMISCON_REQ:
-    case DL_PROMISCOFF_REQ:
     case DL_XID_REQ:
     case DL_TEST_REQ:
     case DL_REPLY_UPDATE_REQ:
@@ -1825,6 +1882,15 @@ pppurput(q, mp)
 	    MT_EXIT(&ppa->stats_lock);
 
 	    proto = PPP_PROTOCOL(mp->b_rptr);
+
+#if defined(SOL2)
+	    /*
+	     * Should there be any promiscuous stream(s), send the data
+	     * up for each promiscuous stream that we recognize.
+	     */
+	    promisc_sendup(ppa, mp, proto, 1);
+#endif /* defined(SOL2) */
+
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
 		/*
 		 * A data packet for some network protocol.
@@ -1997,6 +2063,148 @@ find_dest(ppa, proto)
 	    break;
     return us;
 }
+
+#if defined (SOL2)
+/*
+ * Test upstream promiscuous conditions. As of now, only pass IPv4 and
+ * Ipv6 packets upstream (let PPP packets be decoded elsewhere).
+ */
+static upperstr_t *
+find_promisc(us, proto)
+    upperstr_t *us;
+    int proto;
+{
+
+    if ((proto != PPP_IP) && (proto != PPP_IPV6))
+	return (upperstr_t *)0;
+
+    for ( ; us; us = us->next) {
+	if ((us->flags & US_PROMISC) && (us->state == DL_IDLE))
+	    return us;
+    }
+
+    return (upperstr_t *)0;
+}
+
+/*
+ * Prepend an empty Ethernet header to msg for snoop, et al.
+ */
+static mblk_t *
+prepend_ether(us, mp, proto)
+    upperstr_t *us;
+    mblk_t *mp;
+    int proto;
+{
+    mblk_t *eh;
+    int type;
+
+    if ((eh = allocb(sizeof(struct ether_header), BPRI_HI)) == 0) {
+	freemsg(mp);
+	return (mblk_t *)0;
+    }
+
+    if (proto == PPP_IP)
+	type = ETHERTYPE_IP;
+    else if (proto == PPP_IPV6)
+	type = ETHERTYPE_IPV6;
+    else 
+	type = proto;	    /* What else? Let decoder decide */
+
+    eh->b_wptr += sizeof(struct ether_header);
+    bzero((caddr_t)eh->b_rptr, sizeof(struct ether_header));
+    ((struct ether_header *)eh->b_rptr)->ether_type = htons((short)type);
+    eh->b_cont = mp;
+    return (eh);
+}
+
+/*
+ * Prepend DL_UNITDATA_IND mblk to msg
+ */
+static mblk_t *
+prepend_udind(us, mp, proto)
+    upperstr_t *us;
+    mblk_t *mp;
+    int proto;
+{
+    dl_unitdata_ind_t *dlu;
+    mblk_t *dh;
+    size_t size;
+
+    size = sizeof(dl_unitdata_ind_t);
+    if ((dh = allocb(size, BPRI_MED)) == 0) {
+	freemsg(mp);
+	return (mblk_t *)0;
+    }
+
+    dh->b_datap->db_type = M_PROTO;
+    dh->b_wptr = dh->b_datap->db_lim;
+    dh->b_rptr = dh->b_wptr - size;
+
+    dlu = (dl_unitdata_ind_t *)dh->b_rptr;
+    dlu->dl_primitive = DL_UNITDATA_IND;
+    dlu->dl_dest_addr_length = 0;
+    dlu->dl_dest_addr_offset = sizeof(dl_unitdata_ind_t);
+    dlu->dl_src_addr_length = 0;
+    dlu->dl_src_addr_offset = sizeof(dl_unitdata_ind_t);
+    dlu->dl_group_address = 0;
+
+    dh->b_cont = mp;
+    return (dh);
+}
+
+/*
+ * For any recognized promiscuous streams, send data upstream
+ */
+static void
+promisc_sendup(ppa, mp, proto, skip)
+    upperstr_t *ppa;
+    mblk_t *mp;
+    int proto, skip;
+{
+    mblk_t *dup_mp, *dup_dup_mp;
+    upperstr_t *prus, *nprus;
+
+    if ((prus = find_promisc(ppa, proto)) != 0) {
+	if (dup_mp = dupmsg(mp)) {
+
+	    if (skip)
+		dup_mp->b_rptr += PPP_HDRLEN;
+
+	    for ( ; nprus = find_promisc(prus->next, proto); 
+		    prus = nprus) {
+
+		if (dup_dup_mp = dupmsg(dup_mp)) {
+		    if (canputnext(prus->q)) {
+			if (prus->flags & US_RAWDATA) {
+			    dup_dup_mp = prepend_ether(prus, dup_dup_mp, proto);
+			    putnext(prus->q, dup_dup_mp);
+			} else {
+			    dup_dup_mp = prepend_udind(prus, dup_dup_mp, proto);
+			    putnext(prus->q, dup_dup_mp);
+			}
+		    } else {
+			DPRINT("ppp_urput: data to promisc q dropped\n");
+			freemsg(dup_dup_mp);
+		    }
+		}
+	    }
+
+	    if (canputnext(prus->q)) {
+		if (prus->flags & US_RAWDATA) {
+		    dup_mp = prepend_ether(prus, dup_mp, proto);
+		    putnext(prus->q, dup_mp);
+		} else {
+		    dup_mp = prepend_udind(prus, dup_mp, proto);
+		    putnext(prus->q, dup_mp);
+		}
+	    } else {
+		DPRINT("ppp_urput: data to promisc q dropped\n");
+		freemsg(dup_mp);
+	    }
+	}
+    }
+}
+#endif /* defined(SOL2) */
 
 /*
  * We simply put the message on to the associated upper control stream
