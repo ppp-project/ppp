@@ -1,5 +1,5 @@
 /*
- * $Id: avpair.c,v 1.1 2002/01/22 16:03:02 dfs Exp $
+ * $Id: avpair.c,v 1.2 2002/10/01 08:35:21 fcusack Exp $
  *
  * Copyright (C) 1995 Lars Fenneberg
  *
@@ -365,9 +365,9 @@ VALUE_PAIR *rc_avpair_get (VALUE_PAIR *vp, UINT4 attr)
  * Function: rc_avpair_insert
  *
  * Purpose: Given the address of an existing list "a" and a pointer
- *	    to an entry "p" in that list, add the value pair "b" to
+ *	    to an entry "p" in that list, add the list "b" to
  *	    the "a" list after the "p" entry.  If "p" is NULL, add
- *	    the value pair "b" to the end of "a".
+ *	    the list "b" to the end of "a".
  *
  */
 
@@ -375,12 +375,6 @@ void rc_avpair_insert (VALUE_PAIR **a, VALUE_PAIR *p, VALUE_PAIR *b)
 {
 	VALUE_PAIR     *this_node = NULL;
 	VALUE_PAIR     *vp;
-
-	if (b->next != (VALUE_PAIR *) NULL)
-	{
-		rc_log(LOG_CRIT, "rc_avpair_insert: value pair (0x%p) next ptr. (0x%p) not NULL", b, b->next);
-		abort ();
-	}
 
 	if (*a == (VALUE_PAIR *) NULL)
 	{
@@ -398,7 +392,7 @@ void rc_avpair_insert (VALUE_PAIR **a, VALUE_PAIR *p, VALUE_PAIR *b)
 			vp = vp->next;
 		}
 	}
-	else /* look for the "p" entry in the "a" list */
+	else /* look for the "p" entry in the "a" list (or run to end) */
 	{
 		this_node = *a;
 		while (this_node != (VALUE_PAIR *) NULL)
@@ -411,8 +405,14 @@ void rc_avpair_insert (VALUE_PAIR **a, VALUE_PAIR *p, VALUE_PAIR *b)
 		}
 	}
 
-	b->next = this_node->next;
+	/* add "b" at this_node */
+	vp = this_node->next;
 	this_node->next = b;
+
+	/* run to end of "b" and connect the rest of "a" */
+	while (b->next)
+		b = b->next;
+	b->next = vp;
 
 	return;
 }
@@ -563,6 +563,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 			strcpy (pair->name, attr->name);
 			pair->attribute = attr->value;
 			pair->type = attr->type;
+			pair->vendorcode = attr->vendorcode;
 
 			switch (pair->type)
 			{
