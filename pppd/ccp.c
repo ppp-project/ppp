@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.37 2002/06/24 12:57:15 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.38 2002/07/10 20:04:35 kad Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -512,9 +512,10 @@ ccp_protrej(unit)
     fsm_lowerdown(&ccp_fsm[unit]);
 
 #ifdef MPPE
-    if (ccp_gotoptions[unit].mppe)
+    if (ccp_gotoptions[unit].mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(unit, "MPPE required but peer negotiation failed");
+    }
 #endif
 
 }
