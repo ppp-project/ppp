@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.7 1996/04/04 02:46:59 paulus Exp $
+ * $Id: pppio.h,v 1.8 1996/08/28 06:36:51 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -95,3 +95,5 @@
 #define PPPDBG_LOG	0x100		/* log various things */
 #define PPPDBG_DRIVER	0		/* identifies ppp driver as target */
 #define PPPDBG_IF	1		/* identifies ppp network i/f target */
+#define PPPDBG_COMP	2		/* identifies ppp compression target */
+#define PPPDBG_AHDLC	3		/* identifies ppp async hdlc target */
