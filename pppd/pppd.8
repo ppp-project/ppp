@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.77 2004/04/27 18:22:58 fcusack Exp $
+.\" $Id: pppd.8,v 1.78 2004/11/04 09:57:42 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -266,8 +266,16 @@ Set the maximum number of CHAP challenge transmissions to \fIn\fR
 Set the CHAP restart interval (retransmission timeout for challenges)
 to \fIn\fR seconds (default 3).
 .TP
+.B child-timeout \fIn
+When exiting, wait for up to \fIn\fR seconds for any child processes
+(such as the command specified with the \fBpty\fR command) to exit
+before exiting.  At the end of the timeout, pppd will send a SIGTERM
+signal to any remaining child processes and exit.  A value of 0 means
+no timeout, that is, pppd will wait until all child processes have
+exited.
+.TP
 .B connect-delay \fIn
-Wait for up \fIn\fR milliseconds after the connect script finishes for
+Wait for up to \fIn\fR milliseconds after the connect script finishes for
 a valid PPP packet from the peer.  At the end of this time, or when a
 valid PPP packet is received from the peer, pppd will commence
 negotiation by sending its first LCP packet.  The default value is
