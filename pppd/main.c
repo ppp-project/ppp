@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.142 2004/11/04 10:05:23 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.143 2004/11/06 05:42:29 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -873,12 +873,8 @@ detach()
 void
 reopen_log()
 {
-#ifdef ULTRIX
-    openlog("pppd", LOG_PID);
-#else
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
-#endif
 }
 
 /*
@@ -1521,34 +1517,83 @@ bad_signal(sig)
  * safe_fork - Create a child process.  The child closes all the
  * file descriptors that we don't want to leak to a script.
  * The parent waits for the child to do this before returning.
+ * This also arranges for the specified fds to be dup'd to
+ * fds 0, 1, 2 in the child.
  */
 pid_t
-safe_fork()
+safe_fork(int infd, int outfd, int errfd)
 {
 	pid_t pid;
-	int pipefd[2];
+	int fd, pipefd[2];
 	char buf[1];
+
+	/* make sure fds 0, 1, 2 are occupied (probably not necessary) */
+	while ((fd = dup(fd_devnull)) >= 0) {
+		if (fd > 2) {
+			close(fd);
+			break;
+		}
+	}
 
 	if (pipe(pipefd) == -1)
 		pipefd[0] = pipefd[1] = -1;
 	pid = fork();
-	if (pid < 0)
+	if (pid < 0) {
+		error("fork failed: %m");
 		return -1;
+	}
 	if (pid > 0) {
+		/* parent */
 		close(pipefd[1]);
 		/* this read() blocks until the close(pipefd[1]) below */
 		complete_read(pipefd[0], buf, 1);
 		close(pipefd[0]);
 		return pid;
 	}
+
+	/* Executing in the child */
 	sys_close();
 #ifdef USE_TDB
 	tdb_close(pppdb);
 #endif
+
+	/* make sure infd, outfd and errfd won't get tromped on below */
+	if (infd == 1 || infd == 2)
+		infd = dup(infd);
+	if (outfd == 0 || outfd == 2)
+		outfd = dup(outfd);
+	if (errfd == 0 || errfd == 1)
+		errfd = dup(errfd);
+
+	/* dup the in, out, err fds to 0, 1, 2 */
+	if (infd != 0)
+		dup2(infd, 0);
+	if (outfd != 1)
+		dup2(outfd, 1);
+	if (errfd != 2)
+		dup2(errfd, 2);
+
+	closelog();
+	if (log_to_fd > 2)
+		close(log_to_fd);
+	if (the_channel->close)
+		(*the_channel->close)();
+	else
+		close(devfd);	/* some plugins don't have a close function */
+	close(fd_ppp);
+	close(fd_devnull);
+	if (infd != 0)
+		close(infd);
+	if (outfd != 1)
+		close(outfd);
+	if (errfd != 2)
+		close(errfd);
+
 	notify(fork_notifier, 0);
 	close(pipefd[0]);
 	/* this close unblocks the read() call above in the parent */
 	close(pipefd[1]);
+
 	return 0;
 }
 
@@ -1566,10 +1611,17 @@ device_script(program, in, out, dont_wait)
     int pid;
     int status = -1;
     int errfd;
-    int fd;
+
+    if (log_to_fd >= 0)
+	errfd = log_to_fd;
+    else
+	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
 
     ++conn_running;
-    pid = safe_fork();
+    pid = safe_fork(in, out, errfd);
+
+    if (pid != 0 && log_to_fd < 0)
+	close(errfd);
 
     if (pid < 0) {
 	--conn_running;
@@ -1594,59 +1646,14 @@ device_script(program, in, out, dont_wait)
 
     /* here we are executing in the child */
 
-    /* make sure fds 0, 1, 2 are occupied */
-    while ((fd = dup(in)) >= 0) {
-        if (fd > 2) {
-	    close(fd);
-	    break;
-	}
-    }
-
-    /* dup in and out to fds > 2 */
-    {
-	int fd1 = in, fd2 = out, fd3 = log_to_fd;
-
-	in = dup(in);
-	out = dup(out);
-	if (log_to_fd >= 0) {
-	    errfd = dup(log_to_fd);
-	} else {
-	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
-	}
-	close(fd1);
-	close(fd2);
-	close(fd3);
-    }
-
-    /* close fds 0 - 2 and any others we can think of */
-    close(0);
-    close(1);
-    close(2);
-    if (the_channel->close)
-	(*the_channel->close)();
-    else
-	close(devfd);	/* some plugins don't have a close function */
-    closelog();
-    close(fd_devnull);
-
-    /* dup the in, out, err fds to 0, 1, 2 */
-    dup2(in, 0);
-    close(in);
-    dup2(out, 1);
-    close(out);
-    if (errfd >= 0) {
-	dup2(errfd, 2);
-	close(errfd);
-    }
-
+    setgid(getgid());
     setuid(uid);
     if (getuid() != uid) {
-	error("setuid failed");
+	fprintf(stderr, "pppd: setuid failed\n");
 	exit(1);
     }
-    setgid(getgid());
     execl("/bin/sh", "sh", "-c", program, (char *)0);
-    error("could not exec /bin/sh: %m");
+    perror("pppd: could not exec /bin/sh");
     exit(99);
     /* NOTREACHED */
 }
@@ -1687,7 +1694,7 @@ run_program(prog, args, must_exist, done, arg)
 	return 0;
     }
 
-    pid = safe_fork();
+    pid = safe_fork(fd_devnull, fd_devnull, fd_devnull);
     if (pid == -1) {
 	error("Failed to create child process for %s: %m", prog);
 	return -1;
@@ -1706,24 +1713,11 @@ run_program(prog, args, must_exist, done, arg)
     setuid(0);		/* set real UID = root */
     setgid(getegid());
 
-    /* Ensure that nothing of our device environment is inherited. */
-    closelog();
-    if (the_channel->close)
-	(*the_channel->close)();
-
-    /* Don't pass handles to the PPP device, even by accident. */
-    dup2(fd_devnull, 0);
-    dup2(fd_devnull, 1);
-    dup2(fd_devnull, 2);
-    close(fd_devnull);
-
 #ifdef BSD
     /* Force the priority back to zero if pppd is running higher. */
     if (setpriority (PRIO_PROCESS, 0, 0) < 0)
 	warn("can't reset priority to 0: %m");
 #endif
-
-    /* SysV recommends a second fork at this point. */
 
     /* run the program */
     execve(prog, args, script_env);

@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.85 2004/11/04 09:46:50 paulus Exp $
+ * $Id: pppd.h,v 1.86 2004/11/06 05:42:29 paulus Exp $
  */
 
 /*
@@ -243,6 +243,7 @@ extern int	error_count;	/* # of times error() has been called */
 extern char	ppp_devnam[MAXPATHLEN];
 extern char     remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
 extern int      ppp_session_number; /* Session number (eg PPPoE session) */
+extern int	fd_devnull;	/* fd open to /dev/null */
 
 extern int	listen_time;	/* time to listen first (ms) */
 extern struct notifier *pidchange;   /* for notifications of pid changing */
@@ -465,7 +466,7 @@ void timeout __P((void (*func)(void *), void *arg, int s, int us));
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
 void record_child __P((int, char *, void (*) (void *), void *));
-pid_t safe_fork __P((void));	/* Fork & close stuff in child */
+pid_t safe_fork __P((int, int, int));	/* Fork & close stuff in child */
 int  device_script __P((char *cmd, int in, int out, int dont_wait));
 				/* Run `cmd' with given stdin and stdout */
 pid_t run_program __P((char *prog, char **args, int must_exist,

@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.18 2004/11/04 10:02:26 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.19 2004/11/06 05:42:29 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -535,7 +535,7 @@ int connect_tty()
 	status = EXIT_LOCK_FAILED;
 	if (lockflag && !privopen) {
 		if (lock(devnam) < 0)
-			return -1;
+			goto errret;
 		locked = 1;
 	}
 
@@ -558,11 +558,11 @@ int connect_tty()
 			prio = privopen? OPRIO_ROOT: tty_options[0].priority;
 			if (prio < OPRIO_ROOT)
 				seteuid(uid);
-			ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
+			real_ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
 			err = errno;
 			if (prio < OPRIO_ROOT)
 				seteuid(0);
-			if (ttyfd >= 0)
+			if (real_ttyfd >= 0)
 				break;
 			errno = err;
 			if (err != EINTR) {
@@ -570,9 +570,9 @@ int connect_tty()
 				status = EXIT_OPEN_FAILED;
 			}
 			if (!persist || err != EINTR)
-				return -1;
+				goto errret;
 		}
-		real_ttyfd = ttyfd;
+		ttyfd = real_ttyfd;
 		if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
 		    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
 			warn("Couldn't reset non-blocking mode on device: %m");
@@ -629,30 +629,32 @@ int connect_tty()
 			close(opipe[0]);
 			close(opipe[1]);
 			if (!ok)
-				return -1;
+				goto errret;
 		} else {
 			if (device_script(ptycommand, pty_master, pty_master, 1) < 0)
-				return -1;
-			ttyfd = pty_slave;
-			close(pty_master);
-			pty_master = -1;
+				goto errret;
 		}
 	} else if (pty_socket != NULL) {
 		int fd = open_socket(pty_socket);
 		if (fd < 0)
-			return -1;
+			goto errret;
 		if (!start_charshunt(fd, fd))
-			return -1;
+			goto errret;
+		close(fd);
 	} else if (notty) {
 		if (!start_charshunt(0, 1))
-			return -1;
+			goto errret;
 	} else if (record_file != NULL) {
-		if (!start_charshunt(ttyfd, ttyfd))
-			return -1;
+		int fd = dup(ttyfd);
+		if (!start_charshunt(fd, fd))
+			goto errret;
 	}
 
-	if (using_pty || record_file != NULL)
+	if (using_pty || record_file != NULL) {
 		ttyfd = pty_slave;
+		close(pty_master);
+		pty_master = -1;
+	}
 
 	/* run connection script */
 	if ((connector && connector[0]) || initializer) {
@@ -669,11 +671,11 @@ int connect_tty()
 			if (device_script(initializer, ttyfd, ttyfd, 0) < 0) {
 				error("Initializer script failed");
 				status = EXIT_INIT_FAILED;
-				return -1;
+				goto errret;
 			}
 			if (kill_link) {
 				disconnect_tty();
-				return -1;
+				goto errret;
 			}
 			info("Serial port initialized.");
 		}
@@ -682,11 +684,11 @@ int connect_tty()
 			if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
 				error("Connect script failed");
 				status = EXIT_CONNECT_FAILED;
-				return -1;
+				goto errret;
 			}
 			if (kill_link) {
 				disconnect_tty();
-				return -1;
+				goto errret;
 			}
 			info("Serial connection established.");
 		}
@@ -711,7 +713,7 @@ int connect_tty()
 				status = EXIT_OPEN_FAILED;
 			}
 			if (!persist || errno != EINTR || hungup || kill_link)
-				return -1;
+				goto errret;
 		}
 		close(i);
 	}
@@ -734,6 +736,22 @@ int connect_tty()
 		listen_time = connect_delay;
 
 	return ttyfd;
+
+ errret:
+	if (pty_master >= 0) {
+		close(pty_master);
+		pty_master = -1;
+	}
+	if (pty_slave >= 0) {
+		close(pty_slave);
+		pty_slave = -1;
+	}
+	if (real_ttyfd >= 0) {
+		close(real_ttyfd);
+		real_ttyfd = -1;
+	}
+	ttyfd = -1;
+	return -1;
 }
 
 
@@ -752,8 +770,6 @@ void disconnect_tty()
 
 void tty_close_fds()
 {
-	if (pty_master >= 0)
-		close(pty_master);
 	if (pty_slave >= 0)
 		close(pty_slave);
 	if (real_ttyfd >= 0) {
@@ -893,27 +909,27 @@ start_charshunt(ifd, ofd)
 {
     int cpid;
 
-    cpid = safe_fork();
+    cpid = safe_fork(ifd, ofd, (log_to_fd >= 0? log_to_fd: 2));
     if (cpid == -1) {
 	error("Can't fork process for character shunt: %m");
 	return 0;
     }
     if (cpid == 0) {
 	/* child */
-	close(pty_slave);
+	reopen_log();
+	if (!nodetach)
+	    log_to_fd = -1;
+	else if (log_to_fd >= 0)
+	    log_to_fd = 2;
+	setgid(getgid());
 	setuid(uid);
 	if (getuid() != uid)
 	    fatal("setuid failed");
-	setgid(getgid());
-	if (!nodetach)
-	    log_to_fd = -1;
-	charshunt(ifd, ofd, record_file);
+	charshunt(0, 1, record_file);
 	exit(0);
     }
     charshunt_pid = cpid;
     add_notifier(&sigreceived, stop_charshunt, 0);
-    close(pty_master);
-    pty_master = -1;
     record_child(cpid, "pppd (charshunt)", charshunt_done, NULL);
     return 1;
 }
@@ -1110,9 +1126,6 @@ charshunt(ifd, ofd, record_file)
 	    } else if (nibuf == 0) {
 		/* end of file from stdin */
 		stdin_readable = 0;
-		/* do a 0-length write, hopefully this will generate
-		   an EOF (hangup) on the slave side. */
-		write(pty_master, inpacket_buf, 0);
 		if (recordf)
 		    if (!record_write(recordf, 4, NULL, 0, &lasttime))
 			recordf = NULL;
@@ -1149,7 +1162,8 @@ charshunt(ifd, ofd, record_file)
 		    if (!record_write(recordf, 1, obufp, nobuf, &lasttime))
 			recordf = NULL;
 	    }
-	}
+	} else if (!stdin_readable)
+	    pty_readable = 0;
 	if (FD_ISSET(ofd, &writey)) {
 	    n = nobuf;
 	    if (olevel + n > max_level)
