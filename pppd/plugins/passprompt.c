@@ -30,7 +30,7 @@ static int promptpass(char *user, char *passwd)
     int p[2];
     pid_t kid;
     int readgood, wstat;
-    size_t red;
+    ssize_t red;
 
     if (promptprog[0] == 0 || access(promptprog, X_OK) < 0)
 	return -1;	/* sorry, can't help */
