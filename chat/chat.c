@@ -87,7 +87,7 @@
 #endif
 
 #ifndef lint
-static const char rcsid[] = "$Id: chat.c,v 1.27 2002/01/11 18:05:44 etbe Exp $";
+static const char rcsid[] = "$Id: chat.c,v 1.28 2003/02/26 10:18:10 fcusack Exp $";
 #endif
 
 #include <stdio.h>
@@ -1092,8 +1092,8 @@ register char *s;
 	    fatal(2, "Too many REPORT strings");
 	
 	s1 = clean(s, 0);
-	
-	if (strlen(s1) > strlen(s) || strlen(s1) > sizeof fail_buffer - 1)
+	if (strlen(s1) > strlen(s)
+	    || strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long REPORT string ('%v')", s);
 	
 	report_string[n_reports++] = s1;
@@ -1113,7 +1113,8 @@ register char *s;
 	
 	s1 = clean(s, 0);
 	
-	if (strlen(s1) > strlen(s) || strlen(s1) > sizeof fail_buffer - 1)
+	if (strlen(s1) > strlen(s)
+	    || strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long REPORT string ('%v')", s);
 
 	old_max = n_reports;
