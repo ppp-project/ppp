@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.1 1995/12/11 05:06:43 paulus Exp $
+ * $Id: ppp_comp.c,v 1.2 1996/01/18 03:18:07 paulus Exp $
  */
 
 /*
@@ -120,10 +120,14 @@ typedef struct comp_state {
  */
 
 extern struct compressor ppp_bsd_compress;
+extern struct compressor ppp_deflate;
 
 struct compressor *ppp_compressors[] = {
 #if DO_BSD_COMPRESS
     &ppp_bsd_compress,
+#endif
+#if DO_DEFLATE
+    &ppp_deflate,
 #endif
     NULL
 };
