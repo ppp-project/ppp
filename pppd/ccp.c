@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.43 2002/12/24 00:34:13 fcusack Exp $"
+#define RCSID	"$Id: ccp.c,v 1.44 2003/03/05 23:01:28 fcusack Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -918,7 +918,7 @@ ccp_nakci(f, p, len)
 	MPPE_CI_TO_OPTS(&p[2], try.mppe);
 	if ((try.mppe & MPPE_OPT_STATEFUL) && refuse_mppe_stateful)
 	    try.mppe = 0;
-	else if ((go->mppe & try.mppe) != try.mppe)
+	else if (((go->mppe | MPPE_OPT_STATEFUL) & try.mppe) != try.mppe)
 	    /* Peer must have set options we didn't request (suggest) */
 	    try.mppe = 0;
 
@@ -1124,17 +1124,15 @@ ccp_reqci(f, p, lenp, dont_nak)
 
 		/* Check state opt */
 		if (ho->mppe & MPPE_OPT_STATEFUL) {
+		    /*
+		     * We can Nak and request stateless, but it's a
+		     * lot easier to just assume the peer will request
+		     * it if he can do it; stateful mode is bad over
+		     * the Internet -- which is where we expect MPPE.
+		     */
 		   if (refuse_mppe_stateful) {
-			/*
-			 * We can Nak and request stateless, but it's a
-			 * lot easier to just assume the peer will request
-			 * it if he can do it; stateful mode is bad over
-			 * the Internet -- which is where we expect MPPE.
-			 */
 			newret = CONFREJ;
 			break;
-		    } else {
-			newret = CONFNAK;
 		    }
 		}
 
