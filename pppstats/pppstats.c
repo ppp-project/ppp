@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.21 1998/03/25 03:01:10 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.22 1998/03/31 23:48:03 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -55,7 +55,13 @@ static char rcsid[] = "$Id: pppstats.c,v 1.21 1998/03/25 03:01:10 paulus Exp $";
 #include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 #else
+/* Linux */
+#if __GLIBC__ >= 2
+#include <net/if.h>
+#else
 #include <linux/if.h>
+#endif
+#include <linux/types.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
 #endif /* _linux_ */
