@@ -88,6 +88,10 @@ What's new in ppp-2.4.3.
 * Various fixes and enhancements to the radius and rp-pppoe plugins
   have been added.
 
+* There is a new winbind plugin, from Andrew Bartlet of the Samba
+  team, which provides the ability to authenticate the peer against an
+  NT domain controller using MS-CHAP or MS-CHAPV2.
+
 
 What was new in ppp-2.4.2.
 **************************
@@ -241,4 +245,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.31 2004/11/04 11:58:14 paulus Exp $)
+($Id: README,v 1.32 2004/11/06 05:59:42 paulus Exp $)
