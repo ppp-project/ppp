@@ -1,13 +1,17 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.svr4,v 1.7 1996/05/28 00:54:23 paulus Exp $
+# $Id: Makefile.svr4,v 1.8 1996/08/28 06:38:18 paulus Exp $
 #
 
 BINDIR = /usr/local/bin
 MANDIR = /usr/local/man
 
-CC = gcc
-COPTS = -g -O2
+COPTS = -g -O -Xa -w
+
+# If you want to use gcc...
+#CC = gcc
+#COPTS = -g -O2
+
 CFLAGS = $(COPTS) -I.. -DSVR4
 LIBS = -lsocket -lnsl
 
