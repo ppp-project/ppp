@@ -24,11 +24,11 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.4 1995/07/11 06:42:27 paulus Exp $
+ * $Id: ppp_comp.c,v 1.5 1995/10/27 03:56:19 paulus Exp $
  */
 
 /*
- * This file is used under Solaris 2.
+ * This file is used under SVR4 and Solaris 2.
  */
 
 #include <sys/types.h>
@@ -78,7 +78,7 @@ static struct streamtab ppp_compinfo = {
     &r_init, &w_init, NULL, NULL
 };
 
-#ifdef sun
+#if defined(sun) && defined(svr4)		/* Solaris 2 */
 static struct fmodsw fsw = {
     "ppp_comp",
     &ppp_compinfo,
@@ -124,6 +124,28 @@ typedef struct comp_state {
 #undef MIN		/* just in case */
 #define MIN(a, b)	((a) < (b)? (a): (b))
 
+#ifdef D_MP
+/* Use msgpullup if we have other multithreading support. */
+#define PULLUP(mp, len)				\
+    do {					\
+	mblk_t *np = msgpullup((mp), (len));	\
+	freemsg(mp);				\
+	mp = np;				\
+    } while (0)
+
+#else
+/* Use pullupmsg if we don't have any multithreading support. */
+#define PULLUP(mp, len)			\
+    do {				\
+	if (!pullupmsg((mp), (len))) {	\
+	    freemsg(mp);		\
+	    mp = 0;			\
+	}				\
+    } while (0)
+
+#endif
+
+
 /*
  * List of compressors we know about.
  */
@@ -164,6 +186,7 @@ _info(mip)
 #ifndef sun
 # define qprocson(q)
 # define qprocsoff(q)
+#define canputnext(q)	canput((q)->q_next)
 #endif
 
 /*
@@ -429,17 +452,15 @@ ppp_comp_wsrv(q)
 	if (len > PPP_HDRLEN + MAX_IPHDR)
 	    len = PPP_HDRLEN + MAX_IPHDR;
 	if (mp->b_wptr < mp->b_rptr + len || mp->b_datap->db_ref > 1) {
-	    np = msgpullup(mp, len);
-	    freemsg(mp);
-	    if (np == 0) {
+	    PULLUP(mp, len);
+	    if (mp == 0) {
 #if DEBUG
-		cmn_err(CE_CONT, "ppp_comp_wsrv: msgpullup failed\n");
+		cmn_err(CE_CONT, "ppp_comp_wsrv: pullup failed\n");
 #endif
 		cp->stats.ppp_oerrors++;
 		putctl1(RD(q)->q_next, M_CTL, PPPCTL_OERROR);
 		continue;
 	    }
-	    mp = np;
 	}
 	proto = PPP_PROTOCOL(mp->b_rptr);
 
@@ -580,11 +601,9 @@ ppp_comp_rsrv(q)
 	 */
 	hlen = MIN(len, PPP_HDRLEN);
 	if (mp->b_wptr < mp->b_rptr + hlen) {
-	    np = msgpullup(mp, hlen);
-	    if (np == 0)
+	    PULLUP(mp, hlen);
+	    if (mp == 0)
 		goto bad;
-	    freemsg(mp);
-	    mp = np;
 	}
 	dp = mp->b_rptr;
 	if (PPP_ADDRESS(dp) == PPP_ALLSTATIONS
@@ -692,11 +711,10 @@ ppp_comp_rsrv(q)
 	    if (proto == PPP_VJC_COMP) {
 		hlen = MIN(len, MAX_VJHDR);
 		if (np->b_wptr < dp + hlen) {
-		    np = msgpullup(mp, hlen + PPP_HDRLEN);
-		    if (np == 0)
+		    PULLUP(mp, hlen + PPP_HDRLEN);
+		    if (mp == 0)
 			goto bad;
-		    freemsg(mp);
-		    mp = np;
+		    np = mp;
 		    dp = np->b_rptr + PPP_HDRLEN;
 		}
 
@@ -748,11 +766,10 @@ ppp_comp_rsrv(q)
 		hlen = MIN(len, MAX_IPHDR);
 		if (np->b_wptr < dp + hlen || np->b_datap->db_ref > 1
 		    || mp->b_datap->db_ref > 1) {
-		    np = msgpullup(mp, hlen + PPP_HDRLEN);
-		    if (np == 0)
+		    PULLUP(mp, hlen + PPP_HDRLEN);
+		    if (mp == 0)
 			goto bad;
-		    freemsg(mp);
-		    mp = np;
+		    np = mp;
 		    dp = np->b_rptr + PPP_HDRLEN;
 		}
 
@@ -791,13 +808,14 @@ ppp_comp_ccp(q, mp, rcvd)
     if (len < PPP_HDRLEN + CCP_HDRLEN)
 	return;
     if (mp->b_wptr < mp->b_rptr + len) {
-	np = msgpullup(mp, len);
-	if (np == 0) {
-	    cmn_err(CE_CONT, "ppp_comp_ccp: msgpullup failed\n");
+	/* XXX this isn't right, because it may free mp */
+	PULLUP(mp, len);
+	if (mp == 0) {
+	    cmn_err(CE_CONT, "ppp_comp_ccp: pullup failed\n");
 	    return;
 	}
-    } else
-	np = mp;
+    }
+    np = mp;
 
     cp = (comp_state_t *) q->q_ptr;
     dp = mp->b_rptr + PPP_HDRLEN;

@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.6 1995/06/30 00:54:51 paulus Exp $
+ * $Id: ppp.c,v 1.7 1995/10/27 03:55:56 paulus Exp $
  */
 
 /*
@@ -47,6 +47,11 @@
 #include <sys/modctl.h>
 #include <sys/kstat.h>
 #include <sys/sunddi.h>
+#else
+#include <sys/socket.h>
+#include <sys/sockio.h>
+#include <net/if.h>
+#include <netinet/in.h>
 #endif
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
@@ -94,6 +99,10 @@ typedef struct upperstr {
     struct pppstat stats;	/* statistics */
 #ifdef sun
     kstat_t *kstats;		/* stats for netstat */
+#else
+    int ifflags;
+    char ifname[IFNAMSIZ];
+    struct ifstats ifstats;
 #endif
 } upperstr_t;
 
@@ -102,6 +111,7 @@ typedef struct upperstr {
 #define US_CONTROL	2	/* stream is a control stream */
 #define US_BLOCKED	4	/* flow ctrl has blocked lower write stream */
 #define US_LASTMOD	8	/* no PPP modules below us */
+#define US_DBGLOG	0x10	/* log various occurrences */
 
 static upperstr_t *minor_devs = NULL;
 static upperstr_t *ppas = NULL;
@@ -153,7 +163,13 @@ static struct qinit ppplwint = {
     ppplwput, ppplwsrv, NULL, NULL, NULL, &ppp_info, NULL
 };
 
-static struct streamtab pppinfo = {
+#ifndef sun
+extern struct ifstats *ifstats;
+int pppdevflag = 0;
+#else
+static
+#endif
+struct streamtab pppinfo = {
     &pppurint, &pppuwint,
     &ppplrint, &ppplwint
 };
@@ -279,6 +295,7 @@ ppp_devinfo(dip, cmd, arg, result)
 #endif /* sun */
 
 #ifndef sun
+#define put(q, mp)	((*(q)->q_qinfo->qi_putp)((q), (mp)))
 # define qprocson(q)
 # define qprocsoff(q)
 # define canputnext(q)	canput((q)->q_next)
@@ -335,6 +352,9 @@ pppopen(q, devp, oflag, sflag, credp)
     if (drv_priv(credp) == 0)
 	up->flags |= US_PRIV;
     up->state = DL_UNATTACHED;
+#ifndef sun
+    up->ifflags = IFF_UP | IFF_POINTOPOINT;
+#endif
     up->sap = -1;
     q->q_ptr = up;
     WR(q)->q_ptr = up;
@@ -357,9 +377,14 @@ pppclose(q, flag, credp)
     qprocsoff(q);
 
     up = (upperstr_t *) q->q_ptr;
+    if (up->flags & US_DBGLOG)
+	cmn_err(CE_CONT, "ppp/%d: close, flags=%x\n", up->mn, up->flags);
     if (up == 0)
 	return 0;
     if (up->flags & US_CONTROL) {
+#ifndef sun
+	struct ifstats *ifp, *pifp;
+#endif
 	/*
 	 * This stream represents a PPA:
 	 * For all streams attached to the PPA, clear their
@@ -380,7 +405,19 @@ pppclose(q, flag, credp)
 		*upp = up->nextppa;
 		break;
 	    }
-
+#ifndef sun
+	/* Remove the statistics from the active list.  */
+	for (ifp = ifstats, pifp = 0; ifp; ifp = ifp->ifs_next) {
+	    if (ifp == &up->ifstats) {
+		if (pifp)
+		    pifp->ifs_next = ifp->ifs_next;
+		else
+		    ifstats = ifp->ifs_next;
+		break;
+	    }
+	    pifp = ifp;
+	}
+#endif
     } else {
 	/*
 	 * If this stream is attached to a PPA,
@@ -428,6 +465,10 @@ pppuwput(q, mp)
     upperstr_t *us, *usnext, *ppa;
     struct iocblk *iop;
     struct linkblk *lb;
+#ifndef sun
+    struct ifreq *ifr;
+    int i;
+#endif
     queue_t *lq;
     int error, n;
     mblk_t *mq;
@@ -440,6 +481,9 @@ pppuwput(q, mp)
 	break;
 
     case M_DATA:
+	if (us->flags & US_DBGLOG)
+	    cmn_err(CE_CONT, "ppp/%d: uwput M_DATA len=%d flags=%x\n",
+		    us->mn, msgdsize(mp), us->flags);
 	if ((us->flags & US_CONTROL) == 0
 	    || msgdsize(mp) > us->mtu + PPP_HDRLEN) {
 #if DEBUG
@@ -455,6 +499,9 @@ pppuwput(q, mp)
     case M_IOCTL:
 	iop = (struct iocblk *) mp->b_rptr;
 	error = EINVAL;
+	if (us->flags & US_DBGLOG)
+	    cmn_err(CE_CONT, "ppp/%d: ioctl %x count=%d\n",
+		    us->mn, iop->ioc_cmd, iop->ioc_count);
 	switch (iop->ioc_cmd) {
 	case I_LINK:
 	    if ((us->flags & US_CONTROL) == 0 || us->lowerq != 0)
@@ -557,6 +604,9 @@ pppuwput(q, mp)
 	    if (n < PPP_MRU)
 		n = PPP_MRU;
 	    us->mtu = n;
+#ifndef sun
+	    us->ifstats.ifs_mtu = n;
+#endif
 	    if (us->lowerq)
 		putctl4(us->lowerq, M_CTL, PPPCTL_MTU, n);
 	    error = 0;
@@ -576,6 +626,11 @@ pppuwput(q, mp)
 		qwriter(q, NULL, debug_dump, PERIM_OUTER);
 		iop->ioc_count = 0;
 		error = 0;
+	    } else if (n == PPPDBG_LOG + PPPDBG_DRIVER) {
+		cmn_err(CE_CONT, "ppp/%d: debug log enabled\n", us->mn);
+		us->flags |= US_DBGLOG;
+		iop->ioc_count = 0;
+		error = 0;
 	    } else {
 		if (us->ppa == 0 || us->ppa->lowerq == 0)
 		    break;
@@ -583,6 +638,102 @@ pppuwput(q, mp)
 		error = -1;
 	    }
 	    break;
+
+#ifndef sun
+	case SIOCSIFNAME:
+	    printf("SIOCSIFNAME\n");
+	    /* Sent from IP down to us.  Attach the ifstats structure.  */
+	    if (iop->ioc_count != sizeof(struct ifreq) || us->ppa == 0)
+	        break;
+	    ifr = (struct ifreq *)mp->b_cont->b_rptr;
+	    /* Find the unit number in the interface name.  */
+	    for (i = 0; i < IFNAMSIZ; i++) {
+		if (ifr->ifr_name[i] == 0 ||
+		    (ifr->ifr_name[i] >= '0' &&
+		     ifr->ifr_name[i] <= '9'))
+		    break;
+		else
+		    us->ifname[i] = ifr->ifr_name[i];
+	    }
+	    us->ifname[i] = 0;
+
+	    /* Convert the unit number to binary.  */
+	    for (n = 0; i < IFNAMSIZ; i++) {
+		if (ifr->ifr_name[i] == 0) {
+		    break;
+		}
+	        else {
+		    n = n * 10 + ifr->ifr_name[i] - '0';
+		}
+	    }
+
+	    /* Verify the ppa.  */
+	    if (us->ppa->ppa_id != n)
+		break;
+	    ppa = us->ppa;
+
+	    /* Set up the netstat block.  */
+	    strncpy (ppa->ifname, us->ifname, IFNAMSIZ);
+
+	    ppa->ifstats.ifs_name = ppa->ifname;
+	    ppa->ifstats.ifs_unit = n;
+	    ppa->ifstats.ifs_active = us->state != DL_UNBOUND;
+	    ppa->ifstats.ifs_mtu = ppa->mtu;
+
+	    /* Link in statistics used by netstat.  */
+	    ppa->ifstats.ifs_next = ifstats;
+	    ifstats = &ppa->ifstats;
+
+	    iop->ioc_count = 0;
+	    error = 0;
+	    break;
+
+	case SIOCGIFFLAGS:
+	    printf("SIOCGIFFLAGS\n");
+	    if (!(us->flags & US_CONTROL)) {
+		if (us->ppa)
+		    us = us->ppa;
+	        else
+		    break;
+	    }
+	    ((struct iocblk_in *)iop)->ioc_ifflags = us->ifflags;
+	    error = 0;
+	    break;
+
+	case SIOCSIFFLAGS:
+	    printf("SIOCSIFFLAGS\n");
+	    if (!(us->flags & US_CONTROL)) {
+		if (us->ppa)
+		    us = us->ppa;
+		else
+		    break;
+	    }
+	    us->ifflags = ((struct iocblk_in *)iop)->ioc_ifflags;
+	    error = 0;
+	    break;
+
+	case SIOCSIFADDR:
+	    printf("SIOCSIFADDR\n");
+	    if (!(us->flags & US_CONTROL)) {
+		if (us->ppa)
+		    us = us->ppa;
+		else
+		    break;
+	    }
+	    us->ifflags |= IFF_RUNNING;
+	    ((struct iocblk_in *)iop)->ioc_ifflags |= IFF_RUNNING;
+	    error = 0;
+	    break;
+
+	case SIOCGIFNETMASK:
+	case SIOCSIFNETMASK:
+	case SIOCGIFADDR:
+	case SIOCGIFDSTADDR:
+	case SIOCSIFDSTADDR:
+	case SIOCGIFMETRIC:
+	    error = 0;
+	    break;
+#endif
 
 	default:
 	    if (us->ppa == 0 || us->ppa->lowerq == 0)
@@ -623,6 +774,8 @@ pppuwput(q, mp)
 	break;
 
     case M_FLUSH:
+	if (us->flags & US_DBGLOG)
+	    cmn_err(CE_CONT, "ppp/%d: flush %x\n", us->mn, *mp->b_rptr);
 	if (*mp->b_rptr & FLUSHW)
 	    flushq(q, FLUSHDATA);
 	if (*mp->b_rptr & FLUSHR) {
@@ -653,6 +806,9 @@ dlpi_request(q, mp, us)
     dl_info_ack_t *info;
     dl_bind_ack_t *ackp;
 
+    if (us->flags & US_DBGLOG)
+	cmn_err(CE_CONT, "ppp/%d: dlpi prim %x len=%d\n", us->mn,
+		d->dl_primitive, size);
     switch (d->dl_primitive) {
     case DL_INFO_REQ:
 	if (size < sizeof(dl_info_req_t))
@@ -772,6 +928,9 @@ dlpi_request(q, mp, us)
 	}
 	us->sap = -1;
 	us->state = DL_UNBOUND;
+#ifndef sun
+	us->ppa->ifstats.ifs_active = 0;
+#endif
 	dlpi_ok(q, DL_UNBIND_REQ);
 	break;
 
@@ -1070,6 +1229,8 @@ ppplwput(q, mp)
 #ifdef sun
 	if (ppa->kstats != 0)
 	    KSTAT_NAMED_PTR(ppa->kstats)[2].value.ul++;
+#else
+	ppa->ifstats.ifs_opackets++;
 #endif
     }
     putnext(q, mp);
@@ -1219,6 +1380,8 @@ ppplrput(q, mp)
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[1].value.ul++;
 	    }
+#else
+	    ppa->ifstats.ifs_ierrors++;
 #endif
 	    ppa->stats.ppp_ierrors++;
 	    break;
@@ -1227,6 +1390,8 @@ ppplrput(q, mp)
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[3].value.ul++;
 	    }
+#else
+	    ppa->ifstats.ifs_oerrors++;
 #endif
 	    ppa->stats.ppp_oerrors++;
 	    break;
@@ -1254,6 +1419,7 @@ ppplrput(q, mp)
 	if (mp->b_datap->db_type == M_DATA) {
 	    len = msgdsize(mp);
 	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN) {
+#ifdef USE_MSGPULLUP
 		np = msgpullup(mp, PPP_HDRLEN);
 		freemsg(mp);
 		if (np == 0) {
@@ -1264,6 +1430,15 @@ ppplrput(q, mp)
 		    break;
 		}
 		mp = np;
+#else
+		if (!pullupmsg (mp, PPP_HDRLEN)) {
+#if DEBUG
+		    cmn_err(CE_CONT, "ppp_lrput: pullupmsg failed (len=%d)\n",
+			    len);
+#endif
+		    break;
+		}
+#endif
 	    }
 	    ppa->stats.ppp_ipackets++;
 	    ppa->stats.ppp_ibytes += len;
@@ -1271,6 +1446,8 @@ ppplrput(q, mp)
 	    if (ppa->kstats != 0) {
 		KSTAT_NAMED_PTR(ppa->kstats)[0].value.ul++;
 	    }
+#else
+	    ppa->ifstats.ifs_ipackets++;
 #endif
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
