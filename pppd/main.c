@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.27 1995/08/16 01:39:08 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.28 1995/10/27 03:41:01 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -77,40 +77,32 @@ int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
 
-static int initfdflags = -1;	/* Initial file descriptor flags */
-
 u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
 static u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
 
 int hungup;			/* terminal has been hung up */
 static int n_children;		/* # child processes still running */
 
-int baud_rate;
+int baud_rate;			/* Actual bits/second for serial device */
 
 char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 
-/* prototypes */
+/* Prototypes for procedures local to this file. */
+
+static void cleanup __P((void));
+static void close_fd __P((void));
+static void get_input __P((void));
+static void calltimeout __P((void));
+static struct timeval *timeleft __P((struct timeval *));
 static void hup __P((int));
 static void term __P((int));
 static void chld __P((int));
 static void toggle_debug __P((int));
 static void open_ccp __P((int));
 static void bad_signal __P((int));
-
-static void get_input __P((void));
-void establish_ppp __P((void));
-void calltimeout __P((void));
-struct timeval *timeleft __P((struct timeval *));
-void reap_kids __P((void));
-void cleanup __P((int, caddr_t));
-void close_fd __P((void));
-void die __P((int));
-void novm __P((char *));
-
-void log_packet __P((u_char *, int, char *));
-void format_packet __P((u_char *, int,
-			   void (*) (void *, char *, ...), void *));
-void pr_log __P((void *, char *, ...));
+static int device_script __P((char *, int, int));
+static void reap_kids __P((void));
+static void pr_log __P((void *, char *, ...));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -151,7 +143,7 @@ main(argc, argv)
     int argc;
     char *argv[];
 {
-    int i, nonblock;
+    int i, nonblock, fdflags;
     struct sigaction sa;
     struct cmd *cmdp;
     FILE *pidfile;
@@ -317,13 +309,11 @@ main(argc, argv)
 	    syslog(LOG_ERR, "Failed to open %s: %m", devnam);
 	    die(1);
 	}
-	if ((initfdflags = fcntl(fd, F_GETFL)) == -1) {
-	    syslog(LOG_ERR, "Couldn't get device fd flags: %m");
-	    die(1);
-	}
 	if (nonblock) {
-	    initfdflags &= ~O_NONBLOCK;
-	    fcntl(fd, F_SETFL, initfdflags);
+	    if ((fdflags = fcntl(fd, F_GETFL)) == -1
+		|| fcntl(fd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
+		syslog(LOG_WARNING,
+		       "Couldn't reset non-blocking mode on device: %m");
 	}
 	hungup = 0;
 	kill_link = 0;
@@ -372,14 +362,6 @@ main(argc, argv)
 	}
 
 	/*
-	 * Set device for non-blocking reads.
-	 */
-	if (fcntl(fd, F_SETFL, initfdflags | O_NONBLOCK) == -1) {
-	    syslog(LOG_ERR, "Couldn't set device to non-blocking mode: %m");
-	    die(1);
-	}
-  
-	/*
 	 * Block all signals, start opening the connection, and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
@@ -406,11 +388,8 @@ main(argc, argv)
 
 	/*
 	 * Run disconnector script, if requested.
-	 * First we need to reset non-blocking mode.
 	 * XXX we may not be able to do this if the line has hung up!
 	 */
-	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) >= 0)
-	    initfdflags = -1;
 	disestablish_ppp();
 	if (disconnector) {
 	    set_up_tty(fd, 1);
@@ -452,7 +431,7 @@ get_input()
 	syslog(LOG_NOTICE, "Modem hangup");
 	hungup = 1;
 	lcp_lowerdown(0);	/* serial link is no longer available */
-	phase = PHASE_DEAD;
+	link_terminated(0);
 	return;
     }
 
@@ -517,22 +496,10 @@ demuxprotrej(unit, protocol)
 	    return;
 	}
 
-    syslog(LOG_WARNING,
-	   "demuxprotrej: Unrecognized Protocol-Reject for protocol 0x%x",
+    syslog(LOG_WARNING, "Unrecognized Protocol-Reject for protocol 0x%x",
 	   protocol);
 }
 
-
-/*
- * bad_signal - We've caught a fatal signal.  Clean up state and exit.
- */
-static void
-bad_signal(sig)
-    int sig;
-{
-    syslog(LOG_ERR, "Fatal signal %d", sig);
-    die(1);
-}
 
 /*
  * quit - Clean up state and exit (with an error indication).
@@ -550,7 +517,7 @@ void
 die(status)
     int status;
 {
-    cleanup(0, NULL);
+    cleanup();
     syslog(LOG_INFO, "Exit.");
     exit(status);
 }
@@ -559,11 +526,11 @@ die(status)
  * cleanup - restore anything which needs to be restored before we exit
  */
 /* ARGSUSED */
-void
-cleanup(status, arg)
-    int status;
-    caddr_t arg;
+static void
+cleanup()
 {
+    sys_cleanup();
+
     if (fd >= 0)
 	close_fd();
 
@@ -578,7 +545,7 @@ cleanup(status, arg)
 /*
  * close_fd - restore the terminal device and close it.
  */
-void
+static void
 close_fd()
 {
     disestablish_ppp();
@@ -586,10 +553,6 @@ close_fd()
     /* drop dtr to hang up */
     if (modem)
 	setdtr(fd, FALSE);
-
-    if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
-	syslog(LOG_WARNING, "Couldn't restore device fd flags: %m");
-    initfdflags = -1;
 
     restore_tty();
 
@@ -680,7 +643,7 @@ untimeout(func, arg)
 /*
  * calltimeout - Call any timeout routines which are now due.
  */
-void
+static void
 calltimeout()
 {
     struct callout *p;
@@ -708,7 +671,7 @@ calltimeout()
 /*
  * timeleft - return the length of time until the next timeout is due.
  */
-struct timeval *
+static struct timeval *
 timeleft(tvp)
     struct timeval *tvp;
 {
@@ -803,10 +766,22 @@ open_ccp(sig)
 
 
 /*
+ * bad_signal - We've caught a fatal signal.  Clean up state and exit.
+ */
+static void
+bad_signal(sig)
+    int sig;
+{
+    syslog(LOG_ERR, "Fatal signal %d", sig);
+    die(1);
+}
+
+
+/*
  * device_script - run a program to connect or disconnect the
  * serial device.
  */
-int
+static int
 device_script(program, in, out)
     char *program;
     int in, out;
@@ -920,7 +895,7 @@ run_program(prog, args, must_exist)
  * reap_kids - get status from any dead child processes,
  * and log a message for abnormal terminations.
  */
-void
+static void
 reap_kids()
 {
     int pid, status;
@@ -1004,7 +979,7 @@ format_packet(p, len, printer, arg)
 #ifdef __STDC__
 #include <stdarg.h>
 
-void
+static void
 pr_log(void *arg, char *fmt, ...)
 {
     int n;
@@ -1027,7 +1002,7 @@ pr_log(void *arg, char *fmt, ...)
 #else /* __STDC__ */
 #include <varargs.h>
 
-void
+static void
 pr_log(arg, fmt, va_alist)
 void *arg;
 char *fmt;
