@@ -1,10 +1,11 @@
 /*
  * print PPP statistics:
- * 	pppstats [-a] [-v] [-r] [-z] [-c count] [-w wait] [interface]
+ * 	pppstats [-a|-d] [-v|-r|-z] [-c count] [-w wait] [interface]
  *
  *   -a Show absolute values rather than deltas
- *   -v Verbose mode for default display
- *   -r Show compression ratio in default display
+ *   -d Show data rate (kB/s) rather than bytes
+ *   -v Show more stats for VJ TCP header compression
+ *   -r Show compression ratio
  *   -z Show compression statistics instead of default display
  *
  * History:
@@ -31,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.13 1996/07/01 01:22:36 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.14 1996/07/01 05:32:57 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -61,6 +62,7 @@ static char rcsid[] = "$Id: pppstats.c,v 1.13 1996/07/01 01:22:36 paulus Exp $";
 
 int	vflag, rflag, zflag;	/* select type of display */
 int	aflag;			/* print absolute values, not deltas */
+int	dflag;			/* print data rates, not bytes */
 int	interval, count;
 int	infinite;
 int	unit;
@@ -72,7 +74,7 @@ char	*interface;
 void
 usage()
 {
-    fprintf(stderr, "Usage: %s [-v|-r|-z] [-a] [-c count] [-w wait] [interface]\n",
+    fprintf(stderr, "Usage: %s [-a|-d] [-v|-r|-z] [-c count] [-w wait] [interface]\n",
 	    progname);
     exit(1);
 }
@@ -223,6 +225,8 @@ get_ppp_cstats(csp)
 #define RATIO(c, i, u)	((c) == 0? 1.0: (u) / ((double)(c) + (i)))
 #define CRATE(x)	RATIO(W(x.comp_bytes), W(x.inc_bytes), W(x.unc_bytes))
 
+#define KBPS(n)		((n) / (interval * 1000.0))
+
 /*
  * Print a running summary of interface statistics.
  * Repeat display every interval seconds, showing statistics
@@ -234,6 +238,8 @@ intpr()
 {
     register int line = 0;
     sigset_t oldmask, mask;
+    char *bunit;
+    int ratef = 0;
     struct ppp_stats cur, old;
     struct ppp_comp_stats ccs, ocs;
 
@@ -253,8 +259,9 @@ intpr()
 	    if (zflag) {
 		printf("IN:  COMPRESSED  INCOMPRESSIBLE   COMP | ");
 		printf("OUT: COMPRESSED  INCOMPRESSIBLE   COMP\n");
-		printf("    BYTE   PACK     BYTE   PACK  RATIO | ");
-		printf("    BYTE   PACK     BYTE   PACK  RATIO");
+		bunit = dflag? "KB/S": "BYTE";
+		printf("    %s   PACK     %s   PACK  RATIO | ", bunit, bunit);
+		printf("    %s   PACK     %s   PACK  RATIO", bunit, bunit);
 	    } else {
 		printf("%8.8s %6.6s %6.6s",
 		       "IN", "PACK", "VJCOMP");
@@ -279,24 +286,40 @@ intpr()
 	}
 
 	if (zflag) {
-	    printf("%8u %6u %8u %6u %6.2f",
-		   W(d.comp_bytes),
-		   W(d.comp_packets),
-		   W(d.inc_bytes),
-		   W(d.inc_packets),
-		   ccs.d.ratio * 256.0);
-
-	    printf(" | %8u %6u %8u %6u %6.2f",
-		   W(c.comp_bytes),
-		   W(c.comp_packets),
-		   W(c.inc_bytes),
-		   W(c.inc_packets),
-		   ccs.c.ratio * 256.0);
+	    if (ratef) {
+		printf("%8.3f %6u %8.3f %6u %6.2f",
+		       KBPS(W(d.comp_bytes)),
+		       W(d.comp_packets),
+		       KBPS(W(d.inc_bytes)),
+		       W(d.inc_packets),
+		       ccs.d.ratio * 256.0);
+		printf(" | %8.3f %6u %8.3f %6u %6.2f",
+		       KBPS(W(c.comp_bytes)),
+		       W(c.comp_packets),
+		       KBPS(W(c.inc_bytes)),
+		       W(c.inc_packets),
+		       ccs.c.ratio * 256.0);
+	    } else {
+		printf("%8u %6u %8u %6u %6.2f",
+		       W(d.comp_bytes),
+		       W(d.comp_packets),
+		       W(d.inc_bytes),
+		       W(d.inc_packets),
+		       ccs.d.ratio * 256.0);
+		printf(" | %8u %6u %8u %6u %6.2f",
+		       W(c.comp_bytes),
+		       W(c.comp_packets),
+		       W(c.inc_bytes),
+		       W(c.inc_packets),
+		       ccs.c.ratio * 256.0);
+	    }
 	
 	} else {
-
-	    printf("%8u %6u %6u",
-		   V(p.ppp_ibytes),
+	    if (ratef)
+		printf("%8.3f", KBPS(V(p.ppp_ibytes)));
+	    else
+		printf("%8u", V(p.ppp_ibytes));
+	    printf(" %6u %6u",
 		   V(p.ppp_ipackets),
 		   V(vj.vjs_compressedin));
 	    if (!rflag)
@@ -308,11 +331,18 @@ intpr()
 		       V(vj.vjs_tossed),
 		       V(p.ppp_ipackets) - V(vj.vjs_compressedin)
 		       - V(vj.vjs_uncompressedin) - V(vj.vjs_errorin));
-	    if (rflag)
-		printf(" %6.2f %6u",
-		       CRATE(d),
-		       W(d.unc_bytes));
-	    printf("  | %8u %6u %6u",
+	    if (rflag) {
+		printf(" %6.2f ", CRATE(d));
+		if (ratef)
+		    printf("%6.2f", KBPS(W(d.unc_bytes)));
+		else
+		    printf("%6u", W(d.unc_bytes));
+	    }
+	    if (ratef)
+		printf("  | %8.3f", KBPS(V(p.ppp_obytes)));
+	    else
+		printf("  | %8u", V(p.ppp_obytes));
+	    printf(" %6u %6u",
 		   V(p.ppp_obytes),
 		   V(p.ppp_opackets),
 		   V(vj.vjs_compressed));
@@ -324,11 +354,13 @@ intpr()
 		printf(" %6u %6u",
 		       V(vj.vjs_searches),
 		       V(vj.vjs_misses));
-
-	    if (rflag)
-		printf(" %6.2f %6u",
-		       CRATE(c),
-		       W(c.unc_bytes));
+	    if (rflag) {
+		printf(" %6.2f ", CRATE(c));
+		if (ratef)
+		    printf("%6.2f", KBPS(W(c.unc_bytes)));
+		else
+		    printf("%6u", W(c.unc_bytes));
+	    }
 
 	}
 
@@ -354,6 +386,7 @@ intpr()
 	if (!aflag) {
 	    old = cur;
 	    ocs = ccs;
+	    ratef = dflag;
 	}
     }
 }
@@ -371,10 +404,13 @@ main(argc, argv)
     else
 	++progname;
 
-    while ((c = getopt(argc, argv, "avrzc:w:")) != -1) {
+    while ((c = getopt(argc, argv, "advrzc:w:")) != -1) {
 	switch (c) {
 	case 'a':
 	    ++aflag;
+	    break;
+	case 'd':
+	    ++dflag;
 	    break;
 	case 'v':
 	    ++vflag;
@@ -408,6 +444,8 @@ main(argc, argv)
 	infinite = 1;
     if (!interval && !count)
 	count = 1;
+    if (aflag)
+	dflag = 0;
 
     if (argc > 1)
 	usage();
