@@ -24,7 +24,7 @@
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
  *
- * $Id: vjcompress.c,v 1.1 1994/09/16 06:58:24 paulus Exp $
+ * $Id: vjcompress.c,v 1.2 1994/09/19 04:20:13 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -34,16 +34,11 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
-#ifdef __STDC__
-#define __P(x)	x
-#else
-#define __P()	()
-#endif
-
+#include <net/ppp_defs.h>
 #include <net/vjcompress.h>
 
 #ifndef VJ_NO_STATS
-#define INCR(counter) ++comp->counter
+#define INCR(counter) ++comp->stats.counter
 #else
 #define INCR(counter)
 #endif
