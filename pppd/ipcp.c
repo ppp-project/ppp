@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.4 1994/04/11 07:19:06 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.5 1994/05/01 11:45:09 paulus Exp $";
 #endif
 
 /*
@@ -1157,9 +1157,9 @@ ipcp_printpkt(p, plen, printer, arg)
 		if (olen == CILEN_ADDRS) {
 		    p += 2;
 		    GETLONG(cilong, p);
-		    printer(arg, "addrs %s", ip_ntoa(cilong));
+		    printer(arg, "addrs %s", ip_ntoa(htonl(cilong)));
 		    GETLONG(cilong, p);
-		    printer(arg, " %s", ip_ntoa(cilong));
+		    printer(arg, " %s", ip_ntoa(htonl(cilong)));
 		}
 		break;
 	    case CI_COMPRESSTYPE:
@@ -1183,7 +1183,7 @@ ipcp_printpkt(p, plen, printer, arg)
 		if (olen == CILEN_ADDR) {
 		    p += 2;
 		    GETLONG(cilong, p);
-		    printer(arg, "addr %s", ip_ntoa(cilong));
+		    printer(arg, "addr %s", ip_ntoa(htonl(cilong)));
 		}
 		break;
 	    }
