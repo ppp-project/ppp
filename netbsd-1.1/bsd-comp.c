@@ -1,4 +1,4 @@
-/*	$Id: bsd-comp.c,v 1.2 1996/01/18 03:13:03 paulus Exp $	*/
+/*	$Id: bsd-comp.c,v 1.3 1996/04/04 02:48:56 paulus Exp $	*/
 
 /* Because this code is derived from the 4.3BSD compress source:
  *
@@ -41,12 +41,11 @@
 
 /*
  * This version is for use with mbufs on BSD-derived systems.
- *
- * $Id: bsd-comp.c,v 1.2 1996/01/18 03:13:03 paulus Exp $
  */
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/systm.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <net/if.h>
@@ -187,6 +186,12 @@ struct compressor ppp_bsd_compress = {
 #define RATIO_SCALE_LOG	8
 #define RATIO_SCALE	(1<<RATIO_SCALE_LOG)
 #define RATIO_MAX	(0x7fffffff>>RATIO_SCALE_LOG)
+
+static void bsd_clear __P((struct bsd_db *));
+static int bsd_check __P((struct bsd_db *));
+static void *bsd_alloc __P((u_char *, int, int));
+static int bsd_init __P((struct bsd_db *, u_char *, int, int, int, int,
+			 int, int));
 
 /*
  * clear the dictionary
@@ -481,11 +486,10 @@ bsd_compress(state, mret, mp, slen, maxolen)
     struct bsd_dict *dictp;
     u_char c;
     int hval, disp, ent, ilen;
-    struct mbuf *np;
     u_char *rptr, *wptr;
     u_char *cp_end;
     int olen;
-    struct mbuf *m, **mnp;
+    struct mbuf *m;
 
 #define PUTBYTE(v) {					\
     ++olen;						\
@@ -831,7 +835,6 @@ bsd_decompress(state, cmp, dmpp)
     struct mbuf *m, *dmp, *mret;
     int adrs, ctrl, ilen;
     int space, codelen, extra;
-    struct mbuf *last;
 
     /*
      * Save the address/control from the PPP header
