@@ -131,7 +131,7 @@ commands:
 If you use module autoloading and have PPP as a module, you will need
 to add the following to your /etc/modules.conf or /etc/conf.modules:
 
-/dev/ppp		ppp_generic
+alias /dev/ppp		ppp_generic
 alias char-major-108	ppp_generic
 alias tty-ldisc-3	ppp_async
 alias tty-ldisc-14	ppp_synctty
