@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.7 1996/01/18 03:23:04 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.8 1996/04/04 04:06:29 paulus Exp $";
 #endif
 
 /*
@@ -74,6 +74,7 @@ static int sockfd;		/* socket for doing interface ioctls */
 int orig_ttyfd = -1;   /*  Original ttyfd if we did a streamify()  */
 
 static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t ifaddrs[2];	/* Local and remote addrs we've set */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
@@ -119,7 +120,8 @@ sys_cleanup()
 	    ioctl(sockfd, SIOCSIFFLAGS, &ifr);
 	}
     }
-
+    if (ifaddrs[0])
+	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway);
     if (proxy_arp_addr)
@@ -993,7 +995,8 @@ sifdown(u)
  */
 #define SET_SA_FAMILY(addr, family)		\
     BZERO((char *) &(addr), sizeof(addr));	\
-    addr.sa_family = (family);
+    addr.sa_family = (family);			\
+    addr.sa_len = sizeof ((addr))
 
 /*
  * sifaddr - Config the interface IP addresses and netmask.
@@ -1003,40 +1006,47 @@ sifaddr(u, o, h, m)
     int u;
     u_int32_t o, h, m;
 {
-    int ret;
     struct ifreq ifr;
+    struct ifaliasreq addreq;
+    int ret;
 
     ret = 1;
+
+    /* flush old address, if any
+     */
+    bzero(&ifr, sizeof (ifr));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
-    if (ioctl(sockfd, (int)SIOCSIFADDR, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
+    if ((ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0)
+	&& errno != EADDRNOTAVAIL) {
+	syslog(LOG_ERR, "ioctl(SIOCDIFADDR): %m");
 	ret = 0;
     }
-    ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = h;
-    if (ioctl(sockfd, (int)SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m");
-	ret = 0;
-    }
+
+    bzero(&addreq, sizeof (addreq));
+    strncpy(addreq.ifra_name, ifname, sizeof (addreq.ifra_name));
+    SET_SA_FAMILY(addreq.ifra_addr, AF_INET);
+    SET_SA_FAMILY(addreq.ifra_broadaddr, AF_INET);
+    ((struct sockaddr_in *)&addreq.ifra_addr)->sin_addr.s_addr = o;
+    ((struct sockaddr_in *)&addreq.ifra_broadaddr)->sin_addr.s_addr = h;
+
     if (m != 0) {
-	((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = m;
+        ((struct sockaddr_in *)&addreq.ifra_mask)->sin_addr.s_addr = m;
+	addreq.ifra_mask.sa_len = sizeof (struct sockaddr);
 	syslog(LOG_INFO, "Setting interface mask to %s\n", ip_ntoa(m));
-	if (ioctl(sockfd, (int)SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
-	    syslog(LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
-	    ret = 0;
-	}
     }
-
-/*  Reset if address --- This is stupid, but seems to be necessary...  */
-
-    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
-    if (ioctl(sockfd, (int)SIOCSIFADDR, (caddr_t) &ifr) < 0) {
-        syslog(LOG_ERR, "ioctl(SIOCSIFADDR): %m");
-        ret = 0;
+  
+    /* install new src/dst and (possibly) netmask
+     */
+    if (ioctl(sockfd, SIOCPIFADDR, &addreq) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCPIFADDR): %m");
+	ret = 0;
     }
-
-    return ret;
+  
+    ifaddrs[0] = o;
+    ifaddrs[1] = h;
+    return (ret);
 }
 
 /*
@@ -1048,15 +1058,15 @@ cifaddr(u, o, h)
     int u;
     u_int32_t o, h;
 {
-    struct ortentry rt;
+    struct ifreq ifr;
 
-    SET_SA_FAMILY(rt.rt_dst, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr = h;
-    SET_SA_FAMILY(rt.rt_gateway, AF_INET);
-    ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = o;
-    rt.rt_flags = RTF_HOST;
-    if (ioctl(sockfd, (int)SIOCDELRT, (caddr_t) &rt) < 0) {
-	syslog(LOG_ERR, "ioctl(SIOCDELRT): %m");
+    ifaddrs[0] = 0;
+    bzero(&ifr, sizeof (ifr));
+    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
+    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
+    if (ioctl(sockfd, (int)SIOCDIFADDR, (caddr_t) &ifr) < 0) {
+	syslog(LOG_ERR, "ioctl(SIOCDIFADDR): %m");
 	return 0;
     }
     return 1;
@@ -1072,6 +1082,7 @@ sifdefaultroute(u, g)
 {
     struct ortentry rt;
 
+    BZERO(&rt, sizeof(rt));
     SET_SA_FAMILY(rt.rt_dst, AF_INET);
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
@@ -1094,6 +1105,7 @@ cifdefaultroute(u, g)
 {
     struct ortentry rt;
 
+    BZERO(&rt, sizeof(rt));
     SET_SA_FAMILY(rt.rt_dst, AF_INET);
     SET_SA_FAMILY(rt.rt_gateway, AF_INET);
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = g;
@@ -1193,7 +1205,8 @@ get_ether_addr(ipaddr, hwaddr)
      * address on the same subnet as `ipaddr'.
      */
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ++ifr) {
+    for (ifr = ifc.ifc_req; ifr < ifend; +ifr = (struct ifreq *)
+	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len) {
         if (ifr->ifr_addr.sa_family == AF_INET) {
             ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
             strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
