@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 961207==
+ *  ==FILEVERSION 970428==
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -32,9 +32,7 @@
  */
 
 #include <linux/module.h>
-#include <linux/version.h>
 
-#include <endian.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -44,38 +42,23 @@
 #include <linux/ioport.h>
 #include <linux/in.h>
 #include <linux/malloc.h>
-#include <linux/tty.h>
+#include <linux/vmalloc.h>
 #include <linux/errno.h>
 #include <linux/sched.h>	/* to get the struct task_struct */
 #include <linux/string.h>	/* used in new tty drivers */
 #include <linux/signal.h>	/* used in new tty drivers */
 
 #include <asm/system.h>
-#include <asm/bitops.h>
-#include <asm/segment.h>
 
-#include <linux/if.h>
-
-#include <linux/if_ether.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/inet.h>
 #include <linux/ioctl.h>
 
 #include <linux/ppp_defs.h>
-
-#if LINUX_VERSION_CODE < 0x02010E
-#include <linux/netprotocol.h>
-#endif
-
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <linux/if_arp.h>
 #include <linux/ppp-comp.h>
 
 #include "zlib.c"
-
-#define USEMEMPOOL	0	/* use kmalloc, not memPool routines */
 
 /*
  * State for a Deflate (de)compressor.
@@ -86,7 +69,6 @@ struct ppp_deflate_state {
     int		unit;
     int		mru;
     int		debug;
-    int		in_alloc;	/* set when we're in [de]comp_alloc */
     z_stream	strm;
     struct compstat stats;
 };
@@ -94,6 +76,8 @@ struct ppp_deflate_state {
 #define DEFLATE_OVHD	2		/* Deflate overhead/packet */
 
 static void	*zalloc __P((void *, unsigned int items, unsigned int size));
+static void	*zalloc_init __P((void *, unsigned int items,
+				  unsigned int size));
 static void	zfree __P((void *, void *ptr, unsigned int nb));
 static void	*z_comp_alloc __P((unsigned char *options, int opt_len));
 static void	*z_decomp_alloc __P((unsigned char *options, int opt_len));
@@ -115,83 +99,6 @@ static void	z_comp_reset __P((void *state));
 static void	z_decomp_reset __P((void *state));
 static void	z_comp_stats __P((void *state, struct compstat *stats));
 
-#if USEMEMPOOL
-/*
- * This is a small set of memory allocation routines.  I created them so
- * that all memory allocation from the kernel takes place at the
- * z_(de)comp_alloc and z_(de)comp_free routines.  This eliminates worry
- * about calling valloc() from within an interrupt.
- *
- * The free list is a single linked list sorted by memory address.
- * The zfree() function re-combines any segments it can.
- */
-typedef struct memchunk {
-    unsigned int m_size;
-    struct memchunk *m_next;
-} MemChunk;
-
-typedef struct {
-    void *memHead;
-    MemChunk *freePool;
-} MemPool;
-
-static int     memPoolAlloc __P((void *arg, unsigned int size));
-static void    memPoolFree __P((void *arg));
-
-static int
-memPoolAlloc(arg, size)
-void *arg;
-unsigned int size;
-{
-    MemPool **memPool = arg;
-    MemChunk *freePool;
-
-    if ((*memPool = kmalloc(sizeof(MemPool), GFP_KERNEL)) == NULL) {
-	printk(KERN_DEBUG "Unable to allocate Memory Head\n");
-        return 0;
-    }
-
-    if (((*memPool)->memHead = (void *)vmalloc(size)) == NULL) {
-	printk(KERN_DEBUG "Unable to allocate Memory Pool\n");
-	kfree(*memPool);
-	return 0;
-    }
-    freePool = (*memPool)->freePool = (*memPool)->memHead;
-    freePool->m_size = size;
-    freePool->m_next = 0;
-
-    return 1;
-}
-
-static void
-memPoolFree(arg)
-void *arg;
-{
-    MemPool **memPool = arg;
-
-    if (*memPool) {
-	vfree((*memPool)->memHead);
-	kfree(*memPool);
-	*memPool = NULL;
-    }
-}
-
-#ifdef POOLDGB
-static void    showFreeList __P((MemChunk *));
-
-static void
-showFreeList(freePool)
-MemChunk *freePool;
-{
-    MemChunk *node;
-    
-    for (node = freePool; node; node = node->m_next)
-        printk(KERN_DEBUG "{%x,%d}->", node, node->m_size);
-    printk(KERN_DEBUG "\n");
-}
-#endif
-#endif /* USEMEMPOOL */
-
 struct chunk_header {
     unsigned size;		/* amount of space following header */
     int valloced;		/* allocated with valloc, not kmalloc */
@@ -208,64 +115,12 @@ zfree(arg, ptr, nbytes)
     void *ptr;
     unsigned int nbytes;
 {
-#if !USEMEMPOOL
     struct chunk_header *hdr = ((struct chunk_header *)ptr) - 1;
 
     if (hdr->valloced)
 	vfree(hdr);
     else
 	kfree(hdr);
-#else
-    MemPool *memPool = (MemPool *)arg;
-    MemChunk *mprev = 0, *node;
-    MemChunk *new = (void *)(((unsigned char *)ptr) - sizeof(MemChunk));
-
-    if (!memPool->freePool) {
-        new->m_next = 0;
-	memPool->freePool = new;
-    } else {
-    	/*
-	 * Find where this new chunk fits in the free list.
-	 */
-	for (node = memPool->freePool; node && new > node; node = node->m_next)
-	    mprev = node;
-	/*
-	 * Re-combine with the following free chunk if possible.
-	 */
-	if ((((unsigned char *)new) + new->m_size) == (unsigned char *)node) {
-	    new->m_size += node->m_size;
-	    new->m_next = node->m_next;
-	    if (mprev) {
-		if ((((unsigned char *)mprev) + mprev->m_size) == (unsigned char *)new) {
-	            mprev->m_size += new->m_size;
-		    mprev->m_next = new->m_next;
-		} else
-		    mprev->m_next = new;
-	    } else
-		memPool->freePool = new;
-	/*
-	 * Re-combine with the previous free chunk if possible.
-	 */
-	} else if (mprev && (((unsigned char *)mprev) + mprev->m_size) ==
-	  (unsigned char *)new) {
-	    mprev->m_size += new->m_size;
-	    if ((((unsigned char *)mprev) + mprev->m_size) == (unsigned char *)node) {
-	        mprev->m_size += node->m_size;
-		mprev->m_next = node->m_next;
-	    } else
-		mprev->m_next = node;
-	/*
-	 * No luck re-combining, just insert the new chunk into the list.
-	 */
-	} else {
-	    if (mprev)
-		mprev->m_next = new;
-	    else
-		memPool->freePool = new;
-	    new->m_next = node;
-	}
-    }
-#endif /* USEMEMPOOL */
 }
 
 void *
@@ -273,61 +128,36 @@ zalloc(arg, items, size)
     void *arg;
     unsigned int items, size;
 {
-#if !USEMEMPOOL
-    struct ppp_deflate_state *state = arg;
     struct chunk_header *hdr;
     unsigned nbytes;
 
     nbytes = items * size + sizeof(*hdr);
-    if (state->in_alloc)
-	if (nbytes >= MIN_VMALLOC)
-	    hdr = vmalloc(nbytes);
-	else
-	    hdr = kmalloc(nbytes, GFP_KERNEL);
-    else
-	hdr = kmalloc(nbytes, GFP_ATOMIC);
+    hdr = kmalloc(nbytes, GFP_ATOMIC);
     if (hdr == 0)
 	return 0;
     hdr->size = nbytes;
-    hdr->valloced = state->in_alloc && nbytes >= MIN_VMALLOC;
+    hdr->valloced = 0;
     return (void *) (hdr + 1);
-#else
-    MemPool *memPool = (MemPool *)arg;
-    MemChunk *mprev = 0, *node;
+}
 
-    size *= items;
-    size += sizeof(MemChunk);
-    if (size & 0x3)
-    	size = (size + 7) & ~3; 
-    for (node = memPool->freePool; node; node = node->m_next) {
-	if (size == node->m_size) {
-	    if (mprev)
-		mprev->m_next = node->m_next;
-	    else
-		memPool->freePool = node->m_next;
-	    return (void *)(((unsigned char *)node)+sizeof(MemChunk));
-	} else if (node->m_size > (size + sizeof(MemChunk) + 7)) {
-	    MemChunk *new;
+void *
+zalloc_init(arg, items, size)
+    void *arg;
+    unsigned int items, size;
+{
+    struct chunk_header *hdr;
+    unsigned nbytes;
 
-	    new = (void *)(((unsigned char *)node) + size);
-	    new->m_size = node->m_size - size;
-	    new->m_next = node->m_next;
-	    if (mprev)
-		mprev->m_next = new;
-	    else
-		memPool->freePool = new;
-
-	    node->m_size = size;
-
-	    return (void *)(((unsigned char *)node)+sizeof(MemChunk));
-	    break;
-	}
-	mprev = node;
-    }
-    printk(KERN_DEBUG
-	   "zalloc(%d)... Out of memory in Pool!\n", size - sizeof(MemChunk)); 
-    return NULL;
-#endif /* USEMEMPOOL */
+    nbytes = items * size + sizeof(*hdr);
+    if (nbytes >= MIN_VMALLOC)
+	hdr = vmalloc(nbytes);
+    else
+	hdr = kmalloc(nbytes, GFP_KERNEL);
+    if (hdr == 0)
+	return 0;
+    hdr->size = nbytes;
+    hdr->valloced = nbytes >= MIN_VMALLOC;
+    return (void *) (hdr + 1);
 }
 
 static void
@@ -338,9 +168,6 @@ z_comp_free(arg)
 
     if (state) {
 	    deflateEnd(&state->strm);
-#if USEMEMPOOL
-	    memPoolFree(&state->strm.opaque);
-#endif
 	    kfree(state);
 	    MOD_DEC_USE_COUNT;
     }
@@ -374,25 +201,15 @@ z_comp_alloc(options, opt_len)
     memset (state, 0, sizeof (struct ppp_deflate_state));
     state->strm.next_in = NULL;
     state->strm.zalloc  = zalloc;
+    state->strm.zalloc_init = zalloc;
     state->strm.zfree   = zfree;
     state->w_size       = w_size;
-    state->in_alloc = 1;
-
-#if USEMEMPOOL
-    if (!memPoolAlloc(&state->strm.opaque, 0x50000)) {
-	z_comp_free(state);
-	return NULL;
-    }
-#else
-    state->strm.opaque = state;
-#endif
 
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
 	z_comp_free(state);
 	return NULL;
     }
-    state->in_alloc = 0;
     return (void *) state;
 }
 
@@ -570,22 +387,11 @@ z_decomp_alloc(options, opt_len)
     state->strm.next_out = NULL;
     state->strm.zalloc   = zalloc;
     state->strm.zfree    = zfree;
-    state->in_alloc = 1;
-
-#if USEMEMPOOL
-    if (!memPoolAlloc(&state->strm.opaque, 0x10000)) {
-	z_decomp_free(state);
-	return NULL;
-    }
-#else
-    state->strm.opaque = state;
-#endif
 
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	z_decomp_free(state);
 	return NULL;
     }
-    state->in_alloc = 0;
     return (void *) state;
 }
 
