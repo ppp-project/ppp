@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.50 1998/09/13 23:38:49 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.51 1998/11/07 06:59:28 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -33,6 +33,7 @@ static char rcsid[] = "$Id: main.c,v 1.50 1998/09/13 23:38:49 paulus Exp $";
 #include <netdb.h>
 #include <utmp.h>
 #include <pwd.h>
+#include <setjmp.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -90,6 +91,9 @@ int detached;			/* have detached from terminal */
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
+
+static int waiting;
+static jmp_buf sigjmp;
 
 char **script_env;		/* Env. variable values for scripts */
 int s_env_nalloc;		/* # words avail at script_env */
@@ -192,7 +196,7 @@ main(argc, argv)
 
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	option_error("Couldn't get hostname: %m");
-	die(1);
+	exit(1);
     }
     hostname[MAXNAMELEN-1] = 0;
 
@@ -225,7 +229,7 @@ main(argc, argv)
     if (geteuid() != 0) {
 	option_error("must be root to run %s, since it is not setuid-root",
 		     argv[0]);
-	die(1);
+	exit(1);
     }
 
     if (!ppp_available()) {
@@ -236,13 +240,14 @@ main(argc, argv)
     /*
      * Check that the options given are valid and consistent.
      */
-    sys_check_options();
+    if (!sys_check_options())
+	exit(1);
     auth_check_options();
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
     if (demand && connector == 0) {
-	option_error("connect script required for demand-dialling\n");
+	option_error("connect script is required for demand-dialling\n");
 	exit(1);
     }
 
@@ -271,7 +276,7 @@ main(argc, argv)
      * Detach ourselves from the terminal, if required,
      * and identify who is running us.
      */
-    if (nodetach == 0)
+    if (!nodetach && !updetach)
 	detach();
     pid = getpid();
     p = getlogin();
@@ -295,12 +300,13 @@ main(argc, argv)
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGCHLD);
+    sigaddset(&mask, SIGUSR2);
 
 #define SIGNAL(s, handler)	{ \
 	sa.sa_handler = handler; \
 	if (sigaction(s, &sa, NULL) < 0) { \
 	    syslog(LOG_ERR, "Couldn't establish signal handler (%d): %m", s); \
-	    die(1); \
+	    exit(1); \
 	} \
     }
 
@@ -360,6 +366,9 @@ main(argc, argv)
      */
     signal(SIGPIPE, SIG_IGN);
 
+    waiting = 0;
+    sigprocmask(SIG_BLOCK, &mask, NULL);
+
     /*
      * If we're doing dial-on-demand, set up the interface now.
      */
@@ -393,17 +402,25 @@ main(argc, argv)
 	    kill_link = 0;
 	    demand_unblock();
 	    for (;;) {
-		wait_loop_output(timeleft(&timo));
+		if (setjmp(sigjmp) == 0) {
+		    waiting = 1;
+		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		    wait_loop_output(timeleft(&timo));
+		}
+		sigprocmask(SIG_BLOCK, &mask, NULL);
+		waiting = 0;
 		calltimeout();
 		if (kill_link) {
 		    if (!persist)
-			die(0);
+			break;
 		    kill_link = 0;
 		}
 		if (get_loop_output())
 		    break;
 		reap_kids();
 	    }
+	    if (kill_link)
+		break;
 
 	    /*
 	     * Now we want to bring up the link.
@@ -428,19 +445,20 @@ main(argc, argv)
 	 * out and we want to use the modem lines, we reopen it later
 	 * in order to wait for the carrier detect signal from the modem.
 	 */
+	hungup = 0;
+	kill_link = 0;
+	sigprocmask(SIG_UNBLOCK, &mask, NULL);
 	while ((ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0)) < 0) {
 	    if (errno != EINTR)
 		syslog(LOG_ERR, "Failed to open %s: %m", devnam);
 	    if (!persist || errno != EINTR)
 		goto fail;
 	}
+	sigprocmask(SIG_BLOCK, &mask, NULL);
 	if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
 	    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
 	    syslog(LOG_WARNING,
 		   "Couldn't reset non-blocking mode on device: %m");
-
-	hungup = 0;
-	kill_link = 0;
 
 	/*
 	 * Do the equivalent of `mesg n' to stop broadcast messages.
@@ -456,6 +474,11 @@ main(argc, argv)
 	if (connector && connector[0]) {
 	    MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
 
+	    if (!default_device && modem) {
+		hangup_modem(ttyfd);	/* in case modem is off hook */
+		sleep(1);
+	    }
+
 	    /*
 	     * Set line speed, flow control, etc.
 	     * On most systems we set CLOCAL for now so that we can talk
@@ -463,23 +486,14 @@ main(argc, argv)
 	     * side effect that we might miss it if CD drops before we
 	     * get to clear CLOCAL below.  On systems where we can talk
 	     * successfully to the modem with CLOCAL clear and CD down,
-	     * we can clear CLOCAL at this point.
+	     * we could clear CLOCAL at this point.
 	     */
 	    set_up_tty(ttyfd, 1);
 
-	    /* drop dtr to hang up in case modem is off hook */
-	    if (!default_device && modem) {
-		setdtr(ttyfd, FALSE);
-		sleep(1);
-		setdtr(ttyfd, TRUE);
-	    }
-
 	    if (device_script(connector, ttyfd, ttyfd) < 0) {
 		syslog(LOG_ERR, "Connect script failed");
-		setdtr(ttyfd, FALSE);
 		goto fail;
 	    }
-
 
 	    syslog(LOG_INFO, "Serial connection established.");
 	    sleep(1);		/* give it time to set up its terminal */
@@ -524,14 +538,21 @@ main(argc, argv)
 	syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devnam);
 	lcp_lowerup(0);
 	lcp_open(0);		/* Start protocol */
+	open_ccp_flag = 0;
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
-	    wait_input(timeleft(&timo));
+	    if (setjmp(sigjmp) == 0) {
+		waiting = 1;
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		wait_input(timeleft(&timo));
+	    }
+	    sigprocmask(SIG_BLOCK, &mask, NULL);
+	    waiting = 0;
 	    calltimeout();
-	    get_input();
 	    if (kill_link) {
 		lcp_close(0, "User request");
 		kill_link = 0;
 	    }
+	    get_input();
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
@@ -581,7 +602,7 @@ main(argc, argv)
 	}
 
 	if (!persist)
-	    die(1);
+	    break;
 
 	if (demand)
 	    demand_discard();
@@ -589,18 +610,28 @@ main(argc, argv)
 	    phase = PHASE_HOLDOFF;
 	    TIMEOUT(holdoff_end, NULL, holdoff);
 	    do {
-		wait_time(timeleft(&timo));
+		if (setjmp(sigjmp) == 0) {
+		    waiting = 1;
+		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		    wait_time(timeleft(&timo));
+		}
+		sigprocmask(SIG_BLOCK, &mask, NULL);
+		waiting = 0;
 		calltimeout();
 		if (kill_link) {
-		    if (!persist)
-			die(0);
 		    kill_link = 0;
 		    phase = PHASE_DORMANT; /* allow signal to end holdoff */
 		}
 		reap_kids();
 	    } while (phase == PHASE_HOLDOFF);
+	    if (!persist)
+		break;
 	}
     }
+
+    /* Wait for scripts to finish */
+    while (n_children > 0)
+	reap_kids();
 
     die(0);
     return 0;
@@ -632,6 +663,7 @@ static void
 create_pidfile()
 {
     FILE *pidfile;
+    char numbuf[16];
 
     (void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
@@ -641,6 +673,8 @@ create_pidfile()
 	syslog(LOG_ERR, "Failed to create pid file %s: %m", pidfilename);
 	pidfilename[0] = 0;
     }
+    sprintf(numbuf, "%d", pid);
+    script_setenv("PPPD_PID", numbuf);
 }
 
 /*
@@ -782,8 +816,8 @@ close_tty()
     disestablish_ppp(ttyfd);
 
     /* drop dtr to hang up */
-    if (modem) {
-	setdtr(ttyfd, FALSE);
+    if (!default_device && modem) {
+	hangup_modem(ttyfd);
 	/*
 	 * This sleep is in case the serial port has CLOCAL set by default,
 	 * and consequently will reassert DTR when we close the device.
@@ -847,7 +881,7 @@ timeout(func, arg, time)
     for (pp = &callout; (p = *pp); pp = &p->c_next)
 	if (newp->c_time.tv_sec < p->c_time.tv_sec
 	    || (newp->c_time.tv_sec == p->c_time.tv_sec
-		&& newp->c_time.tv_usec < p->c_time.tv_sec))
+		&& newp->c_time.tv_usec < p->c_time.tv_usec))
 	    break;
     newp->c_next = p;
     *pp = newp;
@@ -963,6 +997,8 @@ hup(sig)
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
+    if (waiting)
+	longjmp(sigjmp, 1);
 }
 
 
@@ -982,6 +1018,8 @@ term(sig)
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
+    if (waiting)
+	longjmp(sigjmp, 1);
 }
 
 
@@ -993,7 +1031,8 @@ static void
 chld(sig)
     int sig;
 {
-    reap_kids();
+    if (waiting)
+	longjmp(sigjmp, 1);
 }
 
 
@@ -1027,6 +1066,8 @@ open_ccp(sig)
     int sig;
 {
     open_ccp_flag = 1;
+    if (waiting)
+	longjmp(sigjmp, 1);
 }
 
 
@@ -1092,7 +1133,7 @@ device_script(program, in, out)
 		close(out);
 	    }
 	}
-	if (nodetach == 0) {
+	if (!nodetach && !updetach) {
 	    close(2);
 	    errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
 	    if (errfd >= 0 && errfd != 2) {
@@ -1121,23 +1162,59 @@ device_script(program, in, out)
 
 
 /*
+ * We maintain a list of child process pids and
+ * functions to call when they exit.
+ */
+struct subprocess {
+    pid_t	pid;
+    char	*prog;
+    void	(*done) __P((void *));
+    void	*arg;
+    struct subprocess *next;
+};
+
+struct subprocess *children;
+
+/*
  * run-program - execute a program with given arguments,
  * but don't wait for it.
  * If the program can't be executed, logs an error unless
  * must_exist is 0 and the program file doesn't exist.
+ * Returns -1 if it couldn't fork, 0 if the file doesn't exist
+ * or isn't an executable plain file, or the process ID of the child.
+ * If done != NULL, (*done)(arg) will be called later (within
+ * reap_kids) iff the return value is > 0.
  */
-int
-run_program(prog, args, must_exist)
+pid_t
+run_program(prog, args, must_exist, done, arg)
     char *prog;
     char **args;
     int must_exist;
+    void (*done) __P((void *));
+    void *arg;
 {
     int pid;
+    struct subprocess *chp;
+    struct stat sbuf;
+
+    /*
+     * First check if the file exists and is executable.
+     * We don't use access() because that would use the
+     * real user-id, which might not be root, and the script
+     * might be accessible only to root.
+     */
+    errno = EINVAL;
+    if (stat(prog, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)
+	|| (sbuf.st_mode & (S_IXUSR|S_IXGRP|S_IXOTH)) == 0) {
+	if (must_exist || errno != ENOENT)
+	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
+	return 0;
+    }
 
     pid = fork();
     if (pid == -1) {
 	syslog(LOG_ERR, "Failed to create child process for %s: %m", prog);
-	return -1;
+	die(1);
     }
     if (pid == 0) {
 	int new_fd;
@@ -1176,15 +1253,36 @@ run_program(prog, args, must_exist)
 
 	/* SysV recommends a second fork at this point. */
 
-	/* run the program; give it a null environment */
+	/* run the program */
 	execve(prog, args, script_env);
-	if (must_exist || errno != ENOENT)
+	if (must_exist || errno != ENOENT) {
+	    int i;
 	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
+	    for (i = 0; args[i]; ++i)
+		syslog(LOG_DEBUG, "args[%d] = '%s'", i, args[i]);
+	    for (i = 0; script_env[i]; ++i)
+		syslog(LOG_DEBUG, "env[%d] = '%s'", i, script_env[i]);
+	}
 	_exit(-1);
     }
-    MAINDEBUG((LOG_DEBUG, "Script %s started; pid = %d", prog, pid));
+
+    if (debug)
+	syslog(LOG_DEBUG, "Script %s started; pid = %d", prog, pid);
     ++n_children;
-    return 0;
+
+    chp = (struct subprocess *) malloc(sizeof(struct subprocess));
+    if (chp == NULL) {
+	syslog(LOG_WARNING, "losing track of %s process", prog);
+    } else {
+	chp->pid = pid;
+	chp->prog = prog;
+	chp->done = done;
+	chp->arg = arg;
+	chp->next = children;
+	children = chp;
+    }
+
+    return pid;
 }
 
 
@@ -1196,21 +1294,28 @@ static void
 reap_kids()
 {
     int pid, status;
+    struct subprocess *chp, **prevp;
 
     if (n_children == 0)
 	return;
-    if ((pid = waitpid(-1, &status, WNOHANG)) == -1) {
-	if (errno != ECHILD)
-	    syslog(LOG_ERR, "Error waiting for child process: %m");
-	return;
-    }
-    if (pid > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) != -1 && pid != 0) {
 	--n_children;
+	for (prevp = &children; (chp = *prevp) != NULL; prevp = &chp->next)
+	    if (chp->pid == pid)
+		break;
+	if (debug)
+	    syslog(LOG_DEBUG, "process %d (%s) finished, status = 0x%x",
+		   pid, (chp? chp->prog: "??"), status);
 	if (WIFSIGNALED(status)) {
-	    syslog(LOG_WARNING, "Child process %d terminated with signal %d",
-		   pid, WTERMSIG(status));
+	    syslog(LOG_WARNING,
+		   "Child process %s (pid %d) terminated with signal %d",
+		   (chp? chp->prog: "??"), pid, WTERMSIG(status));
 	}
+	if (chp && chp->done)
+	    (*chp->done)(chp->arg);
     }
+    if (pid == -1 && errno != ECHILD)
+	syslog(LOG_ERR, "Error waiting for child process: %m");
 }
 
 

@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.22 1998/03/25 03:09:12 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.23 1998/11/07 06:59:32 paulus Exp $";
 #endif
 
 /*
@@ -137,13 +137,14 @@ sys_close()
 /*
  * sys_check_options - check the options that the user specified
  */
-void
+int
 sys_check_options()
 {
     if (demand) {
 	option_error("Sorry - demand-dialling is not supported under Ultrix\n");
-	exit(1);
+	return 0;
     }
+    return 1;
 }
 
 

@@ -26,9 +26,10 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.22 1998/03/25 01:25:02 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.23 1998/11/07 06:59:26 paulus Exp $";
 #endif
 
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <sys/ioctl.h>
@@ -38,6 +39,48 @@ static char rcsid[] = "$Id: ccp.c,v 1.22 1998/03/25 01:25:02 paulus Exp $";
 #include "fsm.h"
 #include "ccp.h"
 #include <net/ppp-comp.h>
+
+/*
+ * Command-line options.
+ */
+static int setbsdcomp __P((char **));
+static int setdeflate __P((char **));
+
+static option_t ccp_option_list[] = {
+    { "noccp", o_bool, &ccp_protent.enabled_flag,
+      "Disable CCP negotiation" },
+    { "-ccp", o_bool, &ccp_protent.enabled_flag,
+      "Disable CCP negotiation" },
+    { "bsdcomp", o_special, setbsdcomp,
+      "Request BSD-Compress packet compression" },
+    { "nobsdcomp", o_bool, &ccp_wantoptions[0].bsd_compress,
+      "don't allow BSD-Compress", OPT_A2COPY,
+      &ccp_allowoptions[0].bsd_compress },
+    { "-bsdcomp", o_bool, &ccp_wantoptions[0].bsd_compress,
+      "don't allow BSD-Compress", OPT_A2COPY,
+      &ccp_allowoptions[0].bsd_compress },
+    { "deflate", 1, setdeflate,
+      "request Deflate compression" },
+    { "nodeflate", o_bool, &ccp_wantoptions[0].deflate,
+      "don't allow Deflate compression", OPT_A2COPY,
+      &ccp_allowoptions[0].deflate },
+    { "-deflate", o_bool, &ccp_wantoptions[0].deflate,
+      "don't allow Deflate compression", OPT_A2COPY,
+      &ccp_allowoptions[0].deflate },
+    { "nodeflatedraft", o_bool, &ccp_wantoptions[0].deflate_draft,
+      "don't use draft deflate #", OPT_A2COPY,
+      &ccp_allowoptions[0].deflate_draft },
+    { "predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
+      "request Predictor-1", 1, &ccp_allowoptions[0].predictor_1 },
+    { "nopredictor1", o_bool, &ccp_wantoptions[0].predictor_1,
+      "don't allow Predictor-1", OPT_A2COPY,
+      &ccp_allowoptions[0].predictor_1 },
+    { "-predictor1", o_bool, &ccp_wantoptions[0].predictor_1,
+      "don't allow Predictor-1", OPT_A2COPY,
+      &ccp_allowoptions[0].predictor_1 },
+
+    { NULL }
+};
 
 /*
  * Protocol entry points from main code.
@@ -67,6 +110,7 @@ struct protent ccp_protent = {
     ccp_datainput,
     1,
     "CCP",
+    ccp_option_list,
     NULL,
     NULL,
     NULL
@@ -128,6 +172,83 @@ static int ccp_localstate[NUM_PPP];
 #define RACKTIMEOUT	1	/* second */
 
 static int all_rejected[NUM_PPP];	/* we rejected all peer's options */
+
+/*
+ * Option parsing.
+ */
+static int
+setbsdcomp(argv)
+    char **argv;
+{
+    int rbits, abits;
+    char *str, *endp;
+
+    str = *argv;
+    abits = rbits = strtol(str, &endp, 0);
+    if (endp != str && *endp == ',') {
+	str = endp + 1;
+	abits = strtol(str, &endp, 0);
+    }
+    if (*endp != 0 || endp == str) {
+	option_error("invalid parameter '%s' for bsdcomp option", *argv);
+	return 0;
+    }
+    if ((rbits != 0 && (rbits < BSD_MIN_BITS || rbits > BSD_MAX_BITS))
+	|| (abits != 0 && (abits < BSD_MIN_BITS || abits > BSD_MAX_BITS))) {
+	option_error("bsdcomp option values must be 0 or %d .. %d",
+		     BSD_MIN_BITS, BSD_MAX_BITS);
+	return 0;
+    }
+    if (rbits > 0) {
+	ccp_wantoptions[0].bsd_compress = 1;
+	ccp_wantoptions[0].bsd_bits = rbits;
+    } else
+	ccp_wantoptions[0].bsd_compress = 0;
+    if (abits > 0) {
+	ccp_allowoptions[0].bsd_compress = 1;
+	ccp_allowoptions[0].bsd_bits = abits;
+    } else
+	ccp_allowoptions[0].bsd_compress = 0;
+    return 1;
+}
+
+static int
+setdeflate(argv)
+    char **argv;
+{
+    int rbits, abits;
+    char *str, *endp;
+
+    str = *argv;
+    abits = rbits = strtol(str, &endp, 0);
+    if (endp != str && *endp == ',') {
+	str = endp + 1;
+	abits = strtol(str, &endp, 0);
+    }
+    if (*endp != 0 || endp == str) {
+	option_error("invalid parameter '%s' for deflate option", *argv);
+	return 0;
+    }
+    if ((rbits != 0 && (rbits < DEFLATE_MIN_SIZE || rbits > DEFLATE_MAX_SIZE))
+	|| (abits != 0 && (abits < DEFLATE_MIN_SIZE
+			  || abits > DEFLATE_MAX_SIZE))) {
+	option_error("deflate option values must be 0 or %d .. %d",
+		     DEFLATE_MIN_SIZE, DEFLATE_MAX_SIZE);
+	return 0;
+    }
+    if (rbits > 0) {
+	ccp_wantoptions[0].deflate = 1;
+	ccp_wantoptions[0].deflate_size = rbits;
+    } else
+	ccp_wantoptions[0].deflate = 0;
+    if (abits > 0) {
+	ccp_allowoptions[0].deflate = 1;
+	ccp_allowoptions[0].deflate_size = abits;
+    } else
+	ccp_allowoptions[0].deflate = 0;
+    return 1;
+}
+
 
 /*
  * ccp_init - initialize CCP.

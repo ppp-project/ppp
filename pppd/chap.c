@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.15 1997/11/27 06:07:48 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.16 1998/11/07 06:59:26 paulus Exp $";
 #endif
 
 /*
@@ -53,6 +53,23 @@ static char rcsid[] = "$Id: chap.c,v 1.15 1997/11/27 06:07:48 paulus Exp $";
 #ifdef CHAPMS
 #include "chap_ms.h"
 #endif
+
+/*
+ * Command-line options.
+ */
+static option_t chap_option_list[] = {
+    { "chap-restart", o_int, &chap[0].timeouttime,
+      "Set timeout for CHAP" },
+    { "chap-max-challenge", o_int, &chap[0].max_transmits,
+      "Set max #xmits for challenge" },
+    { "chap-interval", o_int, &chap[0].chal_interval,
+      "Set interval for rechallenge" },
+#ifdef MSLANMAN
+    { "ms-lanman", o_bool, &ms_lanman,
+      "Use LanMan psswd when using MS-CHAP", 1 },
+#endif
+    { NULL }
+};
 
 /*
  * Protocol entry points.
@@ -78,6 +95,7 @@ struct protent chap_protent = {
     NULL,
     1,
     "CHAP",
+    chap_option_list,
     NULL,
     NULL,
     NULL

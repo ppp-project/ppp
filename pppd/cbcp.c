@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.2 1997/04/30 05:50:26 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.3 1998/11/07 06:59:25 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -33,6 +33,17 @@ static char rcsid[] = "$Id: cbcp.c,v 1.2 1997/04/30 05:50:26 paulus Exp $";
 #include "fsm.h"
 #include "lcp.h"
 #include "ipcp.h"
+
+/*
+ * Options.
+ */
+static int setcbcp __P((char **));
+
+static option_t cbcp_option_list[] = {
+    { "callback", o_special, setcbcp,
+      "Ask for callback" },
+    { NULL }
+};
 
 /*
  * Protocol entry points.
@@ -59,6 +70,8 @@ struct protent cbcp_protent = {
     NULL,
     0,
     "CBCP",
+    cbcp_option_list,
+    NULL,
     NULL,
     NULL,
     NULL
@@ -73,6 +86,21 @@ static void cbcp_resp __P((cbcp_state *us));
 static void cbcp_up __P((cbcp_state *us));
 static void cbcp_recvack __P((cbcp_state *us, char *pckt, int len));
 static void cbcp_send __P((cbcp_state *us, u_char code, u_char *buf, int len));
+
+/* option processing */
+static int
+setcbcp(argv)
+    char **argv;
+{
+    lcp_wantoptions[0].neg_cbcp = 1;
+    cbcp_protent.enabled_flag = 1;
+    cbcp[0].us_number = strdup(*argv);
+    if (cbcp[0].us_number == 0)
+	novm("callback number");
+    cbcp[0].us_type |= (1 << CB_CONF_USER);
+    cbcp[0].us_type |= (1 << CB_CONF_ADMIN);
+    return (1);
+}
 
 /* init state */
 static void

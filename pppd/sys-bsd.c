@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.33 1998/09/04 18:49:16 christos Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.34 1998/11/07 06:59:30 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -159,9 +159,16 @@ sys_close()
 /*
  * sys_check_options - check the options that the user specified
  */
-void
+int
 sys_check_options()
 {
+#ifndef CDTRCTS
+    if (crtscts == 2) {
+	syslog(LOG_WARNING, "DTR/CTS flow control is not supported on this system");
+	return 0;
+    }
+#endif
+    return 1;
 }
 
 /*
@@ -389,9 +396,6 @@ set_up_tty(fd, local)
         if (crtscts == 2) {
 #ifdef CDTRCTS
             tios.c_cflag |= CDTRCTS;
-#else
-	    syslog(LOG_ERR, "System does not support DTR/CTS flow control");
-	    die(1);
 #endif
 	} else
 	    tios.c_cflag |= CRTSCTS;

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.17 1998/03/25 02:19:31 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.18 1998/11/07 06:59:31 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -219,9 +219,10 @@ sys_close()
 /*
  * sys_check_options - check the options that the user specified
  */
-void
+int
 sys_check_options()
 {
+    return 1;
 }
 
 

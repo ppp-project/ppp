@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.38 1998/11/02 10:55:19 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.39 1998/11/07 06:59:25 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -104,6 +104,7 @@ static int logged_in;
 
 /* Set if we have run the /etc/ppp/auth-up script. */
 static int did_authup;
+static pid_t authup_pid;	/* process ID of auth-up/down script */
 
 /* List of addresses which the peer may use. */
 static struct wordlist *addresses[NUM_PPP];
@@ -116,6 +117,17 @@ static int num_np_up;
 
 /* Set if we got the contents of passwd[] from the pap-secrets file. */
 static int passwd_from_file;
+
+/*
+ * Option variables.
+ */
+bool uselogin = 0;		/* Use /etc/passwd for checking PAP */
+bool cryptpap = 0;		/* Passwords in pap-secrets are encrypted */
+bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
+bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
+bool usehostname = 0;		/* Use hostname for our_name */
+bool auth_required = 0;		/* Always require authentication from peer */
+bool allow_any_ip = 0;		/* Allow peer to use any IP address */
 
 /* Bits in auth_pending[] */
 #define PAP_WITHPEER	1
@@ -142,6 +154,99 @@ static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
 static void free_wordlist __P((struct wordlist *));
 static void auth_script __P((char *));
 static void set_allowed_addrs __P((int, struct wordlist *));
+
+#ifdef OLD_OPTIONS
+static int setupapfile __P((char **));
+#endif
+
+/*
+ * Authentication-related options.
+ */
+option_t auth_options[] = {
+    { "require-pap", o_bool, &lcp_wantoptions[0].neg_upap,
+      "Require PAP authentication from peer", 1, &auth_required },
+    { "+pap", o_bool, &lcp_wantoptions[0].neg_upap,
+      "Require PAP authentication from peer", 1, &auth_required },
+    { "refuse-pap", o_bool, &refuse_pap,
+      "Don't agree to auth to peer with PAP", 1 },
+    { "-pap", o_bool, &refuse_pap,
+      "Don't allow UPAP authentication with peer", 1 },
+    { "require-chap", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require CHAP authentication from peer", 1, &auth_required },
+    { "+chap", o_bool, &lcp_wantoptions[0].neg_chap,
+      "Require CHAP authentication from peer", 1, &auth_required },
+    { "refuse-chap", o_bool, &refuse_chap,
+      "Don't agree to auth to peer with CHAP", 1 },
+    { "-chap", o_bool, &refuse_chap,
+      "Don't allow CHAP authentication with peer", 1 },
+    { "name", o_string, our_name,
+      "Set local name for authentication",
+      OPT_PRIV|OPT_STATIC, NULL, MAXNAMELEN },
+    { "user", o_string, user,
+      "Set name for auth with peer", OPT_STATIC, NULL, MAXNAMELEN },
+    { "usehostname", o_bool, &usehostname,
+      "Must use hostname for authentication", 1 },
+    { "remotename", o_string, remote_name,
+      "Set remote name for authentication", OPT_STATIC, NULL, MAXNAMELEN },
+    { "auth", o_bool, &auth_required,
+      "Require authentication from peer", 1 },
+    { "noauth", o_bool, &auth_required,
+      "Don't require peer to authenticate", OPT_PRIV, &allow_any_ip },
+    {  "login", o_bool, &uselogin,
+      "Use system password database for PAP", 1 },
+    { "papcrypt", o_bool, &cryptpap,
+      "PAP passwords are encrypted", 1 },
+#if OLD_OPTIONS
+    { "+ua", o_special, setupapfile,
+      "Get PAP user and password from file" },
+#endif
+    { NULL }
+};
+
+#if OLD_OPTIONS
+/*
+ * setupapfile - specifies UPAP info for authenticating with peer.
+ */
+static int
+setupapfile(argv)
+    char **argv;
+{
+    FILE * ufile;
+    int l;
+
+    lcp_allowoptions[0].neg_upap = 1;
+
+    /* open user info file */
+    if ((ufile = fopen(*argv, "r")) == NULL) {
+	option_error("unable to open user login data file %s", *argv);
+	return 0;
+    }
+    if (!readable(fileno(ufile))) {
+	option_error("%s: access denied", *argv);
+	return 0;
+    }
+    check_access(ufile, *argv);
+
+    /* get username */
+    if (fgets(user, MAXNAMELEN - 1, ufile) == NULL
+	|| fgets(passwd, MAXSECRETLEN - 1, ufile) == NULL){
+	option_error("unable to read user login data file %s", *argv);
+	return 0;
+    }
+    fclose(ufile);
+
+    /* get rid of newlines */
+    l = strlen(user);
+    if (l > 0 && user[l-1] == '\n')
+	user[l-1] = 0;
+    l = strlen(passwd);
+    if (l > 0 && passwd[l-1] == '\n')
+	passwd[l-1] = 0;
+
+    return (1);
+}
+#endif
+
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
@@ -437,7 +542,7 @@ np_up(unit, proto)
 	/*
 	 * Detach now, if the updetach option was given.
 	 */
-	if (nodetach == -1)
+	if (updetach && !nodetach)
 	    detach();
     }
     ++num_np_up;
@@ -520,9 +625,14 @@ auth_check_options()
 	strcpy(user, our_name);
 
     /* If authentication is required, ask peer for CHAP or PAP. */
-    if (auth_required && !wo->neg_chap && !wo->neg_upap) {
-	wo->neg_chap = 1;
-	wo->neg_upap = 1;
+    if (auth_required) {
+	if (!wo->neg_chap && !wo->neg_upap) {
+	    wo->neg_chap = 1;
+	    wo->neg_upap = 1;
+	}
+    } else {
+	wo->neg_chap = 0;
+	wo->neg_upap = 0;
     }
 
     /*
@@ -549,7 +659,7 @@ auth_check_options()
      * Check whether the user tried to override certain values
      * set by root.
      */
-    if (!auth_required && auth_req_info.priv > 0) {
+    if (allow_any_ip) {
 	if (!default_device && devnam_info.priv == 0) {
 	    option_error("can't override device name when noauth option used");
 	    exit(1);
@@ -557,8 +667,8 @@ auth_check_options()
 	if ((connector != NULL && connector_info.priv == 0)
 	    || (disconnector != NULL && disconnector_info.priv == 0)
 	    || (welcomer != NULL && welcomer_info.priv == 0)) {
-	    option_error("can't override connect, disconnect or welcome");
-	    option_error("option values when noauth option used");
+	    option_error("connect, disconnect and welcome options");
+	    option_error("are privileged when noauth option is used");
 	    exit(1);
 	}
     }
@@ -1196,8 +1306,11 @@ ip_addr_check(addr, addrs)
     if (bad_ip_adrs(addr))
 	return 0;
 
-    if (addrs == NULL)
-	return !auth_required;		/* no addresses authorized */
+    if (addrs == NULL) {
+	if (auth_required)
+	    return 0;		/* no addresses authorized */
+	return allow_any_ip || !have_route_to(addr);
+    }
 
     for (; addrs != NULL; addrs = addrs->next) {
 	/* "-" means no addresses authorized, "*" means any address allowed */
@@ -1498,5 +1611,5 @@ auth_script(script)
     argv[5] = strspeed;
     argv[6] = NULL;
 
-    run_program(script, argv, 0);
+    authup_pid = run_program(script, argv, 0, NULL, NULL);
 }

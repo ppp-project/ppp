@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.9 1998/03/25 02:17:23 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.10 1998/11/07 06:59:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1636,17 +1636,18 @@ get_host_seed()
 /*
  * sys_check_options - check the options that the user specified
  */
-void
+int
 sys_check_options()
 {
   /*
    * We don't support demand dialing yet.
    */
-  if(demand)
+  if (demand)
     {
       syslog(LOG_WARNING, "PPP-2.3 for NeXTSTEP does not yet support demand dialing\n");
-      demand = 0;
+      return 0;
     }
+  return 1;
 }
 
 

@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.29 1998/09/13 23:38:49 paulus Exp $
+.\" $Id: pppd.8,v 1.30 1998/11/07 06:59:29 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -98,7 +98,7 @@ data on the serial port.  If neither the \fIcrtscts\fR, the
 is given, the hardware flow control setting for the serial port is
 left unchanged.
 Some serial ports (such as Macintosh serial ports) lack a true
-RTS output. Such serial ports use this mode to impliment
+RTS output. Such serial ports use this mode to implement
 unidirectional flow control. The serial port will
 suspend transmission when requested by the modem (via CTS)
 but will be unable to request the modem stop sending to the
@@ -112,8 +112,8 @@ the \fInocrtscts\fR, the \fIcdtrcts\fR nor the \fInocdtrcts\fR
 option is given, the hardware flow control setting for the serial
 port is left unchanged.
 Some serial ports (such as Macintosh serial ports) lack a true
-RTS output. Such serial ports use this mode to impliment true
-bi-directional flow control. The sacrafice is that this flow
+RTS output. Such serial ports use this mode to implement true
+bi-directional flow control. The sacrifice is that this flow
 control mode does not permit using DTR as a modem control line.
 .TP
 .B defaultroute

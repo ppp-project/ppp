@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.9 1998/09/04 18:48:12 christos Exp $";
+static char rcsid[] = "$Id: chap_ms.c,v 1.10 1998/11/07 06:59:26 paulus Exp $";
 #endif
 
 #ifdef CHAPMS
@@ -79,6 +79,11 @@ static void	ChapMS_LANMan __P((char *, int, char *, int, MS_ChapResponse *));
 #ifdef USE_CRYPT
 static void	Expand __P((u_char *, u_char *));
 static void	Collapse __P((u_char *, u_char *));
+#endif
+
+#ifdef MSLANMAN
+bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
+			  	/* Has meaning only with MS-CHAP challenges */
 #endif
 
 static void
@@ -308,9 +313,6 @@ ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len)
     int secret_len;
 {
     MS_ChapResponse	response;
-#ifdef MSLANMAN
-    extern int ms_lanman;
-#endif
 
 #if 0
     CHAPDEBUG((LOG_INFO, "ChapMS: secret is '%.*s'", secret_len, secret));

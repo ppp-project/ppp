@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.32 1998/05/13 05:49:19 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.33 1998/11/07 06:59:27 paulus Exp $";
 #endif
 
 /*
@@ -27,6 +27,7 @@ static char rcsid[] = "$Id: lcp.c,v 1.32 1998/05/13 05:49:19 paulus Exp $";
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include <assert.h>
 #include <sys/ioctl.h>
@@ -40,6 +41,78 @@ static char rcsid[] = "$Id: lcp.c,v 1.32 1998/05/13 05:49:19 paulus Exp $";
 #include "lcp.h"
 #include "chap.h"
 #include "magic.h"
+
+/*
+ * LCP-related command-line options.
+ */
+int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
+int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
+
+static int setescape __P((char **));
+
+static option_t lcp_option_list[] = {
+    /* LCP options */
+    { "noaccomp", o_bool, &lcp_wantoptions[0].neg_accompression,
+      "Disable address/control compression",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_accompression },
+    { "-ac", o_bool, &lcp_wantoptions[0].neg_accompression,
+      "Disable address/control compression",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_accompression },
+    { "default-asyncmap", o_bool, &lcp_wantoptions[0].neg_asyncmap,
+      "Disable asyncmap negotiation",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_asyncmap },
+    { "-am", o_bool, &lcp_wantoptions[0].neg_asyncmap,
+      "Disable asyncmap negotiation",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_asyncmap },
+    { "asyncmap", o_uint32, &lcp_wantoptions[0].asyncmap,
+      "Set asyncmap (for received packets)",
+      OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
+    { "-as", o_uint32, &lcp_wantoptions[0].asyncmap,
+      "Set asyncmap (for received packets)",
+      OPT_OR, &lcp_wantoptions[0].neg_asyncmap },
+    { "nomagicnumber", o_bool, &lcp_wantoptions[0].neg_magicnumber,
+      "Disable magic number negotiation (looped-back line detection)",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_magicnumber },
+    { "-mn", o_bool, &lcp_wantoptions[0].neg_magicnumber,
+      "Disable magic number negotiation (looped-back line detection)",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_magicnumber },
+    { "default-mru", o_bool, &lcp_wantoptions[0].neg_mru,
+      "Disable MRU negotiation (use default 1500)",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_mru },
+    { "-mru", o_bool, &lcp_wantoptions[0].neg_mru,
+      "Disable MRU negotiation (use default 1500)",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_mru },
+    { "mru", o_int, &lcp_wantoptions[0].mru,
+      "Set MRU (maximum received packet size) for negotiation",
+      0, &lcp_wantoptions[0].neg_mru },
+    { "nopcomp", o_bool, &lcp_wantoptions[0].neg_pcompression,
+      "Disable protocol field compression",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_pcompression },
+    { "-pc", o_bool, &lcp_wantoptions[0].neg_pcompression,
+      "Disable protocol field compression",
+      OPT_A2COPY, &lcp_allowoptions[0].neg_pcompression },
+    { "-p", o_bool, &lcp_wantoptions[0].passive,
+      "Set passive mode", 1 },
+    { "passive", o_bool, &lcp_wantoptions[0].passive,
+      "Set passive mode", 1 },
+    { "silent", o_bool, &lcp_wantoptions[0].silent,
+      "Set silent mode", 1 },
+    { "escape", o_special, setescape,
+      "List of character codes to escape on transmission" },
+    { "lcp-echo-failure", o_int, &lcp_echo_fails,
+      "Set number of consecutive echo failures to indicate link failure" },
+    { "lcp-echo-interval", o_int, &lcp_echo_interval,
+      "Set time in seconds between LCP echo requests" },
+    { "lcp-restart", o_int, &lcp_fsm[0].timeouttime,
+      "Set time in seconds between LCP retransmissions" },
+    { "lcp-max-terminate", o_int, &lcp_fsm[0].maxtermtransmits,
+      "Set maximum number of LCP terminate-request transmissions" },
+    { "lcp-max-configure", o_int, &lcp_fsm[0].maxconfreqtransmits,
+      "Set maximum number of LCP configure-request transmissions" },
+    { "lcp-max-failure", o_int, &lcp_fsm[0].maxnakloops,
+      "Set limit on number of LCP configure-naks" },
+    {NULL}
+};
 
 /* global vars */
 fsm lcp_fsm[NUM_PPP];			/* LCP fsm structure (global)*/
@@ -126,6 +199,7 @@ struct protent lcp_protent = {
     NULL,
     1,
     "LCP",
+    lcp_option_list,
     NULL,
     NULL,
     NULL
@@ -147,6 +221,37 @@ int lcp_loopbackfail = DEFLOOPBACKFAIL;
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
 			 (x) == CONFNAK ? "NAK" : "REJ")
 
+
+/*
+ * setescape - add chars to the set we escape on transmission.
+ */
+static int
+setescape(argv)
+    char **argv;
+{
+    int n, ret;
+    char *p, *endp;
+
+    p = *argv;
+    ret = 1;
+    while (*p) {
+	n = strtol(p, &endp, 16);
+	if (p == endp) {
+	    option_error("escape parameter contains invalid hex number '%s'",
+			 p);
+	    return 0;
+	}
+	p = endp;
+	if (n < 0 || (0x20 <= n && n <= 0x3F) || n == 0x5E || n > 0xFF) {
+	    option_error("can't escape character 0x%x", n);
+	    ret = 0;
+	} else
+	    xmit_accm[0][n >> 5] |= 1 << (n & 0x1F);
+	while (*p == ',' || *p == ' ')
+	    ++p;
+    }
+    return ret;
+}
 
 /*
  * lcp_init - Initialize LCP.

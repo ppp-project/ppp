@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.34 1998/04/28 23:38:09 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.35 1998/11/07 06:59:26 paulus Exp $";
 #endif
 
 /*
@@ -33,6 +33,7 @@ static char rcsid[] = "$Id: ipcp.c,v 1.34 1998/04/28 23:38:09 paulus Exp $";
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -44,6 +45,8 @@ ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */
 ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 ipcp_options ipcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
+
+bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 
 /* local vars */
 static int cis_received[NUM_PPP];	/* # Conf-Reqs received */
@@ -62,7 +65,6 @@ static int  ipcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
 static int  ipcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
 static void ipcp_up __P((fsm *));		/* We're UP */
 static void ipcp_down __P((fsm *));		/* We're DOWN */
-static void ipcp_script __P((fsm *, char *)); /* Run an up/down script */
 static void ipcp_finished __P((fsm *));	/* Don't need lower layer */
 
 fsm ipcp_fsm[NUM_PPP];		/* IPCP fsm structure */
@@ -83,6 +85,69 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
     NULL,			/* Retransmission is necessary */
     NULL,			/* Called to handle protocol-specific codes */
     "IPCP"			/* String name of protocol */
+};
+
+/*
+ * Command-line options.
+ */
+static int setvjslots __P((char **));
+static int setdnsaddr __P((char **));
+static int setwinsaddr __P((char **));
+
+static option_t ipcp_option_list[] = {
+    { "noip", o_bool, &ipcp_protent.enabled_flag,
+      "Disable IP and IPCP" },
+    { "-ip", o_bool, &ipcp_protent.enabled_flag,
+      "Disable IP and IPCP" },
+    { "novj", o_bool, &ipcp_wantoptions[0].neg_vj,
+      "Disable VJ compression", OPT_A2COPY, &ipcp_allowoptions[0].neg_vj },
+    { "-vj", o_bool, &ipcp_wantoptions[0].neg_vj,
+      "Disable VJ compression", OPT_A2COPY, &ipcp_allowoptions[0].neg_vj },
+    { "novjccomp", o_bool, &ipcp_wantoptions[0].cflag,
+      "Disable VJ connection-ID compression", OPT_A2COPY,
+      &ipcp_allowoptions[0].cflag },
+    { "-vjccomp", o_bool, &ipcp_wantoptions[0].cflag,
+      "Disable VJ connection-ID compression", OPT_A2COPY,
+      &ipcp_allowoptions[0].cflag },
+    { "vj-max-slots", 1, setvjslots,
+      "Set maximum VJ header slots" },
+    { "ipcp-accept-local", o_bool, &ipcp_wantoptions[0].accept_local,
+      "Accept peer's address for us", 1 },
+    { "ipcp-accept-remote", o_bool, &ipcp_wantoptions[0].accept_remote,
+      "Accept peer's address for it", 1 },
+    { "ipparam", o_string, &ipparam,
+      "Set ip script parameter" },
+    { "noipdefault", o_bool, &disable_defaultip,
+      "Don't use name for default IP adrs", 1 },
+    { "ms-dns", 1, setdnsaddr,
+      "DNS address for the peer's use" },
+    { "ms-wins", 1, setwinsaddr,
+      "Nameserver for SMB over TCP/IP for peer" },
+    { "ipcp-restart", o_int, &ipcp_fsm[0].timeouttime,
+      "Set timeout for IPCP" },
+    { "ipcp-max-terminate", o_int, &ipcp_fsm[0].maxtermtransmits,
+      "Set max #xmits for term-reqs" },
+    { "ipcp-max-configure", o_int, &ipcp_fsm[0].maxconfreqtransmits,
+      "Set max #xmits for conf-reqs" },
+    { "ipcp-max-failure", o_int, &ipcp_fsm[0].maxnakloops,
+      "Set max #conf-naks for IPCP" },
+    { "defaultroute", o_bool, &ipcp_wantoptions[0].default_route,
+      "Add default route", OPT_ENABLE|1, &ipcp_allowoptions[0].default_route },
+    { "nodefaultroute", o_bool, &ipcp_allowoptions[0].default_route,
+      "disable defaultroute option", OPT_A2COPY,
+      &ipcp_wantoptions[0].default_route },
+    { "-defaultroute", o_bool, &ipcp_allowoptions[0].default_route,
+      "disable defaultroute option", OPT_A2COPY,
+      &ipcp_wantoptions[0].default_route },
+    { "proxyarp", o_bool, &ipcp_wantoptions[0].proxy_arp,
+      "Add proxy ARP entry", OPT_ENABLE|1, &ipcp_allowoptions[0].proxy_arp },
+    { "noproxyarp", o_bool, &ipcp_allowoptions[0].proxy_arp,
+      "disable proxyarp option", OPT_A2COPY,
+      &ipcp_wantoptions[0].proxy_arp },
+    { "-proxyarp", o_bool, &ipcp_allowoptions[0].proxy_arp,
+      "disable proxyarp option", OPT_A2COPY,
+      &ipcp_wantoptions[0].proxy_arp },
+    { NULL }
 };
 
 /*
@@ -114,12 +179,15 @@ struct protent ipcp_protent = {
     NULL,
     1,
     "IPCP",
+    ipcp_option_list,
     ip_check_options,
     ip_demand_conf,
     ip_active_pkt
 };
 
 static void ipcp_clear_addrs __P((int));
+static void ipcp_script __P((char *));		/* Run an up/down script */
+static void ipcp_script_done __P((void *));
 
 /*
  * Lengths of configuration options.
@@ -134,6 +202,15 @@ static void ipcp_clear_addrs __P((int));
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
 			 (x) == CONFNAK ? "NAK" : "REJ")
 
+/*
+ * This state variable is used to ensure that we don't
+ * run an ipcp-up/down script while one is already running.
+ */
+static enum script_state {
+    s_down,
+    s_up,
+} ipcp_script_state;
+static pid_t ipcp_script_pid;
 
 /*
  * Make a string representation of a network IP address.
@@ -152,6 +229,92 @@ u_int32_t ipaddr;
 	    (u_char)(ipaddr >> 8),
 	    (u_char)(ipaddr));
     return b;
+}
+
+/*
+ * Option parsing.
+ */
+
+/*
+ * setvjslots - set maximum number of connection slots for VJ compression
+ */
+static int
+setvjslots(argv)
+    char **argv;
+{
+    int value;
+
+    if (!int_option(*argv, &value))
+	return 0;
+    if (value < 2 || value > 16) {
+	option_error("vj-max-slots value must be between 2 and 16");
+	return 0;
+    }
+    ipcp_wantoptions [0].maxslotindex =
+        ipcp_allowoptions[0].maxslotindex = value - 1;
+    return 1;
+}
+
+/*
+ * setdnsaddr - set the dns address(es)
+ */
+static int
+setdnsaddr(argv)
+    char **argv;
+{
+    u_int32_t dns;
+    struct hostent *hp;
+
+    dns = inet_addr(*argv);
+    if (dns == -1) {
+	if ((hp = gethostbyname(*argv)) == NULL) {
+	    option_error("invalid address parameter '%s' for ms-dns option",
+			 *argv);
+	    return 0;
+	}
+	dns = *(u_int32_t *)hp->h_addr;
+    }
+
+    /* if there is no primary then update it. */
+    if (ipcp_allowoptions[0].dnsaddr[0] == 0)
+	ipcp_allowoptions[0].dnsaddr[0] = dns;
+
+    /* always set the secondary address value to the same value. */
+    ipcp_allowoptions[0].dnsaddr[1] = dns;
+
+    return (1);
+}
+
+/*
+ * setwinsaddr - set the wins address(es)
+ * This is primrarly used with the Samba package under UNIX or for pointing
+ * the caller to the existing WINS server on a Windows NT platform.
+ */
+static int
+setwinsaddr(argv)
+    char **argv;
+{
+    u_int32_t wins;
+    struct hostent *hp;
+
+    wins = inet_addr(*argv);
+    if (wins == -1) {
+	if ((hp = gethostbyname(*argv)) == NULL) {
+	    option_error("invalid address parameter '%s' for ms-wins option",
+			 *argv);
+	    return 0;
+	}
+	wins = *(u_int32_t *)hp->h_addr;
+    }
+
+    /* if there is no primary then update it. */
+    if (ipcp_allowoptions[0].winsaddr[0] == 0)
+	ipcp_allowoptions[0].winsaddr[0] = wins;
+
+    /* always set the secondary address value to the same value. */
+    ipcp_allowoptions[0].winsaddr[1] = wins;
+
+    return (1);
 }
 
 
@@ -1180,12 +1343,20 @@ ipcp_up(f)
      */
     if (demand) {
 	if (go->ouraddr != wo->ouraddr || ho->hisaddr != wo->hisaddr) {
-	    if (go->ouraddr != wo->ouraddr)
+	    if (go->ouraddr != wo->ouraddr) {
 		syslog(LOG_WARNING, "Local IP address changed to %s",
 		       ip_ntoa(go->ouraddr));
-	    if (ho->hisaddr != wo->hisaddr)
+		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr));
+		wo->ouraddr = go->ouraddr;
+	    } else
+		script_unsetenv("OLDIPLOCAL");
+	    if (ho->hisaddr != wo->hisaddr) {
 		syslog(LOG_WARNING, "Remote IP address changed to %s",
 		       ip_ntoa(ho->hisaddr));
+		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr));
+		wo->hisaddr = ho->hisaddr;
+	    } else
+		script_unsetenv("OLDIPREMOTE");
 	    ipcp_clear_addrs(f->unit);
 
 	    /* Set the interface to the new addresses */
@@ -1258,8 +1429,10 @@ ipcp_up(f)
      * Execute the ip-up script, like this:
      *	/etc/ppp/ip-up interface tty speed local-IP remote-IP
      */
-    ipcp_script(f, _PATH_IPUP);
-
+    if (ipcp_script_state == s_down && ipcp_script_pid == 0) {
+	ipcp_script_state = s_up;
+	ipcp_script(_PATH_IPUP);
+    }
 }
 
 
@@ -1289,7 +1462,10 @@ ipcp_down(f)
     }
 
     /* Execute the ip-down script */
-    ipcp_script(f, _PATH_IPDOWN);
+    if (ipcp_script_state == s_up && ipcp_script_pid == 0) {
+	ipcp_script_state = s_down;
+	ipcp_script(_PATH_IPDOWN);
+    }
 }
 
 
@@ -1329,20 +1505,44 @@ ipcp_finished(f)
 
 
 /*
+ * ipcp_script_done - called when the ip-up or ip-down script
+ * has finished.
+ */
+static void
+ipcp_script_done(void *arg)
+{
+    ipcp_script_pid = 0;
+    switch (ipcp_script_state) {
+    case s_up:
+	if (ipcp_fsm[0].state != OPENED) {
+	    ipcp_script_state = s_down;
+	    ipcp_script(_PATH_IPDOWN);
+	}
+	break;
+    case s_down:
+	if (ipcp_fsm[0].state == OPENED) {
+	    ipcp_script_state = s_up;
+	    ipcp_script(_PATH_IPUP);
+	}
+	break;
+    }
+}
+
+
+/*
  * ipcp_script - Execute a script with arguments
  * interface-name tty-name speed local-IP remote-IP.
  */
 static void
-ipcp_script(f, script)
-    fsm *f;
+ipcp_script(script)
     char *script;
 {
     char strspeed[32], strlocal[32], strremote[32];
     char *argv[8];
 
     sprintf(strspeed, "%d", baud_rate);
-    strcpy(strlocal, ip_ntoa(ipcp_gotoptions[f->unit].ouraddr));
-    strcpy(strremote, ip_ntoa(ipcp_hisoptions[f->unit].hisaddr));
+    strcpy(strlocal, ip_ntoa(ipcp_gotoptions[0].ouraddr));
+    strcpy(strremote, ip_ntoa(ipcp_hisoptions[0].hisaddr));
 
     argv[0] = script;
     argv[1] = ifname;
@@ -1352,7 +1552,7 @@ ipcp_script(f, script)
     argv[5] = strremote;
     argv[6] = ipparam;
     argv[7] = NULL;
-    run_program(script, argv, 0);
+    ipcp_script_pid = run_program(script, argv, 0, ipcp_script_done, NULL);
 }
 
 /*

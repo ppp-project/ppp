@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.22 1998/05/13 05:49:21 paulus Exp $
+ * $Id: pppd.h,v 1.23 1998/11/07 06:59:29 paulus Exp $
  */
 
 /*
@@ -52,6 +52,52 @@
 #define MAXSECRETLEN	256	/* max length of password or secret */
 
 /*
+ * Option descriptor structure.
+ */
+
+typedef unsigned char	bool;
+
+enum opt_type {
+	o_special_noarg = 0,
+	o_special = 1,
+	o_bool,
+	o_int,
+	o_uint32,
+	o_string,
+};
+
+typedef struct {
+	char	*name;		/* name of the option */
+	enum opt_type type;
+	void	*addr;
+	char	*description;
+	int	flags;
+	void	*addr2;
+	int	upper_limit;
+	int	lower_limit;
+} option_t;
+
+/* Values for flags */
+#define OPT_VALUE	0xff	/* mask for presupplied value */
+#define OPT_HEX		0x100	/* int option is in hex */
+#define OPT_NOARG	0x200	/* option doesn't take argument */
+#define OPT_OR		0x400	/* OR in argument to value */
+#define OPT_INC		0x800	/* increment value */
+#define OPT_PRIV	0x1000	/* privileged option */
+#define OPT_STATIC	0x2000	/* string option goes into static array */
+#define OPT_LLIMIT	0x4000	/* check value against lower limit */
+#define OPT_ULIMIT	0x8000	/* check value against upper limit */
+#define OPT_LIMITS	(OPT_LLIMIT|OPT_ULIMIT)
+#define OPT_ZEROOK	0x10000	/* 0 value is OK even if not within limits */
+#define OPT_NOINCR	0x20000	/* value mustn't be increased */
+#define OPT_ZEROINF	0x40000	/* with OPT_NOINCR, 0 == infinity */
+#define OPT_A2INFO	0x100000 /* addr2 -> option_info to update */
+#define OPT_A2COPY	0x200000 /* addr2 -> second location to rcv value */
+#define OPT_ENABLE	0x400000 /* use *addr2 as enable for option */
+
+#define OPT_VAL(x)	((x) & OPT_VALUE)
+
+/*
  * Global variables.
  */
 
@@ -80,43 +126,40 @@ extern int	kdebugflag;	/* Tell kernel to print debug messages */
 extern int	default_device;	/* Using /dev/tty or equivalent */
 extern char	devnam[];	/* Device name */
 extern int	crtscts;	/* Use hardware flow control */
-extern int	modem;		/* Use modem control lines */
+extern bool	modem;		/* Use modem control lines */
 extern int	inspeed;	/* Input/Output speed requested */
 extern u_int32_t netmask;	/* IP netmask to set on interface */
-extern int	lockflag;	/* Create lock file to lock the serial dev */
-extern int	nodetach;	/* Don't detach from controlling tty */
+extern bool	lockflag;	/* Create lock file to lock the serial dev */
+extern bool	nodetach;	/* Don't detach from controlling tty */
+extern bool	updetach;	/* Detach from controlling tty when link up */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
 extern char	user[];		/* Our name for authenticating ourselves */
 extern char	passwd[];	/* Password for PAP */
-extern int	auth_required;	/* Peer is required to authenticate */
-extern int	proxyarp;	/* Set up proxy ARP entry for peer */
-extern int	persist;	/* Reopen link after it goes down */
-extern int	uselogin;	/* Use /etc/passwd for checking PAP */
-extern int	lcp_echo_interval; /* Interval between LCP echo-requests */
-extern int	lcp_echo_fails;	/* Tolerance to unanswered echo-requests */
+extern bool	auth_required;	/* Peer is required to authenticate */
+extern bool	persist;	/* Reopen link after it goes down */
+extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
 extern char	our_name[];	/* Our name for authentication purposes */
 extern char	remote_name[];	/* Peer's name for authentication */
 extern int	explicit_remote;/* remote_name specified with remotename opt */
-extern int	usehostname;	/* Use hostname for our_name */
-extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
-extern int	demand;		/* Do dial-on-demand */
+extern bool	demand;		/* Do dial-on-demand */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
-extern int	cryptpap;	/* Others' PAP passwords are encrypted */
+extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
-extern int	refuse_pap;	/* Don't wanna auth. ourselves with PAP */
-extern int	refuse_chap;	/* Don't wanna auth. ourselves with CHAP */
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #endif
 
+char *current_option;		/* the name of the option being parsed */
+int  privileged_option;		/* set iff the current option came from root */
+char *option_source;		/* string saying where the option came from */
 
 #ifdef MSLANMAN
-extern int	ms_lanman;	/* Nonzero if use LanMan password instead of NT */
+extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
 #endif
 
@@ -159,8 +202,9 @@ struct protent {
 			  void *arg));
     /* Process a received data packet */
     void (*datainput) __P((int unit, u_char *pkt, int len));
-    int  enabled_flag;		/* 0 iff protocol is disabled */
+    bool enabled_flag;		/* 0 iff protocol is disabled */
     char *name;			/* Text name of protocol */
+    option_t *options;		/* List of command-line options */
     /* Check requested options, assign defaults */
     void (*check_options) __P((void));
     /* Configure interface for demand-dial */
@@ -185,7 +229,8 @@ void timeout __P((void (*func)(void *), void *arg, int t));
 				/* Call func(arg) after t seconds */
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
-int run_program __P((char *prog, char **args, int must_exist));
+pid_t run_program __P((char *prog, char **args, int must_exist,
+		       void (*done)(void *), void *arg));
 				/* Run program prog with args in child */
 void demuxprotrej __P((int, int));
 				/* Demultiplex a Protocol-Reject */
@@ -242,7 +287,7 @@ int  loop_frame __P((unsigned char *, int)); /* process frame from loopback */
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
 void sys_cleanup __P((void));	/* Restore system state before exiting */
-void sys_check_options __P((void)); /* Check options specified */
+int  sys_check_options __P((void)); /* Check options specified */
 void sys_close __P((void));	/* Clean up in a child before execing */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
 void open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
@@ -299,6 +344,8 @@ int  daemon __P((int, int));	/* Detach us from terminal session */
 void logwtmp __P((const char *, const char *, const char *));
 				/* Write entry to wtmp file */
 int  get_host_seed __P((void));	/* Get host-dependent random number seed */
+int  have_route_to __P((u_int32_t)); /* Check if route to addr exists */
+void hangup_modem __P((int));	/* Make modem hang up */
 #ifdef PPP_FILTER
 int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
 				/* Set filter programs in kernel */
@@ -323,6 +370,10 @@ int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
 void option_error __P((char *fmt, ...));
 				/* Print an error message about an option */
+int number_option __P((char *, u_int32_t *, int));
+				/* Parse a numerical option */
+int int_option __P((char *, int *));
+				/* Simplified number_option for decimal ints */
 
 /*
  * This structure is used to store information about certain

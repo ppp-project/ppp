@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.11 1997/04/30 05:59:56 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.12 1998/11/07 06:59:32 paulus Exp $";
 #endif
 
 /*
@@ -33,6 +33,19 @@ static char rcsid[] = "$Id: upap.c,v 1.11 1997/04/30 05:59:56 paulus Exp $";
 
 #include "pppd.h"
 #include "upap.h"
+
+/*
+ * Command-line options.
+ */
+static option_t pap_option_list[] = {
+    { "pap-restart", o_int, &upap[0].us_timeouttime,
+      "Set retransmit timeout for PAP" },
+    { "pap-max-authreq", o_int, &upap[0].us_maxtransmits,
+      "Set max #xmits for auth-reqs" },
+    { "pap-timeout", o_int, &upap[0].us_reqtimeout,
+      "Set time limit for peer PAP auth." },
+    { NULL }
+};
 
 /*
  * Protocol entry points.
@@ -58,6 +71,7 @@ struct protent pap_protent = {
     NULL,
     1,
     "PAP",
+    pap_option_list,
     NULL,
     NULL,
     NULL

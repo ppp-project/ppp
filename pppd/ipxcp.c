@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.7 1998/05/13 05:49:18 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.8 1998/11/07 06:59:27 paulus Exp $";
 #endif
 
 /*
@@ -30,6 +30,7 @@ static char rcsid[] = "$Id: ipxcp.c,v 1.7 1998/05/13 05:49:18 paulus Exp $";
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -86,6 +87,50 @@ static fsm_callbacks ipxcp_callbacks = { /* IPXCP callback routines */
 };
 
 /*
+ * Command-line options.
+ */
+static int setipxnode __P((char **));
+static int setipxname __P((char **));
+
+static option_t ipxcp_option_list[] = {
+    { "ipx", o_bool, &ipxcp_protent.enabled_flag,
+      "Enable IPXCP (and IPX)", 1 },
+    { "+ipx", o_bool, &ipxcp_protent.enabled_flag,
+      "Enable IPXCP (and IPX)", 1 },
+    { "noipx", o_bool, &ipxcp_protent.enabled_flag,
+      "Disable IPXCP (and IPX)" },
+    { "-ipx", o_bool, &ipxcp_protent.enabled_flag,
+      "Disable IPXCP (and IPX)" } ,
+    { "ipx-network", o_int, &ipxcp_wantoptions[0].our_network,
+      "Set our IPX network number", 0, &ipxcp_wantoptions[0].neg_nn },
+    { "ipxcp-accept-network", o_bool, &ipxcp_wantoptions[0].accept_network,
+      "Accept peer IPX network number", 1,
+      &ipxcp_allowoptions[0].accept_network },
+    { "ipx-node", o_special, setipxnode,
+      "Set IPX node number" },
+    { "ipxcp-accept-local", o_bool, &ipxcp_wantoptions[0].accept_local,
+      "Accept our IPX address", 1,
+      &ipxcp_allowoptions[0].accept_local },
+    { "ipxcp-accept-remote", o_bool, &ipxcp_wantoptions[0].accept_remote,
+      "Accept peer's IPX address", 1,
+      &ipxcp_allowoptions[0].accept_remote },
+    { "ipx-routing", o_int, &ipxcp_wantoptions[0].router,
+      "Set IPX routing proto number", 0,
+      &ipxcp_wantoptions[0].neg_router },
+    { "ipx-router-name", o_special, setipxname,
+      "Set IPX router name" },
+    { "ipxcp-restart", o_int, &ipxcp_fsm[0].timeouttime,
+      "Set timeout for IPXCP" },
+    { "ipxcp-max-terminate", o_int, &ipxcp_fsm[0].maxtermtransmits,
+      "Set max #xmits for IPXCP term-reqs" },
+    { "ipxcp-max-configure", o_int, &ipxcp_fsm[0].maxconfreqtransmits,
+      "Set max #xmits for IPXCP conf-reqs" },
+    { "ipxcp-max-failure", o_int, &ipxcp_fsm[0].maxnakloops,
+      "Set max #conf-naks for IPXCP" },
+    { NULL }
+};
+
+/*
  * Protocol entry points.
  */
 
@@ -112,6 +157,7 @@ struct protent ipxcp_protent = {
     NULL,
     0,
     "IPXCP",
+    ipxcp_option_list,
     NULL,
     NULL,
     NULL
@@ -169,6 +215,87 @@ u_int32_t ipxaddr;
     return b;
 }
 
+
+static u_char *
+setipxnodevalue(src,dst)
+u_char *src, *dst;
+{
+    int indx;
+    int item;
+
+    for (;;) {
+        if (!isxdigit (*src))
+	    break;
+	
+	for (indx = 0; indx < 5; ++indx) {
+	    dst[indx] <<= 4;
+	    dst[indx] |= (dst[indx + 1] >> 4) & 0x0F;
+	}
+
+	item = toupper (*src) - '0';
+	if (item > 9)
+	    item -= 7;
+
+	dst[5] = (dst[5] << 4) | item;
+	++src;
+    }
+    return src;
+}
+
+static int
+setipxnode(argv)
+    char **argv;
+{
+    char *end;
+
+    memset (&ipxcp_wantoptions[0].our_node[0], 0, 6);
+    memset (&ipxcp_wantoptions[0].his_node[0], 0, 6);
+
+    end = setipxnodevalue (*argv, &ipxcp_wantoptions[0].our_node[0]);
+    if (*end == ':')
+	end = setipxnodevalue (++end, &ipxcp_wantoptions[0].his_node[0]);
+
+    if (*end == '\0') {
+        ipxcp_wantoptions[0].neg_node = 1;
+        return 1;
+    }
+
+    option_error("invalid parameter '%s' for ipx-node option", *argv);
+    return 0;
+}
+
+static int
+setipxname (argv)
+    char **argv;
+{
+    char *dest = ipxcp_wantoptions[0].name;
+    char *src  = *argv;
+    int  count;
+    char ch;
+
+    ipxcp_wantoptions[0].neg_name  = 1;
+    ipxcp_allowoptions[0].neg_name = 1;
+    memset (dest, '\0', sizeof (ipxcp_wantoptions[0].name));
+
+    count = 0;
+    while (*src) {
+        ch = *src++;
+	if (! isalnum (ch) && ch != '_') {
+	    option_error("IPX router name must be alphanumeric or _");
+	    return 0;
+	}
+
+	if (count >= sizeof (ipxcp_wantoptions[0].name)) {
+	    option_error("IPX router name is limited to %d characters",
+			 sizeof (ipxcp_wantoptions[0].name) - 1);
+	    return 0;
+	}
+
+	dest[count++] = toupper (ch);
+    }
+
+    return 1;
+}
 
 /*
  * ipxcp_init - Initialize IPXCP.
@@ -1261,7 +1388,7 @@ ipxcp_script(f, script)
     argv[11] = ipparam;
     argv[12] = strpid;
     argv[13] = NULL;
-    run_program(script, argv, 0);
+    run_program(script, argv, 0, NULL, NULL);
 }
 
 /*
