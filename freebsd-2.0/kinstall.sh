@@ -16,7 +16,7 @@ CONFIG=config
 
 # Copy new versions of files into /sys/net
 
-for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h netbsd/bsd-comp.c \
+for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
 	 $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
 	 $SRC/pppcompress.c $SRC/pppcompress.h; do
   dest=$SYS/net/$(basename $f)
