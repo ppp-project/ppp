@@ -1,4 +1,4 @@
-#!/bin/ksh
+#!/bin/sh
 #
 # A sample script to establish PPP session(s) via SSH 1.x
 #
