@@ -26,17 +26,22 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.6 1995/08/16 01:40:51 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.7 1995/10/27 03:52:56 paulus Exp $";
 #endif
 
+#include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <alloca.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
+#ifndef CRTSCTS
+#include <sys/termiox.h>
+#endif
 #include <signal.h>
 #include <utmpx.h>
 #include <sys/types.h>
@@ -46,6 +51,7 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.6 1995/08/16 01:40:51 paulus Exp $";
 #include <sys/socket.h>
 #include <sys/sockio.h>
 #include <sys/syslog.h>
+#include <sys/sysmacros.h>
 #include <sys/systeminfo.h>
 #include <sys/dlpi.h>
 #include <sys/stat.h>
@@ -66,6 +72,9 @@ static int	ipmuxid = -1;
 
 static int	restore_term;
 static struct termios inittermios;
+#ifndef CRTSCTS
+static struct termiox inittermiox;
+#endif
 static struct winsize wsinfo;	/* Initial window size info */
 static pid_t	tty_sid;	/* original session ID for terminal */
 
@@ -74,6 +83,20 @@ static int	link_mtu, link_mru;
 #define NMODULES	32
 static int	tty_nmodules;
 static char	tty_modules[NMODULES][FMNAMESZ+1];
+
+static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t default_route_gateway;	/* Gateway for default route added */
+static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
+
+/* Prototypes for procedures local to this file. */
+static int translate_speed __P((int));
+static int baud_rate_of __P((int));
+static int get_ether_addr __P((u_int32_t, struct sockaddr *));
+static int get_hw_addr __P((char *, struct sockaddr *));
+static int dlpi_attach __P((int, int));
+static int dlpi_info_req __P((int));
+static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
+static int strioctl __P((int, int, void *, int, int));
 
 /*
  * sys_init - System-dependent initialization.
@@ -91,6 +114,24 @@ sys_init()
 	syslog(LOG_ERR, "Couldn't open IP device: %m");
 	die(1);
     }
+}
+
+/*
+ * sys_cleanup - restore any system state we modified before exiting:
+ * mark the interface down, delete default route and/or proxy arp entry.
+ * This should call die() because it's called from die().
+ */
+void
+sys_cleanup()
+{
+    struct ifreq ifr;
+
+    if (if_is_up)
+	sifdown(0);
+    if (default_route_gateway)
+	cifdefaultroute(0, default_route_gateway);
+    if (proxy_arp_addr)
+	cifproxyarp(0, proxy_arp_addr);
 }
 
 /*
@@ -148,7 +189,14 @@ ppp_available()
 void
 establish_ppp()
 {
-    int i, ifd;
+    int i, ifd, x;
+#ifndef sun
+    struct ifreq ifr;
+    struct {
+	union DL_primitives prim;
+	char space[64];
+    } reply;
+#endif
 
     if (default_device)
 	tty_sid = getsid((pid_t)0);
@@ -157,6 +205,10 @@ establish_ppp()
     if (pppfd < 0) {
 	syslog(LOG_ERR, "Can't open /dev/ppp: %m");
 	die(1);
+    }
+    if (kdebugflag) {
+	x = PPPDBG_LOG + PPPDBG_DRIVER;
+	strioctl(pppfd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
 
     /* Assign a new PPA and get its unit number. */
@@ -175,17 +227,40 @@ establish_ppp()
 	syslog(LOG_ERR, "Can't open /dev/ppp (2): %m");
 	die(1);
     }
+    if (kdebugflag) {
+	x = PPPDBG_LOG + PPPDBG_DRIVER;
+	strioctl(ifd, PPPIO_DEBUG, &x, sizeof(int), 0);
+    }
+#ifdef sun
     if (ioctl(ifd, I_PUSH, "ip") < 0) {
 	syslog(LOG_ERR, "Can't push IP module: %m");
 	close(ifd);
 	die(1);
     }
+#else
+    if (dlpi_attach(ifd, ifunit) < 0 ||
+	dlpi_get_reply(ifd, &reply.prim, DL_OK_ACK, sizeof(reply)) < 0) {
+	syslog(LOG_ERR, "Can't attach to ppp%d: %m", ifunit);
+	close(ifd);
+	die(1);
+    }
+#endif
     ipmuxid = ioctl(ipfd, I_LINK, ifd);
     close(ifd);
     if (ipmuxid < 0) {
 	syslog(LOG_ERR, "Can't link PPP device to IP: %m");
 	die(1);
     }
+
+#ifndef sun
+    /* Set the interface name for the link. */
+    (void) sprintf (ifr.ifr_name, "ppp%d", ifunit);
+    ifr.ifr_metric = ipmuxid;
+    if (strioctl(ipfd, SIOCSIFNAME, (char *)&ifr, sizeof ifr, 0) < 0) {
+	syslog(LOG_ERR, "Can't set interface name %s: %m", ifr.ifr_name);
+	die(1);
+    }
+#endif
 
     /* Pop any existing modules off the tty stream. */
     for (i = 0;; ++i)
@@ -219,6 +294,13 @@ void
 disestablish_ppp()
 {
     int i;
+
+    if (ipmuxid > 0) {
+        if (ioctl(ipfd, I_UNLINK, ipmuxid) < 0) {
+	    if (!hungup)
+	        syslog(LOG_ERR, "Can't unlink PPP from IP: %m");
+        }
+    }
 
     if (fdmuxid >= 0) {
 	if (ioctl(pppfd, I_UNLINK, fdmuxid) < 0) {
@@ -326,7 +408,7 @@ struct speed {
 /*
  * Translate from bits/second to a speed_t.
  */
-int
+static int
 translate_speed(bps)
     int bps;
 {
@@ -344,7 +426,7 @@ translate_speed(bps)
 /*
  * Translate from a speed_t to bits/second.
  */
-int
+static int
 baud_rate_of(speed)
     int speed;
 {
@@ -363,27 +445,50 @@ baud_rate_of(speed)
  * at the requested speed, etc.  If `local' is true, set CLOCAL
  * regardless of whether the modem option was specified.
  */
+void
 set_up_tty(fd, local)
     int fd, local;
 {
     int speed;
     struct termios tios;
+#if !defined (CRTSCTS)
+    struct termiox tiox;
+#endif
 
     if (tcgetattr(fd, &tios) < 0) {
 	syslog(LOG_ERR, "tcgetattr: %m");
 	die(1);
     }
 
+#ifndef CRTSCTS
+    if (ioctl (fd, TCGETX, &tiox) < 0) {
+	syslog (LOG_ERR, "TCGETX: %m");
+	die (1);
+    }
+#endif
+
     if (!restore_term) {
 	inittermios = tios;
+#ifndef CRTSCTS
+	inittermiox = tiox;
+#endif
 	ioctl(fd, TIOCGWINSZ, &wsinfo);
     }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+#ifdef CRTSCTS
     if (crtscts > 0)
 	tios.c_cflag |= CRTSCTS;
     else if (crtscts < 0)
 	tios.c_cflag &= ~CRTSCTS;
+#else
+    if (crtscts > 0) {
+	tiox.x_hflag |= RTSXOFF|CTSXON;
+    }
+    else if (crtscts < 0) {
+	tiox.x_hflag &= ~(RTSXOFF|CTSXON);
+    }
+#endif
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (local || !modem)
@@ -394,8 +499,8 @@ set_up_tty(fd, local)
     tios.c_cc[VMIN] = 1;
     tios.c_cc[VTIME] = 0;
 
-    if (crtscts == 2) {
-	tios.c_iflag |= IXOFF;
+    if (crtscts == -2) {
+	tios.c_iflag |= IXON | IXOFF;
 	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
 	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
     }
@@ -422,6 +527,13 @@ set_up_tty(fd, local)
 	die(1);
     }
 
+#ifndef CRTSCTS
+    if (ioctl (fd, TCSETXF, &tiox) < 0){
+	syslog (LOG_ERR, "TCSETXF: %m");
+	die (1);
+    }
+#endif
+
     baud_rate = inspeed = baud_rate_of(speed);
     restore_term = 1;
 }
@@ -445,6 +557,12 @@ restore_tty()
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (!hungup && errno != ENXIO)
 		syslog(LOG_WARNING, "tcsetattr: %m");
+#ifndef CRTSCTS
+	if (ioctl (fd, TCSETXF, &inittermiox) < 0){
+	    if (!hungup && errno != ENXIO)
+		syslog (LOG_ERR, "TCSETXF: %m");
+	}
+#endif
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
@@ -454,6 +572,7 @@ restore_tty()
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
+void
 setdtr(fd, on)
 int fd, on;
 {
@@ -472,17 +591,24 @@ output(unit, p, len)
     int len;
 {
     struct strbuf data;
+    int retries;
+    struct pollfd pfd;
 
     if (debug)
 	log_packet(p, len, "sent ");
 
     data.len = len;
     data.buf = (caddr_t) p;
-    if (putmsg(pppfd, NULL, &data, 0) < 0) {
-	if (errno != ENXIO) {
-	    syslog(LOG_ERR, "Couldn't send packet: %m");
-	    die(1);
+    retries = 4;
+    while (putmsg(pppfd, NULL, &data, 0) < 0) {
+	if (--retries < 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) {
+	    if (errno != ENXIO)
+		syslog(LOG_ERR, "Couldn't send packet: %m");
+	    break;
 	}
+	pfd.fd = fd;
+	pfd.events = POLLOUT;
+	poll(&pfd, 1, 250);	/* wait for up to 0.25 seconds */
     }
 }
 
@@ -491,6 +617,7 @@ output(unit, p, len)
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_input(timo)
     struct timeval *timo;
 {
@@ -619,12 +746,15 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
  * ccp_test - ask kernel whether a given compression method
  * is acceptable for use.
  */
+int
 ccp_test(unit, opt_ptr, opt_len, for_transmit)
     int unit, opt_len, for_transmit;
     u_char *opt_ptr;
 {
-    return strioctl(pppfd, (for_transmit? PPPIO_XCOMP: PPPIO_RCOMP),
-		    opt_ptr, opt_len, 0) >= 0;
+    if (strioctl(pppfd, (for_transmit? PPPIO_XCOMP: PPPIO_RCOMP),
+		 opt_ptr, opt_len, 0) >= 0)
+	return 1;
+    return (errno == ENOSR)? 0: -1;
 }
 
 /*
@@ -712,6 +842,7 @@ sifup(u)
 	syslog(LOG_ERR, "Couldn't mark interface up (set): %m");
 	return 0;
     }
+    if_is_up = 1;
     return 1;
 }
 
@@ -736,6 +867,7 @@ sifdown(u)
 	syslog(LOG_ERR, "Couldn't mark interface down (set): %m");
 	return 0;
     }
+    if_is_up = 0;
     return 1;
 }
 
@@ -818,6 +950,7 @@ sifdefaultroute(u, g)
 	return 0;
     }
 
+    default_route_gateway = g;
     return 1;
 }
 
@@ -842,6 +975,7 @@ cifdefaultroute(u, g)
 	return 0;
     }
 
+    default_route_gateway = 0;
     return 1;
 }
 
@@ -867,6 +1001,7 @@ sifproxyarp(unit, hisaddr)
 	return 0;
     }
 
+    proxy_arp_addr = hisaddr;
     return 1;
 }
 
@@ -888,6 +1023,7 @@ cifproxyarp(unit, hisaddr)
 	return 0;
     }
 
+    proxy_arp_addr = 0;
     return 1;
 }
 
@@ -897,7 +1033,7 @@ cifproxyarp(unit, hisaddr)
  */
 #define MAX_IFS		32
 
-int
+static int
 get_ether_addr(ipaddr, hwaddr)
     u_int32_t ipaddr;
     struct sockaddr *hwaddr;
@@ -910,10 +1046,12 @@ get_ether_addr(ipaddr, hwaddr)
     /*
      * Scan through the system's network interfaces.
      */
+#ifdef SIOCGIFNUM
     if (ioctl(ipfd, SIOCGIFNUM, &nif) < 0)
+#endif
 	nif = MAX_IFS;
     ifc.ifc_len = nif * sizeof(struct ifreq);
-    ifc.ifc_req = alloca(ifc.ifc_len);
+    ifc.ifc_buf = (caddr_t) alloca(ifc.ifc_len);
     if (ifc.ifc_req == 0)
 	return 0;
     if (ioctl(ipfd, SIOCGIFCONF, &ifc) < 0) {
@@ -962,7 +1100,7 @@ get_ether_addr(ipaddr, hwaddr)
 /*
  * get_hw_addr - obtain the hardware address for a named interface.
  */
-int
+static int
 get_hw_addr(name, hwaddr)
     char *name;
     struct sockaddr *hwaddr;
@@ -997,22 +1135,25 @@ get_hw_addr(name, hwaddr)
     }
     if (dlpi_attach(iffd, unit) < 0
 	|| dlpi_get_reply(iffd, &reply.prim, DL_OK_ACK, sizeof(reply)) < 0
-	|| dlpi_phys_addr_req(iffd) < 0
-	|| dlpi_get_reply(iffd, &reply.prim, DL_PHYS_ADDR_ACK,
-			  sizeof(reply)) < 0) {
+	|| dlpi_info_req(iffd) < 0
+	|| dlpi_get_reply(iffd, &reply.prim, DL_INFO_ACK, sizeof(reply)) < 0) {
 	close(iffd);
 	return 0;
     }
 
+    adrlen = reply.prim.info_ack.dl_addr_length;
+    adrp = (unsigned char *)&reply + reply.prim.info_ack.dl_addr_offset;
+    if (reply.prim.info_ack.dl_sap_length < 0)
+	adrlen += reply.prim.info_ack.dl_sap_length;
+    else
+	adrp += reply.prim.info_ack.dl_sap_length;
     hwaddr->sa_family = AF_UNSPEC;
-    adrlen = reply.prim.physaddr_ack.dl_addr_length;
-    adrp = (unsigned char *)&reply + reply.prim.physaddr_ack.dl_addr_offset;
     memcpy(hwaddr->sa_data, adrp, adrlen);
 
     return 1;
 }
 
-int
+static int
 dlpi_attach(fd, ppa)
     int fd, ppa;
 {
@@ -1026,21 +1167,20 @@ dlpi_attach(fd, ppa)
     return putmsg(fd, &buf, NULL, RS_HIPRI);
 }
 
-int
-dlpi_phys_addr_req(fd)
+static int
+dlpi_info_req(fd)
     int fd;
 {
-    dl_phys_addr_req_t req;
+    dl_info_req_t req;
     struct strbuf buf;
 
-    req.dl_primitive = DL_PHYS_ADDR_REQ;
-    req.dl_addr_type = DL_CURR_PHYS_ADDR;
+    req.dl_primitive = DL_INFO_REQ;
     buf.len = sizeof(req);
     buf.buf = (void *) &req;
     return putmsg(fd, &buf, NULL, RS_HIPRI);
 }
 
-int
+static int
 dlpi_get_reply(fd, reply, expected_prim, maxlen)
     union DL_primitives *reply;
     int fd, expected_prim, maxlen;
@@ -1122,10 +1262,12 @@ GetMask(addr)
     /*
      * Scan through the system's network interfaces.
      */
+#ifdef SIOCGIFNUM
     if (ioctl(ipfd, SIOCGIFNUM, &nif) < 0)
+#endif
 	nif = MAX_IFS;
     ifc.ifc_len = nif * sizeof(struct ifreq);
-    ifc.ifc_req = alloca(ifc.ifc_len);
+    ifc.ifc_buf = (caddr_t) alloca(ifc.ifc_len);
     if (ifc.ifc_req == 0)
 	return mask;
     if (ioctl(ipfd, SIOCGIFCONF, &ifc) < 0) {
@@ -1201,10 +1343,10 @@ gethostid()
     return (int) strtoul(buf, NULL, 16);
 }
 
-int
+static int
 strioctl(fd, cmd, ptr, ilen, olen)
     int fd, cmd, ilen, olen;
-    char *ptr;
+    void *ptr;
 {
     struct strioctl str;
 
@@ -1222,11 +1364,9 @@ strioctl(fd, cmd, ptr, ilen, olen)
 
 /*
  * lock - create a lock file for the named lock device
- *
- * XXX Does anybody know what the "032" in the lock file name means?
  */
 
-#define LOCK_PREFIX	"/var/spool/locks/LK.032."
+#define LOCK_PREFIX	"/var/spool/locks/LK."
 static char lock_file[40];	/* name of lock file created */
 
 int
@@ -1245,8 +1385,8 @@ lock(dev)
 	syslog(LOG_ERR, "Can't lock %s: not a character device", dev);
 	return -1;
     }
-    sprintf(lock_file, "%s%03d.%03d", LOCK_PREFIX, major(sbuf.st_rdev),
-	    minor(sbuf.st_rdev));
+    sprintf(lock_file, "%s%03d.%03d.%03d", LOCK_PREFIX, major(sbuf.st_dev),
+	    major(sbuf.st_rdev), minor(sbuf.st_rdev));
 
     while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
 	if (errno == EEXIST
@@ -1290,6 +1430,7 @@ lock(dev)
 /*
  * unlock - remove our lockfile
  */
+void
 unlock()
 {
     if (lock_file[0]) {
