@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.20 1999/04/12 06:24:51 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.21 1999/05/12 06:15:58 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1377,6 +1377,7 @@ get_host_seed()
     return gethostid();
 }
 
+#if 0
 /*
  * Code for locking/unlocking the serial device.
  * This code is derived from chat.c.
@@ -1480,6 +1481,7 @@ unlock()
 	lock_file = NULL;
     }
 }
+#endif /* lock stuff removed */
 
 /*
  * get_pty - get a pty master/slave pair and chown the slave side
