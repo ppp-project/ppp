@@ -18,7 +18,7 @@ all:	$(PLUGINS)
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
-LIBDIR	= $(DESTDIR)/lib/pppd/$(VERSION)
+LIBDIR	= $(DESTDIR)/usr/lib/pppd/$(VERSION)
 
 install: $(PLUGINS)
 	$(INSTALL) -d $(LIBDIR)
