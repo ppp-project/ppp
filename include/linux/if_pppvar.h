@@ -135,4 +135,4 @@ struct ppp {
 };
 
 #define PPP_MAGIC	0x5002
-#define PPP_VERSION	"2.3.10"
+#define PPP_VERSION	"2.3.11"
