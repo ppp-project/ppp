@@ -33,7 +33,7 @@ chat -v							\
 	ABORT		'\nNO ANSWER\r'			\
 	ABORT		'\nRINGING\r\n\r\nRINGING\r'	\
 	''		AT				\
-	'OK-+++\c-OK'	'AT&C0&D2S0=0H0			\
+	'OK-+++\c-OK'	'AT&C0&D2S0=0H0'		\
 	TIMEOUT		30				\
 	OK		ATDT$TELEPHONE			\
 	CONNECT		''				\
