@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.3 1996/01/01 23:06:37 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.4 1996/04/04 04:06:59 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -84,6 +84,7 @@ static int	tty_nmodules;
 static char	tty_modules[NMODULES][FMNAMESZ+1];
 
 static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t ifaddrs[2];	/* local and remote addresses */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
@@ -178,13 +179,15 @@ sys_init()
 /*
  * sys_cleanup - restore any system state we modified before exiting:
  * mark the interface down, delete default route and/or proxy arp entry.
- * This should call die() because it's called from die().
+ * This shouldn't call die() because it's called from die().
  */
 void
 sys_cleanup()
 {
     if (if_is_up)
 	sifdown(0);
+    if (ifaddrs[0])
+	cifaddr(0, ifaddrs[0], ifaddrs[1]);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway);
     if (proxy_arp_addr)
@@ -660,6 +663,7 @@ wait_input(timo)
  * loopback, for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_loop_output(timo)
     struct timeval *timo;
 {
@@ -670,6 +674,7 @@ wait_loop_output(timo)
  * wait_time - wait for a given length of time or until a
  * signal is received.
  */
+void
 wait_time(timo)
     struct timeval *timo;
 {
@@ -984,6 +989,11 @@ sifaddr(u, o, h, m)
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_addr.sa_family = AF_INET;
+    INET_ADDR(ifr.ifr_addr) = m;
+    if (ioctl(sockfd, SIOCSIFNETMASK, &ifr) < 0) {
+	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
+    }
+    ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = o;
     if (ioctl(sockfd, SIOCSIFADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set local IP address: %m");
@@ -993,15 +1003,12 @@ sifaddr(u, o, h, m)
     if (ioctl(sockfd, SIOCSIFDSTADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set remote IP address: %m");
     }
-    ifr.ifr_addr.sa_family = AF_INET;
-    INET_ADDR(ifr.ifr_addr) = m;
-    if (ioctl(sockfd, SIOCSIFNETMASK, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
-    }
     ifr.ifr_metric = link_mtu;
     if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
     }
+    ifaddrs[0] = o;
+    ifaddrs[1] = h;
 
     return 1;
 }
@@ -1017,12 +1024,15 @@ cifaddr(u, o, h)
 {
     struct rtentry rt;
 
+    bzero(&rt, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = h;
     rt.rt_gateway.sa_family = AF_INET;
     INET_ADDR(rt.rt_gateway) = o;
     rt.rt_flags = RTF_HOST;
-    ioctl(sockfd, SIOCDELRT, &rt);
+    if (ioctl(sockfd, SIOCDELRT, &rt) < 0)
+	syslog(LOG_ERR, "Couldn't delete route through interface: %m");
+    ifaddrs[0] = 0;
     return 1;
 }
 
@@ -1036,6 +1046,7 @@ sifdefaultroute(u, g)
 {
     struct rtentry rt;
 
+    bzero(&rt, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
     rt.rt_gateway.sa_family = AF_INET;
@@ -1061,6 +1072,7 @@ cifdefaultroute(u, g)
 {
     struct rtentry rt;
 
+    bzero(&rt, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
     rt.rt_gateway.sa_family = AF_INET;
