@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: if_ppp.h,v 1.2 1994/04/18 05:07:11 paulus Exp $
+ * $Id: if_ppp.h,v 1.3 1994/04/21 03:28:22 paulus Exp $
  */
 
 #ifndef _IF_PPP_H_
@@ -83,12 +83,12 @@ struct ppp_softc {
 #ifdef	VJC
 	struct	slcompress sc_comp; /* vjc control buffer */
 #endif
-	u_int	sc_bytessent;	/* count of octets sent *
+	u_int	sc_bytessent;	/* count of octets sent */
 	u_int	sc_bytesrcvd;	/* count of octets received */
 	caddr_t	sc_bpf;		/* hook for BPF */
 	
 	/* Device-dependent part for async lines. */
-	u_long	sc_asyncmap[8];	/* async control character map */
+	ext_accm sc_asyncmap;	/* async control character map */
 	u_long	sc_rasyncmap;	/* receive async control char map */
 	struct	mbuf *sc_outm;	/* mbuf chain being output currently */
 	struct	mbuf *sc_m;	/* pointer to input mbuf chain */
