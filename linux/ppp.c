@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.28 1999/05/14 01:07:57 paulus Exp $ */
+/* $Id: ppp.c,v 1.29 1999/05/14 02:52:08 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -182,10 +182,8 @@ typedef size_t		rw_count_t;
  * Local functions
  */
 
-#ifdef CONFIG_MODULES
 static int ppp_register_compressor (struct compressor *cp);
 static void ppp_unregister_compressor (struct compressor *cp);
-#endif
 
 static void ppp_async_init(struct ppp *ppp);
 static void ppp_async_release(struct ppp *ppp);
@@ -3251,7 +3249,6 @@ static struct compressor *find_compressor (int type)
 	return (struct compressor *) 0;
 }
 
-#ifdef CONFIG_MODULES
 static int ppp_register_compressor (struct compressor *cp)
 {
 	struct compressor_link *new;
@@ -3304,7 +3301,6 @@ static void ppp_unregister_compressor (struct compressor *cp)
 	}
 	restore_flags(flags);
 }
-#endif
 
 /*************************************************************
  * Module support routines
