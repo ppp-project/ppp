@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.41 1999/03/22 05:55:36 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.42 1999/04/01 07:20:10 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -458,6 +458,38 @@ int fd, on;
     int modembits = TIOCM_DTR;
 
     ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
+}
+
+/*
+ * get_pty - get a pty master/slave pair and chown the slave side
+ * to the uid given.  Assumes slave_name points to >= 12 bytes of space.
+ */
+int
+get_pty(master_fdp, slave_fdp, slave_name, uid)
+    int *master_fdp;
+    int *slave_fdp;
+    char *slave_name;
+    int uid;
+{
+    struct termios tios;
+
+    if (openpty(master_fdp, slave_fdp, slave_name, NULL, NULL) < 0)
+	return 0;
+
+    fchown(*slave_fdp, uid, -1);
+    fchmod(*slave_fdp, S_IRUSR | S_IWUSR);
+    if (tcgetattr(*slave_fdp, &tios) == 0) {
+	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
+	tios.c_cflag |= CS8 | CREAD;
+	tios.c_iflag  = IGNPAR | CLOCAL;
+	tios.c_oflag  = 0;
+	tios.c_lflag  = 0;
+	if (tcsetattr(*slave_fdp, TCSAFLUSH, &tios) < 0)
+	    warn("couldn't set attributes on pty: %m");
+    } else
+	warn("couldn't get attributes on pty: %m");
+
+    return 1;
 }
 
 

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.18 1999/03/22 05:55:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.19 1999/04/01 07:20:11 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1478,6 +1478,56 @@ unlock()
 	free(lock_file);
 	lock_file = NULL;
     }
+}
+
+/*
+ * get_pty - get a pty master/slave pair and chown the slave side
+ * to the uid given.  Assumes slave_name points to >= 12 bytes of space.
+ */
+int
+get_pty(master_fdp, slave_fdp, slave_name, uid)
+    int *master_fdp;
+    int *slave_fdp;
+    char *slave_name;
+    int uid;
+{
+    int i, mfd, sfd;
+    char pty_name[12];
+    struct termios tios;
+
+    sfd = -1;
+    for (i = 0; i < 64; ++i) {
+	slprintf(pty_name, sizeof(pty_name), "/dev/pty%c%x",
+		 'p' + i / 16, i % 16);
+	mfd = open(pty_name, O_RDWR, 0);
+	if (mfd >= 0) {
+	    pty_name[5] = 't';
+	    sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
+	    if (sfd >= 0)
+		break;
+	    close(mfd);
+	}
+    }
+    if (sfd < 0)
+	return 0;
+
+    strlcpy(slave_name, pty_name, 12);
+    *master_fdp = mfd;
+    *slave_fdp = sfd;
+    fchown(sfd, uid, -1);
+    fchmod(sfd, S_IRUSR | S_IWUSR);
+    if (tcgetattr(sfd, &tios) == 0) {
+	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
+	tios.c_cflag |= CS8 | CREAD;
+	tios.c_iflag  = IGNPAR | CLOCAL;
+	tios.c_oflag  = 0;
+	tios.c_lflag  = 0;
+	if (tcsetattr(sfd, TCSAFLUSH, &tios) < 0)
+	    warn("couldn't set attributes on pty: %m");
+    } else
+	warn("couldn't get attributes on pty: %m");
+
+    return 1;
 }
 
 /*
