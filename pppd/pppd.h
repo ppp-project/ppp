@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.17 1996/10/08 04:35:04 paulus Exp $
+ * $Id: pppd.h,v 1.18 1997/03/04 03:42:48 paulus Exp $
  */
 
 /*
@@ -38,6 +38,7 @@
 #else
 #include <varargs.h>
 #define __V(x)	(va_alist) va_dcl
+#define const
 #endif
 
 /*
@@ -267,9 +268,9 @@ int  sifaddr __P((int, u_int32_t, u_int32_t, u_int32_t));
 				/* Configure IP addresses for i/f */
 int  cifaddr __P((int, u_int32_t, u_int32_t));
 				/* Reset i/f IP addresses */
-int  sifdefaultroute __P((int, u_int32_t));
+int  sifdefaultroute __P((int, u_int32_t, u_int32_t));
 				/* Create default route through i/f */
-int  cifdefaultroute __P((int, u_int32_t));
+int  cifdefaultroute __P((int, u_int32_t, u_int32_t));
 				/* Delete default route through i/f */
 int  sifproxyarp __P((int, u_int32_t));
 				/* Add proxy ARP entry for peer */
@@ -279,7 +280,7 @@ u_int32_t GetMask __P((u_int32_t)); /* Get appropriate netmask for address */
 int  lock __P((char *));	/* Create lock file for device */
 void unlock __P((void));	/* Delete previously-created lock file */
 int  daemon __P((int, int));	/* Detach us from terminal session */
-int  logwtmp __P((char *, char *, char *));
+void logwtmp __P((const char *, const char *, const char *));
 				/* Write entry to wtmp file */
 
 /* Procedures exported from options.c */
