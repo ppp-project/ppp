@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.60 1999/12/23 01:25:13 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.61 2000/03/13 23:25:46 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1570,7 +1570,7 @@ auth_ip_addr(unit, addr)
     }
     if (auth_required)
 	return 0;		/* no addresses authorized */
-    return allow_any_ip || !have_route_to(addr);
+    return allow_any_ip || privileged || !have_route_to(addr);
 }
 
 static int
