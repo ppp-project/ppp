@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.9 1996/01/01 23:06:39 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.10 1996/04/04 04:07:30 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -711,6 +711,7 @@ wait_input(timo)
  * loopback, for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
+void
 wait_loop_output(timo)
     struct timeval *timo;
 {
@@ -721,6 +722,7 @@ wait_loop_output(timo)
  * wait_time - wait for a given length of time or until a
  * signal is received.
  */
+void
 wait_time(timo)
     struct timeval *timo;
 {
@@ -906,6 +908,33 @@ get_idle_time(u, ip)
 
 
 /*
+ * set_filters - transfer the pass and active filters to the kernel.
+ */
+int
+set_filters(pass, active)
+    struct bpf_program *pass, *active;
+{
+    int ret = 1;
+
+    if (pass->bf_len > 0) {
+	if (strioctl(pppfd, PPPIO_PASSFILT, pass,
+		     sizeof(struct bpf_program), 0) < 0) {
+	    syslog(LOG_ERR, "Couldn't set pass-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    if (active->bf_len > 0) {
+	if (strioctl(pppfd, PPPIO_ACTIVEFILT, active,
+		     sizeof(struct bpf_program), 0) < 0) {
+	    syslog(LOG_ERR, "Couldn't set active-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    return ret;
+}
+
+
+/*
  * ccp_fatal_error - returns 1 if decompression was disabled as a
  * result of an error detected after decompression of a packet,
  * 0 otherwise.  This is necessary because of patent nonsense.
@@ -1037,6 +1066,11 @@ sifaddr(u, o, h, m)
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_addr.sa_family = AF_INET;
+    INET_ADDR(ifr.ifr_addr) = m;
+    if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
+	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
+    }
+    ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = o;
     if (ioctl(ipfd, SIOCSIFADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set local IP address: %m");
@@ -1045,11 +1079,6 @@ sifaddr(u, o, h, m)
     INET_ADDR(ifr.ifr_dstaddr) = h;
     if (ioctl(ipfd, SIOCSIFDSTADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set remote IP address: %m");
-    }
-    ifr.ifr_addr.sa_family = AF_INET;
-    INET_ADDR(ifr.ifr_addr) = m;
-    if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
-	syslog(LOG_ERR, "Couldn't set IP netmask: %m");
     }
     ifr.ifr_metric = link_mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
@@ -1090,6 +1119,7 @@ sifdefaultroute(u, g)
 {
     struct rtentry rt;
 
+    memset(&rt, 0, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
     rt.rt_gateway.sa_family = AF_INET;
@@ -1115,6 +1145,7 @@ cifdefaultroute(u, g)
 {
     struct rtentry rt;
 
+    memset(&rt, 0, sizeof(rt));
     rt.rt_dst.sa_family = AF_INET;
     INET_ADDR(rt.rt_dst) = 0;
     rt.rt_gateway.sa_family = AF_INET;
