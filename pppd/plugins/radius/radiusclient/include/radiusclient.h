@@ -1,5 +1,5 @@
 /*
- * $Id: radiusclient.h,v 1.7 2002/07/13 06:24:36 kad Exp $
+ * $Id: radiusclient.h,v 1.8 2002/07/25 16:29:16 dfs Exp $
  *
  * Copyright (C) 1995,1996,1997,1998 Lars Fenneberg
  *
@@ -187,6 +187,9 @@ typedef struct pw_auth_hdr
 #define PW_ACCT_TERMINATE_CAUSE		49	/* integer */
 #define PW_ACCT_MULTI_SESSION_ID	50	/* string */
 #define PW_ACCT_LINK_COUNT		51	/* integer */
+
+/* From RFC 2869 */
+#define PW_ACCT_INTERIM_INTERVAL        85	/* integer */
 
 /*	Merit Experimental Extensions */
 

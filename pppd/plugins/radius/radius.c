@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.12 2002/07/24 20:13:12 dfs Exp $";
+"$Id: radius.c,v 1.13 2002/07/25 16:29:15 dfs Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -70,6 +70,7 @@ static void radius_choose_ip(u_int32_t *addrp);
 static int radius_init(char *msg);
 static int get_client_port(char *ifname);
 static int radius_allowed_address(u_int32_t addr);
+static void radius_acct_interim(void *);
 #ifdef MPPE
 static int radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
 			      chap_state *);
@@ -92,6 +93,7 @@ struct radius_state {
     char config_file[MAXPATHLEN];
     char session_id[MAXSESSIONID + 1];
     time_t start_time;
+    int acct_interim_interval;
     SERVER *authserver;		/* Authentication server to use */
     SERVER *acctserver;		/* Accounting server to use */
 };
@@ -513,7 +515,17 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 		/* Session traffic limit direction check */
 		maxoctets_dir = ( vp->lvalue > 4 ) 0 : vp->lvalue ;
 		break;
-#endif		
+#endif
+	    case PW_ACCT_INTERIM_INTERVAL:
+		/* Send accounting updates every few seconds */
+		rstate.acct_interim_interval = vp->lvalue;
+		/* RFC says it MUST NOT be less than 60 seconds */
+		/* We use "0" to signify not sending updates */
+		if (rstate.acct_interim_interval &&
+		    rstate.acct_interim_interval < 60) {
+		    rstate.acct_interim_interval = 60;
+		}
+		break;
 	    case PW_FRAMED_IP_ADDRESS:
 		/* seting up remote IP addresses */
 		remote = vp->lvalue;
@@ -784,6 +796,10 @@ radius_acct_start(void)
 		"Accounting START failed for %s", rstate.user);
     } else {
 	rstate.accounting_started = 1;
+	/* Kick off periodic accounting reports */
+	if (rstate.acct_interim_interval) {
+	    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
+	}
     }
 }
 
@@ -886,7 +902,7 @@ radius_acct_stop(void)
 *  Sends an interim accounting message to the RADIUS server
 ***********************************************************************/
 static void
-radius_acct_interim(void)
+radius_acct_interim(void *ignored)
 {
     UINT4 av_type;
     VALUE_PAIR *send = NULL;
@@ -966,6 +982,9 @@ radius_acct_interim(void)
 		"Interim accounting failed for %s", rstate.user);
     }
     rc_avpair_free(send);
+
+    /* Schedule another one */
+    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
 }
 
 /**********************************************************************
