@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.2 1994/04/11 07:13:44 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.3 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -30,20 +30,19 @@ static char rcsid[] = "$Id: upap.c,v 1.2 1994/04/11 07:13:44 paulus Exp $";
 #include <sys/time.h>
 #include <syslog.h>
 
-#include "ppp.h"
 #include "pppd.h"
 #include "upap.h"
 
 
-upap_state upap[NPPP];		/* UPAP state; one for each unit */
+upap_state upap[N_PPP];		/* UPAP state; one for each unit */
 
 
-static void upap_timeout __ARGS((caddr_t));
-static void upap_rauthreq __ARGS((upap_state *, u_char *, int, int));
-static void upap_rauthack __ARGS((upap_state *, u_char *, int, int));
-static void upap_rauthnak __ARGS((upap_state *, u_char *, int, int));
-static void upap_sauthreq __ARGS((upap_state *));
-static void upap_sresp __ARGS((upap_state *, int, int, char *, int));
+static void upap_timeout __P((caddr_t));
+static void upap_rauthreq __P((upap_state *, u_char *, int, int));
+static void upap_rauthack __P((upap_state *, u_char *, int, int));
+static void upap_rauthnak __P((upap_state *, u_char *, int, int));
+static void upap_sauthreq __P((upap_state *));
+static void upap_sresp __P((upap_state *, int, int, char *, int));
 
 
 /*
@@ -136,7 +135,7 @@ upap_timeout(arg)
 	/* give up in disgust */
 	syslog(LOG_ERR, "No response to PAP authenticate-requests");
 	u->us_clientstate = UPAPCS_BADAUTH;
-	auth_withpeer_fail(u->us_unit, UPAP);
+	auth_withpeer_fail(u->us_unit, PPP_PAP);
 	return;
     }
 
@@ -200,11 +199,11 @@ upap_protrej(unit)
 
     if (u->us_clientstate == UPAPCS_AUTHREQ) {
 	syslog(LOG_ERR, "PAP authentication failed due to protocol-reject");
-	auth_withpeer_fail(unit, UPAP);
+	auth_withpeer_fail(unit, PPP_PAP);
     }
     if (u->us_serverstate == UPAPSS_LISTEN) {
 	syslog(LOG_ERR, "PAP authentication of peer failed (protocol-reject)");
-	auth_peer_fail(unit, UPAP);
+	auth_peer_fail(unit, PPP_PAP);
     }
     upap_lowerdown(unit);
 }
@@ -334,10 +333,10 @@ upap_rauthreq(u, inp, id, len)
 
     if (retcode == UPAP_AUTHACK) {
 	u->us_serverstate = UPAPSS_OPEN;
-	auth_peer_success(u->us_unit, UPAP);
+	auth_peer_success(u->us_unit, PPP_PAP);
     } else {
 	u->us_serverstate = UPAPSS_BADAUTH;
-	auth_peer_fail(u->us_unit, UPAP);
+	auth_peer_fail(u->us_unit, PPP_PAP);
     }
 }
 
@@ -377,7 +376,7 @@ upap_rauthack(u, inp, id, len)
 
     u->us_clientstate = UPAPCS_OPEN;
 
-    auth_withpeer_success(u->us_unit, UPAP);
+    auth_withpeer_success(u->us_unit, PPP_PAP);
 }
 
 
@@ -417,7 +416,7 @@ upap_rauthnak(u, inp, id, len)
     u->us_clientstate = UPAPCS_BADAUTH;
 
     syslog(LOG_ERR, "PAP authentication failed");
-    auth_withpeer_fail(u->us_unit, UPAP);
+    auth_withpeer_fail(u->us_unit, PPP_PAP);
 }
 
 
@@ -435,7 +434,7 @@ upap_sauthreq(u)
 	u->us_userlen + u->us_passwdlen;
     outp = outpacket_buf;
     
-    MAKEHEADER(outp, UPAP);
+    MAKEHEADER(outp, PPP_PAP);
 
     PUTCHAR(UPAP_AUTHREQ, outp);
     PUTCHAR(++u->us_id, outp);
@@ -446,7 +445,7 @@ upap_sauthreq(u)
     PUTCHAR(u->us_passwdlen, outp);
     BCOPY(u->us_passwd, outp, u->us_passwdlen);
 
-    output(u->us_unit, outpacket_buf, outlen + DLLHEADERLEN);
+    output(u->us_unit, outpacket_buf, outlen + PPP_HDRLEN);
 
     UPAPDEBUG((LOG_INFO, "upap_sauth: Sent id %d.", u->us_id));
 
@@ -471,14 +470,14 @@ upap_sresp(u, code, id, msg, msglen)
 
     outlen = UPAP_HEADERLEN + sizeof (u_char) + msglen;
     outp = outpacket_buf;
-    MAKEHEADER(outp, UPAP);
+    MAKEHEADER(outp, PPP_PAP);
 
     PUTCHAR(code, outp);
     PUTCHAR(id, outp);
     PUTSHORT(outlen, outp);
     PUTCHAR(msglen, outp);
     BCOPY(msg, outp, msglen);
-    output(u->us_unit, outpacket_buf, outlen + DLLHEADERLEN);
+    output(u->us_unit, outpacket_buf, outlen + PPP_HDRLEN);
 
     UPAPDEBUG((LOG_INFO, "upap_sresp: Sent code %d, id %d.", code, id));
 }
@@ -494,7 +493,7 @@ int
 upap_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer) __ARGS((void *, char *, ...));
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     int code, id, len;

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.4 1994/09/01 00:36:05 paulus Exp $
+ * $Id: pppd.h,v 1.5 1994/09/21 06:47:37 paulus Exp $
  */
 
 /*
@@ -25,21 +25,12 @@
 
 #ifndef __PPPD_H__
 #define __PPPD_H__
-#include "args.h"
 
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
+#include <sys/types.h>		/* for u_int32_t, if defined */
+#include <net/ppp_defs.h>
 
-#define NPPP	1		/* One PPP interface supported (per process) */
-
-/*
- * A 32-bit unsigned integral type.
- */
-
-#ifdef UINT32
-typedef	UINT32		uint32;
-#else
-typedef unsigned long	uint32;
-#endif
+#define N_PPP	1		/* One PPP interface supported (per process) */
 
 /*
  * Limits.
@@ -76,7 +67,7 @@ extern char	devnam[];	/* Device name */
 extern int	crtscts;	/* Use hardware flow control */
 extern int	modem;		/* Use modem control lines */
 extern int	inspeed;	/* Input/Output speed requested */
-extern uint32	netmask;	/* IP netmask to set on interface */
+extern u_int32_t netmask;	/* IP netmask to set on interface */
 extern int	lockflag;	/* Create lock file to lock the serial dev */
 extern int	nodetach;	/* Don't detach from controlling tty */
 extern char	*connector;	/* Script to establish physical link */
@@ -106,21 +97,21 @@ extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
 /*
  * Prototypes.
  */
-void quit __ARGS((void));	/* Cleanup and exit */
-void timeout __ARGS((void (*)(), caddr_t, int));
+void quit __P((void));	/* Cleanup and exit */
+void timeout __P((void (*)(), caddr_t, int));
 				/* Look-alike of kernel's timeout() */
-void untimeout __ARGS((void (*)(), caddr_t));
+void untimeout __P((void (*)(), caddr_t));
 				/* Look-alike of kernel's untimeout() */
-void output __ARGS((int, u_char *, int));
+void output __P((int, u_char *, int));
 				/* Output a PPP packet */
-void demuxprotrej __ARGS((int, int));
+void demuxprotrej __P((int, int));
 				/* Demultiplex a Protocol-Reject */
-int  check_passwd __ARGS((int, char *, int, char *, int, char **, int *));
+int  check_passwd __P((int, char *, int, char *, int, char **, int *));
 				/* Check peer-supplied username/password */
-int  get_secret __ARGS((int, char *, char *, char *, int *, int));
+int  get_secret __P((int, char *, char *, char *, int *, int));
 				/* get "secret" for chap */
-uint32 GetMask __ARGS((uint32)); /* get netmask for address */
-void die __ARGS((int));
+u_int32_t GetMask __P((u_int32_t)); /* get netmask for address */
+void die __P((int));
 
 /*
  * Inline versions of get/put char/short/long.
@@ -183,8 +174,8 @@ void die __ARGS((int));
  * MAKEHEADER - Add Header fields to a packet.
  */
 #define MAKEHEADER(p, t) { \
-    PUTCHAR(ALLSTATIONS, p); \
-    PUTCHAR(UI, p); \
+    PUTCHAR(PPP_ALLSTATIONS, p); \
+    PUTCHAR(PPP_UI, p); \
     PUTSHORT(t, p); }
 
 

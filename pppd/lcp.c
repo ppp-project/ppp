@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.13 1994/09/16 02:15:37 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.14 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -36,7 +36,6 @@ static char rcsid[] = "$Id: lcp.c,v 1.13 1994/09/16 02:15:37 paulus Exp $";
 #include <netinet/in.h>
 
 #include "pppd.h"
-#include "ppp.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "magic.h"
@@ -49,44 +48,44 @@ static char rcsid[] = "$Id: lcp.c,v 1.13 1994/09/16 02:15:37 paulus Exp $";
 #endif
 
 /* global vars */
-fsm lcp_fsm[NPPP];			/* LCP fsm structure (global)*/
-lcp_options lcp_wantoptions[NPPP];	/* Options that we want to request */
-lcp_options lcp_gotoptions[NPPP];	/* Options that peer ack'd */
-lcp_options lcp_allowoptions[NPPP];	/* Options we allow peer to request */
-lcp_options lcp_hisoptions[NPPP];	/* Options that we ack'd */
-uint32 xmit_accm[NPPP][8];		/* extended transmit ACCM */
+fsm lcp_fsm[N_PPP];			/* LCP fsm structure (global)*/
+lcp_options lcp_wantoptions[N_PPP];	/* Options that we want to request */
+lcp_options lcp_gotoptions[N_PPP];	/* Options that peer ack'd */
+lcp_options lcp_allowoptions[N_PPP];	/* Options we allow peer to request */
+lcp_options lcp_hisoptions[N_PPP];	/* Options that we ack'd */
+u_int32_t xmit_accm[N_PPP][8];		/* extended transmit ACCM */
 
-static uint32 lcp_echos_pending = 0;    /* Number of outstanding echo msgs */
-static uint32 lcp_echo_number   = 0;    /* ID number of next echo frame */
-static uint32 lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
+static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
+static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */
+static u_int32_t lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
  */
-static void lcp_resetci __ARGS((fsm *));	/* Reset our CI */
-static int  lcp_cilen __ARGS((fsm *));		/* Return length of our CI */
-static void lcp_addci __ARGS((fsm *, u_char *, int *)); /* Add our CI to pkt */
-static int  lcp_ackci __ARGS((fsm *, u_char *, int)); /* Peer ack'd our CI */
-static int  lcp_nakci __ARGS((fsm *, u_char *, int)); /* Peer nak'd our CI */
-static int  lcp_rejci __ARGS((fsm *, u_char *, int)); /* Peer rej'd our CI */
-static int  lcp_reqci __ARGS((fsm *, u_char *, int *, int)); /* Rcv peer CI */
-static void lcp_up __ARGS((fsm *));		/* We're UP */
-static void lcp_down __ARGS((fsm *));		/* We're DOWN */
-static void lcp_starting __ARGS((fsm *));	/* We need lower layer up */
-static void lcp_finished __ARGS((fsm *));	/* We need lower layer down */
-static int  lcp_extcode __ARGS((fsm *, int, int, u_char *, int));
-static void lcp_rprotrej __ARGS((fsm *, u_char *, int));
+static void lcp_resetci __P((fsm *));	/* Reset our CI */
+static int  lcp_cilen __P((fsm *));		/* Return length of our CI */
+static void lcp_addci __P((fsm *, u_char *, int *)); /* Add our CI to pkt */
+static int  lcp_ackci __P((fsm *, u_char *, int)); /* Peer ack'd our CI */
+static int  lcp_nakci __P((fsm *, u_char *, int)); /* Peer nak'd our CI */
+static int  lcp_rejci __P((fsm *, u_char *, int)); /* Peer rej'd our CI */
+static int  lcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv peer CI */
+static void lcp_up __P((fsm *));		/* We're UP */
+static void lcp_down __P((fsm *));		/* We're DOWN */
+static void lcp_starting __P((fsm *));	/* We need lower layer up */
+static void lcp_finished __P((fsm *));	/* We need lower layer down */
+static int  lcp_extcode __P((fsm *, int, int, u_char *, int));
+static void lcp_rprotrej __P((fsm *, u_char *, int));
 
 /*
  * routines to send LCP echos to peer
  */
 
-static void lcp_echo_lowerup __ARGS((int));
-static void lcp_echo_lowerdown __ARGS((int));
-static void LcpEchoTimeout __ARGS((caddr_t));
-static void lcp_received_echo_reply __ARGS((fsm *, int, u_char *, int));
-static void LcpSendEchoRequest __ARGS((fsm *));
-static void LcpLinkFailure __ARGS((fsm *));
+static void lcp_echo_lowerup __P((int));
+static void lcp_echo_lowerdown __P((int));
+static void LcpEchoTimeout __P((caddr_t));
+static void lcp_received_echo_reply __P((fsm *, int, u_char *, int));
+static void LcpSendEchoRequest __P((fsm *));
+static void LcpLinkFailure __P((fsm *));
 
 static fsm_callbacks lcp_callbacks = {	/* LCP callback routines */
     lcp_resetci,		/* Reset our Configuration Information */
@@ -133,7 +132,7 @@ lcp_init(unit)
     lcp_options *ao = &lcp_allowoptions[unit];
 
     f->unit = unit;
-    f->protocol = LCP;
+    f->protocol = PPP_LCP;
     f->callbacks = &lcp_callbacks;
 
     fsm_init(f);
@@ -223,9 +222,9 @@ lcp_lowerup(unit)
 {
     sifdown(unit);
     ppp_set_xaccm(unit, xmit_accm[unit]);
-    ppp_send_config(unit, MTU, 0xffffffff, 0, 0);
-    ppp_recv_config(unit, MTU, 0x00000000, 0, 0);
-    peer_mru[unit] = MTU;
+    ppp_send_config(unit, PPP_MRU, 0xffffffff, 0, 0);
+    ppp_recv_config(unit, PPP_MRU, 0x00000000, 0, 0);
+    peer_mru[unit] = PPP_MRU;
     lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
 
     fsm_lowerup(&lcp_fsm[unit]);
@@ -265,7 +264,7 @@ lcp_input(unit, p, len)
 	 * options.  So as to be ready when that happens, we set
 	 * our receive side to accept packets as negotiated now.
 	 */
-	ppp_recv_config(f->unit, MTU,
+	ppp_recv_config(f->unit, PPP_MRU,
 			go->neg_asyncmap? go->asyncmap: 0x00000000,
 			go->neg_pcompression, go->neg_accompression);
     }
@@ -401,7 +400,7 @@ fsm *f;
     lcp_wantoptions[f->unit].magicnumber = magic();
     lcp_wantoptions[f->unit].numloops = 0;
     lcp_gotoptions[f->unit] = lcp_wantoptions[f->unit];
-    peer_mru[f->unit] = MTU;
+    peer_mru[f->unit] = PPP_MRU;
 }
 
 
@@ -474,14 +473,14 @@ lcp_addci(f, ucp, lenp)
     if (neg) { \
 	PUTCHAR(opt, ucp); \
 	PUTCHAR(CILEN_LQR, ucp); \
-	PUTSHORT(LQR, ucp); \
+	PUTSHORT(PPP_LQR, ucp); \
 	PUTLONG(val, ucp); \
     }
 
     ADDCISHORT(CI_MRU, go->neg_mru, go->mru);
     ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
-    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, CHAP, go->chap_mdtype);
-    ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, UPAP);
+    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+    ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ADDCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
     ADDCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
@@ -511,7 +510,7 @@ lcp_ackci(f, p, len)
     lcp_options *go = &lcp_gotoptions[f->unit];
     u_char cilen, citype, cichar;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
 
     /*
      * CIs must be in exactly the same order that we sent.
@@ -580,7 +579,7 @@ lcp_ackci(f, p, len)
 	    citype != opt) \
 	    goto bad; \
 	GETSHORT(cishort, p); \
-	if (cishort != LQR) \
+	if (cishort != PPP_LQR) \
 	    goto bad; \
 	GETLONG(cilong, p); \
 	if (cilong != val) \
@@ -589,8 +588,8 @@ lcp_ackci(f, p, len)
 
     ACKCISHORT(CI_MRU, go->neg_mru, go->mru);
     ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
-    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, CHAP, go->chap_mdtype);
-    ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, UPAP);
+    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+    ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
     ACKCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
     ACKCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
@@ -627,7 +626,7 @@ lcp_nakci(f, p, len)
     lcp_options *wo = &lcp_wantoptions[f->unit];
     u_char cilen, citype, cichar, *next;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
     lcp_options no;		/* options we've seen Naks for */
     lcp_options try;		/* options to request next time */
     int looped_back = 0;
@@ -737,7 +736,7 @@ lcp_nakci(f, p, len)
      * If they Nak the reporting period, take their value XXX ?
      */
     NAKCILQR(CI_QUALITY, neg_lqr,
-	     if (cishort != LQR)
+	     if (cishort != PPP_LQR)
 		 try.neg_lqr = 0;
 	     else
 		 try.lqr_period = cilong;
@@ -856,7 +855,7 @@ lcp_rejci(f, p, len)
     lcp_options *go = &lcp_gotoptions[f->unit];
     u_char cichar;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
     u_char *start = p;
     int plen = len;
     lcp_options try;		/* options to request next time */
@@ -931,7 +930,7 @@ lcp_rejci(f, p, len)
 	GETSHORT(cishort, p); \
 	GETLONG(cilong, p); \
 	/* Check rejected value. */ \
-	if (cishort != LQR || cilong != val) \
+	if (cishort != PPP_LQR || cilong != val) \
 	    goto bad; \
 	try.neg = 0; \
 	LCPDEBUG((LOG_INFO,"lcp_rejci rejected LQR opt %d", opt)); \
@@ -939,9 +938,9 @@ lcp_rejci(f, p, len)
 
     REJCISHORT(CI_MRU, neg_mru, go->mru);
     REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
-    REJCICHAP(CI_AUTHTYPE, neg_chap, CHAP, go->chap_mdtype);
+    REJCICHAP(CI_AUTHTYPE, neg_chap, PPP_CHAP, go->chap_mdtype);
     if (!go->neg_chap) {
-	REJCISHORT(CI_AUTHTYPE, neg_upap, UPAP);
+	REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
     }
     REJCILQR(CI_QUALITY, neg_lqr, go->lqr_period);
     REJCILONG(CI_MAGICNUMBER, neg_magicnumber, go->magicnumber);
@@ -988,7 +987,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
     u_char *cip, *next;		/* Pointer to current and next CIs */
     u_char cilen, citype, cichar;/* Parsed len, type, char value */
     u_short cishort;		/* Parsed short value */
-    uint32 cilong;		/* Parse long value */
+    u_int32_t cilong;		/* Parse long value */
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
@@ -1096,7 +1095,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	     * the ordering of the CIs in the peer's Configure-Request.
 	     */
 
-	    if (cishort == UPAP) {
+	    if (cishort == PPP_PAP) {
 		if (!ao->neg_upap ||	/* we don't want to do PAP */
 		    ho->neg_chap ||	/* or we've already accepted CHAP */
 		    cilen != CILEN_SHORT) {
@@ -1108,7 +1107,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		ho->neg_upap = 1;
 		break;
 	    }
-	    if (cishort == CHAP) {
+	    if (cishort == PPP_CHAP) {
 		if (!ao->neg_chap ||	/* we don't want to do CHAP */
 		    ho->neg_upap ||	/* or we've already accepted UPAP */
 		    cilen != CILEN_CHAP) {
@@ -1149,7 +1148,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 	    GETSHORT(cishort, p);
 	    GETLONG(cilong, p);
 	    LCPDEBUG((LOG_INFO, "(%x %lx)", cishort, cilong));
-	    if (cishort != LQR) {
+	    if (cishort != PPP_LQR) {
 		orc = CONFREJ;
 		break;
 	    }
@@ -1279,7 +1278,7 @@ lcp_up(f)
      * set our MRU to the larger of value we wanted and
      * the value we got in the negotiation.
      */
-    ppp_send_config(f->unit, MIN(ao->mru, (ho->neg_mru? ho->mru: MTU)),
+    ppp_send_config(f->unit, MIN(ao->mru, (ho->neg_mru? ho->mru: PPP_MRU)),
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
     /*
@@ -1287,7 +1286,7 @@ lcp_up(f)
      * set the receive asyncmap to ffffffff, but we set it to 0
      * for backwards contemptibility.
      */
-    ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): MTU),
+    ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU),
 		    (go->neg_asyncmap? go->asyncmap: 0x00000000),
 		    go->neg_pcompression, go->neg_accompression);
 
@@ -1320,9 +1319,9 @@ lcp_down(f)
     upap_lowerdown(f->unit);
 
     sifdown(f->unit);
-    ppp_send_config(f->unit, MTU, 0xffffffff, 0, 0);
-    ppp_recv_config(f->unit, MTU, 0x00000000, 0, 0);
-    peer_mru[f->unit] = MTU;
+    ppp_send_config(f->unit, PPP_MRU, 0xffffffff, 0, 0);
+    ppp_recv_config(f->unit, PPP_MRU, 0x00000000, 0, 0);
+    peer_mru[f->unit] = PPP_MRU;
 
     link_down(f->unit);
 }
@@ -1363,13 +1362,13 @@ int
 lcp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer) __ARGS((void *, char *, ...));
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     int code, id, len, olen;
     u_char *pstart, *optend;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
 
     if (plen < HEADERLEN)
 	return 0;
@@ -1423,10 +1422,10 @@ lcp_printpkt(p, plen, printer, arg)
 		    printer(arg, "auth ");
 		    GETSHORT(cishort, p);
 		    switch (cishort) {
-		    case UPAP:
+		    case PPP_PAP:
 			printer(arg, "upap");
 			break;
-		    case CHAP:
+		    case PPP_CHAP:
 			printer(arg, "chap");
 			break;
 		    default:
@@ -1440,7 +1439,7 @@ lcp_printpkt(p, plen, printer, arg)
 		    printer(arg, "quality ");
 		    GETSHORT(cishort, p);
 		    switch (cishort) {
-		    case LQR:
+		    case PPP_LQR:
 			printer(arg, "lqr");
 			break;
 		    default:
@@ -1508,10 +1507,10 @@ static void
 LcpEchoCheck (f)
     fsm *f;
 {
-    uint32             delta;
+    u_int32_t delta;
 #ifdef __linux__
-    struct ppp_ddinfo  ddinfo;
-    uint32             latest;
+    struct ppp_ddinfo ddinfo;
+    u_int32_t latest;
 /*
  * Read the time since the last packet was received.
  */
@@ -1571,7 +1570,7 @@ lcp_received_echo_reply (f, id, inp, len)
     fsm *f;
     int id; u_char *inp; int len;
 {
-    uint32 magic;
+    u_int32_t magic;
 
     /* Check the magic number - don't count replies from ourselves. */
     if (len < 4) {
@@ -1597,7 +1596,7 @@ static void
 LcpSendEchoRequest (f)
     fsm *f;
 {
-    uint32 lcp_magic;
+    u_int32_t lcp_magic;
     u_char pkt[4], *pktp;
 
 /*

@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.13 1994/09/16 02:35:42 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.14 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -43,13 +43,13 @@ static char rcsid[] = "$Id: sys-str.c,v 1.13 1994/09/16 02:35:42 paulus Exp $";
 #include <sys/stropts.h>
 
 #include <net/if.h>
+#include <net/ppp_defs.h>
+#include <net/ppp_str.h>
 #include <net/route.h>
 #include <net/if_arp.h>
 #include <netinet/in.h>
 
 #include "pppd.h"
-#include "ppp.h"
-#include <net/ppp_str.h>
 
 #ifndef ifr_mtu
 #define ifr_mtu		ifr_metric
@@ -516,7 +516,7 @@ read_packet(buf)
     int len, i;
     unsigned char ctlbuf[16];
 
-    str.maxlen = MTU+DLLHEADERLEN;
+    str.maxlen = PPP_MTU + PPP_HDRLEN;
     str.buf = (caddr_t) buf;
     ctl.maxlen = sizeof(ctlbuf);
     ctl.buf = (caddr_t) ctlbuf;
@@ -551,7 +551,7 @@ read_packet(buf)
 void
 ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int unit, mtu;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     char c;
@@ -603,7 +603,7 @@ ppp_set_xaccm(unit, accm)
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     int unit, mru;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     char c;
@@ -750,7 +750,7 @@ sifdown(u)
 int
 sifaddr(u, o, h, m)
     int u;
-    uint32 o, h, m;
+    u_int32_t o, h, m;
 {
     int ret;
     struct ifreq ifr;
@@ -786,7 +786,7 @@ sifaddr(u, o, h, m)
 int
 cifaddr(u, o, h)
     int u;
-    uint32 o, h;
+    u_int32_t o, h;
 {
     struct rtentry rt;
 
@@ -808,7 +808,7 @@ cifaddr(u, o, h)
 int
 sifdefaultroute(u, g)
     int u;
-    uint32 g;
+    u_int32_t g;
 {
     struct rtentry rt;
 
@@ -829,7 +829,7 @@ sifdefaultroute(u, g)
 int
 cifdefaultroute(u, g)
     int u;
-    uint32 g;
+    u_int32_t g;
 {
     struct rtentry rt;
 
@@ -850,7 +850,7 @@ cifdefaultroute(u, g)
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
 
@@ -882,7 +882,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
 
@@ -953,7 +953,7 @@ static void kread();
 
 int
 get_ether_addr(ipaddr, hwaddr)
-    uint32 ipaddr;
+    u_int32_t ipaddr;
     struct sockaddr *hwaddr;
 {
     register kvm_t *kd;
@@ -969,7 +969,7 @@ get_ether_addr(ipaddr, hwaddr)
 	struct in_ifaddr in;
     } ifaddr;
 #endif
-    uint32 addr, mask;
+    u_int32_t addr, mask;
 
     /* Open kernel memory for reading */
     kd = kvm_open(0, 0, 0, O_RDONLY, NULL);
@@ -996,7 +996,7 @@ get_ether_addr(ipaddr, hwaddr)
 	syslog(LOG_ERR, "error reading ifnet addr");
 	return 0;
     }
-    for ( ; addr; addr = (uint32)ifp->if_next) {
+    for ( ; addr; addr = (u_int32_t)ifp->if_next) {
 	if (kvm_read(kd, addr, (char *)ac, sizeof(*ac)) != sizeof(*ac)) {
 	    syslog(LOG_ERR, "error reading ifnet");
 	    return 0;
@@ -1013,7 +1013,7 @@ get_ether_addr(ipaddr, hwaddr)
 
 	/* Get interface ip address */
 #ifdef SUNOS4
-	if (kvm_read(kd, (uint32)ifp->if_addrlist, (char *)&ifaddr,
+	if (kvm_read(kd, (u_int32_t)ifp->if_addrlist, (char *)&ifaddr,
 		     sizeof(ifaddr)) != sizeof(ifaddr)) {
 	    syslog(LOG_ERR, "error reading ifaddr");
 	    return 0;

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: fsm.h,v 1.3 1994/09/01 00:14:03 paulus Exp $
+ * $Id: fsm.h,v 1.4 1994/09/21 06:47:37 paulus Exp $
  */
 
 /*
@@ -112,14 +112,14 @@ typedef struct fsm {
 /*
  * Prototypes
  */
-void fsm_init __ARGS((fsm *));
-void fsm_lowerup __ARGS((fsm *));
-void fsm_lowerdown __ARGS((fsm *));
-void fsm_open __ARGS((fsm *));
-void fsm_close __ARGS((fsm *));
-void fsm_input __ARGS((fsm *, u_char *, int));
-void fsm_protreject __ARGS((fsm *));
-void fsm_sdata __ARGS((fsm *, int, int, u_char *, int));
+void fsm_init __P((fsm *));
+void fsm_lowerup __P((fsm *));
+void fsm_lowerdown __P((fsm *));
+void fsm_open __P((fsm *));
+void fsm_close __P((fsm *));
+void fsm_input __P((fsm *, u_char *, int));
+void fsm_protreject __P((fsm *));
+void fsm_sdata __P((fsm *, int, int, u_char *, int));
 
 
 /*

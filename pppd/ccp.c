@@ -26,37 +26,36 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.4 1994/09/16 02:14:31 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.5 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 #include <syslog.h>
 #include <sys/ioctl.h>
 
 #include "pppd.h"
-#include "ppp.h"
 #include "fsm.h"
 #include "ccp.h"
 
-fsm ccp_fsm[NPPP];
-ccp_options ccp_wantoptions[NPPP];	/* what to request the peer to use */
-ccp_options ccp_gotoptions[NPPP];	/* what the peer agreed to do */
-ccp_options ccp_allowoptions[NPPP];	/* what we'll agree to do */
-ccp_options ccp_hisoptions[NPPP];	/* what we agreed to do */
+fsm ccp_fsm[N_PPP];
+ccp_options ccp_wantoptions[N_PPP];	/* what to request the peer to use */
+ccp_options ccp_gotoptions[N_PPP];	/* what the peer agreed to do */
+ccp_options ccp_allowoptions[N_PPP];	/* what we'll agree to do */
+ccp_options ccp_hisoptions[N_PPP];	/* what we agreed to do */
 
 /*
  * Callbacks for fsm code.
  */
-static void ccp_resetci __ARGS((fsm *));
-static int  ccp_cilen __ARGS((fsm *));
-static void ccp_addci __ARGS((fsm *, u_char *, int *));
-static int  ccp_ackci __ARGS((fsm *, u_char *, int));
-static int  ccp_nakci __ARGS((fsm *, u_char *, int));
-static int  ccp_rejci __ARGS((fsm *, u_char *, int));
-static int  ccp_reqci __ARGS((fsm *, u_char *, int *, int));
-static void ccp_up __ARGS((fsm *));
-static void ccp_down __ARGS((fsm *));
-static int  ccp_extcode __ARGS((fsm *, int, int, u_char *, int));
-static void ccp_rack_timeout __ARGS(());
+static void ccp_resetci __P((fsm *));
+static int  ccp_cilen __P((fsm *));
+static void ccp_addci __P((fsm *, u_char *, int *));
+static int  ccp_ackci __P((fsm *, u_char *, int));
+static int  ccp_nakci __P((fsm *, u_char *, int));
+static int  ccp_rejci __P((fsm *, u_char *, int));
+static int  ccp_reqci __P((fsm *, u_char *, int *, int));
+static void ccp_up __P((fsm *));
+static void ccp_down __P((fsm *));
+static int  ccp_extcode __P((fsm *, int, int, u_char *, int));
+static void ccp_rack_timeout __P(());
 
 static fsm_callbacks ccp_callbacks = {
     ccp_resetci,
@@ -103,7 +102,7 @@ static fsm_callbacks ccp_callbacks = {
 /*
  * Local state (mainly for handling reset-reqs and reset-acks
  */
-static int ccp_localstate[NPPP];
+static int ccp_localstate[N_PPP];
 #define RACK_PENDING	1	/* waiting for reset-ack */
 #define RREQ_REPEAT	2	/* send another reset-req if no reset-ack */
 
@@ -119,7 +118,7 @@ ccp_init(unit)
     fsm *f = &ccp_fsm[unit];
 
     f->unit = unit;
-    f->protocol = CCP;
+    f->protocol = PPP_CCP;
     f->callbacks = &ccp_callbacks;
     fsm_init(f);
 
@@ -531,7 +530,7 @@ int
 ccp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer) __ARGS((void *, char *, ...));
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     u_char *p0, *optend;

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.18 1994/09/01 00:32:24 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.19 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -39,7 +39,6 @@ static char rcsid[] = "$Id: main.c,v 1.18 1994/09/01 00:32:24 paulus Exp $";
 #include <sys/socket.h>
 #include <net/if.h>
 
-#include "ppp.h"
 #include "pppd.h"
 #include "magic.h"
 #include "fsm.h"
@@ -80,8 +79,8 @@ int open_ccp_flag;
 
 static int initfdflags = -1;	/* Initial file descriptor flags */
 
-u_char outpacket_buf[MTU+DLLHEADERLEN]; /* buffer for outgoing packet */
-static u_char inpacket_buf[MTU+DLLHEADERLEN]; /* buffer for incoming packet */
+u_char outpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for outgoing packet */
+static u_char inpacket_buf[PPP_MRU+PPP_HDRLEN]; /* buffer for incoming packet */
 
 int hungup;			/* terminal has been hung up */
 static int n_children;		/* # child processes still running */
@@ -89,29 +88,29 @@ static int n_children;		/* # child processes still running */
 int baud_rate;
 
 /* prototypes */
-static void hup __ARGS((int));
-static void term __ARGS((int));
-static void chld __ARGS((int));
-static void toggle_debug __ARGS((int));
-static void open_ccp __ARGS((int));
+static void hup __P((int));
+static void term __P((int));
+static void chld __P((int));
+static void toggle_debug __P((int));
+static void open_ccp __P((int));
 
-static void get_input __ARGS((void));
-void establish_ppp __ARGS((void));
-void calltimeout __ARGS((void));
-struct timeval *timeleft __ARGS((struct timeval *));
-void reap_kids __ARGS((void));
-void cleanup __ARGS((int, caddr_t));
-void close_fd __ARGS((void));
-void die __ARGS((int));
-void novm __ARGS((char *));
+static void get_input __P((void));
+void establish_ppp __P((void));
+void calltimeout __P((void));
+struct timeval *timeleft __P((struct timeval *));
+void reap_kids __P((void));
+void cleanup __P((int, caddr_t));
+void close_fd __P((void));
+void die __P((int));
+void novm __P((char *));
 
-void log_packet __ARGS((u_char *, int, char *));
-void format_packet __ARGS((u_char *, int,
+void log_packet __P((u_char *, int, char *));
+void format_packet __P((u_char *, int,
 			   void (*) (void *, char *, ...), void *));
-void pr_log __ARGS((void *, char *, ...));
+void pr_log __P((void *, char *, ...));
 
-extern	char	*ttyname __ARGS((int));
-extern	char	*getlogin __ARGS((void));
+extern	char	*ttyname __P((int));
+extern	char	*getlogin __P((void));
 
 /*
  * PPP Data Link Layer "protocol" table.
@@ -126,11 +125,16 @@ static struct protent {
     void (*datainput)();
     char *name;
 } prottbl[] = {
-    { LCP, lcp_init, lcp_input, lcp_protrej, lcp_printpkt, NULL, "LCP" },
-    { IPCP, ipcp_init, ipcp_input, ipcp_protrej, ipcp_printpkt, NULL, "IPCP" },
-    { UPAP, upap_init, upap_input, upap_protrej, upap_printpkt, NULL, "PAP" },
-    { CHAP, ChapInit, ChapInput, ChapProtocolReject, ChapPrintPkt, NULL, "CHAP" },
-    { CCP, ccp_init, ccp_input, ccp_protrej, ccp_printpkt, ccp_datainput, "CCP" },
+    { PPP_LCP, lcp_init, lcp_input, lcp_protrej,
+	  lcp_printpkt, NULL, "LCP" },
+    { PPP_IPCP, ipcp_init, ipcp_input, ipcp_protrej,
+	  ipcp_printpkt, NULL, "IPCP" },
+    { PPP_PAP, upap_init, upap_input, upap_protrej,
+	  upap_printpkt, NULL, "PAP" },
+    { PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
+	  ChapPrintPkt, NULL, "CHAP" },
+    { PPP_CCP, ccp_init, ccp_input, ccp_protrej,
+	  ccp_printpkt, ccp_datainput, "CCP" },
 };
 
 #define N_PROTO		(sizeof(prottbl) / sizeof(prottbl[0]))
@@ -405,19 +409,19 @@ get_input()
 	if (debug /*&& (debugflags & DBG_INPACKET)*/)
 	    log_packet(p, len, "rcvd ");
 
-	if (len < DLLHEADERLEN) {
+	if (len < PPP_HDRLEN) {
 	    MAINDEBUG((LOG_INFO, "io(): Received short packet."));
 	    return;
 	}
 
 	p += 2;				/* Skip address and control */
 	GETSHORT(protocol, p);
-	len -= DLLHEADERLEN;
+	len -= PPP_HDRLEN;
 
 	/*
 	 * Toss all non-LCP packets unless LCP is OPEN.
 	 */
-	if (protocol != LCP && lcp_fsm[0].state != OPENED) {
+	if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
 	    MAINDEBUG((LOG_INFO,
 		       "io(): Received non-LCP packet when LCP not open."));
 	    return;
@@ -440,7 +444,7 @@ get_input()
 	    if (debug)
 		syslog(LOG_WARNING, "Unknown protocol (0x%x) received",
 		       protocol);
-	    lcp_sprotrej(0, p - DLLHEADERLEN, len + DLLHEADERLEN);
+	    lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
 	}
     }
 }
@@ -905,17 +909,17 @@ void
 format_packet(p, len, printer, arg)
     u_char *p;
     int len;
-    void (*printer) __ARGS((void *, char *, ...));
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     int i, n;
     u_short proto;
     u_char x;
 
-    if (len >= DLLHEADERLEN && p[0] == ALLSTATIONS && p[1] == UI) {
+    if (len >= PPP_HDRLEN && p[0] == PPP_ALLSTATIONS && p[1] == PPP_UI) {
 	p += 2;
 	GETSHORT(proto, p);
-	len -= DLLHEADERLEN;
+	len -= PPP_HDRLEN;
 	for (i = 0; i < N_PROTO; ++i)
 	    if (proto == prottbl[i].protocol)
 		break;
@@ -994,7 +998,7 @@ void
 print_string(p, len, printer, arg)
     char *p;
     int len;
-    void (*printer) __ARGS((void *, char *, ...));
+    void (*printer) __P((void *, char *, ...));
     void *arg;
 {
     int c;

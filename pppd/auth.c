@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.9 1994/09/01 00:12:52 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.10 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -48,7 +48,6 @@ static char rcsid[] = "$Id: auth.c,v 1.9 1994/09/01 00:12:52 paulus Exp $";
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "ppp.h"
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
@@ -78,9 +77,9 @@ struct wordlist {
 #define TRUE	1
 
 /* Records which authentication operations haven't completed yet. */
-static int auth_pending[NPPP];
+static int auth_pending[N_PPP];
 static int logged_in;
-static struct wordlist *addresses[NPPP];
+static struct wordlist *addresses[N_PPP];
 
 /* Bits in auth_pending[] */
 #define UPAP_WITHPEER	1
@@ -89,20 +88,20 @@ static struct wordlist *addresses[NPPP];
 #define CHAP_PEER	8
 
 /* Prototypes */
-void check_access __ARGS((FILE *, char *));
+void check_access __P((FILE *, char *));
 
-static void network_phase __ARGS((int));
-static int  login __ARGS((char *, char *, char **, int *));
-static void logout __ARGS((void));
-static int  null_login __ARGS((int));
-static int  get_upap_passwd __ARGS((void));
-static int  have_upap_secret __ARGS((void));
-static int  have_chap_secret __ARGS((char *, char *));
-static int  scan_authfile __ARGS((FILE *, char *, char *, char *,
+static void network_phase __P((int));
+static int  login __P((char *, char *, char **, int *));
+static void logout __P((void));
+static int  null_login __P((int));
+static int  get_upap_passwd __P((void));
+static int  have_upap_secret __P((void));
+static int  have_chap_secret __P((char *, char *));
+static int  scan_authfile __P((FILE *, char *, char *, char *,
 				  struct wordlist **, char *));
-static void free_wordlist __ARGS((struct wordlist *));
+static void free_wordlist __P((struct wordlist *));
 
-extern char *crypt __ARGS((char *, char *));
+extern char *crypt __P((char *, char *));
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
@@ -227,10 +226,10 @@ auth_peer_success(unit, protocol)
     int bit;
 
     switch (protocol) {
-    case CHAP:
+    case PPP_CHAP:
 	bit = CHAP_PEER;
 	break;
-    case UPAP:
+    case PPP_PAP:
 	bit = UPAP_PEER;
 	break;
     default:
@@ -274,10 +273,10 @@ auth_withpeer_success(unit, protocol)
     int bit;
 
     switch (protocol) {
-    case CHAP:
+    case PPP_CHAP:
 	bit = CHAP_WITHPEER;
 	break;
-    case UPAP:
+    case PPP_PAP:
 	bit = UPAP_WITHPEER;
 	break;
     default:
@@ -693,9 +692,9 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 int
 auth_ip_addr(unit, addr)
     int unit;
-    uint32 addr;
+    u_int32_t addr;
 {
-    uint32 a;
+    u_int32_t a;
     struct hostent *hp;
     struct wordlist *addrs;
 
@@ -716,7 +715,7 @@ auth_ip_addr(unit, addr)
 		       addrs->word);
 		continue;
 	    } else
-		a = *(uint32 *)hp->h_addr;
+		a = *(u_int32_t *)hp->h_addr;
 	}
 	if (addr == a)
 	    return 1;
@@ -731,7 +730,7 @@ auth_ip_addr(unit, addr)
  */
 int
 bad_ip_adrs(addr)
-    uint32 addr;
+    u_int32_t addr;
 {
     addr = ntohl(addr);
     return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET

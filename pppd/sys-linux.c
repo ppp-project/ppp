@@ -36,6 +36,7 @@
 #include <mntent.h>
 
 #include <net/if.h>
+#include <net/ppp_defs.h>
 #include <net/if_arp.h>
 #include <linux/ppp.h>
 #include <linux/route.h>
@@ -44,7 +45,6 @@
 #include <signal.h>
 
 #include "pppd.h"
-#include "ppp.h"
 #include "fsm.h"
 #include "ipcp.h"
 
@@ -457,7 +457,7 @@ int read_packet (unsigned char *buf)
 {
     int len;
   
-    len = read(fd, buf, MTU + DLLHEADERLEN);
+    len = read(fd, buf, PPP_MTU + PPP_HDRLEN);
     if (len < 0) {
 	if (errno == EWOULDBLOCK) {
 #if 0
@@ -475,7 +475,7 @@ int read_packet (unsigned char *buf)
  * ppp_send_config - configure the transmit characteristics of
  * the ppp interface.
  */
-void ppp_send_config (int unit,int mtu,uint32 asyncmap,int pcomp,int accomp)
+void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 {
     u_int x;
     struct ifreq ifr;
@@ -527,7 +527,7 @@ ppp_set_xaccm(unit, accm)
  * ppp_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
-void ppp_recv_config (int unit,int mru,uint32 asyncmap,int pcomp,int accomp)
+void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 {
     u_int x;
 
@@ -957,7 +957,7 @@ int cifdefaultroute (int unit, int gateway)
  * sifproxyarp - Make a proxy ARP entry for the peer.
  */
 
-int sifproxyarp (int unit, uint32 his_adr)
+int sifproxyarp (int unit, u_int32_t his_adr)
 {
     struct arpreq arpreq;
 
@@ -986,7 +986,7 @@ int sifproxyarp (int unit, uint32 his_adr)
  * cifproxyarp - Delete the proxy ARP entry for the peer.
  */
 
-int cifproxyarp (int unit, uint32 his_adr)
+int cifproxyarp (int unit, u_int32_t his_adr)
 {
     struct arpreq arpreq;
   
@@ -1006,11 +1006,11 @@ int cifproxyarp (int unit, uint32 his_adr)
  * the same subnet as ipaddr.
  */
 
-int get_ether_addr (uint32 ipaddr, struct sockaddr *hwaddr)
+int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 {
     struct ifreq *ifr, *ifend, *ifp;
     int i;
-    uint32 ina, mask;
+    u_int32_t ina, mask;
     struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.10 1994/09/01 00:22:38 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.11 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -32,35 +32,34 @@ static char rcsid[] = "$Id: ipcp.c,v 1.10 1994/09/01 00:22:38 paulus Exp $";
 #include <sys/socket.h>
 
 #include "pppd.h"
-#include "ppp.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "pathnames.h"
 
 /* global vars */
-ipcp_options ipcp_wantoptions[NPPP];	/* Options that we want to request */
-ipcp_options ipcp_gotoptions[NPPP];	/* Options that peer ack'd */
-ipcp_options ipcp_allowoptions[NPPP];	/* Options we allow peer to request */
-ipcp_options ipcp_hisoptions[NPPP];	/* Options that we ack'd */
+ipcp_options ipcp_wantoptions[N_PPP];	/* Options that we want to request */
+ipcp_options ipcp_gotoptions[N_PPP];	/* Options that peer ack'd */
+ipcp_options ipcp_allowoptions[N_PPP];	/* Options we allow peer to request */
+ipcp_options ipcp_hisoptions[N_PPP];	/* Options that we ack'd */
 
 /* local vars */
-static int cis_received[NPPP];		/* # Conf-Reqs received */
+static int cis_received[N_PPP];		/* # Conf-Reqs received */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
  */
-static void ipcp_resetci __ARGS((fsm *));	/* Reset our CI */
-static int  ipcp_cilen __ARGS((fsm *));	        /* Return length of our CI */
-static void ipcp_addci __ARGS((fsm *, u_char *, int *)); /* Add our CI */
-static int  ipcp_ackci __ARGS((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipcp_nakci __ARGS((fsm *, u_char *, int));	/* Peer nak'd our CI */
-static int  ipcp_rejci __ARGS((fsm *, u_char *, int));	/* Peer rej'd our CI */
-static int  ipcp_reqci __ARGS((fsm *, u_char *, int *, int)); /* Rcv CI */
-static void ipcp_up __ARGS((fsm *));		/* We're UP */
-static void ipcp_down __ARGS((fsm *));		/* We're DOWN */
-static void ipcp_script __ARGS((fsm *, char *)); /* Run an up/down script */
+static void ipcp_resetci __P((fsm *));	/* Reset our CI */
+static int  ipcp_cilen __P((fsm *));	        /* Return length of our CI */
+static void ipcp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
+static int  ipcp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
+static int  ipcp_nakci __P((fsm *, u_char *, int));	/* Peer nak'd our CI */
+static int  ipcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
+static int  ipcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
+static void ipcp_up __P((fsm *));		/* We're UP */
+static void ipcp_down __P((fsm *));		/* We're DOWN */
+static void ipcp_script __P((fsm *, char *)); /* Run an up/down script */
 
-fsm ipcp_fsm[NPPP];		/* IPCP fsm structure */
+fsm ipcp_fsm[N_PPP];		/* IPCP fsm structure */
 
 static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
     ipcp_resetci,		/* Reset our Configuration Information */
@@ -99,7 +98,7 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
  */
 char *
 ip_ntoa(ipaddr)
-uint32 ipaddr;
+u_int32_t ipaddr;
 {
     static char b[64];
 
@@ -126,7 +125,7 @@ ipcp_init(unit)
     ipcp_options *ao = &ipcp_allowoptions[unit];
 
     f->unit = unit;
-    f->protocol = IPCP;
+    f->protocol = PPP_IPCP;
     f->callbacks = &ipcp_callbacks;
     fsm_init(&ipcp_fsm[unit]);
 
@@ -292,7 +291,7 @@ ipcp_addci(f, ucp, lenp)
     if (neg) { \
 	int addrlen = (old? CILEN_ADDRS: CILEN_ADDR); \
 	if (len >= addrlen) { \
-	    uint32 l; \
+	    u_int32_t l; \
 	    PUTCHAR(opt, ucp); \
 	    PUTCHAR(addrlen, ucp); \
 	    l = ntohl(val1); \
@@ -355,7 +354,7 @@ ipcp_ackci(f, p, len)
 {
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     u_short cilen, citype, cishort;
-    uint32 cilong;
+    u_int32_t cilong;
     u_char cimaxslotindex, cicflag;
 
     /*
@@ -390,7 +389,7 @@ ipcp_ackci(f, p, len)
 #define ACKCIADDR(opt, neg, old, val1, val2) \
     if (neg) { \
 	int addrlen = (old? CILEN_ADDRS: CILEN_ADDR); \
-	uint32 l; \
+	u_int32_t l; \
 	if ((len -= addrlen) < 0) \
 	    goto bad; \
 	GETCHAR(citype, p); \
@@ -447,7 +446,7 @@ ipcp_nakci(f, p, len)
     u_char cimaxslotindex, cicflag;
     u_char citype, cilen, *next;
     u_short cishort;
-    uint32 ciaddr1, ciaddr2, l;
+    u_int32_t ciaddr1, ciaddr2, l;
     ipcp_options no;		/* options we've seen Naks for */
     ipcp_options try;		/* options to request next time */
 
@@ -619,7 +618,7 @@ ipcp_rejci(f, p, len)
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     u_char cimaxslotindex, ciflag, cilen;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
     ipcp_options try;		/* options to request next time */
 
     try = *go;
@@ -633,7 +632,7 @@ ipcp_rejci(f, p, len)
 	len >= (cilen = old? CILEN_ADDRS: CILEN_ADDR) && \
 	p[1] == cilen && \
 	p[0] == opt) { \
-	uint32 l; \
+	u_int32_t l; \
 	len -= cilen; \
 	INCPTR(2, p); \
 	GETLONG(l, p); \
@@ -718,7 +717,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
     u_char *cip, *next;		/* Pointer to current and next CIs */
     u_short cilen, citype;	/* Parsed len, type */
     u_short cishort;		/* Parsed short value */
-    uint32 tl, ciaddr1, ciaddr2;/* Parsed address values */
+    u_int32_t tl, ciaddr1, ciaddr2;/* Parsed address values */
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
@@ -956,7 +955,7 @@ static void
 ipcp_up(f)
     fsm *f;
 {
-    uint32 mask;
+    u_int32_t mask;
     ipcp_options *ho = &ipcp_hisoptions[f->unit];
     ipcp_options *go = &ipcp_gotoptions[f->unit];
 
@@ -1043,7 +1042,7 @@ static void
 ipcp_down(f)
     fsm *f;
 {
-    uint32 ouraddr, hisaddr;
+    u_int32_t ouraddr, hisaddr;
 
     IPCPDEBUG((LOG_INFO, "ipcp: down"));
 
@@ -1105,7 +1104,7 @@ ipcp_printpkt(p, plen, printer, arg)
     int code, id, len, olen;
     u_char *pstart, *optend;
     u_short cishort;
-    uint32 cilong;
+    u_int32_t cilong;
 
     if (plen < HEADERLEN)
 	return 0;

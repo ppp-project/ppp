@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.4 1994/09/01 00:14:03 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.5 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -31,24 +31,23 @@ static char rcsid[] = "$Id: fsm.c,v 1.4 1994/09/01 00:14:03 paulus Exp $";
 #include <sys/types.h>
 #include <syslog.h>
 
-#include "ppp.h"
 #include "pppd.h"
 #include "fsm.h"
 
 extern char *proto_name();
 
-static void fsm_timeout __ARGS((caddr_t));
-static void fsm_rconfreq __ARGS((fsm *, int, u_char *, int));
-static void fsm_rconfack __ARGS((fsm *, int, u_char *, int));
-static void fsm_rconfnakrej __ARGS((fsm *, int, int, u_char *, int));
-static void fsm_rtermreq __ARGS((fsm *, int));
-static void fsm_rtermack __ARGS((fsm *));
-static void fsm_rcoderej __ARGS((fsm *, u_char *, int));
-static void fsm_sconfreq __ARGS((fsm *, int));
+static void fsm_timeout __P((caddr_t));
+static void fsm_rconfreq __P((fsm *, int, u_char *, int));
+static void fsm_rconfack __P((fsm *, int, u_char *, int));
+static void fsm_rconfnakrej __P((fsm *, int, int, u_char *, int));
+static void fsm_rtermreq __P((fsm *, int));
+static void fsm_rtermack __P((fsm *));
+static void fsm_rcoderej __P((fsm *, u_char *, int));
+static void fsm_sconfreq __P((fsm *, int));
 
 #define PROTO_NAME(f)	((f)->callbacks->proto_name)
 
-int peer_mru[NPPP];
+int peer_mru[N_PPP];
 
 
 /*
@@ -721,7 +720,7 @@ fsm_sconfreq(f, retransmit)
     /*
      * Make up the request packet
      */
-    outp = outpacket_buf + DLLHEADERLEN + HEADERLEN;
+    outp = outpacket_buf + PPP_HDRLEN + HEADERLEN;
     if( f->callbacks->cilen && f->callbacks->addci ){
 	cilen = (*f->callbacks->cilen)(f);
 	if( cilen > peer_mru[f->unit] - HEADERLEN )
@@ -762,14 +761,14 @@ fsm_sdata(f, code, id, data, datalen)
     outp = outpacket_buf;
     if (datalen > peer_mru[f->unit] - HEADERLEN)
 	datalen = peer_mru[f->unit] - HEADERLEN;
-    if (datalen && data != outp + DLLHEADERLEN + HEADERLEN)
-	BCOPY(data, outp + DLLHEADERLEN + HEADERLEN, datalen);
+    if (datalen && data != outp + PPP_HDRLEN + HEADERLEN)
+	BCOPY(data, outp + PPP_HDRLEN + HEADERLEN, datalen);
     outlen = datalen + HEADERLEN;
     MAKEHEADER(outp, f->protocol);
     PUTCHAR(code, outp);
     PUTCHAR(id, outp);
     PUTSHORT(outlen, outp);
-    output(f->unit, outpacket_buf, outlen + DLLHEADERLEN);
+    output(f->unit, outpacket_buf, outlen + PPP_HDRLEN);
 
     FSMDEBUG((LOG_INFO, "fsm_sdata(%s): Sent code %d, id %d.",
 	      PROTO_NAME(f), code, id));

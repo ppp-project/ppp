@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: magic.c,v 1.2 1994/09/01 00:25:19 paulus Exp $";
+static char rcsid[] = "$Id: magic.c,v 1.3 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -28,11 +28,11 @@ static char rcsid[] = "$Id: magic.c,v 1.2 1994/09/01 00:25:19 paulus Exp $";
 #include "pppd.h"
 #include "magic.h"
 
-static uint32 next;		/* Next value to return */
+static u_int32_t next;		/* Next value to return */
 
-extern uint32 gethostid __ARGS((void));
-extern long random __ARGS((void));
-extern void srandom __ARGS((int));
+extern u_int32_t gethostid __P((void));
+extern long random __P((void));
+extern void srandom __P((int));
 
 
 /*
@@ -51,7 +51,7 @@ void magic_init()
 	perror("gettimeofday");
 	exit(1);
     }
-    next ^= (uint32) tv.tv_sec ^ (uint32) tv.tv_usec;
+    next ^= (u_int32_t) tv.tv_sec ^ (u_int32_t) tv.tv_usec;
 
     srandom((int) next);
 }
@@ -60,11 +60,11 @@ void magic_init()
 /*
  * magic - Returns the next magic number.
  */
-uint32 magic()
+u_int32_t magic()
 {
-    uint32 m;
+    u_int32_t m;
 
     m = next;
-    next = (uint32) random();
+    next = (u_int32_t) random();
     return (m);
 }

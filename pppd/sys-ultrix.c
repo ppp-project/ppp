@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-ultrix.c,v 1.5 1994/09/01 00:39:09 paulus Exp $";
+static char rcsid[] = "$Id: sys-ultrix.c,v 1.6 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -39,13 +39,12 @@ static char rcsid[] = "$Id: sys-ultrix.c,v 1.5 1994/09/01 00:39:09 paulus Exp $"
 #include <sys/stat.h>
 
 #include <net/if.h>
-
+#include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 #include <net/route.h>
 #include <netinet/in.h>
 
 #include "pppd.h"
-#include "ppp.h"
 
 static int initdisc = -1;		/* Initial TTY discipline */
 
@@ -409,7 +408,7 @@ read_packet(buf)
 {
     int len;
 
-    if ((len = read(fd, buf, MTU + DLLHEADERLEN)) < 0) {
+    if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
 	if (errno == EWOULDBLOCK) {
 	    MAINDEBUG((LOG_DEBUG, "read(fd): EWOULDBLOCK"));
 	    return -1;
@@ -428,7 +427,7 @@ read_packet(buf)
 void
 ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int unit, mtu;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     u_int x;
@@ -479,7 +478,7 @@ ppp_set_xaccm(unit, accm)
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     int unit, mru;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int x;
@@ -717,7 +716,7 @@ cifdefaultroute(u, g)
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
 
@@ -749,7 +748,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
 
@@ -771,11 +770,11 @@ cifproxyarp(unit, hisaddr)
 
 int
 get_ether_addr(ipaddr, hwaddr)
-    uint32 ipaddr;
+    u_int32_t ipaddr;
     struct sockaddr *hwaddr;
 {
     struct ifreq *ifr, *ifend, *ifp;
-    uint32 ina, mask;
+    u_int32_t ina, mask;
     struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;

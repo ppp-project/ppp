@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.12 1994/09/16 02:35:27 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.13 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /*
@@ -35,6 +35,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.12 1994/09/16 02:35:27 paulus Exp $";
 #include <sys/errno.h>
 
 #include <net/if.h>
+#include <net/ppp_defs.h>
 #include <net/if_ppp.h>
 #include <net/route.h>
 #include <net/if_dl.h>
@@ -45,7 +46,6 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.12 1994/09/16 02:35:27 paulus Exp $";
 #endif
 
 #include "pppd.h"
-#include "ppp.h"
 
 static int initdisc = -1;	/* Initial TTY discipline */
 static int rtm_seq;
@@ -325,7 +325,7 @@ read_packet(buf)
 {
     int len;
 
-    if ((len = read(fd, buf, MTU + DLLHEADERLEN)) < 0) {
+    if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
 	if (errno == EWOULDBLOCK) {
 	    MAINDEBUG((LOG_DEBUG, "read(fd): EWOULDBLOCK"));
 	    return -1;
@@ -344,7 +344,7 @@ read_packet(buf)
 void
 ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int unit, mtu;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     u_int x;
@@ -395,7 +395,7 @@ ppp_set_xaccm(unit, accm)
 void
 ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     int unit, mru;
-    uint32 asyncmap;
+    u_int32_t asyncmap;
     int pcomp, accomp;
 {
     int x;
@@ -603,7 +603,7 @@ sifdown(u)
 int
 sifaddr(u, o, h, m)
     int u;
-    uint32 o, h, m;
+    u_int32_t o, h, m;
 {
     struct ifaliasreq ifra;
 
@@ -634,7 +634,7 @@ sifaddr(u, o, h, m)
 int
 cifaddr(u, o, h)
     int u;
-    uint32 o, h;
+    u_int32_t o, h;
 {
     struct ifaliasreq ifra;
 
@@ -657,7 +657,7 @@ cifaddr(u, o, h)
 int
 sifdefaultroute(u, g)
     int u;
-    uint32 g;
+    u_int32_t g;
 {
     return dodefaultroute(g, 's');
 }
@@ -668,7 +668,7 @@ sifdefaultroute(u, g)
 int
 cifdefaultroute(u, g)
     int u;
-    uint32 g;
+    u_int32_t g;
 {
     return dodefaultroute(g, 'c');
 }
@@ -678,7 +678,7 @@ cifdefaultroute(u, g)
  */
 int
 dodefaultroute(g, cmd)
-    uint32 g;
+    u_int32_t g;
     int cmd;
 {
     int routes;
@@ -736,7 +736,7 @@ static int arpmsg_valid;
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     int routes;
     int l;
@@ -786,7 +786,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     int routes;
 
@@ -820,7 +820,7 @@ cifproxyarp(unit, hisaddr)
 int
 sifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
     struct {
@@ -859,7 +859,7 @@ sifproxyarp(unit, hisaddr)
 int
 cifproxyarp(unit, hisaddr)
     int unit;
-    uint32 hisaddr;
+    u_int32_t hisaddr;
 {
     struct arpreq arpreq;
 
@@ -883,11 +883,11 @@ cifproxyarp(unit, hisaddr)
 
 int
 get_ether_addr(ipaddr, hwaddr)
-    uint32 ipaddr;
+    u_int32_t ipaddr;
     struct sockaddr_dl *hwaddr;
 {
     struct ifreq *ifr, *ifend, *ifp;
-    uint32 ina, mask;
+    u_int32_t ina, mask;
     struct sockaddr_dl *dla;
     struct ifreq ifreq;
     struct ifconf ifc;
