@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.68 2002/11/24 11:31:46 etbe Exp $
+.\" $Id: pppd.8,v 1.69 2003/01/16 10:22:35 fcusack Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -827,8 +827,8 @@ expression should be enclosed in single-quotes to prevent whitespace
 in the expression from being interpreted by the shell.  Note that it
 is possible to apply different constraints to incoming and outgoing
 packets using the \fBinbound\fR and \fBoutbound\fR qualifiers. This
-option is currently only available under NetBSD, and then only if both
-the kernel and pppd were compiled with PPP_FILTER defined.
+option is currently only available under NetBSD or Linux, and then
+only if both the kernel and pppd were compiled with PPP_FILTER defined.
 .TP
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
