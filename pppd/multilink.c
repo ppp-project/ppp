@@ -71,9 +71,6 @@ mp_check_options()
 	if (!wo->neg_endpoint && !noendpoint) {
 		/* get a default endpoint value */
 		wo->neg_endpoint = get_default_epdisc(&wo->endpoint);
-		if (wo->neg_endpoint)
-			dbglog("using default endpoint %s",
-			       epdisc_to_str(&wo->endpoint));
 	}
 }
 
@@ -106,8 +103,8 @@ mp_join_bundle()
 			return 0;
 		}
 		make_new_bundle(0, 0, 0, 0);
-		netif_set_mtu(0, mtu);
 		set_ifunit(1);
+		netif_set_mtu(0, mtu);
 		return 0;
 	}
 
@@ -186,8 +183,8 @@ mp_join_bundle()
 
 	/* we have to make a new bundle */
 	make_new_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
-	netif_set_mtu(0, mtu);
 	set_ifunit(1);
+	netif_set_mtu(0, mtu);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
 	tdb_writeunlock(pppdb);
 	info("New bundle %s created", ifname);
