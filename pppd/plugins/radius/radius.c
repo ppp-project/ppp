@@ -24,10 +24,10 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.20 2002/12/24 03:43:35 fcusack Exp $";
+"$Id: radius.c,v 1.21 2003/11/25 11:50:10 paulus Exp $";
 
 #include "pppd.h"
-#include "chap.h"
+#include "chap-new.h"
 #ifdef CHAPMS
 #include "chap_ms.h"
 #ifdef MPPE
@@ -43,6 +43,8 @@ static char const RCSID[] =
 #include <string.h>
 
 #define BUF_LEN 1024
+
+#define MD5_HASH_SIZE	16
 
 static char *config_file = NULL;
 static int add_avp(char **);
@@ -63,16 +65,19 @@ static int radius_pap_auth(char *user,
 			   char **msgp,
 			   struct wordlist **paddrs,
 			   struct wordlist **popts);
-static int radius_chap_auth(char *user,
-			    u_char *remmd,
-			    int remmd_len,
-			    chap_state *cstate);
+static int radius_chap_verify(char *user, char *ourname, int id,
+			      struct chap_digest_type *digest,
+			      unsigned char *challenge,
+			      unsigned char *response,
+			      unsigned char *message, int message_space);
 
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
 static void make_username_realm(char *user);
-static int radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
-			    REQUEST_INFO *req_info);
+static int radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
+			    struct chap_digest_type *digest,
+			    unsigned char *challenge,
+			    char *message, int message_space);
 static void radius_choose_ip(u_int32_t *addrp);
 static int radius_init(char *msg);
 static int get_client_port(char *ifname);
@@ -80,7 +85,7 @@ static int radius_allowed_address(u_int32_t addr);
 static void radius_acct_interim(void *);
 #ifdef MPPE
 static int radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
-			      chap_state *);
+			      unsigned char *);
 static int radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info);
 #endif
 
@@ -140,7 +145,7 @@ plugin_init(void)
     pap_auth_hook = radius_pap_auth;
 
     chap_check_hook = radius_secret_check;
-    chap_auth_hook = radius_chap_auth;
+    chap_verify_hook = radius_chap_verify;
 
     ip_choose_hook = radius_choose_ip;
     allowed_address_hook = radius_allowed_address;
@@ -287,7 +292,7 @@ radius_pap_auth(char *user,
     }
 
     if (result == OK_RC) {
-	if (radius_setparams(NULL, received, radius_msg, NULL) < 0) {
+	if (radius_setparams(received, radius_msg, NULL, NULL, NULL, NULL, 0) < 0) {
 	    result = ERROR_RC;
 	}
     }
@@ -300,28 +305,33 @@ radius_pap_auth(char *user,
 }
 
 /**********************************************************************
-* %FUNCTION: radius_chap_auth
+* %FUNCTION: radius_chap_verify
 * %ARGUMENTS:
-*  user -- user-name of peer
-*  remmd -- hash received from peer
-*  remmd_len -- length of remmd
-*  cstate -- pppd's chap_state structure
+*  user -- name of the peer
+*  ourname -- name for this machine
+*  id -- the ID byte in the challenge
+*  digest -- points to the structure representing the digest type
+*  challenge -- the challenge string we sent (length in first byte)
+*  response -- the response (hash) the peer sent back (length in 1st byte)
+*  message -- space for a message to be returned to the peer
+*  message_space -- number of bytes available at *message.
 * %RETURNS:
-*  CHAP_SUCCESS if we can authenticate, CHAP_FAILURE if we cannot.
+*  1 if the response is good, 0 if it is bad
 * %DESCRIPTION:
 * Performs CHAP, MS-CHAP and MS-CHAPv2 authentication using RADIUS.
 ***********************************************************************/
 static int
-radius_chap_auth(char *user,
-		 u_char *remmd,
-		 int remmd_len,
-		 chap_state *cstate)
+radius_chap_verify(char *user, char *ourname, int id,
+		   struct chap_digest_type *digest,
+		   unsigned char *challenge, unsigned char *response,
+		   unsigned char *message, int message_space)
 {
     VALUE_PAIR *send, *received;
     UINT4 av_type;
     static char radius_msg[BUF_LEN];
     int result;
-    u_char cpassword[MAX_RESPONSE_LENGTH + 1];
+    int challenge_len, response_len;
+    u_char cpassword[MAX_RESPONSE_LEN + 1];
 #ifdef MPPE
     /* Need the RADIUS secret and Request Authenticator to decode MPPE */
     REQUEST_INFO request_info, *req_info = &request_info;
@@ -329,22 +339,25 @@ radius_chap_auth(char *user,
     REQUEST_INFO *req_info = NULL;
 #endif
 
+    challenge_len = *challenge++;
+    response_len = *response++;
+
     radius_msg[0] = 0;
 
     if (radius_init(radius_msg) < 0) {
 	error("%s", radius_msg);
-	return CHAP_FAILURE;
+	return 0;
     }
 
     /* return error for types we can't handle */
-    if ((cstate->chal_type != CHAP_DIGEST_MD5)
+    if ((digest->code != CHAP_MD5)
 #ifdef CHAPMS
-	&& (cstate->chal_type != CHAP_MICROSOFT)
-	&& (cstate->chal_type != CHAP_MICROSOFT_V2)
+	&& (digest->code != CHAP_MICROSOFT)
+	&& (digest->code != CHAP_MICROSOFT_V2)
 #endif
 	) {
-	error("RADIUS: Challenge type %u unsupported", cstate->chal_type);
-	return CHAP_FAILURE;
+	error("RADIUS: Challenge type %u unsupported", digest->code);
+	return 0;
     }
 
     /* Put user with potentially realm added in rstate.user */
@@ -371,26 +384,30 @@ radius_chap_auth(char *user,
     /*
      * add the challenge and response fields
      */
-    switch (cstate->chal_type) {
-    case CHAP_DIGEST_MD5:
+    switch (digest->code) {
+    case CHAP_MD5:
 	/* CHAP-Challenge and CHAP-Password */
-	cpassword[0] = cstate->chal_id;
-	memcpy(&cpassword[1], remmd, MD5_SIGNATURE_SIZE);
+	if (response_len != MD5_HASH_SIZE)
+	    return 0;
+	cpassword[0] = id;
+	memcpy(&cpassword[1], response, MD5_HASH_SIZE);
 
 	rc_avpair_add(&send, PW_CHAP_CHALLENGE,
-		      cstate->challenge, cstate->chal_len, VENDOR_NONE);
+		      challenge, challenge_len, VENDOR_NONE);
 	rc_avpair_add(&send, PW_CHAP_PASSWORD,
-		      cpassword, MD5_SIGNATURE_SIZE + 1, VENDOR_NONE);
+		      cpassword, MD5_HASH_SIZE + 1, VENDOR_NONE);
 	break;
 
 #ifdef CHAPMS
     case CHAP_MICROSOFT:
     {
 	/* MS-CHAP-Challenge and MS-CHAP-Response */
-	MS_ChapResponse *rmd = (MS_ChapResponse *) remmd;
+	MS_ChapResponse *rmd = (MS_ChapResponse *) response;
 	u_char *p = cpassword;
 
-	*p++ = cstate->chal_id;
+	if (response_len != MS_CHAP_RESPONSE_LEN)
+	    return 0;
+	*p++ = id;
 	/* The idiots use a different field order in RADIUS than PPP */
 	memcpy(p, rmd->UseNT, sizeof(rmd->UseNT));
 	p += sizeof(rmd->UseNT);
@@ -399,7 +416,7 @@ radius_chap_auth(char *user,
 	memcpy(p, rmd->NTResp, sizeof(rmd->NTResp));
 
 	rc_avpair_add(&send, PW_MS_CHAP_CHALLENGE,
-		      cstate->challenge, cstate->chal_len, VENDOR_MICROSOFT);
+		      challenge, challenge_len, VENDOR_MICROSOFT);
 	rc_avpair_add(&send, PW_MS_CHAP_RESPONSE,
 		      cpassword, MS_CHAP_RESPONSE_LEN + 1, VENDOR_MICROSOFT);
 	break;
@@ -408,10 +425,12 @@ radius_chap_auth(char *user,
     case CHAP_MICROSOFT_V2:
     {
 	/* MS-CHAP-Challenge and MS-CHAP2-Response */
-	MS_Chap2Response *rmd = (MS_Chap2Response *) remmd;
+	MS_Chap2Response *rmd = (MS_Chap2Response *) (response + 1);
 	u_char *p = cpassword;
 
-	*p++ = cstate->chal_id;
+	if (response_len != MS_CHAP2_RESPONSE_LEN)
+	    return 0;
+	*p++ = id;
 	/* The idiots use a different field order in RADIUS than PPP */
 	memcpy(p, rmd->Flags, sizeof(rmd->Flags));
 	p += sizeof(rmd->Flags);
@@ -422,7 +441,7 @@ radius_chap_auth(char *user,
 	memcpy(p, rmd->NTResp, sizeof(rmd->NTResp));
 
 	rc_avpair_add(&send, PW_MS_CHAP_CHALLENGE,
-		      cstate->challenge, cstate->chal_len, VENDOR_MICROSOFT);
+		      challenge, challenge_len, VENDOR_MICROSOFT);
 	rc_avpair_add(&send, PW_MS_CHAP2_RESPONSE,
 		      cpassword, MS_CHAP2_RESPONSE_LEN + 1, VENDOR_MICROSOFT);
 	break;
@@ -454,7 +473,8 @@ radius_chap_auth(char *user,
 
     if (result == OK_RC) {
 	if (!rstate.done_chap_once) {
-	    if (radius_setparams(cstate, received, radius_msg, req_info) < 0) {
+	    if (radius_setparams(received, radius_msg, req_info, digest,
+				 challenge, message, message_space) < 0) {
 		error("%s", radius_msg);
 		result = ERROR_RC;
 	    } else {
@@ -465,7 +485,7 @@ radius_chap_auth(char *user,
 
     rc_avpair_free(received);
     rc_avpair_free (send);
-    return (result == OK_RC) ? CHAP_SUCCESS : CHAP_FAILURE;
+    return (result == OK_RC);
 }
 
 /**********************************************************************
@@ -502,7 +522,6 @@ make_username_realm(char *user)
 /**********************************************************************
 * %FUNCTION: radius_setparams
 * %ARGUMENTS:
-*  cstate -- pppd's chap_state structure
 *  vp -- received value-pairs
 *  msg -- buffer in which to place error message.  Holds up to BUF_LEN chars
 * %RETURNS:
@@ -511,8 +530,9 @@ make_username_realm(char *user)
 *  Parses attributes sent by RADIUS server and sets them in pppd.
 ***********************************************************************/
 static int
-radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
-		 REQUEST_INFO *req_info)
+radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
+		 struct chap_digest_type *digest, unsigned char *challenge,
+		 char *message, int message_space)
 {
     u_int32_t remote;
     int ms_chap2_success = 0;
@@ -615,15 +635,14 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 		    slprintf(msg,BUF_LEN,"RADIUS: bad MS-CHAP2-Success packet");
 		    return -1;
 		}
-		memcpy(cstate->saresponse, vp->strvalue + 3,
-		       MS_AUTH_RESPONSE_LENGTH);
-		cstate->saresponse[MS_AUTH_RESPONSE_LENGTH] = '\0';
+		if (message != NULL)
+		    strlcpy(message, vp->strvalue + 1, message_space);
 		ms_chap2_success = 1;
 		break;
 
 #ifdef MPPE
 	    case PW_MS_CHAP_MPPE_KEYS:
-		if (radius_setmppekeys(vp, req_info, cstate) < 0) {
+		if (radius_setmppekeys(vp, req_info, challenge) < 0) {
 		    slprintf(msg, BUF_LEN,
 			     "RADIUS: bad MS-CHAP-MPPE-Keys attribute");
 		    return -1;
@@ -666,7 +685,7 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
     }
 
     /* Require a valid MS-CHAP2-SUCCESS for MS-CHAPv2 auth */
-    if (cstate && (cstate->chal_type == CHAP_MICROSOFT_V2) && !ms_chap2_success)
+    if (digest && (digest->code == CHAP_MICROSOFT_V2) && !ms_chap2_success)
 	return -1;
 
 #ifdef MPPE
@@ -691,7 +710,6 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 * %ARGUMENTS:
 *  vp -- value pair holding MS-CHAP-MPPE-KEYS attribute
 *  req_info -- radius request information used for encryption
-*  cstate -- chap_state structure for challenge info
 * %RETURNS:
 *  >= 0 on success; -1 on failure
 * %DESCRIPTION:
@@ -699,7 +717,8 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 *  See RFC 2548.
 ***********************************************************************/
 static int
-radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info, chap_state *cstate)
+radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
+		   unsigned char *challenge)
 {
     int i;
     MD5_CTX Context;
@@ -735,7 +754,7 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info, chap_state *cstate)
      * the NAS (us) doesn't need; we only need the start key.  So we have
      * to generate the start key, sigh.  NB: We do not support the LM-Key.
      */
-    mppe_set_keys(cstate->challenge, &plain[8]);
+    mppe_set_keys(challenge, &plain[8]);
 
     return 0;    
 }
@@ -759,7 +778,7 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
     u_char  *salt = vp->strvalue;
     u_char  *crypt = vp->strvalue + 2;
     u_char  plain[32];
-    u_char  buf[MD5_SIGNATURE_SIZE];
+    u_char  buf[MD5_HASH_SIZE];
     char    *type = "Send";
 
     if (vp->attribute == PW_MS_MPPE_RECV_KEY)
