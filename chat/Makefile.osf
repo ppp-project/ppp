@@ -9,6 +9,7 @@ chat: chat.o
 
 install: chat
 	installbsd -c chat $(BINDIR)/chat
+	installbsd -c -m 444 chat.8 $(MANDIR)/man8/chat.8
 
 clean:
 	rm -f *~ *.o chat

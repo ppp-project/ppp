@@ -16,6 +16,7 @@ all: pppstats
 
 install: pppstats
 	installbsd -c pppstats $(BINDIR)/pppstats
+	installbsd -c -m 444 pppstats.8 $(MANDIR)/man8/pppstats.8
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
