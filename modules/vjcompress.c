@@ -24,7 +24,7 @@
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
  *
- * $Id: vjcompress.c,v 1.2 1994/09/19 04:20:13 paulus Exp $
+ * $Id: vjcompress.c,v 1.3 1994/11/30 05:31:00 paulus Exp $
  */
 
 #include <sys/types.h>
@@ -438,7 +438,6 @@ vj_uncompress_tcp(buf, buflen, total_len, comp, hdrp, hlenp)
     register u_int hlen, changes;
     register struct tcphdr *th;
     register struct cstate *cs;
-    register struct ip *ip;
     register u_short *bp;
     register u_int vjlen;
 
