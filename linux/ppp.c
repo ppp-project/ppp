@@ -4,7 +4,7 @@
  *  Al Longyear <longyear@netcom.com>
  *  Extensively rewritten by Paul Mackerras <paulus@cs.anu.edu.au>
  *
- *  ==FILEVERSION 990331==
+ *  ==FILEVERSION 990412==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -45,7 +45,7 @@
 
 #define PPP_MAX_RCV_QLEN	32	/* max # frames we queue up for pppd */
 
-/* $Id: ppp.c,v 1.24 1999/03/31 06:07:57 paulus Exp $ */
+/* $Id: ppp.c,v 1.25 1999/04/16 11:29:13 paulus Exp $ */
 
 #include <linux/version.h>
 #include <linux/config.h>
@@ -552,6 +552,7 @@ ppp_tty_close (struct tty_struct *tty)
 		ppp->tty = ppp->backup_tty;
 		if (ppp_tty_push(ppp))
 			ppp_output_wakeup(ppp);
+		wake_up_interruptible(&ppp->read_wait);
 	} else {
 		ppp->tty = 0;
 		ppp->sc_xfer = 0;
