@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.15 2004/10/24 23:53:05 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.16 2004/10/28 00:16:37 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -810,10 +810,8 @@ finish_tty()
 
 #ifndef __linux__
 	if (tty_mode != (mode_t) -1) {
-		if (fchmod(real_ttyfd, tty_mode) != 0) {
-			/* XXX if devnam is a symlink, this will change the link */
-			chmod(devnam, tty_mode);
-		}
+		if (fchmod(real_ttyfd, tty_mode) != 0)
+			error("Couldn't restore tty permissions");
 	}
 #endif /* __linux__ */
 
