@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.8 1995/10/27 03:36:32 paulus Exp $
+ * $Id: ppp-comp.h,v 1.9 1996/01/18 03:18:39 paulus Exp $
  */
 
 #ifndef _NET_PPP_COMP_H
@@ -37,9 +37,11 @@
 #ifndef DO_BSD_COMPRESS
 #define DO_BSD_COMPRESS	1	/* by default, include BSD-Compress */
 #endif
+#ifndef DO_DEFLATE
+#define DO_DEFLATE	1	/* by default, include Deflate */
+#endif
 #define DO_PREDICTOR_1	0
 #define DO_PREDICTOR_2	0
-#define DO_DEFLATE	0
 
 /*
  * Structure giving methods for compression/decompression.
