@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.9 1996/06/26 00:50:31 paulus Exp $
+# $Id: configure,v 1.10 1996/09/14 05:08:07 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -54,6 +54,11 @@ case $system in
     makext="NeXT";
     ksrc="NeXT";
     state="known";;
+  SINIX-?)
+    case $release in
+      5.4[01]) state=known; ksrc=svr4; makext=svr4;;
+      5.4[2-9]) state=late; ksrc=svr4; makext=svr4;;
+    esac;;
   # Intel SVR4 systems come with a bug in the uname program.  Unless
   # your provider fixed the bug, or you get a fix for it, uname -S will
   # overwrite the system name with the node name!
@@ -64,7 +69,7 @@ case $system in
     esac;;
 esac
 
-if [ -d $ksrc ]; then :; else
+if [ -d "$ksrc" ]; then :; else
   state="notincluded"
   unset ksrc
 fi
@@ -89,7 +94,7 @@ case $state in
     echo "in this distribution.  Sorry.";;
 esac
 
-if [ "$ksrc" ]; then
+if [ -d "$ksrc" ]; then
   echo "Creating links to Makefiles."
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
