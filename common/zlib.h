@@ -1,4 +1,4 @@
-/*	$Id: zlib.h,v 1.5 1997/04/30 05:41:20 paulus Exp $	*/
+/*	$Id: zlib.h,v 1.6 1997/05/22 06:44:40 paulus Exp $	*/
 
 /*
  * This file is derived from zlib.h and zconf.h from the zlib-0.95
@@ -8,7 +8,7 @@
  */
 
 /*
- *  ==FILEVERSION 970421==
+ *  ==FILEVERSION 970501==
  *
  * This marker is used by the Linux installation script to determine
  * whether an up-to-date version of this file is already installed.

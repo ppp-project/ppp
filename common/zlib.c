@@ -11,11 +11,11 @@
  * - added Z_PACKET_FLUSH (see zlib.h for details)
  * - added inflateIncomp
  *
- * $Id: zlib.c,v 1.6 1997/04/30 05:41:19 paulus Exp $
+ * $Id: zlib.c,v 1.7 1997/05/22 06:44:39 paulus Exp $
  */
 
 /* 
- *  ==FILEVERSION 970421==
+ *  ==FILEVERSION 970501==
  *
  * This marker is used by the Linux installation script to determine
  * whether an up-to-date version of this file is already installed.
