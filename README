@@ -57,8 +57,39 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.4.1.
+What's new in ppp-2.4.2.
 ************************
+
+* Support for MS-CHAP v2 authentication, plus support for
+  authenticating the peer with MS-CHAP v1 or v2.
+
+* MPPE
+
+* CBCP updates
+
+* EAP
+
+* PPPOE
+
+* Password-via-pipe plugin
+
+* Solaris updates
+
+* ECP
+
+* Radius plugin code included
+
+* Extra hooks for plugins
+
+* maxoctets option
+
+* ipcp-no-addresses and ipcp-no-address options
+
+* lock filename changes?
+
+
+What was new in ppp-2.4.1.
+**************************
 
 * Pppd can now print out the set of options that are in effect.  The
   new `dump' option causes pppd to print out the option values after
@@ -162,7 +193,7 @@ Distribution:
 
 The primary site for releases of this software is:
 
-	ftp://linuxcare.com.au/pub/ppp/
+	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.25 2002/09/07 06:07:48 carlsonj Exp $)
+($Id: README,v 1.26 2003/02/16 22:19:47 paulus Exp $)
