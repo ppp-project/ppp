@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.39 1999/03/16 03:12:03 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.40 1999/03/16 04:00:53 paulus Exp $";
 #endif
 
 /*
@@ -52,6 +52,7 @@ static int cis_received[NUM_PPP];	/* # Conf-Reqs received */
 static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
+static int ipcp_is_up;			/* have called np_up() */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -1497,6 +1498,7 @@ ipcp_up(f)
     }
 
     np_up(f->unit, PPP_IP);
+    ipcp_is_up = 1;
 
     /*
      * Execute the ip-up script, like this:
@@ -1520,7 +1522,10 @@ ipcp_down(f)
     fsm *f;
 {
     IPCPDEBUG(("ipcp: down"));
-    np_down(f->unit, PPP_IP);
+    if (ipcp_is_up) {
+	ipcp_is_up = 0;
+	np_down(f->unit, PPP_IP);
+    }
     sifvjcomp(f->unit, 0, 0, 0);
 
     /*

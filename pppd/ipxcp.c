@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.10 1999/03/16 03:15:15 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.11 1999/03/16 04:00:53 paulus Exp $";
 #endif
 
 /*
@@ -63,6 +63,7 @@ static int  ipxcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
 static int  ipxcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
 static void ipxcp_up __P((fsm *));		/* We're UP */
 static void ipxcp_down __P((fsm *));		/* We're DOWN */
+static void ipxcp_finished __P((fsm *));	/* Don't need lower layer */
 static void ipxcp_script __P((fsm *, char *)); /* Run an up/down script */
 
 fsm ipxcp_fsm[NUM_PPP];		/* IPXCP fsm structure */
@@ -78,7 +79,7 @@ static fsm_callbacks ipxcp_callbacks = { /* IPXCP callback routines */
     ipxcp_up,			/* Called when fsm reaches OPENED state */
     ipxcp_down,			/* Called when fsm leaves OPENED state */
     NULL,			/* Called when we want the lower layer up */
-    NULL,			/* Called when we want the lower layer down */
+    ipxcp_finished,		/* Called when we want the lower layer down */
     NULL,			/* Called when Protocol-Reject received */
     NULL,			/* Retransmission is necessary */
     NULL,			/* Called to handle protocol-specific codes */
@@ -176,6 +177,8 @@ struct protent ipxcp_protent = {
 
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
 			 (x) == CONFNAK ? "NAK" : "REJ")
+
+static int ipxcp_is_up;
 
 /* Used in printing the node number */
 #define NODE(base) base[0], base[1], base[2], base[3], base[4], base[5]
@@ -1272,6 +1275,9 @@ ipxcp_up(f)
 	return;
     }
 
+    ipxcp_is_up = 1;
+    np_up(f->unit, PPP_IPX);
+
     /*
      * Execute the ipx-up script, like this:
      *	/etc/ppp/ipx-up interface tty speed local-IPX remote-IPX
@@ -1293,9 +1299,24 @@ ipxcp_down(f)
 {
     IPXCPDEBUG(("ipxcp: down"));
 
+    if (ipxcp_is_up) {
+	ipxcp_is_up = 0;
+	np_down(f->unit, PPP_IPX);
+    }
     cipxfaddr (f->unit);
     sifdown(f->unit);
     ipxcp_script (f, _PATH_IPXDOWN);
+}
+
+
+/*
+ * ipxcp_finished - possibly shut down the lower layers.
+ */
+static void
+ipxcp_finished(f)
+    fsm *f;
+{
+    np_finished(f->unit, PPP_IPX);
 }
 
 
