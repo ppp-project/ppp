@@ -1,7 +1,7 @@
 /*
  * Definitions for tcp compression routines.
  *
- * $Id: slcompress.h,v 1.3 1994/09/21 01:37:22 paulus Exp $
+ * $Id: slcompress.h,v 1.4 1994/09/21 06:50:08 paulus Exp $
  *
  * Copyright (c) 1989 Regents of the University of California.
  * All rights reserved.
@@ -144,3 +144,5 @@ u_int	sl_compress_tcp __P((struct mbuf *,
 int	sl_uncompress_tcp __P((u_char **, int, u_int, struct slcompress *));
 int	sl_uncompress_tcp_core __P((u_char *, int, int, u_int,
 	    struct slcompress *, u_char **, u_int *));
+
+#endif /* _SLCOMPRESS_H_ */
