@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.17 1995/04/24 05:58:06 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.18 1995/04/28 06:25:23 paulus Exp $";
 #endif
 
 /*
@@ -45,7 +45,7 @@ static char rcsid[] = "$Id: lcp.c,v 1.17 1995/04/24 05:58:06 paulus Exp $";
 
 #ifdef _linux_		/* Needs ppp ioctls */
 #include <net/if.h>
-#include <net/if_ppp.h>
+#include <linux/if_ppp.h>
 #endif
 
 /* global vars */
