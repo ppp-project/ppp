@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.6 1994/04/11 07:15:13 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.7 1994/04/18 04:06:26 paulus Exp $";
 #endif
 
 #define SETSID
@@ -30,6 +30,7 @@ static char rcsid[] = "$Id: main.c,v 1.6 1994/04/11 07:15:13 paulus Exp $";
 #include <syslog.h>
 #include <netdb.h>
 #include <utmp.h>
+#include <sys/wait.h>
 
 /*
  * If REQ_SYSOPTIONS is defined to 1, pppd will not run unless
@@ -115,6 +116,8 @@ int default_device = TRUE;	/* use default device (stdin/out) */
 int fd;				/* Device file descriptor */
 int s;				/* Socket file descriptor */
 
+int phase;			/* where the link is at */
+
 #ifdef SGTTY
 static struct sgttyb initsgttyb;	/* Initial TTY sgttyb */
 #else
@@ -129,13 +132,16 @@ u_char outpacket_buf[MTU+DLLHEADERLEN]; /* buffer for outgoing packet */
 static u_char inpacket_buf[MTU+DLLHEADERLEN]; /* buffer for incoming packet */
 
 int hungup;			/* terminal has been hung up */
+static int n_children;		/* # child processes still running */
 
 /* configured variables */
 
 int debug = 0;		        /* Debug flag */
+int kdebugflag = 0;		/* Kernel debugging flag */
 char user[MAXNAMELEN];		/* username for PAP */
 char passwd[MAXSECRETLEN];	/* password for PAP */
 char *connector = NULL;		/* "connect" command */
+char *disconnector = NULL;	/* "disconnect" command */
 int inspeed = 0;		/* Input/Output speed requested */
 int baud_rate;			/* bits/sec currently used */
 u_long netmask = 0;		/* netmask to use on ppp interface */
@@ -148,6 +154,7 @@ int proxyarp = 0;		/* set entry in arp table */
 int persist = 0;		/* re-initiate on termination */
 int answer = 0;			/* wait for incoming call */
 int uselogin = 0;		/* check PAP info against /etc/passwd */
+int lockflag = 0;		/* lock the serial device */
 
 
 /* prototypes */
@@ -160,6 +167,7 @@ static void incdebug __ARGS((int));
 static void nodebug __ARGS((int));
 void establish_ppp __ARGS((void));
 
+void reap_kids __ARGS((void));
 void cleanup __ARGS((int, caddr_t));
 void die __ARGS((int));
 void novm __ARGS((char *));
@@ -204,28 +212,14 @@ main(argc, argv)
     FILE *pidfile;
     char *p;
 
-    /*
-     * Initialize syslog system and magic number package.
-     */
-#if BSD >= 43 || defined(sun)
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-#else
-    openlog("pppd", LOG_PID);
-#define LOG_UPTO(x) (x)
-#define setlogmask(x) (x)
-#endif
-
 #ifdef STREAMS
     p = ttyname(fileno(stdin));
     if (p)
 	strcpy(devname, p);
 #endif
   
-    magic_init();
-
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
-	syslog(LOG_ERR, "couldn't get hostname: %m");
+	perror("couldn't get hostname");
 	die(1);
     }
     hostname[MAXNAMELEN-1] = 0;
@@ -253,6 +247,26 @@ main(argc, argv)
 	die(1);
     check_auth_options();
     setipdefault();
+
+    if (lockflag && !default_device)
+	if (lock(devname) < 0)
+	    die(1);
+
+    /*
+     * Initialize syslog system and magic number package.
+     */
+#if (BSD >= 43 || defined(sun)) && !defined(ultrix)
+    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
+    setlogmask(LOG_UPTO(LOG_INFO));
+#else
+    openlog("pppd", LOG_PID);
+#define LOG_UPTO(x) (x)
+#define setlogmask(x) (x)
+#endif
+    if (debug)
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+
+    magic_init();
 
     p = getlogin();
     if (p == NULL)
@@ -368,18 +382,20 @@ main(argc, argv)
     }
     hungup = 0;
 
+#ifdef TIOCSCTTY
     /* set device to be controlling tty */
     if (!default_device && ioctl(fd, TIOCSCTTY) < 0) {
 	syslog(LOG_ERR, "ioctl(TIOCSCTTY): %m");
 	die(1);
     }
+#endif /* TIOCSCTTY */
 
     /* set line speed, flow control, etc. */
     set_up_tty(fd);
 
     /* run connection script */
     if (connector) {
-	syslog(LOG_INFO, "Connecting with <%s>", connector);
+	MAINDEBUG((LOG_INFO, "Connecting with <%s>", connector));
 
 	/* drop dtr to hang up in case modem is off hook */
 	if (!default_device && modem) {
@@ -388,7 +404,7 @@ main(argc, argv)
 	    setdtr(fd, TRUE);
 	}
 
-	if (set_up_connection(connector, fd, fd) < 0) {
+	if (device_script(connector, fd, fd) < 0) {
 	    syslog(LOG_ERR, "could not set up connection");
 	    setdtr(fd, FALSE);
 	    die(1);
@@ -459,10 +475,24 @@ main(argc, argv)
     sigprocmask(SIG_BLOCK, &mask, NULL); /* Block signals now */
     lcp_lowerup(0);		/* XXX Well, sort of... */
     lcp_open(0);		/* Start protocol */
-    for (;;) {
+    for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
 	sigpause(0);		/* Wait for next signal */
 	reap_kids();		/* Don't leave dead kids lying around */
     }
+
+    /*
+     * Run disconnector script, if requested
+     */
+    if (disconnector) {
+	if (device_script(disconnector, fd, fd) < 0) {
+	    syslog(LOG_WARNING, "disconnect script failed");
+	    die(1);
+	}
+
+	syslog(LOG_INFO, "Disconnected...");
+    }
+
+    quit();
 }
 
 #if B9600 == 9600
@@ -604,10 +634,15 @@ set_up_tty(fd)
     if (!restore_term)
 	inittermios = tios;
 
+#ifdef CRTSCTS
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
-    tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (crtscts)
 	tios.c_cflag |= CRTSCTS;
+#else
+    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+#endif	/* CRTSCTS */
+
+    tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (!modem)
 	tios.c_cflag |= CLOCAL;
     tios.c_iflag = IGNBRK | IGNPAR;
@@ -660,6 +695,18 @@ set_up_tty(fd)
     restore_term = TRUE;
 }
 
+/*
+ * setdtr - control the DTR line on the serial port.
+ * This is called from die(), so it shouldn't call die().
+ */
+setdtr(fd, on)
+int fd, on;
+{
+    int modembits = TIOCM_DTR;
+
+    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
+}
+
 
 /*
  * quit - Clean up state and exit.
@@ -691,23 +738,23 @@ cleanup(status, arg)
     int status;
     caddr_t arg;
 {
-    if (fd != 0) {
+    if (fd >= 0) {
 	/* drop dtr to hang up */
 	if (modem)
 	    setdtr(fd, FALSE);
 
 	if (fcntl(fd, F_SETFL, initfdflags) < 0)
-	    syslog(LOG_ERR, "fcntl(F_SETFL, fdflags): %m");
+	    syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
 
 	disestablish_ppp();
 
 	if (restore_term) {
 #ifndef SGTTY
 	    if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
-		syslog(LOG_ERR, "tcsetattr: %m");
+		syslog(LOG_WARNING, "tcsetattr: %m");
 #else
 	    if (ioctl(fd, TIOCSETP, &initsgttyb) < 0)
-		syslog(LOG_ERR, "ioctl(TIOCSETP): %m");
+		syslog(LOG_WARNING, "ioctl(TIOCSETP): %m");
 #endif
 	}
 
@@ -718,6 +765,9 @@ cleanup(status, arg)
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0) 
 	syslog(LOG_WARNING, "unable to unlink pid file: %m");
     pidfilename[0] = 0;
+
+    if (lockflag && !default_device)
+	unlock();
 }
 
 
@@ -774,7 +824,7 @@ timeout(func, arg, time)
 	itv.it_interval.tv_sec = itv.it_interval.tv_usec =
 	    itv.it_value.tv_usec = 0;
 	itv.it_value.tv_sec = callout->c_time;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds.",
+	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in timeout.",
 		   itv.it_value.tv_sec));
 	if (setitimer(ITIMER_REAL, &itv, NULL)) {
 	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
@@ -830,7 +880,7 @@ untimeout(func, arg)
 	itv.it_interval.tv_sec = itv.it_interval.tv_usec =
 	    itv.it_value.tv_usec = 0;
 	itv.it_value.tv_sec = callout ? callout->c_time : 0;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds.",
+	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in untimeout.",
 		   itv.it_value.tv_sec));
 	if (setitimer(ITIMER_REAL, &itv, NULL)) {
 	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
@@ -947,23 +997,21 @@ alrm(sig, code, scp, addr)
     char *addr;
 {
     struct itimerval itv;
-    struct callout *freep;
+    struct callout *freep, *list, *last;
 
     MAINDEBUG((LOG_DEBUG, "Alarm"));
 
     /*
-     * Call and free first scheduled timeout and any that were scheduled
-     * for the same time.
+     * Get the first scheduled timeout and any that were scheduled
+     * for the same time as a list, and remove them all from callout
+     * list.
      */
-    while (callout) {
-	freep = callout;	/* Remove entry before calling */
-	callout = freep->c_next;
-	(*freep->c_func)(freep->c_arg);
-	(void) free((char *) freep);
-	if (callout && callout->c_time)
-	    break;
-    }
-  
+    list = last = callout;
+    while (last->c_next != NULL && last->c_next->c_time == 0)
+	last = last->c_next;
+    callout = last->c_next;
+    last->c_next = NULL;
+
     /*
      * Set a new itimer if there are more timeouts scheduled.
      */
@@ -971,7 +1019,7 @@ alrm(sig, code, scp, addr)
 	itv.it_interval.tv_sec = itv.it_interval.tv_usec = 0;
 	itv.it_value.tv_usec = 0;
 	itv.it_value.tv_sec = callout->c_time;
-	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds.",
+	MAINDEBUG((LOG_DEBUG, "Setting itimer for %d seconds in alrm.",
 		   itv.it_value.tv_sec));
 	if (setitimer(ITIMER_REAL, &itv, NULL)) {
 	    syslog(LOG_ERR, "setitimer(ITIMER_REAL): %m");
@@ -982,6 +1030,17 @@ alrm(sig, code, scp, addr)
 	    die(1);
 	}
     }
+
+    /*
+     * Now call all the timeout routines scheduled for this time.
+     */
+    while (list) {
+	(*list->c_func)(list->c_arg);
+	freep = list;
+	list = list->c_next;
+	(void) free((char *) freep);
+    }
+  
 }
 
 
@@ -1035,7 +1094,7 @@ io(sig, code, scp, addr)
 	    return;
 
 	if (len == 0) {
-	    syslog(LOG_ERR, "End of file on fd!");
+	    syslog(LOG_WARNING, "End of file on fd!");
 	    die(1);
 	}
 
@@ -1134,10 +1193,11 @@ nodebug(sig)
 
 
 /*
- * set_up_connection - run a program to initialize the serial connector
+ * device_script - run a program to connect or disconnect the
+ * serial device.
  */
 int
-set_up_connection(program, in, out)
+device_script(program, in, out)
     char *program;
     int in, out;
 {
@@ -1151,12 +1211,12 @@ set_up_connection(program, in, out)
     sigprocmask(SIG_BLOCK, &mask, &mask);
 
     pid = fork();
-  
+
     if (pid < 0) {
 	syslog(LOG_ERR, "fork: %m");
 	die(1);
     }
-  
+
     if (pid == 0) {
 	setreuid(getuid(), getuid());
 	setregid(getgid(), getgid());
@@ -1169,10 +1229,10 @@ set_up_connection(program, in, out)
 	/* NOTREACHED */
     }
 
-    while (waitpid(pid, &status, 0) != pid) {
+    while (waitpid(pid, &status, 0) < 0) {
 	if (errno == EINTR)
 	    continue;
-	syslog(LOG_ERR, "waiting for connection process: %m");
+	syslog(LOG_ERR, "waiting for (dis)connection process: %m");
 	die(1);
     }
     sigprocmask(SIG_SETMASK, &mask, NULL);
@@ -1182,28 +1242,61 @@ set_up_connection(program, in, out)
 
 
 /*
- * Return user specified netmask. A value of zero means no netmask has
- * been set. 
+ * run-program - execute a program with given arguments,
+ * but don't wait for it.
+ * If the program can't be executed, logs an error unless
+ * must_exist is 0 and the program file doesn't exist.
  */
-/* ARGSUSED */
-u_long
-GetMask(addr)
-    u_long addr;
+int
+run_program(prog, args, must_exist)
+    char *prog;
+    char **args;
+    int must_exist;
 {
-    return(netmask);
+    int pid;
+
+    pid = fork();
+    if (pid == -1) {
+	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
+	return -1;
+    }
+    if (pid == 0) {
+	execv(prog, args);
+	if (must_exist || errno != ENOENT)
+	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
+	_exit(-1);
+    }
+    MAINDEBUG((LOG_DEBUG, "Script %s started; pid = %d", prog, pid));
+    ++n_children;
+    return 0;
 }
+
 
 /*
- * setdtr - control the DTR line on the serial port.
- * This is called from die(), so it shouldn't call die().
+ * reap_kids - get status from any dead child processes,
+ * and log a message for abnormal terminations.
  */
-setdtr(fd, on)
-int fd, on;
+void
+reap_kids()
 {
-    int modembits = TIOCM_DTR;
+    int pid, status;
 
-    ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
+    if (n_children == 0)
+	return;
+    if ((pid = waitpid(-1, &status, WNOHANG)) == -1) {
+	if (errno != ECHILD)
+	    syslog(LOG_ERR, "waitpid: %m");
+	return;
+    }
+    if (pid > 0) {
+	--n_children;
+	if (WIFSIGNALED(status)) {
+	    syslog(LOG_WARNING, "child process %d terminated with signal %d",
+		   pid, WTERMSIG(status));
+	}
+    }
 }
+
 
 /*
  * log_packet - format a packet and log it.
