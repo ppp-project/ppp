@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.12 1995/10/27 03:42:52 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.13 1995/12/18 03:43:40 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -36,6 +36,12 @@ static char rcsid[] = "$Id: ccp.c,v 1.12 1995/10/27 03:42:52 paulus Exp $";
 #include "pppd.h"
 #include "fsm.h"
 #include "ccp.h"
+
+struct protent ccp_protent = {
+    PPP_CCP, ccp_init, ccp_input, ccp_protrej,
+    ccp_lowerup, ccp_lowerdown, ccp_open, ccp_close,
+    ccp_printpkt, NULL, 1, "CCP"
+};
 
 fsm ccp_fsm[NUM_PPP];
 ccp_options ccp_wantoptions[NUM_PPP];	/* what to request the peer to use */
@@ -117,6 +123,8 @@ ccp_init(unit)
 
     ccp_allowoptions[0].bsd_compress = 1;
     ccp_allowoptions[0].bsd_bits = BSD_MAX_BITS;
+
+    ccp_allowoptions[0].predictor_1 = 1;
 }
 
 /*
@@ -139,11 +147,12 @@ ccp_open(unit)
  * ccp_close - Terminate CCP.
  */
 void
-ccp_close(unit)
+ccp_close(unit, reason)
     int unit;
+    char *reason;
 {
     ccp_flags_set(unit, 0, 0);
-    fsm_close(&ccp_fsm[unit]);
+    fsm_close(&ccp_fsm[unit], reason);
 }
 
 /*
@@ -192,7 +201,7 @@ ccp_input(unit, p, len)
      */
     if (oldstate == REQSENT && p[0] == TERMACK
 	&& !ANY_COMPRESS(ccp_gotoptions[unit]))
-	ccp_close(unit);
+	ccp_close(unit, "No compression negotiated");
 }
 
 /*
@@ -423,6 +432,8 @@ ccp_ackci(f, p, len)
 	if (len < CILEN_PREDICTOR_1
 	    || p[0] != CI_PREDICTOR_1 || p[1] != CILEN_PREDICTOR_1)
 	    return 0;
+	p += CILEN_PREDICTOR_1;
+	len -= CILEN_PREDICTOR_1;
 	/* XXX Cope with first/fast ack */
 	if (p == p0 && len == 0)
 	    return 1;
@@ -431,6 +442,8 @@ ccp_ackci(f, p, len)
 	if (len < CILEN_PREDICTOR_2
 	    || p[0] != CI_PREDICTOR_2 || p[1] != CILEN_PREDICTOR_2)
 	    return 0;
+	p += CILEN_PREDICTOR_2;
+	len -= CILEN_PREDICTOR_2;
 	/* XXX Cope with first/fast ack */
 	if (p == p0 && len == 0)
 	    return 1;
@@ -900,7 +913,7 @@ ccp_datainput(unit, pkt, len)
 	     * Disable compression by taking CCP down.
 	     */
 	    syslog(LOG_ERR, "Lost compression sync: disabling compression");
-	    ccp_close(unit);
+	    ccp_close(unit, "Lost compression sync");
 	} else {
 	    /*
 	     * Send a reset-request to reset the peer's compressor.
