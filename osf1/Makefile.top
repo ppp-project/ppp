@@ -14,7 +14,16 @@ install:
 	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
 	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
 	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
-	cd osf1; $(MAKE) install
+	@( release=`uname -r` ;\
+	  case $${release} in \
+         	V[123].*) sdir="/sys/streamsm"; \
+			  idir="/sys/include/net";; \
+         	V[4-9]*)  sdir="/usr/sys/BINARY/streamsm"; \
+			  idir="/usr/sys/include/net";; \
+    	  esac; \
+	  mkdir -p $${sdir}; \
+	  mkdir -p $${idir}; \
+	  cd osf1; $(MAKE) STREAMSDIR=$${sdir} INCLNETDIR=$${idir} install ;)
 
 clean:
 	rm -f *~
