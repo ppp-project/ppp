@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.55 2000/04/29 12:32:09 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.56 2001/02/22 03:16:26 paulus Exp $"
 
 /*
  * TODO:
@@ -36,6 +36,16 @@
 static const char rcsid[] = RCSID;
 
 /*
+ * When the link comes up we want to be able to wait for a short while,
+ * or until seeing some input from the peer, before starting to send
+ * configure-requests.  We do this by delaying the fsm_lowerup call.
+ */
+/* steal a bit in fsm flags word */
+#define DELAYED_UP	0x100
+
+static void lcp_delayed_up __P((void *));
+
+/*
  * LCP-related command-line options.
  */
 int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
@@ -43,6 +53,7 @@ int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
 bool	lax_recv = 0;		/* accept control chars in asyncmap */
 bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 
+static int noopt __P((char **));
 static int setescape __P((char **));
 
 #ifdef HAVE_MULTILINK
@@ -51,6 +62,8 @@ static int setendpoint __P((char **));
 
 static option_t lcp_option_list[] = {
     /* LCP options */
+    { "-all", o_special_noarg, (void *)noopt,
+      "Don't request/allow any LCP options" },
     { "noaccomp", o_bool, &lcp_wantoptions[0].neg_accompression,
       "Disable address/control compression",
       OPT_A2COPY, &lcp_allowoptions[0].neg_accompression },
@@ -84,6 +97,8 @@ static option_t lcp_option_list[] = {
     { "mru", o_int, &lcp_wantoptions[0].mru,
       "Set MRU (maximum received packet size) for negotiation",
       0, &lcp_wantoptions[0].neg_mru },
+    { "mtu", o_int, &lcp_allowoptions[0].mru,
+      "Set our MTU", OPT_LIMITS, NULL, MAXMRU, MINMRU },
     { "nopcomp", o_bool, &lcp_wantoptions[0].neg_pcompression,
       "Disable protocol field compression",
       OPT_A2COPY, &lcp_allowoptions[0].neg_pcompression },
@@ -238,6 +253,18 @@ int lcp_loopbackfail = DEFLOOPBACKFAIL;
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
 			 (x) == CONFNAK ? "NAK" : "REJ")
 
+/*
+ * noopt - Disable all options (why?).
+ */
+static int
+noopt(argv)
+    char **argv;
+{
+    BZERO((char *) &lcp_wantoptions[0], sizeof (struct lcp_options));
+    BZERO((char *) &lcp_allowoptions[0], sizeof (struct lcp_options));
+
+    return (1);
+}
 
 /*
  * setescape - add chars to the set we escape on transmission.
@@ -340,7 +367,7 @@ lcp_open(unit)
     fsm *f = &lcp_fsm[unit];
     lcp_options *wo = &lcp_wantoptions[unit];
 
-    f->flags = 0;
+    f->flags &= ~(OPT_PASSIVE | OPT_SILENT);
     if (wo->passive)
 	f->flags |= OPT_PASSIVE;
     if (wo->silent)
@@ -384,6 +411,7 @@ lcp_lowerup(unit)
     int unit;
 {
     lcp_options *wo = &lcp_wantoptions[unit];
+    fsm *f = &lcp_fsm[unit];
 
     /*
      * Don't use A/C or protocol compression on transmission,
@@ -397,7 +425,11 @@ lcp_lowerup(unit)
     peer_mru[unit] = PPP_MRU;
     lcp_allowoptions[unit].asyncmap = xmit_accm[unit][0];
 
-    fsm_lowerup(&lcp_fsm[unit]);
+    if (listen_time != 0) {
+	f->flags |= DELAYED_UP;
+	timeout(lcp_delayed_up, f, 0, listen_time * 1000);
+    } else
+	fsm_lowerup(f);
 }
 
 
@@ -408,7 +440,28 @@ void
 lcp_lowerdown(unit)
     int unit;
 {
-    fsm_lowerdown(&lcp_fsm[unit]);
+    fsm *f = &lcp_fsm[unit];
+
+    if (f->flags & DELAYED_UP)
+	f->flags &= ~DELAYED_UP;
+    else
+	fsm_lowerdown(&lcp_fsm[unit]);
+}
+
+
+/*
+ * lcp_delayed_up - Bring the lower layer up now.
+ */
+static void
+lcp_delayed_up(arg)
+    void *arg;
+{
+    fsm *f = arg;
+
+    if (f->flags & DELAYED_UP) {
+	f->flags &= ~DELAYED_UP;
+	fsm_lowerup(f);
+    }
 }
 
 
@@ -423,6 +476,10 @@ lcp_input(unit, p, len)
 {
     fsm *f = &lcp_fsm[unit];
 
+    if (f->flags & DELAYED_UP) {
+	f->flags &= ~DELAYED_UP;
+	fsm_lowerup(f);
+    }
     fsm_input(f, p, len);
 }
 
