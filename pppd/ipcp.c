@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.68 2004/11/13 02:28:15 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.69 2004/11/13 12:03:26 paulus Exp $"
 
 /*
  * TODO:
@@ -1089,6 +1089,7 @@ ipcp_nakci(f, p, len, treat_as_reject)
     NAKCIADDR(CI_ADDR, neg_addr,
 	      if (treat_as_reject) {
 		  try.neg_addr = 0;
+		  try.old_addrs = 0;
 	      } else if (go->accept_local && ciaddr1) {
 		  /* take his idea of our address */
 		  try.ouraddr = ciaddr1;
@@ -1693,6 +1694,12 @@ ipcp_up(f)
     if (!ho->neg_addr && !ho->old_addrs)
 	ho->hisaddr = wo->hisaddr;
 
+    if (!(go->neg_addr || go->old_addrs) && (wo->neg_addr || wo->old_addrs)
+	&& wo->ouraddr != 0) {
+	error("Peer refused to agree to our IP address");
+	ipcp_close(f->unit, "Refused our IP address");
+	return;
+    }
     if (go->ouraddr == 0) {
 	error("Could not determine local IP address");
 	ipcp_close(f->unit, "Could not determine local IP address");
