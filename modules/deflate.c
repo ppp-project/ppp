@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.4 1996/08/28 06:34:56 paulus Exp $
+ * $Id: deflate.c,v 1.5 1997/04/30 05:43:39 paulus Exp $
  */
 
 #ifdef AIX4
@@ -69,6 +69,7 @@ struct deflate_state {
 #define DEFLATE_OVHD	2		/* Deflate overhead/packet */
 
 static void	*z_alloc __P((void *, u_int items, u_int size));
+static void	*z_alloc_init __P((void *, u_int items, u_int size));
 static void	z_free __P((void *, void *ptr, u_int nb));
 static void	*z_comp_alloc __P((u_char *options, int opt_len));
 static void	*z_decomp_alloc __P((u_char *options, int opt_len));
@@ -113,7 +114,7 @@ struct compressor ppp_deflate = {
  * Space allocation and freeing routines for use by zlib routines.
  */
 static void *
-z_alloc(notused, items, size)
+z_alloc_init(notused, items, size)
     void *notused;
     u_int items, size;
 {
@@ -122,6 +123,14 @@ z_alloc(notused, items, size)
 #else
     return ALLOC_NOSLEEP(items * size);
 #endif
+}
+
+static void *
+z_alloc(notused, items, size)
+    void *notused;
+    u_int items, size;
+{
+    return ALLOC_NOSLEEP(items * size);
 }
 
 static void
@@ -153,12 +162,19 @@ z_comp_alloc(options, opt_len)
     if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
+
+#ifdef __osf__
+    state = (struct deflate_state *) ALLOC_SLEEP(sizeof(*state));
+#else
     state = (struct deflate_state *) ALLOC_NOSLEEP(sizeof(*state));
+#endif
+
     if (state == NULL)
 	return NULL;
 
     state->strm.next_in = NULL;
     state->strm.zalloc = (alloc_func) z_alloc;
+    state->strm.zalloc_init = (alloc_func) z_alloc_init;
     state->strm.zfree = (free_func) z_free;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
@@ -385,12 +401,17 @@ z_decomp_alloc(options, opt_len)
     if (w_size < DEFLATE_MIN_SIZE || w_size > DEFLATE_MAX_SIZE)
 	return NULL;
 
+#ifdef __osf__
+    state = (struct deflate_state *) ALLOC_SLEEP(sizeof(*state));
+#else
     state = (struct deflate_state *) ALLOC_NOSLEEP(sizeof(*state));
+#endif
     if (state == NULL)
 	return NULL;
 
     state->strm.next_out = NULL;
     state->strm.zalloc = (alloc_func) z_alloc;
+    state->strm.zalloc_init = (alloc_func) z_alloc_init;
     state->strm.zfree = (free_func) z_free;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	FREE(state, sizeof(*state));
