@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.28 1995/10/27 03:41:01 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.29 1995/12/18 03:50:17 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -50,6 +50,10 @@ static char rcsid[] = "$Id: main.c,v 1.28 1995/10/27 03:41:01 paulus Exp $";
 #include "ccp.h"
 #include "pathnames.h"
 #include "patchlevel.h"
+
+#ifdef IPX_CHANGE
+#include "ipxcp.h"
+#endif /* IPX_CHANGE */
 
 /*
  * If REQ_SYSOPTIONS is defined to 1, pppd will not run unless
@@ -92,6 +96,7 @@ char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 static void cleanup __P((void));
 static void close_fd __P((void));
 static void get_input __P((void));
+static void connect_time_expired __P((caddr_t));
 static void calltimeout __P((void));
 static struct timeval *timeleft __P((struct timeval *));
 static void hup __P((int));
@@ -115,29 +120,19 @@ extern	char	*getlogin __P((void));
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
+ * The last entry must be NULL.
  */
-static struct protent {
-    u_short protocol;
-    void (*init)();
-    void (*input)();
-    void (*protrej)();
-    int  (*printpkt)();
-    void (*datainput)();
-    char *name;
-} prottbl[] = {
-    { PPP_LCP, lcp_init, lcp_input, lcp_protrej,
-	  lcp_printpkt, NULL, "LCP" },
-    { PPP_IPCP, ipcp_init, ipcp_input, ipcp_protrej,
-	  ipcp_printpkt, NULL, "IPCP" },
-    { PPP_PAP, upap_init, upap_input, upap_protrej,
-	  upap_printpkt, NULL, "PAP" },
-    { PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
-	  ChapPrintPkt, NULL, "CHAP" },
-    { PPP_CCP, ccp_init, ccp_input, ccp_protrej,
-	  ccp_printpkt, ccp_datainput, "CCP" },
+struct protent *protocols[] = {
+    &lcp_protent,
+    &pap_protent,
+    &chap_protent,
+    &ipcp_protent,
+    &ccp_protent,
+#ifdef IPX_CHANGE
+    &ipxcp_protent,
+#endif
+    NULL
 };
-
-#define N_PROTO		(sizeof(prottbl) / sizeof(prottbl[0]))
 
 main(argc, argv)
     int argc;
@@ -151,6 +146,7 @@ main(argc, argv)
     struct passwd *pw;
     struct timeval timo;
     sigset_t mask;
+    struct protent *protp;
 
     p = ttyname(0);
     if (p)
@@ -165,18 +161,13 @@ main(argc, argv)
 
     uid = getuid();
 
-    if (!ppp_available()) {
-	fprintf(stderr, no_ppp_msg);
-	exit(1);
-    }
-
     /*
      * Initialize to the standard option set, then parse, in order,
      * the system options file, the user's options file, and the command
      * line arguments.
      */
-    for (i = 0; i < N_PROTO; i++)
-	(*prottbl[i].init)(0);
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+        (*protp->init)(0);
   
     progname = *argv;
 
@@ -185,6 +176,15 @@ main(argc, argv)
 	!parse_args(argc-1, argv+1) ||
 	!options_for_tty())
 	die(1);
+
+    if (!ppp_available()) {
+	fprintf(stderr, no_ppp_msg);
+	exit(1);
+    }
+
+#ifdef IPX_CHANGE
+    remove_sys_options();
+#endif /* IPX_CHANGE */
     check_auth_options();
     setipdefault();
 
@@ -362,6 +362,13 @@ main(argc, argv)
 	}
 
 	/*
+	 * Set a timeout to close the connection once the maximum
+	 * connect time has expired.
+	 */
+	if (maxconnect > 0)
+	    TIMEOUT(connect_time_expired, 0, maxconnect);
+
+	/*
 	 * Block all signals, start opening the connection, and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
@@ -373,7 +380,8 @@ main(argc, argv)
 	    calltimeout();
 	    get_input();
 	    if (kill_link) {
-		lcp_close(0);
+		lcp_close(0, "User request");
+		phase = PHASE_TERMINATE;
 		kill_link = 0;
 	    }
 	    if (open_ccp_flag) {
@@ -420,6 +428,7 @@ get_input()
     int len, i;
     u_char *p;
     u_short protocol;
+    struct protent *protp;
 
     p = inpacket_buf;	/* point to beginning of packet buffer */
 
@@ -459,45 +468,21 @@ get_input()
     /*
      * Upcall the proper protocol input routine.
      */
-    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++) {
-	if (prottbl[i].protocol == protocol) {
-	    (*prottbl[i].input)(0, p, len);
+    for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+	if (protp->protocol == protocol && protp->enabled_flag) {
+	    (*protp->input)(0, p, len);
 	    return;
 	}
-        if (protocol == (prottbl[i].protocol & ~0x8000)
-	    && prottbl[i].datainput != NULL) {
-	    (*prottbl[i].datainput)(0, p, len);
+        if (protocol == (protp->protocol & ~0x8000) && protp->enabled_flag
+	    && protp->datainput != NULL) {
+	    (*protp->datainput)(0, p, len);
 	    return;
 	}
     }
 
     if (debug)
-    	syslog(LOG_WARNING, "Unknown protocol (0x%x) received", protocol);
+    	syslog(LOG_WARNING, "Unsupported protocol (0x%x) received", protocol);
     lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
-}
-
-
-/*
- * demuxprotrej - Demultiplex a Protocol-Reject.
- */
-void
-demuxprotrej(unit, protocol)
-    int unit;
-    u_short protocol;
-{
-    int i;
-
-    /*
-     * Upcall the proper Protocol-Reject routine.
-     */
-    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
-	if (prottbl[i].protocol == protocol) {
-	    (*prottbl[i].protrej)(unit);
-	    return;
-	}
-
-    syslog(LOG_WARNING, "Unrecognized Protocol-Reject for protocol 0x%x",
-	   protocol);
 }
 
 
@@ -520,6 +505,19 @@ die(status)
     cleanup();
     syslog(LOG_INFO, "Exit.");
     exit(status);
+}
+
+/*
+ * connect_time_expired - log a message and close the connection.
+ */
+static void
+connect_time_expired(arg)
+    caddr_t arg;
+{
+    syslog(LOG_INFO, "Connect time expired");
+
+    phase = PHASE_TERMINATE;
+    lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
 /*
@@ -951,17 +949,18 @@ format_packet(p, len, printer, arg)
     int i, n;
     u_short proto;
     u_char x;
+    struct protent *protp;
 
     if (len >= PPP_HDRLEN && p[0] == PPP_ALLSTATIONS && p[1] == PPP_UI) {
 	p += 2;
 	GETSHORT(proto, p);
 	len -= PPP_HDRLEN;
-	for (i = 0; i < N_PROTO; ++i)
-	    if (proto == prottbl[i].protocol)
+	for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	    if (proto == protp->protocol)
 		break;
-	if (i < N_PROTO) {
-	    printer(arg, "[%s", prottbl[i].name);
-	    n = (*prottbl[i].printpkt)(p, len, printer, arg);
+	if (protp != NULL) {
+	    printer(arg, "[%s", protp->name);
+	    n = (*protp->printpkt)(p, len, printer, arg);
 	    printer(arg, "]");
 	    p += n;
 	    len -= n;
