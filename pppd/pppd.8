@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.36 1999/03/22 05:55:34 paulus Exp $
+.\" $Id: pppd.8,v 1.37 1999/03/23 03:22:34 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -654,6 +654,16 @@ With this option, pppd will accept all control characters from the
 peer, including those marked in the receive asyncmap.  Without this
 option, pppd will discard those characters as specified in RFC1662.
 This option should only be needed if the peer is buggy.
+.TP
+.B record \fIfilename
+Specifies that pppd should record all characters sent and received to
+a file named \fIfilename\fR.  This file is opened in append mode,
+using the user's user-ID and permissions.  This option is implemented
+using a pseudo-tty and a process to transfer characters between the
+pseudo-tty and the real serial device, so it will increase the latency
+and CPU overhead of transferring data over the ppp interface.  The
+characters are stored in a tagged format with timestamps, which can be
+displayed in readable form using the pppdump(8) program.
 .TP
 .B remotename \fIname
 Set the assumed name of the remote system for authentication purposes
