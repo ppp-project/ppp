@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.43 1999/03/06 11:28:10 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.44 1999/03/08 01:47:54 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1289,6 +1289,12 @@ auth_ip_addr(unit, addr)
     int unit;
     u_int32_t addr;
 {
+
+    if (addresses[unit] == NULL) {
+	if (auth_required)
+	    return 0;		/* no addresses authorized */
+	return allow_any_ip || !have_route_to(addr);
+    }
     return ip_addr_check(addr, addresses[unit]);
 }
 
@@ -1307,11 +1313,8 @@ ip_addr_check(addr, addrs)
     if (bad_ip_adrs(addr))
 	return 0;
 
-    if (addrs == NULL) {
-	if (auth_required)
-	    return 0;		/* no addresses authorized */
-	return allow_any_ip || !have_route_to(addr);
-    }
+    if (addrs == NULL)
+	return 0;		/* no addresses authorized */
 
     for (; addrs != NULL; addrs = addrs->next) {
 	/* "-" means no addresses authorized, "*" means any address allowed */
