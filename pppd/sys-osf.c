@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.11 1997/03/04 03:43:53 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.12 1997/04/30 05:58:44 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -750,7 +750,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     data.len = len;
     data.buf = (caddr_t) p;
@@ -981,6 +981,8 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
 	    break;
         wait_time(&tval);
     }
+    if (errno != 0)
+	syslog(LOG_ERR, "hard failure trying to get memory for a compressor: %m");
     return (errno == ENOSR)? 0: -1;
 }
 
@@ -1183,6 +1185,12 @@ sifaddr(u, o, h, m)
      */
     if (ioctl(sockfd, SIOCPIFADDR, &addreq) < 0) {
         syslog(LOG_ERR, "ioctl(SIOCPIFADDR): %m");
+        ret = 0;
+    }
+
+    ifr.ifr_metric = link_mtu;
+    if (ioctl(sockfd, SIOCSIPMTU, &ifr) < 0) {
+	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
         ret = 0;
     }
 

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.7 1997/03/04 03:43:54 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.8 1997/04/30 05:58:52 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -603,7 +603,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     data.len = len;
     data.buf = (caddr_t) p;
@@ -738,6 +738,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     int pcomp, accomp;
 {
     int cf[2];
+    struct ifreq ifr;
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
@@ -752,6 +753,14 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     cf[1] = COMP_PROT | COMP_AC;
     if (strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
 	syslog(LOG_ERR, "Couldn't set prot/AC compression: %m");
+    }
+
+    /* set mtu for ip as well */
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    ifr.ifr_metric = link_mtu;
+    if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
+	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
     }
 }
 
@@ -987,10 +996,12 @@ sifaddr(u, o, h, m)
     if (ioctl(sockfd, SIOCSIFDSTADDR, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set remote IP address: %m");
     }
+#if 0	/* now done in ppp_send_config */
     ifr.ifr_metric = link_mtu;
     if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
     }
+#endif
     ifaddrs[0] = o;
     ifaddrs[1] = h;
 
