@@ -48,10 +48,10 @@
 #define CHECK_CHARACTERS	1
 #define PPP_COMPRESS		1
 
-/* $Id: ppp.c,v 1.17 1998/03/24 23:54:59 paulus Exp $ */
+/* $Id: ppp.c,v 1.18 1998/05/13 06:00:59 paulus Exp $ */
 
 #include <linux/version.h>
-#include <linux/config.h> /* for CONFIG_KERNELD */
+#include <linux/config.h> /* for CONFIG_KERNELD/KMOD */
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -111,6 +111,9 @@ typedef struct sk_buff	     sk_buff;
 
 #ifdef CONFIG_KERNELD
 #include <linux/kerneld.h>
+#endif
+#ifdef CONFIG_KMOD
+#include <linux/kmod.h>
 #endif
 
 #ifndef PPP_IPX
@@ -2032,13 +2035,11 @@ ppp_dev_xmit_lower (struct ppp *ppp, struct ppp_buffer *buf,
  */
 	buf->count = 0;
 
-	if (non_ip || flag_time == 0)
+	if (non_ip || flag_time == 0
+	    || jiffies - ppp->last_xmit >= flag_time)
 		ins_char (buf, PPP_FLAG);
-	else {
-		if (jiffies - ppp->last_xmit >= flag_time)
-			ins_char (buf, PPP_FLAG);
-	}
-	ppp->last_xmit = jiffies;
+	if (!non_ip)
+		ppp->last_xmit = jiffies;
 	buf->fcs       = PPP_INITFCS;
 /*
  * Emit the address/control information if needed
@@ -2334,7 +2335,7 @@ ppp_set_compression (struct ppp *ppp, struct ppp_option_data *odp)
 	restore_flags(flags);
 
 	cp = find_compressor (ccp_option[0]);
-#ifdef CONFIG_KERNELD
+#if defined(CONFIG_KMOD) || defined(CONFIG_KERNELD)
 	if (cp == NULL) {
 		char modname[32];
 		sprintf(modname, "ppp-compress-%d", ccp_option[0]);
@@ -3076,7 +3077,7 @@ ppp_dev_xmit_other (struct device *dev, struct ppp *ppp,
 /*
  * Send a frame to the remote.
  */
-#if LINUX_VERSION_CODE < VERSION(2,1,86)
+#if LINUX_VERSION_CODE >= VERSION(2,1,86)
 #define FREE_SKB(skb)	dev_kfree_skb(skb)
 #else
 #define FREE_SKB(skb)	dev_kfree_skb(skb, FREE_WRITE)
