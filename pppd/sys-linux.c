@@ -1618,9 +1618,11 @@ int ppp_available(void)
 
     no_ppp_msg = 
 	"This system lacks kernel support for PPP.  This could be because\n"
-	"the PPP kernel module is not loaded, or because the kernel is\n"
-	"not configured for PPP.  See the README.linux file in the\n"
-	"ppp-2.3.7 distribution.\n";
+	"the PPP kernel module could not be loaded, or because PPP was not\n"
+	"included in the kernel configuration.  If PPP was included as a\n"
+	"module, try `/sbin/modprobe -v ppp'.  If that fails, check that\n"
+	"ppp.o exists in /lib/modules/`uname -r`/net.\n"
+	"See README.linux file in the ppp distribution for more details.\n";
 
 /*
  * Open a socket for doing the ioctl operations.
