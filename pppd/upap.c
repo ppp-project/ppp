@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: upap.c,v 1.15 1999/03/16 22:54:43 paulus Exp $";
+static char rcsid[] = "$Id: upap.c,v 1.16 1999/04/28 02:45:44 paulus Exp $";
 #endif
 
 /*
@@ -38,7 +38,7 @@ static bool hide_password;
  */
 static option_t pap_option_list[] = {
     { "hide-password", o_bool, &hide_password,
-      "Don't output passwords to log" },
+      "Don't output passwords to log", 1 },
     { "pap-restart", o_int, &upap[0].us_timeouttime,
       "Set retransmit timeout for PAP" },
     { "pap-max-authreq", o_int, &upap[0].us_maxtransmits,

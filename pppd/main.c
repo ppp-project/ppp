@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.76 1999/04/16 11:35:06 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.77 1999/04/28 02:45:44 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1557,9 +1557,12 @@ reap_kids(waitfor)
     while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
 	   && pid != 0) {
 	--n_children;
-	for (prevp = &children; (chp = *prevp) != NULL; prevp = &chp->next)
-	    if (chp->pid == pid)
+	for (prevp = &children; (chp = *prevp) != NULL; prevp = &chp->next) {
+	    if (chp->pid == pid) {
+		*prevp = chp->next;
 		break;
+	    }
+	}
 	if (WIFSIGNALED(status)) {
 	    warn("Child process %s (pid %d) terminated with signal %d",
 		 (chp? chp->prog: "??"), pid, WTERMSIG(status));
@@ -1568,6 +1571,8 @@ reap_kids(waitfor)
 		   (chp? chp->prog: "??"), pid, status);
 	if (chp && chp->done)
 	    (*chp->done)(chp->arg);
+	if (chp)
+	    free(chp);
     }
     if (pid == -1 && errno != ECHILD && errno != EINTR)
 	error("Error waiting for child process: %m");
