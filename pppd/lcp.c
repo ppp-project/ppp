@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.20 1995/06/30 01:47:15 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.21 1995/08/10 06:51:06 paulus Exp $";
 #endif
 
 /*
@@ -878,11 +878,13 @@ lcp_nakci(f, p, len)
      * `let me authenticate myself with you' which is a bit pointless.
      * For the quality protocol, the Nak means `ask me to send you quality
      * reports', but if we didn't ask for them, we don't want them.
+     * An option we don't recognize represents the peer asking to
+     * negotiate some option we don't support, so ignore it.
      */
     while (len > CILEN_VOID) {
 	GETCHAR(citype, p);
 	GETCHAR(cilen, p);
-	if( (len -= cilen) < 0 )
+	if ((len -= cilen) < 0)
 	    goto bad;
 	next = p + cilen - 2;
 
@@ -918,8 +920,6 @@ lcp_nakci(f, p, len)
 	    if (go->neg_lqr || no.neg_lqr || cilen != CILEN_LQR)
 		goto bad;
 	    break;
-	default:
-	    goto bad;
 	}
 	p = next;
     }

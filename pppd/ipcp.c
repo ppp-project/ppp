@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.19 1995/06/01 01:30:38 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.20 1995/08/10 06:51:04 paulus Exp $";
 #endif
 
 /*
@@ -584,8 +584,6 @@ ipcp_nakci(f, p, len)
 		try.neg_addr = 1;
 	    no.neg_addr = 1;
 	    break;
-	default:
-	    goto bad;
 	}
 	p = next;
     }
