@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.23 1996/05/28 00:47:01 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.24 1996/06/26 00:56:11 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -57,6 +57,11 @@ static char rcsid[] = "$Id: auth.c,v 1.23 1996/05/28 00:47:01 paulus Exp $";
 #ifdef SUNOS4
 extern char *crypt();
 #endif
+#endif
+
+#ifdef USE_PAM
+#include <security/pam_appl.h>
+#include <security/pam_modules.h>
 #endif
 
 #ifdef HAS_SHADOW
@@ -94,11 +99,17 @@ struct wordlist {
 #define FALSE	0
 #define TRUE	1
 
+/* The name by which the peer authenticated itself to us. */
+char peer_authname[MAXNAMELEN];
+
 /* Records which authentication operations haven't completed yet. */
 static int auth_pending[NUM_PPP];
 
 /* Set if we have successfully called login() */
 static int logged_in;
+
+/* Set if we have run the /etc/ppp/auth-up script. */
+static int did_authup;
 
 /* List of addresses which the peer may use. */
 static struct wordlist *addresses[NUM_PPP];
@@ -129,6 +140,7 @@ static int  ip_addr_check __P((u_int32_t, struct wordlist *));
 static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
 			       struct wordlist **, char *));
 static void free_wordlist __P((struct wordlist *));
+static void auth_script __P((char *));
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
@@ -166,6 +178,10 @@ link_down(unit)
     int i;
     struct protent *protp;
 
+    if (did_authup) {
+	auth_script(_PATH_AUTHDOWN);
+	did_authup = 0;
+    }
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
 	if (!protp->enabled_flag)
 	    continue;
@@ -247,6 +263,15 @@ network_phase(unit)
 {
     int i;
     struct protent *protp;
+    lcp_options *go = &lcp_gotoptions[unit];
+
+    /*
+     * If the peer had to authenticate, run the auth-up script now.
+     */
+    if ((go->neg_chap || go->neg_upap) && !did_authup) {
+	auth_script(_PATH_AUTHUP);
+	did_authup = 1;
+    }
 
     phase = PHASE_NETWORK;
 #if 0
@@ -280,8 +305,10 @@ auth_peer_fail(unit, protocol)
  * The peer has been successfully authenticated using `protocol'.
  */
 void
-auth_peer_success(unit, protocol)
+auth_peer_success(unit, protocol, name, namelen)
     int unit, protocol;
+    char *name;
+    int namelen;
 {
     int bit;
 
@@ -297,6 +324,14 @@ auth_peer_success(unit, protocol)
 	       protocol);
 	return;
     }
+
+    /*
+     * Save the authenticated name of the peer for later.
+     */
+    if (namelen > sizeof(peer_authname) - 1)
+	namelen = sizeof(peer_authname) - 1;
+    BCOPY(name, peer_authname, namelen);
+    peer_authname[namelen] = 0;
 
     /*
      * If there is no more authentication still to be done,
@@ -497,6 +532,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     passwd[passwdlen] = '\0';
     BCOPY(auser, user, userlen);
     user[userlen] = '\0';
+    *msg = (char *) 0;
 
     /*
      * Open the file of upap secrets and scan for a suitable secret
@@ -533,7 +569,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     }
 
     if (ret == UPAP_AUTHNAK) {
-	*msg = "Login incorrect";
+        if (*msg == (char *) 0)
+	    *msg = "Login incorrect";
 	*msglen = strlen(*msg);
 	/*
 	 * Frustrate passwd stealer programs.
@@ -552,7 +589,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 
     } else {
 	attempts = 0;			/* Reset count */
-	*msg = "Login ok";
+	if (*msg == (char *) 0)
+	    *msg = "Login ok";
 	*msglen = strlen(*msg);
 	if (addresses[unit] != NULL)
 	    free_wordlist(addresses[unit]);
@@ -623,6 +661,20 @@ struct	spwd	*sp;
 }
 #endif
 
+
+/*
+ * This function is needed for PAM. However, it should not be called.
+ * If it is, return the error code.
+ */
+
+#ifdef USE_PAM
+static int pam_conv(int num_msg, const struct pam_message **msg,
+		    struct pam_response **resp, void *appdata_ptr)
+{
+    return PAM_CONV_ERR;
+}
+#endif
+
 /*
  * login - Check the user name and password against the system
  * password database, and login the user if OK.
@@ -632,6 +684,7 @@ struct	spwd	*sp;
  *	UPAP_AUTHACK: Login succeeded.
  * In either case, msg points to an appropriate message.
  */
+
 static int
 login(user, passwd, msg, msglen)
     char *user;
@@ -639,9 +692,52 @@ login(user, passwd, msg, msglen)
     char **msg;
     int *msglen;
 {
+    char *tty;
+
+#ifdef USE_PAM
+    struct pam_conv pam_conversation;
+    pam_handle_t *pamh;
+    int pam_error;
+    char *pass;
+    char *dev;
+/*
+ * Fill the pam_conversion structure
+ */
+    memset (&pam_conversation, '\0', sizeof (struct pam_conv));
+    pam_conversation.conv = &pam_conv;
+
+    pam_error = pam_start ("ppp", user, &pam_conversation, &pamh);
+    if (pam_error != PAM_SUCCESS) {
+        *msg = (char *) pam_strerror (pam_error);
+	return UPAP_AUTHNAK;
+    }
+/*
+ * Define the fields for the credintial validation
+ */
+    (void) pam_set_item (pamh, PAM_AUTHTOK, passwd);
+    (void) pam_set_item (pamh, PAM_TTY, devnam);
+/*
+ * Validate the user
+ */
+    pam_error = pam_authenticate (pamh, PAM_SILENT);
+    if (pam_error == PAM_SUCCESS)
+        pam_error = pam_acct_mgmt (pamh, PAM_SILENT);
+
+    *msg = (char *) pam_strerror (pam_error);
+/*
+ * Clean up the mess
+ */
+    (void) pam_end (pamh, pam_error);
+
+    if (pam_error != PAM_SUCCESS)
+        return UPAP_AUTHNAK;
+/*
+ * Use the non-PAM methods directly
+ */
+#else /* #ifdef USE_PAM */
+
     struct passwd *pw;
     char *epasswd;
-    char *tty;
 
 #ifdef HAS_SHADOW
     struct spwd *spwd;
@@ -690,6 +786,7 @@ login(user, passwd, msg, msglen)
 	return (UPAP_AUTHNAK);
     }
 #endif
+#endif /* #ifdef USE_PAM */
 
     syslog(LOG_INFO, "user %s logged in", user);
 
@@ -1199,4 +1296,37 @@ free_wordlist(wp)
 	free(wp);
 	wp = next;
     }
+}
+
+/*
+ * auth_script - execute a script with arguments
+ * interface-name peer-name real-user tty speed
+ */
+static void
+auth_script(script)
+    char *script;
+{
+    char strspeed[32];
+    struct passwd *pw;
+    char struid[32];
+    char *user_name;
+    char *argv[8];
+
+    if ((pw = getpwuid(getuid())) != NULL && pw->pw_name != NULL)
+	user_name = pw->pw_name;
+    else {
+	sprintf(struid, "%d", getuid());
+	user_name = struid;
+    }
+    sprintf(strspeed, "%d", baud_rate);
+
+    argv[0] = script;
+    argv[1] = ifname;
+    argv[2] = peer_authname;
+    argv[3] = user_name;
+    argv[4] = devnam;
+    argv[5] = strspeed;
+    argv[6] = NULL;
+
+    run_program(script, argv, 0);
 }
