@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.28 1996/10/08 04:35:02 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.29 1996/10/08 06:43:15 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -62,6 +62,7 @@ extern char *crypt();
 #ifdef USE_PAM
 #include <security/pam_appl.h>
 #include <security/pam_modules.h>
+int isexpired (struct passwd *, struct spwd *);
 #endif
 
 #ifdef HAS_SHADOW
@@ -482,12 +483,6 @@ auth_check_options()
     ipcp_options *ipwo = &ipcp_wantoptions[0];
     u_int32_t remote;
 
-    /* Check that we are running as root. */
-    if (geteuid() != 0) {
-	option_error("must be run with root privileges");
-	exit(1);
-    }
-
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
 	strcpy(our_name, hostname);
@@ -512,6 +507,11 @@ auth_check_options()
 
     if (auth_required && !can_auth) {
 	option_error("peer authentication required but no suitable secret(s) found\n");
+	if (remote_name[0] == 0)
+	    option_error("for authenticating any peer to us (%s)\n", our_name);
+	else
+	    option_error("for authenticating peer %s to us (%s)\n",
+			 remote_name, our_name);
 	exit(1);
     }
 
@@ -786,7 +786,7 @@ login(user, passwd, msg, msglen)
  * Define the fields for the credintial validation
  */
     (void) pam_set_item (pamh, PAM_AUTHTOK, passwd);
-    (void) pam_set_item (pamh, PAM_TTY, devnam);
+    (void) pam_set_item (pamh, PAM_TTY,     devnam);
 /*
  * Validate the user
  */
@@ -815,14 +815,20 @@ login(user, passwd, msg, msglen)
     struct spwd *getspnam();
 #endif
 
-    if ((pw = getpwnam(user)) == NULL) {
+    pw = getpwnam(user);
+    if (pw == NULL) {
 	return (UPAP_AUTHNAK);
     }
 
 #ifdef HAS_SHADOW
-    if ((spwd = getspnam(user)) == NULL) {
-        pw->pw_passwd = "";
-    } else {
+    spwd = getspnam(user);
+    endspent();
+    if (spwd) {
+	/* check the age of the password entry */
+	if (isexpired(pw, spwd)) {
+	    syslog(LOG_WARNING,"Expired password for %s",user);
+	    return (UPAP_AUTHNAK);
+	}
 	pw->pw_passwd = spwd->sp_pwdp;
     }
 #endif
@@ -830,33 +836,12 @@ login(user, passwd, msg, msglen)
     /*
      * XXX If no passwd, let them login without one.
      */
-    if (pw->pw_passwd == '\0') {
-	return (UPAP_AUTHACK);
-    }
-
-#ifdef HAS_SHADOW
-    if (pw->pw_passwd) {
-	if (pw->pw_passwd[0] == '@') {
-	    if (pw_auth (pw->pw_passwd+1, pw->pw_name, PW_PPP, NULL)) {
-		return (UPAP_AUTHNAK);
-	    }
-	} else {
-	    epasswd = pw_encrypt(passwd, pw->pw_passwd);
-	    if (strcmp(epasswd, pw->pw_passwd)) {
-		return (UPAP_AUTHNAK);
-	    }
-	}
-	/* check the age of the password entry */
-	if (spwd && (isexpired (pw, spwd) != 0)) {
+    if (pw->pw_passwd != NULL && *pw->pw_passwd != '\0') {
+    	epasswd = crypt(passwd, pw->pw_passwd);
+	if (strcmp(epasswd, pw->pw_passwd) != 0) {
 	    return (UPAP_AUTHNAK);
 	}
     }
-#else
-    epasswd = crypt(passwd, pw->pw_passwd);
-    if (strcmp(epasswd, pw->pw_passwd)) {
-	return (UPAP_AUTHNAK);
-    }
-#endif
 #endif /* #ifdef USE_PAM */
 
     syslog(LOG_INFO, "user %s logged in", user);
