@@ -54,9 +54,13 @@ static int prev_kdebugflag = 0;
 static int restore_term;		/* 1 => we've munged the terminal */
 static struct termios inittermios;	/* Initial TTY termios */
 
+int sockfd;			/* socket for doing interface ioctls */
+
 static int driver_version = 0;
 static int driver_modification = 0;
 static int driver_patch = 0;
+
+static char *lock_file;
 
 #define MAX_IFS		32
 
@@ -72,20 +76,42 @@ static int driver_patch = 0;
 /*
  * sys_init - System-dependent initialization.
  */
-void
-sys_init()
+
+void sys_init(void)
 {
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
+
+    /* Get an internet socket for doing socket ioctl's on. */
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	syslog(LOG_ERR, "Couldn't create IP socket: %m");
+	die(1);
+    }
+}
+
+/*
+ * ccp_fatal_error - returns 1 if decompression was disabled as a
+ * result of an error detected after decompression of a packet,
+ * 0 otherwise.  This is necessary because of patent nonsense.
+ */
+int ccp_fatal_error (int unit)
+{
+    int x;
+
+    if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCGFLAGS): %m");
+	return 0;
+    }
+    return x & SC_DC_FERROR;
 }
 
 /*
  * note_debug_level - note a change in the debug level.
  */
-void
-note_debug_level()
+
+void note_debug_level(void)
 {
     if (debug) {
 	syslog(LOG_INFO, "Debug turned ON, Level %d", debug);
@@ -122,7 +148,7 @@ int set_kdebugflag (int requested_level)
 
 void establish_ppp (void)
 {
-    int pppdisc = NUM_PPP;
+    int pppdisc = N_PPP;
     int sig	= SIGIO;
 
     if (ioctl(fd, TIOCEXCL, 0) < 0) {
@@ -196,114 +222,103 @@ void disestablish_ppp(void)
     }
 }
 
-#if B9600 == 9600
-/*
- * XXX assume speed_t values numerically equal bits per second
- * (so we can ask for any speed).
- */
-#define translate_speed(bps)	(bps)
-#define baud_rate_of(speed)	(speed)
-
-#else
 /*
  * List of valid speeds.
  */
 struct speed {
-    int speed_int, speed_val;
+    unsigned int speed_int;
+    int          speed_val;
 } speeds[] = {
 #ifdef B50
-    { 50, B50 },
+    { 50U, B50 },
 #endif
 #ifdef B75
-    { 75, B75 },
+    { 75U, B75 },
 #endif
 #ifdef B110
-    { 110, B110 },
+    { 110U, B110 },
 #endif
 #ifdef B134
-    { 134, B134 },
+    { 134U, B134 },
 #endif
 #ifdef B150
-    { 150, B150 },
+    { 150U, B150 },
 #endif
 #ifdef B200
-    { 200, B200 },
+    { 200U, B200 },
 #endif
 #ifdef B300
-    { 300, B300 },
+    { 300U, B300 },
 #endif
 #ifdef B600
-    { 600, B600 },
+    { 600U, B600 },
 #endif
 #ifdef B1200
-    { 1200, B1200 },
+    { 1200U, B1200 },
 #endif
 #ifdef B1800
-    { 1800, B1800 },
+    { 1800U, B1800 },
 #endif
 #ifdef B2000
-    { 2000, B2000 },
+    { 2000U, B2000 },
 #endif
 #ifdef B2400
-    { 2400, B2400 },
+    { 2400U, B2400 },
 #endif
 #ifdef B3600
-    { 3600, B3600 },
+    { 3600U, B3600 },
 #endif
 #ifdef B4800
-    { 4800, B4800 },
+    { 4800U, B4800 },
 #endif
 #ifdef B7200
-    { 7200, B7200 },
+    { 7200U, B7200 },
 #endif
 #ifdef B9600
-    { 9600, B9600 },
+    { 9600U, B9600 },
 #endif
 #ifdef B19200
-    { 19200, B19200 },
+    { 19200U, B19200 },
 #endif
 #ifdef B38400
-    { 38400, B38400 },
+    { 38400U, B38400 },
 #endif
 #ifdef EXTA
-    { 19200, EXTA },
+    { 19200U, EXTA },
 #endif
 #ifdef EXTB
-    { 38400, EXTB },
+    { 38400U, EXTB },
 #endif
 #ifdef B57600
-    { 57600, B57600 },
+    { 57600U, B57600 },
 #endif
 #ifdef B115200
-    { 115200, B115200 },
+    { 115200U, B115200 },
 #endif
-    { 0, 0 }
+    { 0U, 0 }
 };
 
 /*
  * Translate from bits/second to a speed_t.
  */
-int
-translate_speed(bps)
-    int bps;
+int translate_speed (unsigned int bps)
 {
     struct speed *speedp;
 
-    if (bps == 0)
+    if (bps == 0U)
 	return 0;
     for (speedp = speeds; speedp->speed_int; speedp++)
 	if (bps == speedp->speed_int)
 	    return speedp->speed_val;
-    syslog(LOG_WARNING, "speed %d not supported", bps);
+    syslog(LOG_WARNING, "speed %u not supported", bps);
     return 0;
 }
 
 /*
  * Translate from a speed_t to bits/second.
  */
-int
-baud_rate_of(speed)
-    int speed;
+
+unsigned int baud_rate_of (int speed)
 {
     struct speed *speedp;
 
@@ -314,17 +329,17 @@ baud_rate_of(speed)
 	    return speedp->speed_int;
     return 0;
 }
-#endif
 
 /*
  * set_up_tty: Set up the serial port on `fd' for 8 bits, no parity,
  * at the requested speed, etc.  If `local' is true, set CLOCAL
  * regardless of whether the modem option was specified.
  */
-set_up_tty(fd, local)
-    int fd, local;
+
+void set_up_tty (int fd, int local)
 {
-    int speed, x;
+    unsigned int speed;
+    int x;
     struct termios tios;
 
     if (tcgetattr(fd, &tios) < 0) {
@@ -335,13 +350,9 @@ set_up_tty(fd, local)
     if (!restore_term)
 	inittermios = tios;
 
-#ifdef CRTSCTS
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
     if (crtscts == 1)
 	tios.c_cflag |= CRTSCTS;
-#else
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-#endif	/* CRTSCTS */
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (local || !modem)
@@ -388,8 +399,7 @@ set_up_tty(fd, local)
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
-setdtr(fd, on)
-int fd, on;
+void setdtr (int fd, int on)
 {
     int modembits = TIOCM_DTR;
 
@@ -399,8 +409,7 @@ int fd, on;
 /*
  * restore_tty - restore the terminal to the saved settings.
  */
-void
-restore_tty()
+void restore_tty(void)
 {
     if (restore_term) {
 	if (tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
@@ -433,8 +442,8 @@ void output (int unit, unsigned char *p, int len)
  * for the length of time specified by *timo (indefinite
  * if timo is NULL).
  */
-wait_input(timo)
-    struct timeval *timo;
+
+void wait_input (struct timeval *timo)
 {
     fd_set ready;
     int n;
@@ -460,9 +469,6 @@ int read_packet (unsigned char *buf)
     len = read(fd, buf, PPP_MTU + PPP_HDRLEN);
     if (len < 0) {
 	if (errno == EWOULDBLOCK) {
-#if 0
-	    MAINDEBUG((LOG_DEBUG, "read(fd): EWOULDBLOCK"));
-#endif
 	    return -1;
 	}
 	syslog(LOG_ERR, "read(fd): %m");
@@ -483,7 +489,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
     MAINDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
-    if (ioctl(s, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
 	quit();
     }
@@ -512,10 +518,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 /*
  * ppp_set_xaccm - set the extended transmit ACCM for the interface.
  */
-void
-ppp_set_xaccm(unit, accm)
-    int unit;
-    ext_accm accm;
+void ppp_set_xaccm (int unit, ext_accm accm)
 {
     MAINDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
 		accm[0], accm[1], accm[2], accm[3]));
@@ -536,8 +539,8 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
 	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
 
     MAINDEBUG ((LOG_DEBUG, "recv_config: asyncmap = %lx\n", asyncmap));
-    if (ioctl(fd, PPPIOCRASYNCMAP, (caddr_t) &asyncmap) < 0) {
-        syslog(LOG_ERR, "ioctl(PPPIOCRASYNCMAP): %m");
+    if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
+        syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
     }
   
@@ -558,12 +561,9 @@ void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
  * ccp_test - ask kernel whether a given compression method
  * is acceptable for use.
  */
-int
-ccp_test(unit, opt_ptr, opt_len, for_transmit)
-    int unit, opt_len, for_transmit;
-    u_char *opt_ptr;
+int ccp_test (int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 {
-    struct ppp_comp_data data;
+    struct ppp_option_data data;
 
     data.ptr = opt_ptr;
     data.length = opt_len;
@@ -574,9 +574,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
 /*
  * ccp_flags_set - inform kernel about the current state of CCP.
  */
-void
-ccp_flags_set(unit, isopen, isup)
-    int unit, isopen, isup;
+void ccp_flags_set (int unit, int isopen, int isup)
 {
     int x;
 
@@ -630,13 +628,13 @@ int sifup (int u)
     struct ifreq ifr;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
 
     ifr.ifr_flags |= (IFF_UP | IFF_POINTOPOINT);
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
@@ -652,14 +650,14 @@ int sifdown (int u)
     struct ifreq ifr;
 
     strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	return 0;
     }
 
     ifr.ifr_flags &= ~IFF_UP;
     ifr.ifr_flags |= IFF_POINTOPOINT;
-    if (ioctl(s, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFFLAGS): %m");
 	return 0;
     }
@@ -684,7 +682,7 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
  *  Set our IP address
  */
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = our_adr;
-    if (ioctl(s, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
 	if (errno != EEXIST)
 	    syslog (LOG_ERR, "ioctl(SIOCAIFADDR): %m");
         else
@@ -695,7 +693,7 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
  *  Set the gateway address
  */
     ((struct sockaddr_in *) &ifr.ifr_dstaddr)->sin_addr.s_addr = his_adr;
-    if (ioctl(s, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
+    if (ioctl(sockfd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
 	syslog (LOG_ERR, "ioctl(SIOCSIFDSTADDR): %m"); 
 	return (0);
     } 
@@ -704,7 +702,7 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
  */
     if (net_mask != 0) {
 	((struct sockaddr_in *) &ifr.ifr_netmask)->sin_addr.s_addr = net_mask;
-	if (ioctl(s, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
+	if (ioctl(sockfd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
 	    syslog (LOG_ERR, "ioctl(SIOCSIFNETMASK): %m"); 
 	    return (0);
         } 
@@ -722,7 +720,7 @@ int sifaddr (int unit, int our_adr, int his_adr, int net_mask)
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
 
-    if (ioctl(s, SIOCADDRT, &rt) < 0) {
+    if (ioctl(sockfd, SIOCADDRT, &rt) < 0) {
         syslog (LOG_ERR, "ioctl(SIOCADDRT) device route: %m");
         return (0);
     }
@@ -750,7 +748,7 @@ int cifaddr (int unit, int our_adr, int his_adr)
     ((struct sockaddr_in *) &rt.rt_dst)->sin_addr.s_addr     = his_adr;
     rt.rt_flags = RTF_UP | RTF_HOST;
 
-    if (ioctl(s, SIOCDELRT, &rt) < 0) {
+    if (ioctl(sockfd, SIOCDELRT, &rt) < 0) {
         syslog (LOG_ERR, "ioctl(SIOCDELRT) device route: %m");
         return (0);
     }
@@ -860,18 +858,12 @@ static int read_route_table (struct rtentry *rt)
     dst_ptr  = strtok (NULL,         delims); /* destination address */
     gw_ptr   = strtok (NULL,         delims); /* gateway */
     flag_ptr = strtok (NULL,         delims); /* flags */
-#if 0
-    ptr      = strtok (NULL,         delims); /* reference count */
-    ptr      = strtok (NULL,         delims); /* useage count */
-    ptr      = strtok (NULL,         delims); /* metric */
-    ptr      = strtok (NULL,         delims); /* mask */
-#endif
 
     ((struct sockaddr_in *) &rt->rt_dst)->sin_addr.s_addr =
-      strtoul (dst_ptr, NULL, 16);
+      strtoul (dst_ptr, NULL, 16); /* network order */
 
     ((struct sockaddr_in *) &rt->rt_gateway)->sin_addr.s_addr =
-      strtoul (gw_ptr, NULL, 16);
+      strtoul (gw_ptr, NULL, 16);  /* network order */
 
     rt->rt_flags = (short) strtoul (flag_ptr, NULL, 16);
     rt->rt_dev   = dev_ptr;
@@ -926,7 +918,7 @@ int sifdefaultroute (int unit, int gateway)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
     rt.rt_flags = RTF_UP | RTF_GATEWAY;
-    if (ioctl(s, SIOCADDRT, &rt) < 0) {
+    if (ioctl(sockfd, SIOCADDRT, &rt) < 0) {
 	syslog (LOG_ERR, "default route ioctl(SIOCADDRT): %m");
 	return 0;
     }
@@ -946,7 +938,7 @@ int cifdefaultroute (int unit, int gateway)
     ((struct sockaddr_in *) &rt.rt_gateway)->sin_addr.s_addr = gateway;
     
     rt.rt_flags = RTF_UP | RTF_GATEWAY;
-    if (ioctl(s, SIOCDELRT, &rt) < 0) {
+    if (ioctl(sockfd, SIOCDELRT, &rt) < 0) {
 	syslog (LOG_ERR, "default route ioctl(SIOCDELRT): %m");
 	return 0;
     }
@@ -975,7 +967,7 @@ int sifproxyarp (int unit, u_int32_t his_adr)
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
     arpreq.arp_flags = ATF_PERM | ATF_PUBL;
     
-    if (ioctl(s, SIOCSARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCSARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSARP): %m");
 	return 0;
     }
@@ -994,7 +986,7 @@ int cifproxyarp (int unit, u_int32_t his_adr)
     SET_SA_FAMILY(arpreq.arp_pa, AF_INET);
     
     ((struct sockaddr_in *) &arpreq.arp_pa)->sin_addr.s_addr = his_adr;
-    if (ioctl(s, SIOCDARP, (caddr_t)&arpreq) < 0) {
+    if (ioctl(sockfd, SIOCDARP, (caddr_t)&arpreq) < 0) {
 	syslog(LOG_WARNING, "ioctl(SIOCDARP): %m");
 	return 0;
     }
@@ -1018,7 +1010,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
     
     ifc.ifc_len = sizeof(ifs);
     ifc.ifc_req = ifs;
-    if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCGIFCONF): %m");
 	return 0;
     }
@@ -1039,7 +1031,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
  * Check that the interface is up, and not point-to-point
  * or loopback.
  */
-	    if (ioctl(s, SIOCGIFFLAGS, &ifreq) < 0)
+	    if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 		continue;
 	    if ((ifreq.ifr_flags &
 		 (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
@@ -1048,7 +1040,7 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
 /*
  * Get its netmask and check that it's on the right subnet.
  */
-	    if (ioctl(s, SIOCGIFNETMASK, &ifreq) < 0)
+	    if (ioctl(sockfd, SIOCGIFNETMASK, &ifreq) < 0)
 	        continue;
 	    mask = ((struct sockaddr_in *) &ifreq.ifr_addr)->sin_addr.s_addr;
 	    MAINDEBUG ((LOG_DEBUG, "proxy arp: interface addr %s mask %lx",
@@ -1071,12 +1063,14 @@ int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr)
         return 0;
     }
 
-    hwaddr->sa_family = ARPHRD_ETHER;
-#ifndef old_ifr_hwaddr
-    memcpy (&hwaddr->sa_data, &ifreq.ifr_hwaddr, ETH_ALEN);
-#else
+    /* Use the proper family for token ring support. */
+    if (ifreq.ifr_hwaddr.sa_family == 0)
+        hwaddr->sa_family = ARPHRD_ETHER;
+    else
+        hwaddr->sa_family = ifreq.ifr_hwaddr.sa_family;
+
+    /* Well, ethernet has the longest address so far . . . . */
     memcpy (&hwaddr->sa_data, &ifreq.ifr_hwaddr.sa_data, ETH_ALEN);
-#endif
 
     MAINDEBUG ((LOG_DEBUG,
 		"proxy arp: found hwaddr %02x:%02x:%02x:%02x:%02x:%02x",
@@ -1126,7 +1120,7 @@ int ppp_available(void)
 {
     int s, ok;
     struct ifreq ifr;
-    int my_version,     my_modification,     my_patch;
+    int my_version, my_modification, my_patch;
 /*
  * Open a socket for doing the ioctl operations.
  */    
@@ -1135,7 +1129,7 @@ int ppp_available(void)
 	return 0;
     
     strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
-    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
+    ok = ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 /*
  * Ensure that the hardware address is for PPP and not something else
  */
@@ -1153,7 +1147,7 @@ int ppp_available(void)
 	int    size;
 
 	ifr.ifr_data = abBuffer;
-	size = ioctl (s, SIOCDEVPRIVATE, (caddr_t) &ifr);
+	size = ioctl (s, SIOCGPPPVER, (caddr_t) &ifr);
 	ok   = size >= 0;
 
 	if (ok != 0) {
@@ -1185,18 +1179,18 @@ int ppp_available(void)
     if (driver_modification < my_modification)
         ok = 0;
 
+    close(s);
+
     if (ok == 0) {
 	fprintf(stderr, "Sorry - PPP driver version %d.%d.%d is out of date\n",
 		driver_version, driver_modification, driver_patch);
+	exit (1); /* avoid confusing error message 'ppp is not supported'. */
     }
 
-    close(s);
     return ok;
 }
 
-int
-logwtmp(line, name, host)
-	char *line, *name, *host;
+int logwtmp (char *line, char *name, char *host)
 {
     struct utmp ut;
 
@@ -1208,4 +1202,83 @@ logwtmp(line, name, host)
 	
     pututline (&ut);		/* Write the line to the proper place */
     endutent();			/* Indicate operation is complete */
+}
+
+/*
+ * Code for locking/unlocking the serial device.
+ * This code is derived from chat.c.
+ */
+
+#define LOCKPREFIX	"/usr/spool/uucp/LCK.."
+
+/*
+ * lock - create a lock file for the named device
+ */
+int
+lock(dev)
+    char *dev;
+{
+    char hdb_lock_buffer[12];
+    int fd, pid, n;
+    char *p;
+
+    if ((p = strrchr(dev, '/')) != NULL)
+	dev = p + 1;
+    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
+    if (lock_file == NULL)
+	novm("lock file name");
+    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+
+    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
+	if (errno == EEXIST
+	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
+	    /* Read the lock file to find out who has the device locked */
+	    n = read(fd, hdb_lock_buffer, 11);
+	    if (n > 0) {
+		hdb_lock_buffer[n] = 0;
+		pid = atoi(hdb_lock_buffer);
+	    }
+	    if (n <= 0) {
+		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		close(fd);
+	    } else {
+		if (kill(pid, 0) == -1 && errno == ESRCH) {
+		    /* pid no longer exists - remove the lock file */
+		    if (unlink(lock_file) == 0) {
+			close(fd);
+			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			       dev, pid);
+			continue;
+		    } else
+			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			       dev);
+		} else
+		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+			   dev, pid);
+	    }
+	    close(fd);
+	} else
+	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	free(lock_file);
+	lock_file = NULL;
+	return -1;
+    }
+
+    sprintf(hdb_lock_buffer, "%10d\n", getpid());
+    write(fd, hdb_lock_buffer, 11);
+
+    close(fd);
+    return 0;
+}
+
+/*
+ * unlock - remove our lockfile
+ */
+unlock()
+{
+    if (lock_file) {
+	unlink(lock_file);
+	free(lock_file);
+	lock_file = NULL;
+    }
 }
