@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.3 1998/11/07 06:59:25 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.4 1999/03/02 05:34:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -371,10 +371,9 @@ cbcp_resp(us)
     if (cb_type & ( 1 << CB_CONF_ADMIN ) ) {
 	syslog(LOG_DEBUG, "cbcp_resp CONF_ADMIN");
         PUTCHAR(CB_CONF_ADMIN, bufp);
-	len = 3 + 1;
-	PUTCHAR(len , bufp);
+	len = 3;
+	PUTCHAR(len, bufp);
 	PUTCHAR(5, bufp); /* delay */
-	PUTCHAR(0, bufp);
 	cbcp_send(us, CBCP_RESP, buf, len);
 	return;
     }
