@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.66 2002/10/10 05:47:34 fcusack Exp $
+.\" $Id: pppd.8,v 1.67 2002/11/02 19:48:13 carlsonj Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -330,6 +330,28 @@ hexadecimal, separated by periods or colons for the other types.  For
 the MAC type, the value may also be the name of an ethernet or similar
 network interface.  This option is currently only available under
 Linux.
+.TP
+.B eap-interval \fIn
+If this option is given and pppd authenticates the peer with EAP
+(i.e., is the server), pppd will restart EAP authentication every
+\fIn\fR seconds.  For EAP SRP-SHA1, see also the \fBsrp-interval\fR
+option, which enables lightweight rechallenge.
+.TP
+.B eap-max-rreq \fIn
+Set the maximum number of EAP Requests to which pppd will respond (as
+a client) without hearing EAP Success or Failure.  (Default is 20.)
+.TP
+.B eap-max-sreq \fIn
+Set the maximum number of EAP Requests that pppd will issue (as a
+server) while attempting authentication.  (Default is 10.)
+.TP
+.B eap-restart \fIn
+Set the retransmit timeout for EAP Requests when acting as a server
+(authenticator).  (Default is 3 seconds.)
+.TP
+.B eap-timeout \fIn
+Set the maximum time to wait for the peer to send an EAP Request when
+acting as a client (authenticatee).  (Default is 20 seconds.)
 .TP
 .B hide-password
 When logging the contents of PAP packets, this option causes pppd to
@@ -885,6 +907,10 @@ peer using MS-CHAP.
 With this option, pppd will not agree to authenticate itself to the
 peer using MS-CHAPv2.
 .TP
+.B refuse-eap
+With this option, pppd will not agree to authenticate itself to the
+peer using EAP.
+.TP
 .B refuse-pap
 With this option, pppd will not agree to authenticate itself to the
 peer using PAP.
@@ -915,6 +941,10 @@ Handshake Authentication Protocol] authentication.
 Require the peer to authenticate itself using MS-CHAPv2 [Microsft Challenge
 Handshake Authentication Protocol, Version 2] authentication.
 .TP
+.B require-eap
+Require the peer to authenticate itself using EAP [Extensible
+Authentication Protocol] authentication.
+.TP
 .B require-pap
 Require the peer to authenticate itself using PAP [Password
 Authentication Protocol] authentication.
@@ -927,6 +957,27 @@ show the password string in the log message.
 With this option, pppd will not transmit LCP packets to initiate a
 connection until a valid LCP packet is received from the peer (as for
 the `passive' option with ancient versions of pppd).
+.TP
+.B srp-interval \fIn
+If this parameter is given and pppd uses EAP SRP-SHA1 to authenticate
+the peer (i.e., is the server), then pppd will use the optional
+lightweight SRP rechallenge mechanism at intervals of \fIn\fR
+seconds.  This option is faster than \fBeap-interval\fR
+reauthentication because it uses a hash-based mechanism and does not
+derive a new session key.
+.TP
+.B srp-pn-secret \fIstring
+Set the long-term pseudonym-generating secret for the server.  This
+value is optional and if set, needs to be known at the server
+(authenticator) side only, and should be different for each server (or
+poll of identical servers).  It is used along with the current date to
+generate a key to encrypt and decrypt the client's identity contained
+in the pseudonym.
+.TP
+.B srp-use-pseudonym
+When operating as an EAP SRP-SHA1 client, attempt to use the pseudonym
+stored in ~/.ppp_psuedonym first as the identity, and save in this
+file any pseudonym offered by the peer during authentication.
 .TP
 .B sync
 Use synchronous HDLC serial encoding instead of asynchronous.
@@ -1044,15 +1095,18 @@ knows that secret.  Very often, the names used for authentication
 correspond to the internet hostnames of the peers, but this is not
 essential.
 .LP
-At present, pppd supports two authentication protocols: the Password
-Authentication Protocol (PAP) and the Challenge Handshake
-Authentication Protocol (CHAP).  PAP involves the client sending its
-name and a cleartext password to the server to authenticate itself.
-In contrast, the server initiates the CHAP authentication exchange by
-sending a challenge to the client (the challenge packet includes the
-server's name).  The client must respond with a response which
-includes its name plus a hash value derived from the shared secret and
-the challenge, in order to prove that it knows the secret.
+At present, pppd supports three authentication protocols: the Password
+Authentication Protocol (PAP), Challenge Handshake Authentication
+Protocol (CHAP), and Extensible Authentication Protocol (EAP).  PAP
+involves the client sending its name and a cleartext password to the
+server to authenticate itself.  In contrast, the server initiates the
+CHAP authentication exchange by sending a challenge to the client (the
+challenge packet includes the server's name).  The client must respond
+with a response which includes its name plus a hash value derived from
+the shared secret and the challenge, in order to prove that it knows
+the secret.  EAP supports CHAP-style authentication, and also includes
+the SRP-SHA1 mechanism, which is resistant to dictionary-based attacks
+and does not require a cleartext password on the server side.
 .LP
 The PPP protocol, being symmetrical, allows both peers to require the
 other to authenticate itself.  In that case, two separate and
@@ -1066,9 +1120,10 @@ pppd will not agree to authenticate itself with a particular protocol
 if it has no secrets which could be used to do so.
 .LP
 Pppd stores secrets for use in authentication in secrets
-files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for
-CHAP/MS-CHAP/MS-CHAPv2).
-Both secrets files have the same format.  The secrets files can
+files (/etc/ppp/pap-secrets for PAP, /etc/ppp/chap-secrets for CHAP,
+MS-CHAP, MS-CHAPv2, and EAP MD5-Challenge, and /etc/ppp/srp-secrets
+for EAP SRP-SHA1).
+All secrets files have the same format.  The secrets files can
 contain secrets for pppd to use in authenticating itself to other
 systems, as well as secrets for pppd to use when authenticating other
 systems to itself.
@@ -1113,7 +1168,9 @@ field and the name of the local system in the second field.  The
 name of the local system defaults to the hostname, with the domain
 name appended if the \fIdomain\fR option is used.  This default can be
 overridden with the \fIname\fR option, except when the
-\fIusehostname\fR option is used.
+\fIusehostname\fR option is used.  (For EAP SRP-SHA1, see the
+srp-entry(8) utility for generating proper validator entries to be
+used in the "secret" field.)
 .LP
 When pppd is choosing a secret to use in authenticating itself to the
 peer, it first determines what name it is going to use to identify
@@ -1122,14 +1179,14 @@ itself to the peer.  This name can be specified by the user with the
 the name of the local system, determined as described in the previous
 paragraph.  Then pppd looks for a secret with this name in the first
 field and the peer's name in the second field.  Pppd will know the
-name of the peer if CHAP authentication is being used, because the
-peer will have sent it in the challenge packet.  However, if PAP is being
-used, pppd will have to determine the peer's name from the options
-specified by the user.  The user can specify the peer's name directly
-with the \fIremotename\fR option.  Otherwise, if the remote IP address
-was specified by a name (rather than in numeric form), that name will
-be used as the peer's name.  Failing that, pppd will use the null
-string as the peer's name.
+name of the peer if CHAP or EAP authentication is being used, because
+the peer will have sent it in the challenge packet.  However, if PAP
+is being used, pppd will have to determine the peer's name from the
+options specified by the user.  The user can specify the peer's name
+directly with the \fIremotename\fR option.  Otherwise, if the remote
+IP address was specified by a name (rather than in numeric form), that
+name will be used as the peer's name.  Failing that, pppd will use the
+null string as the peer's name.
 .LP
 When authenticating the peer with PAP, the supplied password is first
 compared with the secret from the secrets file.  If the password
@@ -1295,16 +1352,18 @@ pppd proxyarp
 .LP
 To allow a user to use the PPP facilities, you need to allocate an IP
 address for that user's machine and create an entry in
-/etc/ppp/pap-secrets or /etc/ppp/chap-secrets (depending on which
-authentication method the PPP implementation on the user's machine
-supports), so that the user's
-machine can authenticate itself.  For example, if Joe has a machine
-called "joespc" which is to be allowed to dial in to the machine
-called "server" and use the IP address joespc.my.net, you would add an
-entry like this to /etc/ppp/pap-secrets or /etc/ppp/chap-secrets:
+/etc/ppp/pap-secrets, /etc/ppp/chap-secrets, or /etc/ppp/srp-secrets
+(depending on which authentication method the PPP implementation on
+the user's machine supports), so that the user's machine can
+authenticate itself.  For example, if Joe has a machine called
+"joespc" that is to be allowed to dial in to the machine called
+"server" and use the IP address joespc.my.net, you would add an entry
+like this to /etc/ppp/pap-secrets or /etc/ppp/chap-secrets:
 .IP
 joespc	server	"joe's secret"	joespc.my.net
 .LP
+(See srp-entry(8) for a means to generate the server's entry when
+SRP-SHA1 is in use.)
 Alternatively, you can create a username called (for example) "ppp",
 whose login shell is pppd and whose home directory is /etc/ppp.
 Options to be used when pppd is run this way can be put in
@@ -1329,7 +1388,7 @@ and debug messages, you will need to edit your /etc/syslog.conf file
 to direct the messages to the desired output device or file.
 .LP
 The \fIdebug\fR option causes the contents of all control packets sent
-or received to be logged, that is, all LCP, PAP, CHAP or IPCP packets.
+or received to be logged, that is, all LCP, PAP, CHAP, EAP, or IPCP packets.
 This can be useful if the PPP negotiation does not succeed or if
 authentication fails.
 If debugging is enabled at compile time, the \fIdebug\fR option also
@@ -1561,6 +1620,16 @@ As for /etc/ppp/pap-secrets, this file should be owned by root and not
 readable or writable by any other user.  Pppd will log a warning if
 this is not the case.
 .TP
+.B /etc/ppp/srp-secrets
+Names, secrets, and IP addresses for EAP authentication.  As for
+/etc/ppp/pap-secrets, this file should be owned by root and not
+readable or writable by any other user.  Pppd will log a warning if
+this is not the case.
+.TP
+.B ~/.ppp_pseudonym
+Saved client-side SRP-SHA1 pseudonym.  See the \fIsrp-use-pseudonym\fR
+option for details.
+.TP
 .B /etc/ppp/options
 System default options for pppd, read before user default options or
 command-line options.
@@ -1613,10 +1682,25 @@ Simpson, W.A.
 .I PPP in HDLC-like Framing.
 July 1994.
 .TP
+.B RFC2284
+Blunk, L.; Vollbrecht, J.,
+.I PPP Extensible Authentication Protocol (EAP).
+March 1998.
+.TP
 .B RFC2472
 Haskin, D.
 .I IP Version 6 over PPP
 December 1998.
+.TP
+.B RFC2945
+Wu, T.,
+.I The SRP Authentication and Key Exchange System
+September 2000.
+.TP
+.B draft-ietf-pppext-eap-srp-03.txt
+Carlson, J.; et al.,
+.I EAP SRP-SHA1 Authentication Protocol.
+July 2001.
 .SH NOTES
 The following signals have the specified effect when sent to pppd.
 .TP

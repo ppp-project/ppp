@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.17 2002/03/01 14:39:18 dfs Exp $
+ * $Id: lcp.h,v 1.18 2002/11/02 19:48:12 carlsonj Exp $
  */
 
 /*
@@ -54,6 +54,7 @@ typedef struct lcp_options {
     bool neg_asyncmap;		/* Negotiate the async map? */
     bool neg_upap;		/* Ask for UPAP authentication? */
     bool neg_chap;		/* Ask for CHAP authentication? */
+    bool neg_eap;		/* Ask for EAP authentication? */
     bool neg_magicnumber;	/* Ask for magic number? */
     bool neg_pcompression;	/* HDLC Protocol Field Compression? */
     bool neg_accompression;	/* HDLC Address/Control Field Compression? */

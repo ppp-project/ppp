@@ -40,7 +40,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.22 2002/09/06 22:11:12 kad Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.23 2002/11/02 19:48:12 carlsonj Exp $"
 
 #ifdef CHAPMS
 
@@ -51,19 +51,13 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
-#ifdef HAVE_CRYPT_H
-#include <crypt.h>
-#endif
 
 #include "pppd.h"
 #include "chap.h"
 #include "chap_ms.h"
 #include "md4.h"
 #include "sha1.h"
-
-#ifndef USE_CRYPT
-#include <des.h>
-#endif
+#include "pppcrypt.h"
 
 static const char rcsid[] = RCSID;
 
@@ -72,9 +66,6 @@ static void	ChallengeHash __P((u_char[16], u_char *, char *, u_char[8]));
 static void	ascii2unicode __P((char[], int, u_char[]));
 static void	NTPasswordHash __P((char *, int, u_char[MD4_SIGNATURE_SIZE]));
 static void	ChallengeResponse __P((u_char *, u_char *, u_char[24]));
-static void	DesEncrypt __P((u_char *, u_char *, u_char[8]));
-static void	MakeKey __P((u_char *, u_char *));
-static u_char	Get7Bits __P((u_char *, int));
 static void	ChapMS_NT __P((u_char *, char *, int, u_char[24]));
 static void	ChapMS2_NT __P((char *, u_char[16], char *, char *, int,
 				u_char[24]));
@@ -83,11 +74,6 @@ static void	GenerateAuthenticatorResponse __P((char*, int, u_char[24],
 						   char *, u_char[41]));
 #ifdef MSLANMAN
 static void	ChapMS_LANMan __P((u_char *, char *, int, MS_ChapResponse *));
-#endif
-
-#ifdef USE_CRYPT
-static void	Expand __P((u_char *, u_char *));
-static void	Collapse __P((u_char *, u_char *));
 #endif
 
 #ifdef MPPE
@@ -112,7 +98,7 @@ ChallengeResponse(u_char *challenge,
 		  u_char PasswordHash[MD4_SIGNATURE_SIZE],
 		  u_char response[24])
 {
-    char    ZPasswordHash[21];
+    u_char    ZPasswordHash[21];
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
     BCOPY(PasswordHash, ZPasswordHash, MD4_SIGNATURE_SIZE);
@@ -122,137 +108,17 @@ ChallengeResponse(u_char *challenge,
 	   sizeof(ZPasswordHash), ZPasswordHash);
 #endif
 
-    DesEncrypt(challenge, ZPasswordHash +  0, &response[0]);
-    DesEncrypt(challenge, ZPasswordHash +  7, &response[8]);
-    DesEncrypt(challenge, ZPasswordHash + 14, &response[16]);
+    (void) DesSetkey(ZPasswordHash + 0);
+    DesEncrypt(challenge, response + 0);
+    (void) DesSetkey(ZPasswordHash + 7);
+    DesEncrypt(challenge, response + 8);
+    (void) DesSetkey(ZPasswordHash + 14);
+    DesEncrypt(challenge, response + 16);
 
 #if 0
     dbglog("ChallengeResponse - response %.24B", response);
 #endif
 }
-
-
-#ifdef USE_CRYPT
-static void
-DesEncrypt(u_char *clear, u_char *key, u_char cipher[8])
-{
-    u_char des_key[8];
-    u_char crypt_key[66];
-    u_char des_input[66];
-
-    MakeKey(key, des_key);
-
-    Expand(des_key, crypt_key);
-    setkey(crypt_key);
-
-#if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %.8B", clear));
-#endif
-
-    Expand(clear, des_input);
-    encrypt(des_input, 0);
-    Collapse(des_input, cipher);
-
-#if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %.8B", cipher));
-#endif
-}
-
-#else /* USE_CRYPT */
-
-static void
-DesEncrypt(u_char *clear, u_char *key, u_char cipher[8])
-{
-    des_cblock		des_key;
-    des_key_schedule	key_schedule;
-
-    MakeKey(key, des_key);
-
-    des_set_key(&des_key, key_schedule);
-
-#if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet input : %.8B", clear));
-#endif
-
-    des_ecb_encrypt((des_cblock *)clear, (des_cblock *)cipher, key_schedule, 1);
-
-#if 0
-    CHAPDEBUG((LOG_INFO, "DesEncrypt: 8 octet output: %.8B", cipher));
-#endif
-}
-
-#endif /* USE_CRYPT */
-
-
-static u_char Get7Bits(u_char *input, int startBit)
-{
-    register unsigned int	word;
-
-    word  = (unsigned)input[startBit / 8] << 8;
-    word |= (unsigned)input[startBit / 8 + 1];
-
-    word >>= 15 - (startBit % 8 + 7);
-
-    return word & 0xFE;
-}
-
-#ifdef USE_CRYPT
-
-/* in == 8-byte string (expanded version of the 56-bit key)
- * out == 64-byte string where each byte is either 1 or 0
- * Note that the low-order "bit" is always ignored by by setkey()
- */
-static void Expand(u_char *in, u_char *out)
-{
-        int j, c;
-        int i;
-
-        for(i = 0; i < 64; in++){
-		c = *in;
-                for(j = 7; j >= 0; j--)
-                        *out++ = (c >> j) & 01;
-                i += 8;
-        }
-}
-
-/* The inverse of Expand
- */
-static void Collapse(u_char *in, u_char *out)
-{
-        int j;
-        int i;
-	unsigned int c;
-
-	for (i = 0; i < 64; i += 8, out++) {
-	    c = 0;
-	    for (j = 7; j >= 0; j--, in++)
-		c |= *in << j;
-	    *out = c & 0xff;
-	}
-}
-#endif
-
-static void MakeKey(u_char *key, u_char *des_key)
-{
-    des_key[0] = Get7Bits(key,  0);
-    des_key[1] = Get7Bits(key,  7);
-    des_key[2] = Get7Bits(key, 14);
-    des_key[3] = Get7Bits(key, 21);
-    des_key[4] = Get7Bits(key, 28);
-    des_key[5] = Get7Bits(key, 35);
-    des_key[6] = Get7Bits(key, 42);
-    des_key[7] = Get7Bits(key, 49);
-
-#ifndef USE_CRYPT
-    des_set_odd_parity((des_cblock *)des_key);
-#endif
-
-#if 0
-    CHAPDEBUG((LOG_INFO, "MakeKey: 56-bit input : %.7B", key));
-    CHAPDEBUG((LOG_INFO, "MakeKey: 64-bit output: %.8B", des_key));
-#endif
-}
-
 
 static void
 ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
@@ -348,7 +214,7 @@ static u_char *StdText = (u_char *)"KGS!@#$%"; /* key from rasapi32.dll */
 
 static void
 ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
-	      u_char LMResponse[24])
+	      MS_ChapResponse *LMResponse)
 {
     int			i;
     u_char		UcasePassword[MAX_NT_PASSWORD]; /* max is actually 14 */
@@ -358,8 +224,10 @@ ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
     BZERO(UcasePassword, sizeof(UcasePassword));
     for (i = 0; i < secret_len; i++)
        UcasePassword[i] = (u_char)toupper(secret[i]);
-    DesEncrypt( StdText, UcasePassword + 0, PasswordHash + 0 );
-    DesEncrypt( StdText, UcasePassword + 7, PasswordHash + 8 );
+    (void) DesSetkey(UcasePassword + 0);
+    DesEncrypt( StdText, PasswordHash + 0 );
+    (void) DesSetkey(UcasePassword + 7);
+    DesEncrypt( StdText, PasswordHash + 8 );
     ChallengeResponse(rchallenge, PasswordHash, LMResponse);
 }
 #endif

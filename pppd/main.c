@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.118 2002/10/27 12:19:58 fcusack Exp $"
+#define RCSID	"$Id: main.c,v 1.119 2002/11/02 19:48:12 carlsonj Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -52,6 +52,7 @@
 #endif
 #include "upap.h"
 #include "chap.h"
+#include "eap.h"
 #include "ccp.h"
 #include "ecp.h"
 #include "pathnames.h"
@@ -229,6 +230,7 @@ struct protent *protocols[] = {
 #ifdef AT_CHANGE
     &atcp_protent,
 #endif
+    &eap_protent,
     NULL
 };
 
@@ -990,7 +992,7 @@ get_input()
      * Toss all non-LCP packets unless LCP is OPEN.
      */
     if (protocol != PPP_LCP && lcp_fsm[0].state != OPENED) {
-	MAINDEBUG(("get_input: Received non-LCP packet when LCP not open."));
+	dbglog("Discarded non-LCP packet when LCP not open");
 	return;
     }
 
@@ -1000,9 +1002,10 @@ get_input()
      */
     if (phase <= PHASE_AUTHENTICATE
 	&& !(protocol == PPP_LCP || protocol == PPP_LQR
-	     || protocol == PPP_PAP || protocol == PPP_CHAP)) {
-	MAINDEBUG(("get_input: discarding proto 0x%x in phase %d",
-		   protocol, phase));
+	     || protocol == PPP_PAP || protocol == PPP_CHAP ||
+		protocol == PPP_EAP)) {
+	dbglog("discarding proto 0x%x in phase %d",
+		   protocol, phase);
 	return;
     }
 

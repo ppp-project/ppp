@@ -1,6 +1,6 @@
 #
 # pppd makefile for AIX 4.1
-# $Id: Makefile.aix4,v 1.5 2002/05/21 17:26:48 dfs Exp $
+# $Id: Makefile.aix4,v 1.6 2002/11/02 19:48:12 carlsonj Exp $
 #
 #ifndef BINDIR
 BINDIR = /usr/sbin
@@ -10,12 +10,14 @@ MANDIR = /usr/man
 #ENDIF
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	ecp.c auth.c options.c demand.c utils.c sys-aix4.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
+	ecp.c auth.c options.c demand.c utils.c sys-aix4.c eap.c tty.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	ecp.o auth.o options.o demand.o utils.o sys-aix4.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
+	ecp.o auth.o options.o demand.o utils.o sys-aix4.o eap.o tty.o
+
+# xxx what are these?  They're not here.
+#	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
+#	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
 
 CC = xlc
 DEBUG_FLAGS = -DDEBUGALL

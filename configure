@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.29 2002/09/07 05:15:25 carlsonj Exp $
+# $Id: configure,v 1.30 2002/11/02 19:48:12 carlsonj Exp $
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -21,8 +21,8 @@ case $system in
 #      [0-3]*)	state="ancient";;
 #      4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
       5.[7-9]*|5.[1-9][0-9])	state="known"; ksrc="solaris"; makext="sol2";
-              case $arch in
-		sun4u)	archvariant='-64';;
+              case "`/usr/bin/isainfo -k`" in
+		sparcv9)	archvariant='-64';;
 		*)	;;
 	      esac;;
       5.[1-6]*)	state="known"; ksrc="solaris"; makext="sol2";;
@@ -33,7 +33,7 @@ case $system in
     elif gcc --version >/dev/null 2>&1; then
       archvariant=gcc$archvariant
       compiletype=.gcc
-      if [ "$arch" = "sun4u" ]; then
+      if [ "$archvariant" = "gcc-64" ]; then
         ( cd /tmp; touch ppp$$.c
 	  gcc -c -m64 ppp$$.c >/dev/null 2>&1 || (
 	    echo "gcc is unable to make 64 bit modules, and your $arch system needs them."
@@ -125,10 +125,12 @@ case $state in
     echo "This is a newer release of $system than is supported by"
     echo "this software.  It may or may not work.";;
   unknown)
-    echo "This software has not been ported to this system.  Sorry.";;
+    echo "This software has not been ported to $system.  Sorry.";;
   notincluded)
-    echo "Support for this system has not been included"
+    echo "Support for $system has not been included"
     echo "in this distribution.  Sorry.";;
+  known)
+    echo "Configuring for $system";;
 esac
 
 if [ -d "$ksrc" ]; then

@@ -1,4 +1,4 @@
-#	$Id: Makefile.bsd,v 1.16 2002/05/21 17:26:48 dfs Exp $
+#	$Id: Makefile.bsd,v 1.17 2002/11/02 19:48:12 carlsonj Exp $
 
 BINDIR?= /usr/sbin
 # -D_BITYPES is for FreeBSD, which doesn't define anything to
@@ -8,7 +8,7 @@ CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES
 
 PROG=	pppd
 SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	ecp.c demand.c auth.c options.c utils.c sys-bsd.c
+	ecp.c demand.c auth.c options.c utils.c sys-bsd.c eap.c tty.c
 MAN=	pppd.cat8
 MAN8=	pppd.8
 BINMODE=4555

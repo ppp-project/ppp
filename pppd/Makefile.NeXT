@@ -1,8 +1,8 @@
 #
 # pppd makefile for NeXT
 #
-# $Orignial: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
-# $Id: Makefile.NeXT,v 1.7 2002/05/21 17:26:48 dfs Exp $
+# $Original: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
+# $Id: Makefile.NeXT,v 1.8 2002/11/02 19:48:12 carlsonj Exp $
 #
 
 ARCHFLAGS = 
@@ -10,8 +10,8 @@ ARCHFLAGS =
 BINDIR = /usr/local/ppp/bin
 MANDIR = /usr/local/ppp/man
 
-OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	ecp.o auth.o options.o demand.o utils.o sys-NeXT.o
+OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o eap.o md5.o ccp.o \
+	ecp.o auth.o options.o demand.o utils.o sys-NeXT.o tty.o
 
 #
 # For HPPA and SPARC, define FIXSIGS to get around posix bugs in

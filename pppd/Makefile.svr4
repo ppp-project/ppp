@@ -1,6 +1,6 @@
 #
-# Makefile for pppd under Solaris 2.
-# $Id: Makefile.svr4,v 1.15 2002/05/21 17:26:48 dfs Exp $
+# Makefile for pppd on generic System V release 4
+# $Id: Makefile.svr4,v 1.16 2002/11/02 19:48:12 carlsonj Exp $
 #
 
 include ../svr4/Makedefs
@@ -11,7 +11,7 @@ LIBS = -lsocket -lnsl -lc -L/usr/ucblib -lucb
 all: pppd
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o ecp.o \
-	auth.o options.o demand.o utils.o sys-svr4.o
+	auth.o options.o demand.o utils.o sys-svr4.o eap.o tty.o
 
 pppd:	$(OBJS)
 	$(CC) -o pppd $(OBJS) $(LIBS)

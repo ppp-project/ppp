@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.88 2002/10/27 12:56:26 fcusack Exp $"
+#define RCSID	"$Id: auth.c,v 1.89 2002/11/02 19:48:12 carlsonj Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -74,6 +74,7 @@
 #include "ipcp.h"
 #include "upap.h"
 #include "chap.h"
+#include "eap.h"
 #ifdef CBCP_SUPPORT
 #include "cbcp.h"
 #endif
@@ -180,6 +181,7 @@ bool uselogin = 0;		/* Use /etc/passwd for checking PAP */
 bool cryptpap = 0;		/* Passwords in pap-secrets are encrypted */
 bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
 bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
+bool refuse_eap = 0;		/* Don't wanna auth. ourselves with EAP */
 #ifdef CHAPMS
 bool refuse_mschap = 0;		/* Don't wanna auth. ourselves with MS-CHAP */
 bool refuse_mschap_v2 = 0;	/* Don't wanna auth. ourselves with MS-CHAPv2 */
@@ -208,10 +210,12 @@ static int  null_login __P((int));
 static int  get_pap_passwd __P((char *));
 static int  have_pap_secret __P((int *));
 static int  have_chap_secret __P((char *, char *, int, int *));
+static int  have_srp_secret __P((char *client, char *server, int need_ip,
+    int *lacks_ipp));
 static int  ip_addr_check __P((u_int32_t, struct permitted_ip *));
 static int  scan_authfile __P((FILE *, char *, char *, char *,
 			       struct wordlist **, struct wordlist **,
-			       char *));
+			       char *, int));
 static void free_wordlist __P((struct wordlist *));
 static void auth_script __P((char *));
 static void auth_script_done __P((void *));
@@ -300,6 +304,12 @@ option_t auth_options[] = {
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MICROSOFT_V2,
       &lcp_allowoptions[0].chap_mdtype },
 #endif
+
+    { "require-eap", o_bool, &lcp_wantoptions[0].neg_eap,
+      "Require EAP authentication from peer", OPT_PRIOSUB | 1,
+      &auth_required },
+    { "refuse-eap", o_bool, &refuse_eap,
+      "Don't agree to authenticate to peer with EAP", 1 },
 
     { "name", o_string, our_name,
       "Set local name for authentication",
@@ -554,7 +564,7 @@ link_established(unit)
 	    && protp->lowerup != NULL)
 	    (*protp->lowerup)(unit);
 
-    if (auth_required && !(go->neg_upap || go->neg_chap)) {
+    if (auth_required && !(go->neg_upap || go->neg_chap || go->neg_eap)) {
 	/*
 	 * We wanted the peer to authenticate itself, and it refused:
 	 * if we have some address(es) it can use without auth, fine,
@@ -575,14 +585,20 @@ link_established(unit)
     new_phase(PHASE_AUTHENTICATE);
     used_login = 0;
     auth = 0;
-    if (go->neg_chap) {
+    if (go->neg_eap) {
+	eap_authpeer(unit, our_name);
+	auth |= EAP_PEER;
+    } else if (go->neg_chap) {
 	ChapAuthPeer(unit, our_name, CHAP_DIGEST(go->chap_mdtype));
 	auth |= CHAP_PEER;
     } else if (go->neg_upap) {
 	upap_authpeer(unit);
 	auth |= PAP_PEER;
     }
-    if (ho->neg_chap) {
+    if (ho->neg_eap) {
+	eap_authwithpeer(unit, user);
+	auth |= EAP_WITHPEER;
+    } else if (ho->neg_chap) {
 	ChapAuthWithPeer(unit, user, CHAP_DIGEST(ho->chap_mdtype));
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
@@ -617,7 +633,7 @@ network_phase(unit)
     /*
      * If the peer had to authenticate, run the auth-up script now.
      */
-    if (go->neg_chap || go->neg_upap) {
+    if (go->neg_chap || go->neg_upap || go->neg_eap) {
 	notify(auth_up_notifier, 0);
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
@@ -755,6 +771,9 @@ auth_peer_success(unit, protocol, prot_flavor, name, namelen)
     case PPP_PAP:
 	bit = PAP_PEER;
 	break;
+    case PPP_EAP:
+	bit = EAP_PEER;
+	break;
     default:
 	warn("auth_peer_success: unknown protocol %x", protocol);
 	return;
@@ -829,6 +848,9 @@ auth_withpeer_success(unit, protocol, prot_flavor)
 	if (passwd_from_file)
 	    BZERO(passwd, MAXSECRETLEN);
 	bit = PAP_WITHPEER;
+	break;
+    case PPP_EAP:
+	bit = EAP_WITHPEER;
 	break;
     default:
 	warn("auth_withpeer_success: unknown protocol %x", protocol);
@@ -1032,26 +1054,33 @@ auth_check_options()
     if (wo->chap_mdtype)
 	wo->neg_chap = 1;
 
-    /* If authentication is required, ask peer for CHAP or PAP. */
+    /* If authentication is required, ask peer for CHAP, PAP, or EAP. */
     if (auth_required) {
 	allow_any_ip = 0;
-	if (!wo->neg_chap && !wo->neg_upap) {
+	if (!wo->neg_chap && !wo->neg_upap && !wo->neg_eap) {
 	    wo->neg_chap = 1; wo->chap_mdtype = MDTYPE_ALL;
 	    wo->neg_upap = 1;
+	    wo->neg_eap = 1;
 	}
     } else {
 	wo->neg_chap = 0; wo->chap_mdtype = MDTYPE_NONE;
 	wo->neg_upap = 0;
+	wo->neg_eap = 0;
     }
 
     /*
      * Check whether we have appropriate secrets to use
-     * to authenticate the peer.
+     * to authenticate the peer.  Note that EAP can authenticate by way
+     * of a CHAP-like exchanges as well as SRP.
      */
     lacks_ip = 0;
     can_auth = wo->neg_upap && (uselogin || have_pap_secret(&lacks_ip));
-    if (!can_auth && (wo->neg_chap)) {
+    if (!can_auth && (wo->neg_chap || wo->neg_eap)) {
 	can_auth = have_chap_secret((explicit_remote? remote_name: NULL),
+				    our_name, 1, &lacks_ip);
+    }
+    if (!can_auth && wo->neg_eap) {
+	can_auth = have_srp_secret((explicit_remote? remote_name: NULL),
 				    our_name, 1, &lacks_ip);
     }
 
@@ -1088,21 +1117,36 @@ auth_reset(unit)
     int unit;
 {
     lcp_options *go = &lcp_gotoptions[unit];
-    lcp_options *ao = &lcp_allowoptions[0];
+    lcp_options *ao = &lcp_allowoptions[unit];
+    int hadchap;
 
+    hadchap = -1;
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
     ao->neg_chap = (!refuse_chap || !refuse_mschap || !refuse_mschap_v2)
-	&& (passwd[0] != 0
-	    || have_chap_secret(user, (explicit_remote? remote_name: NULL),
-				0, NULL));
+	&& (passwd[0] != 0 ||
+	    (hadchap = have_chap_secret(user, (explicit_remote? remote_name:
+					       NULL), 0, NULL)));
+    ao->neg_eap = !refuse_eap && (
+	passwd[0] != 0 ||
+	(hadchap == 1 || (hadchap == -1 && have_chap_secret(user,
+	    (explicit_remote? remote_name: NULL), 0, NULL))) ||
+	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL));
 
+    hadchap = -1;
     if (go->neg_upap && !uselogin && !have_pap_secret(NULL))
 	go->neg_upap = 0;
     if (go->neg_chap) {
-	if (!have_chap_secret((explicit_remote? remote_name: NULL),
-			      our_name, 1, NULL))
+	if (!(hadchap = have_chap_secret((explicit_remote? remote_name: NULL),
+			      our_name, 1, NULL)))
 	    go->neg_chap = 0;
     }
+    if (go->neg_eap &&
+	(hadchap == 0 || (hadchap == -1 &&
+	    !have_chap_secret((explicit_remote? remote_name: NULL), our_name,
+		1, NULL))) &&
+	!have_srp_secret((explicit_remote? remote_name: NULL), our_name, 1,
+	    NULL))
+	go->neg_eap = 0;
 }
 
 
@@ -1173,7 +1217,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 
     } else {
 	check_access(f, filename);
-	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename) < 0) {
+	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename, 0) < 0) {
 	    warn("no PAP secret found for %s", user);
 	} else {
 	    /*
@@ -1248,8 +1292,12 @@ static pam_handle_t *pamh = NULL;
  * echo off means password.
  */
 
-static int PAM_conv (int num_msg, const struct pam_message **msg,
-                    struct pam_response **resp, void *appdata_ptr)
+static int PAM_conv (int num_msg,
+#ifndef SOL2
+    const
+#endif
+    struct pam_message **msg,
+    struct pam_response **resp, void *appdata_ptr)
 {
     int replies = 0;
     struct pam_response *reply = NULL;
@@ -1486,7 +1534,7 @@ null_login(unit)
 	    return 0;
 	check_access(f, filename);
 
-	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
+	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename, 0);
 	ret = i >= 0 && secret[0] == 0;
 	BZERO(secret, sizeof(secret));
 	fclose(f);
@@ -1534,7 +1582,7 @@ get_pap_passwd(passwd)
     check_access(f, filename);
     ret = scan_authfile(f, user,
 			(remote_name[0]? remote_name: NULL),
-			secret, NULL, NULL, filename);
+			secret, NULL, NULL, filename, 0);
     fclose(f);
     if (ret < 0)
 	return 0;
@@ -1571,7 +1619,7 @@ have_pap_secret(lacks_ipp)
 	return 0;
 
     ret = scan_authfile(f, (explicit_remote? remote_name: NULL), our_name,
-			NULL, &addrs, NULL, filename);
+			NULL, &addrs, NULL, filename, 0);
     fclose(f);
     if (ret >= 0 && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
@@ -1620,7 +1668,49 @@ have_chap_secret(client, server, need_ip, lacks_ipp)
     else if (server != NULL && server[0] == 0)
 	server = NULL;
 
-    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename);
+    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
+    fclose(f);
+    if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
+	if (lacks_ipp != 0)
+	    *lacks_ipp = 1;
+	ret = -1;
+    }
+    if (addrs != 0)
+	free_wordlist(addrs);
+
+    return ret >= 0;
+}
+
+
+/*
+ * have_srp_secret - check whether we have a SRP file with a
+ * secret that we could possibly use for authenticating `client'
+ * on `server'.  Either can be the null string, meaning we don't
+ * know the identity yet.
+ */
+static int
+have_srp_secret(client, server, need_ip, lacks_ipp)
+    char *client;
+    char *server;
+    int need_ip;
+    int *lacks_ipp;
+{
+    FILE *f;
+    int ret;
+    char *filename;
+    struct wordlist *addrs;
+
+    filename = _PATH_SRPFILE;
+    f = fopen(filename, "r");
+    if (f == NULL)
+	return 0;
+
+    if (client != NULL && client[0] == 0)
+	client = NULL;
+    else if (server != NULL && server[0] == 0)
+	server = NULL;
+
+    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
     fclose(f);
     if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
@@ -1674,7 +1764,7 @@ get_secret(unit, client, server, secret, secret_len, am_server)
 	}
 	check_access(f, filename);
 
-	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename);
+	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename, 0);
 	fclose(f);
 	if (ret < 0)
 	    return 0;
@@ -1695,6 +1785,56 @@ get_secret(unit, client, server, secret, secret_len, am_server)
     BCOPY(secbuf, secret, len);
     BZERO(secbuf, sizeof(secbuf));
     *secret_len = len;
+
+    return 1;
+}
+
+
+/*
+ * get_srp_secret - open the SRP secret file and return the secret
+ * for authenticating the given client on the given server.
+ * (We could be either client or server).
+ */
+int
+get_srp_secret(unit, client, server, secret, am_server)
+    int unit;
+    char *client;
+    char *server;
+    char *secret;
+    int am_server;
+{
+    FILE *fp;
+    int ret;
+    char *filename;
+    struct wordlist *addrs, *opts;
+
+    if (!am_server && passwd[0] != '\0') {
+	strlcpy(secret, passwd, MAXWORDLEN);
+    } else {
+	filename = _PATH_SRPFILE;
+	addrs = NULL;
+
+	fp = fopen(filename, "r");
+	if (fp == NULL) {
+	    error("Can't open srp secret file %s: %m", filename);
+	    return 0;
+	}
+	check_access(fp, filename);
+
+	secret[0] = '\0';
+	ret = scan_authfile(fp, client, server, secret, &addrs, &opts,
+	    filename, am_server);
+	fclose(fp);
+	if (ret < 0)
+	    return 0;
+
+	if (am_server)
+	    set_allowed_addrs(unit, addrs, opts);
+	else if (opts != NULL)
+	    free_wordlist(opts);
+	if (addrs != NULL)
+	    free_wordlist(addrs);
+    }
 
     return 1;
 }
@@ -1986,9 +2126,11 @@ check_access(f, filename)
  * following words (extra options) are placed in a wordlist and
  * returned in *opts.
  * We assume secret is NULL or points to MAXWORDLEN bytes of space.
+ * Flags are non-zero if we need two colons in the secret in order to
+ * match.
  */
 static int
-scan_authfile(f, client, server, secret, addrs, opts, filename)
+scan_authfile(f, client, server, secret, addrs, opts, filename, flags)
     FILE *f;
     char *client;
     char *server;
@@ -1996,6 +2138,7 @@ scan_authfile(f, client, server, secret, addrs, opts, filename)
     struct wordlist **addrs;
     struct wordlist **opts;
     char *filename;
+    int flags;
 {
     int newline, xxx;
     int got_flag, best_flag;
@@ -2004,6 +2147,7 @@ scan_authfile(f, client, server, secret, addrs, opts, filename)
     char word[MAXWORDLEN];
     char atfile[MAXWORDLEN];
     char lsecret[MAXWORDLEN];
+    char *cp;
 
     if (addrs != NULL)
 	*addrs = NULL;
@@ -2060,6 +2204,14 @@ scan_authfile(f, client, server, secret, addrs, opts, filename)
 	if (!getword(f, word, &newline, filename))
 	    break;
 	if (newline)
+	    continue;
+
+	/*
+	 * SRP-SHA1 authenticator should never be reading secrets from
+	 * a file.  (Authenticatee may, though.)
+	 */
+	if (flags && ((cp = strchr(word, ':')) == NULL ||
+	    strchr(cp + 1, ':') == NULL))
 	    continue;
 
 	if (secret != NULL) {

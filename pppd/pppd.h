@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.76 2002/10/27 12:30:54 fcusack Exp $
+ * $Id: pppd.h,v 1.77 2002/11/02 19:48:13 carlsonj Exp $
  */
 
 /*
@@ -317,15 +317,18 @@ extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 #define PAP_PEER	0x2
 #define CHAP_WITHPEER	0x4
 #define CHAP_PEER	0x8
+#define EAP_WITHPEER	0x10
+#define EAP_PEER	0x20
+
 /* Values for auth_done only */
-#define CHAP_MD5_WITHPEER	0x10
-#define CHAP_MD5_PEER		0x20
+#define CHAP_MD5_WITHPEER	0x40
+#define CHAP_MD5_PEER		0x80
 #ifdef CHAPMS
-#define CHAP_MS_SHIFT		6	/* LSB position for MS auths */
-#define CHAP_MS_WITHPEER	0x40
-#define CHAP_MS_PEER		0x80
-#define CHAP_MS2_WITHPEER	0x100
-#define CHAP_MS2_PEER		0x200
+#define CHAP_MS_SHIFT		8	/* LSB position for MS auths */
+#define CHAP_MS_WITHPEER	0x100
+#define CHAP_MS_PEER		0x200
+#define CHAP_MS2_WITHPEER	0x400
+#define CHAP_MS2_PEER		0x800
 #endif
 
 extern char *current_option;	/* the name of the option being parsed */
@@ -514,6 +517,8 @@ int  check_passwd __P((int, char *, int, char *, int, char **));
 				/* Check peer-supplied username/password */
 int  get_secret __P((int, char *, char *, char *, int *, int));
 				/* get "secret" for chap */
+int  get_srp_secret __P((int unit, char *client, char *server, char *secret,
+    int am_server));
 int  auth_ip_addr __P((int, u_int32_t));
 				/* check if IP address is authorized */
 int  auth_number __P((void));	/* check if remote number is authorized */
@@ -719,6 +724,7 @@ extern void (*snoop_send_hook) __P((unsigned char *p, int len));
 
 #define BCOPY(s, d, l)		memcpy(d, s, l)
 #define BZERO(s, n)		memset(s, 0, n)
+#define	BCMP(s1, s2, l)		memcmp(s1, s2, l)
 
 #define PRINTMSG(m, l)		{ info("Remote message: %0.*v", l, m); }
 
