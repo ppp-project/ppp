@@ -40,7 +40,7 @@
 /*
  * This version is for use with STREAMS under SunOS 4.x.
  *
- * $Id: bsd-comp.c,v 1.3 1994/08/31 23:58:53 paulus Exp $
+ * $Id: bsd-comp.c,v 1.4 1994/09/16 02:06:31 paulus Exp $
  */
 
 #include <sys/param.h>
@@ -75,6 +75,15 @@
  */
 
 /*
+ * Macros to extract protocol version and number of bits
+ * from the third byte of the BSD Compress CCP configuration option.
+ */
+#define BSD_VERSION(x)	((x) >> 5)
+#define BSD_NBITS(x)	((x) & 0x1F)
+
+#define BSD_CURRENT_VERSION	1
+
+/*
  * A dictionary for doing BSD compress.
  */
 struct bsd_db {
@@ -82,22 +91,23 @@ struct bsd_db {
     u_int   hsize;			/* size of the hash table */
     u_char  hshift;			/* used in hash function */
     u_char  n_bits;			/* current bits/code */
-    char    debug;
+    u_char  maxbits;
+    u_char  debug;
     u_char  unit;
     u_short mru;
+    u_short seqno;			/* sequence number of next packet */
     u_int   maxmaxcode;			/* largest valid code */
     u_int   max_ent;			/* largest code in use */
-    u_long  seqno;			/* # of last byte of packet */
-    u_long  in_count;			/* uncompressed bytes */
-    u_long  bytes_out;			/* compressed bytes */
-    u_long  ratio;			/* recent compression ratio */
-    u_long  checkpoint;			/* when to next check the ratio */
+    u_int   in_count;			/* uncompressed bytes */
+    u_int   bytes_out;			/* compressed bytes */
+    u_int   ratio;			/* recent compression ratio */
+    u_int  checkpoint;			/* when to next check the ratio */
     int	    clear_count;		/* times dictionary cleared */
     int	    incomp_count;		/* incompressible packets */
     u_short *lens;			/* array of lengths of codes */
     struct bsd_dict {
 	union {				/* hash value */
-	    u_long	fcode;
+	    u_int32_t	fcode;
 	    struct {
 #ifdef BSD_LITTLE_ENDIAN
 		u_short prefix;		/* preceding code */
@@ -115,7 +125,7 @@ struct bsd_db {
     } dict[1];
 };
 
-#define BSD_OVHD	3		/* BSD compress overhead/packet */
+#define BSD_OVHD	2		/* BSD compress overhead/packet */
 #define MIN_BSD_BITS	9
 #define BSD_INIT_BITS	MIN_BSD_BITS
 #define MAX_BSD_BITS	15
@@ -130,7 +140,7 @@ static int	bsd_decomp_init __P((void *state, u_char *options, int opt_len,
 static int	bsd_compress __P((void *state, mblk_t **mret,
 				  mblk_t *mp, int slen, int maxolen));
 static void	bsd_incomp __P((void *state, mblk_t *dmsg));
-static mblk_t	*bsd_decompress __P((void *state, mblk_t *cmp, int hdroff));
+static int	bsd_decompress __P((void *state, mblk_t *cmp, mblk_t **dmpp));
 static void	bsd_reset __P((void *state));
 
 /*
@@ -162,12 +172,18 @@ struct compressor ppp_bsd_compress = {
 #define MAXCODE(b)	((1 << (b)) - 1)
 #define BADCODEM1	MAXCODE(MAX_BSD_BITS);
 
-#define BSD_HASH(prefix,suffix,hshift) ((((u_long)(suffix)) << (hshift)) \
-				       ^ (u_long)(prefix))
-#define BSD_KEY(prefix,suffix) ((((u_long)(suffix)) << 16) + (u_long)(prefix))
+#define BSD_HASH(prefix,suffix,hshift)	((((u_int32_t)(suffix)) << (hshift)) \
+					 ^ (u_int32_t)(prefix))
+#define BSD_KEY(prefix,suffix)		((((u_int32_t)(suffix)) << 16) \
+					 + (u_int32_t)(prefix))
 
 #define CHECK_GAP	10000		/* Ratio check interval */
 
+#define RATIO_SCALE_LOG	8
+#define RATIO_SCALE	(1<<RATIO_SCALE_LOG)
+#define RATIO_MAX	(0x7fffffff>>RATIO_SCALE_LOG)
+
+#define DECOMP_CHUNK	256
 
 /*
  * clear the dictionary
@@ -203,12 +219,12 @@ static int				/* 1=output CLEAR */
 bsd_check(db)
     struct bsd_db *db;
 {
-    u_long new_ratio;
+    u_int new_ratio;
 
     if (db->in_count >= db->checkpoint) {
 	/* age the ratio by limiting the size of the counts */
-	if (db->in_count >= 0x7fffff
-	    || db->bytes_out >= 0x7fffff) {
+	if (db->in_count >= RATIO_MAX
+	    || db->bytes_out >= RATIO_MAX) {
 	    db->in_count -= db->in_count/4;
 	    db->bytes_out -= db->bytes_out/4;
 	}
@@ -221,13 +237,13 @@ bsd_check(db)
 	     * by incompressible data.
 	     *
 	     * This does not overflow, because
-	     *	db->in_count <= 0x7fffff.
+	     *	db->in_count <= RATIO_MAX.
 	     */
-	    new_ratio = db->in_count<<8;
+	    new_ratio = db->in_count << RATIO_SCALE_LOG;
 	    if (db->bytes_out != 0)
 		new_ratio /= db->bytes_out;
 
-	    if (new_ratio < db->ratio || new_ratio < 256) {
+	    if (new_ratio < db->ratio || new_ratio < 1 * RATIO_SCALE) {
 		bsd_clear(db);
 		return 1;
 	    }
@@ -263,9 +279,10 @@ bsd_alloc(options, opt_len, decomp)
     u_int newlen, hsize, hshift, maxmaxcode;
     struct bsd_db *db;
 
-    if (opt_len != 3 || options[0] != 0x21 || options[1] != 3)
+    if (opt_len != 3 || options[0] != 0x21 || options[1] != 3
+	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	return NULL;
-    bits = options[2];
+    bits = BSD_NBITS(options[2]);
     switch (bits) {
     case 9:			/* needs 82152 for both directions */
     case 10:			/* needs 84144 */
@@ -316,6 +333,7 @@ bsd_alloc(options, opt_len, decomp)
     db->hsize = hsize;
     db->hshift = hshift;
     db->maxmaxcode = maxmaxcode;
+    db->maxbits = bits;
 
     return (void *) db;
 }
@@ -359,7 +377,8 @@ bsd_init(db, options, opt_len, unit, mru, debug, decomp)
     int i;
 
     if (opt_len != 3 || options[0] != 0x21 || options[1] != 3
-	|| MAXCODE(options[2]) != db->maxmaxcode
+	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION
+	|| BSD_NBITS(options[2]) != db->maxbits
 	|| decomp && db->lens == NULL)
 	return 0;
 
@@ -409,14 +428,13 @@ bsd_decomp_init(state, options, opt_len, unit, mru, debug)
 
 /*
  * compress a packet
- *	Assume the protocol is known to be >= 0x21 and < 0xff.
  *	One change from the BSD compress command is that when the
  *	code size expands, we do not output a bunch of padding.
  */
 static int			/* new slen */
-bsd_compress(state, mret, mp, slen, maxolen)
+bsd_compress(state, mretp, mp, slen, maxolen)
     void *state;
-    mblk_t **mret;		/* return compressed mbuf chain here */
+    mblk_t **mretp;		/* return compressed mbuf chain here */
     mblk_t *mp;			/* from here */
     int slen;			/* uncompressed length */
     int maxolen;		/* max compressed length */
@@ -426,17 +444,15 @@ bsd_compress(state, mret, mp, slen, maxolen)
     u_int max_ent = db->max_ent;
     u_int n_bits = db->n_bits;
     u_int bitno = 32;
-    u_long accm = 0;
+    u_int32_t accm = 0, fcode;
     struct bsd_dict *dictp;
-    u_long fcode;
     u_char c;
-    long hval, disp, ent;
-    mblk_t *np;
+    int hval, disp, ent;
+    mblk_t *np, *mret;
     u_char *rptr, *wptr;
     u_char *cp_end;
     int olen;
     mblk_t *m, **mnp;
-    int proto;
 
 #define PUTBYTE(v) {					\
     if (wptr) {						\
@@ -464,20 +480,35 @@ bsd_compress(state, mret, mp, slen, maxolen)
     } while (bitno <= 24);				\
 }
 
+    /*
+     * First get the protocol and check that we're
+     * interested in this packet.
+     */
+    *mretp = NULL;
+    rptr = mp->b_rptr;
+    if (rptr + PPP_HDRLEN > mp->b_wptr) {
+	if (!pullupmsg(mp, PPP_HDRLEN))
+	    return 0;
+	rptr = mp->b_rptr;
+    }
+    ent = PPP_PROTOCOL(rptr);		/* get the protocol */
+    if (ent < 0x21 || ent > 0xf9)
+	return 0;
+
     /* Don't generate compressed packets which are larger than
        the uncompressed packet. */
     if (maxolen > slen)
 	maxolen = slen;
 
     /* Allocate enough message blocks to give maxolen total space. */
-    mnp = mret;
+    mnp = &mret;
     for (olen = maxolen; olen > 0; ) {
 	m = allocb((olen < 4096? olen: 4096), BPRI_MED);
 	*mnp = m;
 	if (m == NULL) {
-	    if (*mret != NULL) {
-		freemsg(*mret);
-		mnp = mret;
+	    if (mret != NULL) {
+		freemsg(mret);
+		mnp = &mret;
 	    }
 	    break;
 	}
@@ -486,8 +517,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
     }
     *mnp = NULL;
 
-    rptr = mp->b_rptr;
-    if ((m = *mret) != NULL) {
+    if ((m = mret) != NULL) {
 	wptr = m->b_wptr;
 	cp_end = m->b_datap->db_lim;
     } else
@@ -496,24 +526,20 @@ bsd_compress(state, mret, mp, slen, maxolen)
 
     /*
      * Copy the PPP header over, changing the protocol,
-     * and install the 3-byte sequence number.
+     * and install the 2-byte sequence number.
      */
-    slen += db->seqno - PPP_HDRLEN + 1;
-    db->seqno = slen;
     if (wptr) {
-	wptr[0] = rptr[0];	/* assumes the ppp header is */
-	wptr[1] = rptr[1];	/* all in one mblk */
+	wptr[0] = PPP_ADDRESS(rptr);
+	wptr[1] = PPP_CONTROL(rptr);
 	wptr[2] = 0;		/* change the protocol */
 	wptr[3] = PPP_COMP;
-	wptr[4] = slen>>16;
-	wptr[5] = slen>>8;
-	wptr[6] = slen;
+	wptr[4] = db->seqno >> 8;
+	wptr[5] = db->seqno;
 	wptr += PPP_HDRLEN + BSD_OVHD;
     }
-
-    /* start with the protocol byte */
-    ent = rptr[3];
+    ++db->seqno;
     rptr += PPP_HDRLEN;
+
     slen = mp->b_wptr - rptr;
     db->in_count += slen + 1;
     np = mp->b_cont;
@@ -587,22 +613,24 @@ bsd_compress(state, mret, mp, slen, maxolen)
     if (bsd_check(db))
 	OUTPUT(CLEAR);			/* do not count the CLEAR */
 
-    /* Pad dribble bits of last code with ones.
+    /*
+     * Pad dribble bits of last code with ones.
      * Do not emit a completely useless byte of ones.
      */
     if (bitno != 32)
 	PUTBYTE((accm | (0xff << (bitno-8))) >> 24);
 
-    /* Increase code size if we would have without the packet
+    /*
+     * Increase code size if we would have without the packet
      * boundary and as the decompressor will.
      */
     if (max_ent >= MAXCODE(n_bits) && max_ent < db->maxmaxcode)
 	db->n_bits++;
 
-    if (olen + PPP_HDRLEN + BSD_OVHD > maxolen && *mret != NULL) {
+    if (olen + PPP_HDRLEN + BSD_OVHD > maxolen && mret != NULL) {
 	/* throw away the compressed stuff if it is longer than uncompressed */
-	freemsg(*mret);
-	*mret = NULL;
+	freemsg(mret);
+	mret = NULL;
     } else if (wptr != NULL) {
 	m->b_wptr = wptr;
 	if (m->b_cont) {
@@ -611,6 +639,7 @@ bsd_compress(state, mret, mp, slen, maxolen)
 	}
     }
 
+    *mretp = mret;
     return olen + PPP_HDRLEN + BSD_OVHD;
 #undef OUTPUT
 #undef PUTBYTE
@@ -620,7 +649,6 @@ bsd_compress(state, mret, mp, slen, maxolen)
 /*
  * Update the "BSD Compress" dictionary on the receiver for
  * incompressible data by pretending to compress the incoming data.
- * The protocol is assumed to be < 0x100.
  */
 static void
 bsd_incomp(state, dmsg)
@@ -632,7 +660,7 @@ bsd_incomp(state, dmsg)
     u_int max_ent = db->max_ent;
     u_int n_bits = db->n_bits;
     struct bsd_dict *dictp;
-    u_long fcode;
+    u_int32_t fcode;
     u_char c;
     long hval, disp;
     int slen;
@@ -640,12 +668,19 @@ bsd_incomp(state, dmsg)
     u_char *rptr;
     u_int ent;
 
-    db->incomp_count++;
+    rptr = dmsg->b_rptr;
+    if (rptr + PPP_HDRLEN > dmsg->b_wptr) {
+	if (!pullupmsg(dmsg, PPP_HDRLEN))
+	    return;
+	rptr = dmsg->b_rptr;
+    }
+    ent = PPP_PROTOCOL(rptr);		/* get the protocol */
+    if (ent < 0x21 || ent > 0xf9)
+	return;
 
+    db->incomp_count++;
     db->seqno++;
     db->in_count++;		/* count the protocol as 1 byte */
-    rptr = dmsg->b_rptr;
-    ent = rptr[3];		/* get the protocol */
     rptr += PPP_HDRLEN;
     for (;;) {
 	slen = dmsg->b_wptr - rptr;
@@ -657,7 +692,6 @@ bsd_incomp(state, dmsg)
 	    continue;		/* skip zero-length buffers */
 	}
 	db->in_count += slen;
-	db->seqno += slen;
 
 	do {
 	    c = *rptr++;
@@ -727,15 +761,14 @@ bsd_incomp(state, dmsg)
 /*
  * Decompress "BSD Compress"
  */
-static mblk_t *				/* 0=failed, so zap CCP */
-bsd_decompress(state, cmsg, hdroff)
+static int
+bsd_decompress(state, cmsg, dmpp)
     void *state;
-    mblk_t *cmsg;
-    int hdroff;
+    mblk_t *cmsg, **dmpp;
 {
     struct bsd_db *db = (struct bsd_db *) state;
     u_int max_ent = db->max_ent;
-    u_long accm = 0;
+    u_int32_t accm = 0;
     u_int bitno = 32;		/* 1st valid bit in accm */
     u_int n_bits = db->n_bits;
     u_int tgtbitno = 32-n_bits;	/* bitno when we have a code */
@@ -743,19 +776,19 @@ bsd_decompress(state, cmsg, hdroff)
     int explen, i, seq, len;
     u_int incode, oldcode, finchar;
     u_char *p, *rptr, *wptr;
-    mblk_t *dmsg;
+    mblk_t *dmsg, *mret;
     int adrs, ctrl;
-    int dlen, space, codelen;
+    int dlen, space, codelen, extra;
 
     /*
      * Get at least the BSD Compress header in the first buffer
      */
     rptr = cmsg->b_rptr;
-    if (rptr + PPP_HDRLEN + BSD_OVHD <= cmsg->b_wptr) {
+    if (rptr + PPP_HDRLEN + BSD_OVHD >= cmsg->b_wptr) {
 	if (!pullupmsg(cmsg, PPP_HDRLEN + BSD_OVHD + 1)) {
 	    if (db->debug)
 		printf("bsd_decomp%d: failed to pullup\n", db->unit);
-	    return 0;
+	    return DECOMP_ERROR;
 	}
 	rptr = cmsg->b_rptr;
     }
@@ -767,31 +800,27 @@ bsd_decompress(state, cmsg, hdroff)
     adrs = PPP_ADDRESS(rptr);
     ctrl = PPP_CONTROL(rptr);
     rptr += PPP_HDRLEN;
-    seq = (rptr[0] << 16) + (rptr[1] << 8) + rptr[2];
-    rptr += 3;
+    seq = (rptr[0] << 8) + rptr[1];
+    rptr += BSD_OVHD;
     len = cmsg->b_wptr - rptr;
 
     /*
-     * Check the sequence number and give up if the length is nonsense.
-     * The check is against mru+1 because we compress one byte of protocol.
+     * Check the sequence number and give up if it is not what we expect.
      */
-    explen = (seq - db->seqno) & 0xffffff;
-    db->seqno = seq;
-    if (explen > db->mru + 1 || explen < 1) {
+    if (seq != db->seqno++) {
 	if (db->debug)
-	    printf("bsd_decomp%d: bad length 0x%x\n", db->unit, explen);
-	return 0;
+	    printf("bsd_decomp%d: bad sequence # %d, expected %d\n",
+		   db->unit, seq, db->seqno - 1);
+	return DECOMP_ERROR;
     }
 
-    /* allocate enough message blocks for the decompressed message */
-    dlen = explen + PPP_HDRLEN - 1 + hdroff;
-    /* XXX assume decompressed packet fits in a single block */
-    dmsg = allocb(dlen, BPRI_HI);
-    if (!dmsg) {
-	/* give up if cannot get an uncompressed buffer */
-	return 0;
-    }
-    wptr = dmsg->b_wptr;
+    /*
+     * Allocate one message block to start with.
+     */
+    if ((dmsg = allocb(DECOMP_CHUNK, BPRI_MED)) == NULL)
+	return DECOMP_ERROR;
+    mret = dmsg;
+    dmsg->b_rptr = wptr = dmsg->b_wptr;
 
     /* Fill in the ppp header, but not the last byte of the protocol
        (that comes from the decompressed data). */
@@ -802,28 +831,21 @@ bsd_decompress(state, cmsg, hdroff)
     space = dmsg->b_datap->db_lim - wptr;
 
     db->bytes_out += len;
-    dlen = explen;
     oldcode = CLEAR;
+    explen = 0;
     for (;;) {
 	if (len == 0) {
 	    cmsg = cmsg->b_cont;
-	    if (!cmsg) {	/* quit at end of message */
-		if (dlen != 0) {
-		    freemsg(dmsg);
-		    if (db->debug)
-			printf("bsd_decomp%d: lost %d bytes\n",
-			       db->unit, explen);
-		    return 0;
-		}
+	    if (!cmsg)		/* quit at end of message */
 		break;
-	    }
 	    rptr = cmsg->b_rptr;
 	    len = cmsg->b_wptr - rptr;
 	    db->bytes_out += len;
 	    continue;		/* handle 0-length buffers */
 	}
 
-	/* Accumulate bytes until we have a complete code.
+	/*
+	 * Accumulate bytes until we have a complete code.
 	 * Then get the next code, relying on the 32-bit,
 	 * unsigned accm to mask the result.
 	 */
@@ -837,7 +859,8 @@ bsd_decompress(state, cmsg, hdroff)
 	bitno += n_bits;
 
 	if (incode == CLEAR) {
-	    /* The dictionary must only be cleared at
+	    /*
+	     * The dictionary must only be cleared at
 	     * the end of a packet.  But there could be an
 	     * empty message block at the end.
 	     */
@@ -848,7 +871,7 @@ bsd_decompress(state, cmsg, hdroff)
 		    freemsg(dmsg);
 		    if (db->debug)
 			printf("bsd_decomp%d: bad CLEAR\n", db->unit);
-		    return 0;
+		    return DECOMP_FATALERROR;
 		}
 	    }
 	    bsd_clear(db);
@@ -856,44 +879,53 @@ bsd_decompress(state, cmsg, hdroff)
 	    break;
 	}
 
-	/* Special case for KwKwK string. */
-	if (incode > max_ent) {
-	    if (incode > max_ent+2 || incode > db->maxmaxcode
-		|| oldcode == CLEAR) {
-		freemsg(dmsg);
-		if (db->debug) {
-		    printf("bsd_decomp%d: bad code 0x%x oldcode=0x%x ",
-			   db->unit, incode, oldcode);
-		    printf("max_ent=0x%x dlen=%d seqno=%d\n",
-			   max_ent, dlen, db->seqno);
-		}
-		return 0;
-	    }
-	    finchar = oldcode;
-	    --dlen;
-	} else
-	    finchar = incode;
-
-	codelen = db->lens[finchar];
-	dlen -= codelen;
-	if (dlen < 0) {
+	if (incode > max_ent+2 || incode > db->maxmaxcode
+	    || incode > max_ent && oldcode == CLEAR) {
 	    freemsg(dmsg);
-	    if (db->debug)
-		printf("bsd_decomp%d: ran out of buffer\n", db->unit);
-	    return 0;
+	    if (db->debug) {
+		printf("bsd_decomp%d: bad code 0x%x oldcode=0x%x ",
+		       db->unit, incode, oldcode);
+		printf("max_ent=0x%x dlen=%d seqno=%d\n",
+		       max_ent, dlen, db->seqno);
+	    }
+	    return DECOMP_FATALERROR;
 	}
 
-	/* decode code and install in decompressed buffer */
-	space -= codelen;
-	if (space < 0) {
-#ifdef DEBUG
-	    if (cmsg->b_cont)
-		len += msgdsize(cmsg->b_cont);
-	    printf("bsd_decomp%d: overran output by %d with %d bytes left\n",
-		   db->unit, -space, len);
-#endif
+	/* Special case for KwKwK string. */
+	if (incode > max_ent) {
+	    finchar = oldcode;
+	    extra = 1;
+	} else {
+	    finchar = incode;
+	    extra = 0;
+	}
+
+	codelen = db->lens[finchar];
+	explen += codelen + extra;
+	if (explen > db->mru + 1) {
 	    freemsg(dmsg);
-	    return 0;
+	    if (db->debug)
+		printf("bsd_decomp%d: ran out of mru\n", db->unit);
+	    return DECOMP_FATALERROR;
+	}
+
+	/*
+	 * Decode this code and install it in the decompressed buffer.
+	 */
+	space -= codelen + extra;
+	if (space < 0) {
+	    /* Allocate another message block. */
+	    dmsg->b_wptr = wptr;
+	    dlen = codelen + extra;
+	    if (dlen < DECOMP_CHUNK)
+		dlen = DECOMP_CHUNK;
+	    if ((dmsg->b_cont = allocb(dlen, BPRI_MED)) == NULL) {
+		freemsg(dmsg);
+		return DECOMP_ERROR;
+	    }
+	    dmsg = dmsg->b_cont;
+	    wptr = dmsg->b_wptr;
+	    space = dmsg->b_datap->db_lim - wptr - codelen - extra;
 	}
 	p = (wptr += codelen);
 	while (finchar > LAST) {
@@ -905,7 +937,7 @@ bsd_decompress(state, cmsg, hdroff)
 		printf("bsd_decomp%d: fell off end of chain ", db->unit);
 		printf("0x%x at 0x%x by 0x%x, max_ent=0x%x\n",
 		       incode, finchar, db->dict[finchar].cptr, max_ent);
-		return 0;
+		return DECOMP_FATALERROR;
 	    }
 	    if (dictp->codem1 != finchar-1) {
 		freemsg(dmsg);
@@ -913,7 +945,7 @@ bsd_decompress(state, cmsg, hdroff)
 		       db->unit, incode, finchar);
 		printf("oldcode=0x%x cptr=0x%x codem1=0x%x\n", oldcode,
 		       db->dict[finchar].cptr, dictp->codem1);
-		return 0;
+		return DECOMP_FATALERROR;
 	    }
 #endif
 	    *--p = dictp->f.hs.suffix;
@@ -927,10 +959,8 @@ bsd_decompress(state, cmsg, hdroff)
 		   db->unit, codelen, incode, max_ent);
 #endif
 
-	if (incode > max_ent) {		/* the KwKwK case again */
+	if (extra)		/* the KwKwK case again */
 	    *wptr++ = finchar;
-	    --space;
-	}
 
 	/*
 	 * If not first code in a packet, and
@@ -941,8 +971,8 @@ bsd_decompress(state, cmsg, hdroff)
 	 */
 	if (oldcode != CLEAR && max_ent < db->maxmaxcode) {
 	    struct bsd_dict *dictp2;
-	    u_long fcode;
-	    long hval, disp;
+	    u_int32_t fcode;
+	    int hval, disp;
 
 	    fcode = BSD_KEY(oldcode,finchar);
 	    hval = BSD_HASH(oldcode,finchar,db->hshift);
@@ -959,7 +989,8 @@ bsd_decompress(state, cmsg, hdroff)
 		} while (dictp->codem1 < max_ent);
 	    }
 
-	    /* Invalidate previous hash table entry
+	    /*
+	     * Invalidate previous hash table entry
 	     * assigned this code, and then take it over
 	     */
 	    dictp2 = &db->dict[max_ent+1];
@@ -983,13 +1014,8 @@ bsd_decompress(state, cmsg, hdroff)
     }
     dmsg->b_wptr = wptr;
 
-    /* fail on packets with bad lengths/sequence numbers */
-    if (dlen != 0) {
-	freemsg(dmsg);
-	return 0;
-    }
-
-    /* Keep the checkpoint right so that incompressible packets
+    /*
+     * Keep the checkpoint right so that incompressible packets
      * clear the dictionary at the right times.
      */
     db->in_count += explen;
@@ -998,5 +1024,6 @@ bsd_decompress(state, cmsg, hdroff)
 	       db->unit);
     }
 
-    return dmsg;
+    *dmpp = mret;
+    return DECOMP_OK;
 }
