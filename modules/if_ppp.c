@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.1 1996/07/01 01:01:30 paulus Exp $
+ * $Id: if_ppp.c,v 1.2 1996/08/28 06:35:11 paulus Exp $
  */
 
 /*
@@ -259,6 +259,8 @@ if_ppp_wput(q, mp)
 		bzero(newstates, newn * sizeof (struct if_ppp_t *));
 		bcopy(ifs, newifs, ppp_nalloc * sizeof(struct ifnet *));
 		bcopy(states, newstates, ppp_nalloc * sizeof(if_ppp_t *));
+		FREE(ifs, ppp_nalloc * sizeof(struct ifnet *));
+		FREE(states, ppp_nalloc * sizeof(if_ppp_t *));
 		ifs = newifs;
 		states = newstates;
 		ppp_nalloc = newn;
