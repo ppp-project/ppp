@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.2 1995/05/19 02:18:11 paulus Exp $
+ * $Id: ppp_comp.c,v 1.3 1995/05/29 06:43:50 paulus Exp $
  */
 
 /*
@@ -35,21 +35,20 @@
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/stream.h>
-#include <sys/modctl.h>
 #include <sys/conf.h>
 #include <sys/kmem.h>
-#include <sys/ddi.h>
-#include <sys/sunddi.h>
 #include <sys/cmn_err.h>
+#include <sys/ddi.h>
+#ifdef sun
+#include <sys/modctl.h>
+#include <sys/sunddi.h>
+#endif
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <net/vjcompress.h>
-
-#define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
-#define FREE(p, n)	kmem_free((p), (n))
 
 #define PACKETPTR	mblk_t *
 #include <net/ppp-comp.h>
@@ -79,6 +78,7 @@ static struct streamtab ppp_compinfo = {
     &r_init, &w_init, NULL, NULL
 };
 
+#ifdef sun
 static struct fmodsw fsw = {
     "ppp_comp",
     &ppp_compinfo,
@@ -98,26 +98,31 @@ static struct modlinkage modlinkage = {
     (void *) &modlstrmod,
     NULL
 };
+#endif
 
-struct ppp_comp_state {
+typedef struct comp_state {
     int		flags;
     int		mru;
     int		mtu;
     int		unit;
-    int		ierrors;
     struct compressor *xcomp;
     void	*xstate;
     struct compressor *rcomp;
     void	*rstate;
     struct vjcompress vj_comp;
     int		vj_last_ierrors;
-};
+    struct pppstat stats;
+} comp_state_t;
 
 /* Bits in flags are as defined in pppio.h. */
 #define CCP_ERR		(CCP_ERROR | CCP_FATALERROR)
+#define LAST_MOD	0x1000000	/* no ppp modules below us */
 
 #define MAX_IPHDR	128	/* max TCP/IP header size */
 #define MAX_VJHDR	20	/* max VJ compressed header size (?) */
+
+#undef MIN		/* just in case */
+#define MIN(a, b)	((a) < (b)? (a): (b))
 
 /*
  * List of compressors we know about.
@@ -132,6 +137,7 @@ struct compressor *ppp_compressors[] = {
     NULL
 };
 
+#ifdef sun
 /*
  * Entry points for modloading.
  */
@@ -153,6 +159,12 @@ _info(mip)
 {
     return mod_info(&modlinkage, mip);
 }
+#endif
+
+#ifndef sun
+# define qprocson(q)
+# define qprocsoff(q)
+#endif
 
 /*
  * STREAMS module entry points.
@@ -164,14 +176,14 @@ ppp_comp_open(q, devp, flag, sflag, credp)
     int flag, sflag;
     cred_t *credp;
 {
-    struct ppp_comp_state *cp;
+    comp_state_t *cp;
 
     if (q->q_ptr == NULL) {
-	cp = (struct ppp_comp_state *) ALLOCATE(sizeof(struct ppp_comp_state));
+	cp = (comp_state_t *) kmem_zalloc(sizeof(comp_state_t), KM_SLEEP);
 	if (cp == NULL)
 	    return ENOSR;
 	WR(q)->q_ptr = q->q_ptr = cp;
-	bzero((caddr_t)cp, sizeof(struct ppp_comp_state));
+	bzero((caddr_t)cp, sizeof(comp_state_t));
 	cp->mru = PPP_MRU;
 	cp->mtu = PPP_MRU;
 	cp->xstate = NULL;
@@ -188,16 +200,16 @@ ppp_comp_close(q, flag, credp)
     int flag;
     cred_t *credp;
 {
-    struct ppp_comp_state *cp;
+    comp_state_t *cp;
 
     qprocsoff(q);
-    cp = (struct ppp_comp_state *) q->q_ptr;
+    cp = (comp_state_t *) q->q_ptr;
     if (cp != NULL) {
 	if (cp->xstate != NULL)
 	    (*cp->xcomp->comp_free)(cp->xstate);
 	if (cp->rstate != NULL)
 	    (*cp->rcomp->decomp_free)(cp->rstate);
-	FREE(cp, sizeof(struct ppp_comp_state));
+	kmem_free(cp, sizeof(comp_state_t));
 	q->q_ptr = NULL;
 	OTHERQ(q)->q_ptr = NULL;
     }
@@ -210,15 +222,17 @@ ppp_comp_wput(q, mp)
     mblk_t *mp;
 {
     struct iocblk *iop;
-    struct ppp_comp_state *cp;
+    comp_state_t *cp;
     int error, len;
     int flags, mask;
+    mblk_t *np;
     struct compressor **comp;
-    struct ppp_comp_stats *pcp;
+    struct ppp_stats *psp;
+    struct ppp_comp_stats *csp;
     unsigned char *opt_data;
     int nxslots, nrslots;
 
-    cp = (struct ppp_comp_state *) q->q_ptr;
+    cp = (comp_state_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
 
     case M_DATA:
@@ -265,7 +279,7 @@ ppp_comp_wput(q, mp)
 	    if (nxslots > MAX_STATES || nrslots > MAX_STATES)
 		break;
 	    vj_compress_init(&cp->vj_comp, nxslots);
-	    cp->vj_last_ierrors = cp->ierrors;
+	    cp->vj_last_ierrors = cp->stats.ppp_ierrors;
 	    error = 0;
 	    iop->ioc_count = 0;
 	    break;
@@ -304,12 +318,50 @@ ppp_comp_wput(q, mp)
 	    iop->ioc_count = 0;
 	    break;
 
-	case PPPIO_MRU:
-	    /* remember this value */
-	    if (iop->ioc_count == sizeof(int)) {
-		cp->mru = *(int *) mp->b_cont->b_rptr;
+	case PPPIO_GETSTAT:
+	    if ((cp->flags & LAST_MOD) == 0) {
+		error = -1;	/* let the ppp_ahdl module handle it */
+		break;
 	    }
-	    error = -1;
+	    np = allocb(sizeof(struct ppp_stats), BPRI_HI);
+	    if (np == 0) {
+		error = ENOSR;
+		break;
+	    }
+	    if (mp->b_cont != 0)
+		freemsg(mp->b_cont);
+	    mp->b_cont = np;
+	    psp = (struct ppp_stats *) np->b_wptr;
+	    np->b_wptr += sizeof(struct ppp_stats);
+	    iop->ioc_count = sizeof(struct ppp_stats);
+	    psp->p = cp->stats;
+	    psp->vj = cp->vj_comp.stats;
+	    error = 0;
+	    break;
+
+	case PPPIO_GETCSTAT:
+	    np = allocb(sizeof(struct ppp_comp_stats), BPRI_HI);
+	    if (np == 0) {
+		error = ENOSR;
+		break;
+	    }
+	    if (mp->b_cont != 0)
+		freemsg(mp->b_cont);
+	    mp->b_cont = np;
+	    csp = (struct ppp_comp_stats *) np->b_wptr;
+	    np->b_wptr += sizeof(struct ppp_comp_stats);
+	    iop->ioc_count = sizeof(struct ppp_comp_stats);
+	    bzero((caddr_t)csp, sizeof(struct ppp_comp_stats));
+	    if (cp->xstate != 0)
+		(*cp->xcomp->comp_stat)(cp->xstate, &csp->c);
+	    if (cp->rstate != 0)
+		(*cp->rcomp->decomp_stat)(cp->rstate, &csp->d);
+	    error = 0;
+	    break;
+
+	case PPPIO_LASTMOD:
+	    cp->flags |= LAST_MOD;
+	    error = 0;
 	    break;
 
 	default:
@@ -354,13 +406,13 @@ static int
 ppp_comp_wsrv(q)
     queue_t *q;
 {
-    mblk_t *mp, *cmp;
-    struct ppp_comp_state *cp;
+    mblk_t *mp, *cmp, *np;
+    comp_state_t *cp;
     int len, proto, type;
     struct ip *ip;
     unsigned char *vjhdr, *dp;
 
-    cp = (struct ppp_comp_state *) q->q_ptr;
+    cp = (comp_state_t *) q->q_ptr;
     while ((mp = getq(q)) != 0) {
 	/* assert(mp->b_datap->db_type == M_DATA) */
 	if (!canputnext(q)) {
@@ -368,11 +420,26 @@ ppp_comp_wsrv(q)
 	    return;
 	}
 
-	/* first find out what the protocol is */
-	if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN
-	    && !pullupmsg(mp, PPP_HDRLEN)) {
-	    freemsg(mp);	/* give up on it */
-	    continue;
+	/*
+	 * Make sure we've got a reasonable amount in the first
+	 * mblk and that we are its only user.
+	 * Then find out what the protocol is.
+	 */
+	len = msgdsize(mp);
+	if (len > PPP_HDRLEN + MAX_IPHDR)
+	    len = PPP_HDRLEN + MAX_IPHDR;
+	if (mp->b_wptr < mp->b_rptr + len || mp->b_datap->db_ref > 1) {
+	    np = msgpullup(mp, len);
+	    freemsg(mp);
+	    if (np == 0) {
+#if DEBUG
+		cmn_err(CE_CONT, "ppp_comp_wsrv: msgpullup failed\n");
+#endif
+		cp->stats.ppp_oerrors++;
+		putctl1(RD(q)->q_next, M_CTL, PPPCTL_OERROR);
+		continue;
+	    }
+	    mp = np;
 	}
 	proto = PPP_PROTOCOL(mp->b_rptr);
 
@@ -380,28 +447,22 @@ ppp_comp_wsrv(q)
 	 * Do VJ compression if requested.
 	 */
 	if (proto == PPP_IP && (cp->flags & COMP_VJC)) {
-	    len = msgdsize(mp);
-	    if (len > MAX_IPHDR + PPP_HDRLEN)
-		len = MAX_IPHDR + PPP_HDRLEN;
-	    if (mp->b_wptr - mp->b_rptr >= len || pullupmsg(mp, len)) {
-		ip = (struct ip *) (mp->b_rptr + PPP_HDRLEN);
-		if (ip->ip_p == IPPROTO_TCP) {
-		    type = vj_compress_tcp(ip, len - PPP_HDRLEN,
-				&cp->vj_comp, (cp->flags & COMP_VJCCID),
-				&vjhdr);
-		    switch (type) {
-		    case TYPE_UNCOMPRESSED_TCP:
-			mp->b_rptr[3] = proto = PPP_VJC_UNCOMP;
-			break;
-		    case TYPE_COMPRESSED_TCP:
-			dp = vjhdr - PPP_HDRLEN;
-			dp[1] = mp->b_rptr[1]; /* copy control field */
-			dp[0] = mp->b_rptr[0]; /* copy address field */
-			dp[2] = 0;		   /* set protocol field */
-			dp[3] = proto = PPP_VJC_COMP;
-			mp->b_rptr = dp;
-			break;
-		    }
+	    ip = (struct ip *) (mp->b_rptr + PPP_HDRLEN);
+	    if (ip->ip_p == IPPROTO_TCP) {
+		type = vj_compress_tcp(ip, len - PPP_HDRLEN, &cp->vj_comp,
+				       (cp->flags & COMP_VJCCID), &vjhdr);
+		switch (type) {
+		case TYPE_UNCOMPRESSED_TCP:
+		    mp->b_rptr[3] = proto = PPP_VJC_UNCOMP;
+		    break;
+		case TYPE_COMPRESSED_TCP:
+		    dp = vjhdr - PPP_HDRLEN;
+		    dp[1] = mp->b_rptr[1]; /* copy control field */
+		    dp[0] = mp->b_rptr[0]; /* copy address field */
+		    dp[2] = 0;		   /* set protocol field */
+		    dp[3] = proto = PPP_VJC_COMP;
+		    mp->b_rptr = dp;
+		    break;
 		}
 	    }
 	}
@@ -436,6 +497,8 @@ ppp_comp_wsrv(q)
 	    ++mp->b_rptr;
 	}
 
+	cp->stats.ppp_opackets++;
+	cp->stats.ppp_obytes += msgdsize(mp);
 	putnext(q, mp);
     }
 }
@@ -445,19 +508,41 @@ ppp_comp_rput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct ppp_comp_state *cp;
+    comp_state_t *cp;
+    struct iocblk *iop;
+    struct ppp_stats *psp;
 
-    cp = (struct ppp_comp_state *) q->q_ptr;
+    cp = (comp_state_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
 
     case M_DATA:
 	putq(q, mp);
 	break;
 
+    case M_IOCACK:
+	iop = (struct iocblk *) mp->b_rptr;
+	switch (iop->ioc_cmd) {
+	case PPPIO_GETSTAT:
+	    /*
+	     * Catch this on the way back from the ppp_ahdl module
+	     * so we can fill in the VJ stats.
+	     */
+	    if (mp->b_cont == 0 || iop->ioc_count != sizeof(struct ppp_stats))
+		break;
+	    psp = (struct ppp_stats *) mp->b_cont->b_rptr;
+	    psp->vj = cp->vj_comp.stats;
+	    break;
+	}
+	putnext(q, mp);
+	break;
+
     case M_CTL:
 	switch (mp->b_rptr[0]) {
 	case PPPCTL_IERROR:
-	    ++cp->ierrors;
+	    ++cp->stats.ppp_ierrors;
+	    break;
+	case PPPCTL_OERROR:
+	    ++cp->stats.ppp_oerrors;
 	    break;
 	}
 	putnext(q, mp);
@@ -472,15 +557,13 @@ static int
 ppp_comp_rsrv(q)
     queue_t *q;
 {
-    int proto, rv;
+    int proto, rv, i;
     mblk_t *mp, *dmp, *np;
-    unsigned char *dp, *iphdr;
-    struct ppp_comp_state *cp;
+    uchar_t *dp, *iphdr;
+    comp_state_t *cp;
     int len, hlen, vjlen, iphlen;
-    int oldierrors;
 
-    cp = (struct ppp_comp_state *) q->q_ptr;
-    oldierrors = cp->ierrors;
+    cp = (comp_state_t *) q->q_ptr;
     while ((mp = getq(q)) != 0) {
 	/* assert(mp->b_datap->db_type == M_DATA) */
 	if (!canputnext(q)) {
@@ -488,48 +571,66 @@ ppp_comp_rsrv(q)
 	    return;
 	}
 
+	len = msgdsize(mp);
+	cp->stats.ppp_ibytes += len;
+	cp->stats.ppp_ipackets++;
+
 	/*
 	 * First do address/control and protocol "decompression".
 	 */
-	len = msgdsize(mp);
-	if (len > PPP_HDRLEN)
-	    len = PPP_HDRLEN;
-	if (mp->b_wptr - mp->b_rptr < len && !pullupmsg(mp, len)) {
-	    ++cp->ierrors;
+	hlen = MIN(len, PPP_HDRLEN);
+	if (mp->b_wptr < mp->b_rptr + hlen) {
+	    np = msgpullup(mp, hlen);
+	    if (np == 0)
+		goto bad;
 	    freemsg(mp);
-	    continue;
+	    mp = np;
 	}
 	dp = mp->b_rptr;
-	if (PPP_ADDRESS(dp) == PPP_ALLSTATIONS && PPP_CONTROL(dp) == PPP_UI)
+	if (PPP_ADDRESS(dp) == PPP_ALLSTATIONS
+	    && PPP_CONTROL(dp) == PPP_UI)
 	    dp += 2;			/* skip address/control */
-	proto = 0;
-	if ((dp[0] & 1) == 0)
-	    proto = *dp++ << 8;		/* grab high byte of protocol */
-	proto += *dp++;			/* grab low byte of protocol */
-	if (dp > mp->b_wptr) {
-	    ++cp->ierrors;		/* short/bogus packet */
-	    freemsg(mp);
-	    continue;
+	else if ((cp->flags & DECOMP_AC) == 0) {
+	    /* count these? */
+	    goto bad;
 	}
-	if ((dp -= PPP_HDRLEN) < mp->b_datap->db_base) {
-	    /* yucko, need a new message block */
-	    mp->b_rptr = dp;
-	    np = allocb(PPP_HDRLEN, BPRI_MED);
-	    if (np == 0) {
-		++cp->ierrors;
-		freemsg(mp);
-		continue;
-	    }
-	    linkb(np, mp);
-	    mp = np;
-	    dp = mp->b_rptr;
-	    mp->b_wptr = dp + PPP_HDRLEN;
-	} else
-	    mp->b_rptr = dp;
-	dp[0] = PPP_ALLSTATIONS;
-	dp[1] = PPP_UI;
-	dp[2] = proto >> 8;
-	dp[3] = proto;
+	proto = 0;
+	if ((*dp & 1) == 0)
+	    proto = *dp++ << 8;		/* grab high byte of protocol */
+	else if ((cp->flags & DECOMP_PROT) == 0) {
+	    /* count these? */
+	    goto bad;
+	}
+	proto += *dp++;			/* grab low byte of protocol */
+	if (dp > mp->b_wptr)
+	    goto bad;			/* short/bogus packet */
+	dp -= PPP_HDRLEN;
+	if (dp != mp->b_rptr) {
+	    /*
+	     * We need to put some bytes on the front of the packet
+	     * to make a full-length PPP header.
+	     * If we can put them in *mp, we do, otherwise we
+	     * tack another mblk on the front.
+	     * XXX we really shouldn't need to carry around
+	     * the address and control at this stage.
+	     */
+	    if (dp < mp->b_datap->db_base || mp->b_datap->db_ref > 1) {
+		np = allocb(PPP_HDRLEN, BPRI_MED);
+		if (np == 0)
+		    goto bad;
+		np->b_cont = mp;
+		mp->b_rptr = dp + PPP_HDRLEN;
+		mp = np;
+		dp = mp->b_wptr;
+		mp->b_wptr += PPP_HDRLEN;
+	    } else
+		mp->b_rptr = dp;
+
+	    dp[0] = PPP_ALLSTATIONS;
+	    dp[1] = PPP_UI;
+	    dp[2] = proto >> 8;
+	    dp[3] = proto;
+	}
 
 	/*
 	 * Now see if we have a compressed packet to decompress,
@@ -554,11 +655,13 @@ ppp_comp_rsrv(q)
 			continue;
 		    case DECOMP_ERROR:
 			cp->flags |= CCP_ERROR;
-			++cp->ierrors;
+			++cp->stats.ppp_ierrors;
+			putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
 			break;
 		    case DECOMP_FATALERROR:
 			cp->flags |= CCP_FATALERROR;
-			++cp->ierrors;
+			++cp->stats.ppp_ierrors;
+			putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
 			break;
 		    }
 		}
@@ -572,38 +675,52 @@ ppp_comp_rsrv(q)
 	 */
 	proto = PPP_PROTOCOL(mp->b_rptr);
 	if (proto == PPP_VJC_COMP || proto == PPP_VJC_UNCOMP) {
-	    if ((cp->flags & DECOMP_VJC) == 0) {
-		++cp->ierrors;	/* ? */
-		freemsg(mp);
-		continue;
-	    }
-	    if (cp->ierrors != cp->vj_last_ierrors) {
-		vj_uncompress_err(&cp->vj_comp);
-		cp->vj_last_ierrors = cp->ierrors;
-	    }
-	    len = msgdsize(mp);
-	    hlen = (proto == PPP_VJC_COMP? MAX_VJHDR: MAX_IPHDR) + PPP_HDRLEN;
-	    if (hlen > len)
-		hlen = len;
-	    if (mp->b_wptr - mp->b_rptr < hlen && !pullupmsg(mp, hlen)) {
-		++cp->ierrors;
-		freemsg(mp);
-		continue;
+	    len = msgdsize(mp) - PPP_HDRLEN;
+	    if ((cp->flags & DECOMP_VJC) == 0 || len <= 0)
+		goto bad;
+
+	    /*
+	     * Advance past the ppp header.
+	     * Here we assume that the whole PPP header is in the first mblk.
+	     */
+	    np = mp;
+	    dp = np->b_rptr + PPP_HDRLEN;
+	    if (dp >= mp->b_wptr) {
+		np = np->b_cont;
+		dp = np->b_rptr;
 	    }
 
 	    if (proto == PPP_VJC_COMP) {
-		mp->b_rptr += PPP_HDRLEN;
-		vjlen = vj_uncompress_tcp(mp->b_rptr, mp->b_wptr - mp->b_rptr,
-					  len - PPP_HDRLEN, &cp->vj_comp,
-					  &iphdr, &iphlen);
-		if (vjlen < 0
-		    || (np = allocb(iphlen + PPP_HDRLEN + 4, BPRI_MED)) == 0) {
-		    ++cp->ierrors;
+		hlen = MIN(len, MAX_VJHDR);
+		if (np->b_wptr < dp + hlen) {
+		    np = msgpullup(mp, hlen + PPP_HDRLEN);
+		    if (np == 0)
+			goto bad;
 		    freemsg(mp);
-		    continue;
+		    mp = np;
+		    dp = np->b_rptr + PPP_HDRLEN;
 		}
 
-		mp->b_rptr += vjlen;	/* drop off VJ header */
+		if (cp->stats.ppp_ierrors != cp->vj_last_ierrors) {
+		    vj_uncompress_err(&cp->vj_comp);
+		    cp->vj_last_ierrors = cp->stats.ppp_ierrors;
+		}
+
+		vjlen = vj_uncompress_tcp(dp, np->b_wptr - dp, len,
+					  &cp->vj_comp, &iphdr, &iphlen);
+		if (vjlen < 0)
+		    goto bad;
+
+		/* drop ppp and vj headers off */
+		if (mp != np) {
+		    freeb(mp);
+		    mp = np;
+		}
+		mp->b_rptr = dp + vjlen;
+
+		/* allocate a new mblk for the ppp and ip headers */
+		if ((np = allocb(iphlen + PPP_HDRLEN + 4, BPRI_MED)) == 0)
+		    goto bad;
 		dp = np->b_rptr;	/* prepend mblk with TCP/IP hdr */
 		dp[0] = PPP_ALLSTATIONS; /* reconstruct PPP header */
 		dp[1] = PPP_UI;
@@ -629,22 +746,32 @@ ppp_comp_rsrv(q)
 		mp = np;
 
 	    } else {
-		if (!vj_uncompress_uncomp(mp->b_rptr + PPP_HDRLEN,
-					  &cp->vj_comp)) {
-		    ++cp->ierrors;
+		hlen = MIN(len, MAX_IPHDR);
+		if (np->b_wptr < dp + hlen || np->b_datap->db_ref > 1
+		    || mp->b_datap->db_ref > 1) {
+		    np = msgpullup(mp, hlen + PPP_HDRLEN);
+		    if (np == 0)
+			goto bad;
 		    freemsg(mp);
-		    continue;
+		    mp = np;
+		    dp = np->b_rptr + PPP_HDRLEN;
 		}
+
+		if (!vj_uncompress_uncomp(dp, &cp->vj_comp))
+		    goto bad;
 		mp->b_rptr[3] = PPP_IP;	/* fix up the PPP protocol field */
 	    }
 	}
 
 	putnext(q, mp);
+	continue;
+
+    bad:
+	if (mp != 0)
+	    freemsg(mp);
+	cp->stats.ppp_ierrors++;
+	putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
     }
-#if DEBUG
-    if (cp->ierrors != oldierrors)
-	cmn_err(CE_CONT, "ppp_comp_rsrv ierrors now %d\n", cp->ierrors);
-#endif
 }
 
 /*
@@ -657,18 +784,28 @@ ppp_comp_ccp(q, mp, rcvd)
     int rcvd;
 {
     int len, clen;
-    struct ppp_comp_state *cp;
+    comp_state_t *cp;
     unsigned char *dp;
+    mblk_t *np;
 
     len = msgdsize(mp);
-    if (len < PPP_HDRLEN + CCP_HDRLEN || !pullupmsg(mp, len))
+    if (len < PPP_HDRLEN + CCP_HDRLEN)
 	return;
-    cp = (struct ppp_comp_state *) q->q_ptr;
+    if (mp->b_wptr < mp->b_rptr + len) {
+	np = msgpullup(mp, len);
+	if (np == 0) {
+	    cmn_err(CE_CONT, "ppp_comp_ccp: msgpullup failed\n");
+	    return;
+	}
+    } else
+	np = mp;
+
+    cp = (comp_state_t *) q->q_ptr;
     dp = mp->b_rptr + PPP_HDRLEN;
     len -= PPP_HDRLEN;
     clen = CCP_LENGTH(dp);
     if (clen > len)
-	return;
+	goto bad;
 
     switch (CCP_CODE(dp)) {
     case CCP_CONFREQ:
@@ -713,6 +850,9 @@ ppp_comp_ccp(q, mp, rcvd)
 	break;
     }
 
+ bad:
+    if (np != mp)
+	freemsg(np);
 }
 
 #if DEBUG
