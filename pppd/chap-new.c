@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: chap-new.c,v 1.4 2004/01/17 05:47:55 carlsonj Exp $"
+#define RCSID	"$Id: chap-new.c,v 1.5 2004/10/31 22:23:18 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +43,12 @@
 
 #ifdef CHAPMS
 #include "chap_ms.h"
+#define MDTYPE_ALL (MDTYPE_MICROSOFT_V2 | MDTYPE_MICROSOFT | MDTYPE_MD5)
+#else
+#define MDTYPE_ALL (MDTYPE_MD5)
 #endif
+
+int chap_mdtype_all = MDTYPE_ALL;
 
 /* Hook for a plugin to validate CHAP challenge */
 int (*chap_verify_hook)(char *name, char *ourname, int id,

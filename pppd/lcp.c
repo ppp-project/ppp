@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.70 2003/07/28 12:25:41 carlsonj Exp $"
+#define RCSID	"$Id: lcp.c,v 1.71 2004/10/31 22:23:18 paulus Exp $"
 
 /*
  * TODO:
@@ -359,7 +359,7 @@ lcp_init(unit)
     ao->mru = MAXMRU;
     ao->neg_asyncmap = 1;
     ao->neg_chap = 1;
-    ao->chap_mdtype = MDTYPE_ALL;
+    ao->chap_mdtype = chap_mdtype_all;
     ao->neg_upap = 1;
     ao->neg_eap = 1;
     ao->neg_magicnumber = 1;
@@ -1670,7 +1670,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		    if (ao->neg_chap) {
 			PUTCHAR(CILEN_CHAP, nakp);
 			PUTSHORT(PPP_CHAP, nakp);
-			PUTCHAR(ao->chap_mdtype, nakp);
+			PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakp);
 		    } else {
 			PUTCHAR(CILEN_SHORT, nakp);
 			PUTSHORT(PPP_PAP, nakp);

@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.83 2004/10/28 00:32:32 paulus Exp $
+ * $Id: pppd.h,v 1.84 2004/10/31 22:23:18 paulus Exp $
  */
 
 /*
@@ -347,13 +347,11 @@ extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 /* Values for auth_done only */
 #define CHAP_MD5_WITHPEER	0x40
 #define CHAP_MD5_PEER		0x80
-#ifdef CHAPMS
 #define CHAP_MS_SHIFT		8	/* LSB position for MS auths */
 #define CHAP_MS_WITHPEER	0x100
 #define CHAP_MS_PEER		0x200
 #define CHAP_MS2_WITHPEER	0x400
 #define CHAP_MS2_PEER		0x800
-#endif
 
 extern char *current_option;	/* the name of the option being parsed */
 extern int  privileged_option;	/* set iff the current option came from root */
