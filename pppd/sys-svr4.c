@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.30 1999/04/12 06:24:51 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.31 1999/06/24 00:18:41 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -60,10 +60,12 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.30 1999/04/12 06:24:51 paulus Exp $";
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 #include <netinet/in.h>
+#ifdef SOL2
 #include <sys/tihdr.h>
 #include <sys/tiuser.h>
 #include <inet/common.h>
 #include <inet/mib2.h>
+#endif
 
 #include "pppd.h"
 
@@ -1780,6 +1782,7 @@ int
 have_route_to(addr)
     u_int32_t addr;
 {
+#ifdef SOL2
     int fd, r, flags, i;
     struct {
 	struct T_optmgmt_req req;
@@ -1870,6 +1873,9 @@ have_route_to(addr)
     }
     close(fd);
     return 0;
+#else
+    return -1;
+#endif /* SOL2 */
 }
 
 /*
