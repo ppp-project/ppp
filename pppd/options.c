@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.24 1995/08/16 01:39:35 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.25 1995/10/27 03:39:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1422,7 +1422,7 @@ setxonxoff()
     lcp_wantoptions[0].asyncmap |= 0x000A0000;	/* escape ^S and ^Q */
     lcp_wantoptions[0].neg_asyncmap = 1;
 
-    crtscts = 2;
+    crtscts = -2;
     return (1);
 }
 
