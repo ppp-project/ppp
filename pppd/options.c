@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.20 1995/06/12 11:22:51 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.21 1995/06/12 12:02:20 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -153,6 +153,7 @@ static int setipcpconf __P((char **));
 static int setipcpfails __P((char **));
 static int setpaptimeout __P((char **));
 static int setpapreqs __P((char **));
+static int setpapreqtime __P((char **));
 static int setchaptimeout __P((char **));
 static int setchapchal __P((char **));
 static int setchapintv __P((char **));
@@ -165,7 +166,7 @@ static int setnobsdcomp __P((void));
 static int setipparam __P((char **));
 static int setpapcrypt __P((void));
 
-static int number_option __P((char *, long *, int));
+static int number_option __P((char *, u_int32_t *, int));
 static int readable __P((int fd));
 
 void usage();
@@ -236,8 +237,9 @@ static struct cmd {
     {"ipcp-max-terminate", 1, setipcpterm}, /* Set max #xmits for term-reqs */
     {"ipcp-max-configure", 1, setipcpconf}, /* Set max #xmits for conf-reqs */
     {"ipcp-max-failure", 1, setipcpfails}, /* Set max #conf-naks for IPCP */
-    {"pap-restart", 1, setpaptimeout}, /* Set timeout for UPAP */
+    {"pap-restart", 1, setpaptimeout},	/* Set retransmit timeout for PAP */
     {"pap-max-authreq", 1, setpapreqs}, /* Set max #xmits for auth-reqs */
+    {"pap-timeout", 1, setpapreqtime},	/* Set time limit for peer PAP auth. */
     {"chap-restart", 1, setchaptimeout}, /* Set timeout for CHAP */
     {"chap-max-challenge", 1, setchapchal}, /* Set max #xmits for challenge */
     {"chap-interval", 1, setchapintv}, /* Set interval for rechallenge */
@@ -495,7 +497,7 @@ readable(fd)
 
 /*
  * Read a word from a file.
- * Words are delimited by white-space or by quotes (", or ').
+ * Words are delimited by white-space or by quotes (" or ').
  * Quotes, white-space and \ may be escaped with \.
  * \<newline> is ignored.
  */
@@ -741,17 +743,17 @@ getword(f, word, newlinep, filename)
 }
 
 /*
- * number_option - parse a numeric parameter for an option
+ * number_option - parse an unsigned numeric parameter for an option.
  */
 static int
 number_option(str, valp, base)
     char *str;
-    long *valp;
+    u_int32_t *valp;
     int base;
 {
     char *ptr;
 
-    *valp = strtol(str, &ptr, base);
+    *valp = strtoul(str, &ptr, base);
     if (ptr == str) {
 	fprintf(stderr, "%s: invalid number: %s\n", progname, str);
 	return 0;
@@ -770,7 +772,7 @@ int_option(str, valp)
     char *str;
     int *valp;
 {
-    long v;
+    u_int32_t v;
 
     if (!number_option(str, &v, 0))
 	return 0;
@@ -893,7 +895,7 @@ static int
 setmru(argv)
     char **argv;
 {
-    long mru;
+    u_int32_t mru;
 
     if (!number_option(*argv, &mru, 0))
 	return 0;
@@ -910,7 +912,7 @@ static int
 setmtu(argv)
     char **argv;
 {
-    long mtu;
+    u_int32_t mtu;
 
     if (!number_option(*argv, &mtu, 0))
 	return 0;
@@ -1143,7 +1145,7 @@ static int
 setasyncmap(argv)
     char **argv;
 {
-    long asyncmap;
+    u_int32_t asyncmap;
 
     if (!number_option(*argv, &asyncmap, 16))
 	return 0;
@@ -1596,6 +1598,13 @@ setpaptimeout(argv)
     char **argv;
 {
     return int_option(*argv, &upap[0].us_timeouttime);
+}
+
+static int
+setpapreqtime(argv)
+    char **argv;
+{
+    return int_option(*argv, &upap[0].us_reqtimeout);
 }
 
 static int

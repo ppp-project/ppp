@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: upap.h,v 1.3 1994/09/21 06:47:37 paulus Exp $
+ * $Id: upap.h,v 1.4 1995/06/12 12:02:25 paulus Exp $
  */
 
 /*
@@ -45,9 +45,10 @@ typedef struct upap_state {
     int us_clientstate;		/* Client state */
     int us_serverstate;		/* Server state */
     u_char us_id;		/* Current id */
-    int us_timeouttime;		/* Timeout time in milliseconds */
+    int us_timeouttime;		/* Timeout (seconds) for auth-req retrans. */
     int us_transmits;		/* Number of auth-reqs sent */
     int us_maxtransmits;	/* Maximum number of auth-reqs to send */
+    int us_reqtimeout;		/* Time to wait for auth-req from peer */
 } upap_state;
 
 
@@ -75,7 +76,8 @@ typedef struct upap_state {
 /*
  * Timeouts.
  */
-#define UPAP_DEFTIMEOUT	3	/* Timeout time in seconds */
+#define UPAP_DEFTIMEOUT	3	/* Timeout (seconds) for retransmitting req */
+#define UPAP_DEFREQTIME	30	/* Time to wait for auth-req from peer */
 
 
 extern upap_state upap[];

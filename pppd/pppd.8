@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.11 1995/05/01 01:46:40 paulus Exp $
+.\" $Id: pppd.8,v 1.12 1995/06/12 12:02:22 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -394,6 +394,12 @@ Set the PAP restart interval (retransmission timeout) to <n> seconds
 .B pap-max-authreq \fI<n>
 Set the maximum number of PAP authenticate-request transmissions to
 <n> (default 10).
+.TP
+.B pap-timeout \fI<n>
+Set the maximum time that
+.I pppd
+will wait for the peer to authenticate itself with PAP to
+<n> seconds (0 means no limit).
 .TP
 .B chap-restart \fI<n>
 Set the CHAP restart interval (retransmission timeout for challenges)
