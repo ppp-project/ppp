@@ -1,7 +1,7 @@
 #
 # Makefile for STREAMS modules for SunOS 4.
 #
-# $Id: Makefile,v 1.8 1998/02/04 01:42:28 paulus Exp $
+# $Id: Makefile,v 1.9 1998/03/25 03:09:38 paulus Exp $
 #
 
 include Makedefs
@@ -12,7 +12,7 @@ LD = /usr/bin/ld		# make sure we don't get gnu ld
 ARCH = `/bin/arch -k`
 DEFINES= -DKERNEL -D_KERNEL -DSUNOS4 -D$(ARCH) -D__$(ARCH)__ \
 	 -DDEBUG -DNO_DLPI -DSNIT_SUPPORT
-CFLAGS= $(DEFINES) -I.. $(COPTS)
+CFLAGS= $(DEFINES) -I../include $(COPTS)
 
 MODULES= ppp_mod.o ppp_ahdl_mod.o ppp_comp_mod.o if_ppp_mod.o
 
