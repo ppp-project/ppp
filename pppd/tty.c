@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.22 2004/11/13 12:07:29 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.23 2004/12/31 11:49:22 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -754,14 +754,6 @@ int connect_tty()
 	if (pty_master >= 0) {
 		close(pty_master);
 		pty_master = -1;
-	}
-	if (pty_slave >= 0) {
-		close(pty_slave);
-		pty_slave = -1;
-	}
-	if (real_ttyfd >= 0) {
-		close(real_ttyfd);
-		real_ttyfd = -1;
 	}
 	ttyfd = -1;
 	if (got_sigterm)
