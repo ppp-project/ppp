@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.29 1996/09/26 06:21:33 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.30 1997/03/04 03:39:10 paulus Exp $";
 #endif
 
 /*
@@ -118,6 +118,8 @@ struct protent ipcp_protent = {
     ip_demand_conf,
     ip_active_pkt
 };
+
+static void ipcp_clear_addrs __P((int));
 
 /*
  * Lengths of configuration options.
@@ -919,6 +921,27 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		orc = CONFNAK;
             }
             break;
+
+	case CI_MS_WINS1:
+	case CI_MS_WINS2:
+	    /* Microsoft primary or secondary WINS request */
+	    d = citype == CI_MS_WINS2;
+	    IPCPDEBUG((LOG_INFO, "ipcp: received WINS%d Request ", d+1));
+
+	    /* If we do not have a DNS address then we cannot send it */
+	    if (ao->winsaddr[d] == 0 ||
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETLONG(tl, p);
+	    if (htonl(tl) != ao->winsaddr[d]) {
+                DECPTR(sizeof(u_int32_t), p);
+		tl = ntohl(ao->winsaddr[d]);
+		PUTLONG(tl, p);
+		orc = CONFNAK;
+            }
+            break;
 	
 	case CI_COMPRESSTYPE:
 	    IPCPDEBUG((LOG_INFO, "ipcp: received COMPRESSTYPE "));
@@ -1086,7 +1109,7 @@ ip_demand_conf(u)
     if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
 	return 0;
     if (wo->default_route)
-	if (sifdefaultroute(u, wo->hisaddr))
+	if (sifdefaultroute(u, wo->ouraddr, wo->hisaddr))
 	    default_route_set[u] = 1;
     if (wo->proxy_arp)
 	if (sifproxyarp(u, wo->hisaddr))
@@ -1153,9 +1176,32 @@ ipcp_up(f)
      */
     if (demand) {
 	if (go->ouraddr != wo->ouraddr || ho->hisaddr != wo->hisaddr) {
-	    syslog(LOG_ERR, "Failed to negotiate desired IP addresses");
-	    ipcp_close(f->unit, "Wrong IP addresses");
-	    return;
+	    if (go->ouraddr != wo->ouraddr)
+		syslog(LOG_WARNING, "Local IP address changed to %s",
+		       ip_ntoa(go->ouraddr));
+	    if (ho->hisaddr != wo->hisaddr)
+		syslog(LOG_WARNING, "Remote IP address changed to %s",
+		       ip_ntoa(ho->hisaddr));
+	    ipcp_clear_addrs(f->unit);
+
+	    /* Set the interface to the new addresses */
+	    mask = GetMask(go->ouraddr);
+	    if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
+		IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
+		ipcp_close(f->unit, "Interface configuration failed");
+		return;
+	    }
+
+	    /* assign a default route through the interface if required */
+	    if (ipcp_wantoptions[f->unit].default_route) 
+		if (sifdefaultroute(f->unit, go->ouraddr, ho->hisaddr))
+		    default_route_set[f->unit] = 1;
+
+	    /* Make a proxy ARP entry if requested. */
+	    if (ipcp_wantoptions[f->unit].proxy_arp)
+		if (sifproxyarp(f->unit, ho->hisaddr))
+		    proxy_arp_set[f->unit] = 1;
+
 	}
 	demand_rexmit(PPP_IP);
 	sifnpmode(f->unit, PPP_IP, NPMODE_PASS);
@@ -1192,7 +1238,7 @@ ipcp_up(f)
 
 	/* assign a default route through the interface if required */
 	if (ipcp_wantoptions[f->unit].default_route) 
-	    if (sifdefaultroute(f->unit, ho->hisaddr))
+	    if (sifdefaultroute(f->unit, go->ouraddr, ho->hisaddr))
 		default_route_set[f->unit] = 1;
 
 	/* Make a proxy ARP entry if requested. */
@@ -1235,24 +1281,37 @@ ipcp_down(f)
      */
     if (demand) {
 	sifnpmode(f->unit, PPP_IP, NPMODE_QUEUE);
-
     } else {
-	ouraddr = ipcp_gotoptions[f->unit].ouraddr;
-	hisaddr = ipcp_hisoptions[f->unit].hisaddr;
-	if (proxy_arp_set[f->unit]) {
-	    cifproxyarp(f->unit, hisaddr);
-	    proxy_arp_set[f->unit] = 0;
-	}
-	if (default_route_set[f->unit]) {
-	    cifdefaultroute(f->unit, hisaddr);
-	    default_route_set[f->unit] = 0;
-	}
 	sifdown(f->unit);
-	cifaddr(f->unit, ouraddr, hisaddr);
+	ipcp_clear_addrs(f->unit);
     }
 
     /* Execute the ip-down script */
     ipcp_script(f, _PATH_IPDOWN);
+}
+
+
+/*
+ * ipcp_clear_addrs() - clear the interface addresses, routes,
+ * proxy arp entries, etc.
+ */
+static void
+ipcp_clear_addrs(unit)
+    int unit;
+{
+    u_int32_t ouraddr, hisaddr;
+
+    ouraddr = ipcp_gotoptions[unit].ouraddr;
+    hisaddr = ipcp_hisoptions[unit].hisaddr;
+    if (proxy_arp_set[unit]) {
+	cifproxyarp(unit, hisaddr);
+	proxy_arp_set[unit] = 0;
+    }
+    if (default_route_set[unit]) {
+	cifdefaultroute(unit, ouraddr, hisaddr);
+	default_route_set[unit] = 0;
+    }
+    cifaddr(unit, ouraddr, hisaddr);
 }
 
 
@@ -1378,6 +1437,18 @@ ipcp_printpkt(p, plen, printer, arg)
 		    GETLONG(cilong, p);
 		    printer(arg, "addr %s", ip_ntoa(htonl(cilong)));
 		}
+		break;
+	    case CI_MS_DNS1:
+	    case CI_MS_DNS2:
+	        p += 2;
+		GETLONG(cilong, p);
+		printer(arg, "dns-addr %s", ip_ntoa(htonl(cilong)));
+		break;
+	    case CI_MS_WINS1:
+	    case CI_MS_WINS2:
+	        p += 2;
+		GETLONG(cilong, p);
+		printer(arg, "wins-addr %s", ip_ntoa(htonl(cilong)));
 		break;
 	    }
 	    while (p < optend) {
