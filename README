@@ -92,6 +92,9 @@ What's new in ppp-2.4.3.
   team, which provides the ability to authenticate the peer against an
   NT domain controller using MS-CHAP or MS-CHAPV2.
 
+* There is a new pppoatm plugin, by various authors, sent in by David
+  Woodhouse.
+
 
 What was new in ppp-2.4.2.
 **************************
@@ -245,4 +248,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.32 2004/11/06 05:59:42 paulus Exp $)
+($Id: README,v 1.33 2004/11/06 11:36:54 paulus Exp $)
