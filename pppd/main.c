@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.101 2000/12/27 23:26:41 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.102 2001/02/22 03:10:57 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -108,6 +108,9 @@ int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
 int listen_time;
+int got_sigusr2;
+int got_sigterm;
+int got_sighup;
 
 static int waiting;
 static sigjmp_buf sigjmp;
@@ -170,6 +173,7 @@ static void update_db_entry __P((void));
 static void add_db_key __P((const char *));
 static void delete_db_key __P((const char *));
 static void cleanup_db __P((void));
+static void handle_events __P((void));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
@@ -225,8 +229,6 @@ main(argc, argv)
     int i, t;
     char *p;
     struct passwd *pw;
-    struct timeval timo;
-    sigset_t mask;
     struct protent *protp;
     char numbuf[16];
 
@@ -288,6 +290,7 @@ main(argc, argv)
 	|| !options_from_user()
 	|| !parse_args(argc-1, argv+1))
 	exit(EXIT_OPTION_ERROR);
+    devnam_fixed = 1;		/* can no longer change device name */
 
     /*
      * Work out the device name, if it hasn't already been specified,
@@ -404,32 +407,15 @@ main(argc, argv)
 	    /*
 	     * Don't do anything until we see some activity.
 	     */
-	    kill_link = 0;
 	    new_phase(PHASE_DORMANT);
 	    demand_unblock();
 	    add_fd(fd_loop);
 	    for (;;) {
-		if (sigsetjmp(sigjmp, 1) == 0) {
-		    sigprocmask(SIG_BLOCK, &mask, NULL);
-		    if (kill_link || got_sigchld) {
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		    } else {
-			waiting = 1;
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-			wait_input(timeleft(&timo));
-		    }
-		}
-		waiting = 0;
-		calltimeout();
-		if (kill_link) {
-		    if (!persist)
-			break;
-		    kill_link = 0;
-		}
+		handle_events();
+		if (kill_link && !persist)
+		    break;
 		if (get_loop_output())
 		    break;
-		if (got_sigchld)
-		    reap_kids(0);
 	    }
 	    remove_fd(fd_loop);
 	    if (kill_link && !persist)
@@ -473,50 +459,21 @@ main(argc, argv)
 	script_unsetenv("BYTES_RCVD");
 	lcp_lowerup(0);
 
-	/*
-	 * If we are initiating this connection, wait for a short
-	 * time for something from the peer.  This can avoid bouncing
-	 * our packets off his tty before he has it set up.
-	 */
 	add_fd(fd_ppp);
-	if (listen_time != 0) {
-	    struct timeval t;
-	    t.tv_sec = listen_time / 1000;
-	    t.tv_usec = listen_time % 1000;
-	    wait_input(&t);
-	}
-
 	lcp_open(0);		/* Start protocol */
-	open_ccp_flag = 0;
 	status = EXIT_NEGOTIATION_FAILED;
 	new_phase(PHASE_ESTABLISH);
 	while (phase != PHASE_DEAD) {
-	    if (sigsetjmp(sigjmp, 1) == 0) {
-		sigprocmask(SIG_BLOCK, &mask, NULL);
-		if (kill_link || open_ccp_flag || got_sigchld) {
-		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		} else {
-		    waiting = 1;
-		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		    wait_input(timeleft(&timo));
-		}
-	    }
-	    waiting = 0;
-	    calltimeout();
+	    handle_events();
 	    get_input();
-	    if (kill_link) {
+	    if (kill_link)
 		lcp_close(0, "User request");
-		kill_link = 0;
-	    }
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK || phase == PHASE_RUNNING) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
 		    (*ccp_protent.open)(0);
 		}
-		open_ccp_flag = 0;
 	    }
-	    if (got_sigchld)
-		reap_kids(0);	/* Don't leave dead kids lying around */
 	}
 
 	/*
@@ -578,7 +535,6 @@ main(argc, argv)
 	if (!persist || (maxfail > 0 && unsuccess >= maxfail))
 	    break;
 
-	kill_link = 0;
 	if (demand)
 	    demand_discard();
 	t = need_holdoff? holdoff: 0;
@@ -588,24 +544,9 @@ main(argc, argv)
 	    new_phase(PHASE_HOLDOFF);
 	    TIMEOUT(holdoff_end, NULL, t);
 	    do {
-		if (sigsetjmp(sigjmp, 1) == 0) {
-		    sigprocmask(SIG_BLOCK, &mask, NULL);
-		    if (kill_link || got_sigchld) {
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		    } else {
-			waiting = 1;
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-			wait_input(timeleft(&timo));
-		    }
-		}
-		waiting = 0;
-		calltimeout();
-		if (kill_link) {
-		    kill_link = 0;
+		handle_events();
+		if (kill_link)
 		    new_phase(PHASE_DORMANT); /* allow signal to end holdoff */
-		}
-		if (got_sigchld)
-		    reap_kids(0);
 	    } while (phase == PHASE_HOLDOFF);
 	    if (!persist)
 		break;
@@ -627,6 +568,50 @@ main(argc, argv)
 
     die(status);
     return 0;
+}
+
+/*
+ * handle_events - wait for something to happen and respond to it.
+ */
+static void
+handle_events()
+{
+    struct timeval timo;
+    sigset_t mask;
+
+    kill_link = open_ccp_flag = 0;
+    if (sigsetjmp(sigjmp, 1) == 0) {
+	sigprocmask(SIG_BLOCK, &mask, NULL);
+	if (got_sighup || got_sigterm || got_sigusr2 || got_sigchld) {
+	    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	} else {
+	    waiting = 1;
+	    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	    wait_input(timeleft(&timo));
+	}
+    }
+    waiting = 0;
+    calltimeout();
+    if (got_sighup) {
+	kill_link = 1;
+	got_sighup = 0;
+	if (status != EXIT_HANGUP)
+	    status = EXIT_USER_REQUEST;
+    }
+    if (got_sigterm) {
+	kill_link = 1;
+	persist = 0;
+	status = EXIT_USER_REQUEST;
+	got_sigterm = 0;
+    }
+    if (got_sigchld) {
+	reap_kids(0);	/* Don't leave dead kids lying around */
+	got_sigchld = 0;
+    }
+    if (got_sigusr2) {
+	open_ccp_flag = 1;
+	got_sigusr2 = 0;
+    }
 }
 
 /*
@@ -1086,18 +1071,19 @@ static struct timeval timenow;		/* Current time */
 /*
  * timeout - Schedule a timeout.
  *
- * Note that this timeout takes the number of seconds, NOT hz (as in
+ * Note that this timeout takes the number of milliseconds, NOT hz (as in
  * the kernel).
  */
 void
-timeout(func, arg, time)
+timeout(func, arg, secs, usecs)
     void (*func) __P((void *));
     void *arg;
-    int time;
+    int secs, usecs;
 {
     struct callout *newp, *p, **pp;
   
-    MAINDEBUG(("Timeout %p:%p in %d seconds.", func, arg, time));
+    MAINDEBUG(("Timeout %p:%p in %d.%03d seconds.", func, arg,
+	       time / 1000, time % 1000));
   
     /*
      * Allocate timeout.
@@ -1107,9 +1093,13 @@ timeout(func, arg, time)
     newp->c_arg = arg;
     newp->c_func = func;
     gettimeofday(&timenow, NULL);
-    newp->c_time.tv_sec = timenow.tv_sec + time;
-    newp->c_time.tv_usec = timenow.tv_usec;
-  
+    newp->c_time.tv_sec = timenow.tv_sec + secs;
+    newp->c_time.tv_usec = timenow.tv_usec + usecs;
+    if (newp->c_time.tv_usec >= 1000000) {
+	newp->c_time.tv_sec += newp->c_time.tv_usec / 1000000;
+	newp->c_time.tv_usec %= 1000000;
+    }
+
     /*
      * Find correct place and link it in.
      */
@@ -1226,9 +1216,7 @@ hup(sig)
     int sig;
 {
     info("Hangup (SIGHUP)");
-    kill_link = 1;
-    if (status != EXIT_HANGUP)
-	status = EXIT_USER_REQUEST;
+    got_sighup = 1;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
@@ -1249,9 +1237,7 @@ term(sig)
     int sig;
 {
     info("Terminating on signal %d.", sig);
-    persist = 0;		/* don't try to restart */
-    kill_link = 1;
-    status = EXIT_USER_REQUEST;
+    got_sigterm = 1;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
@@ -1304,7 +1290,7 @@ static void
 open_ccp(sig)
     int sig;
 {
-    open_ccp_flag = 1;
+    got_sigusr2 = 1;
     if (waiting)
 	siglongjmp(sigjmp, 1);
 }
@@ -1555,7 +1541,6 @@ reap_kids(waitfor)
     int pid, status;
     struct subprocess *chp, **prevp;
 
-    got_sigchld = 0;
     if (n_children == 0)
 	return 0;
     while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
