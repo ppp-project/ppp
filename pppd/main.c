@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.16 1994/08/25 06:55:21 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.17 1994/09/01 00:28:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -78,6 +78,7 @@ int s;				/* Socket file descriptor */
 
 int phase;			/* where the link is at */
 int kill_link;
+int open_ccp_flag;
 
 static int initfdflags = -1;	/* Initial file descriptor flags */
 
@@ -93,8 +94,8 @@ int baud_rate;
 static void hup __ARGS((int));
 static void term __ARGS((int));
 static void chld __ARGS((int));
-static void incdebug __ARGS((int));
-static void nodebug __ARGS((int));
+static void toggle_debug __ARGS((int));
+static void open_ccp __ARGS((int));
 
 static void get_input __ARGS((void));
 void establish_ppp __ARGS((void));
@@ -140,13 +141,14 @@ main(argc, argv)
     int argc;
     char *argv[];
 {
-    int mask, i, nonblock;
+    int i, nonblock;
     struct sigaction sa;
     struct cmd *cmdp;
     FILE *pidfile;
     char *p;
     struct passwd *pw;
     struct timeval timo;
+    sigset_t mask;
 
     p = ttyname(0);
     if (p)
@@ -241,8 +243,8 @@ main(argc, argv)
     SIGNAL(SIGTERM, term);		/* Terminate */
     SIGNAL(SIGCHLD, chld);
 
-    signal(SIGUSR1, incdebug);		/* Increment debug flag */
-    signal(SIGUSR2, nodebug);		/* Reset debug flag */
+    signal(SIGUSR1, toggle_debug);	/* Toggle debug flag */
+    signal(SIGUSR2, open_ccp);		/* Reopen CCP */
 
     /*
      * Lock the device if we've been asked to.
@@ -340,6 +342,13 @@ main(argc, argv)
 		lcp_close(0);
 		kill_link = 0;
 	    }
+	    if (open_ccp_flag) {
+		if (phase == PHASE_NETWORK) {
+		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
+		    ccp_open(0);
+		}
+		open_ccp_flag = 0;
+	    }
 	    get_input();
 	    reap_kids();	/* Don't leave dead kids lying around */
 	}
@@ -431,7 +440,7 @@ get_input()
 
 	if (i == sizeof (prottbl) / sizeof (struct protent)) {
 	    if (debug)
-		syslog(LOG_WARNING, "Unknown protocol (%x) received",
+		syslog(LOG_WARNING, "Unknown protocol (0x%x) received",
 		       protocol);
 	    lcp_sprotrej(0, p - DLLHEADERLEN, len + DLLHEADERLEN);
 	}
@@ -704,32 +713,31 @@ chld(sig)
 
 
 /*
- * incdebug - Catch SIGUSR1 signal.
+ * toggle_debug - Catch SIGUSR1 signal.
  *
- * Increment debug flag.
+ * Toggle debug flag.
  */
 /*ARGSUSED*/
 static void
-incdebug(sig)
+toggle_debug(sig)
     int sig;
 {
-    debug++;
+    debug = !debug;
     note_debug_level();
 }
 
 
 /*
- * nodebug - Catch SIGUSR2 signal.
+ * open_ccp - Catch SIGUSR2 signal.
  *
- * Turn off debugging.
+ * Try to (re)negotiate compression.
  */
 /*ARGSUSED*/
 static void
-nodebug(sig)
+open_ccp(sig)
     int sig;
 {
-    debug = 0;
-    note_debug_level();
+    open_ccp_flag = 1;
 }
 
 
