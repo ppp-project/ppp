@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.39 2002/09/01 12:00:15 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.40 2002/10/27 11:46:24 fcusack Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -686,7 +686,8 @@ ccp_addci(f, p, lenp)
 
     /*
      * Add the compression types that we can receive, in decreasing
-     * preference order.
+     * preference order.  Get the kernel to allocate the first one
+     * in case it gets Acked.
      */
 #ifdef MPPE
     if (go->mppe) {
@@ -738,21 +739,25 @@ ccp_addci(f, p, lenp)
 	p[0] = CI_BSD_COMPRESS;
 	p[1] = CILEN_BSD_COMPRESS;
 	p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
-	for (;;) {
-	    if (go->bsd_bits < BSD_MIN_BITS) {
-		go->bsd_compress = 0;
-		break;
+	if (p != p0) {
+	    p += CILEN_BSD_COMPRESS;	/* not the first option */
+	} else {
+	    for (;;) {
+		if (go->bsd_bits < BSD_MIN_BITS) {
+		    go->bsd_compress = 0;
+		    break;
+		}
+		res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 0);
+		if (res > 0) {
+		    p += CILEN_BSD_COMPRESS;
+		    break;
+		} else if (res < 0) {
+		    go->bsd_compress = 0;
+		    break;
+		}
+		--go->bsd_bits;
+		p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
 	    }
-	    res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 0);
-	    if (res > 0) {
-		p += CILEN_BSD_COMPRESS;
-		break;
-	    } else if (res < 0) {
-		go->bsd_compress = 0;
-		break;
-	    }
-	    --go->bsd_bits;
-	    p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
 	}
     }
     /* XXX Should Predictor 2 be preferable to Predictor 1? */
