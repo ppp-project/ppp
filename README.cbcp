@@ -1,0 +1,1515 @@
+	     Microsoft Call Back Configuration Protocol.
+			by Pedro Roque Marques
+
+The CBCP is a method by which the Microsoft Windows NT Server may
+implement additional security. It is possible to configure the server
+in such a manner so as to require that the client systems which
+connect with it are required that following a valid authentication to
+leave a method by which the number may be returned call.
+
+It is a requirement of servers so configured that the protocol be
+exchanged.
+
+So, this set of patches may be applied to the pppd process to enable
+the cbcp client *only* portion of the specification. It is primarily
+meant to permit connection with Windows NT Servers.
+
+The ietf-working specification may be obtained from ftp.microsoft.com
+in the developr/rfc directory.
+
+The ietf task group has decided to recommend that the LCP sequence be
+extended to permit the callback operation. For this reason, these
+patches are not 'part' of pppd but are an adjunct to the code. I
+hopefully have included enough of the context to permit the patch
+program so that minor changes to the program should not effect the
+patch by more than a few lines in the 'fuzz' factor.
+
+
+
+diff -r --unified=10 ppp-2.2a5.orig/linux/ppp_defs.h ppp-2.2a5/linux/ppp_defs.h
+--- ppp-2.2a5.orig/linux/ppp_defs.h	Sat May 13 12:38:19 1995
++++ ppp-2.2a5/linux/ppp_defs.h	Sat May 13 13:46:36 1995
+@@ -56,20 +56,21 @@
+ #define PPP_IP		0x21	/* Internet Protocol */
+ #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
+ #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
+ #define PPP_COMP	0xfd	/* compressed packet */
+ #define PPP_IPCP	0x8021	/* IP Control Protocol */
+ #define PPP_CCP		0x80fd	/* Compression Control Protocol */
+ #define PPP_LCP		0xc021	/* Link Control Protocol */
+ #define PPP_PAP		0xc023	/* Password Authentication Protocol */
+ #define PPP_LQR		0xc025	/* Link Quality Report protocol */
+ #define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
++#define PPP_CBCP        0xc029  /* Callback Control Protocol */
+ 
+ /*
+  * Values for FCS calculations.
+  */
+ #define PPP_INITFCS	0xffff	/* Initial FCS value */
+ #define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
+ #define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
+ 
+ /*
+  * A 32-bit unsigned integral type.
+diff -r --unified=10 ppp-2.2a5.orig/net/ppp_defs.h ppp-2.2a5/net/ppp_defs.h
+--- ppp-2.2a5.orig/net/ppp_defs.h	Sat May 13 12:38:19 1995
++++ ppp-2.2a5/net/ppp_defs.h	Sat May 13 13:57:14 1995
+@@ -56,20 +56,21 @@
+ #define PPP_IP		0x21	/* Internet Protocol */
+ #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
+ #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
+ #define PPP_COMP	0xfd	/* compressed packet */
+ #define PPP_IPCP	0x8021	/* IP Control Protocol */
+ #define PPP_CCP		0x80fd	/* Compression Control Protocol */
+ #define PPP_LCP		0xc021	/* Link Control Protocol */
+ #define PPP_PAP		0xc023	/* Password Authentication Protocol */
+ #define PPP_LQR		0xc025	/* Link Quality Report protocol */
+ #define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
++#define PPP_CBCP        0xc029  /* Callback Control Protocol */
+ 
+ /*
+  * Values for FCS calculations.
+  */
+ #define PPP_INITFCS	0xffff	/* Initial FCS value */
+ #define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
+ #define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
+ 
+ /*
+  * A 32-bit unsigned integral type.
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.aix4 ppp-2.2a5/pppd/Makefile.aix4
+--- ppp-2.2a5.orig/pppd/Makefile.aix4	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.aix4	Sat May 13 14:09:17 1995
+@@ -3,26 +3,26 @@
+ # $Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ #
+ #ifndef BINDIR
+ BINDIR = /usr/sbin
+ #endif
+ #ifndef MANDIR
+ MANDIR = /usr/man
+ #ENDIF
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c \
+-	auth.c options.c sys-bsd.c sys-str.c sys-aix4.c ccp.c
+-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
++	auth.c options.c sys-bsd.c sys-str.c sys-aix4.c ccp.c cbcp.c
++HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h cbc.h
+ MANPAGES = pppd.8
+ 
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o \
+-	auth.o options.o sys-aix4.o ccp.o
++	auth.o options.o sys-aix4.o ccp.o cbcp.o
+ 
+ CC = xlc
+ DEBUG_FLAGS = -DDEBUGALL
+ # SECURE_FLAGS = -DREQ_SYSOPTIONS=1
+ COMPILE_FLAGS = -DSTREAMS
+ COPTS = -O
+ LIBS= -bI:/lib/pse.exp
+ LOCK_PREFIX=\"/var/locks/LCK..\"
+ 
+ CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS) $(SECURE_FLAGS)
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.bsd ppp-2.2a5/pppd/Makefile.bsd
+--- ppp-2.2a5.orig/pppd/Makefile.bsd	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.bsd	Sat May 13 14:09:36 1995
+@@ -1,18 +1,18 @@
+ #	$Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ 
+ BINDIR?= /usr/sbin
+ CFLAGS+= -I.. -DHAVE_PATHS_H
+ 
+ PROG=	pppd
+ SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+-	auth.c options.c sys-bsd.c
++	auth.c options.c sys-bsd.c cbcp.c
+ MAN8=	pppd.0
+ # The next line is for NetBSD-current systems.
+ MAN=	pppd.cat8
+ BINMODE=4555
+ BINOWN=	root
+ 
+ LDADD=	-lcrypt -lutil
+ DPADD=	${LIBCRYPT} ${LIBUTIL}
+ 
+ .include <bsd.prog.mk>
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.linux ppp-2.2a5/pppd/Makefile.linux
+--- ppp-2.2a5.orig/pppd/Makefile.linux	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.linux	Sat May 13 13:46:36 1995
+@@ -1,25 +1,25 @@
+ #
+ # pppd makefile for Linux
+ # $Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ #
+ 
+ BINDIR = /usr/etc
+ MANDIR = /usr/man
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+-	auth.c options.c sys-linux.c
+-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
++	auth.c options.c sys-linux.c cbcp.c
++HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h cbcp.h
+ MANPAGES = pppd.8
+ 
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+-	auth.o options.o sys-linux.o
++	auth.o options.o sys-linux.o cbcp.o
+ 
+ all: pppd
+ 
+ #
+ # include dependancies if present and backup if as a header file
+ ifeq (.depend,$(wildcard .depend))
+ include .depend
+ HEADERS := $(HEADERS) .depend
+ endif
+ 
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.osf ppp-2.2a5/pppd/Makefile.osf
+--- ppp-2.2a5.orig/pppd/Makefile.osf	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.osf	Sat May 13 14:09:54 1995
+@@ -1,26 +1,26 @@
+ #
+ # pppd makefile for OSF/1 on DEC Alpha
+ # $Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ #
+ 
+ BINDIR = /usr/local/etc
+ MANDIR = /usr/local/man
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+ 	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c \
+-	sys-osf.c
+-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
++	sys-osf.c cbcp.c
++HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h cbcp.h
+ MANPAGES = pppd.8
+ 
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+-	auth.o options.o sys-osf.o
++	auth.o options.o sys-osf.o cbcp.o
+ 
+ CC = cc
+ DEBUG_FLAGS = -DDEBUGALL
+ COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int
+ COPTS = -O2
+ LIBS = 
+ 
+ CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
+ 
+ SOURCE= RELNOTES Makefile \
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.sol2 ppp-2.2a5/pppd/Makefile.sol2
+--- ppp-2.2a5.orig/pppd/Makefile.sol2	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.sol2	Sat May 13 14:10:09 1995
+@@ -6,21 +6,21 @@
+ BINDIR = /usr/local/etc
+ MANDIR = /usr/local/man
+ 
+ CC = gcc
+ COPTS = -g -O2
+ CFLAGS = $(COPTS) -I..
+ 
+ INSTALL = /usr/sbin/install
+ 
+ OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+-	auth.o options.o sys-sol2.o
++	auth.o options.o sys-sol2.o cbcp.o
+ 
+ pppd:	$(OBJS)
+ 	$(CC) -o pppd $(OBJS) -lnsl
+ 
+ install:
+ 	$(INSTALL) -f $(BINDIR) -m 4755 -u root pppd
+ 	$(INSTALL) -f $(MANDIR)/man8 pppd.8
+ 
+ clean:
+ 	rm -f $(OBJS) pppd *~ core
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.sun ppp-2.2a5/pppd/Makefile.sun
+--- ppp-2.2a5.orig/pppd/Makefile.sun	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.sun	Sat May 13 14:10:27 1995
+@@ -2,26 +2,26 @@
+ # pppd makefile for Suns
+ # $Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ #
+ 
+ BINDIR = /usr/local/etc
+ MANDIR = /usr/local/man
+ 
+ INSTALL= install -o root -g daemon
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+-	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c
+-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
++	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c cbcp.c
++HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h cbcp.h
+ MANPAGES = pppd.8
+ 
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+-	auth.o options.o sys-str.o
++	auth.o options.o sys-str.o cbcp.o
+ 
+ # CC = gcc
+ DEBUG_FLAGS =
+ COMPILE_FLAGS =
+ COPTS = -O
+ LIBS = -lkvm
+ 
+ CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+ 
+ SOURCE= RELNOTES Makefile \
+diff -r --unified=10 ppp-2.2a5.orig/pppd/Makefile.ultrix ppp-2.2a5/pppd/Makefile.ultrix
+--- ppp-2.2a5.orig/pppd/Makefile.ultrix	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/Makefile.ultrix	Sat May 13 14:10:44 1995
+@@ -1,25 +1,25 @@
+ #
+ # pppd makefile for Ultrix
+ # $Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $
+ #
+ 
+ BINDIR = /usr/local/etc
+ MANDIR = /usr/local/man
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
+-	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c
+-HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
++	auth.c options.c sys-bsd.c sys-str.c sys-ultrix.c sys-linux.c cbcp.c
++HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h cbcp.h
+ MANPAGES = pppd.8
+ 
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
+-	auth.o options.o sys-ultrix.o
++	auth.o options.o sys-ultrix.o cbcp.o
+ 
+ # CC = gcc
+ DEBUG_FLAGS =
+ COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int
+ COPTS = -O
+ LIBS =
+ 
+ CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+ 
+ SOURCE= RELNOTES Makefile \
+diff -r --unified=10 ppp-2.2a5.orig/pppd/auth.c ppp-2.2a5/pppd/auth.c
+--- ppp-2.2a5.orig/pppd/auth.c	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/auth.c	Sat May 13 13:46:36 1995
+@@ -55,20 +55,21 @@
+ #ifndef PW_PPP
+ #define PW_PPP PW_LOGIN
+ #endif
+ #endif
+ 
+ #include "pppd.h"
+ #include "fsm.h"
+ #include "lcp.h"
+ #include "upap.h"
+ #include "chap.h"
++#include "cbcp.h"
+ #include "ipcp.h"
+ #include "ccp.h"
+ #include "pathnames.h"
+ 
+ #ifdef sparc
+ #include <alloca.h>
+ #endif /*sparc*/
+ 
+ /* Used for storing a sequence of words.  Usually malloced. */
+ struct wordlist {
+@@ -93,20 +94,21 @@
+ /* Bits in auth_pending[] */
+ #define UPAP_WITHPEER	1
+ #define UPAP_PEER	2
+ #define CHAP_WITHPEER	4
+ #define CHAP_PEER	8
+ 
+ /* Prototypes */
+ void check_access __P((FILE *, char *));
+ 
+ static void network_phase __P((int));
++static void callback_phase __P((int));
+ static int  login __P((char *, char *, char **, int *));
+ static void logout __P((void));
+ static int  null_login __P((int));
+ static int  get_upap_passwd __P((void));
+ static int  have_upap_secret __P((void));
+ static int  have_chap_secret __P((char *, char *));
+ static int  scan_authfile __P((FILE *, char *, char *, char *,
+ 				  struct wordlist **, char *));
+ static void free_wordlist __P((struct wordlist *));
+ 
+@@ -140,20 +142,21 @@
+ 
+ /*
+  * LCP has gone down; it will either die or try to re-establish.
+  */
+ void
+ link_down(unit)
+     int unit;
+ {
+     ipcp_close(0);
+     ccp_close(0);
++    cbcp_close(0);
+     phase = PHASE_TERMINATE;
+ }
+ 
+ /*
+  * The link is established.
+  * Proceed to the Dead, Authenticate or Network phase as appropriate.
+  */
+ void
+ link_established(unit)
+     int unit;
+@@ -189,36 +192,53 @@
+     if (ho->neg_chap) {
+ 	ChapAuthWithPeer(unit, our_name, ho->chap_mdtype);
+ 	auth |= CHAP_WITHPEER;
+     } else if (ho->neg_upap) {
+ 	upap_authwithpeer(unit, user, passwd);
+ 	auth |= UPAP_WITHPEER;
+     }
+     auth_pending[unit] = auth;
+ 
+     if (!auth)
+-	network_phase(unit);
++	callback_phase(unit);
+ }
+ 
+ /*
+  * Proceed to the network phase.
+  */
+ static void
+ network_phase(unit)
+     int unit;
+ {
+     phase = PHASE_NETWORK;
+     ipcp_open(unit);
+     ccp_open(unit);
+ }
+ 
+ /*
++ * Proceed to the callback phase which may be empty.
++ */
++static void
++callback_phase(unit)
++     int unit;
++{
++    lcp_options *wo = &lcp_wantoptions[unit];
++
++    if (!wo->neg_cbcp)
++        network_phase(unit);
++    else {
++        phase = PHASE_CALLBACK;
++        cbcp_open(unit);
++    }
++}
++
++/*
+  * The peer has failed to authenticate himself using `protocol'.
+  */
+ void
+ auth_peer_fail(unit, protocol)
+     int unit, protocol;
+ {
+     /*
+      * Authentication failure: take the link down
+      */
+     lcp_close(unit);
+@@ -242,27 +262,24 @@
+ 	bit = UPAP_PEER;
+ 	break;
+     default:
+ 	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
+ 	       protocol);
+ 	return;
+     }
+ 
+     /*
+      * If there is no more authentication still to be done,
+-     * proceed to the network phase.
++     * go to the next phase.
+      */
+-    if ((auth_pending[unit] &= ~bit) == 0) {
+-	phase = PHASE_NETWORK;
+-	ipcp_open(unit);
+-	ccp_open(unit);
+-    }
++    if ((auth_pending[unit] &= ~bit) == 0)
++	callback_phase(unit);
+ }
+ 
+ /*
+  * We have failed to authenticate ourselves to the peer using `protocol'.
+  */
+ void
+ auth_withpeer_fail(unit, protocol)
+     int unit, protocol;
+ {
+     /*
+@@ -291,22 +308,23 @@
+     default:
+ 	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
+ 	       protocol);
+ 	bit = 0;
+     }
+ 
+     /*
+      * If there is no more authentication still being done,
+      * proceed to the network phase.
+      */
++
+     if ((auth_pending[unit] &= ~bit) == 0)
+-	network_phase(unit);
++	callback_phase(unit);
+ }
+ 
+ 
+ /*
+  * check_auth_options - called to check authentication options.
+  */
+ void
+ check_auth_options()
+ {
+     lcp_options *wo = &lcp_wantoptions[0];
+@@ -335,21 +353,20 @@
+     if (ao->neg_chap && !have_chap_secret(our_name, remote_name))
+ 	ao->neg_chap = 0;
+     if (wo->neg_chap && !have_chap_secret(remote_name, our_name))
+ 	wo->neg_chap = 0;
+ 
+     if (auth_required && !wo->neg_chap && !wo->neg_upap) {
+ 	fprintf(stderr, "\
+ pppd: peer authentication required but no authentication files accessible\n");
+ 	exit(1);
+     }
+-
+ }
+ 
+ 
+ /*
+  * check_passwd - Check the user name and passwd against the PAP secrets
+  * file.  If requested, also check against the system password database,
+  * and login the user if OK.
+  *
+  * returns:
+  *	UPAP_AUTHNAK: Authentication failed.
+diff -r --unified=10 ppp-2.2a5.orig/pppd/cbcp.c ppp-2.2a5/pppd/cbcp.c
+--- ppp-2.2a5.orig/pppd/cbcp.c	Sat May 13 14:08:45 1995
++++ ppp-2.2a5/pppd/cbcp.c	Sat May 13 14:15:12 1995
+@@ -0,0 +1,370 @@
++/*
++ * cbcp - Call Back Configuration Protocol.
++ *
++ * Copyright (c) 1995 Pedro Roque Marques
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms are permitted
++ * provided that the above copyright notice and this paragraph are
++ * duplicated in all such forms and that any documentation,
++ * advertising materials, and other materials related to such
++ * distribution and use acknowledge that the software was developed
++ * by Pedro Roque Marques.  The name of the author may not be used to
++ * endorse or promote products derived from this software without
++ * specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
++ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
++ */
++
++#ifndef lint
++static char rcsid[] = "$Id: README.cbcp,v 1.1 1997/04/30 05:37:27 paulus Exp $";
++#endif
++
++#include <stdio.h>
++#include <string.h>
++#include <sys/types.h>
++#include <sys/time.h>
++#include <syslog.h>
++
++#include "pppd.h"
++#include "cbcp.h"
++#include "fsm.h"
++#include "lcp.h"
++#include "ipcp.h"
++
++cbcp_state cbcp[NUM_PPP];	
++
++/* internal prototypes */
++
++void cbcp_recvreq(cbcp_state *us, char *pckt, int len);
++void cbcp_resp(cbcp_state *us);
++void cbcp_up(cbcp_state *us);
++void cbcp_recvack(cbcp_state *us, char *pckt, int len);
++void cbcp_send(cbcp_state *us, u_char code, u_char *buf, int len);
++
++/* init state */
++void cbcp_init(int iface)
++{
++    cbcp_state *us;
++
++    us = &cbcp[iface];
++    memset(us, 0, sizeof(cbcp_state));
++    us->us_unit = iface;
++    us->us_type |= (1 << CB_CONF_NO);
++}
++
++/* lower layer is up */
++void cbcp_lowerup(int iface)
++{
++    cbcp_state *us = &cbcp[iface];
++
++    syslog(LOG_DEBUG, "cbcp_lowerup");
++    syslog(LOG_DEBUG, "want: %d", us->us_type);
++
++    if (us->us_type == CB_CONF_USER)
++        syslog(LOG_DEBUG, "phone no: %s", us->us_number);
++}
++
++void cbcp_open(int unit)
++{
++    syslog(LOG_DEBUG, "cbcp_open");
++}
++
++void cbcp_close(int unit)
++{
++}
++
++/* process an incomming packet */
++void cbcp_input(int unit, u_char *inpacket, int pktlen)
++{
++    u_char *inp;
++    u_char code, id;
++    u_short len;
++
++    cbcp_state *us = &cbcp[unit];
++
++    inp = inpacket;
++
++    if (pktlen < CBCP_MINLEN) {
++        syslog(LOG_ERR, "CBCP packet is too small");
++	return;
++    }
++
++    GETCHAR(code, inp);
++    GETCHAR(id, inp);
++    GETSHORT(len, inp);
++
++#if 0
++    if (len > pktlen) {
++        syslog(LOG_ERR, "CBCP packet: invalid length");
++        return;
++    }
++#endif
++
++    len -= CBCP_MINLEN;
++ 
++    switch(code) {
++    case CBCP_REQ:
++        us->us_id = id;
++	cbcp_recvreq(us, inp, len);
++	break;
++
++    case CBCP_RESP:
++	syslog(LOG_DEBUG, "CBCP_RESP received");
++	break;
++
++    case CBCP_ACK:
++	if (id != us->us_id)
++	    syslog(LOG_DEBUG, "id doesn't match: expected %d recv %d",
++		   us->us_id, id);
++
++	cbcp_recvack(us, inp, len);
++	break;
++
++    default:
++	break;
++    }
++}
++
++/* protocol was rejected by foe */
++void cbcp_protrej(int iface)
++{
++}
++
++char *cbcp_codenames[] = {"Request", "Response", "Ack"};
++
++char *cbcp_optionnames[] = {  "NoCallback",
++			      "UserDefined",
++			      "AdminDefined",
++			      "List"};
++/* pretty print a packet */
++int cbcp_printpkt(u_char *p, int plen,
++		   void (*printer) __P((void *, char *, ...)),
++		   void *arg)
++{
++    int code, opt, id, len, olen, delay;
++    u_char *pstart, *optend;
++    u_short cishort;
++    u_long cilong;
++
++    if (plen < HEADERLEN)
++	return 0;
++    pstart = p;
++    GETCHAR(code, p);
++    GETCHAR(id, p);
++    GETSHORT(len, p);
++    if (len < HEADERLEN || len > plen)
++	return 0;
++
++    if (code >= 1 && code <= sizeof(cbcp_codenames) / sizeof(char *))
++	printer(arg, " %s", cbcp_codenames[code-1]);
++    else
++	printer(arg, " code=0x%x", code); 
++
++    printer(arg, " id=0x%x", id);
++    len -= HEADERLEN;
++
++    switch (code) {
++    case CBCP_REQ:
++    case CBCP_RESP:
++    case CBCP_ACK:
++        while(len >= 2) {
++	    GETCHAR(opt, p);
++	    GETCHAR(olen, p);
++
++	    if (olen < 2 || olen > len) {
++	        break;
++	    }
++
++	    printer(arg, " <");
++	    len -= olen;
++
++	    if (opt >= 1 && opt <= sizeof(cbcp_optionnames) / sizeof(char *))
++	    	printer(arg, " %s", cbcp_optionnames[opt-1]);
++	    else
++	        printer(arg, " option=0x%x", opt); 
++
++	    if (olen > 2) {
++	        GETCHAR(delay, p);
++		printer(arg, " delay = %d", delay);
++	    }
++
++	    if (olen > 3) {
++	        int addrt;
++		char str[256];
++
++		GETCHAR(addrt, p);
++		memcpy(str, p, olen - 4);
++		str[olen - 4] = 0;
++		printer(arg, " number = %s", str);
++	    }
++	    printer(arg, ">");
++	break;
++	}
++
++      default:
++	break;
++    }
++
++    for (; len > 0; --len) {
++	GETCHAR(code, p);
++	printer(arg, " %.2x", code);
++    }
++
++    return p - pstart;
++}
++
++/* received CBCP request */
++
++void cbcp_recvreq(cbcp_state *us, char *pckt, int pcktlen)
++{
++    u_char type, opt_len, delay, addr_type;
++    char address[256];
++    int len = pcktlen;
++
++    address[0] = 0;
++
++    while (len) {
++        syslog(LOG_DEBUG, "length: %d", len);
++
++	GETCHAR(type, pckt);
++	GETCHAR(opt_len, pckt);
++
++	if (opt_len > 2)
++	    GETCHAR(delay, pckt);
++
++	us->us_allowed |= (1 << type);
++
++	switch(type) {
++	case CB_CONF_NO:
++	    syslog(LOG_DEBUG, "no callback allowed");
++	    break;
++
++      case CB_CONF_USER:
++	    syslog(LOG_DEBUG, "user callback allowed");
++	    if (opt_len > 4) {
++	        GETCHAR(addr_type, pckt);
++		memcpy(address, pckt, opt_len - 4);
++		address[opt_len - 4] = 0;
++		if (address[0])
++		    syslog(LOG_DEBUG, "address: %s", address);
++	    }
++	break;
++
++      case CB_CONF_ADMIN:
++	    syslog(LOG_DEBUG, "user admin defined allowed");
++	    break;
++
++      case CB_CONF_LIST:
++	    break;
++	}
++	len -= opt_len;
++    }
++
++  cbcp_resp(us);
++}
++
++void cbcp_resp(cbcp_state *us)
++{
++    u_char cb_type;
++    u_char buf[256];
++    u_char *bufp = buf;
++    int len = 0;
++
++    cb_type = us->us_allowed & us->us_type;
++    syslog(LOG_DEBUG, "cbcp_resp cb_type=%d", cb_type);
++
++#if 0
++    if (!cb_type)
++        lcp_down(us->us_unit);
++#endif
++
++    if (cb_type & ( 1 << CB_CONF_USER ) ) {
++	syslog(LOG_DEBUG, "cbcp_resp CONF_USER");
++	PUTCHAR(CB_CONF_USER, bufp);
++	len = 3 + 1 + strlen(us->us_number) + 1;
++	PUTCHAR(len , bufp);
++	PUTCHAR(5, bufp); /* delay */
++	PUTCHAR(1, bufp);
++	BCOPY(us->us_number, bufp, strlen(us->us_number) + 1);
++	cbcp_send(us, CBCP_RESP, buf, len);
++	return;
++    }
++
++    if (cb_type & ( 1 << CB_CONF_ADMIN ) ) {
++        PUTCHAR(CB_CONF_ADMIN, bufp);
++	len = 3;
++	PUTCHAR(len , bufp);
++	PUTCHAR(0, bufp);
++	cbcp_send(us, CBCP_RESP, buf, len);
++	return;
++    }
++
++    if (cb_type & ( 1 << CB_CONF_NO ) ) {
++        syslog(LOG_DEBUG, "cbcp_resp CONF_NO");
++	PUTCHAR(CB_CONF_NO, bufp);
++	len = 3;
++	PUTCHAR(len , bufp);
++	PUTCHAR(0, bufp);
++	cbcp_send(us, CBCP_RESP, buf, len);
++	ipcp_open(us->us_unit);
++	return;
++    }
++}
++
++void cbcp_send(cbcp_state *us, u_char code, u_char *buf, int len)
++{
++    u_char *outp;
++    int outlen;
++
++    outp = outpacket_buf;
++
++    outlen = 4 + len;
++    
++    MAKEHEADER(outp, PPP_CBCP);
++
++    PUTCHAR(code, outp);
++    PUTCHAR(us->us_id, outp);
++    PUTSHORT(outlen, outp);
++    
++    if (len)
++        BCOPY(buf, outp, len);
++
++    output(us->us_unit, outpacket_buf, outlen + PPP_HDRLEN);
++}
++
++void cbcp_recvack(cbcp_state *us, char *pckt, int len)
++{
++    u_char type, delay, addr_type;
++    int opt_len;
++    char address[256];
++
++    if (len) {
++        GETCHAR(type, pckt);
++	GETCHAR(opt_len, pckt);
++     
++	if (opt_len > 2)
++	    GETCHAR(delay, pckt);
++
++	if (opt_len > 4) {
++	    GETCHAR(addr_type, pckt);
++	    memcpy(address, pckt, opt_len - 4);
++	    address[opt_len - 4] = 0;
++	    if (address[0])
++	        syslog(LOG_DEBUG, "peer will call: %s", address);
++	}
++    }
++
++    cbcp_up(us);
++}
++
++extern int persist;
++
++/* ok peer will do callback */
++void cbcp_up(cbcp_state *us)
++{
++    persist = 0;
++    lcp_close(0);
++}
+diff -r --unified=10 ppp-2.2a5.orig/pppd/cbcp.h ppp-2.2a5/pppd/cbcp.h
+--- ppp-2.2a5.orig/pppd/cbcp.h	Sat May 13 14:08:40 1995
++++ ppp-2.2a5/pppd/cbcp.h	Sat May 13 13:56:20 1995
+@@ -0,0 +1,33 @@
++#ifndef CBCP_H
++#define CBCP_H
++
++typedef struct cbcp_state {
++    int    us_unit;	/* Interface unit number */
++    u_char us_id;		/* Current id */
++    u_char us_allowed;
++    int    us_type;
++    char   *us_number;    /* Telefone Number */
++} cbcp_state;
++
++void cbcp_init      __P((int));
++void cbcp_open      __P((int));
++void cbcp_lowerup   __P((int));
++void cbcp_input     __P((int, u_char *, int));
++void cbcp_protrej   __P((int));
++int  cbcp_printpkt  __P((u_char *, int,
++			    void (*) __P((void *, char *, ...)),
++			    void *));
++
++extern cbcp_state cbcp[];
++
++#define CBCP_MINLEN 4
++
++#define CBCP_REQ    1
++#define CBCP_RESP   2
++#define CBCP_ACK    3
++
++#define CB_CONF_NO     1
++#define CB_CONF_USER   2
++#define CB_CONF_ADMIN  3
++#define CB_CONF_LIST   4
++#endif
+diff -r --unified=10 ppp-2.2a5.orig/pppd/lcp.c ppp-2.2a5/pppd/lcp.c
+--- ppp-2.2a5.orig/pppd/lcp.c	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/lcp.c	Sat May 13 13:46:36 1995
+@@ -112,24 +112,26 @@
+     lcp_extcode,		/* Called to handle LCP-specific codes */
+     "LCP"			/* String name of protocol */
+ };
+ 
+ int lcp_warnloops = DEFWARNLOOPS; /* Warn about a loopback this often */
+ 
+ /*
+  * Length of each type of configuration option (in octets)
+  */
+ #define CILEN_VOID	2
++#define CILEN_CHAR      3
+ #define CILEN_SHORT	4	/* CILEN_VOID + sizeof(short) */
+ #define CILEN_CHAP	5	/* CILEN_VOID + sizeof(short) + 1 */
+ #define CILEN_LONG	6	/* CILEN_VOID + sizeof(long) */
+ #define CILEN_LQR	8	/* CILEN_VOID + sizeof(short) + sizeof(long) */
++#define CILEN_CBCP      3
+ 
+ #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
+ 			 (x) == CONFNAK ? "NAK" : "REJ")
+ 
+ 
+ /*
+  * lcp_init - Initialize LCP.
+  */
+ void
+ lcp_init(unit)
+@@ -153,32 +155,34 @@
+     wo->mru = DEFMRU;
+     wo->neg_asyncmap = 0;
+     wo->asyncmap = 0;
+     wo->neg_chap = 0;			/* Set to 1 on server */
+     wo->neg_upap = 0;			/* Set to 1 on server */
+     wo->chap_mdtype = CHAP_DIGEST_MD5;
+     wo->neg_magicnumber = 1;
+     wo->neg_pcompression = 1;
+     wo->neg_accompression = 1;
+     wo->neg_lqr = 0;			/* no LQR implementation yet */
++    wo->neg_cbcp = 0;
+ 
+     ao->neg_mru = 1;
+     ao->mru = MAXMRU;
+     ao->neg_asyncmap = 1;
+     ao->asyncmap = 0;
+     ao->neg_chap = 1;
+     ao->chap_mdtype = CHAP_DIGEST_MD5;
+     ao->neg_upap = 1;
+     ao->neg_magicnumber = 1;
+     ao->neg_pcompression = 1;
+     ao->neg_accompression = 1;
+     ao->neg_lqr = 0;			/* no LQR implementation yet */
++    ao->neg_cbcp = 1;
+ 
+     memset(xmit_accm[unit], 0, sizeof(xmit_accm[0]));
+     xmit_accm[unit][3] = 0x60000000;
+ }
+ 
+ 
+ /*
+  * lcp_open - LCP is allowed to come up.
+  */
+ void
+@@ -478,29 +482,31 @@
+ lcp_cilen(f)
+     fsm *f;
+ {
+     lcp_options *go = &lcp_gotoptions[f->unit];
+ 
+ #define LENCIVOID(neg)	(neg ? CILEN_VOID : 0)
+ #define LENCICHAP(neg)	(neg ? CILEN_CHAP : 0)
+ #define LENCISHORT(neg)	(neg ? CILEN_SHORT : 0)
+ #define LENCILONG(neg)	(neg ? CILEN_LONG : 0)
+ #define LENCILQR(neg)	(neg ? CILEN_LQR: 0)
++#define LENCICBCP(neg)	(neg ? CILEN_CBCP: 0)
+     /*
+      * NB: we only ask for one of CHAP and UPAP, even if we will
+      * accept either.
+      */
+     return (LENCISHORT(go->neg_mru) +
+ 	    LENCILONG(go->neg_asyncmap) +
+ 	    LENCICHAP(go->neg_chap) +
+ 	    LENCISHORT(!go->neg_chap && go->neg_upap) +
+ 	    LENCILQR(go->neg_lqr) +
++	    LENCICBCP(go->neg_cbcp) +
+ 	    LENCILONG(go->neg_magicnumber) +
+ 	    LENCIVOID(go->neg_pcompression) +
+ 	    LENCIVOID(go->neg_accompression));
+ }
+ 
+ 
+ /*
+  * lcp_addci - Add our desired CIs to a packet.
+  */
+ static void
+@@ -537,25 +543,33 @@
+ 	PUTLONG(val, ucp); \
+     }
+ #define ADDCILQR(opt, neg, val) \
+     if (neg) { \
+ 	PUTCHAR(opt, ucp); \
+ 	PUTCHAR(CILEN_LQR, ucp); \
+ 	PUTSHORT(PPP_LQR, ucp); \
+ 	PUTLONG(val, ucp); \
+     }
+ 
++#define ADDCICHAR(opt, neg, val) \
++    if (neg) { \
++	PUTCHAR(opt, ucp); \
++	PUTCHAR(CILEN_CHAR, ucp); \
++	PUTCHAR(val, ucp); \
++    }
++
+     ADDCISHORT(CI_MRU, go->neg_mru, go->mru);
+     ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
+     ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+     ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
+     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
++    ADDCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
+     ADDCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
+     ADDCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
+     ADDCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
+ 
+     if (ucp - start_ucp != *lenp) {
+ 	/* this should never happen, because peer_mtu should be 1500 */
+ 	syslog(LOG_ERR, "Bug in lcp_addci: wrong length");
+     }
+ }
+ 
+@@ -600,20 +614,33 @@
+ 	    goto bad; \
+ 	GETCHAR(citype, p); \
+ 	GETCHAR(cilen, p); \
+ 	if (cilen != CILEN_SHORT || \
+ 	    citype != opt) \
+ 	    goto bad; \
+ 	GETSHORT(cishort, p); \
+ 	if (cishort != val) \
+ 	    goto bad; \
+     }
++#define ACKCICHAR(opt, neg, val) \
++    if (neg) { \
++	if ((len -= CILEN_CHAR) < 0) \
++	    goto bad; \
++	GETCHAR(citype, p); \
++	GETCHAR(cilen, p); \
++	if (cilen != CILEN_CHAR || \
++	    citype != opt) \
++	    goto bad; \
++	GETCHAR(cichar, p); \
++	if (cichar != val) \
++	    goto bad; \
++    }
+ #define ACKCICHAP(opt, neg, val, digest) \
+     if (neg) { \
+ 	if ((len -= CILEN_CHAP) < 0) \
+ 	    goto bad; \
+ 	GETCHAR(citype, p); \
+ 	GETCHAR(cilen, p); \
+ 	if (cilen != CILEN_CHAP || \
+ 	    citype != opt) \
+ 	    goto bad; \
+ 	GETSHORT(cishort, p); \
+@@ -651,20 +678,21 @@
+ 	GETLONG(cilong, p); \
+ 	if (cilong != val) \
+ 	  goto bad; \
+     }
+ 
+     ACKCISHORT(CI_MRU, go->neg_mru, go->mru);
+     ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap, go->asyncmap);
+     ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
+     ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
+     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
++    ACKCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
+     ACKCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
+     ACKCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
+     ACKCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
+ 
+     /*
+      * If there are any remaining CIs, then this packet is bad.
+      */
+     if (len != 0)
+ 	goto bad;
+     return (1);
+@@ -722,20 +750,31 @@
+ 	len >= CILEN_CHAP && \
+ 	p[1] == CILEN_CHAP && \
+ 	p[0] == opt) { \
+ 	len -= CILEN_CHAP; \
+ 	INCPTR(2, p); \
+ 	GETSHORT(cishort, p); \
+ 	GETCHAR(cichar, p); \
+ 	no.neg = 1; \
+ 	code \
+     }
++#define NAKCICHAR(opt, neg, code) \
++    if (go->neg && \
++	len >= CILEN_CHAR && \
++	p[1] == CILEN_CHAR && \
++	p[0] == opt) { \
++	len -= CILEN_CHAR; \
++	INCPTR(2, p); \
++	GETCHAR(cichar, p); \
++	no.neg = 1; \
++	code \
++    }
+ #define NAKCISHORT(opt, neg, code) \
+     if (go->neg && \
+ 	len >= CILEN_SHORT && \
+ 	p[1] == CILEN_SHORT && \
+ 	p[0] == opt) { \
+ 	len -= CILEN_SHORT; \
+ 	INCPTR(2, p); \
+ 	GETSHORT(cishort, p); \
+ 	no.neg = 1; \
+ 	code \
+@@ -851,20 +890,27 @@
+      * If they Nak the reporting period, take their value XXX ?
+      */
+     NAKCILQR(CI_QUALITY, neg_lqr,
+ 	     if (cishort != PPP_LQR)
+ 		 try.neg_lqr = 0;
+ 	     else
+ 		 try.lqr_period = cilong;
+ 	     );
+ 
+     /*
++     * Only implementing CBCP... not the rest of the callback options
++     */
++    NAKCICHAR(CI_CALLBACK, neg_cbcp,
++	      try.neg_cbcp = 0;
++	      );
++
++    /*
+      * Check for a looped-back line.
+      */
+     NAKCILONG(CI_MAGICNUMBER, neg_magicnumber,
+ 	      try.magicnumber = magic();
+ 	      ++try.numloops;
+ 	      looped_back = 1;
+ 	      );
+ 
+     NAKCIVOID(CI_PCOMPRESSION, neg_pcompression,
+ 	      try.neg_pcompression = 0;
+@@ -1045,28 +1091,43 @@
+ 	len -= CILEN_LQR; \
+ 	INCPTR(2, p); \
+ 	GETSHORT(cishort, p); \
+ 	GETLONG(cilong, p); \
+ 	/* Check rejected value. */ \
+ 	if (cishort != PPP_LQR || cilong != val) \
+ 	    goto bad; \
+ 	try.neg = 0; \
+ 	LCPDEBUG((LOG_INFO,"lcp_rejci rejected LQR opt %d", opt)); \
+     }
++#define REJCICBCP(opt, neg, val) \
++    if (go->neg && \
++	len >= CILEN_CBCP && \
++	p[1] == CILEN_CBCP && \
++	p[0] == opt) { \
++	len -= CILEN_CBCP; \
++	INCPTR(2, p); \
++	GETCHAR(cichar, p); \
++	/* Check rejected value. */ \
++	if (cichar != val) \
++	    goto bad; \
++	try.neg = 0; \
++	LCPDEBUG((LOG_INFO,"lcp_rejci rejected Callback opt %d", opt)); \
++    }
+ 
+     REJCISHORT(CI_MRU, neg_mru, go->mru);
+     REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
+     REJCICHAP(CI_AUTHTYPE, neg_chap, PPP_CHAP, go->chap_mdtype);
+     if (!go->neg_chap) {
+ 	REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
+     }
+     REJCILQR(CI_QUALITY, neg_lqr, go->lqr_period);
++    REJCICBCP(CI_CALLBACK, neg_cbcp, CBCP_OPT);
+     REJCILONG(CI_MAGICNUMBER, neg_magicnumber, go->magicnumber);
+     REJCIVOID(CI_PCOMPRESSION, neg_pcompression);
+     REJCIVOID(CI_ACCOMPRESSION, neg_accompression);
+ 
+     /*
+      * If there are any remaining CIs, then this packet is bad.
+      */
+     if (len != 0)
+ 	goto bad;
+     /*
+@@ -1447,20 +1508,21 @@
+      */
+     ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU),
+ 		    (go->neg_asyncmap? go->asyncmap: 0x00000000),
+ 		    go->neg_pcompression, go->neg_accompression);
+ 
+     if (ho->neg_mru)
+ 	peer_mru[f->unit] = ho->mru;
+ 
+     ChapLowerUp(f->unit);	/* Enable CHAP */
+     upap_lowerup(f->unit);	/* Enable UPAP */
++    cbcp_lowerup(f->unit);      /* Enable CBCP */
+     ipcp_lowerup(f->unit);	/* Enable IPCP */
+     ccp_lowerup(f->unit);	/* Enable CCP */
+     lcp_echo_lowerup(f->unit);  /* Enable echo messages */
+ 
+     link_established(f->unit);
+ }
+ 
+ 
+ /*
+  * lcp_down - LCP has gone DOWN.
+@@ -1593,20 +1655,34 @@
+ 		}
+ 		break;
+ 	    case CI_QUALITY:
+ 		if (olen >= CILEN_SHORT) {
+ 		    p += 2;
+ 		    printer(arg, "quality ");
+ 		    GETSHORT(cishort, p);
+ 		    switch (cishort) {
+ 		    case PPP_LQR:
+ 			printer(arg, "lqr");
++			break;
++		    default:
++			printer(arg, "0x%x", cishort);
++		    }
++		}
++		break;
++	    case CI_CALLBACK:
++		if (olen >= CILEN_CHAR) {
++		    p += 2;
++		    printer(arg, "callback ");
++		    GETSHORT(cishort, p);
++		    switch (cishort) {
++		    case CBCP_OPT:
++			printer(arg, "CBCP");
+ 			break;
+ 		    default:
+ 			printer(arg, "0x%x", cishort);
+ 		    }
+ 		}
+ 		break;
+ 	    case CI_MAGICNUMBER:
+ 		if (olen == CILEN_LONG) {
+ 		    p += 2;
+ 		    GETLONG(cilong, p);
+diff -r --unified=10 ppp-2.2a5.orig/pppd/lcp.h ppp-2.2a5/pppd/lcp.h
+--- ppp-2.2a5.orig/pppd/lcp.h	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/lcp.h	Sat May 13 13:46:36 1995
+@@ -22,44 +22,47 @@
+ /*
+  * Options.
+  */
+ #define CI_MRU		1	/* Maximum Receive Unit */
+ #define CI_ASYNCMAP	2	/* Async Control Character Map */
+ #define CI_AUTHTYPE	3	/* Authentication Type */
+ #define CI_QUALITY	4	/* Quality Protocol */
+ #define CI_MAGICNUMBER	5	/* Magic Number */
+ #define CI_PCOMPRESSION	7	/* Protocol Field Compression */
+ #define CI_ACCOMPRESSION 8	/* Address/Control Field Compression */
++#define CI_CALLBACK      13     /* callback */
+ 
+ /*
+  * LCP-specific packet types.
+  */
+ #define PROTREJ		8	/* Protocol Reject */
+ #define ECHOREQ		9	/* Echo Request */
+ #define ECHOREP		10	/* Echo Reply */
+ #define DISCREQ		11	/* Discard Request */
++#define CBCP_OPT        6       /* Use callback control protocol */
+ 
+ /*
+  * The state of options is described by an lcp_options structure.
+  */
+ typedef struct lcp_options {
+     int passive : 1;		/* Don't die if we don't get a response */
+     int silent : 1;		/* Wait for the other end to start first */
+     int restart : 1;		/* Restart vs. exit after close */
+     int neg_mru : 1;		/* Negotiate the MRU? */
+     int neg_asyncmap : 1;	/* Negotiate the async map? */
+     int neg_upap : 1;		/* Ask for UPAP authentication? */
+     int neg_chap : 1;		/* Ask for CHAP authentication? */
+     int neg_magicnumber : 1;	/* Ask for magic number? */
+     int neg_pcompression : 1;	/* HDLC Protocol Field Compression? */
+     int neg_accompression : 1;	/* HDLC Address/Control Field Compression? */
+     int neg_lqr : 1;		/* Negotiate use of Link Quality Reports */
++    int neg_cbcp : 1;           /* Negotiate use of CBCP */
+     u_short mru;		/* Value of MRU */
+     u_char chap_mdtype;		/* which MD type (hashing algorithm) */
+     u_int32_t asyncmap;		/* Value of async map */
+     u_int32_t magicnumber;
+     int numloops;		/* Number of loops during magic number neg. */
+     u_int32_t lqr_period;	/* Reporting period for link quality */
+ } lcp_options;
+ 
+ extern fsm lcp_fsm[];
+ extern lcp_options lcp_wantoptions[];
+diff -r --unified=10 ppp-2.2a5.orig/pppd/main.c ppp-2.2a5/pppd/main.c
+--- ppp-2.2a5.orig/pppd/main.c	Sat May 13 12:38:20 1995
++++ ppp-2.2a5/pppd/main.c	Sat May 13 13:46:36 1995
+@@ -40,20 +40,21 @@
+ #include <sys/socket.h>
+ #include <net/if.h>
+ 
+ #include "pppd.h"
+ #include "magic.h"
+ #include "fsm.h"
+ #include "lcp.h"
+ #include "ipcp.h"
+ #include "upap.h"
+ #include "chap.h"
++#include "cbcp.h"
+ #include "ccp.h"
+ #include "pathnames.h"
+ #include "patchlevel.h"
+ 
+ /*
+  * If REQ_SYSOPTIONS is defined to 1, pppd will not run unless
+  * /etc/ppp/options exists.
+  */
+ #ifndef	REQ_SYSOPTIONS
+ #define REQ_SYSOPTIONS	1
+@@ -129,20 +130,22 @@
+     int  (*printpkt)();
+     void (*datainput)();
+     char *name;
+ } prottbl[] = {
+     { PPP_LCP, lcp_init, lcp_input, lcp_protrej,
+ 	  lcp_printpkt, NULL, "LCP" },
+     { PPP_IPCP, ipcp_init, ipcp_input, ipcp_protrej,
+ 	  ipcp_printpkt, NULL, "IPCP" },
+     { PPP_PAP, upap_init, upap_input, upap_protrej,
+ 	  upap_printpkt, NULL, "PAP" },
++    { PPP_CBCP, cbcp_init, cbcp_input, cbcp_protrej,
++	  cbcp_printpkt, NULL, "CBCP" },
+     { PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
+ 	  ChapPrintPkt, NULL, "CHAP" },
+     { PPP_CCP, ccp_init, ccp_input, ccp_protrej,
+ 	  ccp_printpkt, ccp_datainput, "CCP" },
+ };
+ 
+ #define N_PROTO		(sizeof(prottbl) / sizeof(prottbl[0]))
+ 
+ main(argc, argv)
+     int argc;
+diff -r --unified=10 ppp-2.2a5.orig/pppd/options.c ppp-2.2a5/pppd/options.c
+--- ppp-2.2a5.orig/pppd/options.c	Sat May 13 12:38:21 1995
++++ ppp-2.2a5/pppd/options.c	Sat May 13 13:59:24 1995
+@@ -36,20 +36,21 @@
+ #include <netinet/in.h>
+ 
+ #include "pppd.h"
+ #include "pathnames.h"
+ #include "patchlevel.h"
+ #include "fsm.h"
+ #include "lcp.h"
+ #include "ipcp.h"
+ #include "upap.h"
+ #include "chap.h"
++#include "cbcp.h"
+ #include "ccp.h"
+ 
+ #include <net/ppp-comp.h>
+ 
+ #define FALSE	0
+ #define TRUE	1
+ 
+ #if defined(ultrix) || defined(NeXT)
+ char *strdup __P((char *));
+ #endif
+@@ -112,20 +113,21 @@
+ static int reqchap __P((void));
+ static int setspeed __P((char *));
+ static int noaccomp __P((void));
+ static int noasyncmap __P((void));
+ static int noipaddr __P((void));
+ static int nomagicnumber __P((void));
+ static int setasyncmap __P((char **));
+ static int setescape __P((char **));
+ static int setmru __P((char **));
+ static int setmtu __P((char **));
++static int setcbcp __P((char **));
+ static int nomru __P((void));
+ static int nopcomp __P((void));
+ static int setconnector __P((char **));
+ static int setdisconnector __P((char **));
+ static int setdomain __P((char **));
+ static int setnetmask __P((char **));
+ static int setcrtscts __P((void));
+ static int setnocrtscts __P((void));
+ static int setxonxoff __P((void));
+ static int setnodetach __P((void));
+@@ -202,20 +204,21 @@
+     {"connect", 1, setconnector}, /* A program to set up a connection */
+     {"disconnect", 1, setdisconnector},	/* program to disconnect serial dev. */
+     {"crtscts", 0, setcrtscts},	/* set h/w flow control */
+     {"-crtscts", 0, setnocrtscts}, /* clear h/w flow control */
+     {"xonxoff", 0, setxonxoff},	/* set s/w flow control */
+     {"debug", 0, setdebug},	/* Increase debugging level */
+     {"kdebug", 1, setkdebug},	/* Enable kernel-level debugging */
+     {"domain", 1, setdomain},	/* Add given domain name to hostname*/
+     {"mru", 1, setmru},		/* Set MRU value for negotiation */
+     {"mtu", 1, setmtu},		/* Set our MTU */
++    {"cb", 1, setcbcp},		/* Set CBCP */
+     {"netmask", 1, setnetmask},	/* set netmask */
+     {"passive", 0, setpassive},	/* Set passive mode */
+     {"silent", 0, setsilent},	/* Set silent mode */
+     {"modem", 0, setmodem},	/* Use modem control lines */
+     {"local", 0, setlocal},	/* Don't use modem control lines */
+     {"lock", 0, setlock},	/* Lock serial device (with lock file) */
+     {"name", 1, setname},	/* Set local name for authentication */
+     {"user", 1, setuser},	/* Set username for PAP auth with peer */
+     {"usehostname", 0, setusehostname},	/* Must use hostname for auth. */
+     {"remotename", 1, setremote}, /* Set remote name for authentication */
+@@ -775,20 +778,31 @@
+ 	return 0;
+     if (mtu < MINMRU || mtu > MAXMRU) {
+ 	fprintf(stderr, "mtu option value of %ld is too %s\n", mtu,
+ 		(mtu < MINMRU? "small": "large"));
+ 	return 0;
+     }
+     lcp_allowoptions[0].mru = mtu;
+     return (1);
+ }
+ 
++static int
++setcbcp(argv)
++    char **argv;
++{
++    lcp_wantoptions[0].neg_cbcp = 1;
++   
++    cbcp[0].us_number = (char *) malloc(strlen(*argv) + 1);
++    strcpy(cbcp[0].us_number, *argv);
++    cbcp[0].us_type |= (1 << CB_CONF_USER);
++    return (1);
++}
+ 
+ /*
+  * nopcomp - Disable Protocol field compression negotiation.
+  */
+ static int
+ nopcomp()
+ {
+     lcp_wantoptions[0].neg_pcompression = 0;
+     lcp_allowoptions[0].neg_pcompression = 0;
+     return (1);
+diff -r --unified=10 ppp-2.2a5.orig/pppd/pppd.8 ppp-2.2a5/pppd/pppd.8
+--- ppp-2.2a5.orig/pppd/pppd.8	Sat May 13 12:38:21 1995
++++ ppp-2.2a5/pppd/pppd.8	Sat May 13 13:52:26 1995
+@@ -221,20 +221,31 @@
+ .B -pap
+ Don't agree to authenticate using PAP.
+ .TP
+ .B +chap
+ Require the peer to authenticate itself using CHAP [Cryptographic
+ Handshake Authentication Protocol] authentication.
+ .TP
+ .B -chap
+ Don't agree to authenticate using CHAP.
+ .TP
++.B cb \fItelephone_number
++Configure the current execution of pppd to negotiate the \fIclient\fR
++portion of '\fIC\fRall \fIB\fRack \fIC\fRonfiguration
++\fIP\fRrotocol'. The use of this protocol will permit the client to
++authenticate itself with the server and then supply a telephone number
++for the reverse connection. Once the telephone number is accepted, the
++connection will be terminated. You should then wait for the server to
++recall your location and re-authenticate yourself. This second step
++will require a second execution of \fIpppd\fR. This second execution should
++not include the \fIcb\fR option.
++.TP
+ .B -vj
+ Disable negotiation of Van Jacobson style IP header compression (use
+ default, i.e. no compression).
+ .TP
+ .B bsdcomp \fInr,nt
+ Request that the peer compress packets that it sends, using the
+ BSD-Compress scheme, with a maximum code size of \fInr\fR bits, and
+ agree to compress packets sent to the peer with a maximum code size of
+ \fInt\fR bits.  If \fInt\fR is not specified, it defaults to the value
+ given for \fInr\fR.  Values in the range 9 to 15 may be used for
+diff -r --unified=10 ppp-2.2a5.orig/pppd/pppd.h ppp-2.2a5/pppd/pppd.h
+--- ppp-2.2a5.orig/pppd/pppd.h	Sat May 13 12:38:21 1995
++++ ppp-2.2a5/pppd/pppd.h	Sat May 13 13:46:36 1995
+@@ -85,22 +85,23 @@
+ extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
+ extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
+ extern int	cryptpap;	/* Others' PAP passwords are encrypted */
+ 
+ /*
+  * Values for phase.
+  */
+ #define PHASE_DEAD		0
+ #define PHASE_ESTABLISH		1
+ #define PHASE_AUTHENTICATE	2
+-#define PHASE_NETWORK		3
+-#define PHASE_TERMINATE		4
++#define PHASE_CALLBACK          3
++#define PHASE_NETWORK		4
++#define PHASE_TERMINATE		5
+ 
+ /*
+  * Prototypes.
+  */
+ void quit __P((void));	/* Cleanup and exit */
+ void timeout __P((void (*)(), caddr_t, int));
+ 				/* Look-alike of kernel's timeout() */
+ void untimeout __P((void (*)(), caddr_t));
+ 				/* Look-alike of kernel's untimeout() */
+ void output __P((int, u_char *, int));
