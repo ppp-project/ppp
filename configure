@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.7 1995/12/18 03:31:30 paulus Exp $
+# $Id: configure,v 1.8 1996/05/24 07:03:01 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -31,13 +31,6 @@ case $system in
       [0-3]*)	state="ancient";;
       4.[01]*)	state="early"; ksrc="ultrix";;
       4.[234])	state="known"; ksrc="ultrix";;
-    esac;;
-  AIX)
-    makext="aix4";
-    version=`uname -v`
-    case $version.$release in
-      4.1)	state="known"; ksrc="aix4";;
-      4.[2-9]*)	state="late"; ksrc="aix4";;
     esac;;
   OSF1)
     makext="osf";
