@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.69 2003/06/11 23:56:26 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.70 2003/07/28 12:25:41 carlsonj Exp $"
 
 /*
  * TODO:
@@ -1220,7 +1220,7 @@ lcp_nakci(f, p, len)
      * An option we don't recognize represents the peer asking to
      * negotiate some option we don't support, so ignore it.
      */
-    while (len > CILEN_VOID) {
+    while (len >= CILEN_VOID) {
 	GETCHAR(citype, p);
 	GETCHAR(cilen, p);
 	if (cilen < CILEN_VOID || (len -= cilen) < 0)

@@ -42,7 +42,7 @@
 
 #ifdef IPX_CHANGE
 
-#define RCSID	"$Id: ipxcp.c,v 1.21 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: ipxcp.c,v 1.22 2003/07/28 12:25:41 carlsonj Exp $"
 
 /*
  * TODO:
@@ -777,11 +777,11 @@ ipxcp_nakci(f, p, len)
     BZERO(&no, sizeof(no));
     try = *go;
 
-    while (len > CILEN_VOID) {
+    while (len >= CILEN_VOID) {
 	GETCHAR (citype, p);
 	GETCHAR (cilen,	 p);
 	len -= cilen;
-	if (len < 0)
+	if (cilen < CILEN_VOID || len < 0)
 	    goto bad;
 	next = &p [cilen - CILEN_VOID];
 

@@ -49,7 +49,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.40 2003/05/12 07:47:06 fcusack Exp $"
+#define RCSID	"$Id: chap.c,v 1.41 2003/07/28 12:25:41 carlsonj Exp $"
 
 /*
  * TODO:
@@ -67,12 +67,6 @@
 #ifdef CHAPMS
 #include "chap_ms.h"
 #endif
-
-/* Hook for a plugin to say if we can possibly authenticate a peer using CHAP */
-int (*chap_check_hook) __P((void)) = NULL;
-
-/* Hook for a plugin to get the CHAP password for authenticating us */
-int (*chap_passwd_hook) __P((char *user, char *passwd)) = NULL;
 
 /* Hook for a plugin to validate CHAP challenge */
 int (*chap_auth_hook) __P((char *user,
@@ -183,14 +177,11 @@ ChapInit(unit)
 
 
 /*
- * ChapAuthWithPeer - Authenticate us with our peer (start client).
+ * chap_auth_with_peer - Authenticate us with our peer (start client).
  *
  */
 void
-ChapAuthWithPeer(unit, our_name, digest)
-    int unit;
-    char *our_name;
-    int digest;
+chap_auth_with_peer(int unit, char *our_name, int digest)
 {
     chap_state *cstate = &chap[unit];
 
@@ -214,13 +205,10 @@ ChapAuthWithPeer(unit, our_name, digest)
 
 
 /*
- * ChapAuthPeer - Authenticate our peer (start server).
+ * chap_auth_peer - Authenticate our peer (start server).
  */
 void
-ChapAuthPeer(unit, our_name, digest)
-    int unit;
-    char *our_name;
-    int digest;
+chap_auth_peer(int unit, char *our_name, int digest)
 {
     chap_state *cstate = &chap[unit];
 

@@ -216,7 +216,7 @@ chap_auth_peer(int unit, char *our_name, int digest_code)
 }
 
 /*
- * chap_auth_peer - Prepare to authenticate ourselves to the peer.
+ * chap_auth_with_peer - Prepare to authenticate ourselves to the peer.
  * There isn't much to do until we receive a challenge.
  */
 void

@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.63 2003/06/29 10:06:14 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.64 2003/07/28 12:25:41 carlsonj Exp $"
 
 /*
  * TODO:
@@ -1098,10 +1098,10 @@ ipcp_nakci(f, p, len)
      * If they want to negotiate about IP addresses, we comply.
      * If they want us to ask for compression, we refuse.
      */
-    while (len > CILEN_VOID) {
+    while (len >= CILEN_VOID) {
 	GETCHAR(citype, p);
 	GETCHAR(cilen, p);
-	if( (len -= cilen) < 0 )
+	if ( cilen < CILEN_VOID || (len -= cilen) < 0 )
 	    goto bad;
 	next = p + cilen - 2;
 
