@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.128 2003/06/11 23:56:26 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.129 2003/09/23 15:11:58 kad Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1503,6 +1503,7 @@ device_script(program, in, out, dont_wait)
     int pid;
     int status = -1;
     int errfd;
+    int fd;
 
     ++conn_running;
     pid = safe_fork();
@@ -1529,6 +1530,14 @@ device_script(program, in, out, dont_wait)
     }
 
     /* here we are executing in the child */
+
+    /* make sure fds 0, 1, 2 are occupied */
+    while ((fd = dup(in)) >= 0) {
+        if (fd > 2) {
+	    close(fd);
+	    break;
+	}
+    }
 
     /* dup in and out to fds > 2 */
     {
