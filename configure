@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.5 1995/12/11 02:53:16 paulus Exp $
+# $Id: configure,v 1.6 1995/12/11 05:01:37 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -14,9 +14,10 @@ case $system in
     makext="bsd";
     case $release in
       0.*)	state="ancient";;
-      1.0*)	state="known"; ksrc="netbsd";;
-      1.[1-9]*|[2-9]*)
-		state="late"; ksrc="netbsd";;
+      1.0*)	state="known"; ksrc="netbsd-1.0";;
+      1.1*)	state="known"; ksrc="netbsd-1.1";;
+      1.[2-9]*|[2-9]*)
+		state="late"; ksrc="netbsd-1.1";;
     esac;;
   SunOS)
     case $release in
