@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.33 1999/08/13 06:46:20 paulus Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.34 1999/09/08 01:11:16 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -111,6 +111,37 @@ static int dlpi_info_req __P((int));
 static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
 static int strioctl __P((int, int, void *, int, int));
 
+#ifdef SOL2
+/*
+ * sifppa - Sets interface ppa
+ *
+ * without setting the ppa, ip module will return EINVAL upon setting the
+ * interface UP (SIOCSxIFFLAGS). This is because ip module in 2.8 expects
+ * two DLPI_INFO_REQ to be sent down to the driver (below ip) before
+ * IFF_UP can be set. Plumbing the device causes one DLPI_INFO_REQ to
+ * be sent down, and the second DLPI_INFO_REQ is sent upon receiving
+ * IF_UNITSEL (old) or SIOCSLIFNAME (new) ioctls. Such setting of the ppa
+ * is required because the ppp DLPI provider advertises itself as
+ * a DLPI style 2 type, which requires a point of attachment to be
+ * specified. The only way the user can specify a point of attachment
+ * is via SIOCSLIFNAME or IF_UNITSEL.
+ *
+ * Such changes in the behavior of ip module was made to meet new or
+ * evolving standards requirements.
+ *
+ */
+static int
+sifppa(fd, ppa)
+        int fd;
+        int ppa;
+{
+        if (ioctl(fd, IF_UNITSEL, (char *)&ppa) < 0) {
+	        return 0;
+        }
+
+        return 1;
+}
+#endif /* SOL2 */
 
 /*
  * sys_init - System-dependent initialization.
@@ -163,6 +194,18 @@ sys_init()
 	close(ifd);
 	fatal("Can't push IP module: %m");
     }
+
+#ifdef SOL2
+    /*
+     * Assign ppa according to the unit number returned by ppp device
+     * after plumbing is completed above.
+     */
+    if (sifppa(ifd, ifunit) < 0) {
+        close (ifd);
+        fatal("Can't set ppa for unit %d: %m", ifunit);
+    }
+#endif /* SOL2 */
+
 #else
     if (dlpi_attach(ifd, ifunit) < 0 ||
 	dlpi_get_reply(ifd, &reply.prim, DL_OK_ACK, sizeof(reply)) < 0) {

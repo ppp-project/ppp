@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.19 1999/05/13 00:32:42 paulus Exp $
+ * $Id: ppp.c,v 1.20 1999/09/08 01:11:15 masputra Exp $
  */
 
 /*
@@ -1129,6 +1129,18 @@ dlpi_request(q, mp, us)
 	   except that we accept ETHERTYPE_IP in place of PPP_IP. */
 	sap = d->bind_req.dl_sap;
 	us->req_sap = sap;
+
+#ifdef SOL2
+        /* 
+	 * ip will send a sap value of 0 (post-Solaris 7), or
+	 * ETHERTYPE_IP (0x800) (pre-Solaris 8) due to how the
+	 * ppp DLPI provider declares its characteristics.
+	 * <adi.masputra@sun.com>
+	 */
+	if (sap == 0)
+            sap = ETHERTYPE_IP;
+#endif /* SOL2 */
+
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
