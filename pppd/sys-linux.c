@@ -485,6 +485,7 @@ int generic_establish_ppp (int fd)
 	    error("Couldn't reopen /dev/ppp: %m");
 	    goto err;
 	}
+	(void) fcntl(fd, F_SETFD, FD_CLOEXEC);
 	if (ioctl(fd, PPPIOCATTCHAN, &chindex) < 0) {
 	    error("Couldn't attach to channel %d: %m", chindex);
 	    goto err_close;
