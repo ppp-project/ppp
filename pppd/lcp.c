@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.27 1996/07/01 01:15:19 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.28 1996/10/08 04:35:02 paulus Exp $";
 #endif
 
 /*
@@ -136,10 +136,12 @@ int lcp_loopbackfail = DEFLOOPBACKFAIL;
  * Length of each type of configuration option (in octets)
  */
 #define CILEN_VOID	2
+#define CILEN_CHAR	3
 #define CILEN_SHORT	4	/* CILEN_VOID + sizeof(short) */
 #define CILEN_CHAP	5	/* CILEN_VOID + sizeof(short) + 1 */
 #define CILEN_LONG	6	/* CILEN_VOID + sizeof(long) */
 #define CILEN_LQR	8	/* CILEN_VOID + sizeof(short) + sizeof(long) */
+#define CILEN_CBCP	3
 
 #define CODENAME(x)	((x) == CONFACK ? "ACK" : \
 			 (x) == CONFNAK ? "NAK" : "REJ")
@@ -177,6 +179,7 @@ lcp_init(unit)
     wo->neg_pcompression = 1;
     wo->neg_accompression = 1;
     wo->neg_lqr = 0;			/* no LQR implementation yet */
+    wo->neg_cbcp = 0;
 
     ao->neg_mru = 1;
     ao->mru = MAXMRU;
@@ -189,6 +192,11 @@ lcp_init(unit)
     ao->neg_pcompression = 1;
     ao->neg_accompression = 1;
     ao->neg_lqr = 0;			/* no LQR implementation yet */
+#ifdef CBCP_SUPPORT
+    ao->neg_cbcp = 1;
+#else
+    ao->neg_cbcp = 0;
+#endif
 
     memset(xmit_accm[unit], 0, sizeof(xmit_accm[0]));
     xmit_accm[unit][3] = 0x60000000;
@@ -451,6 +459,7 @@ lcp_cilen(f)
 #define LENCISHORT(neg)	((neg) ? CILEN_SHORT : 0)
 #define LENCILONG(neg)	((neg) ? CILEN_LONG : 0)
 #define LENCILQR(neg)	((neg) ? CILEN_LQR: 0)
+#define LENCICBCP(neg)	((neg) ? CILEN_CBCP: 0)
     /*
      * NB: we only ask for one of CHAP and UPAP, even if we will
      * accept either.
@@ -460,6 +469,7 @@ lcp_cilen(f)
 	    LENCICHAP(go->neg_chap) +
 	    LENCISHORT(!go->neg_chap && go->neg_upap) +
 	    LENCILQR(go->neg_lqr) +
+	    LENCICBCP(go->neg_cbcp) +
 	    LENCILONG(go->neg_magicnumber) +
 	    LENCIVOID(go->neg_pcompression) +
 	    LENCIVOID(go->neg_accompression));
@@ -509,6 +519,12 @@ lcp_addci(f, ucp, lenp)
 	PUTSHORT(PPP_LQR, ucp); \
 	PUTLONG(val, ucp); \
     }
+#define ADDCICHAR(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_CHAR, ucp); \
+	PUTCHAR(val, ucp); \
+    }
 
     ADDCISHORT(CI_MRU, go->neg_mru && go->mru != DEFMRU, go->mru);
     ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
@@ -516,6 +532,7 @@ lcp_addci(f, ucp, lenp)
     ADDCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
     ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
+    ADDCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
     ADDCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
     ADDCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
     ADDCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
@@ -574,6 +591,19 @@ lcp_ackci(f, p, len)
 	if (cishort != val) \
 	    goto bad; \
     }
+#define ACKCICHAR(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_CHAR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_CHAR || \
+	    citype != opt) \
+	    goto bad; \
+	GETCHAR(cichar, p); \
+	if (cichar != val) \
+	    goto bad; \
+    }
 #define ACKCICHAP(opt, neg, val, digest) \
     if (neg) { \
 	if ((len -= CILEN_CHAP) < 0) \
@@ -626,6 +656,7 @@ lcp_ackci(f, p, len)
     ACKCICHAP(CI_AUTHTYPE, go->neg_chap, PPP_CHAP, go->chap_mdtype);
     ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
     ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
+    ACKCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
     ACKCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
     ACKCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
     ACKCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
@@ -693,6 +724,17 @@ lcp_nakci(f, p, len)
 	len -= CILEN_CHAP; \
 	INCPTR(2, p); \
 	GETSHORT(cishort, p); \
+	GETCHAR(cichar, p); \
+	no.neg = 1; \
+	code \
+    }
+#define NAKCICHAR(opt, neg, code) \
+    if (go->neg && \
+	len >= CILEN_CHAR && \
+	p[1] == CILEN_CHAR && \
+	p[0] == opt) { \
+	len -= CILEN_CHAR; \
+	INCPTR(2, p); \
 	GETCHAR(cichar, p); \
 	no.neg = 1; \
 	code \
@@ -820,6 +862,13 @@ lcp_nakci(f, p, len)
 	     else
 		 try.lqr_period = cilong;
 	     );
+
+    /*
+     * Only implementing CBCP...not the rest of the callback options
+     */
+    NAKCICHAR(CI_CALLBACK, neg_cbcp,
+              try.neg_cbcp = 0;
+              );
 
     /*
      * Check for a looped-back line.
@@ -1028,6 +1077,20 @@ lcp_rejci(f, p, len)
 	try.neg = 0; \
 	LCPDEBUG((LOG_INFO,"lcp_rejci rejected LQR opt %d", opt)); \
     }
+#define REJCICBCP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CBCP && \
+	p[1] == CILEN_CBCP && \
+	p[0] == opt) { \
+	len -= CILEN_CBCP; \
+	INCPTR(2, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if (cichar != val) \
+	    goto bad; \
+	try.neg = 0; \
+	LCPDEBUG((LOG_INFO,"lcp_rejci rejected Callback opt %d", opt)); \
+    }
 
     REJCISHORT(CI_MRU, neg_mru, go->mru);
     REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
@@ -1036,6 +1099,7 @@ lcp_rejci(f, p, len)
 	REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
     }
     REJCILQR(CI_QUALITY, neg_lqr, go->lqr_period);
+    REJCICBCP(CI_CALLBACK, neg_cbcp, CBCP_OPT);
     REJCILONG(CI_MAGICNUMBER, neg_magicnumber, go->magicnumber);
     REJCIVOID(CI_PCOMPRESSION, neg_pcompression);
     REJCIVOID(CI_ACCOMPRESSION, neg_accompression);
@@ -1574,6 +1638,20 @@ lcp_printpkt(p, plen, printer, arg)
 		    switch (cishort) {
 		    case PPP_LQR:
 			printer(arg, "lqr");
+			break;
+		    default:
+			printer(arg, "0x%x", cishort);
+		    }
+		}
+		break;
+	    case CI_CALLBACK:
+		if (olen >= CILEN_CHAR) {
+		    p += 2;
+		    printer(arg, "callback ");
+		    GETSHORT(cishort, p);
+		    switch (cishort) {
+		    case CBCP_OPT:
+			printer(arg, "CBCP");
 			break;
 		    default:
 			printer(arg, "0x%x", cishort);

@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.16 1996/09/26 06:19:57 paulus Exp $
+# $Id: Makefile.linux,v 1.17 1996/10/08 04:35:01 paulus Exp $
 #
 
 # Default installation locations
@@ -8,10 +8,10 @@ BINDIR = /usr/sbin
 MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c \
+	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c cbcp.c \
 	   demand.c
 HEADERS =  callout.h pathnames.h patchlevel.h chap.h md5.h chap_ms.h md4.h \
-	   ipxcp.h
+	   ipxcp.h cbcp.h
 MANPAGES = pppd.8
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 	   auth.o options.o demand.o sys-linux.o ipxcp.o

@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.27 1996/09/26 06:20:35 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.28 1996/10/08 04:35:02 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -78,6 +78,9 @@ extern char *crypt();
 #include "ipcp.h"
 #include "upap.h"
 #include "chap.h"
+#ifdef CBCP_SUPPORT
+#include "cbcp.h"
+#endif
 #include "pathnames.h"
 
 /* Used for storing a sequence of words.  Usually malloced. */
@@ -140,6 +143,9 @@ static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
 			       struct wordlist **, char *));
 static void free_wordlist __P((struct wordlist *));
 static void auth_script __P((char *));
+#ifdef CBCP_SUPPORT
+static void callback_phase __P((int));
+#endif
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
@@ -276,6 +282,17 @@ network_phase(unit)
 	did_authup = 1;
     }
 
+#ifdef CBCP_SUPPORT
+    /*
+     * If we negotiated callback, do it now.
+     */
+    if (go->neg_cbcp) {
+	phase = PHASE_CALLBACK;
+	(*cbcp_protent.open)(unit);
+	return;
+    }
+#endif
+
     phase = PHASE_NETWORK;
 #if 0
     if (!demand)
@@ -337,7 +354,7 @@ auth_peer_success(unit, protocol, name, namelen)
 
     /*
      * If there is no more authentication still to be done,
-     * proceed to the network phase.
+     * proceed to the network (or callback) phase.
      */
     if ((auth_pending[unit] &= ~bit) == 0)
         network_phase(unit);
@@ -385,7 +402,7 @@ auth_withpeer_success(unit, protocol)
 
     /*
      * If there is no more authentication still being done,
-     * proceed to the network phase.
+     * proceed to the network (or callback) phase.
      */
     if ((auth_pending[unit] &= ~bit) == 0)
 	network_phase(unit);

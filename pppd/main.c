@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.37 1996/09/26 06:21:59 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.38 1996/10/08 04:35:03 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -51,6 +51,10 @@ static char rcsid[] = "$Id: main.c,v 1.37 1996/09/26 06:21:59 paulus Exp $";
 #include "ccp.h"
 #include "pathnames.h"
 #include "patchlevel.h"
+
+#ifdef CBCP_SUPPORT
+#include "cbcp.h"
+#endif
 
 #if defined(SUNOS4)
 extern char *strerror();
@@ -133,6 +137,9 @@ struct protent *protocols[] = {
     &lcp_protent,
     &pap_protent,
     &chap_protent,
+#ifdef CBCP_SUPPORT
+    &cbcp_protent,
+#endif
     &ipcp_protent,
     &ccp_protent,
 #ifdef IPX_CHANGE

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.35 1996/09/26 06:22:22 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.36 1996/10/08 04:35:03 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -46,6 +46,9 @@ static char rcsid[] = "$Id: options.c,v 1.35 1996/09/26 06:22:22 paulus Exp $";
 #include "upap.h"
 #include "chap.h"
 #include "ccp.h"
+#ifdef CBCP_SUPPORT
+#include "cbcp.h"
+#endif
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
@@ -137,6 +140,9 @@ static int setasyncmap __P((char **));
 static int setescape __P((char **));
 static int setmru __P((char **));
 static int setmtu __P((char **));
+#ifdef CBCP_SUPPORT
+static int setcbcp __P((char **));
+#endif
 static int nomru __P((void));
 static int nopcomp __P((void));
 static int setconnector __P((char **));
@@ -199,10 +205,10 @@ static int setpapcrypt __P((void));
 static int setidle __P((char **));
 static int setholdoff __P((char **));
 static int setdnsaddr __P((char **));
+static int resetipxproto __P((void));
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
-static int resetipxproto __P((void));
 static int setipxanet __P((void));
 static int setipxalcl __P((void));
 static int setipxarmt __P((void));
@@ -277,6 +283,9 @@ static struct cmd {
     {"domain", 1, setdomain},	/* Add given domain name to hostname*/
     {"mru", 1, setmru},		/* Set MRU value for negotiation */
     {"mtu", 1, setmtu},		/* Set our MTU */
+#ifdef CBCP_SUPPORT
+    {"callback", 1, setcbcp},	/* Ask for callback */
+#endif
     {"netmask", 1, setnetmask},	/* set netmask */
     {"passive", 0, setpassive},	/* Set passive mode */
     {"silent", 0, setsilent},	/* Set silent mode */
@@ -336,6 +345,8 @@ static struct cmd {
     {"idle", 1, setidle},		/* idle time limit (seconds) */
     {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
     {"ms-dns", 1, setdnsaddr},		/* DNS address for the peer's use */
+    {"noipx",  0, resetipxproto},	/* Disable IPXCP (and IPX) */
+    {"-ipx",   0, resetipxproto},	/* Disable IPXCP (and IPX) */
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -353,9 +364,7 @@ static struct cmd {
     {"ipx-compression", 1, setipxcompression}, /* IPX compression number */
 #endif
     {"ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
-    {"noipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
     {"+ipx",		     0, setipxproto},	/* Enable IPXCP (and IPX) */
-    {"-ipx",		     0, resetipxproto},	/* Disable IPXCP (and IPX) */
 #endif /* IPX_CHANGE */
 
     {NULL, 0, NULL}
@@ -1153,6 +1162,21 @@ setmtu(argv)
     return (1);
 }
 
+#ifdef CBCP_SUPPORT
+static int
+setcbcp(argv)
+    char **argv;
+{
+    lcp_wantoptions[0].neg_cbcp = 1;
+    cbcp_protent.enabled_flag = 1;
+    cbcp[0].us_number = strdup(*argv);
+    if (cbcp[0].us_number == 0)
+	novm("callback number");
+    cbcp[0].us_type |= (1 << CB_CONF_USER);
+    cbcp[0].us_type |= (1 << CB_CONF_ADMIN);
+    return (1);
+}
+#endif
 
 /*
  * nopcomp - Disable Protocol field compression negotiation.
@@ -2275,6 +2299,13 @@ static int
 resetipxproto()
 {
     ipxcp_protent.enabled_flag = 0;
+    return 1;
+}
+#else
+
+static int
+resetipxproto()
+{
     return 1;
 }
 #endif /* IPX_CHANGE */

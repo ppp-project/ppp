@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.16 1996/09/14 05:17:57 paulus Exp $
+ * $Id: pppd.h,v 1.17 1996/10/08 04:35:04 paulus Exp $
  */
 
 /*
@@ -114,9 +114,10 @@ extern int	refuse_chap;	/* Don't wanna auth. ourselves with CHAP */
 #define PHASE_DORMANT		2
 #define PHASE_ESTABLISH		3
 #define PHASE_AUTHENTICATE	4
-#define PHASE_NETWORK		5
-#define PHASE_TERMINATE		6
-#define PHASE_HOLDOFF		7
+#define PHASE_CALLBACK		5
+#define PHASE_NETWORK		6
+#define PHASE_TERMINATE		7
+#define PHASE_HOLDOFF		8
 
 /*
  * The following struct gives the addresses of procedures to call
