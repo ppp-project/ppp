@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.21 2004/11/13 12:05:48 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.22 2004/11/13 12:07:29 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -445,7 +445,12 @@ tty_check_options()
 	struct stat statbuf;
 	int fdflags;
 
-	if (demand && connect_script == 0) {
+	if (demand && notty) {
+		option_error("demand-dialling is incompatible with notty");
+		exit(EXIT_OPTION_ERROR);
+	}
+	if (demand && connect_script == 0 && ptycommand == NULL
+	    && pty_socket == NULL) {
 		option_error("connect script is required for demand-dialling\n");
 		exit(EXIT_OPTION_ERROR);
 	}
@@ -740,7 +745,7 @@ int connect_tty()
 	 * time for something from the peer.  This can avoid bouncing
 	 * our packets off his tty before he has it set up.
 	 */
-	if (connector != NULL || ptycommand != NULL)
+	if (connector != NULL || ptycommand != NULL || pty_socket != NULL)
 		listen_time = connect_delay;
 
 	return ttyfd;
