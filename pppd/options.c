@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.64 1999/08/13 06:46:16 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.65 1999/09/08 01:13:45 masputra Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -794,7 +794,7 @@ option_error __V((char *fmt, ...))
     va_list args;
     char buf[256];
 
-#if __STDC__
+#if defined(__STDC__)
     va_start(args, fmt);
 #else
     char *fmt;

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.46 1999/08/25 04:15:51 paulus Exp $
+ * $Id: pppd.h,v 1.47 1999/09/08 01:13:45 masputra Exp $
  */
 
 /*
@@ -33,7 +33,7 @@
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
 
-#if __STDC__
+#if defined(__STDC__)
 #include <stdarg.h>
 #define __V(x)	x
 #else
