@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.30 1997/03/04 03:39:10 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.31 1997/04/30 05:52:48 paulus Exp $";
 #endif
 
 /*
@@ -604,7 +604,7 @@ ipcp_nakci(f, p, len)
 	    no.neg_vj = 1;
 	    break;
 	case CI_ADDRS:
-	    if (go->neg_addr && go->old_addrs || no.old_addrs
+	    if ((go->neg_addr && go->old_addrs) || no.old_addrs
 		|| cilen != CILEN_ADDRS)
 		goto bad;
 	    try.neg_addr = 1;
@@ -1269,8 +1269,6 @@ static void
 ipcp_down(f)
     fsm *f;
 {
-    u_int32_t ouraddr, hisaddr;
-
     IPCPDEBUG((LOG_INFO, "ipcp: down"));
     np_down(f->unit, PPP_IP);
     sifvjcomp(f->unit, 0, 0, 0);
