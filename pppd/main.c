@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.51 1998/11/07 06:59:28 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.52 1999/01/19 23:59:39 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -827,8 +827,12 @@ close_tty()
 
     restore_tty(ttyfd);
 
-    if (tty_mode != (mode_t) -1)
-	chmod(devnam, tty_mode);
+    if (tty_mode != (mode_t) -1) {
+	if (fchmod(devnam, tty_mode) != 0) {
+	    /* XXX if devnam is a symlink, this will change the link */
+	    chmod(devnam, tty_mode);
+	}
+    }
 
     close(ttyfd);
     ttyfd = -1;
