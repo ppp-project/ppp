@@ -28,7 +28,7 @@
  */
 
 /*
- *  ==FILEVERSION 960918==
+ *  ==FILEVERSION 961008==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -77,6 +77,7 @@
 #define PPP_PAP		0xc023	/* Password Authentication Protocol */
 #define PPP_LQR		0xc025	/* Link Quality Report protocol */
 #define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
+#define PPP_CBCP	0xc029	/* Callback Control Protocol */
 
 /*
  * Values for FCS calculations.

@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.8 1996/09/26 06:30:22 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.9 1996/10/08 04:38:33 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -63,6 +63,7 @@
 #define PPP_PAP		0xc023	/* Password Authentication Protocol */
 #define PPP_LQR		0xc025	/* Link Quality Report protocol */
 #define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
+#define PPP_CBCP	0xc029	/* Callback Control Protocol */
 
 /*
  * Values for FCS calculations.
