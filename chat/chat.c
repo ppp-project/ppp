@@ -18,7 +18,7 @@
  *		(614)451-1883
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.4 1994/05/30 00:30:37 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.5 1995/01/11 03:14:45 paulus Exp $";
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -33,14 +33,6 @@ static char rcsid[] = "$Id: chat.c,v 1.4 1994/05/30 00:30:37 paulus Exp $";
 #ifndef TERMIO
 #undef	TERMIOS
 #define TERMIOS
-#endif
-
-#ifdef sun
-# if defined(SUNOS) && SUNOS >= 41
-# ifndef HDB
-#  define	HDB
-# endif
-# endif
 #endif
 
 #ifdef TERMIO
@@ -77,20 +69,6 @@ static int _O = 0;		/* Internal state */
 /*************** Micro getopt() *********************************************/
 
 char *program_name;
-
-#ifndef LOCK_DIR
-# ifdef __NetBSD__
-# define	PIDSTRING
-# define	LOCK_DIR	"/var/spool/lock"
-# else
-#  ifdef HDB
-#   define	PIDSTRING
-#   define	LOCK_DIR	"/usr/spool/locks"
-#  else /* HDB */
-#   define	LOCK_DIR	"/usr/spool/uucp"
-#  endif /* HDB */
-# endif
-#endif /* LOCK_DIR */
 
 #define	MAX_ABORTS		50
 #define	DEFAULT_CHAT_TIMEOUT	45
@@ -130,7 +108,6 @@ void set_tty_parameters __P((void));
 void break_sequence __P((void));
 void terminate __P((int status));
 void do_file __P((char *chat_file));
-void lock __P((void));
 void delay __P((void));
 int  get_string __P((register char *string));
 int  put_string __P((register char *s));
@@ -141,8 +118,6 @@ void chat_send __P((register char *s));
 char *character __P((char c));
 void chat_expect __P((register char *s));
 char *clean __P((register char *s, int sending));
-void unlock __P((void));
-void lock __P((void));
 void break_sequence __P((void));
 void terminate __P((int status));
 void die __P((void));
@@ -165,7 +140,7 @@ char *s;
     }
 
 /*
- *	chat [ -v ] [ -t timeout ] [ -l lock-file ] [ -f chat-file ] \
+ *	chat [ -v ] [ -t timeout ] [ -f chat-file ] \
  *		[...[[expect[-say[-expect...]] say expect[-say[-expect]] ...]]]
  *
  *	Perform a UUCP-dialer-like chat script on stdin and stdout.
@@ -336,7 +311,7 @@ char *chat_file;
 void usage()
     {
     fprintf(stderr, "\
-Usage: %s [-v] [-l lock-file] [-t timeout] {-f chat-file || chat-script}\n",
+Usage: %s [-v] [-t timeout] {-f chat-file || chat-script}\n",
 	    program_name);
     exit(1);
     }
@@ -367,11 +342,10 @@ void logflush()
     }
 
 /*
- *	Unlock and terminate with an error.
+ *	Terminate with an error.
  */
 void die()
     {
-    unlock();
     terminate(1);
     }
 
@@ -383,7 +357,6 @@ void fatal (msg)
 const char *msg;
     {
     syslog(LOG_ERR, "%s", msg);
-    unlock();
     terminate(1);
     }
 
@@ -396,7 +369,6 @@ void sysfatal (msg)
 const char *msg;
     {
     syslog(LOG_ERR, "%s: %m", msg);
-    unlock();
     terminate(1);
     }
 
@@ -459,9 +431,6 @@ void init()
     signal(SIGTERM, sigterm);
     signal(SIGHUP, sighup);
 
-    if (lock_file)
-	lock();
-
     set_tty_parameters();
     signal(SIGALRM, sigalrm);
     alarm(0);
@@ -522,55 +491,9 @@ int status;
 #endif
 	) {
 	syslog(LOG_ERR, "Can't restore terminal parameters: %m");
-	unlock();
 	exit(1);
         }
     exit(status);
-    }
-
-/*
- *	Create a lock file for the named lock device
- */
-void lock()
-    {
-    int fd, pid;
-# ifdef PIDSTRING
-    char hdb_lock_buffer[12];
-# endif
-
-    lock_file = strcat(strcat(strcpy(malloc(strlen(LOCK_DIR)
-				       + 1 + strlen(lock_file) + 1),
-				LOCK_DIR), "/"), lock_file);
-
-    if ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0)
-	{
-	char *s = lock_file;
-	lock_file = (char *)0;	/* Don't remove someone else's lock file! */
-	syslog(LOG_ERR, "Can't get lock file '%s': %m", s);
-	die();
-	}
-
-# ifdef PIDSTRING
-    sprintf(hdb_lock_buffer, "%10d\n", getpid());
-    write(fd, hdb_lock_buffer, 11);
-# else
-    pid = getpid();
-    write(fd, &pid, sizeof pid);
-# endif
-
-    close(fd);
-    }
-
-/*
- *	Remove our lockfile
- */
-void unlock()
-    {
-    if (lock_file)
-	{
-	unlink(lock_file);
-	lock_file = (char *)0;
-	}
     }
 
 /*
@@ -778,7 +701,6 @@ register char *s;
 		else
 		    syslog(LOG_INFO, "Failed");
 
-		unlock();
 		terminate(1);
 		}
 	}
@@ -863,7 +785,6 @@ register char *s;
 	    if ( ! put_string(s))
 		{
 		syslog(LOG_INFO, "Failed");
-		unlock();
 		terminate(1);
 		}
 	    }
