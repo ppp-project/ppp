@@ -1,7 +1,7 @@
 #
 # Generic make definitions for Solaris 2
 #
-# $Id: Makedefs.sol2,v 1.1 1999/09/15 22:10:16 masputra Exp $
+# $Id: Makedefs.sol2,v 1.2 1999/09/15 23:51:56 masputra Exp $
 #
 
 include Makedefs
@@ -22,6 +22,14 @@ LINTTAGS_32     += -erroff=E_CAST_UINT_TO_SIGNED_INT
 LINTTAGS_32     += -erroff=E_PASS_UINT_TO_SIGNED_INT
 LINTTAGS_32     += -erroff=E_INVALID_ANNOTATION_NAME
 LINTTAGS_32     += -erroff=E_FUNC_ARG_UNUSED
+# This might be needed, but zlib.c and vjcompress.c will squawk 
+# when not ignored
+LINTTAGS_32	+= -erroff=E_CASE_FALLTHRU
+LINTTAGS_32	+= -erroff=E_RET_INT_IMPLICITLY
+LINTTAGS_32	+= -erroff=E_FUNC_NO_RET_VAL
+# Some STREAMS macros will be noisy too when this isn't ignored
+LINTTAGS_32	+= -erroff=E_CONSTANT_CONDITION
+LINTTAGS_32	+= -erroff=E_CONST_EXPR
 
 # Selectively disable certain noisy lint errors
 LENIENT_LINTTAGS =
