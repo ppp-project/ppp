@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.24 1996/06/26 00:56:11 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.25 1996/07/01 01:10:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -120,9 +120,12 @@ static int num_np_open;
 /* Number of network protocols which have come up. */
 static int num_np_up;
 
+/* Set if we got the contents of passwd[] from the pap-secrets file. */
+static int passwd_from_file;
+
 /* Bits in auth_pending[] */
-#define UPAP_WITHPEER	1
-#define UPAP_PEER	2
+#define PAP_WITHPEER	1
+#define PAP_PEER	2
 #define CHAP_WITHPEER	4
 #define CHAP_PEER	8
 
@@ -133,8 +136,8 @@ static void check_idle __P((caddr_t));
 static int  login __P((char *, char *, char **, int *));
 static void logout __P((void));
 static int  null_login __P((int));
-static int  get_upap_passwd __P((void));
-static int  have_upap_secret __P((void));
+static int  get_pap_passwd __P((char *));
+static int  have_pap_secret __P((void));
 static int  have_chap_secret __P((char *, char *, u_int32_t));
 static int  ip_addr_check __P((u_int32_t, struct wordlist *));
 static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
@@ -227,7 +230,6 @@ link_established(unit)
 	if (!wo->neg_upap || !null_login(unit)) {
 	    syslog(LOG_WARNING, "peer refused to authenticate");
 	    lcp_close(unit, "peer refused to authenticate");
-	    phase = PHASE_TERMINATE;
 	    return;
 	}
     }
@@ -239,14 +241,19 @@ link_established(unit)
 	auth |= CHAP_PEER;
     } else if (go->neg_upap) {
 	upap_authpeer(unit);
-	auth |= UPAP_PEER;
+	auth |= PAP_PEER;
     }
     if (ho->neg_chap) {
 	ChapAuthWithPeer(unit, our_name, ho->chap_mdtype);
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
+	if (passwd[0] == 0) {
+	    passwd_from_file = 1;
+	    if (!get_pap_passwd(passwd))
+		syslog(LOG_ERR, "No secret found for PAP login");
+	}
 	upap_authwithpeer(unit, user, passwd);
-	auth |= UPAP_WITHPEER;
+	auth |= PAP_WITHPEER;
     }
     auth_pending[unit] = auth;
 
@@ -298,7 +305,6 @@ auth_peer_fail(unit, protocol)
      * Authentication failure: take the link down
      */
     lcp_close(unit, "Authentication failed");
-    phase = PHASE_TERMINATE;
 }
 
 /*
@@ -317,7 +323,7 @@ auth_peer_success(unit, protocol, name, namelen)
 	bit = CHAP_PEER;
 	break;
     case PPP_PAP:
-	bit = UPAP_PEER;
+	bit = PAP_PEER;
 	break;
     default:
 	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
@@ -348,6 +354,8 @@ void
 auth_withpeer_fail(unit, protocol)
     int unit, protocol;
 {
+    if (passwd_from_file)
+	BZERO(passwd, MAXSECRETLEN);
     /*
      * We've failed to authenticate ourselves to our peer.
      * He'll probably take the link down, and there's not much
@@ -369,7 +377,9 @@ auth_withpeer_success(unit, protocol)
 	bit = CHAP_WITHPEER;
 	break;
     case PPP_PAP:
-	bit = UPAP_WITHPEER;
+	if (passwd_from_file)
+	    BZERO(passwd, MAXSECRETLEN);
+	bit = PAP_WITHPEER;
 	break;
     default:
 	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
@@ -454,7 +464,7 @@ void
 auth_check_options()
 {
     lcp_options *wo = &lcp_wantoptions[0];
-    lcp_options *ao = &lcp_allowoptions[0];
+    int can_auth;
     ipcp_options *ipwo = &ipcp_wantoptions[0];
     u_int32_t remote;
 
@@ -472,24 +482,46 @@ auth_check_options()
 
     /*
      * Check whether we have appropriate secrets to use
-     * to authenticate ourselves and/or the peer.
+     * to authenticate the peer.
      */
-    if (ao->neg_upap && passwd[0] == 0 && !get_upap_passwd())
-	ao->neg_upap = 0;
-    if (wo->neg_upap && !uselogin && !have_upap_secret())
-	wo->neg_upap = 0;
-    if (ao->neg_chap && !have_chap_secret(our_name, remote_name, (u_int32_t)0))
-	ao->neg_chap = 0;
-    if (wo->neg_chap) {
+    can_auth = wo->neg_upap && (uselogin || have_pap_secret());
+    if (!can_auth && wo->neg_chap) {
 	remote = ipwo->accept_remote? 0: ipwo->hisaddr;
-	if (!have_chap_secret(remote_name, our_name, remote))
-	    wo->neg_chap = 0;
+	can_auth = have_chap_secret(remote_name, our_name, remote);
     }
 
-    if (auth_required && !wo->neg_chap && !wo->neg_upap) {
+    if (auth_required && !can_auth) {
 	fprintf(stderr, "\
 pppd: peer authentication required but no suitable secret(s) found\n");
 	exit(1);
+    }
+
+}
+
+/*
+ * auth_reset - called when LCP is starting negotiations to recheck
+ * authentication options, i.e. whether we have appropriate secrets
+ * to use for authenticating ourselves and/or the peer.
+ */
+void
+auth_reset(unit)
+    int unit;
+{
+    lcp_options *go = &lcp_gotoptions[unit];
+    lcp_options *ao = &lcp_allowoptions[0];
+    ipcp_options *ipwo = &ipcp_wantoptions[0];
+    u_int32_t remote;
+
+    ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
+    ao->neg_chap = !refuse_chap
+	&& have_chap_secret(our_name, remote_name, (u_int32_t)0);
+
+    if (go->neg_upap && !uselogin && !have_pap_secret())
+	go->neg_upap = 0;
+    if (go->neg_chap) {
+	remote = ipwo->accept_remote? 0: ipwo->hisaddr;
+	if (!have_chap_secret(remote_name, our_name, remote))
+	    go->neg_chap = 0;
     }
 
 }
@@ -535,7 +567,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     *msg = (char *) 0;
 
     /*
-     * Open the file of upap secrets and scan for a suitable secret
+     * Open the file of pap secrets and scan for a suitable secret
      * for authenticating this user.
      */
     filename = _PATH_UPAPFILE;
@@ -596,6 +628,9 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
 	    free_wordlist(addresses[unit]);
 	addresses[unit] = addrs;
     }
+
+    BZERO(passwd, sizeof(passwd));
+    BZERO(secret, sizeof(secret));
 
     return ret;
 }
@@ -834,7 +869,7 @@ null_login(unit)
     char secret[MAXWORDLEN];
 
     /*
-     * Open the file of upap secrets and scan for a suitable secret.
+     * Open the file of pap secrets and scan for a suitable secret.
      * We don't accept a wildcard client.
      */
     filename = _PATH_UPAPFILE;
@@ -846,6 +881,7 @@ null_login(unit)
 
     i = scan_authfile(f, "", our_name, (u_int32_t)0, secret, &addrs, filename);
     ret = i >= 0 && (i & NONWILD_CLIENT) != 0 && secret[0] == 0;
+    BZERO(secret, sizeof(secret));
 
     if (ret) {
 	if (addresses[unit] != NULL)
@@ -859,12 +895,12 @@ null_login(unit)
 
 
 /*
- * get_upap_passwd - get a password for authenticating ourselves with
+ * get_pap_passwd - get a password for authenticating ourselves with
  * our peer using PAP.  Returns 1 on success, 0 if no suitable password
  * could be found.
  */
 static int
-get_upap_passwd()
+get_pap_passwd(char *passwd)
 {
     char *filename;
     FILE *f;
@@ -877,21 +913,25 @@ get_upap_passwd()
     if (f == NULL)
 	return 0;
     check_access(f, filename);
-    if (scan_authfile(f, user, remote_name, (u_int32_t)0,
-		      secret, NULL, filename) < 0)
+    if (scan_authfile(f, user,
+		      remote_name[0]? remote_name: NULL,
+		      (u_int32_t)0, secret, NULL, filename) < 0)
 	return 0;
-    strncpy(passwd, secret, MAXSECRETLEN);
-    passwd[MAXSECRETLEN-1] = 0;
+    if (passwd != NULL) {
+	strncpy(passwd, secret, MAXSECRETLEN);
+	passwd[MAXSECRETLEN-1] = 0;
+    }
+    BZERO(secret, sizeof(secret));
     return 1;
 }
 
 
 /*
- * have_upap_secret - check whether we have a PAP file with any
+ * have_pap_secret - check whether we have a PAP file with any
  * secrets that we could possibly use for authenticating the peer.
  */
 static int
-have_upap_secret()
+have_pap_secret()
 {
     FILE *f;
     int ret;
@@ -998,6 +1038,7 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
 	len = MAXSECRETLEN;
     }
     BCOPY(secbuf, secret, len);
+    BZERO(secbuf, sizeof(secbuf));
     *secret_len = len;
 
     return 1;
