@@ -42,7 +42,6 @@ files, are:
 
 	Linux				README.linux
 	Solaris				README.sol2
-	SunOS 4.x			README.sunos4
 
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
@@ -60,34 +59,41 @@ authenticating itself to you, of course.)
 What's new in ppp-2.4.2.
 ************************
 
-* Support for MS-CHAP v2 authentication, plus support for
-  authenticating the peer with MS-CHAP v1 or v2.
+* The CHAP code has been rewritten.  Pppd now has support for MS-CHAP
+  V1 and V2 authentication, both as server and client.  The new CHAP
+  code is cleaner than the old code and avoids some copyright problems
+  that existed in the old code.
 
-* MPPE
+* MPPE (Microsoft Point-to-Point Encryption) support has been added,
+  although the current implementation shouldn't be considered
+  completely secure.  (There is no assurance that the current code
+  won't ever transmit an unencrypted packet.)
 
-* CBCP updates
+* James Carlson's implementation of the Extensible Authentication
+  Protocol (EAP) has been added.
 
-* EAP
+* Support for the Encryption Control Protocol (ECP) has been added.
 
-* PPPOE
+* Some new plug-ins have been included:
+  - A plug-in for kernel-mode PPPoE (PPP over Ethernet)
+  - A plug-in for supplying the PAP password over a pipe from another
+    process
+  - A plug-in for authenticating using a Radius server.
 
-* Password-via-pipe plugin
+* Updates and bug-fixes for the Solaris port.
 
-* Solaris updates
+* The CBCP (Call Back Control Protocol) code has been updated.  There
+  are new options `remotenumber' and `allow-number'.
 
-* ECP
+* Extra hooks for plugins to use have been added.
 
-* Radius plugin code included
+* There is now a `maxoctets' option, which causes pppd to terminate
+  the link once the number of bytes passed on the link exceeds a given
+  value.
 
-* Extra hooks for plugins
-
-* maxoctets option
-
-* ipcp-no-addresses and ipcp-no-address options
-
-* remotenumber and allow-number options
-
-* lock filename changes?
+* There are now options to control whether pppd can use the IPCP
+  IP-Address and IP-Addresses options: `ipcp-no-address' and
+  `ipcp-no-addresses'.
 
 * Fixed several bugs, including potential buffer overflows in chat.
 
@@ -129,7 +135,7 @@ What was new in ppp-2.4.0.
 * Multilink: this package now allows you to combine multiple serial
   links into one logical link or `bundle', for increased bandwidth and
   reduced latency.  This is currently only supported under the
-  Linux-2.3.99pre5 or later kernels.
+  2.4.x and later Linux kernels.
 
 * All the pppd processes running on a system now write information
   into a common database.  I used the `tdb' code from samba for this.
@@ -180,8 +186,7 @@ If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
 Linux			Paul Mackerras <paulus@linuxcare.com>
-Solaris			James Carlson <james.d.carlson@east.sun.com>
-SunOS 4.x		Adi Masputra <adi.masputra@sun.com>
+Solaris			James Carlson <carlson@workingcode.com>
 
 
 Copyrights:
@@ -200,4 +205,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.28 2003/05/01 12:43:16 paulus Exp $)
+($Id: README,v 1.29 2003/06/29 10:04:10 paulus Exp $)
