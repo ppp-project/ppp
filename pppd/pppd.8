@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.18 1996/04/04 04:01:28 paulus Exp $
+.\" $Id: pppd.8,v 1.19 1996/07/01 01:19:01 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -204,9 +204,9 @@ transmit and receive direction.
 .TP
 .B deflate \fInr,nt
 Request that the peer compress packets that it sends, using the
-Deflate scheme, with a maximum window size of \fI2**nr\fR bits, and
+Deflate scheme, with a maximum window size of \fI2**nr\fR bytes, and
 agree to compress packets sent to the peer with a maximum window size of
-\fI2**nt\fR bits.  If \fInt\fR is not specified, it defaults to the value
+\fI2**nt\fR bytes.  If \fInt\fR is not specified, it defaults to the value
 given for \fInr\fR.  Values in the range 8 to 15 may be used for
 \fInr\fR and \fInt\fR; larger values give better compression but
 consume more kernel memory for compression dictionaries.
