@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.25 1996/05/27 00:00:12 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.26 1996/07/01 05:32:37 paulus Exp $";
 #endif
 
 /*
@@ -812,7 +812,7 @@ sifvjcomp(u, vjcomp, cidcomp, maxcid)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
-    if (ioctl(ppp_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
+    if (vjcomp && ioctl(ppp_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
