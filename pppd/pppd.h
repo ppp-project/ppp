@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.31 1999/03/16 22:54:43 paulus Exp $
+ * $Id: pppd.h,v 1.32 1999/03/19 01:28:27 paulus Exp $
  */
 
 /*
@@ -102,6 +102,13 @@ typedef struct {
 #define GIDSET_TYPE	gid_t
 #endif
 
+/* Structure representing a list of permitted IP addresses. */
+struct permitted_ip {
+    int		permit;		/* 1 = permit, 0 = forbid */
+    u_int32_t	base;		/* match if (addr & mask) == base */
+    u_int32_t	mask;		/* base and mask are in network byte order */
+};
+
 /*
  * Global variables.
  */
@@ -150,7 +157,7 @@ extern bool	persist;	/* Reopen link after it goes down */
 extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
 extern char	our_name[MAXNAMELEN];/* Our name for authentication purposes */
 extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
-extern int	explicit_remote;/* remote_name specified with remotename opt */
+extern bool	explicit_remote;/* remote_name specified with remotename opt */
 extern bool	demand;		/* Do dial-on-demand */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
@@ -243,8 +250,6 @@ pid_t run_program __P((char *prog, char **args, int must_exist,
 				/* Run program prog with args in child */
 void demuxprotrej __P((int, int));
 				/* Demultiplex a Protocol-Reject */
-void format_packet __P((u_char *, int, void (*) (void *, char *, ...),
-		void *));	/* Format a packet in human-readable form */
 void log_packet __P((u_char *, int, char *, int));
 				/* Format a packet and log it with syslog */
 void print_string __P((char *, int,  void (*) (void *, char *, ...),
@@ -253,9 +258,8 @@ int slprintf __P((char *, int, char *, ...));		/* sprintf++ */
 int vslprintf __P((char *, int, char *, va_list));	/* vsprintf++ */
 void script_setenv __P((char *, char *));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
-void hangup_modem __P((int));	/* Make modem hang up */
-void strlcpy __P((char *, size_t, const char *));	/* safe strcpy */
-void strlcat __P((char *, size_t, const char *));	/* safe strncpy */
+size_t strlcpy __P((char *, const char *, size_t));	/* safe strcpy */
+size_t strlcat __P((char *, const char *, size_t));	/* safe strncpy */
 void dbglog __P((char *, ...));	/* log a debug message */
 void info __P((char *, ...));	/* log an informational message */
 void notice __P((char *, ...));	/* log a notice-level message */
@@ -290,8 +294,6 @@ int  auth_ip_addr __P((int, u_int32_t));
 				/* check if IP address is authorized */
 int  bad_ip_adrs __P((u_int32_t));
 				/* check if IP address is unreasonable */
-void check_access __P((FILE *, char *));
-				/* check permissions on secrets file */
 
 /* Procedures exported from demand.c */
 void demand_conf __P((void));	/* config interface(s) for demand-dial */
@@ -300,7 +302,6 @@ void demand_unblock __P((void)); /* set all NPs to pass packets */
 void demand_discard __P((void)); /* set all NPs to discard packets */
 void demand_rexmit __P((int));	/* retransmit saved frames for an NP */
 int  loop_chars __P((unsigned char *, int)); /* process chars from loopback */
-int  loop_frame __P((unsigned char *, int)); /* process frame from loopback */
 
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
@@ -374,7 +375,6 @@ int  cipxfaddr __P((int));
 /* Procedures exported from options.c */
 int  parse_args __P((int argc, char **argv));
 				/* Parse options from arguments given */
-void usage __P((void));		/* Print a usage message */
 int  options_from_file __P((char *filename, int must_exist, int check_prot,
 			    int privileged));
 				/* Parse options from an options file */
@@ -386,9 +386,6 @@ int  getword __P((FILE *f, char *word, int *newlinep, char *filename));
 				/* Read a word from a file */
 void option_error __P((char *fmt, ...));
 				/* Print an error message about an option */
-int readable __P((int fd));	/* Is fd readable by real user? */
-int number_option __P((char *, u_int32_t *, int));
-				/* Parse a numerical option */
 int int_option __P((char *, int *));
 				/* Simplified number_option for decimal ints */
 
@@ -447,23 +444,15 @@ extern struct option_info welcomer_info;
 #define INCPTR(n, cp)	((cp) += (n))
 #define DECPTR(n, cp)	((cp) -= (n))
 
-#undef  FALSE
-#define FALSE	0
-#undef  TRUE
-#define TRUE	1
-
 /*
  * System dependent definitions for user-level 4.3BSD UNIX implementation.
  */
-
-#define DEMUXPROTREJ(u, p)	demuxprotrej(u, p)
 
 #define TIMEOUT(r, f, t)	timeout((r), (f), (t))
 #define UNTIMEOUT(r, f)		untimeout((r), (f))
 
 #define BCOPY(s, d, l)		memcpy(d, s, l)
 #define BZERO(s, n)		memset(s, 0, n)
-#define EXIT(u)			quit()
 
 #define PRINTMSG(m, l)		{ info("Remote message: %0.*v", l, m); }
 
