@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.17 1995/04/28 06:24:53 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.18 1995/05/19 03:18:08 paulus Exp $";
 #endif
 
 /*
@@ -888,7 +888,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		    }
 		}
 		ho->maxslotindex = maxslotindex;
-		ho->cflag = wo->cflag;
+		ho->cflag = cflag;
 	    } else {
 		ho->old_vj = 1;
 		ho->maxslotindex = MAX_STATES - 1;
