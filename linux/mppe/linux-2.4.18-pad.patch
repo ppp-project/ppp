@@ -12,38 +12,37 @@
  	struct sock_fprog pass_filter;	/* filter for packets to pass */
  	struct sock_fprog active_filter;/* filter for pkts to reset idle */
  #endif /* CONFIG_PPP_FILTER */
-+	int		comp_pad;	/* padding for compressor (MPPE) */
++	int		opad;		/* ECP or CCP (MPPE) output padding */
  };
  
  /*
-@@ -531,6 +533,10 @@
+@@ -531,6 +533,8 @@
  		if (get_user(val, (int *) arg))
  			break;
- 		ppp->mru = val;
-+		if (ppp->mru > ppp->mru_alloc)
-+		    ppp->mru_alloc = ppp->mru;
-+		else if (ppp->mru < PPP_MRU)
-+		    ppp->mru_alloc = PPP_MRU;	/* shrink to minimum */
+-		ppp->mru = val;
++		ppp->mru_alloc = ppp->mru = val;
++		if (ppp->mru_alloc < PPP_MRU)
++		    ppp->mru_alloc = PPP_MRU;	/* increase for broken peers */
  		err = 0;
  		break;
  
-@@ -1006,8 +1012,8 @@
+@@ -1006,8 +1010,8 @@
  	/* try to do packet compression */
  	if ((ppp->xstate & SC_COMP_RUN) && ppp->xc_state != 0
  	    && proto != PPP_LCP && proto != PPP_CCP) {
 -		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len,
 -				    GFP_ATOMIC);
 +		new_skb = alloc_skb(ppp->dev->mtu + ppp->dev->hard_header_len
-+				    + ppp->comp_pad, GFP_ATOMIC);
++				    + ppp->opad, GFP_ATOMIC);
  		if (new_skb == 0) {
  			printk(KERN_ERR "PPP: no memory (comp pkt)\n");
  			goto drop;
-@@ -1019,15 +1025,28 @@
+@@ -1019,15 +1023,28 @@
  		/* compressor still expects A/C bytes in hdr */
  		len = ppp->xcomp->compress(ppp->xc_state, skb->data - 2,
  					   new_skb->data, skb->len + 2,
 -					   ppp->dev->mtu + PPP_HDRLEN);
-+					   ppp->dev->mtu + ppp->comp_pad
++					   ppp->dev->mtu + ppp->opad
 +					   + PPP_HDRLEN);
  		if (len > 0 && (ppp->flags & SC_CCP_UP)) {
  			kfree_skb(skb);
@@ -69,7 +68,7 @@
  		}
  	}
  
-@@ -1515,14 +1534,15 @@
+@@ -1515,14 +1532,15 @@
  	int len;
  
  	if (proto == PPP_COMP) {
@@ -87,7 +86,7 @@
  		if (len < 0) {
  			/* Pass the compressed frame to pppd as an
  			   error indication. */
-@@ -1949,6 +1969,20 @@
+@@ -1949,6 +1967,20 @@
  			ppp_xmit_unlock(ppp);
  			err = 0;
  		}
@@ -102,13 +101,13 @@
 +			 * but that seems inefficient compared to this
 +			 * little trick.
 +			 */
-+			ppp->comp_pad = MPPE_PAD;
++			ppp->opad = MPPE_PAD;
 +		else
-+			ppp->comp_pad = 0;
++			ppp->opad = 0;
  
  	} else {
  		ppp_recv_lock(ppp);
-@@ -2229,6 +2263,7 @@
+@@ -2229,6 +2261,7 @@
  
  	ppp->file.index = unit;
  	ppp->mru = PPP_MRU;
