@@ -1,14 +1,14 @@
 #
 # pppstats makefile
-# $Id: Makefile.sun,v 1.1 1993/12/14 02:57:14 paulus Exp $
+# $Id: Makefile.sun,v 1.2 1993/12/14 05:11:09 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
 PPPSTATOBJS = pppstats.o
 
-CC = gcc
+#CC = gcc
 COPTS = -O
-COMPILE_FLAGS = -DKVMLIB -DSTREAMS
+COMPILE_FLAGS = -DSTREAMS
 LIBS = -lkvm
 
 CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
