@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.10 1995/12/18 03:44:42 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.11 1996/04/04 03:37:01 paulus Exp $";
 #endif
 
 /*
@@ -294,7 +294,7 @@ fsm_input(f, inpacket, l)
     u_char *inpacket;
     int l;
 {
-    u_char *inp, *outp;
+    u_char *inp;
     u_char code, id;
     int len;
 
@@ -377,7 +377,6 @@ fsm_rconfreq(f, id, inp, len)
     u_char *inp;
     int len;
 {
-    u_char *outp;
     int code, reject_if_disagree;
 
     FSMDEBUG((LOG_INFO, "fsm_rconfreq(%s): Rcvd id %d.", PROTO_NAME(f), id));
@@ -716,7 +715,7 @@ fsm_sconfreq(f, retransmit)
     int retransmit;
 {
     u_char *outp;
-    int outlen, cilen;
+    int cilen;
 
     if( f->state != REQSENT && f->state != ACKRCVD && f->state != ACKSENT ){
 	/* Not currently negotiating - reset options */
