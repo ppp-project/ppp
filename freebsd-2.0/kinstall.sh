@@ -70,6 +70,7 @@ if [ $DOCONF ]; then
   echo "	cd $ARCHDIR/conf"
   echo "	/usr/sbin/$CONFIG $CONF"
   echo "	cd ../../compile/$CONF"
+  echo "	make depend"
   DOMAKE=yes
 elif [ $DOMAKE ]; then
   echo "You need to build a new kernel."
