@@ -69,7 +69,7 @@
  * Paul Mackerras (paulus@cs.anu.edu.au).
  */
 
-/* $Id: if_ppp.c,v 1.3 1995/05/01 01:39:33 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.4 1995/07/11 06:37:41 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -884,7 +884,7 @@ ppp_outpkt(sc)
 #ifdef PPP_COMPRESS
     if (protocol != PPP_LCP && protocol != PPP_CCP
 	&& sc->sc_xc_state && (sc->sc_flags & SC_COMP_RUN)) {
-	struct mbuf *mcomp;
+	struct mbuf *mcomp = NULL;
 	int slen, clen;
 
 	slen = 0;
@@ -1080,7 +1080,7 @@ ppp_inproc(sc, m)
     struct ifqueue *inq;
     int s, ilen, xlen, proto, rv;
     u_char *cp, adrs, ctrl;
-    struct mbuf *mp, *dmp;
+    struct mbuf *mp, *dmp = NULL;
     u_char *iphdr;
     u_int hlen;
 
@@ -1112,32 +1112,30 @@ ppp_inproc(sc, m)
 	&& !(sc->sc_flags & SC_DC_ERROR) && !(sc->sc_flags & SC_DC_FERROR)) {
 	/* decompress this packet */
 	rv = (*sc->sc_rcomp->decompress)(sc->sc_rc_state, m, &dmp);
-	if (dmp != NULL) {
+	if (rv == DECOMP_OK) {
 	    m_freem(m);
+	    if (dmp == NULL) {
+		/* no error, but no decompressed packet produced */
+		return;
+	    }
 	    m = dmp;
 	    cp = mtod(m, u_char *);
 	    proto = PPP_PROTOCOL(cp);
 
 	} else {
-	    /* pass the compressed packet up to pppd, which may take
-	       CCP down or issue a Reset-Req. */
+	    /*
+	     * An error has occurred in decompression.
+	     * Pass the compressed packet up to pppd, which may take
+	     * CCP down or issue a Reset-Req.
+	     */
 	    if (sc->sc_flags & SC_DEBUG)
 		printf("ppp%d: decompress failed %d\n", sc->sc_if.if_unit, rv);
 	    s = splimp();
 	    sc->sc_flags |= SC_VJ_RESET;
-	    switch (rv) {
-	    case DECOMP_OK:
-		/* no error, but no decompressed packet produced */
-		splx(s);
-		m_freem(m);
-		return;
-	    case DECOMP_ERROR:
+	    if (rv == DECOMP_ERROR)
 		sc->sc_flags |= SC_DC_ERROR;
-		break;
-	    case DECOMP_FATALERROR:
+	    else
 		sc->sc_flags |= SC_DC_FERROR;
-		break;
-	    }
 	    splx(s);
 	}
 
