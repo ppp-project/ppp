@@ -39,7 +39,7 @@
 /*
  * This version is for use with contiguous buffers on Linux-derived systems.
  *
- *  ==FILEVERSION 970227==
+ *  ==FILEVERSION 970607==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the

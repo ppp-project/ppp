@@ -21,7 +21,7 @@
  */
 
 /*
- *  ==FILEVERSION 971001==
+ *  ==FILEVERSION 971223==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the above date.
@@ -47,7 +47,7 @@
 
 #define	PPP_MTU		1500	/* Default MTU (size of Info field) */
 #define PPP_MAXMRU	65000	/* Largest MRU we allow */
-#define PPP_VERSION	"2.3.2"
+#define PPP_VERSION	"2.3.3"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
 #define PROTO_DNA_RT    0x0027  /* DNA Routing */
