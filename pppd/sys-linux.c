@@ -517,7 +517,10 @@ void tty_disestablish_ppp(int tty_fd)
  * Flush the tty output buffer so that the TIOCSETD doesn't hang.
  */
 	if (tcflush(tty_fd, TCIOFLUSH) < 0)
+	{
 	    warn("tcflush failed: %m");
+	    goto flushfailed;
+	}
 /*
  * Restore the previous line discipline
  */
@@ -537,6 +540,7 @@ void tty_disestablish_ppp(int tty_fd)
 		warn("Couldn't restore device fd flags: %m");
 	}
     }
+flushfailed:
     initfdflags = -1;
 
     generic_disestablish_ppp(tty_fd);
