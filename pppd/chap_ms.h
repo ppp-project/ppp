@@ -27,7 +27,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: chap_ms.h,v 1.7 2002/12/04 23:03:32 paulus Exp $
+ * $Id: chap_ms.h,v 1.8 2002/12/23 23:24:37 fcusack Exp $
  */
 
 #ifndef __CHAPMS_INCLUDE__
@@ -71,6 +71,7 @@ typedef struct {
 #include <net/ppp-comp.h>	/* MPPE_MAX_KEY_LEN */
 extern u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 extern u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
+extern int mppe_keys_set;
 #endif
 
 /* Are we the authenticator or authenticatee?  For MS-CHAPv2 key derivation. */

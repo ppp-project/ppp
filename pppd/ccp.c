@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.41 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: ccp.c,v 1.42 2002/12/23 23:24:37 fcusack Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +44,7 @@
 #include <net/ppp-comp.h>
 
 #ifdef MPPE
-#include "chap_ms.h"	/* mppe_xxxx_key */
+#include "chap_ms.h"	/* mppe_xxxx_key, mppe_keys_set */
 #include "lcp.h"	/* lcp_close(), lcp_fsm */
 #endif
 
@@ -574,6 +574,14 @@ ccp_resetci(f)
 	}
 	if (!numbits) {
 	    error("MPPE required, but MS-CHAP[v2] auth not performed.");
+	    lcp_close(f->unit, "MPPE required but not available");
+	    return;
+	}
+
+	/* A plugin (eg radius) may not have obtained key material. */
+	if (!mppe_keys_set) {
+	    error("MPPE required, but keys are not available.  "
+		  "Possible plugin problem?");
 	    lcp_close(f->unit, "MPPE required but not available");
 	    return;
 	}

@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.18 2002/11/13 18:19:26 fcusack Exp $";
+"$Id: radius.c,v 1.19 2002/12/23 23:24:37 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -709,6 +709,7 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info, chap_state *cstate)
      * to generate the start key, sigh.  NB: We do not support the LM-Key.
      */
     mppe_set_keys(cstate->challenge, &plain[8]);
+    mppe_keys_set = 1;
 
     return 0;    
 }
@@ -777,6 +778,7 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 	memcpy(mppe_send_key, plain + 1, 16);
     else
 	memcpy(mppe_recv_key, plain + 1, 16);
+    mppe_keys_set = 1;
 
     return 0;
 }

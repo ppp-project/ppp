@@ -48,7 +48,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.25 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.26 2002/12/23 23:24:37 fcusack Exp $"
 
 #ifdef CHAPMS
 
@@ -99,6 +99,7 @@ bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 #ifdef MPPE
 u_char mppe_send_key[MPPE_MAX_KEY_LEN];
 u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
+int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
 #endif
 
 static void
@@ -461,6 +462,7 @@ ChapMS(chap_state *cstate, u_char *rchallenge, char *secret, int secret_len,
 
 #ifdef MPPE
     Set_Start_Key(rchallenge, secret, secret_len);
+    mppe_keys_set = 1;
 #endif
 }
 
@@ -507,6 +509,7 @@ ChapMS2(chap_state *cstate, u_char *rchallenge, u_char *PeerChallenge,
 
 #ifdef MPPE
     SetMasterKeys(secret, secret_len, response->NTResp, authenticator);
+    mppe_keys_set = 1;
 #endif
 }
 
