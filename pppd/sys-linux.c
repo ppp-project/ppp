@@ -1024,7 +1024,7 @@ static int read_route_table (struct rtentry *rt);
  * path_to_procfs - find the path to the proc file system mount point
  */
 
-static int path_to_procfs (void)
+static int path_to_procfs (const char *tail)
 {
     struct mntent *mntent;
     FILE *fp;
@@ -1033,6 +1033,7 @@ static int path_to_procfs (void)
     if (fp == NULL) {
 	/* Default the mount location of /proc */
 	strlcpy (route_buffer, "/proc", sizeof (route_buffer));
+	strlcat (route_buffer, tail, sizeof(route_buffer));
 	return 1;
     }
 
@@ -1047,6 +1048,7 @@ static int path_to_procfs (void)
 	return 0;
 
     strlcpy(route_buffer, mntent->mnt_dir, sizeof (route_buffer));
+    strlcat (route_buffer, tail, sizeof(route_buffer));
     return 1;
 }
 
@@ -1057,11 +1059,10 @@ static int path_to_procfs (void)
 
 static char *path_to_route (void)
 {
-    if (!path_to_procfs()) {
+    if (!path_to_procfs("/net/route")) {
 	error("proc file system not mounted");
 	return 0;
     }
-    strlcat (route_buffer, "/net/route", sizeof(route_buffer));
     return (route_buffer);
 }
 
@@ -2396,21 +2397,16 @@ int
 sys_check_options(void)
 {
 #ifdef IPX_CHANGE
-    struct stat stat_buf;
 /*
  * Disable the IPX protocol if the support is not present in the kernel.
- * If we disable it then ensure that IP support is enabled.
  */
-    while (ipxcp_protent.enabled_flag) {
-        if (path_to_procfs()) {
-	    strlcat (route_buffer, "/net/ipx_interface", sizeof(route_buffer));
-	    if (lstat (route_buffer, &stat_buf) >= 0)
-		break;
+    if (ipxcp_protent.enabled_flag) {
+	struct stat stat_buf;
+        if (path_to_procfs("/net/ipx_interface")
+	    || lstat (route_buffer, &stat_buf) < 0) {
+	    error("IPX support is not present in the kernel\n");
+	    ipxcp_protent.enabled_flag = 0;
 	}
-	error("IPX support is not present in the kernel\n");
-	ipxcp_protent.enabled_flag = 0;
-	ipcp_protent.enabled_flag  = 1;
-	break;
     }
 #endif
     if (demand && driver_is_old) {

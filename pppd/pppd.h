@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.40 1999/05/13 00:34:33 paulus Exp $
+ * $Id: pppd.h,v 1.41 1999/05/14 01:09:03 paulus Exp $
  */
 
 /*
@@ -193,14 +193,14 @@ extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #endif
 
-char *current_option;		/* the name of the option being parsed */
-int  privileged_option;		/* set iff the current option came from root */
-char *option_source;		/* string saying where the option came from */
-
 #ifdef MSLANMAN
 extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
 #endif
+
+extern char *current_option;	/* the name of the option being parsed */
+extern int  privileged_option;	/* set iff the current option came from root */
+extern char *option_source;	/* string saying where the option came from */
 
 /*
  * Values for phase.

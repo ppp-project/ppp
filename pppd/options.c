@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.58 1999/05/12 06:19:48 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.59 1999/05/14 01:09:03 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -107,6 +107,10 @@ struct	bpf_program pass_filter;/* Filter program for packets to pass */
 struct	bpf_program active_filter; /* Filter program for link-active pkts */
 pcap_t  pc;			/* Fake struct pcap so we can compile expr */
 #endif
+
+char *current_option;		/* the name of the option being parsed */
+int  privileged_option;		/* set iff the current option came from root */
+char *option_source;		/* string saying where the option came from */
 
 /*
  * Prototypes
