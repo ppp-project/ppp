@@ -5,7 +5,7 @@
    Michael Callahan <callahan@maths.ox.ac.uk>
    Nov. 4 1993 */
 
-/* $Id: ppp.h,v 1.1 1994/05/27 00:55:25 paulus Exp $ */
+/* $Id: ppp.h,v 1.2 1994/05/27 00:56:17 paulus Exp $ */
 
 /* how many PPP units? */
 #define PPP_NRUNIT     4
@@ -14,6 +14,9 @@
 
 /* line discipline number */
 #define N_PPP	       3
+
+/* Extended asyncmap - allows any character to be escaped. */
+typedef u_long	ext_accm[8];
 
 /* Magic value for the ppp structure */
 #define PPP_MAGIC 0x5002
