@@ -74,7 +74,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-bsd.c,v 1.48 2002/12/04 23:03:32 paulus Exp $"
+#define RCSID	"$Id: sys-bsd.c,v 1.49 2002/12/06 12:06:45 paulus Exp $"
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 
 /*
@@ -646,6 +646,8 @@ wait_input(timo)
 void add_fd(fd)
     int fd;
 {
+    if (fd >= FD_SETSIZE)
+	fatal("internal error: file descriptor too large (%d)", fd);
     FD_SET(fd, &in_fds);
     if (fd > max_in_fd)
 	max_in_fd = fd;
@@ -674,6 +676,8 @@ wait_loop_output(timo)
     int n;
 
     FD_ZERO(&ready);
+    if (loop_master >= FD_SETSIZE)
+	fatal("internal error: file descriptor too large (%d)", loop_master);
     FD_SET(loop_master, &ready);
     n = select(loop_master + 1, &ready, NULL, &ready, timo);
     if (n < 0 && errno != EINTR)

@@ -1050,6 +1050,8 @@ void wait_input(struct timeval *timo)
  */
 void add_fd(int fd)
 {
+    if (fd >= FD_SETSIZE)
+	fatal("internal error: file descriptor too large (%d)", fd);
     FD_SET(fd, &in_fds);
     if (fd > max_in_fd)
 	max_in_fd = fd;

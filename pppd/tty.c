@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.8 2002/12/04 23:03:33 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.9 2002/12/06 12:06:45 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -991,6 +991,13 @@ charshunt(ifd, ofd, record_file)
 #ifdef SIGXFSZ
     signal(SIGXFSZ, SIG_DFL);
 #endif
+
+    /*
+     * Check that the fds won't overrun the fd_sets
+     */
+    if (ifd >= FD_SETSIZE || ofd >= FD_SETSIZE || pty_master >= FD_SETSIZE)
+	fatal("internal error: file descriptor too large (%d, %d, %d)",
+	      ifd, ofd, pty_master);
 
     /*
      * Open the record file if required.
