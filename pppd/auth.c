@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.54 1999/07/21 00:24:30 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.55 1999/07/23 06:55:05 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -403,8 +403,6 @@ static void
 network_phase(unit)
     int unit;
 {
-    int i;
-    struct protent *protp;
     lcp_options *go = &lcp_gotoptions[unit];
 
     /*
@@ -443,6 +441,9 @@ network_phase(unit)
 void
 start_networks()
 {
+    int i;
+    struct protent *protp;
+
     phase = PHASE_NETWORK;
 #if 0
     if (!demand)
@@ -451,7 +452,7 @@ start_networks()
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
         if (protp->protocol < 0xC000 && protp->enabled_flag
 	    && protp->open != NULL) {
-	    (*protp->open)(unit);
+	    (*protp->open)(0);
 	    if (protp->protocol != PPP_CCP)
 		++num_np_open;
 	}
