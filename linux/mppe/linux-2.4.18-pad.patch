@@ -48,7 +48,7 @@
  		}
  	}
  
-@@ -1515,11 +1534,11 @@
+@@ -1515,14 +1534,14 @@
  	int len;
  
  	if (proto == PPP_COMP) {
@@ -60,4 +60,8 @@
  		}
  		/* the decompressor still expects the A/C bytes in the hdr */
  		len = ppp->rcomp->decompress(ppp->rc_state, skb->data - 2,
- 				skb->len + 2, ns->data, ppp->mru + 128 + PPP_HDRLEN);
+-				skb->len + 2, ns->data, ppp->mru + PPP_HDRLEN);
++				skb->len + 2, ns->data, ppp->mru + 128 + PPP_HDRLEN);
+ 		if (len < 0) {
+ 			/* Pass the compressed frame to pppd as an
+ 			   error indication. */
