@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.9 1995/10/27 03:43:46 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.10 1995/12/18 03:44:42 paulus Exp $";
 #endif
 
 /*
@@ -67,6 +67,7 @@ fsm_init(f)
     f->maxconfreqtransmits = DEFMAXCONFREQS;
     f->maxtermtransmits = DEFMAXTERMREQS;
     f->maxnakloops = DEFMAXNAKLOOPS;
+    f->term_reason_len = 0;
 }
 
 
@@ -190,9 +191,12 @@ fsm_open(f)
  * the CLOSED state.
  */
 void
-fsm_close(f)
+fsm_close(f, reason)
     fsm *f;
+    char *reason;
 {
+    f->term_reason = reason;
+    f->term_reason_len = (reason == NULL? 0: strlen(reason));
     switch( f->state ){
     case STARTING:
 	f->state = INITIAL;
@@ -215,7 +219,8 @@ fsm_close(f)
 
 	/* Init restart counter, send Terminate-Request */
 	f->retransmits = f->maxtermtransmits;
-	fsm_sdata(f, TERMREQ, f->reqid = ++f->id, NULL, 0);
+	fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+		  (u_char *) f->term_reason, f->term_reason_len);
 	TIMEOUT(fsm_timeout, (caddr_t) f, f->timeouttime);
 	--f->retransmits;
 
@@ -246,7 +251,8 @@ fsm_timeout(arg)
 		(*f->callbacks->finished)(f);
 	} else {
 	    /* Send Terminate-Request */
-	    fsm_sdata(f, TERMREQ, f->reqid = ++f->id, NULL, 0);
+	    fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+		      (u_char *) f->term_reason, f->term_reason_len);
 	    TIMEOUT(fsm_timeout, (caddr_t) f, f->timeouttime);
 	    --f->retransmits;
 	}
@@ -686,7 +692,8 @@ fsm_protreject(f)
 
 	/* Init restart counter, send Terminate-Request */
 	f->retransmits = f->maxtermtransmits;
-	fsm_sdata(f, TERMREQ, f->reqid = ++f->id, NULL, 0);
+	fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+		  (u_char *) f->term_reason, f->term_reason_len);
 	TIMEOUT(fsm_timeout, (caddr_t) f, f->timeouttime);
 	--f->retransmits;
 

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.22 1995/10/27 03:42:09 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.23 1995/12/18 03:45:32 paulus Exp $";
 #endif
 
 /*
@@ -38,10 +38,8 @@ static char rcsid[] = "$Id: lcp.c,v 1.22 1995/10/27 03:42:09 paulus Exp $";
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
-#include "magic.h"
 #include "chap.h"
-#include "upap.h"
-#include "ipcp.h"
+#include "magic.h"
 
 #ifdef _linux_		/* Needs ppp ioctls */
 #include <net/if.h>
@@ -111,6 +109,12 @@ static fsm_callbacks lcp_callbacks = {	/* LCP callback routines */
     NULL,			/* Retransmission is necessary */
     lcp_extcode,		/* Called to handle LCP-specific codes */
     "LCP"			/* String name of protocol */
+};
+
+struct protent lcp_protent = {
+    PPP_LCP, lcp_init, lcp_input, lcp_protrej,
+    lcp_lowerup, lcp_lowerdown, lcp_open, lcp_close,
+    lcp_printpkt, NULL, 1, "LCP"
 };
 
 int lcp_loopbackfail = DEFLOOPBACKFAIL;
@@ -201,8 +205,9 @@ lcp_open(unit)
  * lcp_close - Take LCP down.
  */
 void
-lcp_close(unit)
+lcp_close(unit, reason)
     int unit;
+    char *reason;
 {
     fsm *f = &lcp_fsm[unit];
 
@@ -217,7 +222,7 @@ lcp_close(unit)
 	lcp_finished(f);
 
     } else
-	fsm_close(&lcp_fsm[unit]);
+	fsm_close(&lcp_fsm[unit], reason);
 }
 
 #ifdef _linux_
@@ -247,7 +252,7 @@ RestartIdleTimer (f)
     delta = idle_time_limit - (u_long) ddinfo.recv_idle;
     if (((int) delta <= 0L) && (f->state == OPENED)) {
         syslog (LOG_NOTICE, "No IP frames received within idle time limit");
-	lcp_close(f->unit);		/* Reset connection */
+	lcp_close(f->unit, "Idle time limit expired");	/* Reset connection */
 	phase = PHASE_TERMINATE;	/* Mark it down */
     } else {
         if ((int) delta <= 0L)
@@ -376,6 +381,8 @@ lcp_rprotrej(f, inp, len)
     u_char *inp;
     int len;
 {
+    int i;
+    struct protent *protp;
     u_short prot;
 
     LCPDEBUG((LOG_INFO, "lcp_rprotrej."));
@@ -402,7 +409,17 @@ lcp_rprotrej(f, inp, len)
 	return;
     }
 
-    DEMUXPROTREJ(f->unit, prot);	/* Inform protocol */
+    /*
+     * Upcall the proper Protocol-Reject routine.
+     */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if (protp->protocol == prot && protp->enabled_flag) {
+	    (*protp->protrej)(f->unit);
+	    return;
+	}
+
+    syslog(LOG_WARNING, "Protocol-Reject for unsupported protocol 0x%x",
+	   prot);
 }
 
 
@@ -940,7 +957,7 @@ lcp_nakci(f, p, len)
 	if (looped_back) {
 	    if (++try.numloops >= lcp_loopbackfail) {
 		syslog(LOG_NOTICE, "Serial line is looped back.");
-		lcp_close(f->unit);
+		lcp_close(f->unit, "Loopback detected");
 	    }
 	} else
 	    try.numloops = 0;
@@ -1417,8 +1434,6 @@ endswitch:
 
 /*
  * lcp_up - LCP has come UP.
- *
- * Start UPAP, IPCP, etc.
  */
 static void
 lcp_up(f)
@@ -1455,10 +1470,6 @@ lcp_up(f)
     if (ho->neg_mru)
 	peer_mru[f->unit] = ho->mru;
 
-    ChapLowerUp(f->unit);	/* Enable CHAP */
-    upap_lowerup(f->unit);	/* Enable UPAP */
-    ipcp_lowerup(f->unit);	/* Enable IPCP */
-    ccp_lowerup(f->unit);	/* Enable CCP */
     lcp_echo_lowerup(f->unit);  /* Enable echo messages */
 
     link_established(f->unit);
@@ -1477,10 +1488,6 @@ lcp_down(f)
     lcp_options *go = &lcp_gotoptions[f->unit];
 
     lcp_echo_lowerdown(f->unit);
-    ccp_lowerdown(f->unit);
-    ipcp_lowerdown(f->unit);
-    ChapLowerDown(f->unit);
-    upap_lowerdown(f->unit);
 
     sifdown(f->unit);
     ppp_send_config(f->unit, PPP_MRU, 0xffffffff, 0, 0);
@@ -1589,7 +1596,7 @@ lcp_printpkt(p, plen, printer, arg)
 		    GETSHORT(cishort, p);
 		    switch (cishort) {
 		    case PPP_PAP:
-			printer(arg, "upap");
+			printer(arg, "pap");
 			break;
 		    case PPP_CHAP:
 			printer(arg, "chap");
@@ -1661,7 +1668,8 @@ void LcpLinkFailure (f)
 {
     if (f->state == OPENED) {
         syslog (LOG_NOTICE, "Excessive lack of response to LCP echo frames.");
-        lcp_close(f->unit);		/* Reset connection */
+        lcp_close(f->unit, "Peer not responding");
+	phase = PHASE_TERMINATE;
     }
 }
 
