@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.10 1996/01/01 22:55:28 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.11 1996/04/04 03:35:58 paulus Exp $";
 #endif
 
 /*
@@ -430,9 +430,7 @@ ChapReceiveResponse(cstate, inp, id, len)
     int secret_len, old_state;
     int code;
     char rhostname[256];
-    u_char buf[256];
     MD5_CTX mdContext;
-    u_char msg[256];
     char secret[MAXSECRETLEN];
 
     CHAPDEBUG((LOG_INFO, "ChapReceiveResponse: Rcvd id %d.", id));
@@ -584,9 +582,6 @@ ChapReceiveFailure(cstate, inp, id, len)
     u_char id;
     int len;
 {
-    u_char msglen;
-    u_char *msg;
-  
     CHAPDEBUG((LOG_INFO, "ChapReceiveFailure: Rcvd id %d.", id));
 
     if (cstate->clientstate != CHAPCS_RESPONSE) {
