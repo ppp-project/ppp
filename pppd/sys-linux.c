@@ -1928,8 +1928,15 @@ int ppp_available(void)
 	close(fd);
 	return 1;
     }
-    if (kernel_version >= KVERSION(2,3,13))
+    if (kernel_version >= KVERSION(2,3,13)) {
+	if (errno == ENOENT)
+	    no_ppp_msg =
+		"pppd is unable to open the /dev/ppp device.\n"
+		"You need to create the /dev/ppp device node by\n"
+		"executing the following command as root:\n"
+		"	mknod /dev/ppp c 108 0\n";
 	return 0;
+    }
 
 /*
  * Open a socket for doing the ioctl operations.
