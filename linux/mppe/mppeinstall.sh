@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # A quickie script to install MPPE into the 2.2.19+ or 2.4.18+ kernel.
-# Does no error checking!!!
+# Does very little error checking!!!
 #
 
 mppe_files="sha1.[ch] arcfour.[ch] ppp_mppe_compress.c"
@@ -16,7 +16,7 @@ set -- ${1%/}
 # strip leading /path/to/linux-
 ver=`echo "${1##*/}" | sed -e 's/linux-//'` # -e 's/\/$//'
 if ! expr "$ver" : 2.[24] >/dev/null ; then
-    echo "Unable to determine kernel version ($ver)" >&2
+    echo "$0: Unable to determine kernel version ($ver)" >&2
     exit 1
 fi
 
@@ -28,11 +28,14 @@ if expr $ver : 2.2 >/dev/null ; then
 elif expr $ver : 2.4 >/dev/null ; then
     patchfiles=`echo $patchdir/linux-2.4.18-{include,make}.patch`
     # need to differentiate a bit
-    rel=${ver##*.}
-    if [ $rel -gt 18 ] ; then
+    typeset -i rel=${ver##*.}
+    if [ $rel -eq 18 ]; then
+	patchfiles="$patchfiles $patchdir/linux-2.4.18-pad.patch"
+    elif [ $rel -gt 18 ]; then
 	patchfiles="$patchfiles $patchdir/linux-2.4.19-pad.patch"
     else
-	patchfiles="$patchfiles $patchdir/linux-2.4.18-pad.patch"
+	echo "$0: unable to determine kernel version" >&2
+	exit 1
     fi
 fi
 
