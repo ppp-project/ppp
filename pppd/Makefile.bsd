@@ -1,10 +1,10 @@
-#	$Id: Makefile.bsd,v 1.13 1996/10/08 04:33:33 paulus Exp $
+#	$Id: Makefile.bsd,v 1.14 1998/03/25 01:27:00 paulus Exp $
 
 BINDIR?= /usr/sbin
 # -D_BITYPES is for FreeBSD, which doesn't define anything to
 # tell us that u_int32_t gets defined if <sys/types.h> is included.
 # Remove for older *BSD systems for which this isn't true.
-CFLAGS+= -g -I.. -DHAVE_PATHS_H -D_BITYPES
+CFLAGS+= -g -I../include -DHAVE_PATHS_H -D_BITYPES
 
 PROG=	pppd
 SRCS=	main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \

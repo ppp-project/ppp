@@ -1,6 +1,6 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.9 1996/09/26 06:20:14 paulus Exp $
+# $Id: Makefile.ultrix,v 1.10 1998/03/25 01:27:09 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -18,7 +18,7 @@ COMPILE_FLAGS = -DNO_DRAND48 -DGIDSET_TYPE=int -DULTRIX
 COPTS = -O
 LIBS =
 
-CFLAGS = -I.. $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+CFLAGS = -I../include $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 
 all: pppd
 

@@ -1,11 +1,11 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.sol2,v 1.9 1998/02/04 01:39:48 paulus Exp $
+# $Id: Makefile.sol2,v 1.10 1998/03/25 01:27:05 paulus Exp $
 #
 
 include ../svr4/Makedefs
 
-CFLAGS = -DSVR4 -I.. $(COPTS)
+CFLAGS = -DSVR4 -I../include $(COPTS)
 LIBS = -lsocket -lnsl
 
 all: pppd

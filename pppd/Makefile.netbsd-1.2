@@ -14,7 +14,7 @@ BINOWN=	root
 
 LDADD=	-lpcap -lcrypt -lutil
 DPADD=	${LIBPCAP} ${LIBCRYPT} ${LIBUTIL}
-CFLAGS+= -I. -DHAVE_PATHS_H -I${PCAPDIR} -DPPP_FILTER
+CFLAGS+= -I. -I../include -DHAVE_PATHS_H -I${PCAPDIR} -DPPP_FILTER
 #CFLAGS+= -Wall -Wstrict-prototypes -Wmissing-prototypes -Dlint
 
 .include <bsd.prog.mk>

@@ -2,7 +2,7 @@
 # pppd makefile for NeXT
 #
 # $Orignial: Makefile.ultrix,v 1.4 1994/09/01 00:40:40 paulus Exp $
-# $Id: Makefile.NeXT,v 1.4 1997/03/04 03:34:48 paulus Exp $
+# $Id: Makefile.NeXT,v 1.5 1998/03/25 01:26:57 paulus Exp $
 #
 
 ARCHFLAGS = 
@@ -36,10 +36,12 @@ COMPILE_FLAGS = -DNO_DRAND48 \
 # library is installed, uncomment the following.
 
 #LIBS = -ldes
+LIBS = ../NeXT/libposix/libposix.o
+ 
 
-COPTS = $(ARCHFLAGS) -O -posix
+COPTS = $(ARCHFLAGS) -O -D_POSIX_SOURCE
 
-CFLAGS = $(COPTS) $(COMPILE_FLAGS) -I..
+CFLAGS = $(COPTS) $(COMPILE_FLAGS) -I../include
 
 
 all: pppd

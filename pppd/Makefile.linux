@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.23 1998/02/04 01:39:24 paulus Exp $
+# $Id: Makefile.linux,v 1.24 1998/03/25 01:27:01 paulus Exp $
 #
 
 # Default installation locations
@@ -26,8 +26,8 @@ endif
 
 # CC = gcc
 #
-COPTS = -O2 # -g
-VER = 2.3.3
+COPTS = -O2 -pipe -Wall -g
+VER = 2.3.4
 LIBS =
 
 ifneq ($(wildcard /usr/lib/libcrypt*),)
@@ -36,14 +36,13 @@ endif
 
 # Uncomment the next 2 lines to include support for Microsoft's
 # MS-CHAP authentication protocol.
-#CHAPMS=y
-#USE_CRYPT=y
+CHAPMS=y
+USE_CRYPT=y
 
-# The INCLUDE_DIRS must include the standard headers before the local
-# ones. If you just had -I.. then the order would be reversed. So, use
-# the default location for include files first before the .. location.
-#INCLUDE_DIRS= -I/usr/include -I..
-INCLUDE_DIRS=
+HAS_SHADOW=y
+#USE_PAM=y
+
+INCLUDE_DIRS= -I../include
 
 COMPILE_FLAGS= -D_linux_=1 -DHAVE_PATHS_H -DIPX_CHANGE
 
@@ -64,7 +63,7 @@ endif
 
 ifdef HAS_SHADOW
 CFLAGS   += -DHAS_SHADOW
-LIBS     := -lshadow $(LIBS)
+#LIBS     := -lshadow $(LIBS)
 endif
 
 # For "Pluggable Authentication Modules", see ftp.redhat.com:/pub/pam/.
@@ -82,7 +81,7 @@ endif
 install: pppd
 	mkdir -p $(BINDIR) $(MANDIR)
 	install -s -c -m 4555 -o root pppd $(BINDIR)/pppd
-	install -c -m 555 -o root pppd.8 $(MANDIR)/man8
+	install -c -m 444 -o root pppd.8 $(MANDIR)/man8
 
 pppd: $(PPPDOBJS)
 	$(CC) $(CFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
