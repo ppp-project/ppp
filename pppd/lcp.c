@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.33 1998/11/07 06:59:27 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.34 1999/02/26 10:34:47 paulus Exp $";
 #endif
 
 /*
@@ -242,7 +242,7 @@ setescape(argv)
 	    return 0;
 	}
 	p = endp;
-	if (n < 0 || (0x20 <= n && n <= 0x3F) || n == 0x5E || n > 0xFF) {
+	if (n < 0 || n == 0x5E || n > 0xFF) {
 	    option_error("can't escape character 0x%x", n);
 	    ret = 0;
 	} else
