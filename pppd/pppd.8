@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.38 1999/03/30 06:33:09 paulus Exp $
+.\" $Id: pppd.8,v 1.39 1999/04/16 11:34:45 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -1078,12 +1078,14 @@ IPCP has come up.
 .B PEERNAME
 The authenticated name of the peer.  This is only set if the peer
 authenticates itself.
-.TP
 .B SPEED
 The baud rate of the tty device.
 .TP
 .B ORIG_UID
 The real user-id of the user who invoked pppd.
+.B PPPLOGNAME
+The username of the real user-id that invoked pppd. This is always set.
+.TP
 .P
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
