@@ -107,7 +107,7 @@ In that instance you should manually create /dev/ppp using the command
 `mknod /dev/ppp c 108 0'.
 
 If you use module autoloading and have PPP as a module, you will need
-to add the following to /etc/conf.modules:
+to add the following to your /etc/modules.conf or /etc/conf.modules:
 
 alias tty-ldisc-3    ppp_async
 alias char-major-108 ppp_generic
