@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.47 1999/07/21 00:19:52 paulus Exp $";
+static const char rcsid[] = "$Id: ipcp.c,v 1.48 1999/08/12 04:25:20 paulus Exp $";
 #endif
 
 /*

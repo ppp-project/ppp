@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap_ms.c,v 1.13 1999/03/16 03:15:14 paulus Exp $";
+static const char rcsid[] = "$Id: chap_ms.c,v 1.14 1999/08/12 04:25:20 paulus Exp $";
 #endif
 
 #ifdef CHAPMS

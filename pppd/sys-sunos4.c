@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.22 1999/06/24 00:17:18 paulus Exp $";
+static const char rcsid[] = "$Id: sys-sunos4.c,v 1.23 1999/08/12 04:25:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
