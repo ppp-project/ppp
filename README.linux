@@ -98,6 +98,8 @@ The new driver is divided into two files: ppp_generic.c and
 ppp_async.c.  The old ppp.c is still present in the kernel sources but
 is not used.  If you compile PPP as a module, you will get two
 separate modules, called ppp_generic and ppp_async.
+Another module ppp_synctty is used for synchronous tty devices
+such as high-speed WAN adapters for leased T1/E1 lines.
 
 To talk to the new driver, pppd needs to be able to open /dev/ppp,
 character device (108,0).  If the special file node /dev/ppp is not
@@ -110,6 +112,7 @@ If you use module autoloading and have PPP as a module, you will need
 to add the following to your /etc/modules.conf or /etc/conf.modules:
 
 alias tty-ldisc-3    ppp_async
+alias tty-ldisc-14   ppp_synctty
 alias char-major-108 ppp_generic
 
 

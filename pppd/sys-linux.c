@@ -377,6 +377,13 @@ int establish_ppp (int tty_fd)
 /*
  * Set the current tty to the PPP discpline
  */
+
+#ifndef N_SYNC_PPP
+#define N_SYNC_PPP 14
+#endif
+    if (new_style_driver)
+	    ppp_disc = sync_serial ? N_SYNC_PPP:N_PPP;
+
     if (ioctl(tty_fd, TIOCSETD, &ppp_disc) < 0) {
 	if ( ! ok_error (errno) )
 	    fatal("ioctl(TIOCSETD): %m(%d)", errno);
