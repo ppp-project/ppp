@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.14 1996/01/01 22:55:26 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.15 1996/01/18 03:20:25 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -40,7 +40,7 @@ static char rcsid[] = "$Id: ccp.c,v 1.14 1996/01/01 22:55:26 paulus Exp $";
 struct protent ccp_protent = {
     PPP_CCP, ccp_init, ccp_input, ccp_protrej,
     ccp_lowerup, ccp_lowerdown, ccp_open, ccp_close,
-    ccp_printpkt, NULL, 1, "CCP", NULL, NULL
+    ccp_printpkt, ccp_datainput, 1, "CCP", NULL, NULL
 };
 
 fsm ccp_fsm[NUM_PPP];
@@ -118,9 +118,13 @@ ccp_init(unit)
     memset(&ccp_allowoptions[unit], 0, sizeof(ccp_options));
     memset(&ccp_hisoptions[unit],   0, sizeof(ccp_options));
 
-    ccp_wantoptions[0].bsd_compress = 1;
-    ccp_wantoptions[0].bsd_bits = 12;	/* default value */
+    ccp_wantoptions[0].deflate = 1;
+    ccp_wantoptions[0].deflate_size = DEFLATE_MAX_SIZE;
+    ccp_allowoptions[0].deflate = 1;
+    ccp_allowoptions[0].deflate_size = DEFLATE_MAX_SIZE;
 
+    ccp_wantoptions[0].bsd_compress = 1;
+    ccp_wantoptions[0].bsd_bits = BSD_MAX_BITS;
     ccp_allowoptions[0].bsd_compress = 1;
     ccp_allowoptions[0].bsd_bits = BSD_MAX_BITS;
 
@@ -623,38 +627,34 @@ ccp_reqci(f, p, lenp, dont_nak)
 		ho->deflate_size = nb = DEFLATE_SIZE(p[2]);
 		if (DEFLATE_METHOD(p[2]) != DEFLATE_METHOD_VAL
 		    || p[3] != DEFLATE_CHK_SEQUENCE
-		    || nb > ao->deflate_size) {
+		    || nb > ao->deflate_size || nb < DEFLATE_MIN_SIZE) {
 		    newret = CONFNAK;
-		    nb = ao->deflate_size;
-		} else {
-		    /*
-		     * Check whether we can do Deflate with the window
-		     * size they want.  If the window is too big, reduce
-		     * it until the kernel can cope and nak with that.
-		     */
+		    if (!dont_nak) {
+			p[2] = DEFLATE_MAKE_OPT(ao->deflate_size);
+			p[3] = DEFLATE_CHK_SEQUENCE;
+		    }
+		    break;
+		}
+
+		/*
+		 * Check whether we can do Deflate with the window
+		 * size they want.  If the window is too big, reduce
+		 * it until the kernel can cope and nak with that.
+		 * We only check this for the first option.
+		 */
+		if (p == p0) {
 		    for (;;) {
-			if (nb < DEFLATE_MIN_SIZE) {
+			res = ccp_test(f->unit, p, CILEN_DEFLATE, 1);
+			if (res > 0)
+			    break;		/* it's OK now */
+			if (res < 0 || nb == DEFLATE_MIN_SIZE || dont_nak) {
 			    newret = CONFREJ;
 			    p[2] = DEFLATE_MAKE_OPT(ho->deflate_size);
 			    break;
 			}
-			p[2] = DEFLATE_MAKE_OPT(nb);
-			res = ccp_test(f->unit, p, CILEN_DEFLATE, 1);
-			if (res != 0) {
-			    if (res < 0)
-				newret = CONFREJ;
-			    break;
-			}
 			newret = CONFNAK;
 			--nb;
-		    }
-		}
-		if (newret == CONFNAK && !dont_nak) {
-		    if (nb >= DEFLATE_MIN_SIZE) {
 			p[2] = DEFLATE_MAKE_OPT(nb);
-			p[3] = DEFLATE_CHK_SEQUENCE;
-		    } else {
-			newret = CONFREJ;
 		    }
 		}
 		break;
@@ -668,38 +668,33 @@ ccp_reqci(f, p, lenp, dont_nak)
 		ho->bsd_compress = 1;
 		ho->bsd_bits = nb = BSD_NBITS(p[2]);
 		if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION
-		    || nb > ao->bsd_bits) {
+		    || nb > ao->bsd_bits || nb < BSD_MIN_BITS) {
 		    newret = CONFNAK;
-		    nb = ao->bsd_bits;
-		} else {
-		    /*
-		     * Check whether we can do BSD_Compress with the code
-		     * size they want.  If the code size is too big, reduce
-		     * it until the kernel can cope and nak with that.
-		     */
+		    if (!dont_nak)
+			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, ao->bsd_bits);
+		    break;
+		}
+
+		/*
+		 * Check whether we can do BSD-Compress with the code
+		 * size they want.  If the code size is too big, reduce
+		 * it until the kernel can cope and nak with that.
+		 * We only check this for the first option.
+		 */
+		if (p == p0) {
 		    for (;;) {
-			if (nb < BSD_MIN_BITS) {
+			res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 1);
+			if (res > 0)
+			    break;
+			if (res < 0 || nb == BSD_MIN_BITS || dont_nak) {
 			    newret = CONFREJ;
 			    p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION,
 						ho->bsd_bits);
 			    break;
 			}
-			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, nb);
-			res = ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 1);
-			if (res != 0) {
-			    if (res < 0)
-				newret = CONFREJ;
-			    break;
-			}
 			newret = CONFNAK;
 			--nb;
-		    }
-		}
-		if (newret == CONFNAK && !dont_nak) {
-		    if (nb >= BSD_MIN_BITS) {
 			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, nb);
-		    } else {
-			newret = CONFREJ;
 		    }
 		}
 		break;
@@ -711,7 +706,8 @@ ccp_reqci(f, p, lenp, dont_nak)
 		}
 
 		ho->predictor_1 = 1;
-		if (ccp_test(f->unit, p, CILEN_PREDICTOR_1, 1) <= 0) {
+		if (p == p0
+		    && ccp_test(f->unit, p, CILEN_PREDICTOR_1, 1) <= 0) {
 		    newret = CONFREJ;
 		}
 		break;
@@ -723,7 +719,8 @@ ccp_reqci(f, p, lenp, dont_nak)
 		}
 
 		ho->predictor_2 = 1;
-		if (ccp_test(f->unit, p, CILEN_PREDICTOR_2, 1) <= 0) {
+		if (p == p0
+		    && ccp_test(f->unit, p, CILEN_PREDICTOR_2, 1) <= 0) {
 		    newret = CONFREJ;
 		}
 		break;
