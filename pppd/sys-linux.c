@@ -754,7 +754,7 @@ void output (int unit, unsigned char *p, int len)
   {
     if (debug)
       {
-        log_packet(p, len, "sent ");
+        log_packet(p, len, "sent ", LOG_DEBUG);
       }
     
     if (write(ppp_fd, p, len) < 0)
@@ -2292,15 +2292,27 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 void
 open_ppp_loopback(void)
   {
-    int            flags;
+    int flags, i;
     struct termios tios;
 
-    if (openpty (&master_fd, &slave_fd, loop_name, NULL, NULL) < 0)
-      {
-	syslog(LOG_ERR, "No free pty for loopback");
-	die(1);
-      }
+    master_fd = -1;
+    for (i = 0; i < 64; ++i) {
+      sprintf(loop_name, "/dev/pty%c%x", 'p' + i / 16, i % 16);
+      master_fd = open(loop_name, O_RDWR, 0);
+      if (master_fd >= 0)
+	break;
+    }
+    if (master_fd < 0) {
+      syslog(LOG_ERR, "No free pty for loopback");
+      die(1);
+    }
     SYSDEBUG((LOG_DEBUG, "using %s for loopback", loop_name));
+    loop_name[5] = 't';
+    slave_fd = open(loop_name, O_RDWR, 0);
+    if (slave_fd < 0) {
+      syslog(LOG_ERR, "Couldn't open %s for loopback: %m", loop_name);
+      die(1);
+    }
 
     set_ppp_fd(slave_fd);
 
@@ -2516,6 +2528,30 @@ int cipxfaddr (int unit)
 #endif
     return result;
   }
+
+/*
+ * daemon - Detach us from controlling terminal session.
+ */
+int
+daemon(nochdir, noclose)
+    int nochdir, noclose;
+{
+    int pid;
+
+    if ((pid = fork()) < 0)
+	return -1;
+    if (pid != 0)
+	exit(0);		/* parent dies */
+    setsid();
+    if (!nochdir)
+	chdir("/");
+    if (!noclose) {
+	fclose(stdin);		/* don't need stdin, stdout, stderr */
+	fclose(stdout);
+	fclose(stderr);
+    }
+    return 0;
+}
 
 /********************************************************************
  *
