@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.32 1999/03/02 05:32:30 paulus Exp $
+.\" $Id: pppd.8,v 1.33 1999/03/03 00:52:08 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -35,30 +35,13 @@ Control Protocol, IPCP).
 .I <tty_name>
 Communicate over the named device.  The string "/dev/" is prepended if
 necessary.  If no device name is given, or if the name of the terminal
-connected to the standard input is given, pppd
-will use that terminal, and will not fork to put itself in the
-background.  This option is privileged.
+connected to the standard input is given, pppd will use that terminal,
+and will not fork to put itself in the background.
 .TP
 .I <speed>
 Set the baud rate to <speed> (a decimal number).  On systems such as
 4.4BSD and NetBSD, any speed can be specified.  Other systems
 (e.g. SunOS) allow only a limited set of speeds.
-.TP
-.B active-filter \fIfilter-expression
-Specifies a packet filter to be applied to data packets to determine
-which packets are to be regarded as link activity, and therefore reset
-the idle timer, or cause the link to be brought up in demand-dialling
-mode.  This option is useful in conjunction with the
-\fBidle\fR option if there are packets being sent or received
-regularly over the link (for example, routing information packets)
-which would otherwise prevent the link from ever appearing to be idle.
-The \fIfilter-expression\fR syntax is as described for tcpdump(1),
-except that qualifiers which are inappropriate for a PPP link, such as
-\fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
-expression should be enclosed in single-quotes to prevent whitespace
-in the expression from being interpreted by the shell. This option
-is currently only available under NetBSD, and then only
-if both the kernel and pppd were compiled with PPP_FILTER defined.
 .TP
 .B asyncmap \fI<map>
 Set the async character map to <map>.  This map describes which
@@ -184,6 +167,22 @@ will not accept a different value from the peer in the IPCP
 negotiation, unless the \fIipcp-accept-local\fR and/or
 \fIipcp-accept-remote\fR options are given, respectively.
 .TP
+.B active-filter \fIfilter-expression
+Specifies a packet filter to be applied to data packets to determine
+which packets are to be regarded as link activity, and therefore reset
+the idle timer, or cause the link to be brought up in demand-dialling
+mode.  This option is useful in conjunction with the
+\fBidle\fR option if there are packets being sent or received
+regularly over the link (for example, routing information packets)
+which would otherwise prevent the link from ever appearing to be idle.
+The \fIfilter-expression\fR syntax is as described for tcpdump(1),
+except that qualifiers which are inappropriate for a PPP link, such as
+\fBether\fR and \fBarp\fR, are not permitted.  Generally the filter
+expression should be enclosed in single-quotes to prevent whitespace
+in the expression from being interpreted by the shell. This option
+is currently only available under NetBSD, and then only
+if both the kernel and pppd were compiled with PPP_FILTER defined.
+.TP
 .B bsdcomp \fInr,nt
 Request that the peer compress packets that it sends, using the
 BSD-Compress scheme, with a maximum code size of \fInr\fR bits, and
@@ -266,6 +265,7 @@ to the peer.  This option is privileged.
 .B hide-password
 When logging the contents of PAP packets, this option causes pppd to
 exclude the password string from the log.
+.TP
 .B holdoff \fIn
 Specifies how many seconds to wait before re-initiating the link after
 it terminates.  This option only has any effect if the \fIpersist\fR
@@ -696,14 +696,13 @@ those which permit potentially insecure configurations; these options
 are only accepted in files which are under the control of the system
 administrator, or if pppd is being run by root.
 .PP
-The default behaviour of pppd is to allow an unauthenticated peer
-to use a given IP address if the system does not already have a
-route to that IP address already.  For example, a system with a
+The default behaviour of pppd is to allow an unauthenticated peer to
+use a given IP address only if the system does not already have a
+route to that IP address.  For example, a system with a
 permanent connection to the wider internet will normally have a
 default route, and thus all peers will have to authenticate themselves
 in order to set up a connection.  On such a system, the \fIauth\fR
-option should be used in /etc/ppp/options so that pppd will ask the
-peer to authenticate itself.  On the other hand, a system where the
+option is the default.  On the other hand, a system where the
 PPP link is the only connection to the internet will not normally have
 a default route, so the peer will be able to use almost any IP address
 without authenticating itself.
@@ -716,6 +715,17 @@ option.  Privileged options may be used in /etc/ppp/options file or in
 an options file read using the \fIcall\fR option.  If pppd is being
 run by the root user, privileged options can be used without
 restriction.
+.PP
+When opening the device, pppd uses either the invoking user's user ID
+or the root UID (that is, 0), depending on whether the device name was
+specified by the user or the system administrator.  If the device name
+comes from a privileged source, that is, /etc/ppp/options or an
+options file read using the \fIcall\fR option, pppd uses full root
+privileges when opening the device.  Thus, by creating an appropriate
+file under /etc/ppp/peers, the system administrator can allow users to
+establish a ppp connection via a device which they would not normally
+have permission to access.  Otherwise pppd uses the invoking user's
+real UID when opening the device.
 .SH AUTHENTICATION
 Authentication is the process whereby one peer convinces the other of
 its identity.  This involves the first peer sending its name to the
