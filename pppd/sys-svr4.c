@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.5 1995/08/11 02:36:24 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.6 1995/08/16 01:40:51 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -38,6 +38,7 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.5 1995/08/11 02:36:24 paulus Exp $";
 #include <unistd.h>
 #include <termios.h>
 #include <signal.h>
+#include <utmpx.h>
 #include <sys/types.h>
 #include <sys/ioccom.h>
 #include <sys/stream.h>
@@ -48,6 +49,7 @@ static char rcsid[] = "$Id: sys-svr4.c,v 1.5 1995/08/11 02:36:24 paulus Exp $";
 #include <sys/systeminfo.h>
 #include <sys/dlpi.h>
 #include <sys/stat.h>
+#include <sys/mkdev.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
@@ -1167,6 +1169,21 @@ int
 logwtmp(line, name, host)
     char *line, *name, *host;
 {
+    static struct utmpx utmpx;
+
+    if (name[0] != 0) {
+	/* logging in */
+	strncpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
+	strncpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
+	strncpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
+	utmpx.ut_pid = getpid();
+	utmpx.ut_type = USER_PROCESS;
+    } else {
+	utmpx.ut_type = DEAD_PROCESS;
+    }
+    gettimeofday(&utmpx.ut_tv, NULL);
+    updwtmpx("/var/adm/wtmpx", &utmpx);
+    return 0;
 }
 
 /*
@@ -1203,15 +1220,80 @@ strioctl(fd, cmd, ptr, ilen, olen)
     return 0;
 }
 
+/*
+ * lock - create a lock file for the named lock device
+ *
+ * XXX Does anybody know what the "032" in the lock file name means?
+ */
+
+#define LOCK_PREFIX	"/var/spool/locks/LK.032."
+static char lock_file[40];	/* name of lock file created */
+
 int
 lock(dev)
     char *dev;
 {
+    int n, fd, pid;
+    struct stat sbuf;
+    char ascii_pid[12];
+
+    if (stat(dev, &sbuf) < 0) {
+	syslog(LOG_ERR, "Can't get device number for %s: %m", dev);
+	return -1;
+    }
+    if ((sbuf.st_mode & S_IFMT) != S_IFCHR) {
+	syslog(LOG_ERR, "Can't lock %s: not a character device", dev);
+	return -1;
+    }
+    sprintf(lock_file, "%s%03d.%03d", LOCK_PREFIX, major(sbuf.st_rdev),
+	    minor(sbuf.st_rdev));
+
+    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
+	if (errno == EEXIST
+	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
+	    /* Read the lock file to find out who has the device locked */
+	    n = read(fd, ascii_pid, 11);
+	    if (n <= 0) {
+		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
+		close(fd);
+	    } else {
+		ascii_pid[n] = 0;
+		pid = atoi(ascii_pid);
+		if (pid > 0 && kill(pid, 0) == -1 && errno == ESRCH) {
+		    /* pid no longer exists - remove the lock file */
+		    if (unlink(lock_file) == 0) {
+			close(fd);
+			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
+			       dev, pid);
+			continue;
+		    } else
+			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
+			       dev);
+		} else
+		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
+			   dev, pid);
+	    }
+	    close(fd);
+	} else
+	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
+	lock_file[0] = 0;
+	return -1;
+    }
+
+    sprintf(ascii_pid, "%10d\n", getpid());
+    write(fd, ascii_pid, 11);
+
+    close(fd);
     return 1;
 }
 
-int
+/*
+ * unlock - remove our lockfile
+ */
 unlock()
 {
-    return 1;
+    if (lock_file[0]) {
+	unlink(lock_file);
+	lock_file[0] = 0;
+    }
 }
