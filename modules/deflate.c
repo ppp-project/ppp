@@ -27,7 +27,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: deflate.c,v 1.3 1996/06/26 00:53:16 paulus Exp $
+ * $Id: deflate.c,v 1.4 1996/08/28 06:34:56 paulus Exp $
  */
 
 #ifdef AIX4
@@ -49,6 +49,8 @@
 #endif
 
 #if DO_DEFLATE
+
+#define DEFLATE_DEBUG	1
 
 /*
  * State for a Deflate (de)compressor.
@@ -489,7 +491,9 @@ z_decompress(arg, mi, mop)
     /* Check the sequence number. */
     seq = (hdr[PPP_HDRLEN] << 8) + hdr[PPP_HDRLEN+1];
     if (seq != state->seqno) {
+#if !DEFLATE_DEBUG
 	if (state->debug)
+#endif
 	    printf("z_decompress%d: bad seq # %d, expected %d\n",
 		   state->unit, seq, state->seqno);
 	return DECOMP_ERROR;
@@ -535,7 +539,9 @@ z_decompress(arg, mi, mop)
     for (;;) {
 	r = inflate(&state->strm, flush);
 	if (r != Z_OK) {
+#if !DEFLATE_DEBUG
 	    if (state->debug)
+#endif
 		printf("z_decompress%d: inflate returned %d (%s)\n",
 		       state->unit, r, (state->strm.msg? state->strm.msg: ""));
 	    freemsg(mo_head);
@@ -582,6 +588,12 @@ z_decompress(arg, mi, mop)
     }
     mo->b_wptr += ospace - state->strm.avail_out;
     olen += ospace - state->strm.avail_out;
+
+#if DEFLATE_DEBUG
+    if (olen > state->mru + PPP_HDRLEN)
+	printf("ppp_deflate%d: exceeded mru (%d > %d)\n",
+	       state->unit, olen, state->mru + PPP_HDRLEN);
+#endif
 
     state->stats.unc_bytes += olen;
     state->stats.unc_packets++;
@@ -636,10 +648,11 @@ z_incomp(arg, mi)
 	r = inflateIncomp(&state->strm);
 	if (r != Z_OK) {
 	    /* gak! */
-	    if (state->debug) {
+#if !DEFLATE_DEBUG
+	    if (state->debug)
+#endif
 		printf("z_incomp%d: inflateIncomp returned %d (%s)\n",
 		       state->unit, r, (state->strm.msg? state->strm.msg: ""));
-	    }
 	    return;
 	}
 	mi = mi->b_cont;
