@@ -40,7 +40,7 @@
 /*
  * This version is for use with mbufs on Ultrix systems.
  *
- * $Id: bsd-comp.c,v 1.7 1996/07/01 01:24:24 paulus Exp $
+ * $Id: bsd-comp.c,v 1.8 1996/08/28 06:32:00 paulus Exp $
  */
 
 #include "../h/param.h"
@@ -216,7 +216,6 @@ bsd_clear(db)
     db->ratio = 0;
     db->bytes_out = 0;
     db->in_count = 0;
-    db->incomp_count = 0;
     db->checkpoint = CHECK_GAP;
 }
 

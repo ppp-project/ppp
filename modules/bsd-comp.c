@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * Digital UNIX, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.19 1996/06/26 00:53:15 paulus Exp $
+ * $Id: bsd-comp.c,v 1.20 1996/08/28 06:31:57 paulus Exp $
  */
 
 #ifdef AIX4
@@ -215,7 +215,6 @@ bsd_clear(db)
     db->ratio = 0;
     db->bytes_out = 0;
     db->in_count = 0;
-    db->incomp_count = 0;
     db->checkpoint = CHECK_GAP;
 }
 
@@ -741,7 +740,6 @@ bsd_incomp(state, dmsg)
     if (ent < 0x21 || ent > 0xf9)
 	return;
 
-    db->incomp_count++;
     db->seqno++;
     ilen = 1;		/* count the protocol as 1 byte */
     rptr += PPP_HDRLEN;

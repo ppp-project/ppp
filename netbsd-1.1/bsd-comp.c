@@ -1,4 +1,4 @@
-/*	$Id: bsd-comp.c,v 1.5 1996/07/01 05:31:02 paulus Exp $	*/
+/*	$Id: bsd-comp.c,v 1.6 1996/08/28 06:31:58 paulus Exp $	*/
 
 /* Because this code is derived from the 4.3BSD compress source:
  *
@@ -206,7 +206,6 @@ bsd_clear(db)
     db->ratio = 0;
     db->bytes_out = 0;
     db->in_count = 0;
-    db->incomp_count = 0;
     db->checkpoint = CHECK_GAP;
 }
 

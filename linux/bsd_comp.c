@@ -249,7 +249,6 @@ bsd_clear(struct bsd_db *db)
     db->n_bits       = BSD_INIT_BITS;
     db->bytes_out    = 0;
     db->in_count     = 0;
-    db->incomp_count = 0;
     db->ratio	     = 0;
     db->checkpoint   = CHECK_GAP;
 }
