@@ -45,6 +45,7 @@ static int get_default_epdisc __P((struct epdisc *));
 	 || ((addr) & 0xfff00000) == 0xac100000		/* 172.16.x.x */  \
 	 || ((addr) & 0xffff0000) == 0xc0a80000)	/* 192.168.x.x */
 
+#ifdef HAVE_MULTILINK
 void
 mp_check_options()
 {
@@ -70,7 +71,9 @@ mp_check_options()
 			     epdisc_to_str(&wo->endpoint));
 	}
 }
+#endif /* HAVE_MULTILINK */
 
+#ifdef HAVE_MULTILINK
 /*
  * Make a new bundle or join us to an existing bundle
  * if we are doing multilink.
@@ -162,7 +165,9 @@ mp_join_bundle()
 	script_setenv("BUNDLE", bundle_id + 7, 1);
 	return 0;
 }
+#endif /* HAVE_MULTILINK */
 
+#ifdef /* HAVE_MULTILINK */
 static int
 get_default_epdisc(ep)
      struct epdisc *ep;
@@ -195,6 +200,7 @@ get_default_epdisc(ep)
 
 	return 0;
 }
+#endif /* HAVE_MULTILINK */
 
 /*
  * epdisc_to_str - make a printable string from an endpoint discriminator.
@@ -246,6 +252,7 @@ epdisc_to_str(ep)
 	return str;
 }
 
+#ifdef HAVE_MULTILINK
 static int hexc_val(int c)
 {
 	if (c >= 'a')
@@ -254,7 +261,9 @@ static int hexc_val(int c)
 		return c - 'A' + 10;
 	return c - '0';
 }
+#endif /* HAVE_MULTILINK */
 
+#ifdef HAVE_MULTILINK
 int
 str_to_epdisc(ep, str)
      struct epdisc *ep;
@@ -323,3 +332,5 @@ str_to_epdisc(ep, str)
 	dbglog("str_to_epdisc -> %s", epdisc_to_str(ep));
 	return 1;
 }
+#endif /* HAVE_MULTILINK */
+
