@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.58 1999/09/11 12:08:56 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.59 1999/11/20 05:11:01 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -111,6 +111,9 @@ static int num_np_up;
 
 /* Set if we got the contents of passwd[] from the pap-secrets file. */
 static int passwd_from_file;
+
+/* Set if we require authentication only because we have a default route. */
+static bool default_auth;
 
 /* Hook to enable a plugin to control the idle time limit */
 int (*idle_time_hook) __P((struct ppp_idle *)) = NULL;
@@ -748,10 +751,12 @@ auth_check_options()
 
     /*
      * If we have a default route, require the peer to authenticate
-     * unless the noauth option was given.
+     * unless the noauth option was given or the real user is root.
      */
-    if (!auth_required && !allow_any_ip && have_route_to(0))
+    if (!auth_required && !allow_any_ip && have_route_to(0) && !privileged) {
 	auth_required = 1;
+	default_auth = 1;
+    }
 
     /* If authentication is required, ask peer for CHAP or PAP. */
     if (auth_required) {
@@ -776,20 +781,23 @@ auth_check_options()
     }
 
     if (auth_required && !can_auth && noauth_addrs == NULL) {
-	if (explicit_remote)
+	if (default_auth) {
 	    option_error(
-"The remote system (%s) is required to authenticate itself but I",
+"By default the remote system is required to authenticate itself");
+	    option_error(
+"(because this system has a default route to the internet)");
+	} else if (explicit_remote)
+	    option_error(
+"The remote system (%s) is required to authenticate itself",
 			 remote_name);
 	else
 	    option_error(
-"The remote system is required to authenticate itself but I");
-
-	if (!lacks_ip)
+"The remote system is required to authenticate itself");
+	option_error(
+"but I couldn't find any suitable secret (password) for it to use to do so.");
+	if (lacks_ip)
 	    option_error(
-"couldn't find any suitable secret (password) for it to use to do so.");
-	else
-	    option_error(
-"couldn't find any secret (password) which would let it use an IP address.");
+"(None of the available passwords would let it use an IP address.)");
 
 	exit(1);
     }
@@ -868,6 +876,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	    if (ret)
 		set_allowed_addrs(unit, addrs, opts);
 	    BZERO(passwd, sizeof(passwd));
+	    if (addrs != 0)
+		free_wordlist(addrs);
 	    return ret? UPAP_AUTHACK: UPAP_AUTHNAK;
 	}
     }
@@ -921,8 +931,6 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	}
 	if (attempts > 3)
 	    sleep((u_int) (attempts - 3) * 5);
-	if (addrs != NULL)
-	    free_wordlist(addrs);
 	if (opts != NULL)
 	    free_wordlist(opts);
 
@@ -933,6 +941,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
 	set_allowed_addrs(unit, addrs, opts);
     }
 
+    if (addrs != NULL)
+	free_wordlist(addrs);
     BZERO(passwd, sizeof(passwd));
     BZERO(secret, sizeof(secret));
 
@@ -1193,10 +1203,10 @@ null_login(unit)
 
     if (ret)
 	set_allowed_addrs(unit, addrs, opts);
-    else {
-	free_wordlist(addrs);
+    else if (opts != 0)
 	free_wordlist(opts);
-    }
+    if (addrs != 0)
+	free_wordlist(addrs);
 
     fclose(f);
     return ret;
@@ -1216,7 +1226,6 @@ get_pap_passwd(passwd)
     char *filename;
     FILE *f;
     int ret;
-    struct wordlist *addrs;
     char secret[MAXWORDLEN];
 
     /*
@@ -1229,7 +1238,6 @@ get_pap_passwd(passwd)
     }
 
     filename = _PATH_UPAPFILE;
-    addrs = NULL;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1370,10 +1378,10 @@ get_secret(unit, client, server, secret, secret_len, am_server)
 
 	if (am_server)
 	    set_allowed_addrs(unit, addrs, opts);
-	else {
-	    free_wordlist(addrs);
+	else if (opts != 0)
 	    free_wordlist(opts);
-	}
+	if (addrs != 0)
+	    free_wordlist(addrs);
     }
 
     len = strlen(secbuf);
