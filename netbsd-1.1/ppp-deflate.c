@@ -1,3 +1,5 @@
+/*	$Id: ppp-deflate.c,v 1.2 1996/04/04 03:23:09 paulus Exp $	*/
+
 /*
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -25,18 +27,17 @@
  * ON AN "AS IS" BASIS, AND THE AUSTRALIAN NATIONAL UNIVERSITY HAS NO
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
- *
- * $Id: ppp-deflate.c,v 1.1 1996/01/18 03:19:11 paulus Exp $
  */
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/systm.h>
 #include <sys/mbuf.h>
 #include <net/ppp_defs.h>
+#include <net/zlib.h>
 
 #define PACKETPTR	struct mbuf *
 #include <net/ppp-comp.h>
-#include "common/zlib.h"
 
 #if DO_DEFLATE
 
@@ -210,7 +211,7 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     int orig_len, maxolen;
 {
     struct deflate_state *state = (struct deflate_state *) arg;
-    u_char *rptr, *wptr, *wp0;
+    u_char *rptr, *wptr;
     int proto, olen, wspace, r, flush;
     struct mbuf *m;
 
@@ -224,9 +225,6 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 	return orig_len;
     }
 
-    if (state->debug)
-	printf("z_comp%d: pkt in len=%d proto=%x seq=%d\n",
-	       state->unit, orig_len, proto, state->seqno);
     /* Allocate one mbuf initially. */
     if (maxolen > orig_len)
 	maxolen = orig_len;
@@ -259,6 +257,8 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     } else {
 	state->strm.next_out = NULL;
 	state->strm.avail_out = 1000000;
+	wptr = NULL;
+	wspace = 0;
     }
     ++state->seqno;
 
@@ -269,19 +269,7 @@ z_compress(arg, mret, mp, orig_len, maxolen)
     flush = (mp == NULL)? Z_PACKET_FLUSH: Z_NO_FLUSH;
     olen = 0;
     for (;;) {
-	if (state->debug) {
-	    wp0 = state->strm.next_in;
-	    printf("z_comp%d: deflate flush=%d in=%d[%x %x %x %x]\n",
-		   state->unit, flush, state->strm.avail_in,
-		   wp0[0], wp0[1], wp0[2], wp0[3]);
-	    wp0 = state->strm.next_out;
-	}
 	r = deflate(&state->strm, flush);
-	if (state->debug) {
-	    printf("z_comp%d: ret %d inleft=%d gen %d[%x %x %x %x]\n",
-		   state->unit, r, state->strm.avail_in,
-		   state->strm.next_out - wp0, wp0[0], wp0[1], wp0[2], wp0[3]);
-	}
 	if (r != Z_OK) {
 	    printf("z_compress: deflate returned %d (%s)\n",
 		   r, (state->strm.msg? state->strm.msg: ""));
@@ -316,14 +304,15 @@ z_compress(arg, mret, mp, orig_len, maxolen)
 	    }
 	}
     }
-    olen += (m->m_len = wspace - state->strm.avail_out);
+    if (m != NULL)
+	olen += (m->m_len = wspace - state->strm.avail_out);
 
     /*
      * See if we managed to reduce the size of the packet.
      * If the compressor just gave us a single zero byte, it means
      * the packet was incompressible.
      */
-    if (olen < orig_len && m != NULL
+    if (m != NULL && olen < orig_len
 	&& !(olen == PPP_HDRLEN + 3 && *wptr == 0)) {
 	state->stats.comp_bytes += olen;
 	state->stats.comp_packets++;
@@ -352,7 +341,7 @@ z_comp_stats(arg, stats)
 
     *stats = state->stats;
     stats->ratio = stats->unc_bytes;
-    out = stats->comp_bytes + stats->unc_bytes;
+    out = stats->comp_bytes + stats->inc_bytes;
     if (stats->ratio <= 0x7ffffff)
 	stats->ratio <<= 8;
     else
@@ -468,7 +457,7 @@ z_decompress(arg, mi, mop)
 {
     struct deflate_state *state = (struct deflate_state *) arg;
     struct mbuf *mo, *mo_head;
-    u_char *rptr, *wptr, *wp0;
+    u_char *rptr, *wptr;
     int rlen, olen, ospace;
     int seq, i, flush, r, decode_proto;
     u_char hdr[PPP_HDRLEN + DEFLATE_OVHD];
@@ -498,14 +487,6 @@ z_decompress(arg, mi, mop)
     }
     ++state->seqno;
 
-    if (state->debug) {
-	struct mbuf *x;
-	int l = rlen;
-
-	for (x = mi; (x = x->m_next) != NULL; )
-	    l += x->m_len;
-	printf("z_decomp%d: pkt in len=%d seq=%d\n", state->unit, l, seq);
-    }
     /* Allocate an output mbuf. */
     MGETHDR(mo, M_DONTWAIT, MT_DATA);
     if (mo == NULL)
@@ -548,19 +529,7 @@ z_decompress(arg, mi, mop)
      * Call inflate, supplying more input or output as needed.
      */
     for (;;) {
-	if (state->debug) {
-	    wp0 = state->strm.next_in;
-	    printf("z_decomp%d: inflate flush=%d in=%d[%x %x %x %x]\n",
-		   state->unit, flush, state->strm.avail_in,
-		   wp0[0], wp0[1], wp0[2], wp0[3]);
-	    wp0 = state->strm.next_out;
-	}
 	r = inflate(&state->strm, flush);
-	if (state->debug) {
-	    printf("z_decomp%d: ret %d inleft=%d gen %d[%x %x %x %x]\n",
-		   state->unit, r, state->strm.avail_in,
-		   state->strm.next_out - wp0, wp0[0], wp0[1], wp0[2], wp0[3]);
-	}
 	if (r != Z_OK) {
 	    if (state->debug)
 		printf("z_decompress%d: inflate returned %d (%s)\n",
