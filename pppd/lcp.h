@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.4 1994/05/24 11:22:28 paulus Exp $
+ * $Id: lcp.h,v 1.5 1994/09/01 00:24:45 paulus Exp $
  */
 
 /*
@@ -55,10 +55,10 @@ typedef struct lcp_options {
     int neg_lqr : 1;		/* Negotiate use of Link Quality Reports */
     u_short mru;		/* Value of MRU */
     u_char chap_mdtype;		/* which MD type (hashing algorithm) */
-    u_long asyncmap;		/* Value of async map */
-    u_long magicnumber;
+    uint32 asyncmap;		/* Value of async map */
+    uint32 magicnumber;
     int numloops;		/* Number of loops during magic number neg. */
-    u_long lqr_period;		/* Reporting period for link quality */
+    uint32 lqr_period;		/* Reporting period for link quality */
 } lcp_options;
 
 extern fsm lcp_fsm[];
@@ -66,7 +66,7 @@ extern lcp_options lcp_wantoptions[];
 extern lcp_options lcp_gotoptions[];
 extern lcp_options lcp_allowoptions[];
 extern lcp_options lcp_hisoptions[];
-extern u_long xmit_accm[][8];
+extern uint32 xmit_accm[][8];
 
 #define DEFMRU	1500		/* Try for this */
 #define MINMRU	128		/* No MRUs below this */
