@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.13 1998/03/25 04:03:14 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.14 1999/08/13 01:55:40 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -77,6 +77,7 @@
 #define PPP_IPCP	0x8021	/* IP Control Protocol */
 #define PPP_ATCP	0x8029	/* AppleTalk Control Protocol */
 #define PPP_IPXCP	0x802b	/* IPX Control Protocol */
+#define PPP_IPV6CP	0x8057	/* IPv6 Control Protocol */
 #define PPP_CCP		0x80fd	/* Compression Control Protocol */
 #define PPP_LCP		0xc021	/* Link Control Protocol */
 #define PPP_PAP		0xc023	/* Password Authentication Protocol */
