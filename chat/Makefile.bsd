@@ -1,0 +1,8 @@
+#	$Id: Makefile.bsd,v 1.1 1994/05/20 05:32:16 paulus Exp $
+
+PROG=	chat
+SRCS=	chat.c
+NOMAN=	noman
+BINDIR=	/usr/sbin
+
+.include <bsd.prog.mk>

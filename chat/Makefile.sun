@@ -1,0 +1,14 @@
+#
+# Makefile for chat on suns
+#
+
+all:	chat
+
+chat: chat.o
+	$(CC) -o chat chat.o
+
+install:
+	install -c chat $(BINDIR)/chat
+
+clean:
+	rm -f *~ *.o chat
