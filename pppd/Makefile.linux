@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.55 2002/11/05 11:52:07 carlsonj Exp $
+# $Id: Makefile.linux,v 1.56 2003/01/13 08:17:04 fcusack Exp $
 #
 
 # Default installation locations
@@ -37,7 +37,8 @@ LIBS =
 # MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.linux.
 CHAPMS=y
 USE_CRYPT=y
-MSLANMAN=y
+# Don't use MSLANMAN unless you really know what you're doing.
+#MSLANMAN=y
 # Uncomment the next line to include support for MPPE.  CHAPMS (above) must
 # also be enabled.  Also, edit plugins/radius/Makefile.linux.
 MPPE=y
