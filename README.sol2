@@ -45,34 +45,110 @@ create an /etc/ppp/ip-up script containing something like this:
 
 See the man page for ip(7p) for details.
 
-Snoop support.
+Dynamic STREAMS Re-Plumbing Support.
+************************************
+
+Solaris 8 includes dynamic re-plumbing support. With this, modules below ip can 
+be inserted, or removed, without having the ip stream be unplumbed, and re-
+plumbed again. All states in ip for an interface will therefore now be 
+preserved. Users can install (or upgrade) modules like firewall, bandwidth
+manager, cache manager, tunneling, etc., without shutting the machine down.
+
+To support this, ppp driver now uses /dev/udp instead of /dev/ip for
+the ip stream. The interface stream (where ip module pushed on top of ppp)
+is then I_PLINK'ed below the ip stream. /dev/udp is used because STREAMS will
+not let a driver be PLINK'ed under itself, and /dev/ip is typically the driver
+at the bottom of the tunneling interfaces stream. The mux ids of the ip
+streams are then added using SIOCSxIFMUXID ioctl.
+
+Users will be able to see the modules on the insterface stream by, for example:
+
+    pikapon% ifconfig ppp modlist
+    0 ip
+    1 ppp
+
+Or arbitrarily if bandiwth manager and firewall modules are installed:
+
+    pikapon% ifconfig hme0 modlist
+    0 arp
+    1 ip
+    2 ipqos
+    3 firewall
+    4 hme
+
+Snoop Support.
 **************
 
-This version includes support for /usr/sbin/snoop. Tests has been done
-on both Solaris 7 and 8. Only IPv4 and IPv6 packets will be sent
-up to streams marked as promiscuous, e.g, snoop et al.
+This version includes support for /usr/sbin/snoop. Tests has been done on both 
+Solaris 7 and 8. Only IPv4 and IPv6 packets will be sent up to stream(s) marked 
+as promiscuous, e.g, snoop et al.
+
+Users will be able to see the packets on the ppp interface by, for example:
+
+    snoop -d ppp0
+
+See the man page for snoop(1M) for details.
 
 IPv6 Support.
 *************
 
-This version has been tested under Solaris 8 running IPv6. As of now,
-interoperability testing has only been done between Solaris machines
-in terms of the IPV6 NCP. An additional command line option for the
-pppd daemon has been added: ipv6cp-use-persistent
+This is for Solaris 8 and later.
 
-By default, compilation for IPv6 support is not enabled. Uncomment the
-necessary lines in pppd/Makefile.sol2 to enable it. Once done, the
-quickest way to get IPv6 running is to add the following somewhere
-in the command line option:
+This version has been tested under Solaris 8 running IPv6. As of now, 
+interoperability testing has only been done between Solaris machines in terms 
+of the IPV6 NCP. An additional command line option for the pppd daemon has 
+been added: ipv6cp-use-persistent
+
+By default, compilation for IPv6 support is not enabled. Uncomment the 
+necessary lines in pppd/Makefile.sol2 to enable it. Once done, the quickest way 
+to get IPv6 running is to add the following somewhere in the command line 
+option:
 
 	+ipv6 ipv6cp-use-persistent
 
-The persistent id for the link-local address was added to conform to
-RFC 2472; such that if there's an EUI-48 available, use that to make up
-the EUI-64. As of now, the Solaris implementation extracts the EUI-48
-id from the Ethernet's MAC address (the ethernet interface needs to
-be up). Future works might support other ways of obtaining a unique
-yet persistent id, such as EEPROM serial numbers, etc.
+The persistent id for the link-local address was added to conform to RFC 2472; 
+such that if there's an EUI-48 available, use that to make up the EUI-64. As of 
+now, the Solaris implementation extracts the EUI-48 id from the Ethernet's MAC 
+address (the ethernet interface needs to be up). Future works might support 
+other ways of obtaining a unique yet persistent id, such as EEPROM serial 
+numbers, etc.
+
+There need not be any up/down scripts for ipv6, e.g. /etc/ppp/ipv6-up or 
+/etc/ppp/ipv6-down, to trigger IPv6 neighbor discovery for auto configuration 
+and routing. The in.ndpd daemon will perform all of the necessary jobs in the 
+background. /etc/inet/ndpd.conf can be further customized to enable the machine 
+as an IPv6 router. See the man page for in.ndpd(1M) and ndpd.conf(4) for 
+details.
+
+Below is a sample output of "ifconfig -a" with persistent link-local address.
+Note the UNNUMBERED flag is set because hme0 and ppp0 both have identical
+link-local IPv6 addresses:
+
+lo0: flags=1000849<UP,LOOPBACK,RUNNING,MULTICAST,IPv4> mtu 8232 index 1
+        inet 127.0.0.1 netmask ff000000 
+hme0: flags=1000843<UP,BROADCAST,RUNNING,MULTICAST,IPv4> mtu 1500 index 2
+        inet 129.146.86.248 netmask ffffff00 broadcast 129.146.86.255
+        ether 8:0:20:8d:38:c1 
+lo0: flags=2000849<UP,LOOPBACK,RUNNING,MULTICAST,IPv6> mtu 8252 index 1
+        inet6 ::1/128 
+hme0: flags=2000841<UP,RUNNING,MULTICAST,IPv6> mtu 1500 index 2
+        ether 8:0:20:8d:38:c1 
+        inet6 fe80::a00:20ff:fe8d:38c1/10 
+hme0:1: flags=2080841<UP,RUNNING,MULTICAST,ADDRCONF,IPv6> mtu 1500 index 2
+        inet6 fec0::56:a00:20ff:fe8d:38c1/64 
+hme0:2: flags=2080841<UP,RUNNING,MULTICAST,ADDRCONF,IPv6> mtu 1500 index 2
+        inet6 2000::56:a00:20ff:fe8d:38c1/64 
+hme0:3: flags=2080841<UP,RUNNING,MULTICAST,ADDRCONF,IPv6> mtu 1500 index 2
+        inet6 2::56:a00:20ff:fe8d:38c1/64 
+ppp0: flags=10008d1<UP,POINTOPOINT,RUNNING,NOARP,MULTICAST,IPv4> mtu 1500 index 12
+        inet 172.16.1.1 --> 172.16.1.2 netmask ffffff00 
+ppp0: flags=2202851<UP,POINTOPOINT,RUNNING,MULTICAST,UNNUMBERED,NONUD,IPv6> mtu 1500 index 12
+        inet6 fe80::a00:20ff:fe8d:38c1/10 --> fe80::a00:20ff:fe7a:24fb
+
+Note also that a plumbed ipv6 interface stream will exist throughout the entire
+PPP session in the case where the peer rejects IPV6CP, which further causes the 
+interface state to stay down. Unplumbing will happen when the daemon exits. This
+is done by design and is not a bug.
 
 64-bit Support.
 ***************
