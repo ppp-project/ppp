@@ -2,7 +2,7 @@
 # Makefile for AIX 4.1
 #
 #
-# $Id: Makefile,v 1.2 1995/04/26 04:15:48 paulus Exp $
+# $Id: Makefile,v 1.3 1995/06/01 06:18:11 paulus Exp $
 #
 #ifndef DRIVERS
 DRIVERS=/usr/lib/drivers
@@ -31,8 +31,10 @@ ppp_async: ppp_async.o
 ppp_comp: ppp_comp.o bsd-comp.o
 	ld -o ppp_comp ppp_comp.o -e pppcomp_load bsd-comp.o ${KIMP} ${NETIMP} ${KLIBS}
 
-vjcompress.o: vjcompress.c
-bsd-comp.o: bsd-comp.c
+vjcompress.o: ../modules/vjcompress.c
+	$(CC) $(CFLAGS) -c $?
+bsd-comp.o: ../modules/bsd-comp.c
+	$(CC) $(CFLAGS) -c $?
 ppp_if.o: ppp_if.c
 ppp_async.o: ppp_async.c
 ppp_comp.o: ppp_comp.c
