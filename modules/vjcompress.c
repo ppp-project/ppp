@@ -29,7 +29,7 @@
  * This version is used under SunOS 4.x, Digital UNIX, AIX 4.x,
  * and SVR4 systems including Solaris 2.
  *
- * $Id: vjcompress.c,v 1.10 1999/09/15 23:49:06 masputra Exp $
+ * $Id: vjcompress.c,v 1.11 2004/01/17 05:47:55 carlsonj Exp $
  */
 
 #include <sys/types.h>
@@ -54,6 +54,10 @@
 typedef u_long  n_long;
 #else
 #include <netinet/in_systm.h>
+#endif
+
+#ifdef SOL2
+#include <sys/sunddi.h>
 #endif
 
 #include <netinet/ip.h>

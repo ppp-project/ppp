@@ -32,7 +32,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ppp_comp.c,v 1.2 2002/12/06 09:49:16 paulus Exp $
+ * $Id: ppp_comp.c,v 1.3 2004/01/17 05:47:55 carlsonj Exp $
  */
 
 /*
@@ -624,7 +624,7 @@ ppp_comp_wsrv(q)
         if (!bcanputnext(q,mp->b_band))
 #else
         if (!canputnext(q))
-#endif PRIOQ
+#endif /* PRIOQ */
 	{
 	    putbq(q, mp);
 	    break;
@@ -702,7 +702,7 @@ ppp_comp_wsrv(q)
 	    if (cmp != NULL) {
 #ifdef PRIOQ
 		cmp->b_band=mp->b_band;
-#endif PRIOQ
+#endif /* PRIOQ */
 		freemsg(mp);
 		mp = cmp;
 	    }

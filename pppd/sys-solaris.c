@@ -90,7 +90,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.11 2003/04/07 00:01:46 paulus Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.12 2004/01/17 05:47:55 carlsonj Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -107,6 +107,7 @@
 #endif
 #include <signal.h>
 #include <utmpx.h>
+#include <stropts.h>
 #include <sys/types.h>
 #include <sys/ioccom.h>
 #include <sys/stream.h>

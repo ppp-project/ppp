@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: chap-new.c,v 1.3 2003/11/27 22:22:36 paulus Exp $"
+#define RCSID	"$Id: chap-new.c,v 1.4 2004/01/17 05:47:55 carlsonj Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -49,7 +49,7 @@
 int (*chap_verify_hook)(char *name, char *ourname, int id,
 			struct chap_digest_type *digest,
 			unsigned char *challenge, unsigned char *response,
-			unsigned char *message, int message_space) = NULL;
+			char *message, int message_space) = NULL;
 
 /*
  * Option variables.
@@ -119,7 +119,7 @@ static void chap_handle_response(struct chap_server_state *ss, int code,
 static int chap_verify_response(char *name, char *ourname, int id,
 		struct chap_digest_type *digest,
 		unsigned char *challenge, unsigned char *response,
-		unsigned char *message, int message_space);
+		char *message, int message_space);
 static void chap_respond(struct chap_client_state *cs, int id,
 		unsigned char *pkt, int len);
 static void chap_handle_status(struct chap_client_state *cs, int code, int id,
@@ -306,11 +306,11 @@ chap_handle_response(struct chap_server_state *ss, int id,
 {
 	int response_len, ok, mlen;
 	unsigned char *response, *p;
-	unsigned char *name = NULL;	/* initialized to shut gcc up */
+	char *name = NULL;	/* initialized to shut gcc up */
 	int (*verifier)(char *, char *, int, struct chap_digest_type *,
-		unsigned char *, unsigned char *, unsigned char *, int);
+		unsigned char *, unsigned char *, char *, int);
 	char rname[MAXNAMELEN+1];
-	unsigned char message[256];
+	char message[256];
 
 	if ((ss->flags & LOWERUP) == 0)
 		return;
@@ -322,7 +322,7 @@ chap_handle_response(struct chap_server_state *ss, int id,
 		response = pkt;
 		GETCHAR(response_len, pkt);
 		len -= response_len + 1;	/* length of name */
-		name = pkt + response_len;
+		name = (char *)pkt + response_len;
 		if (len < 0)
 			return;
 
@@ -391,14 +391,14 @@ static int
 chap_verify_response(char *name, char *ourname, int id,
 		     struct chap_digest_type *digest,
 		     unsigned char *challenge, unsigned char *response,
-		     unsigned char *message, int message_space)
+		     char *message, int message_space)
 {
 	int ok;
-	char secret[MAXSECRETLEN];
+	unsigned char secret[MAXSECRETLEN];
 	int secret_len;
 
 	/* Get the secret that the peer is supposed to know */
-	if (!get_secret(0, name, ourname, secret, &secret_len, 1)) {
+	if (!get_secret(0, name, ourname, (char *)secret, &secret_len, 1)) {
 		error("No CHAP secret found for authenticating %q", name);
 		return 0;
 	}

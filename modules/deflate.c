@@ -35,7 +35,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: deflate.c,v 1.11 2002/12/06 09:49:15 paulus Exp $
+ * $Id: deflate.c,v 1.12 2004/01/17 05:47:55 carlsonj Exp $
  */
 
 #ifdef AIX4
@@ -54,6 +54,10 @@
 #include "zlib.h"
 #else
 #include "../common/zlib.h"
+#endif
+
+#ifdef SOL2
+#include <sys/sunddi.h>
 #endif
 
 #if DO_DEFLATE

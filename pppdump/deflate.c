@@ -33,12 +33,14 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: deflate.c,v 1.4 2002/12/06 09:49:16 paulus Exp $
+ * $Id: deflate.c,v 1.5 2004/01/17 05:47:55 carlsonj Exp $
  */
 
 #include <sys/types.h>
+#include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include "ppp_defs.h"
 #include "ppp-comp.h"
 #include "zlib.h"

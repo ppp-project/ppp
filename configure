@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.30 2002/11/02 19:48:12 carlsonj Exp $
+# $Id: configure,v 1.31 2004/01/17 05:47:55 carlsonj Exp $
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -27,7 +27,7 @@ case $system in
 	      esac;;
       5.[1-6]*)	state="known"; ksrc="solaris"; makext="sol2";;
     esac
-    if [ -x /opt/SUNWspro/bin/cc ] &&
+    if [ -x /opt/SUNWspro/bin/cc -a "$1" != "gcc" ] &&
        /opt/SUNWspro/bin/cc -flags >/dev/null 2>&1; then
       : # use Sun WorkShop compiler
     elif gcc --version >/dev/null 2>&1; then

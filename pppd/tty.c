@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.13 2004/01/13 04:17:59 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.14 2004/01/17 05:47:55 carlsonj Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -512,7 +512,9 @@ int connect_tty()
 {
 	char *connector;
 	int fdflags;
+#ifndef __linux__
 	struct stat statbuf;
+#endif
 	char numbuf[16];
 
 	/*

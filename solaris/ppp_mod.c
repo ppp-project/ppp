@@ -32,7 +32,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: ppp_mod.c,v 1.2 2002/12/06 09:49:16 paulus Exp $
+ * $Id: ppp_mod.c,v 1.3 2004/01/17 05:47:55 carlsonj Exp $
  */
 
 /*
@@ -124,8 +124,13 @@ static int
 ppp_identify(dip)
     dev_info_t *dip;
 {
+    /* This entry point is not used as of Solaris 10 */
+#ifdef DDI_IDENTIFIED
     return strcmp(ddi_get_name(dip), "ppp") == 0? DDI_IDENTIFIED:
 	DDI_NOT_IDENTIFIED;
+#else
+    return 0;
+#endif
 }
 
 static int

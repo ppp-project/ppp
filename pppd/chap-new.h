@@ -123,7 +123,7 @@ struct chap_digest_type {
 extern int (*chap_verify_hook)(char *name, char *ourname, int id,
 			struct chap_digest_type *digest,
 			unsigned char *challenge, unsigned char *response,
-			unsigned char *message, int message_space);
+			char *message, int message_space);
 
 /* Called by digest code to register a digest type */
 extern void chap_register_digest(struct chap_digest_type *);
