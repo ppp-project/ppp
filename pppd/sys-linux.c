@@ -1231,7 +1231,7 @@ void tty_recv_config(int mru, u_int32_t asyncmap, int pcomp, int accomp)
  * which may be done. Just return without incident.
  */
 	if (!still_ppp())
-		return 0;
+		return;
 /*
  * Set the receiver parameters
  */
