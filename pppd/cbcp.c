@@ -19,14 +19,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.4 1999/03/02 05:34:16 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.5 1999/03/16 02:58:01 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <syslog.h>
 
 #include "pppd.h"
 #include "cbcp.h"
@@ -71,7 +70,6 @@ struct protent cbcp_protent = {
     0,
     "CBCP",
     cbcp_option_list,
-    NULL,
     NULL,
     NULL,
     NULL
@@ -122,18 +120,18 @@ cbcp_lowerup(iface)
 {
     cbcp_state *us = &cbcp[iface];
 
-    syslog(LOG_DEBUG, "cbcp_lowerup");
-    syslog(LOG_DEBUG, "want: %d", us->us_type);
+    dbglog("cbcp_lowerup");
+    dbglog("want: %d", us->us_type);
 
     if (us->us_type == CB_CONF_USER)
-        syslog(LOG_DEBUG, "phone no: %s", us->us_number);
+        dbglog("phone no: %s", us->us_number);
 }
 
 static void
 cbcp_open(unit)
     int unit;
 {
-    syslog(LOG_DEBUG, "cbcp_open");
+    dbglog("cbcp_open");
 }
 
 /* process an incomming packet */
@@ -152,7 +150,7 @@ cbcp_input(unit, inpacket, pktlen)
     inp = inpacket;
 
     if (pktlen < CBCP_MINLEN) {
-        syslog(LOG_ERR, "CBCP packet is too small");
+        error("CBCP packet is too small");
 	return;
     }
 
@@ -162,7 +160,7 @@ cbcp_input(unit, inpacket, pktlen)
 
 #if 0
     if (len > pktlen) {
-        syslog(LOG_ERR, "CBCP packet: invalid length");
+        error("CBCP packet: invalid length");
         return;
     }
 #endif
@@ -176,12 +174,12 @@ cbcp_input(unit, inpacket, pktlen)
 	break;
 
     case CBCP_RESP:
-	syslog(LOG_DEBUG, "CBCP_RESP received");
+	dbglog("CBCP_RESP received");
 	break;
 
     case CBCP_ACK:
 	if (id != us->us_id)
-	    syslog(LOG_DEBUG, "id doesn't match: expected %d recv %d",
+	    dbglog("id doesn't match: expected %d recv %d",
 		   us->us_id, id);
 
 	cbcp_recvack(us, inp, len);
@@ -300,7 +298,7 @@ cbcp_recvreq(us, pckt, pcktlen)
     address[0] = 0;
 
     while (len) {
-        syslog(LOG_DEBUG, "length: %d", len);
+        dbglog("length: %d", len);
 
 	GETCHAR(type, pckt);
 	GETCHAR(opt_len, pckt);
@@ -312,22 +310,22 @@ cbcp_recvreq(us, pckt, pcktlen)
 
 	switch(type) {
 	case CB_CONF_NO:
-	    syslog(LOG_DEBUG, "no callback allowed");
+	    dbglog("no callback allowed");
 	    break;
 
 	case CB_CONF_USER:
-	    syslog(LOG_DEBUG, "user callback allowed");
+	    dbglog("user callback allowed");
 	    if (opt_len > 4) {
 	        GETCHAR(addr_type, pckt);
 		memcpy(address, pckt, opt_len - 4);
 		address[opt_len - 4] = 0;
 		if (address[0])
-		    syslog(LOG_DEBUG, "address: %s", address);
+		    dbglog("address: %s", address);
 	    }
 	    break;
 
 	case CB_CONF_ADMIN:
-	    syslog(LOG_DEBUG, "user admin defined allowed");
+	    dbglog("user admin defined allowed");
 	    break;
 
 	case CB_CONF_LIST:
@@ -349,7 +347,7 @@ cbcp_resp(us)
     int len = 0;
 
     cb_type = us->us_allowed & us->us_type;
-    syslog(LOG_DEBUG, "cbcp_resp cb_type=%d", cb_type);
+    dbglog("cbcp_resp cb_type=%d", cb_type);
 
 #if 0
     if (!cb_type)
@@ -357,7 +355,7 @@ cbcp_resp(us)
 #endif
 
     if (cb_type & ( 1 << CB_CONF_USER ) ) {
-	syslog(LOG_DEBUG, "cbcp_resp CONF_USER");
+	dbglog("cbcp_resp CONF_USER");
 	PUTCHAR(CB_CONF_USER, bufp);
 	len = 3 + 1 + strlen(us->us_number) + 1;
 	PUTCHAR(len , bufp);
@@ -369,7 +367,7 @@ cbcp_resp(us)
     }
 
     if (cb_type & ( 1 << CB_CONF_ADMIN ) ) {
-	syslog(LOG_DEBUG, "cbcp_resp CONF_ADMIN");
+	dbglog("cbcp_resp CONF_ADMIN");
         PUTCHAR(CB_CONF_ADMIN, bufp);
 	len = 3;
 	PUTCHAR(len, bufp);
@@ -379,7 +377,7 @@ cbcp_resp(us)
     }
 
     if (cb_type & ( 1 << CB_CONF_NO ) ) {
-        syslog(LOG_DEBUG, "cbcp_resp CONF_NO");
+        dbglog("cbcp_resp CONF_NO");
 	PUTCHAR(CB_CONF_NO, bufp);
 	len = 3;
 	PUTCHAR(len , bufp);
@@ -438,14 +436,12 @@ cbcp_recvack(us, pckt, len)
 	    memcpy(address, pckt, opt_len - 4);
 	    address[opt_len - 4] = 0;
 	    if (address[0])
-	        syslog(LOG_DEBUG, "peer will call: %s", address);
+	        dbglog("peer will call: %s", address);
 	}
     }
 
     cbcp_up(us);
 }
-
-extern int persist;
 
 /* ok peer will do callback */
 static void
