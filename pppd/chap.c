@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.33 2002/09/01 12:00:15 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.34 2002/10/11 22:11:13 fcusack Exp $"
 
 /*
  * TODO:
@@ -700,7 +700,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 	notice("CHAP peer authentication succeeded for %q", rhostname);
 
     } else {
-	error("CHAP peer authentication failed for remote host %q", rhostname);
+	error("CHAP peer authentication failed for %q", rhostname);
 	cstate->serverstate = CHAPSS_BADAUTH;
 	auth_peer_fail(cstate->unit, PPP_CHAP);
     }
@@ -768,6 +768,7 @@ ChapReceiveSuccess(cstate, inp, id, len)
 
     cstate->clientstate = CHAPCS_OPEN;
 
+    notice("CHAP authentication succeeded");
     auth_withpeer_success(cstate->unit, PPP_CHAP, cstate->resp_type);
 }
 

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: upap.c,v 1.25 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: upap.c,v 1.26 2002/10/11 22:11:13 fcusack Exp $"
 
 /*
  * TODO:
@@ -353,6 +353,7 @@ upap_rauthreq(u, inp, id, len)
 {
     u_char ruserlen, rpasswdlen;
     char *ruser, *rpasswd;
+    char rhostname[256];
     int retcode;
     char *msg;
     int msglen;
@@ -407,11 +408,18 @@ upap_rauthreq(u, inp, id, len)
 
     upap_sresp(u, retcode, id, msg, msglen);
 
+    if (ruserlen >= sizeof(rhostname))
+	ruserlen = sizeof(rhostname) - 1;
+    BCOPY(ruser, rhostname, ruserlen);
+    rhostname[ruserlen] = '\000';
+
     if (retcode == UPAP_AUTHACK) {
 	u->us_serverstate = UPAPSS_OPEN;
+	notice("PAP peer authentication succeeded for %q", rhostname);
 	auth_peer_success(u->us_unit, PPP_PAP, 0, ruser, ruserlen);
     } else {
 	u->us_serverstate = UPAPSS_BADAUTH;
+	error("PAP peer authentication failed for %q", rhostname);
 	auth_peer_fail(u->us_unit, PPP_PAP);
     }
 
@@ -456,12 +464,13 @@ upap_rauthack(u, inp, id, len)
 
     u->us_clientstate = UPAPCS_OPEN;
 
+    notice("PAP authentication succeeded");
     auth_withpeer_success(u->us_unit, PPP_PAP, 0);
 }
 
 
 /*
- * upap_rauthnak - Receive Authenticate-Nakk.
+ * upap_rauthnak - Receive Authenticate-Nak.
  */
 static void
 upap_rauthnak(u, inp, id, len)
