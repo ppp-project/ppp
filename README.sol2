@@ -45,6 +45,28 @@ create an /etc/ppp/ip-up script containing something like this:
 
 See the man page for ip(7p) for details.
 
+IPv6 Support.
+*************
+
+This version has been tested under Solaris 8 running IPv6. As of now,
+interoperability testing has only been done between Solaris machines
+in terms of the IPV6 NCP. An additional command line option for the
+pppd daemon has been added: ipv6cp-use-persistent
+
+By default, compilation for IPv6 support is not enabled. Uncomment the
+necessary lines in pppd/Makefile.sol2 to enable it. Once done, the
+quickest way to get IPv6 running is to add the following somewhere
+in the command line option:
+
+	+ipv6 ipv6cp-use-persistent
+
+The persistent id for the link-local address was added to conform to
+RFC 2472; such that if there's an EUI-48 available, use that to make up
+the EUI-64. As of now, the Solaris implementation extracts the EUI-48
+id from the Ethernet's MAC address (the ethernet interface needs to
+be up). Future works might support other ways of obtaining a unique
+yet persistent id, such as EEPROM serial numbers, etc.
+
 64-bit Support.
 ***************
 
