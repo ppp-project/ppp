@@ -281,8 +281,12 @@ void sys_cleanup(void)
 void
 sys_close(void)
 {
-    close(sock_fd);
-    sock_fd = -1;
+    if (sock_fd >= 0)
+	close(sock_fd);
+    if (slave_fd >= 0)
+	close(slave_fd);
+    if (master_fd >= 0)
+	close(master_fd);
     closelog();
 }
 

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.64 1999/03/22 05:55:31 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.65 1999/03/23 01:23:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -90,7 +90,7 @@ int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
 int log_to_fd;			/* send log messages to this fd too */
 
-static int fd_ppp;		/* fd for talking PPP */
+static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
 static int pty_master;		/* fd for master side of pty */
 static int pty_slave;		/* fd for slave side of pty */
@@ -124,7 +124,6 @@ struct pppd_stats link_stats;
 int link_stats_valid;
 
 static int charshunt_pid;	/* Process ID for charshunt */
-static FILE *recordf;		/* File for recording chars sent/rcvd */
 
 /* Prototypes for procedures local to this file. */
 
@@ -142,7 +141,7 @@ static void toggle_debug __P((int));
 static void open_ccp __P((int));
 static void bad_signal __P((int));
 static void holdoff_end __P((void *));
-static int device_script __P((char *, int, int));
+static int device_script __P((char *, int, int, int));
 static void reap_kids __P((int waitfor));
 static void pr_log __P((void *, char *, ...));
 static void logit __P((int, char *, va_list));
@@ -150,7 +149,9 @@ static void vslp_printer __P((void *, char *, ...));
 static void format_packet __P((u_char *, int, void (*) (void *, char *, ...),
 			       void *));
 static void record_child __P((int, char *, void (*) (void *), void *));
-static void charshunt __P((int));
+static int start_charshunt __P((int, int));
+static void charshunt_done __P((void *));
+static void charshunt __P((int, int, char *));
 static int record_write(FILE *, int code, u_char *buf, int nb,
 			struct timeval *);
 
@@ -284,9 +285,8 @@ main(argc, argv)
 			 notty? "notty": "pty");
 	    exit(1);
 	}
-	if (ptycommand != NULL && (notty || record_file != NULL)) {
-	    option_error("pty option is incompatible with %s option",
-			 notty? "notty": "record");
+	if (ptycommand != NULL && notty) {
+	    option_error("pty option is incompatible with notty option");
 	    exit(1);
 	}
 	default_device = notty;
@@ -318,19 +318,6 @@ main(argc, argv)
     script_setenv("DEVICE", devnam);
     slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
     script_setenv("SPEED", numbuf);
-
-    /*
-     * Open the record file (as the user) if required.
-     */
-    if (record_file != NULL) {
-	if (uid != 0)
-	    seteuid(uid);
-	recordf = fopen(record_file, "a");
-	if (uid != 0)
-	    seteuid(0);
-	if (recordf == NULL)
-	    option_error("Couldn't create record file %s: %m", record_file);
-    }
 
     /*
      * Initialize system-dependent stuff and magic number package.
@@ -515,13 +502,6 @@ main(argc, argv)
 		goto fail;
 	    }
 	    set_up_tty(pty_slave, 1);
-	    if (ptycommand != NULL) {
-		if (device_script(ptycommand, pty_master, 1) < 0)
-		    goto fail;
-		ttyfd = pty_slave;
-		close(pty_master);
-		pty_master = -1;
-	    }
 	}
 
 	/*
@@ -589,30 +569,33 @@ main(argc, argv)
 	 * If the notty and/or record option was specified,
 	 * start up the character shunt now.
 	 */
-	if (notty || record_file != NULL) {
-	    int cpid;
+	if (ptycommand != NULL) {
+	    if (record_file != NULL) {
+		int ipipe[2], opipe[2], ok;
 
-	    cpid = fork();
-	    if (cpid == -1) {
-		error("Can't fork process for character shunt: %m");
+		if (pipe(ipipe) < 0 || pipe(opipe) < 0)
+		    fatal("Couldn't create pipes for record option: %m");
+		ok = device_script(ptycommand, opipe[0], ipipe[1], 1) == 0
+		    && start_charshunt(ipipe[0], opipe[1]);
+		close(ipipe[0]);
+		close(ipipe[1]);
+		close(opipe[0]);
+		close(opipe[1]);
+		if (!ok)
+		    goto fail;
+	    } else {
+		if (device_script(ptycommand, pty_master, pty_master, 1) < 0)
+		    goto fail;
+		ttyfd = pty_slave;
+		close(pty_master);
+		pty_master = -1;
+	    }
+	} else if (notty) {
+	    if (!start_charshunt(0, 1))
 		goto fail;
-	    }
-	    if (cpid == 0) {
-		close(pty_slave);
-		setuid(uid);
-		if (getuid() != uid)
-		    fatal("setuid failed");
-		setgid(getgid());
-		charshunt(ttyfd);
-		exit(0);
-	    }
-	    charshunt_pid = cpid;
-	    close(pty_master);
-	    pty_master = -1;
-	    if (ttyfd >= 0)
-		close(ttyfd);
-	    ttyfd = pty_slave;
-	    record_child(cpid, "pppd (charshunt)", NULL, NULL);
+	} else if (record_file != NULL) {
+	    if (!start_charshunt(ttyfd, ttyfd))
+		goto fail;
 	}
 
 	/* run connection script */
@@ -627,7 +610,7 @@ main(argc, argv)
 		}
 	    }
 
-	    if (device_script(connector, ttyfd, 0) < 0) {
+	    if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
 		error("Connect script failed");
 		goto fail;
 	    }
@@ -655,7 +638,7 @@ main(argc, argv)
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
-	    if (device_script(welcomer, ttyfd, 0) < 0)
+	    if (device_script(welcomer, ttyfd, ttyfd, 0) < 0)
 		warn("Welcome script failed");
 	}
 
@@ -747,14 +730,16 @@ main(argc, argv)
 	if (demand)
 	    restore_loop();
 	disestablish_ppp(ttyfd);
+	fd_ppp = -1;
 
 	/*
 	 * Run disconnector script, if requested.
 	 * XXX we may not be able to do this if the line has hung up!
 	 */
 	if (disconnector && !hungup) {
-	    set_up_tty(ttyfd, 1);
-	    if (device_script(disconnector, ttyfd, 0) < 0) {
+	    if (real_ttyfd >= 0)
+		set_up_tty(real_ttyfd, 1);
+	    if (device_script(disconnector, ttyfd, ttyfd, 0) < 0) {
 		warn("disconnect script failed");
 	    } else {
 		info("Serial link disconnected.");
@@ -766,9 +751,9 @@ main(argc, argv)
     fail:
 	if (pty_master >= 0)
 	    close(pty_master);
-	if (pty_slave >= 0 && pty_slave != ttyfd)
+	if (pty_slave >= 0)
 	    close(pty_slave);
-	if (ttyfd >= 0)
+	if (real_ttyfd >= 0)
 	    close_tty();
 	if (locked) {
 	    unlock();
@@ -974,7 +959,9 @@ cleanup()
 {
     sys_cleanup();
 
-    if (ttyfd >= 0)
+    if (fd_ppp >= 0)
+	disestablish_ppp(ttyfd);
+    if (real_ttyfd >= 0)
 	close_tty();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
@@ -991,11 +978,9 @@ cleanup()
 static void
 close_tty()
 {
-    disestablish_ppp(ttyfd);
-
     /* drop dtr to hang up */
     if (!default_device && modem) {
-	setdtr(ttyfd, 0);
+	setdtr(real_ttyfd, 0);
 	/*
 	 * This sleep is in case the serial port has CLOCAL set by default,
 	 * and consequently will reassert DTR when we close the device.
@@ -1003,17 +988,17 @@ close_tty()
 	sleep(1);
     }
 
-    restore_tty(ttyfd);
+    restore_tty(real_ttyfd);
 
     if (tty_mode != (mode_t) -1) {
-	if (fchmod(ttyfd, tty_mode) != 0) {
+	if (fchmod(real_ttyfd, tty_mode) != 0) {
 	    /* XXX if devnam is a symlink, this will change the link */
 	    chmod(devnam, tty_mode);
 	}
     }
 
-    close(ttyfd);
-    ttyfd = -1;
+    close(real_ttyfd);
+    real_ttyfd = -1;
 }
 
 
@@ -1274,13 +1259,13 @@ bad_signal(sig)
 
 
 /*
- * device_script - run a program to connect or disconnect the
- * serial device.
+ * device_script - run a program to talk to the serial device
+ * (e.g. to run the connector or disconnector script).
  */
 static int
-device_script(program, inout, dont_wait)
+device_script(program, in, out, dont_wait)
     char *program;
-    int inout;
+    int in, out;
     int dont_wait;
 {
     int pid;
@@ -1299,11 +1284,14 @@ device_script(program, inout, dont_wait)
     if (pid == 0) {
 	sys_close();
 	closelog();
-	if (inout == 2) {
+	if (in == 2) {
 	    /* aargh!!! */
-	    int newio = dup(inout);
-	    close(inout);
-	    inout = newio;
+	    int newin = dup(in);
+	    if (in == out)
+		out = newin;
+	    in = newin;
+	} else if (out == 2) {
+	    out = dup(out);
 	}
 	if (log_to_fd >= 0) {
 	    if (log_to_fd != 2)
@@ -1316,18 +1304,28 @@ device_script(program, inout, dont_wait)
 		close(errfd);
 	    }
 	}
-	if (inout != 0) {
-	    dup2(inout, 0);
-	    close(inout);
+	if (in != 0) {
+	    if (out == 0)
+		out = dup(out);
+	    dup2(in, 0);
+	    if (in != out)
+		close(in);
 	}
-	dup2(0, 1);
+	if (out != 1) {
+	    dup2(out, 1);
+	    close(out);
+	}
+	if (real_ttyfd > 2)
+	    close(real_ttyfd);
+	if (pty_master > 2)
+	    close(pty_master);
+	if (pty_slave > 2)
+	    close(pty_slave);
 	setuid(uid);
 	if (getuid() != uid) {
 	    error("setuid failed");
 	    exit(1);
 	}
-	if (ttyfd > 2 && ttyfd != inout)
-	    close(ttyfd);
 	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
 	error("could not exec /bin/sh: %m");
@@ -1421,6 +1419,8 @@ run_program(prog, args, must_exist, done, arg)
 	close (1);
 	close (2);
 	close (ttyfd);  /* tty interface to the ppp device */
+	if (real_ttyfd >= 0)
+	    close(real_ttyfd);
 
         /* Don't pass handles to the PPP device, even by accident. */
 	new_fd = open (_PATH_DEVNULL, O_RDWR);
@@ -2241,27 +2241,70 @@ dbglog __V((char *fmt, ...))
 }
 
 /*
+ * start_charshunt - create a child process to run the character shunt.
+ */
+static int
+start_charshunt(ifd, ofd)
+    int ifd, ofd;
+{
+    int cpid;
+
+    cpid = fork();
+    if (cpid == -1) {
+	error("Can't fork process for character shunt: %m");
+	return 0;
+    }
+    if (cpid == 0) {
+	/* child */
+	close(pty_slave);
+	setuid(uid);
+	if (getuid() != uid)
+	    fatal("setuid failed");
+	setgid(getgid());
+	if (!nodetach)
+	    log_to_fd = -1;
+	charshunt(ifd, ofd, record_file);
+	exit(0);
+    }
+    charshunt_pid = cpid;
+    close(pty_master);
+    pty_master = -1;
+    ttyfd = pty_slave;
+    record_child(cpid, "pppd (charshunt)", charshunt_done, NULL);
+    return 1;
+}
+
+static void
+charshunt_done(arg)
+    void *arg;
+{
+    charshunt_pid = 0;
+}
+
+/*
  * charshunt - the character shunt, which passes characters between
  * the pty master side and the serial port (or stdin/stdout).
  * This runs as the user (not as root).
+ * (We assume ofd >= ifd which is true the way this gets called. :-).
  */
 static void
-charshunt(ttyfd)
-    int ttyfd;
+charshunt(ifd, ofd, record_file)
+    int ifd, ofd;
+    char *record_file;
 {
-    int ifd, ofd, nfds;
-    int n;
+    int n, nfds;
     fd_set ready, writey;
     u_char *ibufp, *obufp;
     int nibuf, nobuf;
     int flags;
     int pty_readable, stdin_readable;
     struct timeval lasttime;
+    FILE *recordf = NULL;
 
     /*
      * Reset signal handlers.
      */
-    signal(SIGHUP, SIG_DFL);		/* Hangup */
+    signal(SIGHUP, SIG_IGN);		/* Hangup */
     signal(SIGINT, SIG_DFL);		/* Interrupt */
     signal(SIGTERM, SIG_DFL);		/* Terminate */
     signal(SIGCHLD, SIG_DFL);
@@ -2302,14 +2345,14 @@ charshunt(ttyfd)
     signal(SIGXFSZ, SIG_DFL);
 #endif
 
-    /* work out which fds we're using. */
-    if (notty) {
-	ifd = 0;
-	ofd = 1;
-    } else {
-	ifd = ofd = ttyfd;
+    /*
+     * Open the record file if required.
+     */
+    if (record_file != NULL) {
+	recordf = fopen(record_file, "a");
+	if (recordf == NULL)
+	    error("Couldn't create record file %s: %m", record_file);
     }
-    nfds = (ofd > pty_master? ifd: pty_master) + 1;
 
     /* set all the fds to non-blocking mode */
     flags = fcntl(pty_master, F_GETFL);
@@ -2319,8 +2362,8 @@ charshunt(ttyfd)
     flags = fcntl(ifd, F_GETFL);
     if (flags == -1
 	|| fcntl(ifd, F_SETFL, flags | O_NONBLOCK) == -1)
-	warn("couldn't set %s to nonblock: %m", (notty? "stdin": "tty"));
-    if (notty) {
+	warn("couldn't set %s to nonblock: %m", (ifd==0? "stdin": "tty"));
+    if (ofd != ifd) {
 	flags = fcntl(ofd, F_GETFL);
 	if (flags == -1
 	    || fcntl(ofd, F_SETFL, flags | O_NONBLOCK) == -1)
@@ -2331,6 +2374,8 @@ charshunt(ttyfd)
     ibufp = obufp = NULL;
     pty_readable = stdin_readable = 1;
     gettimeofday(&lasttime, NULL);
+    nfds = (ofd > pty_master? ofd: pty_master) + 1;
+
     while (nibuf != 0 || nobuf != 0 || pty_readable || stdin_readable) {
 	FD_ZERO(&ready);
 	FD_ZERO(&writey);
