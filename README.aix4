@@ -2,9 +2,7 @@
 AIX 4.1 support is ported from the SunOS code for ppp 2.2. It requires
 a streams-based tty and will not work on AIX 3.2. This is the first
 release of this package for AIX. It is provided free and without warranty
-of any kind. I can't make any promise to support this, but if you e-mail
-me with problems I'll try to help you. Please let me know about any bugs
-you might find.
+of any kind.
 
 Introduction
 
@@ -96,5 +94,4 @@ Examples
   man page for pppd describes all the options in detail.
 
 	Charlie Wick
-	cwick@prairienet.org
 

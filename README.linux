@@ -27,7 +27,7 @@ Al Longyear         longyear@netcom.com
 
 INTRODUCTION
 
-This file is a substantially derrived from the previous version for
+This file is substantially derived from the previous version for
 the pppd process 2.1.2. Michael Callahan wrote that version. This
 particular version was written, modified, hacked, changed, whatever,
 by Al Longyear. If you find errors in this document, they are probably
@@ -115,9 +115,7 @@ CHANGES FROM THE PREVIOUS VERSION
   actions.
 
 - Support is added for compression control protocol. At the present time
-  only the BSD compression protocol is supported. (Also, as of this time,
-  the ietf-ppp working group has only specified the BSD compression
-  protocol.)
+  only the BSD-Compress compression protocol is supported.
 
 - There are two queues for output frames. This avoids some problems which
   occured with the previous version and some PPP packages which exchanged
@@ -239,10 +237,16 @@ kernel driver installation:
 
 pppd installation:
 
+      First update /usr/include/net as described in the previous section.
+
+      Then, in this directory, issue the command:
+
+	./configure
+
       Go to the 'pppd' directory and issue the commands:
 
-      make -f Makefile.linux depend
-      make -f Makefile.linux
+      make depend
+      make
 
       This should build the program. If you have any errors then ensure
       that you have the proper include files and haven't missed one.
@@ -250,7 +254,7 @@ pppd installation:
       If you are using shadow passwords *AND* have it installed, then you
       should use the command:
 
-      make -f Makefile.linux shadow
+      make shadow
 
       rather than the non-shadow command listed earlier.
 
@@ -264,7 +268,7 @@ pppd installation:
 
       To install the package, issue the command:
 
-      make -f Makefile.linux install
+      make install
 
       This will install the binary in /usr/sbin and the man page into
       /usr/man/man8.
@@ -294,28 +298,32 @@ pppd installation:
 
 chat installation:
 
+      If you have not already done so, run `./configure' in this directory.
+
       To compile the chat program, go to the 'chat' directory and issue
       the command:
 
-      make -f Makefile.linux
+      make
 
       To install the package, issue the command:
 
-      make -f Makefile.linux install
+      make install
 
       This will install the binary in /usr/sbin and the man page into
       /usr/man/man8.
 
 pppstats installation:
 
+      If you have not already done so, run `./configure' in this directory.
+
       To compile the pppstats program, go to the 'pppstats' directory
       and issue the command:
 
-      make -f Makefile.linux
+      make
 
       To install the package, issue the command:
 
-      make -f Makefile.linux install
+      make install
 
       This will install the binary in /usr/sbin and the man page into
       /usr/man/man8.

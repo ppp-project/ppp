@@ -67,11 +67,11 @@ What is new in ppp-2.2.
 
 * More systems are now supported:
 
-  AIX 4, thanks to Charlie Wick (cwick@quaver.urbana.mcd.mot.com)
-  OSF/1 on DEC Alpha, thanks to Steve Tate (srt@zaphod.csci.unt.edu)
+  AIX 4, thanks to Charlie Wick,
+  OSF/1 on DEC Alpha, thanks to Steve Tate (srt@zaphod.csci.unt.edu),
   NextStep 3.2 and 3.3, thanks to Philip-Andrew Prindeville
-	(philipp@res.enst.fr) and Steve Perkins (perkins@cps.msu.edu)
-  Solaris 2
+	(philipp@res.enst.fr) and Steve Perkins (perkins@cps.msu.edu),
+  Solaris 2,
 
 in addition to NetBSD 1.0, SunOS 4.x, Ultrix 4.x, FreeBSD 2.0, and
 Linux.
@@ -133,7 +133,9 @@ or pppstats should be reported to:
 	AUSTRALIA
 
 Bugs in other ports should be reported to the maintainer for that port
-(see the appropriate README.* file) or to the above.
+(see the appropriate README.* file) or to the above.  Unfortunately,
+Charlie Wick is not in a position to provide support for the AIX 4
+port, so if you find bugs in it, send them to me.
 
 Thanks to:
 
