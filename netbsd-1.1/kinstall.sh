@@ -28,7 +28,7 @@ for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
 	 $SRC/slcompress.c $SRC/slcompress.h common/zlib.c common/zlib.h; do
   dest=$SYS/net/$(basename $f)
   if [ -f $dest ]; then
-    if ! cmp -s $f $dest; then
+    if ! diff -qBI '[ 	]\$[IN][de].*:.*\$' $f $dest >/dev/null; then
       echo "Copying $f to $dest"
       mv -f $dest $dest.orig && echo " (old version saved in $dest.orig)"
       cp $f $dest
