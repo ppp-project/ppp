@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.39 2000/08/01 01:38:29 paulus Exp $
+# $Id: Makefile.linux,v 1.40 2000/08/01 01:44:48 paulus Exp $
 #
 
 # Default installation locations
@@ -43,8 +43,10 @@ HAVE_CRYPT_H=y
 endif
 
 # Uncomment the next line to include support for PPP packet filtering.
-# This requires that the libpcap library and headers be installed.
-FILTER=y
+# This requires that the libpcap library and headers be installed
+# and that the kernel driver support PPP packet filtering, which it
+# doesn't yet.
+#FILTER=y
 
 HAS_SHADOW=y
 #USE_PAM=y
