@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.2 1995/04/27 00:44:46 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.3 1995/04/28 06:26:23 paulus Exp $";
 #endif
 
 /*
@@ -1193,8 +1193,7 @@ GetMask(addr)
 	return mask;
     }
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ifr = (struct ifreq *)
-	 	((char *)&ifr->ifr_addr + ifr->ifr_addr.sa_len)) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ++ifr) {
 	/*
 	 * Check the interface's internet address.
 	 */
