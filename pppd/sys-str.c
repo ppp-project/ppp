@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.12 1994/09/16 02:18:01 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.13 1994/09/16 02:35:42 paulus Exp $";
 #endif
 
 /*
@@ -387,9 +387,11 @@ set_up_tty(fd, local)
     if (!restore_term)
 	inittermios = tios;
 
-    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
-    if (crtscts == 1)
+    tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
+    if (crtscts > 0)
 	tios.c_cflag |= CRTSCTS;
+    else if (crtscts < 0)
+	tios.c_cflag &= ~CRTSCTS;
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (local || !modem)
