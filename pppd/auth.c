@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.93 2003/03/03 05:11:45 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.94 2003/03/09 09:52:19 etbe Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1986,7 +1986,7 @@ set_allowed_addrs(unit, addrs, opts)
 	} else {
 	    np = getnetbyname (ptr_word);
 	    if (np != NULL && np->n_addrtype == AF_INET) {
-		a = htonl (*(u_int32_t *)np->n_net);
+		a = htonl ((u_int32_t)np->n_net);
 		if (ptr_mask == NULL) {
 		    /* calculate appropriate mask for net */
 		    ah = ntohl(a);
