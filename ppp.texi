@@ -56,10 +56,10 @@ connection is established, the first system is then also connected to
 the Internet.  It can establish connections with any other Internet
 host.  Users can then use a wide range of network-based applications on
 the first system, such as telnet, ftp, rlogin, email, WWW browsers, sup,
-and X clients and servers.
+or X clients and servers.
 
 Features of PPP include:
-@itemize
+@itemize @bullet
 @item
 Multi-protocol support.  The PPP packet encapsulation includes a
 protocol field, allowing packets from many different protocols to be
@@ -87,12 +87,12 @@ The ppp-2.x software consists of two parts:
 @item
 Kernel code, which establishes a network interface and passes packets
 between the serial port, the kernel networking code and the PPP daemon
-(pppd).  This code is implemented using STREAMS modules on Solaris 2,
-SunOS 4.x, AIX 4.1 and OSF/1, and as a tty line discipline under Ultrix,
-NextStep, NetBSD, FreeBSD, and Linux.
+(@file{pppd}).  This code is implemented using STREAMS modules on
+Solaris 2, SunOS 4.x, AIX 4.1 and OSF/1, and as a tty line discipline
+under Ultrix, NextStep, NetBSD, FreeBSD, and Linux.
 
 @item
-The PPP daemon (@code{pppd}), which negotiates with the peer to
+The PPP daemon (@file{pppd}), which negotiates with the peer to
 establish the link and sets up the ppp network interface.  Pppd includes
 support for authentication.  It can authenticate itself to the other
 system and/or require the other system to authenticate itself, so that
@@ -103,31 +103,25 @@ IP addresses they may use.
 @menu
 * PPP Concepts::                Basic concepts and terms used with PPP.
 * PPP packet format::           How data is packaged up for transmission.
-* LCP negotiation::             The parameters which LCP negotiates.
-* IPCP negotiation::            The parameters which IPCP negotiates.
+* LCP negotiation::             The parameters which are negotiated
+				using the Link Control Protocol.
+* IPCP negotiation::            The parameters which are negotiated
+				using the IP Control Protocol.
 @end menu
 
-@node PPP Concepts, , Introduction, Introduction
+@node PPP Concepts, PPP packet format, Introduction, Introduction
 @section PPP Concepts
 
-Establishing a PPP link involves communication between two systems.  The
-two systems are called ``peers''.  When we are talking from the point of
-view of one of the systems, the other is often referred to as ``the
-peer''.  Although we may sometimes refer to one system as a ``client''
-and the other as a ``server'', this distinction is not made in the PPP
-protocols.
+To use PPP to provide a network connection between two machines, there
+must be some way that a stream of bytes, or characters, can be passed
+from one to the other, in both directions independently.  We refer to
+this as the ``serial link''.  Very often the serial link involves
+asynchronous communications ports and modems, but other kinds of serial
+link are possible.
 
-PPP requires the use of a communications medium which transmits a stream
-of characters, with 8 bits per character.  We will refer to this as the
-``serial link''.  Most often, this involves a standard asynchronous
-serial port on each of the peers, connected via modems and telephone
-lines.  Many other types of serial link can be used, for example a
-synchronous ISDN connection, or even a telnet session over the Internet.
-The serial link must be full duplex, that is, capable of transmitting
-characters independently in both directions at once, and it must
-transmit 8 bits per character; PPP cannot work over a serial link which
-transmits only 7 bits per character.
-
+The serial link must transmit (at least) 8 bits per character; PPP
+cannot work over a serial link which transmits only 7 bits per
+character.  However, it need not transmit all byte values transparently. 
 PPP has a mechanism to avoid sending certain characters if it is known
 that the some element of the serial link interprets them specially.  For
 example, the DC1 and DC3 ASCII characters (control-Q and control-S) may
@@ -139,6 +133,14 @@ part refers to the fact that this facility is used for asynchronous
 serial links.  For synchronous serial connections, the HDLC bit-stuffing
 procedure is used instead.
 
+The two systems connected by the serial link are called ``peers''.  When
+we are talking from the point of view of one of the systems, the other
+is often referred to as ``the peer''.  Sometimes we may refer to one
+system as a ``client'' and the other as a ``server''.  This distinction
+refers mainly to the way the serial link is set up; usually the client
+is the peer that initiates the connection, for example by dialling the
+server with its modem.
+
 During the lifetime of a PPP connection, it proceeds through several
 phases:
 
@@ -147,13 +149,14 @@ phases:
 Serial link establishment.  In this phase, the serial link is set up and
 PPP protocol software is attached to each end of the serial link.  The
 precise steps involved in doing this vary greatly, depending on the
-nature of the serial link, but typically it involves first sending
-commands to a modem to cause it to dial the remote system.  When the
-remote system answers, the local system usually has to supply a username
-and password, and then issue a command to invoke PPP software on the
-remote system.  The ``chat'' program supplied with ppp-2.x provides a
-way to automate a dialog with the modem and the remote system.  This
-phase is not standardized; it is outside the scope of the PPP protocol
+nature of the serial link.  For the common case of modems connected
+through the telephone network, this involves first sending commands to
+the modem to cause it to dial the remote system.  When the remote system
+answers, the local system usually has to supply a username and password,
+and then issue a command to invoke PPP software on the remote system.
+The ``chat'' program supplied with ppp-2.x provides a way to automate a
+dialog with the modem and the remote system.  This phase is not
+standardized; it is outside the scope of the PPP protocol
 specifications.
 
 @item
@@ -178,7 +181,7 @@ associated NCP defined for it, which is used to negotiate the specific
 parameters which affect that NP.  For example, the IP Control Protocol
 (IPCP) is used to negotiate the IP addresses for each end of the link,
 and whether the TCP header compression method described by Van Jacobsen
-in RFC 1144 is to be used.
+in RFC 1144 (``VJ compression'') is to be used.
 
 @item
 Network communication.  When each NCP has successfully negotiated the
@@ -186,7 +189,7 @@ parameters for its NP, that NCP is said to be ``up''.  At that point,
 the PPP link is made available for data traffic from that NP.  For
 example, when IPCP comes up, the PPP link is then available for carrying
 IP packets (which of course includes packets from those protocols which
-sit above IP, such as TCP, UDP, etc.)
+are layered above IP, such as TCP, UDP, etc.)
 
 @item
 Termination.  When the link is no longer required, it is terminated.
@@ -205,12 +208,12 @@ Other RFCs describe the control protocols for other network protocols
 from several sites including nic.ddn.mil, nnsc.nsf.net, nic.nordu.net,
 ftp.nisc.sri.com, and munnari.oz.au.
 
-@node PPP packet format, , PPP Concepts, Introduction
+@node PPP packet format, LCP negotiation, PPP Concepts, Introduction
 @section PPP packet format
 
 PPP transmits packets over the serial link using a simple encapsulation
 scheme.  First, a two-byte PPP Protocol field is inserted before the
-beginning of the data to be sent.  The value in this field identifies
+data to be sent.  The value in this field identifies
 which higher-level protocol (either a network protocol such as IP or a
 PPP control protocol such as LCP) should receive the data in the packet.
 By default, a one-byte Address field with the value 0xFF, and a one-byte
@@ -219,15 +222,16 @@ field (apparently this is supposed to provide compatibility with HDLC,
 in case there is a synchronous to asynchronous converter in the serial
 link).
 
-On ``slow'' serial links, these fields can be compressed down to one
-byte in most cases.  The PPP Address and Control fields are compressed
-by simply omitting them.  The PPP Protocol field values are chosen so
-that bit 0 (the least-significant bit) of the first (most significant)
-byte is always 0, and bit 0 of the second byte is always 1.  The PPP
-Protocol field can be compressed by omitting the first byte provided
-that it is 0.  The values for this field are assigned so that the first
-byte is zero for all of the commonly-used network protocols.  For
-example, the PPP Protocol field value for IP is 0x21.
+On slow serial links, these fields can be compressed down to one byte in
+most cases.  The PPP Address and Control fields are compressed by simply
+omitting them (``address/control compression'').  The PPP Protocol field
+values are chosen so that bit 0 (the least-significant bit) of the first
+(most significant) byte is always 0, and bit 0 of the second byte is
+always 1.  The PPP Protocol field can be compressed by omitting the
+first byte, provided that it is 0 (``protocol compression'').  The
+values for this field are assigned so that the first byte is zero for
+all of the commonly-used network protocols.  For example, the PPP
+Protocol field value for IP is 0x21.
 
 For asynchronous serial links, which do not provide any packet framing
 or transparency, a further encapsulation is used as follows.  First a
@@ -239,8 +243,8 @@ characters which are to be escaped, it is replaced by a two byte
 sequence: the 0x7d character '}', followed by the character with bit 5
 inverted.  For example, the control-C character (0x03) could be replaced
 by the two-byte sequence 0x7d, 0x23 ('}#').  The 0x7d and 0x7e ('~')
-characters are always escaped (and the 0x5e ('^') character may not be
-escaped).
+characters are always escaped, and the 0x5e ('^') character may not be
+escaped.
 
 Finally, a ``flag'' character (0x7e, '~') is inserted at the beginning
 and end of the packet to mark the packet boundaries.  The initial flag
@@ -248,7 +252,7 @@ may be omitted if this packet immediately follows another packet, as the
 ending flag for the previous packet can serve as the beginning flag of
 this packet.
 
-@node LCP negotiation, , PPP packet format, Introduction
+@node LCP negotiation, IPCP negotiation, PPP packet format, Introduction
 @section LCP negotiation
 
 The LCP negotiation process actually involves two sets of negotiations,
@@ -263,7 +267,7 @@ both directions.
 The parameters which are negotiated for each direction of the connection
 using LCP are:
 
-@itemize
+@itemize @bullet
 @item
 Maximum Receive Unit (MRU): indicates the maximum packet size which we
 are prepared to receive (specifically the maximum size of the
@@ -312,7 +316,7 @@ The IPCP negotiation process is very similar to the LCP negotiation
 process, except that of course different parameters are negotiated.
 The parameters which are negotiated using IPCP are:
 
-@itemize
+@itemize @bullet
 @item
 IP Address: the IP address (32-bit host IP number) which we plan to use
 as the local address for our end of the link.
@@ -371,8 +375,183 @@ kernel image and reboot.  (Note that NetBSD and FreeBSD have a modload
 facility, but ppp-2.x is currently not configured to take advantage of
 it.)
 
+Detailed installation instructions for each operating system are
+contained in the README files in the ppp-2.x distribution.  In general,
+the process involves executing the commands @samp{./configure},
+@samp{make} and (as root) @samp{make install} in the ppp-2.x
+distribution directory.  (The Linux port requires the installation of
+some header files before compiling; see README.linux for details.)
+
 @node Configuration, Security, Installation, Top
 @chapter Configuration
+
+Once the ppp-2.x software is installed, you need to configure your
+system for the particular PPP connections you wish to allow.  Typically,
+the elements you need to configure are:
+
+@itemize @bullet
+@item
+How the serial link is established and how pppd gets invoked.
+@item
+Setting up syslog to log messages from pppd to the console and/or
+system log files.
+@item
+Pppd options to be used.
+@item
+Authentication secrets to use in authenticating us to the peer
+and/or the peer to us.
+@item
+The IP addresses for each end of the link.
+@end itemize
+
+In most cases, the system you are configuring will either be a
+@dfn{client} system, actively initiating a PPP connection on user
+request, or it will be a @dfn{server} system, passively waiting for
+connections from client systems.  Other arrangements are possible, but
+the instructions in this system assume that you are configuring either a
+client or a server.
+
+These instructions also assume that the serial link involves a serial
+communications port (that is, a tty device), since pppd requires a
+serial port.
+
+@menu
+* Client machines::  
+* Server machines::  
+* Setting up syslog::           
+* Pppd options::                
+* Authentication secrets files::  
+* IP Addresses::                
+@end menu
+
+@node Client machines, Server machines, Configuration, Configuration
+@section Client machines
+
+On a client machine, the way that the user requests that a connection be
+established is by running pppd, either directly or through a shell
+script.  Pppd should be given the name of the serial port to use as an
+option.  In this mode, pppd will fork and detach itself from its
+controlling terminal, so that the shell will return to its prompt.  (If
+this behaviour is not desired, use the -detach option.)
+
+Usually, the connect option should also be used.  The connect option
+takes an argument which is a command to run to establish the serial link
+and invoke PPP software on the remote machine.  This command is run with
+its standard input and standard output connected to the serial port.
+Giving the connect option to pppd also has the side-effect of causing
+pppd to open the serial port without waiting for the modem carrier
+detect signal.
+
+The process of establishing the serial link often involves a dialog.  If
+the serial port is connected to a modem, we first need to send some
+commands to the modem to configure it and dial the remote system.  Often
+there is then a dialog with the remote system to supply a username and
+password.  The @file{chat} program supplied with the ppp-2.x package is
+useful for automating such dialogs.  Chat uses a @dfn{script} consisting
+of alternately strings to expect to receive on the serial port, and
+strings to send on the serial port.  The script can also specify strings
+which indicate an error and abort the dialog.
+
+@node Server machines, , Client machines, Configuration
+@section Server machines
+
+There are generally three ways in which a server machine can be set up
+to allow client machines to establish a PPP link:
+
+@enumerate
+@item
+Client machines log in as regular users (often via a serial port
+connected to a modem, but possibly through a telnet or rlogin session)
+and then run pppd as a shell command.
+@item
+Client machines log in using a username whose login shell is pppd
+or a script which runs pppd.
+@item
+Client machines connect to a serial port which has a pppd running
+permanently on it (instead of a "getty" or other program providing a
+login service).
+@end enumerate
+
+Method 1 is very simple to set up, and is useful where existing users of
+a system have remote machines (for example at home) from which they want
+to establish a PPP connection from time to time.  Methods 2 and 3
+possibly have a security advantage in that they do not allow PPP client
+systems access to a shell.  Method 2 allows regular logins and PPP
+connections on the same port, while with method 3, would-be crackers may
+well be frustrated (unless they speak fluent PPP).
+
+With any of these methods, I strongly recommend that you configure PPP
+to require authentication from the client, by including the `auth'
+option in the /etc/ppp/options file.
+
+@node Setting up syslog, , Server machines, Configuration
+@section Setting up syslog
+
+Pppd uses the @file{syslog} facility to report information about the
+state of the connection, as does @file{chat}.  It is useful to set up
+syslog to print some of these messages on the console, and to record
+most of them to a file.  The messages from pppd are logged with facility
+@samp{daemon} and one of three levels:
+@itemize @bullet
+@item
+@samp{notice} for messages about important events such as the
+connection becoming available for IP traffic and the local and remote IP
+addresses in use.
+@item
+@samp{info} for messages about less important events, such as
+detecting a modem hangup.
+@item
+@samp{debug} for messages which are of use in working out why the
+connection is not working properly.
+@end itemize
+
+The messages from chat are logged with facility @samp{local2} and level
+@samp{debug}.
+
+Syslog is controlled by the syslog configuration file
+@file{/etc/syslog.conf}.  Generally the standard configuration will log
+facility @samp{daemon} messages with level @samp{notice} and above to a
+system log file such as @file{/var/log/syslog} (the name may vary on
+different systems).  I find it useful to have the notice level messages
+from pppd displayed on the console, and all messages from pppd and chat
+logged to a file such as @file{/etc/ppp/log}.  To achieve this,
+find the line in /etc/syslog.conf which has /dev/console
+on the right-hand side, and add `daemon.notice' on the left.  This
+line should end up something like this:
+
+@example
+*.err;kern.debug;auth.notice;mail.crit;daemon.notice    /dev/console
+@end example
+
+And add a line like this:
+
+@example
+daemon,local2.debug                                     /etc/ppp/log
+@end example
+
+The space between the left and right hand sides is one or more tabs, not
+spaces, and there are no tabs or spaces at the beginning of the line.
+
+You will need to create an empty @file{/etc/ppp/log} file; syslogd will
+not create it.  Once you have modified @file{/etc/syslog.conf}, you need
+to either reboot or notify syslogd to re-read the file.  On most
+systems, you notify syslogd by sending it a SIGHUP signal.  Syslogd's
+process ID is usually stored in a file such as @file{/etc/syslogd.pid}
+or @file{/var/run/syslog.pid}.  Thus you can notify syslogd to re-read
+the file by executing a command such as:
+
+@example
+kill -HUP `cat /etc/syslogd.pid`
+@end example
+
+@node Pppd options, , Setting up syslog, Configuration
+@section Pppd options
+
+@node Authentication secrets files, , Pppd options, Configuration
+@section Authentication secrets files
+
+@node IP Addresses,  , Authentication secrets files, Configuration
+@section IP Addresses
 
 @node Security, Compression, Configuration, Top
 @chapter Security
