@@ -73,7 +73,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.3 1994/12/08 00:32:59 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.4 1994/12/13 03:30:21 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -122,6 +122,7 @@ static u_short	pppfcs __P((u_short fcs, u_char *cp, int len));
 static void	pppasyncstart __P((struct ppp_softc *));
 static void	pppasyncctlp __P((struct ppp_softc *));
 static void	pppasyncrelinq __P((struct ppp_softc *));
+static void	ppp_timeout __P((void *));
 static void	pppgetm __P((struct ppp_softc *sc));
 static void	pppdumpb __P((u_char *b, int l));
 static void	ppplogchar __P((struct ppp_softc *, int));
@@ -255,6 +256,10 @@ pppasyncrelinq(sc)
     if (sc->sc_m) {
 	m_freem(sc->sc_m);
 	sc->sc_m = NULL;
+    }
+    if (sc->sc_flags & SC_TIMEOUT) {
+	untimeout(ppp_timeout, (void *) sc);
+	sc->sc_flags &= ~SC_TIMEOUT;
     }
     splx(s);
 }
@@ -511,30 +516,18 @@ pppstart(tp)
     register struct mbuf *m;
     register int len;
     register u_char *start, *stop, *cp;
-    int n, s, ndone, done;
+    int n, s, ndone, done, idle;
     struct mbuf *m2;
 
-    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0) {
-	/* sorry, I can't talk now */
-	return;
-    }
-    if (sc == NULL || tp != (struct tty *) sc->sc_devp) {
-	(*tp->t_oproc)(tp);
-	return;
-    }
-
-    for (;;) {
-	/*
-	 * If there is more in the output queue, just send it now.
-	 * We are being called in lieu of ttstart and must do what
-	 * it would.
-	 */
-	if (CCOUNT(&tp->t_outq) != 0 && tp->t_oproc != NULL) {
+    if ((tp->t_state & TS_CARR_ON) == 0 && (tp->t_cflag & CLOCAL) == 0
+	|| sc == NULL || tp != (struct tty *) sc->sc_devp) {
+	if (tp->t_oproc != NULL)
 	    (*tp->t_oproc)(tp);
-	    if (CCOUNT(&tp->t_outq) > PPP_HIWAT)
-		return;
-	}
+	return;
+    }
 
+    idle = 0;
+    while (CCOUNT(&tp->t_outq) < PPP_HIWAT) {
 	/*
 	 * See if we have an existing packet partly sent.
 	 * If not, get a new packet and start sending it.
@@ -546,9 +539,8 @@ pppstart(tp)
 	     */
 	    m = ppp_dequeue(sc);
 	    if (m == NULL) {
-		if (tp->t_oproc != NULL)
-		    (*tp->t_oproc)(tp);
-		return;
+		idle = 1;
+		break;
 	    }
 
 	    /*
@@ -604,6 +596,7 @@ pppstart(tp)
 		    len--;
 		}
 	    }
+
 	    /*
 	     * If we didn't empty this mbuf, remember where we're up to.
 	     * If we emptied the last mbuf, try to add the FCS and closing
@@ -645,31 +638,68 @@ pppstart(tp)
 			    unputc(&tp->t_outq);
 			break;
 		    }
+		sc->sc_bytessent += q - endseq;
 	    }
 
 	    if (!done) {
 		m->m_off += m->m_len - len;
 		m->m_len = len;
-		sc->sc_outm = m;
-		if (tp->t_oproc != NULL)
-		    (*tp->t_oproc)(tp);
-		return;		/* can't do any more at the moment */
+		break;
 	    }
 
 	    /* Finished with this mbuf; free it and move on. */
 	    MFREE(m, m2);
-	    if (m2 == NULL)
-		break;
-
 	    m = m2;
+	    if (m == NULL) {
+		/* Finished a packet */
+		sc->sc_if.if_opackets++;
+		break;
+	    }
 	    sc->sc_outfcs = pppfcs(sc->sc_outfcs, mtod(m, u_char *), m->m_len);
 	}
 
-	/* Finished a packet */
-	sc->sc_outm = NULL;
-	sc->sc_bytessent++;	/* account for closing flag */
-	sc->sc_if.if_opackets++;
+	/*
+	 * Here we have either finished a packet (m == NULL)
+	 * or filled up the output queue (m != NULL).
+	 */
+	sc->sc_outm = m;
+	if (m)
+	    break;
     }
+
+    /*
+     * If there is stuff in the output queue, send it now.
+     * We are being called in lieu of ttstart and must do what it would.
+     */
+    if (tp->t_oproc != NULL)
+	(*tp->t_oproc)(tp);
+
+    /*
+     * This timeout is needed for operation on a pseudo-tty,
+     * because the pty code doesn't call pppstart after it has
+     * drained the t_outq.
+     */
+    if (!idle && (sc->sc_flags & SC_TIMEOUT) == 0) {
+	timeout(ppp_timeout, (void *) sc, 1);
+	sc->sc_flags |= SC_TIMEOUT;
+    }
+}
+
+/*
+ * Timeout routine - try to start some more output.
+ */
+static void
+ppp_timeout(x)
+    void *x;
+{
+    struct ppp_softc *sc = (struct ppp_softc *) x;
+    struct tty *tp = (struct tty *) sc->sc_devp;
+    int s;
+
+    s = splimp();
+    sc->sc_flags &= ~SC_TIMEOUT;
+    pppstart(tp);
+    splx(s);
 }
 
 /*
@@ -714,16 +744,16 @@ pppinput(c, tp)
 {
     register struct ppp_softc *sc;
     struct mbuf *m;
-    int ilen;
+    int ilen, s;
     extern int tk_nin;
 
-    tk_nin++;
     sc = (struct ppp_softc *) tp->t_sc;
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
 	return;
 
     s = spltty();
-    sc->sc_bytesrcvd++;
+    ++tk_nin;
+    ++sc->sc_bytesrcvd;
 
     c &= 0xff;
 
