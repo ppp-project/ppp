@@ -1,4 +1,4 @@
-/*	$NetBSD: ppp-deflate.c,v 1.3 1996/10/13 02:11:08 christos Exp $	*/
+/*	$NetBSD: ppp-deflate.c,v 1.6 1998/05/02 14:34:25 christos Exp $	*/
 /*	Id: ppp-deflate.c,v 1.5 1997/03/04 03:33:28 paulus Exp 	*/
 
 /*
@@ -99,7 +99,7 @@ struct compressor ppp_deflate = {
     z_comp_stats,		/* decomp_stat */
 };
 
-struct compressor ppp_deflate = {
+struct compressor ppp_deflate_draft = {
     CI_DEFLATE_DRAFT,		/* compress_proto */
     z_comp_alloc,		/* comp_alloc */
     z_comp_free,		/* comp_free */
@@ -115,7 +115,6 @@ struct compressor ppp_deflate = {
     z_incomp,			/* incomp */
     z_comp_stats,		/* decomp_stat */
 };
-
 /*
  * Space allocation and freeing routines for use by zlib routines.
  */

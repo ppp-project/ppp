@@ -1,4 +1,4 @@
-/*	$NetBSD: bsd-comp.c,v 1.6 1996/10/13 02:10:58 christos Exp $	*/
+/*	$NetBSD: bsd-comp.c,v 1.7 1997/03/12 20:26:46 christos Exp $	*/
 /*	Id: bsd-comp.c,v 1.6 1996/08/28 06:31:58 paulus Exp 	*/
 
 /* Because this code is derived from the 4.3BSD compress source:

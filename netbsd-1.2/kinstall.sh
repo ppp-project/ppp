@@ -17,9 +17,10 @@ CONFIG=config
 
 # Copy new versions of files into /sys/net
 
-for f in net/if_ppp.h net/ppp-comp.h net/ppp_defs.h $SRC/bsd-comp.c \
-	 $SRC/ppp-deflate.c $SRC/if_ppp.c $SRC/if_pppvar.h $SRC/ppp_tty.c \
-	 $SRC/slcompress.c $SRC/slcompress.h common/zlib.c common/zlib.h; do
+for f in include/net/if_ppp.h include/net/ppp-comp.h include/net/ppp_defs.h \
+	 $SRC/bsd-comp.c $SRC/ppp-deflate.c $SRC/if_ppp.c $SRC/if_pppvar.h \
+         $SRC/ppp_tty.c $SRC/slcompress.c $SRC/slcompress.h \
+         common/zlib.c common/zlib.h; do
   dest=$SYS/net/$(basename $f)
   if [ -f $dest ]; then
     if ! diff -qBI '[ 	]\$[IN][de].*:.*\$' $f $dest >/dev/null; then

@@ -1,4 +1,4 @@
-/*	$NetBSD: ppp_tty.c,v 1.12 1997/03/24 21:23:10 christos Exp $	*/
+/*	$NetBSD: ppp_tty.c,v 1.13 1997/03/25 22:33:25 christos Exp $	*/
 /*	Id: ppp_tty.c,v 1.3 1996/07/01 01:04:11 paulus Exp 	*/
 
 /*
