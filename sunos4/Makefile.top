@@ -2,27 +2,21 @@
 # ppp top level makefile
 #
 
-BINDIR = /usr/local/etc
-MANDIR = /usr/local/man
-ETCDIR = /etc/ppp
-
-INSTALL= install -o root -g daemon
-
-MOPTS = $(MFLAGS) CC=$(CC) BINDIR=$(BINDIR) MANDIR=$(MANDIR)
+include sunos4/Makedefs
 
 all:
-	cd chat; $(MAKE) $(MOPTS) all
-	cd pppd; $(MAKE) $(MOPTS) all
-	cd pppstats; $(MAKE) $(MOPTS) all
-	cd sunos4; $(MAKE) $(MOPTS) all
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+	cd pppstats; $(MAKE) all
+	cd sunos4; $(MAKE) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
 
 install-progs:
-	cd chat; $(MAKE) $(MOPTS) install
-	cd pppd; $(MAKE) $(MOPTS) install
-	cd pppstats; $(MAKE) $(MOPTS) install
-	cd sunos4; $(MAKE) $(MOPTS) install
+	cd chat; $(MAKE) install
+	cd pppd; $(MAKE) install
+	cd pppstats; $(MAKE) install
+	cd sunos4; $(MAKE) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets

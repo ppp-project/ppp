@@ -1,36 +1,24 @@
 #
 # ppp top level makefile for SVR4 and Solaris 2
 #
-# $Id: Makefile.top,v 1.5 1996/09/26 06:18:16 paulus Exp $
+# $Id: Makefile.top,v 1.6 1998/02/04 01:43:23 paulus Exp $
 #
 
-BINDIR = /usr/local/bin
-MANDIR = /usr/local/man
-ETCDIR = /etc/ppp
-
-INSTALL= /usr/sbin/install
-
-COPTS = -O -Xa -w
-
-# If you want to use gcc...
-#CC = gcc
-#COPTS = -O2
-
-MARGS = BINDIR=$(BINDIR) MANDIR=$(MANDIR) CC=$(CC) COPTS="$(COPTS)"
+include svr4/Makedefs
 
 all:
-	cd chat; $(MAKE) $(MARGS) all
-	cd pppd; $(MAKE) $(MARGS) all
-	cd pppstats; $(MAKE) $(MARGS) all
-	cd svr4; $(MAKE) $(MARGS) all
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+	cd pppstats; $(MAKE) all
+	cd svr4; $(MAKE) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
 
 install-progs:
-	cd chat; $(MAKE) $(MARGS) install
-	cd pppd; $(MAKE) $(MARGS) install
-	cd pppstats; $(MAKE) $(MARGS) install
-	cd svr4; $(MAKE) $(MARGS) install
+	cd chat; $(MAKE) install
+	cd pppd; $(MAKE) install
+	cd pppstats; $(MAKE) install
+	cd svr4; $(MAKE) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
 	$(ETCDIR)/chap-secrets
@@ -52,8 +40,8 @@ $(ETCDIR):
 
 clean:
 	rm -f *~
-	cd chat; $(MAKE) $(MARGS) clean
-	cd pppd; $(MAKE) $(MARGS) clean
-	cd pppstats; $(MAKE) $(MARGS) clean
-	cd svr4; $(MAKE) $(MARGS) clean
+	cd chat; $(MAKE) clean
+	cd pppd; $(MAKE) clean
+	cd pppstats; $(MAKE) clean
+	cd svr4; $(MAKE) clean
 
