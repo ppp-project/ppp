@@ -1,18 +1,18 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.12 1999/11/19 09:46:08 masputra Exp $
+ * $Id: pathnames.h,v 1.13 2000/04/04 07:06:52 paulus Exp $
  */
 
 #ifdef HAVE_PATHS_H
 #include <paths.h>
 
-#else
+#else /* HAVE_PATHS_H */
 #ifndef _PATH_VARRUN
 #define _PATH_VARRUN 	"/etc/ppp/"
 #endif
 #define _PATH_DEVNULL	"/dev/null"
-#endif
+#endif /* HAVE_PATHS_H */
 
 #ifndef _ROOT_PATH
 #define _ROOT_PATH
@@ -41,3 +41,13 @@
 #define _PATH_IPXUP	 _ROOT_PATH "/etc/ppp/ipx-up"
 #define _PATH_IPXDOWN	 _ROOT_PATH "/etc/ppp/ipx-down"
 #endif /* IPX_CHANGE */
+
+#ifdef __STDC__
+#define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd.tdb"
+#else /* __STDC__ */
+#ifdef HAVE_PATHS_H
+#define _PATH_PPPDB	"/var/run/pppd.tdb"
+#else
+#define _PATH_PPPDB	"/etc/ppp/pppd.tdb"
+#endif
+#endif /* __STDC__ */

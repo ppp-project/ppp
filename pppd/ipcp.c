@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.52 1999/12/23 01:25:33 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.53 2000/04/04 07:06:49 paulus Exp $"
 
 /*
  * TODO:
@@ -1389,15 +1389,15 @@ ipcp_up(f)
 	ipcp_close(f->unit, "Could not determine local IP address");
 	return;
     }
-    script_setenv("IPLOCAL", ip_ntoa(go->ouraddr));
-    script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr));
+    script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
+    script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
 
     if (usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
-	script_setenv("USEPEERDNS", "1");
+	script_setenv("USEPEERDNS", "1", 0);
 	if (go->dnsaddr[0])
-	    script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]));
+	    script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
 	if (go->dnsaddr[1])
-	    script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]));
+	    script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
 	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
     }
 
@@ -1423,13 +1423,13 @@ ipcp_up(f)
 	    ipcp_clear_addrs(f->unit, wo->ouraddr, wo->hisaddr);
 	    if (go->ouraddr != wo->ouraddr) {
 		warn("Local IP address changed to %I", go->ouraddr);
-		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr));
+		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
 		wo->ouraddr = go->ouraddr;
 	    } else
 		script_unsetenv("OLDIPLOCAL");
 	    if (ho->hisaddr != wo->hisaddr) {
 		warn("Remote IP address changed to %I", ho->hisaddr);
-		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr));
+		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
 		wo->hisaddr = ho->hisaddr;
 	    } else
 		script_unsetenv("OLDIPREMOTE");

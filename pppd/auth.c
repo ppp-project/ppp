@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.62 2000/03/27 06:02:59 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.63 2000/04/04 07:06:49 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -510,6 +510,12 @@ start_networks()
 
     new_phase(PHASE_NETWORK);
 
+#ifdef HAVE_MULTILINK
+    if (multilink)
+	if (mp_join_bundle())
+	    return;
+#endif /* HAVE_MULTILINK */
+
 #if 0
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
@@ -571,7 +577,7 @@ auth_peer_success(unit, protocol, name, namelen)
 	namelen = sizeof(peer_authname) - 1;
     BCOPY(name, peer_authname, namelen);
     peer_authname[namelen] = 0;
-    script_setenv("PEERNAME", peer_authname);
+    script_setenv("PEERNAME", peer_authname, 0);
 
     /*
      * If there is no more authentication still to be done,

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.14 2000/03/27 06:03:00 paulus Exp $
+ * $Id: lcp.h,v 1.15 2000/04/04 07:06:51 paulus Exp $
  */
 
 /*
@@ -43,9 +43,6 @@
 #define DISCREQ		11	/* Discard Request */
 #define CBCP_OPT	6	/* Use callback control protocol */
 
-/* maximum length of endpoint discriminator value */
-#define MAX_ENDP_LEN	20
-
 /*
  * The state of options is described by an lcp_options structure.
  */
@@ -62,7 +59,7 @@ typedef struct lcp_options {
     bool neg_accompression;	/* HDLC Address/Control Field Compression? */
     bool neg_lqr;		/* Negotiate use of Link Quality Reports */
     bool neg_cbcp;		/* Negotiate use of CBCP */
-    bool neg_multilink;		/* negotiate multilink (MRRU) */
+    bool neg_mrru;		/* negotiate multilink MRRU */
     bool neg_ssnhf;		/* negotiate short sequence numbers */
     bool neg_endpoint;		/* negotiate endpoint discriminator */
     int  mru;			/* Value of MRU */
@@ -72,9 +69,7 @@ typedef struct lcp_options {
     u_int32_t magicnumber;
     int  numloops;		/* Number of loops during magic number neg. */
     u_int32_t lqr_period;	/* Reporting period for LQR 1/100ths second */
-    int  endp_class;		/* endpoint discriminator class */
-    int  endp_len;		/* endpoint discriminator length */
-    u_char endpoint[MAX_ENDP_LEN];	/* endpoint discriminator value */
+    struct epdisc endpoint;	/* endpoint discriminator */
 } lcp_options;
 
 extern fsm lcp_fsm[];

@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.71 2000/03/27 06:03:03 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.72 2000/04/04 07:06:52 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -105,6 +105,7 @@ int	connect_delay = 1000;	/* wait this many ms after connect script */
 int	max_data_rate;		/* max bytes/sec through charshunt */
 int	req_unit = -1;		/* requested interface unit */
 bool	multilink = 0;		/* Enable multilink operation */
+char	*bundle_name = NULL;	/* bundle name for multilink */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -289,6 +290,8 @@ option_t general_options[] = {
       "Enable multilink operation", 1 },
     { "nomp", o_bool, &multilink,
       "Disable multilink operation", 0 },
+    { "bundle", o_string, &bundle_name,
+      "Bundle name for multilink" },
 #endif /* HAVE_MULTILINK */
 #ifdef PLUGIN
     { "plugin", o_special, loadplugin,
@@ -1486,45 +1489,59 @@ static int
 setnetmask(argv)
     char **argv;
 {
-    u_int32_t mask, b;
-    int n, ok;
-    char *p, *endp;
+    u_int32_t mask;
+    int n;
+    char *p;
 
     /*
      * Unfortunately, if we use inet_addr, we can't tell whether
      * a result of all 1s is an error or a valid 255.255.255.255.
      */
     p = *argv;
-    ok = 0;
-    mask = 0;
-    for (n = 3;; --n) {
-	b = strtoul(p, &endp, 0);
-	if (endp == p)
-	    break;
-	if (b > 255) {
-	    if (n == 3) {
-		/* accept e.g. 0xffffff00 */
-		p = endp;
-		mask = b;
-	    }
-	    break;
-	}
-	mask |= b << (n * 8);
-	p = endp;
-	if (*p != '.' || n == 0)
-	    break;
-	++p;
-    }
+    n = parse_dotted_ip(p, &mask);
 
     mask = htonl(mask);
 
-    if (*p != 0 || (netmask & ~mask) != 0) {
+    if (n == 0 || p[n] != 0 || (netmask & ~mask) != 0) {
 	option_error("invalid netmask value '%s'", *argv);
 	return 0;
     }
 
     netmask = mask;
     return (1);
+}
+
+int
+parse_dotted_ip(p, vp)
+    char *p;
+    u_int32_t *vp;
+{
+    int n;
+    u_int32_t v, b;
+    char *endp, *p0 = p;
+
+    v = 0;
+    for (n = 3;; --n) {
+	b = strtoul(p, &endp, 0);
+	if (endp == p)
+	    return 0;
+	if (b > 255) {
+	    if (n < 3)
+		return 0;
+	    /* accept e.g. 0xffffff00 */
+	    *vp = b;
+	    return endp - p0;
+	}
+	v |= b << (n * 8);
+	p = endp;
+	if (n == 0)
+	    break;
+	if (*p != '.')
+	    return 0;
+	++p;
+    }
+    *vp = v;
+    return p - p0;
 }
 
 static int

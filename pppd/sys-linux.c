@@ -149,6 +149,7 @@ static char proxy_arp_dev[16];		/* Device for proxy arp entry */
 static u_int32_t our_old_addr;		/* for detecting address changes */
 static int	dynaddr_set;		/* 1 if ip_dynaddr set */
 static int	looped;			/* 1 if using loop */
+static int	link_mtu;		/* mtu for the link (not bundle) */
 
 static struct utsname utsname;	/* for the kernel version */
 static int kernel_version;
@@ -176,6 +177,7 @@ static int get_ether_addr (u_int32_t ipaddr, struct sockaddr *hwaddr,
 static void decode_version (char *buf, int *version, int *mod, int *patch);
 static int set_kdebugflag(int level);
 static int ppp_registered(void);
+static int make_ppp_unit(void);
 
 extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
@@ -418,17 +420,8 @@ int establish_ppp (int tty_fd)
 	    /*
 	     * Create a new PPP unit.
 	     */
-	    ifunit = req_unit;
-	    x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
-	    if (x < 0 && req_unit >= 0 && errno == EEXIST) {
-		warn("Couldn't allocate PPP unit %d as it is already in use");
-		ifunit = -1;
-		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
-	    }
-	    if (x < 0) {
-		error("Couldn't create new ppp unit: %m");
+	    if (make_ppp_unit() < 0)
 		goto err_close;
-	    }
 	}
 
 	if (looped)
@@ -529,7 +522,7 @@ void disestablish_ppp(int tty_fd)
     if (new_style_driver) {
 	close(ppp_fd);
 	ppp_fd = -1;
-	if (!looped && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
+	if (!looped && ifunit >= 0 && ioctl(ppp_dev_fd, PPPIOCDETACH) < 0)
 	    error("Couldn't release PPP unit: %m");
 	if (!multilink)
 	    remove_fd(ppp_dev_fd);
@@ -537,30 +530,87 @@ void disestablish_ppp(int tty_fd)
 }
 
 /*
+ * make_ppp_unit - make a new ppp unit for ppp_dev_fd.
+ * Assumes new_style_driver.
+ */
+static int make_ppp_unit()
+{
+	int x;
+
+	ifunit = req_unit;
+	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	if (x < 0 && req_unit >= 0 && errno == EEXIST) {
+		warn("Couldn't allocate PPP unit %d as it is already in use");
+		ifunit = -1;
+		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	}
+	if (x < 0)
+		error("Couldn't create new ppp unit: %m");
+	return x;
+}
+
+/*
+ * make_new_bundle - create a new PPP unit (i.e. a bundle)
+ * and connect our channel to it.  This should only get called
+ * if `multilink' was set at the time establish_ppp was called.
+ */
+void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
+{
+	int flags;
+	struct ifreq ifr;
+
+	if (looped || !new_style_driver)
+		return;
+	dbglog("make_new_bundle(%d,%d,%d,%d)", mrru, mtru, rssn, tssn);
+
+	/* make us a ppp unit */
+	if (make_ppp_unit() < 0)
+		die(1);
+
+	/* set the mrru, mtu and flags */
+	if (ioctl(ppp_dev_fd, PPPIOCSMRRU, &mrru) < 0)
+		error("Couldn't set MRRU: %m");
+	flags = get_flags(ppp_dev_fd);
+	flags &= ~(SC_MP_SHORTSEQ | SC_MP_XSHORTSEQ);
+	flags |= (rssn? SC_MP_SHORTSEQ: 0) | (tssn? SC_MP_XSHORTSEQ: 0);
+
+	if (mtru > 0 && mtru != link_mtu) {
+		memset(&ifr, 0, sizeof(ifr));
+		slprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "ppp%d", ifunit);
+		ifr.ifr_mtu = mtru;
+		if (ioctl(sock_fd, SIOCSIFMTU, &ifr) < 0)
+			error("Couldn't set interface MTU: %m");
+		flags |= SC_MULTILINK;
+	}
+
+	set_flags(ppp_dev_fd, flags);
+
+	/* connect up the channel */
+	if (ioctl(ppp_fd, PPPIOCCONNECT, &ifunit) < 0)
+		fatal("Couldn't attach to PPP unit %d: %m", ifunit);
+	add_fd(ppp_dev_fd);
+}
+
+/*
  * bundle_attach - attach our link to a given PPP unit.
  */
 int bundle_attach(int ifnum)
 {
-    int mrru = 1500;
+	if (!new_style_driver)
+		return -1;
 
-    if (!new_style_driver)
-	return -1;
+	if (ioctl(ppp_dev_fd, PPPIOCATTACH, &ifnum) < 0) {
+		if (errno == ENXIO)
+			return 0;	/* doesn't still exist */
+		fatal("Couldn't attach to interface unit %d: %m\n", ifnum);
+	}
+	if (ioctl(ppp_fd, PPPIOCCONNECT, &ifnum) < 0)
+		fatal("Couldn't connect to interface unit %d: %m", ifnum);
+	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_MULTILINK);
 
-    if (ioctl(ppp_dev_fd, PPPIOCATTACH, &ifnum) < 0) {
-	error("Couldn't attach to interface unit %d: %m\n", ifnum);
-	return -1;
-    }
-    set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_MULTILINK);
-    if (ioctl(ppp_dev_fd, PPPIOCSMRRU, &mrru) < 0)
-	error("Couldn't set interface MRRU: %m");
-
-    if (ioctl(ppp_fd, PPPIOCCONNECT, &ifnum) < 0) {
-	error("Couldn't connect to interface unit %d: %m", ifnum);
-	return -1;
-    }
-
-    dbglog("bundle_attach succeeded");
-    return 0;
+	ifunit = ifnum;
+	dbglog("bundle_attach succeeded");
+	return 1;
 }
 
 /********************************************************************
@@ -855,7 +905,7 @@ void output (int unit, unsigned char *p, int len)
 	p += 2;
 	len -= 2;
 	proto = (p[0] << 8) + p[1];
-	if (!multilink && proto != PPP_LCP)
+	if (ifunit >= 0 && !(proto >= 0xc000 || proto == PPP_CCPFRAG))
 	    fd = ppp_dev_fd;
     }
     if (write(fd, p, len) < 0) {
@@ -926,7 +976,7 @@ int read_packet (unsigned char *buf)
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
 	    error("read: %m");
     }
-    if (nr < 0 && new_style_driver && !multilink) {
+    if (nr < 0 && new_style_driver && ifunit >= 0) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
@@ -988,7 +1038,8 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 	
     if (ifunit >= 0 && ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m(%d)", errno);
-	
+    link_mtu = mtu;
+
     if (!still_ppp())
 	return;
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
@@ -1598,6 +1649,38 @@ static int get_ether_addr (u_int32_t ipaddr,
 		(int) ((unsigned char *) &hwaddr->sa_data)[6],
 		(int) ((unsigned char *) &hwaddr->sa_data)[7]));
     return 1;
+}
+
+/*
+ * get_if_hwaddr - get the hardware address for the specified
+ * network interface device.
+ */
+int
+get_if_hwaddr(u_char *addr, char *name)
+{
+	struct ifreq ifreq;
+	int ret, sock_fd;
+
+	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock_fd < 0)
+		return 0;
+	memset(&ifreq.ifr_hwaddr, 0, sizeof(struct sockaddr));
+	strlcpy(ifreq.ifr_name, name, sizeof(ifreq.ifr_name));
+	ret = ioctl(sock_fd, SIOCGIFHWADDR, &ifreq);
+	close(sock_fd);
+	if (ret >= 0)
+		memcpy(addr, ifreq.ifr_hwaddr.sa_data, 6);
+	return ret;
+}
+
+/*
+ * get_first_ethernet - return the name of the first ethernet-style
+ * interface on this system.
+ */
+char *
+get_first_ethernet()
+{
+	return "eth0";
 }
 
 /********************************************************************
@@ -2355,20 +2438,13 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
 int
 open_ppp_loopback(void)
 {
-    int flags, x;
+    int flags;
 
     looped = 1;
     if (new_style_driver) {
 	/* allocate ourselves a ppp unit */
-	ifunit = req_unit;
-	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
-	if (x < 0 && req_unit >= 0 && errno == EEXIST) {
-	    warn("Couldn't allocate PPP unit %d as it is already in use");
-	    ifunit = -1;
-	    x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
-	}
-	if (x < 0)
-	    fatal("Couldn't create PPP unit: %m");
+	if (make_ppp_unit() < 0)
+	    die(1);
 	set_flags(ppp_dev_fd, SC_LOOP_TRAFFIC);
 	set_kdebugflag(kdebugflag);
 	ppp_fd = -1;

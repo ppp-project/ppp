@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.91 2000/03/27 06:03:01 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.92 2000/04/04 07:06:51 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -55,6 +55,7 @@
 #include "ccp.h"
 #include "pathnames.h"
 #include "patchlevel.h"
+#include "tdb.h"
 
 #ifdef CBCP_SUPPORT
 #include "cbcp.h"
@@ -96,6 +97,8 @@ int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
 char *callback_script;		/* script for doing callback */
+TDB_CONTEXT *pppdb;		/* database for storing status etc. */
+char db_key[32];
 
 int (*holdoff_hook) __P((void)) = NULL;
 int (*new_phase_hook) __P((int)) = NULL;
@@ -154,6 +157,7 @@ static struct subprocess *children;
 
 /* Prototypes for procedures local to this file. */
 
+static void setup_signals __P((void));
 static void create_pidfile __P((void));
 static void create_linkpidfile __P((void));
 static void cleanup __P((void));
@@ -172,6 +176,9 @@ static void holdoff_end __P((void *));
 static int device_script __P((char *, int, int, int));
 static int reap_kids __P((int waitfor));
 static void record_child __P((int, char *, void (*) (void *), void *));
+static void update_db_entry __P((void));
+static void add_db_key __P((const char *));
+static void delete_db_key __P((const char *));
 static int open_socket __P((char *));
 static int start_charshunt __P((int, int));
 static void charshunt_done __P((void *));
@@ -224,7 +231,6 @@ main(argc, argv)
     char *argv[];
 {
     int i, fdflags, t;
-    struct sigaction sa;
     char *p, *connector;
     struct passwd *pw;
     struct timeval timo;
@@ -264,7 +270,7 @@ main(argc, argv)
     uid = getuid();
     privileged = uid == 0;
     slprintf(numbuf, sizeof(numbuf), "%d", uid);
-    script_setenv("ORIG_UID", numbuf);
+    script_setenv("ORIG_UID", numbuf, 0);
 
     ngroups = getgroups(NGROUPS_MAX, groups);
 
@@ -344,6 +350,9 @@ main(argc, argv)
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
+#ifdef HAVE_MULTILINK
+    mp_check_options();
+#endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
@@ -400,14 +409,24 @@ main(argc, argv)
 	&& S_ISCHR(statbuf.st_mode) && statbuf.st_rdev == devstat.st_rdev)
 	log_to_fd = -1;
 
-    script_setenv("DEVICE", devnam);
-
     /*
      * Initialize system-dependent stuff.
      */
     sys_init();
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
+
+    pppdb = tdb_open(_PATH_PPPDB, 0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT, 0644);
+    if (pppdb != NULL) {
+	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
+	update_db_entry();
+    } else {
+	warn("Warning: couldn't open ppp database %s", _PATH_PPPDB);
+	if (multilink) {
+	    warn("Warning: disabling multilink");
+	    multilink = 0;
+	}
+    }
 
     /*
      * Detach ourselves from the terminal, if required,
@@ -425,81 +444,12 @@ main(argc, argv)
     }
     syslog(LOG_NOTICE, "pppd %s.%d%s started by %s, uid %d",
 	   VERSION, PATCHLEVEL, IMPLEMENTATION, p, uid);
-    script_setenv("PPPLOGNAME", p);
+    script_setenv("PPPLOGNAME", p, 0);
 
-    /*
-     * Compute mask of all interesting signals and install signal handlers
-     * for each.  Only one signal handler may be active at a time.  Therefore,
-     * all other signals should be masked when any handler is executing.
-     */
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGHUP);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGCHLD);
-    sigaddset(&mask, SIGUSR2);
+    if (devnam[0])
+	script_setenv("DEVICE", devnam, 1);
 
-#define SIGNAL(s, handler)	do { \
-	sa.sa_handler = handler; \
-	if (sigaction(s, &sa, NULL) < 0) \
-	    fatal("Couldn't establish signal handler (%d): %m", s); \
-    } while (0)
-
-    sa.sa_mask = mask;
-    sa.sa_flags = 0;
-    SIGNAL(SIGHUP, hup);		/* Hangup */
-    SIGNAL(SIGINT, term);		/* Interrupt */
-    SIGNAL(SIGTERM, term);		/* Terminate */
-    SIGNAL(SIGCHLD, chld);
-
-    SIGNAL(SIGUSR1, toggle_debug);	/* Toggle debug flag */
-    SIGNAL(SIGUSR2, open_ccp);		/* Reopen CCP */
-
-    /*
-     * Install a handler for other signals which would otherwise
-     * cause pppd to exit without cleaning up.
-     */
-    SIGNAL(SIGABRT, bad_signal);
-    SIGNAL(SIGALRM, bad_signal);
-    SIGNAL(SIGFPE, bad_signal);
-    SIGNAL(SIGILL, bad_signal);
-    SIGNAL(SIGPIPE, bad_signal);
-    SIGNAL(SIGQUIT, bad_signal);
-    SIGNAL(SIGSEGV, bad_signal);
-#ifdef SIGBUS
-    SIGNAL(SIGBUS, bad_signal);
-#endif
-#ifdef SIGEMT
-    SIGNAL(SIGEMT, bad_signal);
-#endif
-#ifdef SIGPOLL
-    SIGNAL(SIGPOLL, bad_signal);
-#endif
-#ifdef SIGPROF
-    SIGNAL(SIGPROF, bad_signal);
-#endif
-#ifdef SIGSYS
-    SIGNAL(SIGSYS, bad_signal);
-#endif
-#ifdef SIGTRAP
-    SIGNAL(SIGTRAP, bad_signal);
-#endif
-#ifdef SIGVTALRM
-    SIGNAL(SIGVTALRM, bad_signal);
-#endif
-#ifdef SIGXCPU
-    SIGNAL(SIGXCPU, bad_signal);
-#endif
-#ifdef SIGXFSZ
-    SIGNAL(SIGXFSZ, bad_signal);
-#endif
-
-    /*
-     * Apparently we can get a SIGPIPE when we call syslog, if
-     * syslogd has died and been restarted.  Ignoring it seems
-     * be sufficient.
-     */
-    signal(SIGPIPE, SIG_IGN);
+    setup_signals();
 
     waiting = 0;
 
@@ -513,12 +463,7 @@ main(argc, argv)
 	 * Open the loopback channel and set it up to be the ppp interface.
 	 */
 	fd_loop = open_ppp_loopback();
-
-	syslog(LOG_INFO, "Using interface ppp%d", ifunit);
-	slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
-	script_setenv("IFNAME", ifname);
-
-	create_pidfile();	/* write pid to file */
+	set_ifunit(1);
 
 	/*
 	 * Configure the interface and mark it up, etc.
@@ -766,7 +711,7 @@ main(argc, argv)
 	}
 
 	slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
-	script_setenv("SPEED", numbuf);
+	script_setenv("SPEED", numbuf, 0);
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
@@ -781,14 +726,8 @@ main(argc, argv)
 	    goto disconnect;
 	}
 
-	if (!demand && ifunit >= 0) {
-	    
-	    info("Using interface ppp%d", ifunit);
-	    slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
-	    script_setenv("IFNAME", ifname);
-
-	    create_pidfile();	/* write pid to file */
-	}
+	if (!demand && ifunit >= 0)
+	    set_ifunit(1);
 
 	/*
 	 * Start opening the connection and wait for
@@ -974,6 +913,105 @@ main(argc, argv)
 }
 
 /*
+ * setup_signals - initialize signal handling.
+ */
+static void
+setup_signals()
+{
+    struct sigaction sa;
+    sigset_t mask;
+
+    /*
+     * Compute mask of all interesting signals and install signal handlers
+     * for each.  Only one signal handler may be active at a time.  Therefore,
+     * all other signals should be masked when any handler is executing.
+     */
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGHUP);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGCHLD);
+    sigaddset(&mask, SIGUSR2);
+
+#define SIGNAL(s, handler)	do { \
+	sa.sa_handler = handler; \
+	if (sigaction(s, &sa, NULL) < 0) \
+	    fatal("Couldn't establish signal handler (%d): %m", s); \
+    } while (0)
+
+    sa.sa_mask = mask;
+    sa.sa_flags = 0;
+    SIGNAL(SIGHUP, hup);		/* Hangup */
+    SIGNAL(SIGINT, term);		/* Interrupt */
+    SIGNAL(SIGTERM, term);		/* Terminate */
+    SIGNAL(SIGCHLD, chld);
+
+    SIGNAL(SIGUSR1, toggle_debug);	/* Toggle debug flag */
+    SIGNAL(SIGUSR2, open_ccp);		/* Reopen CCP */
+
+    /*
+     * Install a handler for other signals which would otherwise
+     * cause pppd to exit without cleaning up.
+     */
+    SIGNAL(SIGABRT, bad_signal);
+    SIGNAL(SIGALRM, bad_signal);
+    SIGNAL(SIGFPE, bad_signal);
+    SIGNAL(SIGILL, bad_signal);
+    SIGNAL(SIGPIPE, bad_signal);
+    SIGNAL(SIGQUIT, bad_signal);
+    SIGNAL(SIGSEGV, bad_signal);
+#ifdef SIGBUS
+    SIGNAL(SIGBUS, bad_signal);
+#endif
+#ifdef SIGEMT
+    SIGNAL(SIGEMT, bad_signal);
+#endif
+#ifdef SIGPOLL
+    SIGNAL(SIGPOLL, bad_signal);
+#endif
+#ifdef SIGPROF
+    SIGNAL(SIGPROF, bad_signal);
+#endif
+#ifdef SIGSYS
+    SIGNAL(SIGSYS, bad_signal);
+#endif
+#ifdef SIGTRAP
+    SIGNAL(SIGTRAP, bad_signal);
+#endif
+#ifdef SIGVTALRM
+    SIGNAL(SIGVTALRM, bad_signal);
+#endif
+#ifdef SIGXCPU
+    SIGNAL(SIGXCPU, bad_signal);
+#endif
+#ifdef SIGXFSZ
+    SIGNAL(SIGXFSZ, bad_signal);
+#endif
+
+    /*
+     * Apparently we can get a SIGPIPE when we call syslog, if
+     * syslogd has died and been restarted.  Ignoring it seems
+     * be sufficient.
+     */
+    signal(SIGPIPE, SIG_IGN);
+}
+
+/*
+ * set_ifunit - do things we need to do once we know which ppp
+ * unit we are using.
+ */
+void
+set_ifunit(iskey)
+    int iskey;
+{
+    info("Using interface ppp%d", ifunit);
+    slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
+    script_setenv("IFNAME", ifname, iskey);
+    create_pidfile();	/* write pid to file */
+    create_linkpidfile();
+}
+
+/*
  * detach - detach us from the controlling terminal.
  */
 void
@@ -1040,9 +1078,7 @@ create_pidfile()
 	pidfilename[0] = 0;
     }
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf);
-    if (linkpidfile[0])
-	create_linkpidfile();
+    script_setenv("PPPD_PID", numbuf, 1);
 }
 
 static void
@@ -1056,14 +1092,14 @@ create_linkpidfile()
 	     _PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", getpid());
-	if (pidfilename[0])
+	if (ifname[0])
 	    fprintf(pidfile, "%s\n", ifname);
 	(void) fclose(pidfile);
     } else {
 	error("Failed to create pid file %s: %m", linkpidfile);
 	linkpidfile[0] = 0;
     }
-    script_setenv("LINKNAME", linkname);
+    script_setenv("LINKNAME", linkname, 1);
 }
 
 /*
@@ -1290,6 +1326,14 @@ cleanup()
 
     if (locked)
 	unlock();
+
+    if (pppdb != NULL) {
+	TDB_DATA key;
+
+	key.dptr = db_key;
+	key.dsize = strlen(db_key);
+	tdb_delete(pppdb, key);
+    }
 }
 
 /*
@@ -1338,11 +1382,11 @@ update_link_stats(u)
     link_stats_valid = 1;
 
     slprintf(numbuf, sizeof(numbuf), "%d", link_connect_time);
-    script_setenv("CONNECT_TIME", numbuf);
+    script_setenv("CONNECT_TIME", numbuf, 0);
     slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_out);
-    script_setenv("BYTES_SENT", numbuf);
+    script_setenv("BYTES_SENT", numbuf, 0);
     slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_in);
-    script_setenv("BYTES_RCVD", numbuf);
+    script_setenv("BYTES_RCVD", numbuf, 0);
 }
 
 
@@ -1881,10 +1925,12 @@ novm(msg)
  * for scripts that we run (e.g. ip-up, auth-up, etc.)
  */
 void
-script_setenv(var, value)
+script_setenv(var, value, iskey)
     char *var, *value;
+    int iskey;
 {
-    size_t vl = strlen(var) + strlen(value) + 2;
+    size_t varl = strlen(var);
+    size_t vl = varl + strlen(value) + 2;
     int i;
     char *p, *newstring;
 
@@ -1896,7 +1942,11 @@ script_setenv(var, value)
     /* check if this variable is already set */
     if (script_env != 0) {
 	for (i = 0; (p = script_env[i]) != 0; ++i) {
-	    if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
+	    if (strncmp(p, var, varl) == 0 && p[varl] == '=') {
+		if (iskey && pppdb != NULL) {
+		    delete_db_key(p);
+		    add_db_key(newstring);
+		}
 		free(p);
 		script_env[i] = newstring;
 		return;
@@ -1924,6 +1974,12 @@ script_setenv(var, value)
 
     script_env[i] = newstring;
     script_env[i+1] = 0;
+
+    if (pppdb != NULL) {
+	if (iskey)
+	    add_db_key(newstring);
+	update_db_entry();
+    }
 }
 
 /*
@@ -1948,6 +2004,70 @@ script_unsetenv(var)
 	    break;
 	}
     }
+    if (pppdb != NULL)
+	update_db_entry();
+}
+
+/*
+ * update_db_entry - update our entry in the database.
+ */
+static void
+update_db_entry()
+{
+    TDB_DATA key, dbuf;
+    int vlen, i;
+    char *p, *q, *vbuf;
+
+    if (script_env == NULL)
+	return;
+    vlen = 0;
+    for (i = 0; (p = script_env[i]) != 0; ++i)
+	vlen += strlen(p) + 1;
+    vbuf = malloc(vlen);
+    if (vbuf == 0)
+	novm("database entry");
+    q = vbuf;
+    for (i = 0; (p = script_env[i]) != 0; ++i)
+	q += slprintf(q, vbuf + vlen - q, "%s;", p);
+
+    key.dptr = db_key;
+    key.dsize = strlen(db_key);
+    dbuf.dptr = vbuf;
+    dbuf.dsize = vlen;
+    if (tdb_store(pppdb, key, dbuf, TDB_REPLACE))
+	error("tdb_store failed: %s", tdb_error(pppdb));
+
+}
+
+/*
+ * add_db_key - add a key that we can use to look up our database entry.
+ */
+static void
+add_db_key(str)
+    const char *str;
+{
+    TDB_DATA key, dbuf;
+
+    key.dptr = (char *) str;
+    key.dsize = strlen(str);
+    dbuf.dptr = db_key;
+    dbuf.dsize = strlen(db_key);
+    if (tdb_store(pppdb, key, dbuf, TDB_REPLACE))
+	error("tdb_store key failed: %s", tdb_error(pppdb));
+}
+
+/*
+ * delete_db_key - delete a key for looking up our database entry.
+ */
+static void
+delete_db_key(str)
+    const char *str;
+{
+    TDB_DATA key;
+
+    key.dptr = (char *) str;
+    key.dsize = strlen(str);
+    tdb_delete(pppdb, key);
 }
 
 /*

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.51 2000/03/27 06:03:06 paulus Exp $
+ * $Id: pppd.h,v 1.52 2000/04/04 07:06:53 paulus Exp $
  */
 
 /*
@@ -136,6 +136,22 @@ struct wordlist {
     char		*word;
 };
 
+/* An endpoint discriminator, used with multilink. */
+#define MAX_ENDP_LEN	20	/* maximum length of discriminator value */
+struct epdisc {
+    unsigned char	class;
+    unsigned char	length;
+    unsigned char	value[MAX_ENDP_LEN];
+};
+
+/* values for epdisc.class */
+#define EPD_NULL	0	/* null discriminator, no data */
+#define EPD_LOCAL	1
+#define EPD_IP		2
+#define EPD_MAC		3
+#define EPD_MAGIC	4
+#define EPD_PHONENUM	5
+
 /*
  * Global variables.
  */
@@ -219,6 +235,8 @@ extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
 extern bool	multilink;	/* enable multilink operation */
+extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
+extern char	*bundle_name;	/* bundle name for multilink */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -296,6 +314,7 @@ extern struct protent *protocols[];
  */
 
 /* Procedures exported from main.c. */
+void set_ifunit __P((int));	/* set stuff that depends on ifunit */
 void detach __P((void));	/* Detach from controlling tty */
 void die __P((int));		/* Cleanup and exit */
 void quit __P((void));		/* like die(1) */
@@ -309,7 +328,7 @@ pid_t run_program __P((char *prog, char **args, int must_exist,
 				/* Run program prog with args in child */
 void reopen_log __P((void));	/* (re)open the connection to syslog */
 void update_link_stats __P((int)); /* Get stats at link termination */
-void script_setenv __P((char *, char *));	/* set script env var */
+void script_setenv __P((char *, char *, int));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
 void new_phase __P((int));	/* signal start of new phase */
 
@@ -367,6 +386,12 @@ void demand_rexmit __P((int));	/* retransmit saved frames for an NP */
 int  loop_chars __P((unsigned char *, int)); /* process chars from loopback */
 int  loop_frame __P((unsigned char *, int)); /* should we bring link up? */
 
+/* Procedures exported from multilink.c */
+void mp_check_options __P((void)); /* Check multilink-related options */
+int  mp_join_bundle __P((void));  /* join our link to an appropriate bundle */
+char *epdisc_to_str __P((struct epdisc *)); /* string from endpoint discrim. */
+int  str_to_epdisc __P((struct epdisc *, char *)); /* endpt disc. from str */
+
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
 void sys_cleanup __P((void));	/* Restore system state before exiting */
@@ -378,6 +403,8 @@ int  open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
 int  establish_ppp __P((int));	/* Turn serial port into a ppp interface */
 void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
 void disestablish_ppp __P((int)); /* Restore port to normal operation */
+void make_new_bundle __P((int, int, int, int)); /* Create new bundle */
+int  bundle_attach __P((int));	/* Attach link to existing bundle */
 void clean_check __P((void));	/* Check if line was 8-bit clean */
 void set_up_tty __P((int, int)); /* Set up port's speed, parameters, etc. */
 void restore_tty __P((int));	/* Restore port's original parameters */
@@ -444,6 +471,8 @@ int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
 int  sipxfaddr __P((int, unsigned long, unsigned char *));
 int  cipxfaddr __P((int));
 #endif
+int  get_if_hwaddr __P((u_char *addr, char *name));
+char *get_first_ethernet __P((void));
 
 /* Procedures exported from options.c */
 int  parse_args __P((int argc, char **argv));
@@ -462,6 +491,7 @@ void option_error __P((char *fmt, ...));
 int int_option __P((char *, int *));
 				/* Simplified number_option for decimal ints */
 void add_options __P((option_t *)); /* Add extra options */
+int parse_dotted_ip __P((char *, u_int32_t *));
 
 /*
  * This structure is used to store information about certain

@@ -95,10 +95,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: ipv6cp.c,v 1.7 1999/10/08 01:08:18 masputra Exp $ 
+ * $Id: ipv6cp.c,v 1.8 2000/04/04 07:06:50 paulus Exp $ 
  */
 
-#define RCSID	"$Id: ipv6cp.c,v 1.7 1999/10/08 01:08:18 masputra Exp $"
+#define RCSID	"$Id: ipv6cp.c,v 1.8 2000/04/04 07:06:50 paulus Exp $"
 
 /*
  * TODO: 
@@ -1120,8 +1120,8 @@ ipv6cp_up(f)
 	    return;
 	}
     }
-    script_setenv("LLLOCAL", llv6_ntoa(go->ourid));
-    script_setenv("LLREMOTE", llv6_ntoa(ho->hisid));
+    script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
+    script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
 
 #ifdef IPV6CP_COMP
     /* set tcp compression */
