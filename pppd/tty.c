@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.9 2002/12/06 12:06:45 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.10 2003/02/24 11:29:53 fcusack Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -614,6 +614,11 @@ int connect_tty()
 
 			if (pipe(ipipe) < 0 || pipe(opipe) < 0)
 				fatal("Couldn't create pipes for record option: %m");
+
+			/* don't leak these to the ptycommand */
+			(void) fcntl(ipipe[0], F_SETFD, FD_CLOEXEC);
+			(void) fcntl(opipe[1], F_SETFD, FD_CLOEXEC);
+
 			ok = device_script(ptycommand, opipe[0], ipipe[1], 1) == 0
 				&& start_charshunt(ipipe[0], opipe[1]);
 			close(ipipe[0]);
