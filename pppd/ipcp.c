@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.21 1995/08/17 11:57:12 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.22 1995/12/18 03:45:56 paulus Exp $";
 #endif
 
 /*
@@ -80,6 +80,12 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
     "IPCP"			/* String name of protocol */
 };
 
+struct protent ipcp_protent = {
+    PPP_IPCP, ipcp_init, ipcp_input, ipcp_protrej,
+    ipcp_lowerup, ipcp_lowerdown, ipcp_open, ipcp_close,
+    ipcp_printpkt, NULL, 1, "IPCP"
+};
+
 /*
  * Lengths of configuration options.
  */
@@ -130,13 +136,11 @@ ipcp_init(unit)
     f->callbacks = &ipcp_callbacks;
     fsm_init(&ipcp_fsm[unit]);
 
-    wo->neg_addr = 1;
-    wo->old_addrs = 0;
-    wo->ouraddr = 0;
-    wo->hisaddr = 0;
+    memset(wo, 0, sizeof(*wo));
+    memset(ao, 0, sizeof(*ao));
 
+    wo->neg_addr = 1;
     wo->neg_vj = 1;
-    wo->old_vj = 0;
     wo->vj_protocol = IPCP_VJ_COMP;
     wo->maxslotindex = MAX_STATES - 1; /* really max index */
     wo->cflag = 1;
@@ -174,10 +178,11 @@ ipcp_open(unit)
  * ipcp_close - Take IPCP down.
  */
 void
-ipcp_close(unit)
+ipcp_close(unit, reason)
     int unit;
+    char *reason;
 {
-    fsm_close(&ipcp_fsm[unit]);
+    fsm_close(&ipcp_fsm[unit], reason);
 }
 
 
@@ -857,6 +862,46 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 	    ho->neg_addr = 1;
 	    ho->hisaddr = ciaddr1;
 	    break;
+
+#ifdef USE_MS_DNS
+	case CI_MS_DNS1:
+	    /* Microsoft primary DNS request */
+	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS1 Request "));
+
+	    /* If we do not have a DNS address then we cannot send it */
+	    if (ao->dnsaddr[0] == 0 ||
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETLONG(tl, p);
+	    if (htonl(tl) != ao->dnsaddr[0]) {
+                DECPTR(sizeof(u_int32_t), p);
+		tl = ntohl(ao->dnsaddr[0]);
+		PUTLONG(tl, p);
+		orc = CONFNAK;
+            }
+            break;
+
+	case CI_MS_DNS2:
+	    /* Microsoft secondary DNS request */
+	    IPCPDEBUG((LOG_INFO, "ipcp: received DNS2 Request "));
+
+	    /* If we do not have a DNS address then we cannot send it */
+	    if (ao->dnsaddr[1] == 0 ||	/* Yes, this is the first one! */
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETLONG(tl, p);
+	    if (htonl(tl) != ao->dnsaddr[1]) { /* and this is the 2nd one */
+                DECPTR(sizeof(u_int32_t), p);
+		tl = ntohl(ao->dnsaddr[1]);
+		PUTLONG(tl, p);
+		orc = CONFNAK;
+            }
+            break;
+#endif
 	
 	case CI_COMPRESSTYPE:
 	    IPCPDEBUG((LOG_INFO, "ipcp: received COMPRESSTYPE "));
@@ -992,12 +1037,12 @@ ipcp_up(f)
 
     if (ho->hisaddr == 0) {
 	syslog(LOG_ERR, "Could not determine remote IP address");
-	ipcp_close(f->unit);
+	ipcp_close(f->unit, "Could not determine remote IP address");
 	return;
     }
     if (go->ouraddr == 0) {
 	syslog(LOG_ERR, "Could not determine local IP address");
-	ipcp_close(f->unit);
+	ipcp_close(f->unit, "Could not determine local IP address");
 	return;
     }
 
@@ -1007,7 +1052,7 @@ ipcp_up(f)
     if (!auth_ip_addr(f->unit, ho->hisaddr)) {
 	syslog(LOG_ERR, "Peer is not authorized to use remote address %s",
 	       ip_ntoa(ho->hisaddr));
-	ipcp_close(f->unit);
+	ipcp_close(f->unit, "Unauthorized remote IP address");
 	return;
     }
 
@@ -1020,7 +1065,7 @@ ipcp_up(f)
     mask = GetMask(go->ouraddr);
     if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
 	IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
-	ipcp_close(f->unit);
+	ipcp_close(f->unit, "Interface configuration failed");
 	return;
     }
 
@@ -1030,7 +1075,7 @@ ipcp_up(f)
     /* bring the interface up for IP */
     if (!sifup(f->unit)) {
 	IPCPDEBUG((LOG_WARNING, "sifup failed"));
-	ipcp_close(f->unit);
+	ipcp_close(f->unit, "Interface configuration failed");
 	return;
     }
 
