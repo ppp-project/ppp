@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.34 1999/09/08 01:11:16 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.35 1999/09/30 19:59:06 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -63,6 +63,7 @@
 #include <sys/tiuser.h>
 #include <inet/common.h>
 #include <inet/mib2.h>
+#include <sys/ethernet.h>
 #endif
 
 #include "pppd.h"
@@ -73,6 +74,28 @@ static int	pppfd;
 static int	fdmuxid = -1;
 static int	ipfd;
 static int	ipmuxid = -1;
+
+#if defined(INET6) && defined(SOL2)
+static int	ip6fd;		/* IP file descriptor */
+static int	ip6muxid = -1;	/* Multiplexer file descriptor */
+static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
+
+#define _IN6_LLX_FROM_EUI64(l, s, eui64, as) do {	\
+	s->sin6_addr.s6_addr32[0] = htonl(as); 	\
+	eui64_copy(eui64, s->sin6_addr.s6_addr32[2]);	\
+	s->sin6_family = AF_INET6;		\
+	l.lifr_addr.ss_family = AF_INET6;	\
+	l.lifr_addrlen = 10;			\
+	l.lifr_addr = laddr;			\
+	} while (0)
+
+#define IN6_LLADDR_FROM_EUI64(l, s, eui64)  \
+    _IN6_LLX_FROM_EUI64(l, s, eui64, 0xfe800000)
+
+#define IN6_LLTOKEN_FROM_EUI64(l, s, eui64) \
+    _IN6_LLX_FROM_EUI64(l, s, eui64, 0)
+
+#endif /* defined(INET6) && defined(SOL2) */
 
 static int	restore_term;
 static struct termios inittermios;
@@ -106,6 +129,7 @@ static int translate_speed __P((int));
 static int baud_rate_of __P((int));
 static int get_ether_addr __P((u_int32_t, struct sockaddr *));
 static int get_hw_addr __P((char *, u_int32_t, struct sockaddr *));
+static int get_hw_addr_dlpi __P((char *, struct sockaddr *));
 static int dlpi_attach __P((int, int));
 static int dlpi_info_req __P((int));
 static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
@@ -135,13 +159,162 @@ sifppa(fd, ppa)
         int fd;
         int ppa;
 {
-        if (ioctl(fd, IF_UNITSEL, (char *)&ppa) < 0) {
-	        return 0;
-        }
-
-        return 1;
+    return (int)ioctl(fd, IF_UNITSEL, (char *)&ppa);
 }
 #endif /* SOL2 */
+
+#if defined(SOL2) && defined(INET6)
+/*
+ * slifname - Sets interface ppa and flags
+ *
+ * in addition to the comments stated in sifppa(), IFF_IPV6 bit must
+ * be set in order to declare this as an IPv6 interface
+ */
+static int
+slifname(fd, ppa)
+	int fd;
+	int ppa;
+{
+    struct  lifreq lifr;
+    int	    ret;
+
+    memset(&lifr, 0, sizeof(lifr));
+    ret = ioctl(fd, SIOCGLIFFLAGS, &lifr);
+    if (ret < 0)
+	goto slifname_done;
+
+    lifr.lifr_flags |= IFF_IPV6;
+    lifr.lifr_flags &= ~(IFF_BROADCAST | IFF_IPV4);
+    lifr.lifr_ppa = ppa;
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+
+    ret = ioctl(fd, SIOCSLIFNAME, &lifr);
+
+slifname_done:
+    return ret;
+
+
+}
+
+/*
+ * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
+ *
+ * walks the list of valid ethernet interfaces, and convert the first
+ * found 48-bit MAC address into EUI 64. caller also assumes that
+ * the system has a properly configured Ethernet interface for this
+ * function to return non-zero.
+ */
+int
+ether_to_eui64(eui64_t *p_eui64)
+{
+    struct lifnum lifn;
+    struct lifconf lifc;
+    struct lifreq *plifreq;
+    struct lifreq lifr;
+    int	fd, num_ifs, i, found;
+    uint_t fl, req_size;
+    char *req;
+    struct sockaddr s_eth_addr;
+    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+	return 0;
+    }
+
+    /*
+     * Find out how many interfaces are running
+     */
+    lifn.lifn_family = AF_UNSPEC;
+    lifn.lifn_flags = LIFC_NOXMIT;
+    if (ioctl(fd, SIOCGLIFNUM, &lifn) < 0) {
+	close(fd);
+	error("could not determine number of interfaces: %m");
+	return 0;
+    }
+
+    num_ifs = lifn.lifn_count;
+    req_size = num_ifs * sizeof(struct lifreq);
+    req = malloc(req_size);
+    if (req == NULL) {
+	close(fd);
+	error("out of memory");
+	return 0;
+    }
+
+    /*
+     * Get interface configuration info for all interfaces
+     */
+    lifc.lifc_family = AF_UNSPEC;
+    lifc.lifc_flags = LIFC_NOXMIT;
+    lifc.lifc_len = req_size;
+    lifc.lifc_buf = req;
+    if (ioctl(fd, SIOCGLIFCONF, &lifc) < 0) {
+	close(fd);
+	free(req);
+	error("SIOCGLIFCONF: %m");
+	return 0;
+    }
+
+    /*
+     * And traverse each interface to look specifically for the first
+     * occurence of an Ethernet interface which has been marked up
+     */
+    plifreq = lifc.lifc_req;
+    found = 0;
+    for (i = lifc.lifc_len / sizeof(struct lifreq); i>0; i--, plifreq++) {
+
+	if (strchr(plifreq->lifr_name, ':') != NULL)
+	    continue;
+
+	memset(&lifr, 0, sizeof(lifr));
+	strncpy(lifr.lifr_name, plifreq->lifr_name, sizeof(lifr.lifr_name));
+	if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
+	    close(fd);
+	    free(req);
+	    error("SIOCGLIFFLAGS: %m");
+	    return 0;
+	}
+	fl = lifr.lifr_flags;
+
+	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
+		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	found = 1;
+	break;
+    }
+    free(req);
+    close(fd);
+
+    if (!found) {
+	error("no persistent id can be found");
+	return 0;
+    }
+ 
+    /*
+     * Send DL_INFO_REQ to the driver to solicit its MAC address
+     */
+    if (!get_hw_addr_dlpi(plifreq->lifr_name, &s_eth_addr)) {
+	error("could not obtain hardware address for %s", plifreq->lifr_name);
+	return 0;
+    }
+
+    /*
+     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
+     */
+    p_eui64->e8[0] = (eth_addr->ether_addr_octet[0] & 0xFF) | 0x02;
+    p_eui64->e8[1] = (eth_addr->ether_addr_octet[1] & 0xFF);
+    p_eui64->e8[2] = (eth_addr->ether_addr_octet[2] & 0xFF);
+    p_eui64->e8[3] = 0xFF;
+    p_eui64->e8[4] = 0xFE;
+    p_eui64->e8[5] = (eth_addr->ether_addr_octet[3] & 0xFF);
+    p_eui64->e8[6] = (eth_addr->ether_addr_octet[4] & 0xFF);
+    p_eui64->e8[7] = (eth_addr->ether_addr_octet[5] & 0xFF);
+
+    return 1;
+}
+#endif /* defined(SOL2) && defined(INET6) */
 
 /*
  * sys_init - System-dependent initialization.
@@ -150,17 +323,26 @@ void
 sys_init()
 {
     int ifd, x;
-#ifndef sun
+#if defined(INET6) && defined(SOL2)
+    int i6fd;
+#endif /* defined(INET6) && defined(SOL2) */
+#if !defined(SOL2)
     struct ifreq ifr;
     struct {
 	union DL_primitives prim;
 	char space[64];
     } reply;
-#endif
+#endif /* !defined(SOL2) */
 
     ipfd = open("/dev/ip", O_RDWR, 0);
     if (ipfd < 0)
 	fatal("Couldn't open IP device: %m");
+
+#if defined(INET6) && defined(SOL2)
+    ip6fd = open("/dev/ip", O_RDWR, 0);
+    if (ip6fd < 0)
+	fatal("Couldn't open IP device (2): %m");
+#endif /* defined(INET6) && defined(SOL2) */
 
     if (default_device && !notty)
 	tty_sid = getsid((pid_t)0);
@@ -189,42 +371,99 @@ sys_init()
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(ifd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
-#ifdef sun
+
+#if defined(INET6) && defined(SOL2)
+    /*
+     * Since sys_init() is called prior to ifname being set in main(),
+     * we need to get the ifname now, otherwise slifname() will fail,
+     * or maybe, I should move slifname() to a later point ?
+     */
+    sprintf(ifname, "ppp%d", ifunit);
+
+    i6fd = open("/dev/ppp", O_RDWR, 0);
+    if (i6fd < 0) {
+	close(ifd);
+	fatal("Can't open /dev/ppp (3): %m");
+    }
+    if (kdebugflag & 1) {
+	x = PPPDBG_LOG + PPPDBG_DRIVER;
+	strioctl(i6fd, PPPIO_DEBUG, &x, sizeof(int), 0);
+    }
+#endif /* defined(INET6) && defined(SOL2) */
+
+#if defined(SOL2)
     if (ioctl(ifd, I_PUSH, "ip") < 0) {
 	close(ifd);
+#if defined(INET6)
+	close(i6fd);
+#endif /* defined(INET6) */
 	fatal("Can't push IP module: %m");
     }
 
-#ifdef SOL2
     /*
      * Assign ppa according to the unit number returned by ppp device
      * after plumbing is completed above.
      */
     if (sifppa(ifd, ifunit) < 0) {
         close (ifd);
+#if defined(INET6)
+	close(i6fd);
+#endif /* defined(INET6) */
         fatal("Can't set ppa for unit %d: %m", ifunit);
     }
-#endif /* SOL2 */
 
-#else
+#if defined(INET6)
+    /*
+     * An IPv6 interface is created anyway, even when the user does not 
+     * explicitly enable it. Note that the interface will be marked
+     * IPv6 during slifname().
+     */
+    if (ioctl(i6fd, I_PUSH, "ip") < 0) {
+	close(ifd);
+	close(i6fd);
+	fatal("Can't push IP module (2): %m");
+    }
+
+    /*
+     * Assign ppa according to the unit number returned by ppp device
+     * after plumbing is completed above. In addition, mark the interface
+     * as an IPv6 interface.
+     */
+    if (slifname(i6fd, ifunit) < 0) {
+	close(ifd);
+	close(i6fd);
+	fatal("Can't set ifname for unit %d: %m", ifunit);
+    }
+#endif /* defined(INET6) */
+
+#else /* else if !defined(SOL2) */
+
     if (dlpi_attach(ifd, ifunit) < 0 ||
 	dlpi_get_reply(ifd, &reply.prim, DL_OK_ACK, sizeof(reply)) < 0) {
 	close(ifd);
 	fatal("Can't attach to ppp%d: %m", ifunit);
     }
-#endif
+#endif /* defined(SOL2) */
+
     ipmuxid = ioctl(ipfd, I_LINK, ifd);
     close(ifd);
     if (ipmuxid < 0)
 	fatal("Can't link PPP device to IP: %m");
 
-#ifndef sun
+#if defined(INET6) && defined(SOL2)
+    ip6muxid = ioctl(ip6fd, I_LINK, i6fd);
+    close(i6fd);
+    if (ip6muxid < 0) 
+	fatal("Can't link PPP device to IP (2): %m");
+#endif /* defined(INET6) && defined(SOL2) */
+
+#if !defined(SOL2)
     /* Set the interface name for the link. */
     slprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "ppp%d", ifunit);
     ifr.ifr_metric = ipmuxid;
     if (strioctl(ipfd, SIOCSIFNAME, (char *)&ifr, sizeof ifr, 0) < 0)
 	fatal("Can't set interface name %s: %m", ifr.ifr_name);
-#endif
+#endif /* !defined(SOL2) */
 
     n_pollfds = 0;
 }
@@ -239,6 +478,10 @@ sys_cleanup()
 {
     struct ifreq ifr;
 
+#if defined(SOL2) && defined(INET6)
+    if (if6_is_up)
+	sif6down(0);
+#endif /* defined(SOL2) && defined(INET6) */
     if (if_is_up)
 	sifdown(0);
     if (default_route_gateway)
@@ -254,6 +497,9 @@ void
 sys_close()
 {
     close(ipfd);
+#if defined(INET6) && defined(SOL2)
+    close(ip6fd);
+#endif /* defined(INET6) && defined(SOL2) */
     if (pppfd >= 0)
 	close(pppfd);
 }
@@ -877,6 +1123,10 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 {
     int cf[2];
     struct ifreq ifr;
+#if defined(INET6) && defined(SOL2)
+    struct lifreq lifr;
+    int	fd;
+#endif /* defined(INET6) && defined(SOL2) */
 
     link_mtu = mtu;
     if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
@@ -903,6 +1153,21 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
 	error("Couldn't set IP MTU: %m");
     }
+
+#if defined(INET6) && defined(SOL2) 
+    fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (fd < 0)
+	error("Couldn't open IPv6 socket: %m");
+
+    memset(&lifr, 0, sizeof(lifr));
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    lifr.lifr_mtu = link_mtu;
+    if (ioctl(fd, SIOCSLIFMTU, &lifr) < 0) {
+	close(fd);
+	error("Couldn't set IPv6 MTU: %m");
+    }
+    close(fd);
+#endif /* defined(INET6) && defined(SOL2) */
 }
 
 /*
@@ -1157,6 +1422,139 @@ sifnpmode(u, proto, mode)
     }
     return 1;
 }
+
+#if defined(SOL2) && defined(INET6)
+/*
+ * sif6up - Config the IPv6 interface up and enable IPv6 packets to pass.
+ */
+int
+sif6up(u)
+    int u;
+{
+    struct lifreq lifr;
+    int fd;
+
+    fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (fd < 0) {
+	return 0;
+    }
+
+    memset(&lifr, 0, sizeof(lifr));
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    lifr.lifr_flags |= IFF_UP;
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    if (ioctl(fd, SIOCSLIFFLAGS, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    if6_is_up = 1;
+    close(fd);
+    return 1;
+}
+
+/*
+ * sifdown - Config the IPv6 interface down and disable IPv6.
+ */
+int
+sif6down(u)
+    int u;
+{
+    struct lifreq lifr;
+    int fd;
+
+    fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (fd < 0)
+	return 0;
+
+    memset(&lifr, 0, sizeof(lifr));
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    lifr.lifr_flags &= ~IFF_UP;
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    if6_is_up = 0;
+    close(fd);
+    return 1;
+}
+
+/*
+ * sif6addr - Config the interface with an IPv6 link-local address
+ */
+int
+sif6addr(u, o, h)
+    int u;
+    eui64_t o, h;
+{
+    struct lifreq lifr;
+    struct sockaddr_storage laddr;
+    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&laddr;
+    int fd;
+
+    fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (fd < 0)
+	return 0;
+
+    memset(&lifr, 0, sizeof(lifr));
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+
+    /*
+     * Do this because /dev/ppp responds to DL_PHYS_ADDR_REQ with
+     * zero values, hence the interface token came to be zero too,
+     * and without this, in.ndpd will complain
+     */
+    IN6_LLTOKEN_FROM_EUI64(lifr, sin6, o);
+    if (ioctl(fd, SIOCSLIFTOKEN, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    /*
+     * Set the interface address and destination address
+     */
+    IN6_LLADDR_FROM_EUI64(lifr, sin6, o);
+    if (ioctl(fd, SIOCSLIFADDR, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    memset(&lifr, 0, sizeof(lifr));
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+    IN6_LLADDR_FROM_EUI64(lifr, sin6, h);
+    if (ioctl(fd, SIOCSLIFDSTADDR, &lifr) < 0) {
+	close(fd);
+	return 0;
+    }
+
+    return 1;
+}
+
+/*
+ * cif6addr - Remove the IPv6 address from interface
+ */
+int
+cif6addr(u, o, h)
+    int u;
+    eui64_t o, h;
+{
+    return 1;
+}
+
+#endif /* defined(SOL2) && defined(INET6) */
+
 
 #define INET_ADDR(x)	(((struct sockaddr_in *) &(x))->sin_addr.s_addr)
 
@@ -1420,33 +1818,13 @@ get_ether_addr(ipaddr, hwaddr)
 }
 
 /*
- * get_hw_addr - obtain the hardware address for a named interface.
+ * get_hw_addr_dlpi - obtain the hardware address using DLPI
  */
 static int
-get_hw_addr(name, ina, hwaddr)
+get_hw_addr_dlpi(name, hwaddr)
     char *name;
-    u_int32_t ina;
     struct sockaddr *hwaddr;
 {
-#if 1
-    /* New way - get the address by doing an arp request. */
-    int s;
-    struct arpreq req;
-
-    s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0)
-	return 0;
-    memset(&req, 0, sizeof(req));
-    req.arp_pa.sa_family = AF_INET;
-    INET_ADDR(req.arp_pa) = ina;
-    if (ioctl(s, SIOCGARP, &req) < 0) {
-	error("Couldn't get ARP entry for %s: %m", ip_ntoa(ina));
-	return 0;
-    }
-    *hwaddr = req.arp_ha;
-    hwaddr->sa_family = AF_UNSPEC;
-
-#else /* 0 */
     char *p, *q;
     int unit, iffd, adrlen;
     unsigned char *adrp;
@@ -1485,15 +1863,44 @@ get_hw_addr(name, ina, hwaddr)
 
     adrlen = reply.prim.info_ack.dl_addr_length;
     adrp = (unsigned char *)&reply + reply.prim.info_ack.dl_addr_offset;
+
 #if DL_CURRENT_VERSION >= 2
     if (reply.prim.info_ack.dl_sap_length < 0)
 	adrlen += reply.prim.info_ack.dl_sap_length;
     else
 	adrp += reply.prim.info_ack.dl_sap_length;
 #endif
+
     hwaddr->sa_family = AF_UNSPEC;
     memcpy(hwaddr->sa_data, adrp, adrlen);
-#endif /* 0 */
+
+    return 1;
+}
+/*
+ * get_hw_addr - obtain the hardware address for a named interface.
+ */
+static int
+get_hw_addr(name, ina, hwaddr)
+    char *name;
+    u_int32_t ina;
+    struct sockaddr *hwaddr;
+{
+    /* New way - get the address by doing an arp request. */
+    int s;
+    struct arpreq req;
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0)
+	return 0;
+    memset(&req, 0, sizeof(req));
+    req.arp_pa.sa_family = AF_INET;
+    INET_ADDR(req.arp_pa) = ina;
+    if (ioctl(s, SIOCGARP, &req) < 0) {
+	error("Couldn't get ARP entry for %s: %m", ip_ntoa(ina));
+	return 0;
+    }
+    *hwaddr = req.arp_ha;
+    hwaddr->sa_family = AF_UNSPEC;
 
     return 1;
 }
