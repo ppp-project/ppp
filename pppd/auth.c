@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.26 1996/08/28 06:39:12 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.27 1996/09/26 06:20:35 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -54,7 +54,7 @@ static char rcsid[] = "$Id: auth.c,v 1.26 1996/08/28 06:39:12 paulus Exp $";
 #ifdef SVR4
 #include <crypt.h>
 #else
-#ifdef SUNOS4
+#if defined(SUNOS4) || defined(ULTRIX)
 extern char *crypt();
 #endif
 #endif
@@ -79,10 +79,6 @@ extern char *crypt();
 #include "upap.h"
 #include "chap.h"
 #include "pathnames.h"
-
-#if defined(sun) && defined(sparc)
-#include <alloca.h>
-#endif /*sparc*/
 
 /* Used for storing a sequence of words.  Usually malloced. */
 struct wordlist {
@@ -923,7 +919,8 @@ null_login(unit)
  * could be found.
  */
 static int
-get_pap_passwd(char *passwd)
+get_pap_passwd(passwd)
+    char *passwd;
 {
     char *filename;
     FILE *f;
