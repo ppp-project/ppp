@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.c,v 1.6 1997/03/04 03:33:00 paulus Exp $	*/
+/*	$Id: if_ppp.c,v 1.7 1997/04/30 05:46:49 paulus Exp $	*/
 
 /*
  * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
@@ -98,6 +98,9 @@
 #include <net/if_types.h>
 #include <net/netisr.h>
 #include <net/route.h>
+#ifdef PPP_FILTER
+#include <net/bpf.h>
+#endif
 
 #if INET
 #include <netinet/in.h>
@@ -108,6 +111,7 @@
 
 #include "bpfilter.h"
 #if NBPFILTER > 0
+#include <sys/time.h>
 #include <net/bpf.h>
 #endif
 
@@ -130,10 +134,7 @@
 #endif
 
 static int	pppsioctl __P((struct ifnet *, u_long, caddr_t));
-static int	pppoutput __P((struct ifnet *, struct mbuf *,
-			       struct sockaddr *, struct rtentry *));
 static void	ppp_requeue __P((struct ppp_softc *));
-static void	ppp_outpkt __P((struct ppp_softc *));
 static void	ppp_ccp __P((struct ppp_softc *, struct mbuf *m, int rcvd));
 static void	ppp_ccp_closed __P((struct ppp_softc *));
 static void	ppp_inproc __P((struct ppp_softc *, struct mbuf *));
@@ -310,6 +311,18 @@ pppdealloc(sc)
     sc->sc_xc_state = NULL;
     sc->sc_rc_state = NULL;
 #endif /* PPP_COMPRESS */
+#ifdef PPP_FILTER
+    if (sc->sc_pass_filt.bf_insns != 0) {
+	FREE(sc->sc_pass_filt.bf_insns, M_DEVBUF);
+	sc->sc_pass_filt.bf_insns = 0;
+	sc->sc_pass_filt.bf_len = 0;
+    }
+    if (sc->sc_active_filt.bf_insns != 0) {
+	FREE(sc->sc_active_filt.bf_insns, M_DEVBUF);
+	sc->sc_active_filt.bf_insns = 0;
+	sc->sc_active_filt.bf_len = 0;
+    }
+#endif /* PPP_FILTER */
 #ifdef VJC
     if (sc->sc_comp != 0) {
 	FREE(sc->sc_comp, M_DEVBUF);
@@ -334,6 +347,11 @@ pppioctl(sc, cmd, data, flag, p)
     struct compressor **cp;
     struct npioctl *npi;
     time_t t;
+#ifdef PPP_FILTER
+    struct bpf_program *bp, *nbp;
+    struct bpf_insn *newcode, *oldcode;
+    int newcodelen;
+#endif /* PPP_FILTER */
 #ifdef	PPP_COMPRESS
     u_char ccp_option[CCP_MAX_OPTION_LENGTH];
 #endif
@@ -489,7 +507,7 @@ pppioctl(sc, cmd, data, flag, p)
 	splx(s);
 	break;
 
-#if 0
+#ifdef PPP_FILTER
     case PPPIOCSPASS:
     case PPPIOCSACTIVE:
 	nbp = (struct bpf_program *) data;
@@ -730,10 +748,33 @@ pppoutput(ifp, m0, dst, rtp)
     }
 
     if ((protocol & 0x8000) == 0) {
+#ifdef PPP_FILTER
+	/*
+	 * Apply the pass and active filters to the packet,
+	 * but only if it is a data packet.
+	 */
+	*mtod(m0, u_char *) = 1;	/* indicates outbound */
+	if (sc->sc_pass_filt.bf_insns != 0
+	    && bpf_filter(sc->sc_pass_filt.bf_insns, (u_char *) m0,
+			  len, 0) == 0) {
+	    error = 0;		/* drop this packet */
+	    goto bad;
+	}
+
+	/*
+	 * Update the time we sent the most recent packet.
+	 */
+	if (sc->sc_active_filt.bf_insns == 0
+	    || bpf_filter(sc->sc_active_filt.bf_insns, (u_char *) m0, len, 0))
+	    sc->sc_last_sent = time.tv_sec;
+
+	*mtod(m0, u_char *) = address;
+#else
 	/*
 	 * Update the time we sent the most recent data packet.
 	 */
 	sc->sc_last_sent = time.tv_sec;
+#endif /* PPP_FILTER */
     }
 
 #if NBPFILTER > 0
@@ -858,7 +899,6 @@ ppp_dequeue(sc)
     struct mbuf *m, *mp;
     u_char *cp;
     int address, control, protocol;
-    int s;
 
     /*
      * Grab a packet to send: first try the fast queue, then the
@@ -1343,11 +1383,32 @@ ppp_inproc(sc, m)
     m->m_pkthdr.len = ilen;
     m->m_pkthdr.rcvif = ifp;
 
-    /*
-     * Record the time that we received this packet.
-     */
     if ((proto & 0x8000) == 0) {
+#ifdef PPP_FILTER
+	/*
+	 * See whether we want to pass this packet, and
+	 * if it counts as link activity.
+	 */
+	adrs = *mtod(m, u_char *);	/* save address field */
+	*mtod(m, u_char *) = 0;		/* indicate inbound */
+	if (sc->sc_pass_filt.bf_insns != 0
+	    && bpf_filter(sc->sc_pass_filt.bf_insns, (u_char *) m,
+			  ilen, 0) == 0) {
+	    /* drop this packet */
+	    m_freem(m);
+	    return;
+	}
+	if (sc->sc_active_filt.bf_insns == 0
+	    || bpf_filter(sc->sc_active_filt.bf_insns, (u_char *) m, ilen, 0))
+	    sc->sc_last_recv = time.tv_sec;
+
+	*mtod(m, u_char *) = adrs;
+#else
+	/*
+	 * Record the time that we received this packet.
+	 */
 	sc->sc_last_recv = time.tv_sec;
+#endif /* PPP_FILTER */
     }
 
 #if NBPFILTER > 0
