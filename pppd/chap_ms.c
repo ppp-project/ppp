@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.30 2003/07/10 17:59:33 fcusack Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.31 2004/04/14 02:39:39 carlsonj Exp $"
 
 #ifdef CHAPMS
 
@@ -164,9 +164,11 @@ static void
 chapms_generate_challenge(unsigned char *challenge)
 {
 	*challenge++ = 8;
+#ifdef DEBUGMPPEKEY
 	if (mschap_challenge && strlen(mschap_challenge) == 8)
 		memcpy(challenge, mschap_challenge, 8);
 	else
+#endif
 		random_bytes(challenge, 8);
 }
 
@@ -174,9 +176,11 @@ static void
 chapms2_generate_challenge(unsigned char *challenge)
 {
 	*challenge++ = 16;
+#ifdef DEBUGMPPEKEY
 	if (mschap_challenge && strlen(mschap_challenge) == 16)
 		memcpy(challenge, mschap_challenge, 16);
 	else
+#endif
 		random_bytes(challenge, 16);
 }
 
@@ -207,7 +211,7 @@ chapms_verify_response(int id, char *name,
 #endif
 
 	/* Generate the expected response. */
-	ChapMS(challenge, secret, secret_len, &md);
+	ChapMS(challenge, (char *)secret, secret_len, &md);
 
 #ifdef MSLANMAN
 	/* Determine which part of response to verify against */
@@ -250,8 +254,8 @@ chapms2_verify_response(int id, char *name,
 
 	/* Generate the expected response and our mutual auth. */
 	ChapMS2(challenge, rmd->PeerChallenge, name,
-		secret, secret_len, &md,
-		saresponse, MS_CHAP2_AUTHENTICATOR);
+		(char *)secret, secret_len, &md,
+		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR);
 
 	/* compare MDs and send the appropriate status */
 	/*
@@ -326,8 +330,13 @@ chapms2_make_response(unsigned char *response, int id, char *our_name,
 {
 	challenge++;	/* skip length, should be 16 */
 	*response++ = MS_CHAP2_RESPONSE_LEN;
-	ChapMS2(challenge, mschap2_peer_challenge, our_name,
-		secret, secret_len,
+	ChapMS2(challenge,
+#ifdef DEBUGMPPEKEY
+		mschap2_peer_challenge,
+#else
+		NULL,
+#endif
+		our_name, secret, secret_len,
 		(MS_Chap2Response *) response, private,
 		MS_CHAP2_AUTHENTICATEE);
 }
@@ -335,7 +344,8 @@ chapms2_make_response(unsigned char *response, int id, char *our_name,
 static int
 chapms2_check_success(unsigned char *msg, int len, unsigned char *private)
 {
-	if ((len < MS_AUTH_RESPONSE_LENGTH + 2) || strncmp(msg, "S=", 2)) {
+	if ((len < MS_AUTH_RESPONSE_LENGTH + 2) ||
+	    strncmp((char *)msg, "S=", 2) != 0) {
 		/* Packet does not start with "S=" */
 		error("MS-CHAPv2 Success packet is badly formed.");
 		return 0;
@@ -351,7 +361,7 @@ chapms2_check_success(unsigned char *msg, int len, unsigned char *private)
 	/* Authenticator Response matches. */
 	msg += MS_AUTH_RESPONSE_LENGTH; /* Eat it */
 	len -= MS_AUTH_RESPONSE_LENGTH;
-	if ((len >= 3) && !strncmp(msg, " M=", 3)) {
+	if ((len >= 3) && !strncmp((char *)msg, " M=", 3)) {
 		msg += 3; /* Eat the delimiter */
 	} else if (len) {
 		/* Packet has extra text which does not begin " M=" */
@@ -477,7 +487,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
     SHA1_Init(&sha1Context);
     SHA1_Update(&sha1Context, PeerChallenge, 16);
     SHA1_Update(&sha1Context, rchallenge, 16);
-    SHA1_Update(&sha1Context, user, strlen(user));
+    SHA1_Update(&sha1Context, (unsigned char *)user, strlen(user));
     SHA1_Final(sha1Hash, &sha1Context);
 
     BCOPY(sha1Hash, Challenge, 8);
@@ -512,7 +522,7 @@ NTPasswordHash(char *secret, int secret_len, u_char hash[MD4_SIGNATURE_SIZE])
     MD4_CTX		md4Context;
 
     MD4Init(&md4Context);
-    MD4Update(&md4Context, secret, mdlen);
+    MD4Update(&md4Context, (unsigned char *)secret, mdlen);
     MD4Final(hash, &md4Context);
 
 }
@@ -526,7 +536,7 @@ ChapMS_NT(u_char *rchallenge, char *secret, int secret_len,
 
     /* Hash the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
-    NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
+    NTPasswordHash((char *)unicodePassword, secret_len * 2, PasswordHash);
 
     ChallengeResponse(rchallenge, PasswordHash, NTResponse);
 }
@@ -539,11 +549,12 @@ ChapMS2_NT(char *rchallenge, u_char PeerChallenge[16], char *username,
     u_char	PasswordHash[MD4_SIGNATURE_SIZE];
     u_char	Challenge[8];
 
-    ChallengeHash(PeerChallenge, rchallenge, username, Challenge);
+    ChallengeHash(PeerChallenge, (unsigned char *)rchallenge, username,
+		  Challenge);
 
     /* Hash the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
-    NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
+    NTPasswordHash((char *)unicodePassword, secret_len * 2, PasswordHash);
 
     ChallengeResponse(Challenge, PasswordHash, NTResponse);
 }
@@ -603,8 +614,9 @@ GenerateAuthenticatorResponse(char *secret, int secret_len,
 
     /* Hash (x2) the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
-    NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
-    NTPasswordHash(PasswordHash, sizeof(PasswordHash), PasswordHashHash);
+    NTPasswordHash((char *)unicodePassword, secret_len * 2, PasswordHash);
+    NTPasswordHash((char *)PasswordHash, sizeof(PasswordHash),
+		   PasswordHashHash);
 
     SHA1_Init(&sha1Context);
     SHA1_Update(&sha1Context, PasswordHashHash, sizeof(PasswordHashHash));
@@ -622,7 +634,7 @@ GenerateAuthenticatorResponse(char *secret, int secret_len,
 
     /* Convert to ASCII hex string. */
     for (i = 0; i < MAX((MS_AUTH_RESPONSE_LENGTH / 2), sizeof(Digest)); i++)
-	sprintf(&authResponse[i * 2], "%02X", Digest[i]);
+	sprintf((char *)&authResponse[i * 2], "%02X", Digest[i]);
 }
 
 
@@ -825,7 +837,7 @@ ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
 	      sizeof(response->PeerChallenge));
 
     /* Generate the NT-Response */
-    ChapMS2_NT(rchallenge, response->PeerChallenge, user,
+    ChapMS2_NT((char *)rchallenge, response->PeerChallenge, user,
 	       secret, secret_len, response->NTResp);
 
     /* Generate the Authenticator Response. */

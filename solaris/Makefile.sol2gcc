@@ -1,10 +1,12 @@
 #
 # Makefile for STREAMS modules for Solaris 2.
 #
-# $Id: Makefile.sol2gcc,v 1.2 2003/03/31 12:07:28 carlsonj Exp $
+# $Id: Makefile.sol2gcc,v 1.3 2004/04/14 02:39:39 carlsonj Exp $
 #
 
 include Makedefs.sol2
+
+COPTS += -fno-builtin
 
 COMP_OBJS = ppp_comp.o bsd-comp.o deflate.o zlib.o vjcompress.o \
 	ppp_comp_mod.o
