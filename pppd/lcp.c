@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.40 1999/05/13 00:33:26 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.41 1999/06/24 00:16:38 paulus Exp $";
 #endif
 
 /*
@@ -1819,6 +1819,8 @@ LcpEchoCheck (f)
     fsm *f;
 {
     LcpSendEchoRequest (f);
+    if (f->state != OPENED)
+	return;
 
     /*
      * Start the timer for the next interval.
