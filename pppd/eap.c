@@ -43,7 +43,7 @@
  * Based on draft-ietf-pppext-eap-srp-03.txt.
  */
 
-#define RCSID	"$Id: eap.c,v 1.3 2003/06/11 23:56:26 paulus Exp $"
+#define RCSID	"$Id: eap.c,v 1.4 2004/11/09 22:39:25 paulus Exp $"
 
 /*
  * TODO:
@@ -1445,13 +1445,13 @@ int len;
 			eap_send_nak(esp, id, EAPT_SRP);
 			break;
 		}
-		MD5Init(&mdContext);
+		MD5_Init(&mdContext);
 		typenum = id;
-		MD5Update(&mdContext, &typenum, 1);
-		MD5Update(&mdContext, secret, secret_len);
+		MD5_Update(&mdContext, &typenum, 1);
+		MD5_Update(&mdContext, secret, secret_len);
 		BZERO(secret, sizeof (secret));
-		MD5Update(&mdContext, inp, vallen);
-		MD5Final(hash, &mdContext);
+		MD5_Update(&mdContext, inp, vallen);
+		MD5_Final(hash, &mdContext);
 		eap_chap_response(esp, id, hash, esp->es_client.ea_name,
 		    esp->es_client.ea_namelen);
 		break;
@@ -1871,12 +1871,12 @@ int len;
 			eap_send_failure(esp);
 			break;
 		}
-		MD5Init(&mdContext);
-		MD5Update(&mdContext, &esp->es_server.ea_id, 1);
-		MD5Update(&mdContext, secret, secret_len);
+		MD5_Init(&mdContext);
+		MD5_Update(&mdContext, &esp->es_server.ea_id, 1);
+		MD5_Update(&mdContext, secret, secret_len);
 		BZERO(secret, sizeof (secret));
-		MD5Update(&mdContext, esp->es_challenge, esp->es_challen);
-		MD5Final(hash, &mdContext);
+		MD5_Update(&mdContext, esp->es_challenge, esp->es_challen);
+		MD5_Final(hash, &mdContext);
 		if (BCMP(hash, inp, MD5_SIGNATURE_SIZE) != 0) {
 			eap_send_failure(esp);
 			break;

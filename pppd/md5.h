@@ -57,9 +57,9 @@ typedef struct {
   unsigned char digest[16];     /* actual digest after MD5Final call */
 } MD5_CTX;
 
-void MD5Init ();
-void MD5Update ();
-void MD5Final ();
+void MD5_Init ();
+void MD5_Update ();
+void MD5_Final ();
 
 #define __MD5_INCLUDE__
 #endif /* __MD5_INCLUDE__ */

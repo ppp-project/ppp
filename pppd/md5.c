@@ -40,9 +40,9 @@
  ***********************************************************************
  **  Message-digest routines:                                         **
  **  To form the message digest for a message M                       **
- **    (1) Initialize a context buffer mdContext using MD5Init        **
- **    (2) Call MD5Update on mdContext and M                          **
- **    (3) Call MD5Final on mdContext                                 **
+ **    (1) Initialize a context buffer mdContext using MD5_Init       **
+ **    (2) Call MD5_Update on mdContext and M                         **
+ **    (3) Call MD5_Final on mdContext                                **
  **  The message digest is now in mdContext->digest[0...15]           **
  ***********************************************************************
  */
@@ -99,10 +99,10 @@ static unsigned char PADDING[64] = {
 #define UL(x)	x
 #endif
 
-/* The routine MD5Init initializes the message-digest context
+/* The routine MD5_Init initializes the message-digest context
    mdContext. All fields are set to zero.
  */
-void MD5Init (mdContext)
+void MD5_Init (mdContext)
 MD5_CTX *mdContext;
 {
   mdContext->i[0] = mdContext->i[1] = (UINT4)0;
@@ -119,7 +119,7 @@ MD5_CTX *mdContext;
    account for the presence of each of the characters inBuf[0..inLen-1]
    in the message whose digest is being computed.
  */
-void MD5Update (mdContext, inBuf, inLen)
+void MD5_Update (mdContext, inBuf, inLen)
 MD5_CTX *mdContext;
 unsigned char *inBuf;
 unsigned int inLen;
@@ -157,7 +157,7 @@ unsigned int inLen;
 /* The routine MD5Final terminates the message-digest computation and
    ends with the desired message digest in mdContext->digest[0...15].
  */
-void MD5Final (hash, mdContext)
+void MD5_Final (hash, mdContext)
 unsigned char hash[];
 MD5_CTX *mdContext;
 {
@@ -175,7 +175,7 @@ MD5_CTX *mdContext;
 
   /* pad out to 56 mod 64 */
   padLen = (mdi < 56) ? (56 - mdi) : (120 - mdi);
-  MD5Update (mdContext, PADDING, padLen);
+  MD5_Update (mdContext, PADDING, padLen);
 
   /* append length in bits and transform */
   for (i = 0, ii = 0; i < 14; i++, ii += 4)
