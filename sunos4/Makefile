@@ -1,0 +1,49 @@
+#
+# Makefile for STREAMS modules for SunOS 4.
+#
+# $Id: Makefile,v 1.1 1995/12/19 00:05:55 paulus Exp $
+#
+
+ARCH:sh = /bin/arch -k
+#CC = gcc
+
+BINDIR = /usr/local/etc
+INSTALL = install -o root -g daemon
+
+# Defining __$(ARCH)__ is for gcc's broken version of sun/vddrv.h.
+CFLAGS= -DKERNEL -I.. -O -DSUNOS4 -D$(ARCH) -D__$(ARCH)__ -DDEBUG -DNO_DLPI
+
+MODULES= ppp_mod.o ppp_ahdl_mod.o ppp_comp_mod.o if_ppp_mod.o
+
+all:	$(MODULES)
+
+ppp_mod.o:	ppp.o ppp_vdcmd.o
+	ld -r -o ppp_mod.o ppp.o ppp_vdcmd.o
+
+ppp_ahdl_mod.o: ppp_ahdlc.o ppp_ahdlc_vdcmd.o
+	ld -r -o ppp_ahdl_mod.o ppp_ahdlc.o ppp_ahdlc_vdcmd.o
+
+ppp_comp_mod.o: ppp_comp.o bsd-comp.o vjcompress.o ppp_comp_vdcmd.o
+	ld -r -o ppp_comp_mod.o ppp_comp.o bsd-comp.o vjcompress.o \
+	 ppp_comp_vdcmd.o
+
+bsd-comp.o: ../modules/bsd-comp.c
+	$(CC) $(CFLAGS) -c $?
+ppp.o:	../modules/ppp.c
+	$(CC) $(CFLAGS) -c $?
+ppp_ahdlc.o: ../modules/ppp_ahdlc.c
+	$(CC) $(CFLAGS) -c $?
+ppp_comp.o: ../modules/ppp_comp.c
+	$(CC) $(CFLAGS) -c $?
+vjcompress.o: ../modules/vjcompress.c
+	$(CC) $(CFLAGS) -c $?
+
+if_ppp_mod.o:	if_ppp.o if_ppp_vdcmd.o
+	ld -r -o if_ppp_mod.o if_ppp.o if_ppp_vdcmd.o
+
+install: all
+	$(INSTALL) $(MODULES) $(BINDIR)
+	./ppp.INSTALL
+
+clean:
+	rm -f ppp ppp_comp ppp_ahdl *.o *~ core
