@@ -255,7 +255,6 @@ static void set_flags (int fd, int flags)
 
 void sys_init(void)
 {
-    int osmaj, osmin, ospatch;
     int flags;
 
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
@@ -286,11 +285,6 @@ void sys_init(void)
 
     FD_ZERO(&in_fds);
     max_in_fd = 0;
-
-    uname(&utsname);
-    osmaj = osmin = ospatch = 0;
-    sscanf(utsname.release, "%d.%d.%d", &osmaj, &osmin, &ospatch);
-    kernel_version = KVERSION(osmaj, osmin, ospatch);
 }
 
 /********************************************************************
@@ -1694,6 +1688,7 @@ int ppp_available(void)
     struct ifreq ifr;
     int    size;
     int    my_version, my_modification, my_patch;
+    int osmaj, osmin, ospatch;
 
     no_ppp_msg = 
 	"This system lacks kernel support for PPP.  This could be because\n"
@@ -1703,29 +1698,37 @@ int ppp_available(void)
 	"ppp.o exists in /lib/modules/`uname -r`/net.\n"
 	"See README.linux file in the ppp distribution for more details.\n";
 
-    fd = open("/dev/ppp", O_RDWR);
-    if (fd < 0 && errno == ENOENT) {
-	/* try making it and see if that helps. */
-	if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
-		  makedev(108, 0)) >= 0) {
-	    fd = open("/dev/ppp", O_RDWR);
-	    if (fd >= 0)
-		info("Created /dev/ppp device node");
-	    else
-		unlink("/dev/ppp");	/* didn't work, undo the mknod */
-	} else if (errno == EEXIST) {
-	    fd = open("/dev/ppp", O_RDWR);
-	}
-    }
-    if (fd >= 0) {
-	new_style_driver = 1;
+    /* get the kernel version now, since we are called before sys_init */
+    uname(&utsname);
+    osmaj = osmin = ospatch = 0;
+    sscanf(utsname.release, "%d.%d.%d", &osmaj, &osmin, &ospatch);
+    kernel_version = KVERSION(osmaj, osmin, ospatch);
 
-	/* XXX should get from driver */
-	driver_version = 2;
-	driver_modification = 4;
-	driver_patch = 0;
-	close(fd);
-	return 1;
+    if (kernel_version >= KVERSION(2,3,13)) {
+	fd = open("/dev/ppp", O_RDWR);
+	if (fd < 0 && errno == ENOENT) {
+	    /* try making it and see if that helps. */
+	    if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
+		      makedev(108, 0)) >= 0) {
+		fd = open("/dev/ppp", O_RDWR);
+		if (fd >= 0)
+		    info("Created /dev/ppp device node");
+		else
+		    unlink("/dev/ppp");	/* didn't work, undo the mknod */
+	    } else if (errno == EEXIST) {
+		fd = open("/dev/ppp", O_RDWR);
+	    }
+	}
+	if (fd >= 0) {
+	    new_style_driver = 1;
+
+	    /* XXX should get from driver */
+	    driver_version = 2;
+	    driver_modification = 4;
+	    driver_patch = 0;
+	    close(fd);
+	    return 1;
+	}
     }
 
 /*
@@ -2237,7 +2240,7 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
 	    if (ioctl(mfd, TIOCSPTLCK, &ptn) < 0)
 		warn("Couldn't unlock pty slave %s: %m", pty_name);
 #endif
-	    if ((sfd = open(pty_name, O_RDWR)) < 0)
+	    if ((sfd = open(pty_name, O_RDWR | O_NOCTTY)) < 0)
 		warn("Couldn't open pty slave %s: %m", pty_name);
 	}
     }
