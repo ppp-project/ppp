@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.21 1995/04/24 05:56:13 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.22 1995/05/01 01:44:30 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -65,8 +65,8 @@ int ifunit;			/* Interface unit number */
 
 char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
-static char pidfilename[MAXPATHLEN];
-
+static char pidfilename[MAXPATHLEN];	/* name of pid file */
+static char default_devnam[MAXPATHLEN];	/* name of default device */
 static pid_t	pid;		/* Our pid */
 static pid_t	pgrpid;		/* Process Group ID */
 static uid_t uid;		/* Our real user-id */
@@ -160,6 +160,7 @@ main(argc, argv)
     p = ttyname(0);
     if (p)
 	strcpy(devnam, p);
+    strcpy(default_devnam, devnam);
 
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	perror("couldn't get hostname");
@@ -191,6 +192,13 @@ main(argc, argv)
 	die(1);
     check_auth_options();
     setipdefault();
+
+    /*
+     * If the user has specified the default device name explicitly,
+     * pretend they hadn't.
+     */
+    if (!default_device && strcmp(devnam, default_devnam) == 0)
+	default_device = 1;
 
     /*
      * Initialize system-dependent stuff and magic number package.
