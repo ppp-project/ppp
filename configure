@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.22 1999/09/22 18:40:53 masputra Exp $
+# $Id: configure,v 1.23 1999/11/15 01:56:26 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -88,7 +88,7 @@ fi
 case $state in
   neolithic) 
     echo "This is a newer release on an outdated OS ($system)."
-    echo " This software may  or may not work on this OS."
+    echo " This software may or may not work on this OS."
     echo " You may want to download an older version of PPP for this OS.";;
   ancient)
     echo "This is an old release of a supported OS ($system)."
