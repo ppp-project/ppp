@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.32 1998/09/02 20:58:13 christos Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.33 1998/09/04 18:49:16 christos Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -385,10 +385,22 @@ set_up_tty(fd, local)
     }
 
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
-    if (crtscts > 0 && !local)
-	tios.c_cflag |= CRTSCTS;
-    else if (crtscts < 0)
+    if (crtscts > 0 && !local) {
+        if (crtscts == 2) {
+#ifdef CDTRCTS
+            tios.c_cflag |= CDTRCTS;
+#else
+	    syslog(LOG_ERR, "System does not support DTR/CTS flow control");
+	    die(1);
+#endif
+	} else
+	    tios.c_cflag |= CRTSCTS;
+    } else if (crtscts < 0) {
 	tios.c_cflag &= ~CRTSCTS;
+#ifdef CDTRCTS
+	tios.c_cflag &= ~CDTRCTS;
+#endif
+    }
 
     tios.c_cflag |= CS8 | CREAD | HUPCL;
     if (local || !modem)
