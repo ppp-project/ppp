@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.6 2002/03/14 21:54:06 dfs Exp $";
+"$Id: plugin.c,v 1.7 2002/04/02 13:11:00 dfs Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -275,9 +275,13 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     int fd;
     struct ifreq ifr;
 
-    /* Only do it if name is "ethXXX" */
+    /* Only do it if name is "ethXXX" or "nic-XXXX.  In latter case,
+       strip off the "nic-" */
     /* Thanks to Russ Couturier for this fix */
-    if (strlen(cmd) < 4 || strncmp(cmd, "eth", 3)) {
+    if (strlen(cmd) > 4 && !strncmp(cmd, "nic-", 4)) {
+	/* Strip off "nic-" */
+	cmd += 4;
+    } else if (strlen(cmd) < 4 || strncmp(cmd, "eth", 3)) {
 	if (OldDevnameHook) return OldDevnameHook(cmd, argv, doit);
 	return 0;
     }
