@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.1 1995/05/19 02:29:03 paulus Exp $
+ * $Id: pppio.h,v 1.2 1995/05/29 06:46:13 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -40,6 +40,9 @@
 #define PPPIO_XACCM	_PPPIO(138)	/* set transmit asyncmap */
 #define PPPIO_RACCM	_PPPIO(139)	/* set receive asyncmap */
 #define PPPIO_VJINIT	_PPPIO(140)	/* initialize VJ comp/decomp */
+#define PPPIO_ATTACH	_PPPIO(141)	/* attach to a ppa (without putmsg) */
+#define PPPIO_LASTMOD	_PPPIO(142)	/* mark last ppp module */
+#define PPPIO_GCLEAN	_PPPIO(143)	/* get 8-bit-clean flags */
 
 /*
  * Values for PPPIO_CFLAGS
@@ -60,6 +63,14 @@
 #define CCP_FATALERROR	0x800		/* (status) fatal error ditto */
 #define CCP_COMP_RUN	0x1000		/* (status) seen CCP ack sent */
 #define CCP_DECOMP_RUN	0x2000		/* (status) seen CCP ack rcvd */
+
+/*
+ * Values for 8-bit-clean flags.
+ */
+#define RCV_B7_0	1		/* have rcvd char with bit 7 = 0 */
+#define RCV_B7_1	2		/* have rcvd char with bit 7 = 1 */
+#define RCV_EVNP	4		/* have rcvd char with even parity */
+#define RCV_ODDP	8		/* have rcvd char with odd parity */
 
 /*
  * Values for the first byte of M_CTL messages passed between
