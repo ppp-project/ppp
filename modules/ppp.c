@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.3 1996/01/01 22:48:39 paulus Exp $
+ * $Id: ppp.c,v 1.4 1996/04/04 02:45:29 paulus Exp $
  */
 
 /*
@@ -58,6 +58,7 @@
 #endif /* SVR4 */
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
+#include <net/bpf.h>
 #include "ppp_mod.h"
 
 #ifdef __STDC__
@@ -106,6 +107,8 @@ typedef struct upperstr {
     struct pppstat stats;	/* statistics */
     time_t last_sent;		/* time last NP packet sent */
     time_t last_recv;		/* time last NP packet rcvd */
+    struct bpf_program active_f;/* filter for active packets */
+    struct bpf_program pass_f;	/* filter for packets to pass */
 #ifdef SOL2
     kstat_t *kstats;		/* stats for netstat */
 #endif /* SOL2 */
@@ -378,6 +381,15 @@ pppclose(q, flag)
 	kstat_delete(up->kstats);
 #endif
 
+    if (up->active_f.bf_insns) {
+	kmem_free(up->active_f.bf_insns, up->active_f.bf_len);
+	up->active_f.bf_insns = 0;
+    }
+    if (up->pass_f.bf_insns) {
+	kmem_free(up->pass_f.bf_insns, up->pass_f.bf_len);
+	up->pass_f.bf_insns = 0;
+    }
+
     q->q_ptr = NULL;
     WR(q)->q_ptr = NULL;
 
@@ -415,6 +427,9 @@ pppuwput(q, mp)
     int error, n, sap;
     mblk_t *mq;
     struct ppp_idle *pip;
+    int len;
+    struct bpf_insn *ip;
+    struct bpf_program *dest;
 
     us = (upperstr_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
@@ -439,8 +454,10 @@ pppuwput(q, mp)
 	    break;
 	}
 #ifdef NO_DLPI
-	if ((us->flags & US_CONTROL) == 0)
-	    us->ppa->last_sent = time;
+	if (!pass_packet(us->ppa, mp, 1)) {
+	    freemsg(mp);
+	    break;
+	}
 #endif
 	if (!send_data(mp, us))
 	    putq(q, mp);
@@ -650,6 +667,34 @@ pppuwput(q, mp)
 	    mq->b_wptr += sizeof(struct ppp_idle);
 	    iop->ioc_count = sizeof(struct ppp_idle);
 	    error = 0;
+	    break;
+
+	case PPPIO_PASSFILT:
+	case PPPIO_ACTIVEFILT:
+	    if ((us->flags & US_CONTROL) == 0)
+		break;
+	    len = iop->ioc_count;
+	    if (len > BPF_MAXINSNS * sizeof(struct bpf_insn)
+		|| len % sizeof(struct bpf_insn) != 0)
+		break;
+	    if (len > 0) {
+		if (!bpf_validate((struct bpf_insn *) mp->b_cont->b_rptr,
+				  len / sizeof(struct bpf_insn)))
+		    break;
+		ip = (struct bpf_insn *) ALLOC_NOSLEEP(len);
+		if (ip == 0) {
+		    error = ENOSR;
+		    break;
+		}
+		bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)ip, len);
+	    } else
+		ip = 0;
+	    dest = iop->ioc_cmd == PPPIO_ACTIVEFILT?
+		&us->active_f: &us->pass_f;
+	    if (dest->bf_insns != 0)
+		kmem_free((caddr_t) dest->bf_insns, dest->bf_len);
+	    dest->bf_len = len;
+	    dest->bf_insns = ip;
 	    break;
 
 #ifdef LACHTCP
@@ -960,7 +1005,6 @@ dlpi_request(q, mp, us)
 	    DPRINT2("dlpi data too large (%d > %d)\n", len, ppa->mtu);
 	    break;
 	}
-	ppa->last_sent = time;
 	/* this assumes PPP_HDRLEN <= sizeof(dl_unitdata_req_t) */
 	if (mp->b_datap->db_ref > 1) {
 	    np = allocb(PPP_HDRLEN, BPRI_HI);
@@ -979,8 +1023,12 @@ dlpi_request(q, mp, us)
 	mp->b_rptr[1] = PPP_UI;
 	mp->b_rptr[2] = us->sap >> 8;
 	mp->b_rptr[3] = us->sap;
-	if (!send_data(mp, us))
-	    putq(q, mp);
+	if (!pass_packet(ppa, mp, 1))
+	    freemsg(mp);
+	else {
+	    if (!send_data(mp, us))
+		putq(q, mp);
+	}
 	return;
 
 #if DL_CURRENT_VERSION >= 2
@@ -1070,6 +1118,33 @@ dlpi_ok(q, prim)
     qreply(q, reply);
 }
 #endif /* NO_DLPI */
+
+static int
+pass_packet(ppa, mp, outbound)
+    upperstr_t *ppa;
+    mblk_t *mp;
+    int outbound;
+{
+    int len, adr, pass;
+
+    if (PPP_PROTOCOL(mp->b_rptr) >= 0x8000
+	|| (ppa->pass_f.bf_insns == 0 && ppa->active_f.bf_insns == 0))
+	return 1;
+    len = msgdsize(mp);
+    adr = *mp->b_rptr;
+    *mp->b_rptr = outbound;
+    pass = ppa->pass_f.bf_insns == 0
+	|| bpf_filter(ppa->pass_f.bf_insns, mp, len, 0);
+    if (pass && (ppa->active_f.bf_insns == 0
+		 || bpf_filter(ppa->active_f.bf_insns, mp, len, 0))) {
+	if (outbound)
+	    ppa->last_sent = time;
+	else
+	    ppa->last_recv = time;
+    }
+    *mp->b_rptr = adr;
+    return pass;
+}
 
 static int
 send_data(mp, us)
@@ -1444,6 +1519,10 @@ ppplrput(q, mp)
 #ifdef INCR_IPACKETS
 	    INCR_IPACKETS(ppa);
 #endif
+	    if (!pass_packet(ppa, mp, 0)) {
+		freemsg(mp);
+		break;
+	    }
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
 		/*
@@ -1454,7 +1533,6 @@ ppplrput(q, mp)
 		    putq(us->q, mp);
 		else
 		    putq(q, mp);
-		ppa->last_recv = time;
 		break;
 	    }
 	}

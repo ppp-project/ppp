@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.6 1995/10/27 03:36:58 paulus Exp $
+ * $Id: pppio.h,v 1.7 1996/04/04 02:46:59 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -47,6 +47,8 @@
 #define PPPIO_BIND	_PPPIO(145)	/* bind to SAP */
 #define PPPIO_NPMODE	_PPPIO(146)	/* set mode for handling data pkts */
 #define PPPIO_GIDLE	_PPPIO(147)	/* get time since last data pkt */
+#define PPPIO_PASSFILT	_PPPIO(148)	/* set filter for packets to pass */
+#define PPPIO_ACTIVEFILT _PPPIO(149)	/* set filter for "link active" pkts */
 
 /*
  * Values for PPPIO_CFLAGS
