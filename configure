@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.8 1996/05/24 07:03:01 paulus Exp $
+# $Id: configure,v 1.9 1996/06/26 00:50:31 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -35,6 +35,7 @@ case $system in
   OSF1)
     makext="osf";
     case $release in
+      V1.*)   state="ancient"; ksrc="osf1";;
       V[23].*)	state="known"; ksrc="osf1";;
       V[4-9]*) state="late"; ksrc="osf1";;
     esac;;
@@ -63,6 +64,11 @@ case $system in
     esac;;
 esac
 
+if [ -d $ksrc ]; then :; else
+  state="notincluded"
+  unset ksrc
+fi
+
 case $state in
   ancient)
     echo "This is an old release of a supported OS ($system)."
@@ -78,9 +84,12 @@ case $state in
     echo "this software was released.  It may or may not work.";;
   unknown)
     echo "This software has not been ported to this system.  Sorry.";;
+  notincluded)
+    echo "Support for this system has not been included"
+    echo "in this distribution.  Sorry.";;
 esac
 
-if [ $ksrc ]; then
+if [ "$ksrc" ]; then
   echo "Creating links to Makefiles."
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
