@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.21 1999/05/12 06:15:58 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.22 1999/06/24 00:17:18 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -703,7 +703,7 @@ read_packet(buf)
 	flags = 0;
 	len = getmsg(pppfd, &ctrl, &data, &flags);
 	if (len < 0) {
-	    if (errno = EAGAIN || errno == EINTR)
+	    if (errno == EAGAIN || errno == EINTR)
 		return -1;
 	    fatal("Error reading packet: %m");
 	}
