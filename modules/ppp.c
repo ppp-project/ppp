@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.7 1996/08/28 06:35:30 paulus Exp $
+ * $Id: ppp.c,v 1.8 1996/09/14 05:18:45 paulus Exp $
  */
 
 /*
@@ -159,6 +159,7 @@ static void debug_dump __P((queue_t *, mblk_t *));
 static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
+static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
 
 #define PPP_ID 0xb1a6
 static struct module_info ppp_info = {
@@ -667,7 +668,6 @@ pppuwput(q, mp)
 
 #ifdef LACHTCP
 	case SIOCSIFNAME:
-	    printf("SIOCSIFNAME\n");
 	    /* Sent from IP down to us.  Attach the ifstats structure.  */
 	    if (iop->ioc_count != sizeof(struct ifreq) || us->ppa == 0)
 	        break;
@@ -715,7 +715,6 @@ pppuwput(q, mp)
 	    break;
 
 	case SIOCGIFFLAGS:
-	    printf("SIOCGIFFLAGS\n");
 	    if (!(us->flags & US_CONTROL)) {
 		if (us->ppa)
 		    us = us->ppa;
@@ -727,7 +726,6 @@ pppuwput(q, mp)
 	    break;
 
 	case SIOCSIFFLAGS:
-	    printf("SIOCSIFFLAGS\n");
 	    if (!(us->flags & US_CONTROL)) {
 		if (us->ppa)
 		    us = us->ppa;
@@ -739,7 +737,6 @@ pppuwput(q, mp)
 	    break;
 
 	case SIOCSIFADDR:
-	    printf("SIOCSIFADDR\n");
 	    if (!(us->flags & US_CONTROL)) {
 		if (us->ppa)
 		    us = us->ppa;
