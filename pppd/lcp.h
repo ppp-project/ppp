@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: lcp.h,v 1.1 1993/11/11 03:54:25 paulus Exp $
+ * $Id: lcp.h,v 1.2 1994/04/11 07:13:44 paulus Exp $
  */
 
 /*
@@ -27,10 +27,16 @@
 #define CI_AUTHTYPE	3	/* Authentication Type */
 #define CI_QUALITY	4	/* Quality Protocol */
 #define CI_MAGICNUMBER	5	/* Magic Number */
-#define CI_KEEPALIVE	6	/* Keep Alive Parameters - OBSOLETE */
 #define CI_PCOMPRESSION	7	/* Protocol Field Compression */
 #define CI_ACCOMPRESSION 8	/* Address/Control Field Compression */
 
+/*
+ * LCP-specific packet types.
+ */
+#define PROTREJ		8	/* Protocol Reject */
+#define ECHOREQ		9	/* Echo Request */
+#define ECHOREP		10	/* Echo Reply */
+#define DISCREQ		11	/* Discard Request */
 
 /*
  * The state of options is described by an lcp_options structure.
@@ -73,6 +79,8 @@ void lcp_lowerdown __ARGS((int));
 void lcp_input __ARGS((int, u_char *, int));
 void lcp_protrej __ARGS((int));
 void lcp_sprotrej __ARGS((int, u_char *, int));
+int  lcp_printpkt __ARGS((u_char *, int,
+			  void (*) __ARGS((void *, char *, ...)), void *));
 
 extern int lcp_warnloops;	/* Warn about a loopback this often */
 #define DEFWARNLOOPS	10	/* Default value for above */

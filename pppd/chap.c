@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.1 1993/11/11 03:54:25 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.2 1994/04/11 07:13:44 paulus Exp $";
 #endif
 
 /*
@@ -736,6 +736,71 @@ ChapSendResponse(cstate)
     cstate->clientstate = CHAPCS_RESPONSE;
     TIMEOUT(ChapResponseTimeout, (caddr_t) cstate, cstate->timeouttime);
     ++cstate->resp_transmits;
+}
+
+/*
+ * ChapPrintPkt - print the contents of a CHAP packet.
+ */
+char *ChapCodenames[] = {
+    "Challenge", "Response", "Success", "Failure"
+};
+
+int
+ChapPrintPkt(p, plen, printer, arg)
+    u_char *p;
+    int plen;
+    void (*printer) __ARGS((void *, char *, ...));
+    void *arg;
+{
+    int code, id, len;
+    int clen, nlen;
+    u_char x;
+
+    if (plen < CHAP_HEADERLEN)
+	return 0;
+    GETCHAR(code, p);
+    GETCHAR(id, p);
+    GETSHORT(len, p);
+    if (len < CHAP_HEADERLEN || len > plen)
+	return 0;
+
+    if (code >= 1 && code <= sizeof(ChapCodenames) / sizeof(char *))
+	printer(arg, " %s", ChapCodenames[code-1]);
+    else
+	printer(arg, " code=0x%x", code);
+    printer(arg, " id=0x%x", id);
+    len -= CHAP_HEADERLEN;
+    switch (code) {
+    case CHAP_CHALLENGE:
+    case CHAP_RESPONSE:
+	if (len < 1)
+	    break;
+	clen = p[0];
+	if (len < clen + 1)
+	    break;
+	++p;
+	nlen = len - clen - 1;
+	printer(arg, " <");
+	for (; clen > 0; --clen) {
+	    GETCHAR(x, p);
+	    printer(arg, "%.2x", x);
+	}
+	printer(arg, ">, name = ");
+	print_string((char *)p, nlen, printer, arg);
+	break;
+    case CHAP_FAILURE:
+    case CHAP_SUCCESS:
+	printer(arg, " ");
+	print_string((char *)p, len, printer, arg);
+	break;
+    default:
+	for (clen = len; clen > 0; --clen) {
+	    GETCHAR(x, p);
+	    printer(arg, " %.2x", x);
+	}
+    }
+
+    return len + CHAP_HEADERLEN;
 }
 
 #ifdef NO_DRAND48
