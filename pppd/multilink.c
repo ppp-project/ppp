@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -42,9 +43,16 @@
 
 bool endpoint_specified;	/* user gave explicit endpoint discriminator */
 char *bundle_id;		/* identifier for our bundle */
+char *blinks_id;		/* key for the list of links */
+bool doing_multilink;		/* multilink was enabled and agreed to */
+bool multilink_master;		/* we own the multilink bundle */
 
 extern TDB_CONTEXT *pppdb;
 extern char db_key[];
+
+static void make_bundle_links __P((int append));
+static void remove_bundle_link __P((void));
+static void iterate_bundle_links __P((void (*func) __P((char *))));
 
 static int get_default_epdisc __P((struct epdisc *));
 static int parse_num __P((char *str, const char *key, int *valp));
@@ -71,6 +79,7 @@ mp_check_options()
 	lcp_options *wo = &lcp_wantoptions[0];
 	lcp_options *ao = &lcp_allowoptions[0];
 
+	doing_multilink = 0;
 	if (!multilink)
 		return;
 	/* if we're doing multilink, we have to negotiate MRRU */
@@ -103,6 +112,18 @@ mp_join_bundle()
 	char *p;
 	TDB_DATA key, pid, rec;
 
+	if (doing_multilink) {
+		/* have previously joined a bundle */
+		if (!go->neg_mrru || !ho->neg_mrru) {
+			notice("oops, didn't get multilink on renegotiation");
+			lcp_close(0, "multilink required");
+			return 0;
+		}
+		/* XXX should check the peer_authname and ho->endpoint
+		   are the same as previously */
+		return 0;
+	}
+
 	if (!go->neg_mrru || !ho->neg_mrru) {
 		/* not doing multilink */
 		if (go->neg_mrru)
@@ -121,6 +142,8 @@ mp_join_bundle()
 		netif_set_mtu(0, mtu);
 		return 0;
 	}
+
+	doing_multilink = 1;
 
 	/*
 	 * Find the appropriate bundle or join a new one.
@@ -147,6 +170,13 @@ mp_join_bundle()
 	if (bundle_name)
 		p += slprintf(p, bundle_id+l-p, "/%v", bundle_name);
 
+	/* Make the key for the list of links belonging to the bundle */
+	l = p - bundle_id;
+	blinks_id = malloc(l + 7);
+	if (blinks_id == NULL)
+		novm("bundle links key");
+	slprintf(blinks_id, l + 7, "BUNDLE_LINKS=%s", bundle_id + 7);
+
 	/*
 	 * For demand mode, we only need to configure the bundle
 	 * and attach the link.
@@ -170,8 +200,10 @@ mp_join_bundle()
 	if (pid.dptr != NULL) {
 		/* bundle ID exists, see if the pppd record exists */
 		rec = tdb_fetch(pppdb, pid);
-		if (rec.dptr != NULL) {
-			/* it is, parse the interface number */
+		if (rec.dptr != NULL && rec.dsize > 0) {
+			/* make sure the string is null-terminated */
+			rec.dptr[rec.dsize-1] = 0;
+			/* parse the interface number */
 			parse_num(rec.dptr, "IFNAME=ppp", &unit);
 			/* check the pid value */
 			if (!parse_num(rec.dptr, "PPPD_PID=", &pppd_pid)
@@ -188,6 +220,7 @@ mp_join_bundle()
 		if (bundle_attach(unit)) {
 			set_ifunit(0);
 			script_setenv("BUNDLE", bundle_id + 7, 0);
+			make_bundle_links(1);
 			tdb_writeunlock(pppdb);
 			info("Link attached to %s", ifname);
 			return 1;
@@ -200,9 +233,155 @@ mp_join_bundle()
 	set_ifunit(1);
 	netif_set_mtu(0, mtu);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
+	make_bundle_links(0);
 	tdb_writeunlock(pppdb);
 	info("New bundle %s created", ifname);
+	multilink_master = 1;
 	return 0;
+}
+
+void mp_exit_bundle()
+{
+	tdb_writelock(pppdb);
+	remove_bundle_link();
+	tdb_writeunlock(pppdb);
+}
+
+static void sendhup(char *str)
+{
+	int pid;
+
+	if (parse_num(str, "PPPD_PID=", &pid) && pid != getpid()) {
+		if (debug)
+			dbglog("sending SIGHUP to process %d", pid);
+		kill(pid, SIGHUP);
+	}
+}
+
+void mp_bundle_terminated()
+{
+	TDB_DATA key;
+
+	bundle_terminating = 1;
+	upper_layers_down(0);
+	notice("Connection terminated.");
+	print_link_stats();
+	if (!demand) {
+		remove_pidfiles();
+		script_unsetenv("IFNAME");
+	}
+
+	tdb_writelock(pppdb);
+	destroy_bundle();
+	iterate_bundle_links(sendhup);
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	tdb_delete(pppdb, key);
+	tdb_writeunlock(pppdb);
+	
+new_phase(PHASE_DEAD);
+}
+
+static void make_bundle_links(int append)
+{
+	TDB_DATA key, rec;
+	char *p;
+	char entry[32];
+	int l;
+
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	slprintf(entry, sizeof(entry), "%s;", db_key);
+	p = entry;
+	if (append) {
+		rec = tdb_fetch(pppdb, key);
+		if (rec.dptr != NULL && rec.dsize > 0) {
+			rec.dptr[rec.dsize-1] = 0;
+			if (strstr(rec.dptr, db_key) != NULL) {
+				/* already in there? strange */
+				warn("link entry already exists in tdb");
+				return;
+			}
+			l = rec.dsize + strlen(entry);
+			p = malloc(l);
+			if (p == NULL)
+				novm("bundle link list");
+			slprintf(p, l, "%s%s", rec.dptr, entry);
+		} else {
+			warn("bundle link list not found");
+		}
+		if (rec.dptr != NULL)
+			free(rec.dptr);
+	}
+	rec.dptr = p;
+	rec.dsize = strlen(p) + 1;
+	if (tdb_store(pppdb, key, rec, TDB_REPLACE))
+		error("couldn't %s bundle link list",
+		      append? "update": "create");
+	if (p != entry)
+		free(p);
+}
+
+static void remove_bundle_link()
+{
+	TDB_DATA key, rec;
+	char entry[32];
+	char *p, *q;
+	int l;
+
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	slprintf(entry, sizeof(entry), "%s;", db_key);
+
+	rec = tdb_fetch(pppdb, key);
+	if (rec.dptr == NULL || rec.dsize <= 0) {
+		if (rec.dptr != NULL)
+			free(rec.dptr);
+		return;
+	}
+	rec.dptr[rec.dsize-1] = 0;
+	p = strstr(rec.dptr, entry);
+	if (p != NULL) {
+		q = p + strlen(entry);
+		l = strlen(q) + 1;
+		memmove(p, q, l);
+		rec.dsize = p - rec.dptr + l;
+		if (tdb_store(pppdb, key, rec, TDB_REPLACE))
+			error("couldn't update bundle link list (removal)");
+	}
+	free(rec.dptr);
+}
+
+static void iterate_bundle_links(void (*func)(char *))
+{
+	TDB_DATA key, rec, pp;
+	char *p, *q;
+
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	rec = tdb_fetch(pppdb, key);
+	if (rec.dptr == NULL || rec.dsize <= 0) {
+		error("bundle link list not found (iterating list)");
+		if (rec.dptr != NULL)
+			free(rec.dptr);
+		return;
+	}
+	p = rec.dptr;
+	p[rec.dsize-1] = 0;
+	while ((q = strchr(p, ';')) != NULL) {
+		*q = 0;
+		key.dptr = p;
+		key.dsize = q - p;
+		pp = tdb_fetch(pppdb, key);
+		if (pp.dptr != NULL && pp.dsize > 0) {
+			pp.dptr[pp.dsize-1] = 0;
+			func(pp.dptr);
+		}
+		if (pp.dptr != NULL)
+			free(pp.dptr);
+		p = q + 1;
+	}
+	free(rec.dptr);
 }
 
 static int

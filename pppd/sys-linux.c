@@ -593,7 +593,7 @@ void generic_disestablish_ppp(int dev_fd)
 	if (demand) {
 	    modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	    looped = 1;
-	} else if (ppp_dev_fd >= 0) {
+	} else if (!doing_multilink && ppp_dev_fd >= 0) {
 	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
 	    ppp_dev_fd = -1;
@@ -710,6 +710,18 @@ int bundle_attach(int ifnum)
 
 	ifunit = ifnum;
 	return 1;
+}
+
+/*
+ * destroy_bundle - tell the driver to destroy our bundle.
+ */
+void destroy_bundle(void)
+{
+	if (ppp_dev_fd >= 0) {
+		close(ppp_dev_fd);
+		remove_fd(ppp_dev_fd);
+		ppp_dev_fd = -1;
+	}
 }
 
 /********************************************************************
@@ -1086,15 +1098,21 @@ int read_packet (unsigned char *buf)
 	if (nr < 0 && errno == ENXIO)
 	    return 0;
     }
-    if (nr < 0 && new_style_driver && ppp_dev_fd >= 0) {
+    if (nr < 0 && new_style_driver && ppp_dev_fd >= 0 && !bundle_eof) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
 	if (nr < 0 && errno != EWOULDBLOCK && errno != EAGAIN
 	    && errno != EIO && errno != EINTR)
 	    error("read /dev/ppp: %m");
 	if (nr < 0 && errno == ENXIO)
-	    return 0;
+	    nr = 0;
+	if (nr == 0 && doing_multilink) {
+	    remove_fd(ppp_dev_fd);
+	    bundle_eof = 1;
+	}
     }
+    if (new_style_driver && ppp_fd < 0 && ppp_dev_fd < 0)
+	nr = 0;
     return (new_style_driver && nr > 0)? nr+2: nr;
 }
 

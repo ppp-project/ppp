@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.144 2004/11/09 22:35:02 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.145 2004/11/12 10:30:51 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -165,11 +165,11 @@ void (*snoop_recv_hook) __P((unsigned char *p, int len)) = NULL;
 void (*snoop_send_hook) __P((unsigned char *p, int len)) = NULL;
 
 static int conn_running;	/* we have a [dis]connector running */
-static int devfd;		/* fd of underlying device */
-static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
-static int fd_devnull;		/* fd for /dev/null */
 
+int fd_devnull;			/* fd for /dev/null */
+int devfd = -1;			/* fd of underlying device */
+int fd_ppp = -1;		/* fd for talking PPP */
 int phase;			/* where the link is at */
 int kill_link;
 int open_ccp_flag;
@@ -206,6 +206,9 @@ unsigned link_connect_time;
 int link_stats_valid;
 
 int error_count;
+
+bool bundle_eof;
+bool bundle_terminating;
 
 /*
  * We maintain a list of child process pids and
@@ -488,12 +491,13 @@ main(argc, argv)
 	 * Configure the interface and mark it up, etc.
 	 */
 	demand_conf();
-	create_linkpidfile(getpid());
     }
 
     do_callback = 0;
     for (;;) {
 
+	bundle_eof = 0;
+	bundle_terminating = 0;
 	listen_time = 0;
 	need_holdoff = 1;
 	devfd = -1;
@@ -527,111 +531,27 @@ main(argc, argv)
 	    info("Starting link");
 	}
 
-	new_phase(PHASE_SERIALCONN);
-
-	devfd = the_channel->connect();
-	if (devfd < 0)
-	    goto fail;
-
-	/* set up the serial device as a ppp interface */
-#ifdef USE_TDB
-	tdb_writelock(pppdb);
-#endif
-	fd_ppp = the_channel->establish_ppp(devfd);
-	if (fd_ppp < 0) {
-#ifdef USE_TDB
-	    tdb_writeunlock(pppdb);
-#endif
-	    status = EXIT_FATAL_ERROR;
-	    goto disconnect;
-	}
-	/* create the pid file, now that we've obtained a ppp interface */
-	if (!demand)
-	    create_linkpidfile(getpid());
-
-	if (!demand && ifunit >= 0)
-	    set_ifunit(1);
-#ifdef USE_TDB
-	tdb_writeunlock(pppdb);
-#endif
-
-	/*
-	 * Start opening the connection and wait for
-	 * incoming events (reply, timeout, etc.).
-	 */
-	if (ifunit >= 0)
-		notice("Connect: %s <--> %s", ifname, ppp_devnam);
-	else
-		notice("Starting negotiation on %s", ppp_devnam);
 	gettimeofday(&start_time, NULL);
 	script_unsetenv("CONNECT_TIME");
 	script_unsetenv("BYTES_SENT");
 	script_unsetenv("BYTES_RCVD");
-	lcp_lowerup(0);
 
-	add_fd(fd_ppp);
 	lcp_open(0);		/* Start protocol */
-	status = EXIT_NEGOTIATION_FAILED;
-	new_phase(PHASE_ESTABLISH);
 	while (phase != PHASE_DEAD) {
 	    handle_events();
 	    get_input();
-	    if (kill_link)
+	    if (kill_link) {
+		bundle_terminating = 1;
 		lcp_close(0, "User request");
+		if (phase == PHASE_MASTER)
+		    mp_bundle_terminated();
+	    }
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK || phase == PHASE_RUNNING) {
 		    ccp_fsm[0].flags = OPT_RESTART; /* clears OPT_SILENT */
 		    (*ccp_protent.open)(0);
 		}
 	    }
-	}
-
-	print_link_stats();
-
-	/*
-	 * Delete pid file before disestablishing ppp.  Otherwise it
-	 * can happen that another pppd gets the same unit and then
-	 * we delete its pid file.
-	 */
-	if (!demand) {
-	    if (pidfilename[0] != 0
-		&& unlink(pidfilename) < 0 && errno != ENOENT)
-		warn("unable to delete pid file %s: %m", pidfilename);
-	    pidfilename[0] = 0;
-	}
-
-	/*
-	 * If we may want to bring the link up again, transfer
-	 * the ppp unit back to the loopback.  Set the
-	 * real serial device back to its normal mode of operation.
-	 */
-	remove_fd(fd_ppp);
-	clean_check();
-	the_channel->disestablish_ppp(devfd);
-	fd_ppp = -1;
-	if (!hungup)
-	    lcp_lowerdown(0);
-	if (!demand)
-	    script_unsetenv("IFNAME");
-
-	/*
-	 * Run disconnector script, if requested.
-	 * XXX we may not be able to do this if the line has hung up!
-	 */
-    disconnect:
-	new_phase(PHASE_DISCONNECT);
-	if (the_channel->disconnect)
-	    the_channel->disconnect();
-
-    fail:
-	if (the_channel->cleanup)
-	    (*the_channel->cleanup)();
-
-	if (!demand) {
-	    if (pidfilename[0] != 0
-		&& unlink(pidfilename) < 0 && errno != ENOENT)
-		warn("unable to delete pid file %s: %m", pidfilename);
-	    pidfilename[0] = 0;
 	}
 
 	if (!persist || (maxfail > 0 && unsuccess >= maxfail))
@@ -897,7 +817,7 @@ create_pidfile(pid)
     }
 }
 
-static void
+void
 create_linkpidfile(pid)
     int pid;
 {
@@ -917,6 +837,19 @@ create_linkpidfile(pid)
 	error("Failed to create pid file %s: %m", linkpidfile);
 	linkpidfile[0] = 0;
     }
+}
+
+/*
+ * remove_pidfile - remove our pid files
+ */
+void remove_pidfiles()
+{
+    if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT)
+	warn("unable to delete pid file %s: %m", pidfilename);
+    pidfilename[0] = 0;
+    if (linkpidfile[0] != 0 && unlink(linkpidfile) < 0 && errno != ENOENT)
+	warn("unable to delete pid file %s: %m", linkpidfile);
+    linkpidfile[0] = 0;
 }
 
 /*
@@ -1031,6 +964,11 @@ get_input()
 	return;
 
     if (len == 0) {
+	if (bundle_eof && multilink_master) {
+	    notice("Last channel has disconnected");
+	    mp_bundle_terminated();
+	    return;
+	}
 	notice("Modem hangup");
 	hungup = 1;
 	status = EXIT_HANGUP;
@@ -1159,7 +1097,8 @@ void
 die(status)
     int status;
 {
-    print_link_stats();
+    if (!doing_multilink || multilink_master)
+	print_link_stats();
     cleanup();
     notify(exitnotify, status);
     syslog(LOG_INFO, "Exit.");
@@ -1179,13 +1118,7 @@ cleanup()
 	the_channel->disestablish_ppp(devfd);
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
-
-    if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT)
-	warn("unable to delete pid file %s: %m", pidfilename);
-    pidfilename[0] = 0;
-    if (linkpidfile[0] != 0 && unlink(linkpidfile) < 0 && errno != ENOENT)
-	warn("unable to delete pid file %s: %m", linkpidfile);
-    linkpidfile[0] = 0;
+    remove_pidfiles();
 
 #ifdef USE_TDB
     if (pppdb != NULL)
@@ -2004,7 +1937,7 @@ update_db_entry()
     vlen = 0;
     for (i = 0; (p = script_env[i]) != 0; ++i)
 	vlen += strlen(p) + 1;
-    vbuf = malloc(vlen);
+    vbuf = malloc(vlen + 1);
     if (vbuf == 0)
 	novm("database entry");
     q = vbuf;

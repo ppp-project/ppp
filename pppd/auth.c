@@ -68,12 +68,13 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.100 2004/11/06 05:39:23 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.101 2004/11/12 10:30:51 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <pwd.h>
 #include <grp.h>
 #include <string.h>
@@ -531,6 +532,55 @@ void
 link_required(unit)
     int unit;
 {
+    new_phase(PHASE_SERIALCONN);
+
+    devfd = the_channel->connect();
+    if (devfd < 0)
+	goto fail;
+
+    /* set up the serial device as a ppp interface */
+    /*
+     * N.B. we used to do tdb_writelock/tdb_writeunlock around this
+     * (from establish_ppp to set_ifunit).  However, we won't be
+     * doing the set_ifunit in multilink mode, which is the only time
+     * we need the atomicity that the tdb_writelock/tdb_writeunlock
+     * gives us.  Thus we don't need the tdb_writelock/tdb_writeunlock.
+     */
+    fd_ppp = the_channel->establish_ppp(devfd);
+    if (fd_ppp < 0) {
+	status = EXIT_FATAL_ERROR;
+	goto disconnect;
+    }
+
+    if (!demand && ifunit >= 0)
+	set_ifunit(1);
+
+    /*
+     * Start opening the connection and wait for
+     * incoming events (reply, timeout, etc.).
+     */
+    if (ifunit >= 0)
+	notice("Connect: %s <--> %s", ifname, ppp_devnam);
+    else
+	notice("Starting negotiation on %s", ppp_devnam);
+    add_fd(fd_ppp);
+
+    status = EXIT_NEGOTIATION_FAILED;
+    new_phase(PHASE_ESTABLISH);
+
+    lcp_lowerup(0);
+    return;
+
+ disconnect:
+    new_phase(PHASE_DISCONNECT);
+    if (the_channel->disconnect)
+	the_channel->disconnect();
+
+ fail:
+    new_phase(PHASE_DEAD);
+    if (the_channel->cleanup)
+	(*the_channel->cleanup)();
+
 }
 
 /*
@@ -541,16 +591,65 @@ void
 link_terminated(unit)
     int unit;
 {
-    if (phase == PHASE_DEAD)
+    if (phase == PHASE_DEAD || phase == PHASE_MASTER)
 	return;
+    new_phase(PHASE_DISCONNECT);
+
     if (pap_logout_hook) {
 	pap_logout_hook();
     } else {
 	if (logged_in)
 	    plogout();
     }
-    new_phase(PHASE_DEAD);
-    notice("Connection terminated.");
+
+    if (!doing_multilink) {
+	notice("Connection terminated.");
+	print_link_stats();
+    } else
+	notice("Link terminated.");
+
+    /*
+     * Delete pid files before disestablishing ppp.  Otherwise it
+     * can happen that another pppd gets the same unit and then
+     * we delete its pid file.
+     */
+    if (!doing_multilink && !demand)
+	remove_pidfiles();
+
+    /*
+     * If we may want to bring the link up again, transfer
+     * the ppp unit back to the loopback.  Set the
+     * real serial device back to its normal mode of operation.
+     */
+    if (fd_ppp >= 0) {
+	remove_fd(fd_ppp);
+	clean_check();
+	the_channel->disestablish_ppp(devfd);
+	if (doing_multilink)
+	    mp_exit_bundle();
+	fd_ppp = -1;
+    }
+    if (!hungup)
+	lcp_lowerdown(0);
+    if (!doing_multilink && !demand)
+	script_unsetenv("IFNAME");
+
+    /*
+     * Run disconnector script, if requested.
+     * XXX we may not be able to do this if the line has hung up!
+     */
+    if (devfd >= 0 && the_channel->disconnect) {
+	the_channel->disconnect();
+	devfd = -1;
+    }
+
+    if (doing_multilink && multilink_master) {
+	if (!bundle_terminating)
+	    new_phase(PHASE_MASTER);
+	else
+	    mp_bundle_terminated();
+    } else
+	new_phase(PHASE_DEAD);
 }
 
 /*
@@ -560,16 +659,29 @@ void
 link_down(unit)
     int unit;
 {
+    if (auth_state != s_down) {
+	notify(link_down_notifier, 0);
+	auth_state = s_down;
+	if (auth_script_state == s_up && auth_script_pid == 0) {
+	    update_link_stats(unit);
+	    auth_script_state = s_down;
+	    auth_script(_PATH_AUTHDOWN);
+	}
+    }
+    if (!doing_multilink) {
+	upper_layers_down(unit);
+	if (phase != PHASE_DEAD && phase != PHASE_MASTER)
+	    new_phase(PHASE_ESTABLISH);
+    }
+    /* XXX if doing_multilink, should do something to stop
+       network-layer traffic on the link */
+}
+
+void upper_layers_down(int unit)
+{
     int i;
     struct protent *protp;
 
-    notify(link_down_notifier, 0);
-    auth_state = s_down;
-    if (auth_script_state == s_up && auth_script_pid == 0) {
-	update_link_stats(unit);
-	auth_script_state = s_down;
-	auth_script(_PATH_AUTHDOWN);
-    }
     for (i = 0; (protp = protocols[i]) != NULL; ++i) {
 	if (!protp->enabled_flag)
 	    continue;
@@ -580,8 +692,6 @@ link_down(unit)
     }
     num_np_open = 0;
     num_np_up = 0;
-    if (phase != PHASE_DEAD)
-	new_phase(PHASE_ESTABLISH);
 }
 
 /*
@@ -602,10 +712,12 @@ link_established(unit)
     /*
      * Tell higher-level protocols that LCP is up.
      */
-    for (i = 0; (protp = protocols[i]) != NULL; ++i)
-        if (protp->protocol != PPP_LCP && protp->enabled_flag
-	    && protp->lowerup != NULL)
-	    (*protp->lowerup)(unit);
+    if (!doing_multilink) {
+	for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	    if (protp->protocol != PPP_LCP && protp->enabled_flag
+		&& protp->lowerup != NULL)
+		(*protp->lowerup)(unit);
+    }
 
     if (!auth_required && noauth_addrs != NULL)
 	set_allowed_addrs(unit, NULL, NULL);

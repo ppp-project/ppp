@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.71 2004/10/31 22:23:18 paulus Exp $"
+#define RCSID	"$Id: lcp.c,v 1.72 2004/11/12 10:30:51 paulus Exp $"
 
 /*
  * TODO:
@@ -401,7 +401,7 @@ lcp_close(unit, reason)
 {
     fsm *f = &lcp_fsm[unit];
 
-    if (phase != PHASE_DEAD)
+    if (phase != PHASE_DEAD && phase != PHASE_MASTER)
 	new_phase(PHASE_TERMINATE);
     if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
 	/*

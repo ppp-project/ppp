@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.86 2004/11/06 05:42:29 paulus Exp $
+ * $Id: pppd.h,v 1.87 2004/11/12 10:30:51 paulus Exp $
  */
 
 /*
@@ -215,6 +215,8 @@ extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
+extern int	devfd;		/* fd of underlying device */
+extern int	fd_ppp;		/* fd for talking PPP */
 extern int	phase;		/* Current state of link - see values below */
 extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
@@ -246,6 +248,11 @@ extern int      ppp_session_number; /* Session number (eg PPPoE session) */
 extern int	fd_devnull;	/* fd open to /dev/null */
 
 extern int	listen_time;	/* time to listen first (ms) */
+extern bool	doing_multilink;
+extern bool	multilink_master;
+extern bool	bundle_eof;
+extern bool	bundle_terminating;
+
 extern struct notifier *pidchange;   /* for notifications of pid changing */
 extern struct notifier *phasechange; /* for notifications of phase changes */
 extern struct notifier *exitnotify;  /* for notification that we're exiting */
@@ -375,6 +382,7 @@ extern int  option_priority;	/* priority of current options */
 #define PHASE_TERMINATE		9
 #define PHASE_DISCONNECT	10
 #define PHASE_HOLDOFF		11
+#define PHASE_MASTER		12
 
 /*
  * The following struct gives the addresses of procedures to call
@@ -484,6 +492,7 @@ void remove_notifier __P((struct notifier **, notify_func, void *));
 void notify __P((struct notifier *, int));
 int  ppp_send_config __P((int, int, u_int32_t, int, int));
 int  ppp_recv_config __P((int, int, u_int32_t, int, int));
+void remove_pidfiles __P((void));
 
 /* Procedures exported from tty.c. */
 void tty_init __P((void));
@@ -515,6 +524,7 @@ ssize_t complete_read __P((int, void *, size_t));
 void link_required __P((int));	  /* we are starting to use the link */
 void link_terminated __P((int));  /* we are finished with the link */
 void link_down __P((int));	  /* the LCP layer has left the Opened state */
+void upper_layers_down __P((int));/* take all NCPs down */
 void link_established __P((int)); /* the link is up; authenticate now */
 void start_networks __P((int));   /* start all the network control protos */
 void continue_networks __P((int)); /* start network [ip, etc] control protos */
@@ -554,10 +564,19 @@ int  loop_chars __P((unsigned char *, int)); /* process chars from loopback */
 int  loop_frame __P((unsigned char *, int)); /* should we bring link up? */
 
 /* Procedures exported from multilink.c */
+#ifdef HAVE_MULTILINK
 void mp_check_options __P((void)); /* Check multilink-related options */
 int  mp_join_bundle __P((void));  /* join our link to an appropriate bundle */
+void mp_exit_bundle __P((void));  /* have disconnected our link from bundle */
+void mp_bundle_terminated __P((void));
 char *epdisc_to_str __P((struct epdisc *)); /* string from endpoint discrim. */
 int  str_to_epdisc __P((struct epdisc *, char *)); /* endpt disc. from str */
+#else
+#define mp_bundle_terminated()	/* nothing */
+#define mp_exit_bundle()	/* nothing */
+#define doing_multilink		0
+#define multilink_master	0
+#endif
 
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
@@ -574,6 +593,7 @@ int  generic_establish_ppp __P((int dev_fd)); /* Make a ppp interface */
 void make_new_bundle __P((int, int, int, int)); /* Create new bundle */
 int  bundle_attach __P((int));	/* Attach link to existing bundle */
 void cfg_bundle __P((int, int, int, int)); /* Configure existing bundle */
+void destroy_bundle __P((void)); /* Tell driver to destroy bundle */
 void clean_check __P((void));	/* Check if line was 8-bit clean */
 void set_up_tty __P((int, int)); /* Set up port's speed, parameters, etc. */
 void restore_tty __P((int));	/* Restore port's original parameters */
