@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.48 1999/09/30 19:58:21 masputra Exp $
+.\" $Id: pppd.8,v 1.49 1999/11/17 03:49:56 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -799,7 +799,9 @@ the \fIname\fR option).  This option is not normally needed since the
 .B usepeerdns
 Ask the peer for up to 2 DNS server addresses.  The addresses supplied
 by the peer (if any) are passed to the /etc/ppp/ip-up script in the
-environment variables DNS1 and DNS2.
+environment variables DNS1 and DNS2.  In addition, pppd will create an
+/etc/ppp/resolv.conf file containing one or two nameserver lines with
+the address(es) supplied by the peer.
 .TP
 .B user \fIname
 Sets the name used for authenticating the local system to the peer to
