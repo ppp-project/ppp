@@ -8,6 +8,15 @@
 ** ********************************************************************
 */
 
+#ifndef __P
+# if defined(__STDC__) || defined(__GNUC__)
+#  define __P(x) x
+# else
+#  define __P(x) ()
+# endif
+#endif
+
+
 /* MDstruct is the data structure for a message digest computation.
 */
 typedef struct {
