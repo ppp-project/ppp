@@ -33,7 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: cbcp.c,v 1.15 2003/01/17 07:23:35 fcusack Exp $"
+#define RCSID	"$Id: cbcp.c,v 1.16 2004/10/28 00:15:36 paulus Exp $"
 
 #include <stdio.h>
 #include <string.h>
@@ -165,7 +165,8 @@ cbcp_input(unit, inpacket, pktlen)
     inp = inpacket;
 
     if (pktlen < CBCP_MINLEN) {
-        error("CBCP packet is too small");
+	if (debug)
+	    dbglog("CBCP packet is too small");
 	return;
     }
 
@@ -173,12 +174,11 @@ cbcp_input(unit, inpacket, pktlen)
     GETCHAR(id, inp);
     GETSHORT(len, inp);
 
-#if 0
-    if (len > pktlen) {
-        error("CBCP packet: invalid length");
+    if (len > pktlen || len < CBCP_MINLEN) {
+	if (debug)
+	    dbglog("CBCP packet: invalid length %d", len);
         return;
     }
-#endif
 
     len -= CBCP_MINLEN;
  
@@ -189,11 +189,12 @@ cbcp_input(unit, inpacket, pktlen)
 	break;
 
     case CBCP_RESP:
-	dbglog("CBCP_RESP received");
+	if (debug)
+	    dbglog("CBCP_RESP received");
 	break;
 
     case CBCP_ACK:
-	if (id != us->us_id)
+	if (debug && id != us->us_id)
 	    dbglog("id doesn't match: expected %d recv %d",
 		   us->us_id, id);
 
@@ -312,11 +313,13 @@ cbcp_recvreq(us, pckt, pcktlen)
 
     address[0] = 0;
 
-    while (len) {
+    while (len >= 2) {
         dbglog("length: %d", len);
 
 	GETCHAR(type, pckt);
 	GETCHAR(opt_len, pckt);
+	if (opt_len < 2 || opt_len > len)
+	    break;
 
 	if (opt_len > 2)
 	    GETCHAR(delay, pckt);
@@ -348,6 +351,11 @@ cbcp_recvreq(us, pckt, pcktlen)
 	}
 	len -= opt_len;
     }
+    if (len != 0) {
+	if (debug)
+	    dbglog("cbcp_recvreq: malformed packet (%d bytes left)", len);
+	return;
+    }
 
     cbcp_resp(us);
 }
@@ -360,6 +368,7 @@ cbcp_resp(us)
     u_char buf[256];
     u_char *bufp = buf;
     int len = 0;
+    int slen;
 
     cb_type = us->us_allowed & us->us_type;
     dbglog("cbcp_resp cb_type=%d", cb_type);
@@ -371,12 +380,17 @@ cbcp_resp(us)
 
     if (cb_type & ( 1 << CB_CONF_USER ) ) {
 	dbglog("cbcp_resp CONF_USER");
+	slen = strlen(us->us_number);
+	if (slen > 250) {
+	    warn("callback number truncated to 250 characters");
+	    slen = 250;
+	}
 	PUTCHAR(CB_CONF_USER, bufp);
-	len = 3 + 1 + strlen(us->us_number) + 1;
+	len = 3 + 1 + slen + 1;
 	PUTCHAR(len , bufp);
 	PUTCHAR(5, bufp); /* delay */
 	PUTCHAR(1, bufp);
-	BCOPY(us->us_number, bufp, strlen(us->us_number) + 1);
+	BCOPY(us->us_number, bufp, slen + 1);
 	cbcp_send(us, CBCP_RESP, buf, len);
 	return;
     }
@@ -438,25 +452,29 @@ cbcp_recvack(us, pckt, len)
     int opt_len;
     char address[256];
 
-    if (len) {
+    if (len >= 2) {
         GETCHAR(type, pckt);
 	GETCHAR(opt_len, pckt);
+	if (opt_len >= 2 && opt_len <= len) {
      
-	if (opt_len > 2)
-	    GETCHAR(delay, pckt);
+	    if (opt_len > 2)
+		GETCHAR(delay, pckt);
 
-	if (opt_len > 4) {
-	    GETCHAR(addr_type, pckt);
-	    memcpy(address, pckt, opt_len - 4);
-	    address[opt_len - 4] = 0;
-	    if (address[0])
-	        dbglog("peer will call: %s", address);
-	}
-	if (type == CB_CONF_NO)
-	    return;
+	    if (opt_len > 4) {
+		GETCHAR(addr_type, pckt);
+		memcpy(address, pckt, opt_len - 4);
+		address[opt_len - 4] = 0;
+		if (address[0])
+		    dbglog("peer will call: %s", address);
+	    }
+	    if (type == CB_CONF_NO)
+		return;
+
+	    cbcp_up(us);
+
+	} else if (debug)
+	    dbglog("cbcp_recvack: malformed packet");
     }
-
-    cbcp_up(us);
 }
 
 /* ok peer will do callback */
