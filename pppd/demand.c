@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: demand.c,v 1.2 1996/04/04 03:36:44 paulus Exp $";
+static char rcsid[] = "$Id: demand.c,v 1.3 1996/05/28 00:37:53 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -42,7 +42,6 @@ static char rcsid[] = "$Id: demand.c,v 1.2 1996/04/04 03:36:44 paulus Exp $";
 #include "fsm.h"
 #include "ipcp.h"
 #include "lcp.h"
-#include "bpf_compile.h"
 
 char *frame;
 int framelen;
@@ -59,6 +58,8 @@ struct packet {
 
 struct packet *pend_q;
 struct packet *pend_qtail;
+
+static int active_packet __P((unsigned char *, int));
 
 /*
  * demand_conf - configure the interface for doing dial-on-demand.
@@ -85,7 +86,9 @@ demand_conf()
     ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
     ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
 
+#if 0
     set_filters(&pass_filter, &active_filter);
+#endif
 
     /*
      * Call the demand_conf procedure for each protocol that's got one.
@@ -260,8 +263,7 @@ loop_frame(frame, len)
 	return 0;
     if ((PPP_PROTOCOL(frame) & 0x8000) != 0)
 	return 0;		/* shouldn't get any of these anyway */
-    if (active_filter.bf_len != 0
-	&& bpf_filter(active_filter.bf_insns, frame, len, len) == 0)
+    if (!active_packet(frame, len))
 	return 0;
 
     pkt = (struct packet *) malloc(sizeof(struct packet) + len);
@@ -307,4 +309,16 @@ demand_rexmit(proto)
     pend_qtail = prev;
     if (prev != NULL)
 	prev->next = NULL;
+}
+
+/*
+ * Scan a packet to decide whether it is an "active" packet,
+ * that is, whether it is worth bringing up the link for.
+ */
+static int
+active_packet(p, len)
+    unsigned char *p;
+    int len;
+{
+    return 1;			/* for now */
 }
