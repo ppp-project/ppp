@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.54 2000/04/27 03:51:18 masputra Exp $"
+#define RCSID	"$Id: lcp.c,v 1.55 2000/04/29 12:32:09 paulus Exp $"
 
 /*
  * TODO:
@@ -41,11 +41,11 @@ static const char rcsid[] = RCSID;
 int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
 int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
 bool	lax_recv = 0;		/* accept control chars in asyncmap */
+bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 
 static int setescape __P((char **));
 
 #ifdef HAVE_MULTILINK
-bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 static int setendpoint __P((char **));
 #endif /* HAVE_MULTILINK */
 
@@ -124,9 +124,9 @@ static option_t lcp_option_list[] = {
       OPT_A2COPY, &lcp_allowoptions[0].neg_ssnhf },
     { "endpoint", o_special, setendpoint,
       "Endpoint discriminator for multilink" },
+#endif /* HAVE_MULTILINK */
     { "noendpoint", o_bool, &noendpoint,
       "Don't send or accept multilink endpoint discriminator", 1 },
-#endif /* HAVE_MULTILINK */
     {NULL}
 };
 
@@ -566,10 +566,8 @@ lcp_resetci(f)
 	go->neg_ssnhf = 0;
 	go->neg_endpoint = 0;
     }
-#ifdef HAVE_MULTILINK
     if (noendpoint)
 	ao->neg_endpoint = 0;
-#endif /* HAVE_MULTILINK */
     peer_mru[f->unit] = PPP_MRU;
     auth_reset(f->unit);
 }
