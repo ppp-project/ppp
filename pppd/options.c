@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.9 1994/05/25 06:25:48 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.10 1994/05/27 00:43:34 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -833,6 +833,10 @@ setupapfile(argv)
     /* open user info file */
     if ((ufile = fopen(*argv, "r")) == NULL) {
 	fprintf(stderr, "unable to open user login data file %s\n", *argv);
+	return 0;
+    }
+    if (!readable(fileno(ufile))) {
+	fprintf(stderr, "%s: access denied\n", *argv);
 	return 0;
     }
     check_access(ufile, *argv);
