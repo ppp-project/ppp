@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.8 1997/04/30 05:57:14 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.9 1998/03/25 02:17:23 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -29,6 +29,7 @@ static char rcsid[] = "$Id: sys-NeXT.c,v 1.8 1997/04/30 05:57:14 paulus Exp $";
 #include <utmp.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <libc.h>
 #include <strings.h>
 #include <sys/types.h>
 #include <sys/file.h>
@@ -46,7 +47,10 @@ static char rcsid[] = "$Id: sys-NeXT.c,v 1.8 1997/04/30 05:57:14 paulus Exp $";
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/in_var.h>
+#if !(NS_TARGET >= 40)
+/* XXX get an error "duplicate member ip_v under 4.1 GAMMA */
 #include <netinet/ip.h>
+#endif /* NS_TARGET */
 #include <netinet/if_ether.h>
 #include <net/route.h>
 #include <netinet/in.h>
@@ -70,6 +74,7 @@ static struct termios inittermios; /* Initial TTY termios */
 static char *lock_file;
 
 static int sockfd;		/* socket for doing interface ioctls */
+static int pppdev;  /* +++ */
 
 #if defined(i386) && defined(HAS_BROKEN_IOCTL)
 #define	ioctl	myioctl
@@ -101,6 +106,13 @@ sys_init()
 	syslog(LOG_ERR, "Couldn't create IP socket: %m");
 	die(1);
     }
+
+    if((pppdev = open("/dev/ppp0", O_RDWR, O_NONBLOCK)) == NULL)
+      {
+	syslog(LOG_ERR, "Couldn't open /dev/ppp0: %m");
+	die(1);
+      }
+      
 }
 
 /*
@@ -126,6 +138,8 @@ sys_cleanup()
 	cifdefaultroute(0, 0, default_route_gateway);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
+
+    close(pppdev);
 }
 
 /*
@@ -1606,6 +1620,16 @@ restore_loop()
 	die(1);
     }
     ttyfd = loop_slave;
+}
+
+
+/*
+ * Use the hostid as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    return gethostid();
 }
 
 
