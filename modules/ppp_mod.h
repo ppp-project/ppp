@@ -10,7 +10,6 @@
 #define ALLOC_SLEEP(n)		kmem_alloc((n), KM_SLEEP)
 #define ALLOC_NOSLEEP(n)	kmem_alloc((n), KM_NOSLEEP)
 #define FREE(p, n)		kmem_free((p), (n))
-#define NOTSUSER()		(suser()? 0: EPERM)
 #endif
 
 #ifdef SUNOS4
