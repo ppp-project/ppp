@@ -5,7 +5,7 @@
   fcstab and some ideas nicked from if_ppp.c from cmu.
   See copyright notice in if_ppp.h and NOTES
 
-  $Id: ppp_async.c,v 1.1 1994/12/05 00:29:21 paulus Exp $
+  $Id: ppp_async.c,v 1.2 1994/12/05 00:54:58 paulus Exp $
 */
 
 #include <sys/types.h>
@@ -117,7 +117,7 @@ struct  ppp_async_info {
     mblk_t	*pai_buffer;	/* pointer to the current buffer list */
     mblk_t	*pai_bufftail;	/* pointer to the current input block */
     ext_accm	pai_asyncmap;	/* current outgoing asyncmap */
-    u_long	pai_rasyncmap;	/* current receive asyncmap */
+    u_int32_t	pai_rasyncmap;	/* current receive asyncmap */
 };
 
 /* Values for pai_flags */
@@ -320,9 +320,9 @@ ppp_async_wput(q, mp)
 	    goto iocnak;
       
 	case SIOCGIFASYNCMAP :
-	    if ((mp->b_cont = allocb(sizeof(u_long), BPRI_MED)) != NULL) {
-		*(u_long *) mp->b_cont->b_wptr = p->pai_asyncmap[0];
-		mp->b_cont->b_wptr += i->ioc_count = sizeof(u_long);
+	    if ((mp->b_cont = allocb(sizeof(u_int32_t), BPRI_MED)) != NULL) {
+		*(u_int32_t *) mp->b_cont->b_wptr = p->pai_asyncmap[0];
+		mp->b_cont->b_wptr += i->ioc_count = sizeof(u_int32_t);
 		goto iocack;
 	    }
 	    i->ioc_error = ENOSR;
@@ -330,19 +330,19 @@ ppp_async_wput(q, mp)
 
 	case SIOCSIFASYNCMAP :
 	    if ((i->ioc_count != TRANSPARENT) &&
-		(i->ioc_count != sizeof(u_long))) {
+		(i->ioc_count != sizeof(u_int32_t))) {
 		i->ioc_error = EINVAL;
 		goto iocnak;	/* ugh, goto */
 	    }
-	    p->pai_asyncmap[0] = *(u_long *) mp->b_cont->b_rptr;
+	    p->pai_asyncmap[0] = *(u_int32_t *) mp->b_cont->b_rptr;
 	    DLOG("ppp_async: SIFASYNCMAP %lx\n", p->pai_asyncmap[0]);
 	    i->ioc_count = 0;
 	    goto iocack;
 
 	case SIOCGIFRASYNCMAP :
-	    if ((mp->b_cont = allocb(sizeof(u_long), BPRI_MED)) != NULL) {
-		*(u_long *) mp->b_cont->b_wptr = p->pai_rasyncmap;
-		mp->b_cont->b_wptr += i->ioc_count = sizeof(u_long);
+	    if ((mp->b_cont = allocb(sizeof(u_int32_t), BPRI_MED)) != NULL) {
+		*(u_int32_t *) mp->b_cont->b_wptr = p->pai_rasyncmap;
+		mp->b_cont->b_wptr += i->ioc_count = sizeof(u_int32_t);
 		goto iocack;
 	    }
 	    i->ioc_error = ENOSR;
@@ -350,11 +350,11 @@ ppp_async_wput(q, mp)
 
 	case SIOCSIFRASYNCMAP :
 	    if ((i->ioc_count != TRANSPARENT) &&
-		(i->ioc_count != sizeof(u_long))) {
+		(i->ioc_count != sizeof(u_int32_t))) {
 		i->ioc_error = EINVAL;
 		goto iocnak;	/* ugh, goto */
 	    }
-	    p->pai_rasyncmap = *(u_long *) mp->b_cont->b_rptr;
+	    p->pai_rasyncmap = *(u_int32_t *) mp->b_cont->b_rptr;
 	    DLOG("ppp_async: SIFRASYNCMAP %lx\n", p->pai_rasyncmap);
 	    i->ioc_count = 0;
 	    goto iocack;
@@ -482,7 +482,7 @@ ppp_async_wsrv(q)
 	 * to allow for escaped characters.  If this isn't enough, we
 	 * allocate another buffer later.
 	 */
-	olen = len + (len >> 8) + 5;
+	olen = len + (len >> 2) + 5;
 	if (olen < 32)
 	    olen = 32;
 	else if (olen > 2048)
@@ -611,7 +611,7 @@ ppp_async_rput(q, mp)
     }
 }
 
-static u_long paritytab[8] = {
+static u_int32_t paritytab[8] = {
     0x96696996, 0x69969669, 0x69969669, 0x96696996,
     0x69969669, 0x96696996, 0x96696996, 0x69969669,
 };
@@ -808,15 +808,19 @@ ppp_async_rsrv(q)
 
 		STUFF_CHAR(p, c);
 		p->pai_fcs = PPP_FCS(p->pai_fcs, c);
-		while (cp < mp->b_wptr
-		       && wptr < p->pai_bufftail->b_datap->db_lim
-		       && (c = *cp) != PPP_FLAG && c != PPP_ESCAPE) {
-		    if (c >= 0x20 || (p->pai_rasyncmap & (1 << c)) == 0) {
-			STUFF_CHAR(p, c);
-			p->pai_fcs = PPP_FCS(p->pai_fcs, c);
+
+		if (p->pai_buffcount >= PPP_HDRLEN) {
+		    while (cp < mp->b_wptr
+			   && wptr < p->pai_bufftail->b_datap->db_lim
+			   && (c = *cp) != PPP_FLAG && c != PPP_ESCAPE) {
+			if (c >= 0x20 || (p->pai_rasyncmap & (1 << c)) == 0) {
+			    STUFF_CHAR(p, c);
+			    p->pai_fcs = PPP_FCS(p->pai_fcs, c);
+			}
+			++cp;
 		    }
-		    ++cp;
 		}
+
 		p->pai_bufftail->b_wptr = wptr;
 
 	    } /* end while cp < wptr */
