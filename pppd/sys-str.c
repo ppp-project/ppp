@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.14 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.15 1994/10/22 11:49:27 paulus Exp $";
 #endif
 
 /*
@@ -523,7 +523,7 @@ read_packet(buf)
     i = 0;
     len = getmsg(fd, &ctl, &str, &i);
     if (len < 0) {
-	if (errno == EAGAIN || errno == EWOULDBLOCK) {
+	if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
 	    return -1;
 	}
 	syslog(LOG_ERR, "getmsg(fd) %m");
