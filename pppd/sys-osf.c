@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.6 1996/01/01 23:07:07 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.7 1996/01/18 03:23:04 paulus Exp $";
 #endif
 
 /*
@@ -1193,7 +1193,7 @@ get_ether_addr(ipaddr, hwaddr)
      * address on the same subnet as `ipaddr'.
      */
     ifend = (struct ifreq *) (ifc.ifc_buf + ifc.ifc_len);
-    for (ifr = ifc.ifc_req; ifr < ifend; ) {
+    for (ifr = ifc.ifc_req; ifr < ifend; ++ifr) {
         if (ifr->ifr_addr.sa_family == AF_INET) {
             ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
             strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
@@ -1218,7 +1218,6 @@ get_ether_addr(ipaddr, hwaddr)
 
             break;
         }
-        ifr++;
     }
 
     if (ifr >= ifend)
