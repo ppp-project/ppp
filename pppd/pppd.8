@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.6 1994/05/30 06:13:46 paulus Exp $
+.\" $Id: pppd.8,v 1.7 1994/06/09 01:50:48 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -235,7 +235,9 @@ option is given, \fIpppd\fR will log the contents of all control
 packets sent or received in a readable form.  The packets are logged
 through syslog with facility \fIdaemon\fR and level \fIdebug\fR.  This
 information can be directed to a file by setting up /etc/syslog.conf
-appropriately (see syslog.conf(5)).
+appropriately (see syslog.conf(5)).  (If \fIpppd\fR is compiled with
+extra debugging enabled, it will log messages using facility
+\fIlocal2\fR instead of \fIdaemon\fR).
 .TP
 .B domain \fI<d>
 Append the domain name <d> to the local host name for authentication
@@ -588,8 +590,9 @@ to direct the messages to the desired output device or file.
 The \fBdebug\fR option causes the contents of all control packets sent
 or received to be logged, that is, all LCP, PAP, CHAP or IPCP packets.
 This can be useful if the PPP negotiation does not succeed.
-If debugging is enabled at compile time, the \fBdebug\fR option also
-causes other debugging messages to be logged.
+If debugging is enabled at compile time, \fIpppd\fR uses facility
+LOG_LOCAL2 instead of LOG_DAEMON, and the \fBdebug\fR option
+causes additional debugging messages to be logged.
 .LP
 Debugging can also be enabled by sending a
 SIGUSR1 to the
