@@ -85,6 +85,11 @@
 #endif
 #endif /* IPX_CHANGE */
 
+#ifdef PPP_FILTER
+#include <net/bpf.h>
+#include <linux/filter.h>
+#endif /* PPP_FILTER */
+
 #ifdef LOCKLIB
 #include <sys/locks.h>
 #endif
@@ -989,13 +994,13 @@ int read_packet (unsigned char *buf)
     nr = -1;
     if (ppp_fd >= 0) {
 	nr = read(ppp_fd, buf, len);
-	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
 	    error("read: %m");
     }
     if (nr < 0 && new_style_driver && ifunit >= 0) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
-	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO)
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
 	    error("read /dev/ppp: %m");
     }
     return (new_style_driver && nr > 0)? nr+2: nr;
@@ -1158,6 +1163,33 @@ void ccp_flags_set (int unit, int isopen, int isup)
 	set_flags (ppp_dev_fd, x);
     }
 }
+
+#ifdef PPP_FILTER
+/*
+ * set_filters - set the active and pass filters in the kernel driver.
+ */
+int set_filters(struct bpf_program *pass, struct bpf_program *active)
+{
+	struct sock_fprog fp;
+
+	fp.len = pass->bf_len;
+	fp.filter = (struct sock_filter *) pass->bf_insns;
+	if (ioctl(ppp_dev_fd, PPPIOCSPASS, &fp) < 0) {
+		if (errno == ENOTTY)
+			warn("kernel does not support PPP filtering");
+		else
+			error("Couldn't set pass-filter in kernel: %m");
+		return 0;
+	}
+	fp.len = active->bf_len;
+	fp.filter = (struct sock_filter *) active->bf_insns;
+	if (ioctl(ppp_dev_fd, PPPIOCSACTIVE, &fp) < 0) {
+		error("Couldn't set active-filter in kernel: %m");
+		return 0;
+	}
+	return 1;
+}
+#endif /* PPP_FILTER */
 
 /********************************************************************
  *

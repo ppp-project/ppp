@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.75 2000/06/30 04:54:21 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.76 2000/08/01 01:38:30 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1209,16 +1209,6 @@ callfile(argv)
 }
 
 #ifdef PPP_FILTER
-/*
- * setpdebug - Set libpcap debugging level.
- */
-static int
-setpdebug(argv)
-    char **argv;
-{
-    return int_option(*argv, &dflag);
-}
-
 /*
  * setpassfilter - Set the pass filter for packets
  */

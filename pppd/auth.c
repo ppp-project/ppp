@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.66 2000/07/24 14:58:14 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.67 2000/08/01 01:38:29 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -524,7 +524,7 @@ start_networks()
     }
 #endif /* HAVE_MULTILINK */
 
-#if 0
+#ifdef PPP_FILTER
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
 #endif
