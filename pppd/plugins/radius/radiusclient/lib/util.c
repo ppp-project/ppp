@@ -1,5 +1,5 @@
 /*
- * $Id: util.c,v 1.2 2002/02/27 15:51:20 dfs Exp $
+ * $Id: util.c,v 1.3 2004/10/28 00:21:48 paulus Exp $
  *
  * Copyright (C) 1995,1996,1997 Lars Fenneberg
  *
@@ -231,7 +231,12 @@ void rc_mdelay(int msecs)
 char *
 rc_mksid (void)
 {
-  static char buf[14];
-  sprintf (buf, "%08lX%04X", (unsigned long int) time (NULL), (unsigned int) getpid ());
+  static char buf[15];
+  static unsigned short int cnt = 0;
+  sprintf (buf, "%08lX%04X%02hX",
+	   (unsigned long int) time (NULL),
+	   (unsigned int) getpid (),
+	   cnt & 0xFF);
+  cnt++;
   return buf;
 }
