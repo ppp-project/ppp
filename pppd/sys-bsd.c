@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.43 1999/04/12 06:24:49 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.44 1999/05/04 06:57:44 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 #endif
 
@@ -227,13 +227,13 @@ establish_ppp(fd)
 	/*
 	 * Find out which interface we were given.
 	 */
-	if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0) {    
+	if (ioctl(fd, PPPIOCGUNIT, &ifunit) < 0)
 	    fatal("ioctl(PPPIOCGUNIT): %m");
     } else {
 	/*
 	 * Check that we got the same unit again.
 	 */
-	if (ioctl(fd, PPPIOCGUNIT, &x) < 0) { 
+	if (ioctl(fd, PPPIOCGUNIT, &x) < 0)
 	    fatal("ioctl(PPPIOCGUNIT): %m");
 	if (x != ifunit)
 	    fatal("transfer_ppp failed: wanted unit %d, got %d", ifunit, x);
@@ -712,6 +712,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 	fatal("ioctl (PPPIOCGFLAGS): %m");
     x = pcomp? x | SC_COMP_PROT: x &~ SC_COMP_PROT;
     x = accomp? x | SC_COMP_AC: x &~ SC_COMP_AC;
+    x = sync_serial ? x | SC_SYNC : x & ~SC_SYNC;
     if (ioctl(ppp_fd, PPPIOCSFLAGS, (caddr_t) &x) < 0)
 	fatal("ioctl(PPPIOCSFLAGS): %m");
 }
@@ -833,7 +834,7 @@ get_ppp_stats(u, stats)
     struct ifpppstatsreq req;
 
     memset (&req, 0, sizeof (req));
-    strlcpy(req.ifr_name, interface, sizeof(req.ifr_name));
+    strlcpy(req.ifr_name, ifname, sizeof(req.ifr_name));
     if (ioctl(sockfd, SIOCGPPPSTATS, &req) < 0) {
 	error("Couldn't get PPP statistics: %m");
 	return 0;
