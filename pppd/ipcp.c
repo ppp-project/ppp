@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.9 1994/08/22 00:36:38 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.10 1994/09/01 00:22:38 paulus Exp $";
 #endif
 
 /*
@@ -42,10 +42,6 @@ ipcp_options ipcp_wantoptions[NPPP];	/* Options that we want to request */
 ipcp_options ipcp_gotoptions[NPPP];	/* Options that peer ack'd */
 ipcp_options ipcp_allowoptions[NPPP];	/* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NPPP];	/* Options that we ack'd */
-
-extern char ifname[];
-extern char devnam[];
-extern int baud_rate;
 
 /* local vars */
 static int cis_received[NPPP];		/* # Conf-Reqs received */
@@ -103,7 +99,7 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
  */
 char *
 ip_ntoa(ipaddr)
-u_long ipaddr;
+uint32 ipaddr;
 {
     static char b[64];
 
@@ -296,7 +292,7 @@ ipcp_addci(f, ucp, lenp)
     if (neg) { \
 	int addrlen = (old? CILEN_ADDRS: CILEN_ADDR); \
 	if (len >= addrlen) { \
-	    u_long l; \
+	    uint32 l; \
 	    PUTCHAR(opt, ucp); \
 	    PUTCHAR(addrlen, ucp); \
 	    l = ntohl(val1); \
@@ -359,7 +355,7 @@ ipcp_ackci(f, p, len)
 {
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     u_short cilen, citype, cishort;
-    u_long cilong;
+    uint32 cilong;
     u_char cimaxslotindex, cicflag;
 
     /*
@@ -394,7 +390,7 @@ ipcp_ackci(f, p, len)
 #define ACKCIADDR(opt, neg, old, val1, val2) \
     if (neg) { \
 	int addrlen = (old? CILEN_ADDRS: CILEN_ADDR); \
-	u_long l; \
+	uint32 l; \
 	if ((len -= addrlen) < 0) \
 	    goto bad; \
 	GETCHAR(citype, p); \
@@ -451,7 +447,7 @@ ipcp_nakci(f, p, len)
     u_char cimaxslotindex, cicflag;
     u_char citype, cilen, *next;
     u_short cishort;
-    u_long ciaddr1, ciaddr2, l;
+    uint32 ciaddr1, ciaddr2, l;
     ipcp_options no;		/* options we've seen Naks for */
     ipcp_options try;		/* options to request next time */
 
@@ -623,7 +619,7 @@ ipcp_rejci(f, p, len)
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     u_char cimaxslotindex, ciflag, cilen;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
     ipcp_options try;		/* options to request next time */
 
     try = *go;
@@ -637,7 +633,7 @@ ipcp_rejci(f, p, len)
 	len >= (cilen = old? CILEN_ADDRS: CILEN_ADDR) && \
 	p[1] == cilen && \
 	p[0] == opt) { \
-	u_long l; \
+	uint32 l; \
 	len -= cilen; \
 	INCPTR(2, p); \
 	GETLONG(l, p); \
@@ -722,7 +718,7 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
     u_char *cip, *next;		/* Pointer to current and next CIs */
     u_short cilen, citype;	/* Parsed len, type */
     u_short cishort;		/* Parsed short value */
-    u_long tl, ciaddr1, ciaddr2;/* Parsed address values */
+    uint32 tl, ciaddr1, ciaddr2;/* Parsed address values */
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
@@ -960,7 +956,7 @@ static void
 ipcp_up(f)
     fsm *f;
 {
-    u_long mask;
+    uint32 mask;
     ipcp_options *ho = &ipcp_hisoptions[f->unit];
     ipcp_options *go = &ipcp_gotoptions[f->unit];
 
@@ -1047,7 +1043,7 @@ static void
 ipcp_down(f)
     fsm *f;
 {
-    u_long ouraddr, hisaddr;
+    uint32 ouraddr, hisaddr;
 
     IPCPDEBUG((LOG_INFO, "ipcp: down"));
 
@@ -1109,7 +1105,7 @@ ipcp_printpkt(p, plen, printer, arg)
     int code, id, len, olen;
     u_char *pstart, *optend;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
 
     if (plen < HEADERLEN)
 	return 0;
