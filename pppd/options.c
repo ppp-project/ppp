@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.27 1996/01/01 23:00:42 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.28 1996/01/18 03:22:22 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -171,6 +171,8 @@ static int setlcpechointv __P((char **));
 static int setlcpechofails __P((char **));
 static int setbsdcomp __P((char **));
 static int setnobsdcomp __P((void));
+static int setdeflate __P((char **));
+static int setnodeflate __P((void));
 static int setdemand __P((void));
 static int setpred1comp __P((void));
 static int setnopred1comp __P((void));
@@ -285,6 +287,8 @@ static struct cmd {
     {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
     {"bsdcomp", 1, setbsdcomp},		/* request BSD-Compress */
     {"-bsdcomp", 0, setnobsdcomp},	/* don't allow BSD-Compress */
+    {"deflate", 1, setdeflate},		/* request Deflate compression */
+    {"-deflate", 0, setnodeflate},	/* don't allow Deflate compression */
     {"predictor1", 0, setpred1comp},	/* request Predictor-1 */
     {"-predictor1", 0, setnopred1comp},	/* don't allow Predictor-1 */
     {"ipparam", 1, setipparam},		/* set ip script parameter */
@@ -1786,6 +1790,52 @@ setnobsdcomp()
 {
     ccp_wantoptions[0].bsd_compress = 0;
     ccp_allowoptions[0].bsd_compress = 0;
+    return 1;
+}
+
+static int
+setdeflate(argv)
+    char **argv;
+{
+    int rbits, abits;
+    char *str, *endp;
+
+    str = *argv;
+    abits = rbits = strtol(str, &endp, 0);
+    if (endp != str && *endp == ',') {
+	str = endp + 1;
+	abits = strtol(str, &endp, 0);
+    }
+    if (*endp != 0 || endp == str) {
+	fprintf(stderr, "%s: invalid argument format for deflate option\n",
+		progname);
+	return 0;
+    }
+    if (rbits != 0 && (rbits < DEFLATE_MIN_SIZE || rbits > DEFLATE_MAX_SIZE)
+	|| abits != 0 && (abits < DEFLATE_MIN_SIZE
+			  || abits > DEFLATE_MAX_SIZE)) {
+	fprintf(stderr, "%s: deflate option values must be 0 or %d .. %d\n",
+		progname, DEFLATE_MIN_SIZE, DEFLATE_MAX_SIZE);
+	return 0;
+    }
+    if (rbits > 0) {
+	ccp_wantoptions[0].deflate = 1;
+	ccp_wantoptions[0].deflate_size = rbits;
+    } else
+	ccp_wantoptions[0].deflate = 0;
+    if (abits > 0) {
+	ccp_allowoptions[0].deflate = 1;
+	ccp_allowoptions[0].deflate_size = abits;
+    } else
+	ccp_allowoptions[0].deflate = 0;
+    return 1;
+}
+
+static int
+setnodeflate()
+{
+    ccp_wantoptions[0].deflate = 0;
+    ccp_allowoptions[0].deflate = 0;
     return 1;
 }
 
