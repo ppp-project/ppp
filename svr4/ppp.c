@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.2 1995/05/19 02:17:42 paulus Exp $
+ * $Id: ppp.c,v 1.3 1995/05/29 06:59:36 paulus Exp $
  */
 
 /*
@@ -38,12 +38,16 @@
 #include <sys/stropts.h>
 #include <sys/errno.h>
 #include <sys/cmn_err.h>
-#include <sys/modctl.h>
 #include <sys/conf.h>
-#include <sys/ddi.h>
-#include <sys/sunddi.h>
 #include <sys/dlpi.h>
 #include <sys/ioccom.h>
+#include <sys/kmem.h>
+#include <sys/ddi.h>
+#ifdef sun
+#include <sys/modctl.h>
+#include <sys/kstat.h>
+#include <sys/sunddi.h>
+#endif
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 
@@ -67,8 +71,9 @@
 /*
  * Private information; one per upper stream.
  */
-struct upperstr {
+typedef struct upperstr {
     minor_t mn;			/* minor device number */
+    struct upperstr *nextmn;	/* next minor device */
     queue_t *q;			/* read q associated with this upper stream */
     int flags;			/* flag bits, see below */
     int state;			/* current DLPI state */
@@ -85,34 +90,44 @@ struct upperstr {
     struct upperstr *nextppa;	/* next control stream */
     int mru;
     int mtu;
-};
+    struct pppstat stats;	/* statistics */
+#ifdef sun
+    kstat_t *kstats;		/* stats for netstat */
+#endif
+} upperstr_t;
 
 /* Values for flags */
 #define US_PRIV		1	/* stream was opened by superuser */
 #define US_CONTROL	2	/* stream is a control stream */
-#define US_BLOCKED	4	/* flow ctrl has blocked lower stream */
+#define US_BLOCKED	4	/* flow ctrl has blocked lower write stream */
+#define US_LASTMOD	8	/* no PPP modules below us */
 
-static void *upper_states;
-static struct upperstr *ppas;
+static upperstr_t *minor_devs = NULL;
+static upperstr_t *ppas = NULL;
 
+#ifdef sun
 static int ppp_identify __P((dev_info_t *));
 static int ppp_attach __P((dev_info_t *, ddi_attach_cmd_t));
 static int ppp_detach __P((dev_info_t *, ddi_detach_cmd_t));
 static int ppp_devinfo __P((dev_info_t *, ddi_info_cmd_t, void *, void **));
+#endif
 static int pppopen __P((queue_t *, dev_t *, int, int, cred_t *));
 static int pppclose __P((queue_t *, int, cred_t *));
 static int pppuwput __P((queue_t *, mblk_t *));
 static int pppursrv __P((queue_t *));
 static int pppuwsrv __P((queue_t *));
 static int ppplrput __P((queue_t *, mblk_t *));
+static int ppplwput __P((queue_t *, mblk_t *));
 static int ppplrsrv __P((queue_t *));
 static int ppplwsrv __P((queue_t *));
-static void dlpi_request __P((queue_t *, mblk_t *, struct upperstr *));
+static void dlpi_request __P((queue_t *, mblk_t *, upperstr_t *));
 static void dlpi_error __P((queue_t *, int, int, int));
 static void dlpi_ok __P((queue_t *, int));
-static int send_data __P((mblk_t *, struct upperstr *));
+static int send_data __P((mblk_t *, upperstr_t *));
 static void new_ppa __P((queue_t *, mblk_t *));
-static struct upperstr *find_dest __P((struct upperstr *, int));
+static void attach_ppa __P((queue_t *, mblk_t *));
+static void detach_ppa __P((queue_t *, mblk_t *));
+static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
 
@@ -133,7 +148,7 @@ static struct qinit ppplrint = {
 };
 
 static struct qinit ppplwint = {
-    NULL, ppplwsrv, NULL, NULL, NULL, &ppp_info, NULL
+    ppplwput, ppplwsrv, NULL, NULL, NULL, &ppp_info, NULL
 };
 
 static struct streamtab pppinfo = {
@@ -141,6 +156,7 @@ static struct streamtab pppinfo = {
     &ppplrint, &ppplwint
 };
 
+#ifdef sun
 static dev_info_t *ppp_dip;
 
 static struct cb_ops cb_ppp_ops = {
@@ -184,28 +200,13 @@ static struct modlinkage modlinkage = {
 int
 _init(void)
 {
-    int error;
-
-    error = ddi_soft_state_init(&upper_states, sizeof(struct upperstr), 4);
-    if (!error) {
-	error = mod_install(&modlinkage);
-	if (!error)
-	    return 0;
-	ddi_soft_state_fini(&upper_states);
-    }
-    return error;
+    return mod_install(&modlinkage);
 }
 
 int
 _fini(void)
 {
-    int error;
-
-    error = mod_remove(&modlinkage);
-    if (error)
-	return error;
-    ddi_soft_state_fini(&upper_states);
-    return 0;
+    return mod_remove(&modlinkage);
 }
 
 int
@@ -273,6 +274,14 @@ ppp_devinfo(dip, cmd, arg, result)
     }
     return error;
 }
+#endif /* sun */
+
+#ifndef sun
+# define qprocson(q)
+# define qprocsoff(q)
+# define canputnext(q)	canput((q)->q_next)
+# define qwriter(q, mp, func, scope)	(func)((q), (mp))
+#endif
 
 static int
 pppopen(q, devp, oflag, sflag, credp)
@@ -281,36 +290,50 @@ pppopen(q, devp, oflag, sflag, credp)
     int oflag, sflag;
     cred_t *credp;
 {
-    struct upperstr *up;
+    upperstr_t *up;
+    upperstr_t **prevp;
     minor_t mn;
 
     if (q->q_ptr)
 	return 0;		/* device is already open */
 
     if (sflag == CLONEOPEN) {
-	for (mn = 0; ddi_get_soft_state(upper_states, mn) != NULL; ++mn)
-	    ;
+	mn = 0;
+	for (prevp = &minor_devs; (up = *prevp) != 0; prevp = &up->nextmn) {
+	    if (up->mn != mn)
+		break;
+	    ++mn;
+	}
     } else {
 	mn = getminor(*devp);
+	for (prevp = &minor_devs; (up = *prevp) != 0; prevp = &up->nextmn) {
+	    if (up->mn >= mn)
+		break;
+	}
+	if (up->mn == mn) {
+	    /* this can't happen */
+	    q->q_ptr = WR(q)->q_ptr = up;
+	    return 0;
+	}
     }
 
     /*
      * Construct a new minor node.
      */
-    if (ddi_soft_state_zalloc(upper_states, mn) != DDI_SUCCESS)
+    up = (upperstr_t *) kmem_zalloc(sizeof(upperstr_t), KM_SLEEP);
+    if (up == 0) {
+	cmn_err(CE_CONT, "pppopen: out of kernel memory\n");
 	return ENXIO;
-    up = ddi_get_soft_state(upper_states, mn);
+    }
+    up->nextmn = *prevp;
+    *prevp = up;
+    up->mn = mn;
     *devp = makedevice(getmajor(*devp), mn);
     up->q = q;
-    up->mn = mn;
-    up->flags = 0;
     if (drv_priv(credp) == 0)
 	up->flags |= US_PRIV;
     up->state = DL_UNATTACHED;
     up->sap = -1;
-    up->ppa = 0;
-    up->next = 0;
-    up->lowerq = 0;
     q->q_ptr = up;
     WR(q)->q_ptr = up;
     noenable(WR(q));
@@ -325,13 +348,13 @@ pppclose(q, flag, credp)
     int flag;
     cred_t *credp;
 {
-    struct upperstr *up, **upp;
-    struct upperstr *as, *asnext;
-    struct lowerstr *ls;
+    upperstr_t *up, **upp;
+    upperstr_t *as, *asnext;
+    upperstr_t **prevp;
 
     qprocsoff(q);
 
-    up = (struct upperstr *) q->q_ptr;
+    up = (upperstr_t *) q->q_ptr;
     if (up->flags & US_CONTROL) {
 	/*
 	 * This stream represents a PPA:
@@ -368,9 +391,19 @@ pppclose(q, flag, credp)
 	}
     }
 
+    if (up->kstats)
+	kstat_delete(up->kstats);
+
     q->q_ptr = NULL;
     WR(q)->q_ptr = NULL;
-    ddi_soft_state_free(upper_states, up->mn);
+
+    for (prevp = &minor_devs; *prevp != 0; prevp = &up->nextmn) {
+	if (*prevp == up) {
+	    *prevp = up->nextmn;
+	    break;
+	}
+    }
+    kmem_free(up, sizeof(upperstr_t));
 
     return 0;
 }
@@ -386,14 +419,14 @@ pppuwput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct upperstr *us, *usnext;
+    upperstr_t *us, *usnext, *ppa;
     struct iocblk *iop;
     struct linkblk *lb;
     queue_t *lq;
     int error, n;
     mblk_t *mq;
 
-    us = (struct upperstr *) q->q_ptr;
+    us = (upperstr_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
     case M_PCPROTO:
     case M_PROTO:
@@ -426,6 +459,7 @@ pppuwput(q, mp)
 	    RD(lq)->q_ptr = us;
 	    iop->ioc_count = 0;
 	    error = 0;
+	    us->flags &= ~US_LASTMOD;
 	    /* Unblock upper streams which now feed this lower stream. */
 	    qenable(lq);
 	    /* Send useful information down to the modules which
@@ -475,6 +509,21 @@ pppuwput(q, mp)
 	    error = -1;
 	    break;
 
+	case PPPIO_ATTACH:
+	    /* like dlpi_attach, for programs which can't write to
+	       the stream (like pppstats) */
+	    if (iop->ioc_count != sizeof(int) || us->ppa != 0)
+		break;
+	    n = *(int *)mp->b_cont->b_rptr;
+	    for (ppa = ppas; ppa != 0; ppa = ppa->nextppa)
+		if (ppa->ppa_id == n)
+		    break;
+	    if (ppa == 0)
+		break;
+	    us->ppa = ppa;
+	    qwriter(q, NULL, attach_ppa, PERIM_OUTER);
+	    break;
+
 	case PPPIO_MRU:
 	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
 		break;
@@ -505,6 +554,11 @@ pppuwput(q, mp)
 	    iop->ioc_count = 0;
 	    break;
 
+	case PPPIO_LASTMOD:
+	    us->flags |= US_LASTMOD;
+	    error = 0;
+	    break;
+
 	default:
 	    if (us->ppa == 0 || us->ppa->lowerq == 0)
 		break;
@@ -512,13 +566,19 @@ pppuwput(q, mp)
 	    switch (iop->ioc_cmd) {
 	    case PPPIO_GETSTAT:
 	    case PPPIO_GETCSTAT:
+		if (us->flags & US_LASTMOD) {
+		    error = EINVAL;
+		    break;
+		}
 		putnext(us->ppa->lowerq, mp);
 		break;
 	    default:
 		if (us->flags & US_PRIV)
 		    putnext(us->ppa->lowerq, mp);
 		else {
+#if DEBUG
 		    cmn_err(CE_CONT, "ppp ioctl %x rejected\n", iop->ioc_cmd);
+#endif
 		    error = EPERM;
 		}
 		break;
@@ -557,17 +617,15 @@ static void
 dlpi_request(q, mp, us)
     queue_t *q;
     mblk_t *mp;
-    struct upperstr *us;
+    upperstr_t *us;
 {
     union DL_primitives *d = (union DL_primitives *) mp->b_rptr;
     int size = mp->b_wptr - mp->b_rptr;
     mblk_t *reply, *np;
-    struct upperstr *t, *ppa;
-    int sap, *ip;
+    upperstr_t *ppa, *os;
+    int sap, *ip, len;
     dl_info_ack_t *info;
     dl_bind_ack_t *ackp;
-    dl_phys_addr_ack_t *adrp;
-    dl_get_statistics_ack_t *statsp;
 
     switch (d->dl_primitive) {
     case DL_INFO_REQ:
@@ -583,12 +641,18 @@ dlpi_request(q, mp, us)
 	info->dl_max_sdu = PPP_MAXMTU;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(ulong);
+#ifdef DL_OTHER
 	info->dl_mac_type = DL_OTHER;
+#else
+	info->dl_mac_type = DL_HDLC;	/* a lie */
+#endif
 	info->dl_current_state = us->state;
-	info->dl_sap_length = sizeof(ulong);
 	info->dl_service_mode = DL_CLDLS;
 	info->dl_provider_style = DL_STYLE2;
+#if DL_CURRENT_VERSION >= 2
+	info->dl_sap_length = sizeof(ulong);
 	info->dl_version = DL_CURRENT_VERSION;
+#endif
 	qreply(q, reply);
 	break;
 
@@ -607,12 +671,7 @@ dlpi_request(q, mp, us)
 	    break;
 	}
 	us->ppa = ppa;
-	us->state = DL_UNBOUND;
-	for (t = ppa; t->next != 0; t = t->next)
-	    ;
-	t->next = us;
-	us->next = 0;
-	dlpi_ok(q, DL_ATTACH_REQ);
+	qwriter(q, mp, attach_ppa, PERIM_OUTER);
 	break;
 
     case DL_DETACH_REQ:
@@ -622,21 +681,13 @@ dlpi_request(q, mp, us)
 	    dlpi_error(q, DL_DETACH_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
-	for (t = us->ppa; t->next != 0; t = t->next)
-	    if (t->next == us) {
-		t->next = us->next;
-		break;
-	    }
-	us->next = 0;
-	us->ppa = 0;
-	us->state = DL_UNATTACHED;
-	dlpi_ok(q, DL_DETACH_REQ);
+	qwriter(q, mp, detach_ppa, PERIM_OUTER);
 	break;
 
     case DL_BIND_REQ:
 	if (size < sizeof(dl_bind_req_t))
 	    goto badprim;
-	if (us->state != DL_UNBOUND) {
+	if (us->state != DL_UNBOUND || us->ppa == 0) {
 	    dlpi_error(q, DL_BIND_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
@@ -644,7 +695,9 @@ dlpi_request(q, mp, us)
 	    dlpi_error(q, DL_BIND_REQ, DL_UNSUPPORTED, 0);
 	    break;
 	}
-	/* saps must be valid PPP network protocol numbers */
+
+	/* saps must be valid PPP network protocol numbers,
+	   except that we accept ETHERTYPE_IP in place of PPP_IP. */
 	sap = d->bind_req.dl_sap;
 	us->req_sap = sap;
 #if DEBUG
@@ -652,13 +705,23 @@ dlpi_request(q, mp, us)
 #endif
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
-	if (sap < 0x21 || sap > 0x3fff
-	    || (sap & 1) == 0 || (sap & 0x100) != 0) {
+	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
 	    dlpi_error(q, DL_BIND_REQ, DL_BADADDR, 0);
 	    break;
 	}
+
+	/* check that no other stream is bound to this sap already. */
+	for (os = us->ppa; os != 0; os = os->next)
+	    if (os->sap == sap)
+		break;
+	if (os != 0) {
+	    dlpi_error(q, DL_BIND_REQ, DL_NOADDR, 0);
+	    break;
+	}
+
 	us->sap = sap;
 	us->state = DL_IDLE;
+
 	if ((reply = allocb(sizeof(dl_bind_ack_t) + sizeof(ulong),
 			    BPRI_HI)) == 0)
 	    break;		/* should do bufcall */
@@ -693,11 +756,14 @@ dlpi_request(q, mp, us)
 	    dlpi_error(q, DL_UNITDATA_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
-	if (mp->b_cont != 0 && us->ppa != 0
-	    && msgdsize(mp->b_cont) > us->ppa->mtu) {
+	if (us->ppa == 0) {
+	    cmn_err(CE_CONT, "ppp: in state dl_idle but ppa == 0?\n");
+	    break;
+	}
+	len = mp->b_cont == 0? 0: msgdsize(mp->b_cont);
+	if (len > us->ppa->mtu) {
 #if DEBUG
-	    cmn_err(CE_CONT, "dlpi data too large (%d > %d)\n",
-		    msgdsize(mp->b_cont), us->mtu);
+	    cmn_err(CE_CONT, "dlpi data too large (%d > %d)\n", len, us->mtu);
 #endif
 	    break;
 	}
@@ -723,44 +789,22 @@ dlpi_request(q, mp, us)
 	    putq(q, mp);
 	return;
 
-#if 0
-    case DL_GET_STATISTICS_REQ:
-	if (size < sizeof(dl_get_statistics_req_t))
-	    goto badprim;
-	if ((reply = allocb(sizeof(dl_get_statistics_ack_t) + 5 * sizeof(int),
-			    BPRI_HI)) == 0)
-	    break;		/* XXX should do bufcall */
-	statsp = (dl_get_statistics_ack_t *) reply->b_wptr;
-	reply->b_wptr += sizeof(dl_get_statistics_ack_t) + 5 * sizeof(int);
-	reply->b_datap->db_type = M_PCPROTO;
-	statsp->dl_primitive = DL_GET_STATISTICS_ACK;
-	statsp->dl_stat_length = 5 * sizeof(int);
-	statsp->dl_stat_offset = sizeof(dl_get_statistics_ack_t);
-	ip = (int *) (statsp + 1);
-	ip[0] = 1;
-	ip[1] = 2;
-	ip[2] = 3;
-	ip[3] = 4;
-	ip[4] = 5;
-	qreply(q, reply);
-	break;
-#endif
-
+#if DL_CURRENT_VERSION >= 2
     case DL_SUBS_BIND_REQ:
     case DL_SUBS_UNBIND_REQ:
     case DL_ENABMULTI_REQ:
     case DL_DISABMULTI_REQ:
     case DL_PROMISCON_REQ:
     case DL_PROMISCOFF_REQ:
-    case DL_PHYS_ADDR_REQ:
     case DL_SET_PHYS_ADDR_REQ:
     case DL_XID_REQ:
     case DL_TEST_REQ:
-    case DL_CONNECT_REQ:
-    case DL_TOKEN_REQ:
     case DL_REPLY_UPDATE_REQ:
     case DL_REPLY_REQ:
     case DL_DATA_ACK_REQ:
+#endif
+    case DL_CONNECT_REQ:
+    case DL_TOKEN_REQ:
 	dlpi_error(q, d->dl_primitive, DL_NOTSUPPORTED, 0);
 	break;
 
@@ -775,9 +819,11 @@ dlpi_request(q, mp, us)
 	dlpi_error(q, d->dl_primitive, DL_BADQOSTYPE, 0);
 	break;
 
+#if DL_CURRENT_VERSION >= 2
     case DL_TEST_RES:
     case DL_XID_RES:
 	break;
+#endif
 
     default:
 	cmn_err(CE_CONT, "ppp: unknown dlpi prim 0x%x\n", d->dl_primitive);
@@ -832,10 +878,10 @@ dlpi_ok(q, prim)
 static int
 send_data(mp, us)
     mblk_t *mp;
-    struct upperstr *us;
+    upperstr_t *us;
 {
     queue_t *q;
-    struct upperstr *ppa;
+    upperstr_t *ppa;
 
     if (us->flags & US_BLOCKED)
 	return 0;
@@ -846,35 +892,45 @@ send_data(mp, us)
     }
     if ((q = ppa->lowerq) == 0) {
 	/* try to send it up the control stream */
-	q = ppa->q;
-    }
-    if (canputnext(q)) {
-	putnext(q, mp);
-	return 1;
+	if (canputnext(ppa->q)) {
+	    putnext(ppa->q, mp);
+	    return 1;
+	}
+    } else {
+	if (canputnext(ppa->lowerq)) {
+	    /*
+	     * The lower write queue's put procedure just updates counters
+	     * and does a putnext.  We call it in order to enter the lower
+	     * queues' perimeter so that the counter updates are serialized.
+	     */
+	    put(ppa->lowerq, mp);
+	    return 1;
+	}
     }
     us->flags |= US_BLOCKED;
     return 0;
 }
 
+/*
+ * Allocate a new PPA id and link this stream into the list of PPAs.
+ * This procedure is called with an exclusive lock on all queues in
+ * this driver.
+ */
 static void
 new_ppa(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct upperstr *us, **usp;
+    upperstr_t *us, **usp;
     int ppa_id;
 
-    /*
-     * Allocate a new PPA id and link this stream into
-     * the list of PPAs.
-     */
     usp = &ppas;
     ppa_id = 0;
     while ((us = *usp) != 0 && ppa_id == us->ppa_id) {
 	++ppa_id;
 	usp = &us->nextppa;
     }
-    us = (struct upperstr *) q->q_ptr;
+    us = (upperstr_t *) q->q_ptr;
     us->ppa_id = ppa_id;
     us->ppa = us;
     us->next = 0;
@@ -885,21 +941,80 @@ new_ppa(q, mp)
     us->mtu = PPP_MRU;
     us->mru = PPP_MRU;
 
+#ifdef sun
+    if (us->kstats == 0) {
+	char unit[32];
+
+	sprintf(unit, "ppp%d", us->ppa->ppa_id);
+	us->kstats = kstat_create("ppp", us->ppa->ppa_id, unit,
+				  "net", KSTAT_TYPE_NAMED, 4, 0);
+	if (us->kstats != 0) {
+	    kstat_named_t *kn = KSTAT_NAMED_PTR(us->kstats);
+
+	    strcpy(kn[0].name, "ipackets");
+	    kn[0].data_type = KSTAT_DATA_ULONG;
+	    strcpy(kn[1].name, "ierrors");
+	    kn[1].data_type = KSTAT_DATA_ULONG;
+	    strcpy(kn[2].name, "opackets");
+	    kn[2].data_type = KSTAT_DATA_ULONG;
+	    strcpy(kn[3].name, "oerrors");
+	    kn[3].data_type = KSTAT_DATA_ULONG;
+	    kstat_install(us->kstats);
+	}
+    }
+#endif
+
     *(int *)mp->b_cont->b_rptr = ppa_id;
     mp->b_datap->db_type = M_IOCACK;
     qreply(q, mp);
+}
+
+static void
+attach_ppa(q, mp)
+    queue_t *q;
+    mblk_t *mp;
+{
+    upperstr_t *us, *t;
+
+    us = (upperstr_t *) q->q_ptr;
+    us->state = DL_UNBOUND;
+    for (t = us->ppa; t->next != 0; t = t->next)
+	;
+    t->next = us;
+    us->next = 0;
+    if (mp)
+	dlpi_ok(q, DL_ATTACH_REQ);
+}
+
+static void
+detach_ppa(q, mp)
+    queue_t *q;
+    mblk_t *mp;
+{
+    upperstr_t *us, *t;
+
+    us = (upperstr_t *) q->q_ptr;
+    for (t = us->ppa; t->next != 0; t = t->next)
+	if (t->next == us) {
+	    t->next = us->next;
+	    break;
+	}
+    us->next = 0;
+    us->ppa = 0;
+    us->state = DL_UNATTACHED;
+    dlpi_ok(q, DL_DETACH_REQ);
 }
 
 static int
 pppuwsrv(q)
     queue_t *q;
 {
-    struct upperstr *us;
+    upperstr_t *us;
     struct lowerstr *ls;
     queue_t *lwq;
     mblk_t *mp;
 
-    us = (struct upperstr *) q->q_ptr;
+    us = (upperstr_t *) q->q_ptr;
     while ((mp = getq(q)) != 0) {
 	if (!send_data(mp, us)) {
 	    putbq(q, mp);
@@ -912,17 +1027,35 @@ pppuwsrv(q)
 }
 
 static int
+ppplwput(q, mp)
+    queue_t *q;
+    mblk_t *mp;
+{
+    upperstr_t *ppa;
+
+    ppa = q->q_ptr;
+    if (ppa != 0) {		/* why wouldn't it? */
+	ppa->stats.ppp_opackets++;
+	ppa->stats.ppp_obytes += msgdsize(mp);
+	if (ppa->kstats != 0)
+	    KSTAT_NAMED_PTR(ppa->kstats)[2].value.ul++;
+    }
+    putnext(q, mp);
+    return 0;
+}
+
+static int
 ppplwsrv(q)
     queue_t *q;
 {
-    struct upperstr *us;
+    upperstr_t *us;
 
     /*
      * Flow control has back-enabled this stream:
      * enable the write service procedures of all upper
      * streams feeding this lower stream.
      */
-    for (us = (struct upperstr *) q->q_ptr; us != NULL; us = us->next)
+    for (us = (upperstr_t *) q->q_ptr; us != NULL; us = us->next)
 	if (us->flags & US_BLOCKED)
 	    qenable(WR(us->q));
     return 0;
@@ -932,7 +1065,7 @@ static int
 pppursrv(q)
     queue_t *q;
 {
-    struct upperstr *us, *as;
+    upperstr_t *us, *as;
     mblk_t *mp, *hdr;
     dl_unitdata_ind_t *ud;
     int proto;
@@ -941,7 +1074,7 @@ pppursrv(q)
      * If this is a control stream and we don't have a lower queue attached,
      * run the write service routines of other streams attached to this PPA.
      */
-    us = (struct upperstr *) q->q_ptr;
+    us = (upperstr_t *) q->q_ptr;
     if (us->flags & US_CONTROL) {
 	/*
 	 * A control stream.
@@ -983,7 +1116,9 @@ pppursrv(q)
 	    ud->dl_dest_addr_offset = sizeof(dl_unitdata_ind_t);
 	    ud->dl_src_addr_length = sizeof(ulong);
 	    ud->dl_src_addr_offset = ud->dl_dest_addr_offset + sizeof(ulong);
+#if DL_CURRENT_VERSION >= 2
 	    ud->dl_group_address = 0;
+#endif
 	    /* Send the DLPI client the data with the SAP they requested,
 	       (e.g. ETHERTYPE_IP) rather than the PPP protocol number
 	       (e.g. PPP_IP) */
@@ -995,17 +1130,17 @@ pppursrv(q)
     return 0;
 }
 
-static struct upperstr *
+static upperstr_t *
 find_dest(ppa, proto)
-    struct upperstr *ppa;
+    upperstr_t *ppa;
     int proto;
 {
-    struct upperstr *us;
+    upperstr_t *us;
 
     for (us = ppa->next; us != 0; us = us->next)
 	if (proto == us->sap)
-	    return us;
-    return 0;
+	    break;
+    return us;
 }
 
 static int
@@ -1013,11 +1148,12 @@ ppplrput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct upperstr *ppa, *us;
+    upperstr_t *ppa, *us;
     queue_t *uq;
-    int proto;
+    int proto, len;
+    mblk_t *np;
 
-    ppa = (struct upperstr *) q->q_ptr;
+    ppa = (upperstr_t *) q->q_ptr;
     if (ppa == 0) {
 #if DEBUG
 	cmn_err(CE_CONT, "ppplrput: q = %x, ppa = 0??\n", q);
@@ -1035,18 +1171,42 @@ ppplrput(q, mp)
 	break;
 
     case M_CTL:
+	switch (*mp->b_rptr) {
+	case PPPCTL_IERROR:
+	    if (ppa->kstats != 0) {
+		KSTAT_NAMED_PTR(ppa->kstats)[1].value.ul++;
+	    }
+	    ppa->stats.ppp_ierrors++;
+	    break;
+	case PPPCTL_OERROR:
+	    if (ppa->kstats != 0) {
+		KSTAT_NAMED_PTR(ppa->kstats)[3].value.ul++;
+	    }
+	    ppa->stats.ppp_oerrors++;
+	    break;
+	}
 	freemsg(mp);
 	break;
 
     default:
 	if (mp->b_datap->db_type == M_DATA) {
-	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN
-		&& !pullupmsg(mp, PPP_HDRLEN)) {
-#if DEBUG
-		cmn_err(CE_CONT, "ppp_lrput: pullupmsg failed\n");
-#endif
+	    len = msgdsize(mp);
+	    if (mp->b_wptr - mp->b_rptr < PPP_HDRLEN) {
+		np = msgpullup(mp, PPP_HDRLEN);
 		freemsg(mp);
-		break;
+		if (np == 0) {
+#if DEBUG
+		    cmn_err(CE_CONT, "ppp_lrput: msgpullup failed (len=%d)\n",
+			    len);
+#endif
+		    break;
+		}
+		mp = np;
+	    }
+	    ppa->stats.ppp_ipackets++;
+	    ppa->stats.ppp_ibytes += len;
+	    if (ppa->kstats != 0) {
+		KSTAT_NAMED_PTR(ppa->kstats)[0].value.ul++;
 	    }
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
@@ -1066,7 +1226,7 @@ ppplrput(q, mp)
 	 * or some other message type.
 	 * Send it up to pppd via the control stream.
 	 */
-	if (mp->b_datap->db_type >= QPCTL || canputnext(ppa->q))
+	if (queclass(mp) == QPCTL || canputnext(ppa->q))
 	    putnext(ppa->q, mp);
 	else
 	    putq(q, mp);
@@ -1081,13 +1241,13 @@ ppplrsrv(q)
     queue_t *q;
 {
     mblk_t *mp;
-    struct upperstr *ppa, *us;
+    upperstr_t *ppa, *us;
     int proto;
 
     /*
      * Packets only get queued here for flow control reasons.
      */
-    ppa = (struct upperstr *) q->q_ptr;
+    ppa = (upperstr_t *) q->q_ptr;
     while ((mp = getq(q)) != 0) {
 	if (mp->b_datap->db_type == M_DATA
 	    && (proto = PPP_PROTOCOL(mp->b_rptr)) < 0x8000
