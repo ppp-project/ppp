@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.36 1996/09/14 05:15:41 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.37 1996/09/26 06:21:59 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -120,7 +120,7 @@ extern	char	*getlogin __P((void));
 #define	O_NONBLOCK	O_NDELAY
 #endif
 
-#ifdef PRIMITIVE_SYSLOG
+#ifdef ULTRIX
 #define setlogmask(x)
 #endif
 
@@ -163,7 +163,7 @@ main(argc, argv)
     strcpy(default_devnam, devnam);
 
     /* Initialize syslog facilities */
-#ifdef PRIMITIVE_SYSLOG
+#ifdef ULTRIX
     openlog("pppd", LOG_PID);
 #else
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
@@ -515,14 +515,9 @@ main(argc, argv)
 	 * real serial device back to its normal mode of operation.
 	 */
 	clean_check();
-#ifdef _linux_
-	disestablish_ppp(ttyfd);
-#endif
 	if (demand)
 	    restore_loop();
-#ifndef _linux_
 	disestablish_ppp(ttyfd);
-#endif
 
 	/*
 	 * Run disconnector script, if requested.
@@ -1317,7 +1312,11 @@ fmtmsg __V((char *buf, int buflen, char *fmt, ...))
 #define OUTCHAR(c)	(buflen > 0? (--buflen, *buf++ = (c)): 0)
 
 int
-vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
+vfmtmsg(buf, buflen, fmt, args)
+    char *buf;
+    int buflen;
+    char *fmt;
+    va_list args;
 {
     int c, i, n;
     int width, prec, fillch;
@@ -1328,7 +1327,7 @@ vfmtmsg(char *buf, int buflen, char *fmt, va_list args)
     void *a;
     char num[32];
     time_t t;
-    static char hexchars[16] = "0123456789abcdef";
+    static char hexchars[] = "0123456789abcdef";
 
     buf0 = buf;
     --buflen;
