@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.91 2003/03/03 05:11:46 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.92 2004/01/13 04:02:07 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -487,8 +487,8 @@ options_for_tty()
     size_t pl;
 
     dev = devnam;
-    if (strncmp(dev, "/dev/", 5) == 0)
-	dev += 5;
+    if ((p = strstr(dev, "/dev/")) != NULL)
+	dev = p + 5;
     if (dev[0] == 0 || strcmp(dev, "tty") == 0)
 	return 1;		/* don't look for /etc/ppp/options.tty */
     pl = strlen(_PATH_TTYOPT) + strlen(dev) + 1;
