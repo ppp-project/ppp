@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.svr4,v 1.1 1995/04/24 06:15:47 paulus Exp $
+# $Id: Makefile.svr4,v 1.2 1995/04/28 06:24:19 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -13,7 +13,7 @@ CFLAGS = $(COPTS) -I..
 INSTALL = /usr/sbin/install
 
 OBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o lock.o sys-sol2.o
+	auth.o options.o sys-sol2.o
 
 pppd:	$(OBJS)
 	$(CC) -o pppd $(OBJS) -lnsl
