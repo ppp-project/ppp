@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.38 1996/10/08 04:35:03 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.39 1996/10/08 06:43:49 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -178,7 +178,7 @@ main(argc, argv)
 #endif
 
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
-	syslog(LOG_ERR, "couldn't get hostname: %m");
+	option_error("Couldn't get hostname: %m");
 	die(1);
     }
     hostname[MAXNAMELEN-1] = 0;
@@ -207,6 +207,15 @@ main(argc, argv)
     if (!ppp_available()) {
 	option_error(no_ppp_msg);
 	exit(1);
+    }
+
+    /*
+     * Check that we are running as root.
+     */
+    if (geteuid() != 0) {
+	option_error("must be root to run %s, since it is not setuid-root",
+		     argv[0]);
+	die(1);
     }
 
     /*
