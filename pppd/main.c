@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.48 1998/04/28 23:37:30 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.49 1998/05/05 05:24:17 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1037,6 +1037,11 @@ static void
 bad_signal(sig)
     int sig;
 {
+    static int crashed = 0;
+
+    if (crashed)
+	_exit(127);
+    crashed = 1;
     syslog(LOG_ERR, "Fatal signal %d", sig);
     if (conn_running)
 	kill_my_pg(SIGTERM);
