@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.20 1995/08/11 02:36:21 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.21 1995/08/16 01:40:23 paulus Exp $";
 #endif
 
 /*
@@ -104,14 +104,19 @@ ppp_available()
 {
     int s, ok;
     struct ifreq ifr;
+    extern char *no_ppp_msg;
 
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-	return 1;		/* can't tell - maybe we're not root */
+	return 1;		/* can't tell */
 
     strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
     close(s);
 
+    no_ppp_msg = "\
+This system lacks kernel support for PPP.  To include PPP support\n\
+in the kernel, please follow the steps detailed in the README.bsd\n\
+file in the ppp-2.2 distribution.\n";
     return ok;
 }
 
