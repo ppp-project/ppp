@@ -1,6 +1,23 @@
 /*
  * System-dependent procedures for pppd under Solaris 2.
  *
+ * Parts re-written by Adi Masputra <adi.masputra@sun.com>, based on 
+ * the original sys-svr4.c
+ *
+ * Copyright (c) 2000 by Sun Microsystems, Inc.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, provided that the above copyright
+ * notice appears in all copies.  
+ *
+ * SUN MAKES NO REPRESENTATION OR WARRANTIES ABOUT THE SUITABILITY OF
+ * THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE, OR NON-INFRINGEMENT.  SUN SHALL NOT BE LIABLE FOR
+ * ANY DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR
+ * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES
+ *
  * Copyright (c) 1994 The Australian National University.
  * All rights reserved.
  *
@@ -25,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.41 2000/02/11 03:09:19 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.42 2000/04/06 23:11:05 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -140,6 +157,13 @@ static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 
 #endif /* defined(INET6) && defined(SOL2) */
 
+#if defined(INET6) && defined(SOL2)
+static char	first_ether_name[LIFNAMSIZ];	/* Solaris 8 and above */
+#else
+static char	first_ether_name[IFNAMSIZ];	/* Before Solaris 8 */
+#define MAXIFS		256			/* Max # of interfaces */
+#endif /* defined(INET6) && defined(SOL2) */
+
 static int	restore_term;
 static struct termios inittermios;
 #ifndef CRTSCTS
@@ -208,47 +232,13 @@ sifppa(fd, ppa)
 
 #if defined(SOL2) && defined(INET6)
 /*
- * slifname - Sets interface ppa and flags
+ * get_first_ethernet - returns the first Ethernet interface name found in 
+ * the system, or NULL if none is found
  *
- * in addition to the comments stated in sifppa(), IFF_IPV6 bit must
- * be set in order to declare this as an IPv6 interface
+ * NOTE: This is the lifreq version (Solaris 8 and above)
  */
-static int
-slifname(fd, ppa)
-    int fd;
-    int ppa;
-{
-    struct  lifreq lifr;
-    int	    ret;
-
-    memset(&lifr, 0, sizeof(lifr));
-    ret = ioctl(fd, SIOCGLIFFLAGS, &lifr);
-    if (ret < 0)
-	goto slifname_done;
-
-    lifr.lifr_flags |= IFF_IPV6;
-    lifr.lifr_flags &= ~(IFF_BROADCAST | IFF_IPV4);
-    lifr.lifr_ppa = ppa;
-    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
-
-    ret = ioctl(fd, SIOCSLIFNAME, &lifr);
-
-slifname_done:
-    return ret;
-
-
-}
-
-/*
- * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
- *
- * walks the list of valid ethernet interfaces, and convert the first
- * found 48-bit MAC address into EUI 64. caller also assumes that
- * the system has a properly configured Ethernet interface for this
- * function to return non-zero.
- */
-int
-ether_to_eui64(eui64_t *p_eui64)
+char *
+get_first_ethernet()
 {
     struct lifnum lifn;
     struct lifconf lifc;
@@ -257,8 +247,6 @@ ether_to_eui64(eui64_t *p_eui64)
     int	fd, num_ifs, i, found;
     uint_t fl, req_size;
     char *req;
-    struct sockaddr s_eth_addr;
-    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
@@ -305,7 +293,7 @@ ether_to_eui64(eui64_t *p_eui64)
      */
     plifreq = lifc.lifc_req;
     found = 0;
-    for (i = lifc.lifc_len / sizeof(struct lifreq); i>0; i--, plifreq++) {
+    for (i = lifc.lifc_len / sizeof(struct lifreq); i > 0; i--, plifreq++) {
 
 	if (strchr(plifreq->lifr_name, ':') != NULL)
 	    continue;
@@ -330,7 +318,177 @@ ether_to_eui64(eui64_t *p_eui64)
     free(req);
     close(fd);
 
-    if (!found) {
+    if (found) {
+	strncpy(first_ether_name, lifr.lifr_name, sizeof(first_ether_name));
+	return (char *)first_ether_name;
+    } else
+	return NULL;
+}
+#else
+/*
+ * get_first_ethernet - returns the first Ethernet interface name found in 
+ * the system, or NULL if none is found
+ *
+ * NOTE: This is the ifreq version (before Solaris 8). 
+ */
+char *
+get_first_ethernet()
+{
+    struct ifconf ifc;
+    struct ifreq *pifreq;
+    struct ifreq ifr;
+    int	fd, num_ifs, i, found;
+    uint_t fl, req_size;
+    char *req;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+	return 0;
+    }
+
+    /*
+     * Find out how many interfaces are running
+     */
+    if (ioctl(fd, SIOCGIFNUM, (char *)&num_ifs) < 0) {
+	num_ifs = MAXIFS;
+    }
+
+    req_size = num_ifs * sizeof(struct ifreq);
+    req = malloc(req_size);
+    if (req == NULL) {
+	close(fd);
+	error("out of memory");
+	return 0;
+    }
+
+    /*
+     * Get interface configuration info for all interfaces
+     */
+    ifc.ifc_len = req_size;
+    ifc.ifc_buf = req;
+    if (ioctl(fd, SIOCGIFCONF, &ifc) < 0) {
+	close(fd);
+	free(req);
+	error("SIOCGIFCONF: %m");
+	return 0;
+    }
+
+    /*
+     * And traverse each interface to look specifically for the first
+     * occurence of an Ethernet interface which has been marked up
+     */
+    pifreq = ifc.ifc_req;
+    found = 0;
+    for (i = ifc.ifc_len / sizeof(struct ifreq); i > 0; i--, pifreq++) {
+
+	if (strchr(pifreq->ifr_name, ':') != NULL)
+	    continue;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, pifreq->ifr_name, sizeof(ifr.ifr_name));
+	if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+	    close(fd);
+	    free(req);
+	    error("SIOCGIFFLAGS: %m");
+	    return 0;
+	}
+	fl = ifr.ifr_flags;
+
+	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
+		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	found = 1;
+	break;
+    }
+    free(req);
+    close(fd);
+
+    if (found) {
+	strncpy(first_ether_name, ifr.ifr_name, sizeof(first_ether_name));
+	return (char *)first_ether_name;
+    } else
+	return NULL;
+}
+#endif /* defined(SOL2) && defined(INET6) */
+
+#if defined(SOL2)
+/*
+ * get_if_hwaddr - get the hardware address for the specified
+ * network interface device.
+ */
+int
+get_if_hwaddr(u_char *addr, char *if_name)
+{
+    struct sockaddr s_eth_addr;
+    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
+
+    if (if_name == NULL)
+	return -1;
+
+    /*
+     * Send DL_INFO_REQ to the driver to solicit its MAC address
+     */
+    if (!get_hw_addr_dlpi(if_name, &s_eth_addr)) {
+	error("could not obtain hardware address for %s", if_name);
+	return -1;
+    }
+
+    memcpy(addr, eth_addr->ether_addr_octet, 6);
+    return 1;
+}
+#endif /* SOL2 */
+
+#if defined(SOL2) && defined(INET6)
+/*
+ * slifname - Sets interface ppa and flags
+ *
+ * in addition to the comments stated in sifppa(), IFF_IPV6 bit must
+ * be set in order to declare this as an IPv6 interface
+ */
+static int
+slifname(fd, ppa)
+    int fd;
+    int ppa;
+{
+    struct  lifreq lifr;
+    int	    ret;
+
+    memset(&lifr, 0, sizeof(lifr));
+    ret = ioctl(fd, SIOCGLIFFLAGS, &lifr);
+    if (ret < 0)
+	goto slifname_done;
+
+    lifr.lifr_flags |= IFF_IPV6;
+    lifr.lifr_flags &= ~(IFF_BROADCAST | IFF_IPV4);
+    lifr.lifr_ppa = ppa;
+    strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
+
+    ret = ioctl(fd, SIOCSLIFNAME, &lifr);
+
+slifname_done:
+    return ret;
+
+
+}
+
+
+/*
+ * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
+ *
+ * walks the list of valid ethernet interfaces, and convert the first
+ * found 48-bit MAC address into EUI 64. caller also assumes that
+ * the system has a properly configured Ethernet interface for this
+ * function to return non-zero.
+ */
+int
+ether_to_eui64(eui64_t *p_eui64)
+{
+    struct sockaddr s_eth_addr;
+    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
+    char *if_name;
+
+    if ((if_name = get_first_ethernet()) == NULL) {
 	error("no persistent id can be found");
 	return 0;
     }
@@ -338,8 +496,8 @@ ether_to_eui64(eui64_t *p_eui64)
     /*
      * Send DL_INFO_REQ to the driver to solicit its MAC address
      */
-    if (!get_hw_addr_dlpi(plifreq->lifr_name, &s_eth_addr)) {
-	error("could not obtain hardware address for %s", plifreq->lifr_name);
+    if (!get_hw_addr_dlpi(if_name, &s_eth_addr)) {
+	error("could not obtain hardware address for %s", if_name);
 	return 0;
     }
 
