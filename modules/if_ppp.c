@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.12 1999/03/31 06:07:58 paulus Exp $
+ * $Id: if_ppp.c,v 1.13 1999/04/27 22:20:58 varadhan Exp $
  */
 
 /*
@@ -290,9 +290,11 @@ if_ppp_wput(q, mp)
 		ifp->if_unit = unit;
 		ifp->if_mtu = PPP_MTU;
 		ifp->if_flags = IFF_POINTOPOINT | IFF_RUNNING;
+#ifndef __osf__
 #ifdef IFF_MULTICAST
 		ifp->if_flags |= IFF_MULTICAST;
 #endif
+#endif /* __osf__ */
 		ifp->if_output = if_ppp_output;
 #ifdef __osf__
 		ifp->if_version = "Point-to-Point Protocol, version 2.3.7";
@@ -584,6 +586,7 @@ if_ppp_ioctl(ifp, cmd, data)
     int s, error;
     struct ifreq *ifr = (struct ifreq *) data;
     struct ifaddr *ifa = (struct ifaddr *) data;
+    u_short mtu;
 
     error = 0;
     s = splimp();
@@ -606,6 +609,15 @@ if_ppp_ioctl(ifp, cmd, data)
     case SIOCSIFMTU:
 	if ((error = NOTSUSER()) != 0)
 	    break;
+#ifdef __osf__
+	/* this hack is necessary because ifioctl checks ifr_data
+	 * in 4.0 and 5.0, but ifr_data and ifr_metric overlay each 
+	 * other in the definition of struct ifreq so pppd can't set both.
+	 */
+        bcopy(ifr->ifr_data, &mtu, sizeof (u_short));
+        ifr->ifr_mtu = mtu;
+#endif
+
 	if (ifr->ifr_mtu < PPP_MINMTU || ifr->ifr_mtu > PPP_MAXMTU) {
 	    error = EINVAL;
 	    break;
