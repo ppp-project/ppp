@@ -1,4 +1,4 @@
-/* $Id: patchlevel.h,v 1.60 2004/01/13 04:46:52 paulus Exp $ */
+/* $Id: patchlevel.h,v 1.61 2004/11/04 10:08:28 paulus Exp $ */
 
-#define VERSION		"2.4.2"
-#define DATE		"13 Jan 2004"
+#define VERSION		"2.4.3b1"
+#define DATE		"4 November 2004"
