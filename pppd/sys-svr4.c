@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.20 1999/02/26 10:35:34 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.21 1999/03/08 01:46:49 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -91,6 +91,7 @@ static int	tty_nmodules;
 static char	tty_modules[NMODULES][FMNAMESZ+1];
 
 static int	if_is_up;	/* Interface has been marked up */
+static u_int32_t remote_addr;		/* IP address of peer */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
@@ -1125,6 +1126,7 @@ sifaddr(u, o, h, m)
     }
 #endif
 
+    remote_addr = h;
     return ret;
 }
 
@@ -1148,6 +1150,7 @@ cifaddr(u, o, h)
 	ipmuxid = -1;
     }
 #endif
+    remote_addr = 0;
     return 1;
 }
 
@@ -1726,6 +1729,8 @@ cifroute(u, our, his)
 /*
  * have_route_to - determine if the system has a route to the specified
  * IP address.  Returns 0 if not, 1 if so, -1 if we can't tell.
+ * For demand mode to work properly, we have to ignore routes
+ * through our own interface.
  */
 #ifndef T_CURRENT		/* needed for Solaris 2.5 */
 #define T_CURRENT	MI_T_CURRENT
@@ -1813,7 +1818,8 @@ have_route_to(addr)
 		    syslog(LOG_DEBUG, "have_route_to: dest=%x gw=%x mask=%x\n",
 			   rp->ipRouteDest, rp->ipRouteNextHop,
 			   rp->ipRouteMask);
-		    if (((addr ^ rp->ipRouteDest) && rp->ipRouteMask) == 0)
+		    if (((addr ^ rp->ipRouteDest) && rp->ipRouteMask) == 0
+			&& rp->ipRouteNextHop != remote_addr)
 			return 1;
 		}
 	    }
