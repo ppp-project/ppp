@@ -1,7 +1,7 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.3 1994/04/20 00:11:32 paulus Exp $
+ * $Id: pathnames.h,v 1.4 1994/05/18 06:34:46 paulus Exp $
  */
 
 #if defined(STREAMS) || defined(ultrix)
@@ -15,3 +15,5 @@
 #define _PATH_SYSOPTIONS "/etc/ppp/options"
 #define _PATH_IPUP	"/etc/ppp/ip-up"
 #define _PATH_IPDOWN	"/etc/ppp/ip-down"
+#define _PATH_TTYOPT	"/etc/ppp/options."
+#define _PATH_USEROPT	".ppprc"
