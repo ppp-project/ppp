@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.c,v 1.7 1997/04/30 05:46:49 paulus Exp $	*/
+/*	$Id: if_ppp.c,v 1.8 1998/03/25 04:04:37 paulus Exp $	*/
 
 /*
  * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
@@ -168,7 +168,7 @@ static void	pppdumpm __P((struct mbuf *m0));
  */
 
 extern struct compressor ppp_bsd_compress;
-extern struct compressor ppp_deflate;
+extern struct compressor ppp_deflate, ppp_deflate_draft;
 
 struct compressor *ppp_compressors[8] = {
 #if DO_BSD_COMPRESS
@@ -176,6 +176,7 @@ struct compressor *ppp_compressors[8] = {
 #endif
 #if DO_DEFLATE
     &ppp_deflate,
+    &ppp_deflate_draft,
 #endif
     NULL
 };

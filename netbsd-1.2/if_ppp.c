@@ -161,7 +161,7 @@ static void	pppdumpm __P((struct mbuf *m0));
  */
 
 extern struct compressor ppp_bsd_compress;
-extern struct compressor ppp_deflate;
+extern struct compressor ppp_deflate, ppp_deflate_draft;
 
 struct compressor *ppp_compressors[8] = {
 #if DO_BSD_COMPRESS && defined(PPP_BSDCOMP)
@@ -169,6 +169,7 @@ struct compressor *ppp_compressors[8] = {
 #endif
 #if DO_DEFLATE && defined(PPP_DEFLATE)
     &ppp_deflate,
+    &ppp_deflate_draft,
 #endif
     NULL
 };
