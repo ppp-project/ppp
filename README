@@ -3,10 +3,11 @@ Point-to-Point Protocol (PPP) to provide Internet connections over
 serial lines.
 
 In this first beta release, the ports for SunOS, Solaris, NetBSD and
-OSF/1 are believed to be working correctly.  The Linux port mostly
-works, but still has some known bugs.  The remaining ports haven't
-been tested extensively.  For information on the current status of the
-NeXTStep port, see http://www.thoughtport.com:8080/PPP/.
+Digital Unix (OSF/1) are believed to be working correctly.  The Linux
+port mostly works, but still has some known bugs.  The remaining ports
+haven't been tested extensively.  The NeXTStep port is not included
+here since it hasn't been updated from 2.2 yet.  For information on
+its current status, see http://www.thoughtport.com:8080/PPP/.
 
 
 Introduction.
@@ -40,14 +41,14 @@ system, which contains more specific details for installing PPP on
 that system.  The supported systems, and the corresponding README
 files, are:
 
-	SunOS 4.x			README.sunos4
-	NetBSD, FreeBSD			README.bsd
-	Ultrix 4.x			README.ultrix
+	Digital Unix (OSF/1)		README.osf
 	Linux				README.linux
-	OSF/1				README.osf
+	NetBSD, FreeBSD			README.bsd
 	NeXTStep			README.next
 	Solaris 2			README.sol2
+	SunOS 4.x			README.sunos4
 	System V Release 4		README.svr4
+	Ultrix 4.x			README.ultrix
 
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
@@ -94,6 +95,20 @@ were written from scratch without any Clements code.
 * Pppstats has been reworked to clean up the output format somewhat.
 It also has a new -d option which displays data rate in kbyte/s for
 those columns which would normally display bytes.
+
+* Pppd options beginning with - or + have been renamed, e.g. -ip
+became noip, +chap became require-chap, etc.  The old options are
+still accepted for compatibility but may be removed in future.
+
+* Several minor new features have been added to pppd, including the
+maxconnect and welcome options.  Pppd will now terminate the
+connection when there are no network control protocols running.  The
+allowed IP address(es) field in the secrets files can now specify
+subnets (with a notation like 123.45.67.89/24) and addresses which are
+not acceptable (put a ! on the front).
+
+* Numerous bugs have been fixed (no doubt some have been introduced :-)
+Thanks to those who reported bugs in ppp-2.2.
 
 
 Patents.
@@ -152,4 +167,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.5 1996/07/01 05:27:42 paulus Exp $)
+($Id: README,v 1.6 1996/07/03 06:47:29 paulus Exp $)
