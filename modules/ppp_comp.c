@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.4 1996/06/26 00:54:20 paulus Exp $
+ * $Id: ppp_comp.c,v 1.5 1996/08/28 06:36:30 paulus Exp $
  */
 
 /*
@@ -136,6 +136,7 @@ extern task_t first_task;
 /* Bits in flags are as defined in pppio.h. */
 #define CCP_ERR		(CCP_ERROR | CCP_FATALERROR)
 #define LAST_MOD	0x1000000	/* no ppp modules below us */
+#define DBGLOG		0x2000000	/* log debugging stuff */
 
 #define MAX_IPHDR	128	/* max TCP/IP header size */
 #define MAX_VJHDR	20	/* max VJ compressed header size (?) */
@@ -300,7 +301,7 @@ ppp_comp_wput(q, mp)
 {
     struct iocblk *iop;
     comp_state_t *cp;
-    int error, len;
+    int error, len, n;
     int flags, mask;
     mblk_t *np;
     struct compressor **comp;
@@ -531,6 +532,20 @@ ppp_comp_wput(q, mp)
 	    error = 0;
 	    break;
 
+	case PPPIO_DEBUG:
+	    if (iop->ioc_count != sizeof(int))
+		break;
+	    n = *(int *)mp->b_cont->b_rptr;
+	    if (n == PPPDBG_LOG + PPPDBG_COMP) {
+		DPRINT1("ppp_comp%d: debug log enabled\n", cp->unit);
+		cp->flags |= DBGLOG;
+		error = 0;
+		iop->ioc_count = 0;
+	    } else {
+		error = -1;
+	    }
+	    break;
+
 	case PPPIO_LASTMOD:
 	    cp->flags |= LAST_MOD;
 	    error = 0;
@@ -609,9 +624,9 @@ ppp_comp_wsrv(q)
 	 * Make sure we've got enough data in the first mblk
 	 * and that we are its only user.
 	 */
-	if (proto = PPP_CCP)
+	if (proto == PPP_CCP)
 	    hlen = len;
-	else if (proto = PPP_IP)
+	else if (proto == PPP_IP)
 	    hlen = PPP_HDRLEN + MAX_IPHDR;
 	else
 	    hlen = PPP_HDRLEN;
@@ -626,7 +641,6 @@ ppp_comp_wsrv(q)
 		continue;
 	    }
 	}
-	proto = PPP_PROTOCOL(mp->b_rptr);
 
 	/*
 	 * Do VJ compression if requested.
@@ -901,7 +915,8 @@ ppp_comp_rsrv(q)
 		 * First reset compressor if an input error has occurred.
 		 */
 		if (cp->stats.ppp_ierrors != cp->vj_last_ierrors) {
-		    DPRINT1("ppp%d: resetting VJ\n", cp->unit);
+		    if (cp->flags & DBGLOG)
+			DPRINT1("ppp%d: resetting VJ\n", cp->unit);
 		    vj_uncompress_err(&cp->vj_comp);
 		    cp->vj_last_ierrors = cp->stats.ppp_ierrors;
 		}
@@ -909,17 +924,9 @@ ppp_comp_rsrv(q)
 		vjlen = vj_uncompress_tcp(dp, np->b_wptr - dp, len,
 					  &cp->vj_comp, &iphdr, &iphlen);
 		if (vjlen < 0) {
-#if DEBUG > 1
-		    int i;
-		    DPRINT2("ppp%d: vj_uncomp_tcp failed, pkt len %d [",
-			    cp->unit, len);
-		    for (i = 0; i < len && i < 8; ++i)
-			DPRINT1(" %x", dp[i]);
-		    DPRINT3("] c=%d u=%d e=%d\n",
-			    cp->vj_comp.stats.vjs_compressedin,
-			    cp->vj_comp.stats.vjs_uncompressedin,
-			    cp->vj_comp.stats.vjs_errorin);
-#endif
+		    if (cp->flags & DBGLOG)
+			DPRINT2("ppp%d: vj_uncomp_tcp failed, pkt len %d\n",
+				cp->unit, len);
 		    ++cp->vj_last_ierrors;  /* so we don't reset next time */
 		    goto bad;
 		}
@@ -965,10 +972,9 @@ ppp_comp_rsrv(q)
 		 */
 		cp->vj_last_ierrors = cp->stats.ppp_ierrors;
 		if (!vj_uncompress_uncomp(dp, hlen, &cp->vj_comp)) {
-#if DEBUG > 1
-		    DPRINT2("ppp%d: vj_uncomp_uncomp failed, pkt len %d\n",
-			    cp->unit, len);
-#endif
+		    if (cp->flags & DBGLOG)
+			DPRINT2("ppp%d: vj_uncomp_uncomp failed, pkt len %d\n",
+				cp->unit, len);
 		    ++cp->vj_last_ierrors;  /* don't need to reset next time */
 		    goto bad;
 		}
@@ -1027,13 +1033,13 @@ ppp_comp_ccp(q, mp, rcvd)
 		if (cp->xstate != NULL
 		    && (*cp->xcomp->comp_init)
 		        (cp->xstate, dp + CCP_HDRLEN, clen - CCP_HDRLEN,
-			 cp->unit, 0, 0))
+			 cp->unit, 0, ((cp->flags & DBGLOG) != 0)))
 		    cp->flags |= CCP_COMP_RUN;
 	    } else {
 		if (cp->rstate != NULL
 		    && (*cp->rcomp->decomp_init)
 		        (cp->rstate, dp + CCP_HDRLEN, clen - CCP_HDRLEN,
-			 cp->unit, 0, cp->mru, 0))
+			 cp->unit, 0, cp->mru, ((cp->flags & DBGLOG) != 0)))
 		    cp->flags = (cp->flags & ~CCP_ERR) | CCP_DECOMP_RUN;
 	    }
 	}
@@ -1055,7 +1061,7 @@ ppp_comp_ccp(q, mp, rcvd)
     }
 }
 
-#if DEBUG
+#if 0
 dump_msg(mp)
     mblk_t *mp;
 {
