@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.78 1999/05/12 06:19:47 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.79 1999/05/13 00:35:23 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -120,6 +120,7 @@ int ngroups;			/* How many groups valid in groups */
 static struct timeval start_time;	/* Time when link was started. */
 
 struct pppd_stats link_stats;
+int link_connect_time;
 int link_stats_valid;
 
 static int charshunt_pid;	/* Process ID for charshunt */
@@ -213,7 +214,6 @@ main(argc, argv)
     struct protent *protp;
     struct stat statbuf;
     char numbuf[16];
-    struct timeval now;
 
     phase = PHASE_INITIALIZE;
 
@@ -742,6 +742,10 @@ main(argc, argv)
 	 */
 	notice("Connect: %s <--> %s", ifname, ppp_devnam);
 	gettimeofday(&start_time, NULL);
+	link_stats_valid = 0;
+	script_unsetenv("CONNECT_TIME");
+	script_unsetenv("BYTES_SENT");
+	script_unsetenv("BYTES_RCVD");
 	lcp_lowerup(0);
 
 	/*
@@ -792,12 +796,9 @@ main(argc, argv)
 	/*
 	 * Print connect time and statistics.
 	 */
-	if (gettimeofday(&now, NULL) >= 0) {
-	    int t = now.tv_sec - start_time.tv_sec;
-	    t = (t + 5) / 6;	/* now in 1/10ths of minutes */
-	    info("Connect time %d.%d minutes.", t/10, t%10);
-	}
 	if (link_stats_valid) {
+	    int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
+	    info("Connect time %d.%d minutes.", t/10, t%10);
 	    info("Sent %d bytes, received %d bytes.",
 		 link_stats.bytes_out, link_stats.bytes_in);
 	}
@@ -1117,6 +1118,30 @@ close_tty()
 
     close(real_ttyfd);
     real_ttyfd = -1;
+}
+
+/*
+ * update_link_stats - get stats at link termination.
+ */
+void
+update_link_stats(u)
+    int u;
+{
+    struct timeval now;
+    char numbuf[32];
+
+    if (!get_ppp_stats(u, &link_stats)
+	|| gettimeofday(&now, NULL) < 0)
+	return;
+    link_connect_time = now.tv_sec - start_time.tv_sec;
+    link_stats_valid = 1;
+
+    slprintf(numbuf, sizeof(numbuf), "%d", link_connect_time);
+    script_setenv("CONNECT_TIME", numbuf);
+    slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_out);
+    script_setenv("BYTES_SENT", numbuf);
+    slprintf(numbuf, sizeof(numbuf), "%d", link_stats.bytes_in);
+    script_setenv("BYTES_RCVD", numbuf);
 }
 
 
