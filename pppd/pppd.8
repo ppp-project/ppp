@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.0
-.\" $Id: pppd.8,v 1.15 1995/08/17 01:52:17 paulus Exp $
+.\" $Id: pppd.8,v 1.16 1995/12/18 03:48:04 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -225,12 +225,11 @@ Increase debugging level (same as the \fBdebug\fR option).
 .TP
 .B debug
 Increase debugging level (same as \fB\-d\fR).
-If this
-option is given, \fIpppd\fR will log the contents of all control
-packets sent or received in a readable form.  The packets are logged
-through syslog with facility \fIdaemon\fR and level \fIdebug\fR.  This
-information can be directed to a file by setting up /etc/syslog.conf
-appropriately (see syslog.conf(5)).
+If this option is given, \fIpppd\fR will log the contents of all
+control packets sent or received in a readable form.  The packets are
+logged through syslog with facility \fIdaemon\fR and level
+\fIdebug\fR.  This information can be directed to a file by setting up
+/etc/syslog.conf appropriately (see syslog.conf(5)).
 .TP
 .B \-defaultroute
 Disable the \fBdefaultroute\fR option.  The system administrator who
@@ -243,6 +242,17 @@ Don't fork to become a background process (otherwise
 will do so if a serial device other than its controlling terminal is
 specified).
 .TP
+.B ms-dns \fI<addr>
+If
+.I pppd
+is acting as a server for Microsoft Windows clients, this option
+allows
+.I pppd
+to supply one or two DNS (Domain Name Server) addresses to the
+clients.  The first instance of this option specifies the primary DNS
+address; the second instance (if given) specifies the secondary DNS
+address.
+.TP
 .B domain \fI<d>
 Append the domain name <d> to the local host name for authentication
 purposes.  For example, if gethostname() returns the name porsche, but the
@@ -250,9 +260,22 @@ fully qualified domain name is porsche.Quotron.COM, you would use the
 domain option to set the domain name to Quotron.COM.
 .TP
 .B -ip
-Disable IP address negotiation.  If this option is used, the remote IP
-address must be specified with an option on the command line or in an
-options file.
+Disable IPCP negotiation and IP communication.  This option should
+only be required if the peer is buggy and gets confused by requests
+from
+.I pppd
+for IPCP negotiation.
+.TP
+.B +ipx
+Enable the IPXCP and IPX protocols.  Under Linux, this is the default
+condition if your kernel supports IPX.  This option is presently only
+supported under Linux.
+.TP
+.B -ipx
+Disable the IPXCP and IPX protocols.  This option should only be
+required if the peer is buggy and gets confused by requests from
+.I pppd
+for IPXCP negotiation.
 .TP
 .B ipcp-accept-local
 With this option,
@@ -286,6 +309,67 @@ Set the IPCP restart interval (retransmission timeout) to <n> seconds
 Provides an extra parameter to the ip-up and ip-down scripts.  If this
 option is given, the \fIstring\fR supplied is given as the 6th
 parameter to those scripts.
+.TP
+.B ipx-network \fI<n>
+Set the IPX network number in the IPXCP configure request frame to
+<n>. There is no valid default. If this option is not specified then
+the network number is obtained from the peer. If the peer does not
+have the network number, the IPX protocol will not be started. This is
+a hexadecimal number and is entered without any leading sequence such
+as 0x. It is related to the \fIipxcp-accept-network\fR option.
+.TP
+.B ipx-node \fI<n>:<m>
+Set the IPX node numbers. The two node numbers are separated from each
+other with a colon character. The first number <n> is the local node
+number. The second number <m> is the peer's node number. Each node number
+is a hexadecimal number, to the maximum of ten significant digits. The
+node numbers on the ipx-network must be unique. There is no valid
+default. If this option is not specified then the node number is
+obtained from the peer. This option is a related to the
+\fIipxcp-accept-local\fR and \fIipxcp-accept-remote\fR options.
+.TP
+.B ipx-router-name \fI<string>
+Set the name of the router. This is a string and is sent to the peer
+as information data.
+.TP
+.B ipx-routing \fI<n>
+Set the routing protocol to be received by this option. More than one
+instance of \fIipx-routing\fR may be specified. The '\fInone\fR'
+option (0) may be specified as the only instance of ipx-routing. The
+values may be \fI0\fR for \fINONE\fR, \fI2\fR for \fIRIP/SAP\fR, and
+\fI4\fR for \fINLSP\fR.
+.TP
+.B ipxcp-accept-local
+Accept the peer's NAK for the node number specified in the ipx-node
+option. If a node number was specified, and non-zero, the default is
+to insist that the value be used. If you include this option then you
+will permit the peer to override the entry of the node number.
+.TP
+.B ipxcp-accept-network
+Accept the peer's NAK for the network number specified in the
+ipx-network option. If a network number was specified, and non-zero, the
+default is to insist that the value be used. If you include this
+option then you will permit the peer to override the entry of the node
+number.
+.TP
+.B ipxcp-accept-remote
+Use the peer's network number specified in the configure request
+frame. If a node number was specified for the peer and this option was
+not specified, the peer will be forced to use the value which you have
+specified.
+.TP
+.B ipxcp-max-configure \fI<n>
+Set the maximum number of IPXCP configure request frames which the
+system will send to <n>. The default is 10.
+.TP
+.B ipxcp-max-failure \fI<n>
+Set the maximum number of IPXCP NAK frames which the local system will
+send before it rejects the options. The default value is 3.
+.TP
+.B ipxcp-max-terminate \fI<n>
+Set the maximum nuber of IPXCP terminate request frames before the
+local system considers that the peer is not listening to them. The
+default value is 3.
 .TP
 .B kdebug \fIn
 Enable debugging code in the kernel-level PPP driver.  The argument
@@ -408,6 +492,14 @@ protocol field compression disabled).
 .B persist
 Do not exit after a connection is terminated; instead try to reopen
 the connection.
+.TP
+.B predictor1
+Attempt to request that the peer send frames which
+have been compressed using Predictor-1 compression.  This option will
+be ignored unless Predictor-1 code has been loaded into the kernel.
+.TP
+.B -predictor1
+Do not accept or agree to Predictor-1 comprssion.
 .TP
 .B proxyarp
 Add an entry to this system's ARP [Address Resolution Protocol] table
@@ -710,6 +802,47 @@ A program or script which is executed when the link is no longer
 available for sending and receiving IP packets.  This script can be
 used for undoing the effects of the /etc/ppp/ip-up script.  It is
 invoked with the same parameters as the ip-up script, and the same
+security considerations apply, since it is executed with the same
+effective and real user-IDs as \fIpppd\fR.
+.TP
+.B /etc/ppp/ipx-up
+A program or script which is executed when the link is available for
+sending and receiving IPX packets (that is, IPXCP has come up).  It is
+executed with the parameters
+.IP
+\fIinterface-name tty-device speed network-number local-IPX-node-address
+remote-IPX-node-address local-IPX-routing-protocol remote-IPX-routing-protocol
+local-IPX-router-name remote-IPX-router-name ipparam pppd-pid\fR 
+.IP
+and with its standard input,
+output and error streams redirected to \fB/dev/null\fR.
+.br
+.IP
+The local-IPX-routing-protocol and remote-IPX-routing-protocol field
+may be one of the following:
+.IP
+NONE      to indicate that there is no routing protocol
+.br
+RIP       to indicate that RIP/SAP should be used
+.br
+NLSP      to indicate that Novell NLSP should be used
+.br
+RIP NLSP  to indicate that both RIP/SAP and NLSP should be used
+.br
+.IP
+This program or script is executed with the same real and effective
+user-ID as \fIpppd\fR, that is, at least the effective user-ID and
+possibly the real user-ID will be \fBroot\fR.  This is so that it can
+be used to manipulate routes, run privileged daemons (e.g.
+\fBripd\fR), etc.  Be careful that the contents of the
+/etc/ppp/ipx-up and /etc/ppp/ipx-down scripts do not compromise your
+system's security.
+.TP
+.B /etc/ppp/ipx-down
+A program or script which is executed when the link is no longer
+available for sending and receiving IPX packets.  This script can be
+used for undoing the effects of the /etc/ppp/ipx-up script.  It is
+invoked with the same parameters as the ipx-up script, and the same
 security considerations apply, since it is executed with the same
 effective and real user-IDs as \fIpppd\fR.
 .TP
