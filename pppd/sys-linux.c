@@ -2481,8 +2481,8 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
     *slave_fdp = sfd;
     if (tcgetattr(sfd, &tios) == 0) {
 	tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
-	tios.c_cflag |= CS8 | CREAD;
-	tios.c_iflag  = IGNPAR | CLOCAL;
+	tios.c_cflag |= CS8 | CREAD | CLOCAL;
+	tios.c_iflag  = IGNPAR;
 	tios.c_oflag  = 0;
 	tios.c_lflag  = 0;
 	if (tcsetattr(sfd, TCSAFLUSH, &tios) < 0)
