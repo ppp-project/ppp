@@ -1,15 +1,15 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.11 1996/04/04 03:25:07 paulus Exp $
+# $Id: Makefile.linux,v 1.12 1996/05/28 00:53:30 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-linux.c ipxcp.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
-
+	   ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c
+HEADERS =  callout.h pathnames.h patchlevel.h chap.h md5.h chap_ms.h md4.h \
+	   ipxcp.h
+MANPAGES = pppd.8
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-linux.o ipxcp.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
+	   auth.o options.o demand.o sys-linux.o ipxcp.o
 
 all: pppd
 
@@ -17,20 +17,35 @@ all: pppd
 # include dependancies if present and backup if as a header file
 ifeq (.depend,$(wildcard .depend))
 include .depend
+HEADERS := $(HEADERS) .depend
 endif
 
 # CC = gcc
 # DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H # -DUSE_MS_DNS=1 # -DIPX_CHANGE=1
-COPTS = -g # -O2
+COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H
+COPTS = -O2 # -g
 VER = 0.2.8
 LIBS = -lbsd
 
 CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 
+ifdef USE_MS_DNS
+CFLAGS   += -DUSE_MS_DNS=1
+endif
+
+ifdef IPX_CHANGE
+CFLAGS   += -DIPX_CHANGE=1
+PPPDOBJS += ipxcp.o
+endif
+
+ifdef HAS_SHADOW
+CFLAGS   += -DHAS_SHADOW
+LIBS     += -lshadow
+endif
+
 install: pppd
-	mkdir -p $(BINDIR)
-	install -c -m 4555 -o root pppd $(BINDIR)/pppd
+	mkdir -p $(BINDIR) $(MANDIR)
+	install -s -c -m 4555 -o root pppd $(BINDIR)/pppd
 	install -c -m 555 -o root pppd.8 $(MANDIR)/man8
 
 pppd: $(PPPDOBJS)
