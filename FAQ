@@ -547,3 +547,17 @@ Then copy the new kernel to /:
 	cp vmunix /
 
 and reboot.  Modload should then work.
+
+
+------------------------------------------------------------------------
+
+Q: I'm running Linux (or NetBSD or FreeBSD), and my system comes with
+PPP already.  Should I consider installing this package?  Why?
+
+A: The PPP that is already installed in your system is (or is derived
+from) some version of this PPP package.  You can find out what version
+of this package is already installed with the command "pppd --help".
+If this is older than the latest version, you may wish to install the
+latest version so that you can take advantage of the new features or
+bug fixes.
+
