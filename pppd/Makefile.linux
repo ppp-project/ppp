@@ -1,18 +1,18 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.4 1994/09/21 01:49:08 paulus Exp $
+# $Id: Makefile.linux,v 1.5 1995/04/24 06:14:56 paulus Exp $
 #
 
 BINDIR = /usr/etc
 MANDIR = /usr/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c lock.c sys-linux.c
+	auth.c options.c sys-linux.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o lock.o sys-linux.o
+	auth.o options.o sys-linux.o
 
 all: pppd
 
@@ -25,10 +25,10 @@ endif
 
 # CC = gcc
 DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -I.. -D_linux_=1 -DHAVE_PATHS_H
+COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H
 COPTS = -g # -O2
-LOCKPREFIX = \"/usr/spool/uucp/LCK..\"
 VER = 0.2.8
+LIBS = -lbsd
 
 CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
@@ -53,11 +53,6 @@ depend:
 	$(CPP) -M $(CFLAGS) $(PPPDSRCS) >.depend
 
 options.o:	options.c
-	$(CC) -c -o options.o $(CFLAGS) \
-	"-DIMPLEMENTATION=\" (Linux $(VER))\"" options.c
-
-lock.o: lock.c
-	$(CC) -c -o lock.o $(CFLAGS) -DPIDSTRING=1 -DLOCK_DIR=1 \
-	"-DLOCK_PREFIX=$(LOCKPREFIX)" lock.c
+	$(CC) -c -o options.o $(CFLAGS) options.c
 
 saber_pppd:
