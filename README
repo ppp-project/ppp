@@ -86,6 +86,12 @@ What's new in ppp-2.3.9.
   peer.  It doesn't apply it if the link was terminated because the
   local pppd thought it was idle.
 
+* Synchronous support for Solaris has been added, thanks to John
+  Morrison, and for FreeBSD, thanks to Paul Fulghum.
+
+* IPV6 support has been merged in, from Tommi Komulainen.  At the
+  moment it only supports Linux and it is not tested by me.
+
 * The `nodefaultip' option can be used in demand mode to say that pppd
   should not suggest its local IP address to the peer.
 
@@ -96,6 +102,14 @@ What's new in ppp-2.3.9.
 
 * There is a new `logfile' option to send log messages to a file as
   well as syslog.
+
+* There is a new, privileged `linkname' option which sets a logical
+  name for the link.  Pppd will create a /var/run/ppp-<linkname>.pid
+  file containing its process ID.
+
+* There is a new `maxfail' option which specifies how many consecutive
+  failed connection attempts are permitted before pppd will exit.  The
+  default value is 10, and 0 means infinity. :-)
 
 * Sundry bugs fixed.
 
@@ -403,6 +417,19 @@ not acceptable (put a ! on the front).
 Thanks to those who reported bugs in ppp-2.2.
 
 
+Compression methods.
+********************
+
+This package supports two packet compression methods: Deflate and
+BSD-Compress.  Other compression methods which are in common use
+include Predictor, LZS, and MPPC.  These methods are not supported for
+two reasons - they are patent-encumbered, and they cause some packets
+to expand slightly, which pppd doesn't currently allow for.
+BSD-Compress is also patent-encumbered (its inclusion in this package
+can be considered a historical anomaly :-) but it doesn't ever expand
+packets.  Neither does Deflate, which uses the same algorithm as gzip.
+
+
 Patents.
 ********
 
@@ -430,7 +457,7 @@ If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
 Linux			Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
-Solaris 2		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+Solaris 2		Paul Mackerras (for want of anybody better :-)
 SunOS 4.x		Paul Mackerras (for want of anybody better :-)
 Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
 NetBSD			Matthew Green <mrg@eterna.com.au>
@@ -443,7 +470,9 @@ Ultrix 4.x		Paul Mackerras (for want of anybody better :-)
 Copyrights:
 ***********
 
-All of the code can be freely used and redistributed.
+All of the code can be freely used and redistributed.  The individual
+source files each have their own copyright and permission notice; some
+have a BSD-style notice and some are under the GPL.
 
 
 Distribution:
@@ -454,4 +483,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.18 1999/07/23 07:07:33 paulus Exp $)
+($Id: README,v 1.19 1999/08/13 01:54:02 paulus Exp $)

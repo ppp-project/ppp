@@ -87,12 +87,38 @@ Nick Walker added the code to pppd to query the peer for DNS server
 addresses.
 
 
+USING THE NEW PPP KERNEL DRIVER
+
+As of kernel version 2.3.13, the development series of kernels contain
+a new kernel PPP driver, rewritten from scratch by Paul Mackerras.
+This package supports the new driver, although it doesn't include the
+source for the new driver.
+
+The new driver is divided into two files: ppp_generic.c and
+ppp_async.c.  The old ppp.c is still present in the kernel sources but
+is not used.  If you compile PPP as a module, you will get two
+separate modules, called ppp_generic and ppp_async.
+
+To talk to the new driver, pppd needs to be able to open /dev/ppp,
+character device (108,0).  If the special file node /dev/ppp is not
+present, pppd will create it.  However, if you are running with /dev
+on a read-only filesystem, pppd will not be able to create /dev/ppp.
+In that instance you should manually create /dev/ppp using the command
+`mknod /dev/ppp c 108 0'.
+
+If you use module autoloading and have PPP as a module, you will need
+to add the following to /etc/conf.modules:
+
+alias tty-ldisc-3    ppp_async
+alias char-major-108 ppp_generic
+
+
 INSTALLATION
 
 This version of PPP has been tested on various Linux kernel versions
-(most recently 2.0.36 and 2.2.8). It will not work on kernels before
-2.0.0. If you have an earlier kernel, please upgrade to the latest 2.0
-or 2.2 kernel.
+(most recently 2.2.10). It will not work on kernels before 2.0.0. If
+you have an earlier kernel, please upgrade to the latest 2.2-series
+kernel.
 
 joining the PPP channel of linux-activists:
 
@@ -165,17 +191,22 @@ set of symbolic links to the makefiles. They should link 'Makefile' to
 
 2. Update the kernel sources.
 
-The 2.2.8 kernel contains the same PPP kernel driver as is in this
-release.  In fact the driver in the kernel sources is slightly
+The 2.2.8 and later kernels contains the same PPP kernel driver as is
+in this release.  In fact the driver in the kernel sources is slightly
 different from the one in this package as it doesn't include the stuff
 which enables the driver in this package to compile in either the 2.0
 or 2.2 kernel environment, but the two are functionally equivalent.
-If you are using a 2.2.8 kernel and your kernel is already configured
-for PPP, then you only need to do steps 5 and 6.  Otherwise, continue
-at step 3.
+If you are using a 2.2.8 or later kernel and your kernel is already
+configured for PPP, then you only need to do steps 5 and 6.
+Otherwise, continue at step 3.
+
+If you are using a 2.3 series kernel, use the kernel driver that is in
+the kernel sources.  For 2.3.13 and later, this is the new driver (see
+above).
 
 If you are using a kernel earlier than 2.2.8, you can either use the
-driver in this package or upgrade your kernel to 2.2.8.  If you choose
+driver in this package or upgrade your kernel to the current 2.2.x
+series kernel (2.2.11, as of the release of ppp-2.3.9).  If you choose
 to use the driver in this package, you will need a copy of the kernel
 source tree to compile the driver.  Issue the command:
 
