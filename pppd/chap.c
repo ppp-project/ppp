@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.2 1994/04/11 07:13:44 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.3 1994/04/18 04:01:07 paulus Exp $";
 #endif
 
 /*
@@ -557,6 +557,8 @@ ChapReceiveSuccess(cstate, inp, id, len)
 	return;
     }
 
+    UNTIMEOUT(ChapResponseTimeout, (caddr_t) cstate);
+
     /*
      * Print message.
      */
@@ -590,6 +592,8 @@ ChapReceiveFailure(cstate, inp, id, len)
 		   cstate->clientstate));
 	return;
     }
+
+    UNTIMEOUT(ChapResponseTimeout, (caddr_t) cstate);
 
     /*
      * Print message.
