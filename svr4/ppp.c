@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.3 1995/05/29 06:59:36 paulus Exp $
+ * $Id: ppp.c,v 1.4 1995/06/01 02:22:12 paulus Exp $
  */
 
 /*
@@ -81,6 +81,7 @@ typedef struct upperstr {
     int req_sap;		/* which SAP the DLPI client requested */
     struct upperstr *ppa;	/* control stream for our ppa */
     struct upperstr *next;	/* next stream for this ppa */
+    uint ioc_id;		/* last ioctl ID for this stream */
     /*
      * There is exactly one control stream for each PPA.
      * The following fields are only used for control streams.
@@ -355,6 +356,8 @@ pppclose(q, flag, credp)
     qprocsoff(q);
 
     up = (upperstr_t *) q->q_ptr;
+    if (up == 0)
+	return 0;
     if (up->flags & US_CONTROL) {
 	/*
 	 * This stream represents a PPA:
@@ -397,7 +400,7 @@ pppclose(q, flag, credp)
     q->q_ptr = NULL;
     WR(q)->q_ptr = NULL;
 
-    for (prevp = &minor_devs; *prevp != 0; prevp = &up->nextmn) {
+    for (prevp = &minor_devs; *prevp != 0; prevp = &(*prevp)->nextmn) {
 	if (*prevp == up) {
 	    *prevp = up->nextmn;
 	    break;
@@ -521,7 +524,9 @@ pppuwput(q, mp)
 	    if (ppa == 0)
 		break;
 	    us->ppa = ppa;
-	    qwriter(q, NULL, attach_ppa, PERIM_OUTER);
+	    iop->ioc_count = 0;
+	    qwriter(q, mp, attach_ppa, PERIM_OUTER);
+	    error = -1;
 	    break;
 
 	case PPPIO_MRU:
@@ -562,6 +567,7 @@ pppuwput(q, mp)
 	default:
 	    if (us->ppa == 0 || us->ppa->lowerq == 0)
 		break;
+	    us->ioc_id = iop->ioc_id;
 	    error = -1;
 	    switch (iop->ioc_cmd) {
 	    case PPPIO_GETSTAT:
@@ -982,8 +988,12 @@ attach_ppa(q, mp)
 	;
     t->next = us;
     us->next = 0;
-    if (mp)
+    if (mp->b_datap->db_type == M_IOCTL) {
+	mp->b_datap->db_type = M_IOCACK;
+	qreply(q, mp);
+    } else {
 	dlpi_ok(q, DL_ATTACH_REQ);
+    }
 }
 
 static void
@@ -1152,6 +1162,7 @@ ppplrput(q, mp)
     queue_t *uq;
     int proto, len;
     mblk_t *np;
+    struct iocblk *iop;
 
     ppa = (upperstr_t *) q->q_ptr;
     if (ppa == 0) {
@@ -1186,6 +1197,22 @@ ppplrput(q, mp)
 	    break;
 	}
 	freemsg(mp);
+	break;
+
+    case M_IOCACK:
+    case M_IOCNAK:
+	/*
+	 * Attempt to match up the response with the stream
+	 * that the request came from.
+	 */
+	iop = (struct iocblk *) mp->b_rptr;
+	for (us = ppa; us != 0; us = us->next)
+	    if (us->ioc_id == iop->ioc_id)
+		break;
+	if (us == 0)
+	    freemsg(mp);
+	else
+	    putnext(us->q, mp);
 	break;
 
     default:
