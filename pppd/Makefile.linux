@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.28 1999/03/30 06:01:42 paulus Exp $
+# $Id: Makefile.linux,v 1.29 1999/03/31 06:07:58 paulus Exp $
 #
 
 # Default installation locations
@@ -27,7 +27,7 @@ endif
 # CC = gcc
 #
 COPTS = -O2 -pipe -Wall -g
-VER = 2.3.6
+VER = 2.3.7
 LIBS =
 
 ifneq ($(wildcard /usr/lib/libcrypt*),)

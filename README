@@ -34,19 +34,21 @@ system, which contains more specific details for installing PPP on
 that system.  The supported systems, and the corresponding README
 files, are:
 
-	Digital Unix (OSF/1)		README.osf
 	Linux				README.linux
+	Solaris 2			README.sol2
+	Digital Unix (OSF/1)		README.osf
 	NetBSD, FreeBSD			README.bsd
 	NeXTStep			README.next
-	Solaris 2			README.sol2
 	SunOS 4.x			README.sunos4
 	System V Release 4		README.svr4
 	Ultrix 4.x			README.ultrix
 
-Unfortunately, AIX 4 is no longer supported, since I don't have a
-maintainer for the AIX 4 port.  If you want to volunteer, contact me.
-The Ultrix port is untested, as I no longer have access to an Ultrix
-box.
+In fact, only the Linux and Solaris 2 ports have been tested in this
+release.  Code for the other systems is still included; if you use it,
+let me know how it works.  If I don't hear from anyone it will
+probably get dropped in a subsequent release.  AIX 4 is no longer
+supported, since I don't have a maintainer for the AIX 4 port.  If you
+want to volunteer, contact me.
 
 In each case you start by running the ./configure script.  This works
 out which operating system you are using and creates symbolic links to
@@ -67,8 +69,71 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.3.6.
+What's new in ppp-2.3.7.
 ************************
+
+* Pppd can now automatically allocate itself a pseudo-tty to use as
+  the serial device.  This has made three new options possible:
+
+  - `pty script' will run `script' with its standard input and output
+    connected to the master side of the pty.  For example:
+	pppd pty 'ssh -t server.my.net pppd'
+    is a basic command for setting up a PPP link (tunnel) over ssh.
+    (In practice you may need to specify other options such as IP
+    addresses, etc.)
+
+  - `notty' tells pppd to communicate over its standard input and
+    output, which do not have to be a terminal device.
+
+  - `record filename' tells pppd to record all of the characters sent
+    and received over the serial device to a file called `filename'.
+    The data is recorded in a tagged format with timestamps, which can
+    be printed in a readable form with the pppdump program, which is
+    included in this distribution.
+
+* Pppd now logs the connect time and number of bytes sent and received
+  (at the level of the serial device) when the connection is
+  terminated.
+
+* If you use the updetach or nodetach option, pppd will print its
+  messages to standard output as well as logging them with syslog
+  (provided of course pppd isn't using its standard input or output as
+  its serial device).
+
+* There is a new `privgroup groupname' option (a privileged option).
+  If the user running pppd is in group `groupname', s/he can use
+  privileged options without restriction.
+
+* There is a new `receive-all' option, which causes pppd to accept all
+  control characters, even the ones that the peer should be escaping
+  (i.e. the receive asyncmap is 0).  This is useful with some buggy
+  peers.
+
+* The default asyncmap is now 0.
+
+* There is a new `sync' option, currently only implemented under
+  Linux, which allows pppd to run on synchronous HDLC devices.
+
+* If a value for the device name or for the connect, disconnect,
+  welcome or pty option is given in a privileged option file
+  (i.e. /etc/ppp/options or a file loaded with the `call' option), it
+  cannot be overridden by a non-privileged user.
+
+* Many bugs have been fixed, notably:
+  - signals are not blocked unnecessarily, as they were in 2.3.6.
+  - the usepeerdns option should work now.
+  - the SPEED environment variable for scripts is set correctly.
+  - the /etc/ppp/auth-down script is not run until auth-up completes.
+  - the device is opened as root if it is the device on standard
+    input.
+  - pppd doesn't die with the ioctl(PPPIOCSASYNCMAP) error under linux
+    if a hangup occurs at the wrong time.
+
+* Some error messages have been changed to be clearer (I hope :-)
+
+
+What was new in ppp-2.3.6.
+**************************
 
 * Pppd now opens the tty device as the user (rather than as root) if
   the device name was given by the user, i.e. on the command line or
@@ -290,13 +355,13 @@ questions like this that I get.
 If you find bugs in this package, please report them to the maintainer
 for the port for the operating system you are using:
 
-Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
 Linux			Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+Solaris 2		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
+SunOS 4.x		Paul Mackerras (for want of anybody better :-)
+Digital Unix (OSF/1)	Sowmini Varadhan <varadhan@zk3.dec.com>
 NetBSD			Matthew Green <mrg@eterna.com.au>
 FreeBSD			Peter Wemm <peter@haywire.DIALix.COM>
 NeXTStep		Steve Perkins <perkins@cps.msu.edu>
-Solaris 2		Paul Mackerras <Paul.Mackerras@cs.anu.edu.au>
-SunOS 4.x		Paul Mackerras (for want of anybody better :-)
 System V Release 4	Matthias Apitz <Matthias.Apitz@SOFTCON.de>
 Ultrix 4.x		Paul Mackerras (for want of anybody better :-)
 
@@ -315,4 +380,4 @@ The primary site for releases of this software is:
 	ftp://cs.anu.edu.au/pub/software/ppp/
 
 
-($Id: README,v 1.15 1999/03/10 05:10:47 paulus Exp $)
+($Id: README,v 1.16 1999/03/31 06:07:55 paulus Exp $)

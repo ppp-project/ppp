@@ -1,7 +1,7 @@
-PPP for Linux                                             Version 2.3.6
+PPP for Linux                                             Version 2.3.7
 =============                                                  based on
-                                                              ppp-2.3.6
-                                                          February 1999
+                                                              ppp-2.3.7
+                                                             March 1999
 
 Michael Callahan    callahan@maths.ox.ac.uk
 Al Longyear         longyear@netcom.com
@@ -84,8 +84,8 @@ Paul Mackerras rewrote and restructured the code for improved
 performance and to make a cleaner separation between the
 network-interface and async TTY parts of the ppp driver.
 
-
 Nick Walker added the code to query the peer for DNS server addresses.
+
 
 INSTALLATION
 
@@ -166,12 +166,14 @@ set of symbolic links to the makefiles. They should link 'Makefile' to
 2. Update the kernel sources.
 
 If you are using a 2.2.x kernel (or a recent 2.1.x kernel), you do not
-need to do this step.  If your kernel is already configured for PPP,
-then you only need to do steps 5 and 6.  Otherwise, continue at step 3.
+need to do this step unless you need the synchronous HDLC support.  If
+your kernel is already configured for PPP, then you only need to do
+steps 5 and 6.  Otherwise, continue at step 3.
 
-If you are using a 2.0.x kernel, you need to update the kernel ppp
-driver to the version in this package.  You will need a copy of the
-kernel source tree to do this.  Issue the command:
+If you are using a 2.0.x kernel, or you need the synchronous HDLC
+support, you need to update the kernel ppp driver to the version in
+this package.  You will need a copy of the kernel source tree to do
+this.  Issue the command:
 
 make kernel
 
