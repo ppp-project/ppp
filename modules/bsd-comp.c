@@ -39,9 +39,9 @@
 
 /*
  * This version is for use with STREAMS under SunOS 4.x,
- * DEC Alpha OSF/1, and AIX 4.x.
+ * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.12 1995/05/19 03:48:34 paulus Exp $
+ * $Id: bsd-comp.c,v 1.13 1995/05/29 06:34:33 paulus Exp $
  */
 
 #ifdef __aix4__
@@ -55,18 +55,26 @@
 #include <net/ppp_defs.h>
 #include <net/ppp_str.h>
 
-#ifdef sun
-#ifdef __svr4__			/* SunOS 5.x */
-#include <sys/kmem.h>
-#define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
+#ifdef __svr4__			/* SVR4, including SunOS 5.x */
+# include <sys/kmem.h>
+# define ALLOCATE(n)	kmem_alloc((n), KM_NOSLEEP)
+# define FREE(p, n)	kmem_free((p), (n))
 #else				/* SunOS 4.x */
-#include <sys/kmem_alloc.h>
-#define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
-#endif
-#define FREE(p, n)	kmem_free((p), (n))
+# ifdef sun
+#  include <sys/kmem_alloc.h>
+#  define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
+#  define FREE(p, n)	kmem_free((p), (n))
+# endif
 #endif
 
 #ifdef __osf__
+#ifdef FIRST
+#undef FIRST
+#undef LAST
+#endif
+#ifdef FREE
+#undef FREE
+#endif
 #include <kern/kalloc.h>
 #define ALLOCATE(n)	kalloc((n))
 #define FREE(p, n)	kfree((p), (n))
