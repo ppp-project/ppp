@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.70 1999/03/31 05:39:42 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.71 1999/03/31 12:30:01 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -615,6 +615,8 @@ main(argc, argv)
 		error("Connect script failed");
 		goto fail;
 	    }
+	    if (kill_link)
+		goto disconnect;
 
 	    info("Serial connection established.");
 
@@ -649,7 +651,7 @@ main(argc, argv)
 	/* set up the serial device as a ppp interface */
 	fd_ppp = establish_ppp(ttyfd);
 	if (fd_ppp < 0)
-	    goto fail;
+	    goto disconnect;
 
 	if (!demand) {
 	    
@@ -736,11 +738,14 @@ main(argc, argv)
 	    restore_loop();
 	disestablish_ppp(ttyfd);
 	fd_ppp = -1;
+	if (!hungup)
+	    lcp_lowerdown(0);
 
 	/*
 	 * Run disconnector script, if requested.
 	 * XXX we may not be able to do this if the line has hung up!
 	 */
+    disconnect:
 	if (disconnector && !hungup) {
 	    if (real_ttyfd >= 0)
 		set_up_tty(real_ttyfd, 1);
@@ -750,8 +755,6 @@ main(argc, argv)
 		info("Serial link disconnected.");
 	    }
 	}
-	if (!hungup)
-	    lcp_lowerdown(0);
 
     fail:
 	if (pty_master >= 0)
@@ -1290,7 +1293,7 @@ device_script(program, in, out, dont_wait)
     int dont_wait;
 {
     int pid;
-    int status = 0;
+    int status = -1;
     int errfd;
 
     ++conn_running;
@@ -1329,13 +1332,9 @@ device_script(program, in, out, dont_wait)
 	    if (out == 0)
 		out = dup(out);
 	    dup2(in, 0);
-	    if (in > 2)
-		close(in);
 	}
 	if (out != 1) {
 	    dup2(out, 1);
-	    if (out > 2)
-		close(out);
 	}
 	if (real_ttyfd > 2)
 	    close(real_ttyfd);
@@ -1357,6 +1356,7 @@ device_script(program, in, out, dont_wait)
 
     if (dont_wait) {
 	record_child(pid, program, NULL, NULL);
+	status = 0;
     } else {
 	while (waitpid(pid, &status, 0) < 0) {
 	    if (errno == EINTR)
