@@ -72,7 +72,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: if_ppp.c,v 1.10 1996/07/01 01:24:25 paulus Exp $ */
+/* $Id: if_ppp.c,v 1.11 1996/07/01 05:38:25 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 /* from NetBSD: if_ppp.c,v 1.15.2.2 1994/07/28 05:17:58 cgd Exp */
 
@@ -601,6 +601,8 @@ pppoutput(ifp, m0, dst)
     struct ip *ip;
     struct ifqueue *ifq;
     enum NPmode mode;
+    int len;
+    struct mbuf *m;
 
     if (sc->sc_devp == NULL || (ifp->if_flags & IFF_RUNNING) == 0
 	|| ((ifp->if_flags & IFF_UP) == 0 && dst->sa_family != AF_UNSPEC)) {
@@ -680,6 +682,10 @@ pppoutput(ifp, m0, dst)
     *cp++ = protocol >> 8;
     *cp++ = protocol & 0xff;
     m0->m_len += PPP_HDRLEN;
+
+    len = 0;
+    for (m = m0; m != 0; m = m->m_next)
+	len += m->m_len;
 
     if (sc->sc_flags & SC_LOG_OUTPKT) {
 	printf("ppp%d output: ", ifp->if_unit);
