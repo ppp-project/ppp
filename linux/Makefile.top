@@ -51,5 +51,5 @@ clean:
 dist-clean:	clean
 	rm -f Makefile `find . -name Makefile -print`
 
-kernel:
-	cd linux; ./kinstall.sh
+#kernel:
+#	cd linux; ./kinstall.sh
