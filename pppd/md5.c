@@ -156,7 +156,8 @@ unsigned int inLen;
 /* The routine MD5Final terminates the message-digest computation and
    ends with the desired message digest in mdContext->digest[0...15].
  */
-void MD5Final (mdContext)
+void MD5Final (hash, mdContext)
+unsigned char hash[];
 MD5_CTX *mdContext;
 {
   UINT4 in[16];
@@ -193,6 +194,7 @@ MD5_CTX *mdContext;
     mdContext->digest[ii+3] =
       (unsigned char)((mdContext->buf[i] >> 24) & 0xFF);
   }
+  memcpy(hash, mdContext->digest, 16);
 }
 
 /* Basic MD5 step. Transforms buf based on in.
