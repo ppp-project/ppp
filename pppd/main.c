@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.5 1994/01/10 00:18:59 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.6 1994/04/11 07:15:13 paulus Exp $";
 #endif
 
 #define SETSID
@@ -136,7 +136,8 @@ int debug = 0;		        /* Debug flag */
 char user[MAXNAMELEN];		/* username for PAP */
 char passwd[MAXSECRETLEN];	/* password for PAP */
 char *connector = NULL;		/* "connect" command */
-int inspeed = 0;		/* Input/Output speed */
+int inspeed = 0;		/* Input/Output speed requested */
+int baud_rate;			/* bits/sec currently used */
 u_long netmask = 0;		/* netmask to use on ppp interface */
 int crtscts = 0;		/* use h/w flow control */
 int nodetach = 0;		/* don't fork */
@@ -161,7 +162,12 @@ void establish_ppp __ARGS((void));
 
 void cleanup __ARGS((int, caddr_t));
 void die __ARGS((int));
-void dumpbuffer __ARGS((unsigned char *, int, int));
+void novm __ARGS((char *));
+
+void log_packet __ARGS((u_char *, int, char *));
+void format_packet __ARGS((u_char *, int,
+			   void (*) (void *, char *, ...), void *));
+void pr_log __ARGS((void *, char *, ...));
 
 #ifdef	STREAMS
 extern	char	*ttyname __ARGS((int));
@@ -177,13 +183,16 @@ static struct protent {
     void (*init)();
     void (*input)();
     void (*protrej)();
+    int  (*printpkt)();
+    char *name;
 } prottbl[] = {
-    { LCP, lcp_init, lcp_input, lcp_protrej },
-    { IPCP, ipcp_init, ipcp_input, ipcp_protrej },
-    { UPAP, upap_init, upap_input, upap_protrej },
-    { CHAP, ChapInit, ChapInput, ChapProtocolReject },
+    { LCP, lcp_init, lcp_input, lcp_protrej, lcp_printpkt, "LCP" },
+    { IPCP, ipcp_init, ipcp_input, ipcp_protrej, ipcp_printpkt, "IPCP" },
+    { UPAP, upap_init, upap_input, upap_protrej, upap_printpkt, "PAP" },
+    { CHAP, ChapInit, ChapInput, ChapProtocolReject, ChapPrintPkt, "CHAP" },
 };
 
+#define N_PROTO		(sizeof(prottbl) / sizeof(prottbl[0]))
 
 main(argc, argv)
     int argc;
@@ -233,7 +242,7 @@ main(argc, argv)
      * the system options file, the user's options file, and the command
      * line arguments.
      */
-    for (i = 0; i < sizeof (prottbl) / sizeof (struct protent); i++)
+    for (i = 0; i < N_PROTO; i++)
 	(*prottbl[i].init)(0);
   
     progname = *argv;
@@ -448,10 +457,11 @@ main(argc, argv)
      */
     syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devname);
     sigprocmask(SIG_BLOCK, &mask, NULL); /* Block signals now */
-    lcp_lowerup(0);			/* XXX Well, sort of... */
-    lcp_open(0);			/* Start protocol */
+    lcp_lowerup(0);		/* XXX Well, sort of... */
+    lcp_open(0);		/* Start protocol */
     for (;;) {
-	sigpause(0);			/* Wait for next signal */
+	sigpause(0);		/* Wait for next signal */
+	reap_kids();		/* Don't leave dead kids lying around */
     }
 }
 
@@ -461,6 +471,7 @@ main(argc, argv)
  * (so we can ask for any speed).
  */
 #define translate_speed(bps)	(bps)
+#define baud_rate_of(speed)	(speed)
 
 #else
 /*
@@ -555,6 +566,23 @@ translate_speed(bps)
     syslog(LOG_WARNING, "speed %d not supported", bps);
     return 0;
 }
+
+/*
+ * Translate from a speed_t to bits/second.
+ */
+int
+baud_rate_of(speed)
+    int speed;
+{
+    struct speed *speedp;
+
+    if (speed == 0)
+	return 0;
+    for (speedp = speeds; speedp->speed_int; speedp++)
+	if (speed == speedp->speed_val)
+	    return speedp->speed_int;
+    return 0;
+}
 #endif
 
 /*
@@ -591,12 +619,15 @@ set_up_tty(fd)
     if (speed) {
 	cfsetospeed(&tios, speed);
 	cfsetispeed(&tios, speed);
+    } else {
+	speed = cfgetospeed(&tios);
     }
 
     if (tcsetattr(fd, TCSAFLUSH, &tios) < 0) {
 	syslog(LOG_ERR, "tcsetattr: %m");
 	die(1);
     }
+
 #else	/* SGTTY */
     int speed;
     struct sgttyb sgttyb;
@@ -616,12 +647,16 @@ set_up_tty(fd)
     speed = translate_speed(inspeed);
     if (speed)
 	sgttyb.sg_ispeed = speed;
+    else
+	speed = sgttyb.sg_ispeed;
 
     if (ioctl(fd, TIOCSETP, &sgttyb) < 0) {
 	syslog(LOG_ERR, "ioctl(TIOCSETP): %m");
 	die(1);
     }
 #endif
+
+    baud_rate = baud_rate_of(speed);
     restore_term = TRUE;
 }
 
@@ -1004,6 +1039,9 @@ io(sig, code, scp, addr)
 	    die(1);
 	}
 
+	if (debug /*&& (debugflags & DBG_INPACKET)*/)
+	    log_packet(p, len, "rcvd ");
+
 	if (len < DLLHEADERLEN) {
 	    MAINDEBUG((LOG_INFO, "io(): Received short packet."));
 	    return;
@@ -1019,8 +1057,6 @@ io(sig, code, scp, addr)
 	if (protocol != LCP && lcp_fsm[0].state != OPENED) {
 	    MAINDEBUG((LOG_INFO,
 		       "io(): Received non-LCP packet when LCP not open."));
-	    if (debug)
-		dumpbuffer(inpacket_buf, len + DLLHEADERLEN, LOG_INFO);
 	    return;
 	}
 
@@ -1158,49 +1194,6 @@ GetMask(addr)
 }
 
 /*
- * dumpbuffer - print contents of a buffer in hex to standard output.
- */
-void
-dumpbuffer(buffer, size, level)
-    unsigned char *buffer;
-    int size;
-    int level;
-{
-    register int i;
-    char line[256], *p;
-
-    printf("%d bytes:\n", size);
-    while (size > 0)
-    {
-	p = line;
-	sprintf(p, "%08lx: ", buffer);
-	p += 10;
-		
-	for (i = 0; i < 8; i++, p += 3)
-	    if (size - i <= 0)
-		sprintf(p, "xx ");
-	    else
-		sprintf(p, "%02x ", buffer[i]);
-
-	for (i = 0; i < 8; i++)
-	    if (size - i <= 0)
-		*p++ = 'x';
-	    else
-		*p++ = (' ' <= buffer[i] && buffer[i] <= '~') ?
-		    buffer[i] : '.';
-
-	*p++ = 0;
-	buffer += 8;
-	size -= 8;
-
-/*	syslog(level, "%s\n", line); */
-	printf("%s\n", line);
-	fflush(stdout);
-    }
-}
-
-
-/*
  * setdtr - control the DTR line on the serial port.
  * This is called from die(), so it shouldn't call die().
  */
@@ -1212,16 +1205,98 @@ int fd, on;
     ioctl(fd, (on? TIOCMBIS: TIOCMBIC), &modembits);
 }
 
+/*
+ * log_packet - format a packet and log it.
+ */
+
+char line[256];			/* line to be logged accumulated here */
+char *linep;
+
+void
+log_packet(p, len, prefix)
+    u_char *p;
+    int len;
+    char *prefix;
+{
+    strcpy(line, prefix);
+    linep = line + strlen(line);
+    format_packet(p, len, pr_log, NULL);
+    if (linep != line)
+	syslog(LOG_DEBUG, "%s", line);
+}
+
+/*
+ * format_packet - make a readable representation of a packet,
+ * calling `printer(arg, format, ...)' to output it.
+ */
+void
+format_packet(p, len, printer, arg)
+    u_char *p;
+    int len;
+    void (*printer) __ARGS((void *, char *, ...));
+    void *arg;
+{
+    int i, n;
+    u_short proto;
+    u_char x;
+
+    if (len >= DLLHEADERLEN && p[0] == ALLSTATIONS && p[1] == UI) {
+	p += 2;
+	GETSHORT(proto, p);
+	len -= DLLHEADERLEN;
+	for (i = 0; i < N_PROTO; ++i)
+	    if (proto == prottbl[i].protocol)
+		break;
+	if (i < N_PROTO) {
+	    printer(arg, "[%s", prottbl[i].name);
+	    n = (*prottbl[i].printpkt)(p, len, printer, arg);
+	    printer(arg, "]");
+	    p += n;
+	    len -= n;
+	} else {
+	    printer(arg, "[proto=0x%x]", proto);
+	}
+    }
+
+    for (; len > 0; --len) {
+	GETCHAR(x, p);
+	printer(arg, " %.2x", x);
+    }
+}
+
+#ifdef __STDC__
+#include <stdarg.h>
+
+void
+pr_log(void *arg, char *fmt, ...)
+{
+    int n;
+    va_list pvar;
+    char buf[256];
+
+    va_start(pvar, fmt);
+    vsprintf(buf, fmt, pvar);
+    va_end(pvar);
+
+    n = strlen(buf);
+    if (linep + n + 1 > line + sizeof(line)) {
+	syslog(LOG_DEBUG, "%s", line);
+	linep = line;
+    }
+    strcpy(linep, buf);
+    linep += n;
+}
+
+#else /* __STDC__ */
 #include <varargs.h>
 
-char line[256];
-char *p;
-
-logf(level, fmt, va_alist)
-int level;
+void
+pr_log(arg, fmt, va_alist)
+void *arg;
 char *fmt;
 va_dcl
 {
+    int n;
     va_list pvar;
     char buf[256];
 
@@ -1229,15 +1304,43 @@ va_dcl
     vsprintf(buf, fmt, pvar);
     va_end(pvar);
 
-    p = line + strlen(line);
-    strcat(p, buf);
-
-    if (buf[strlen(buf)-1] == '\n') {
-	syslog(level, "%s", line);
-	line[0] = 0;
+    n = strlen(buf);
+    if (linep + n + 1 > line + sizeof(line)) {
+	syslog(LOG_DEBUG, "%s", line);
+	linep = line;
     }
+    strcpy(linep, buf);
+    linep += n;
+}
+#endif
+
+/*
+ * print_string - print a readable representation of a string using
+ * printer.
+ */
+void
+print_string(p, len, printer, arg)
+    char *p;
+    int len;
+    void (*printer) __ARGS((void *, char *, ...));
+    void *arg;
+{
+    int c;
+
+    printer(arg, "\"");
+    for (; len > 0; --len) {
+	c = *p++;
+	if (' ' <= c && c <= '~')
+	    printer(arg, "%c", c);
+	else
+	    printer(arg, "\\%.3o", c);
+    }
+    printer(arg, "\"");
 }
 
+/*
+ * novm - log an error message saying we ran out of memory, and die.
+ */
 void
 novm(msg)
     char *msg;
