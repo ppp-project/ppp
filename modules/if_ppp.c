@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: if_ppp.c,v 1.8 1998/02/04 01:38:59 paulus Exp $
+ * $Id: if_ppp.c,v 1.9 1998/03/31 23:48:49 paulus Exp $
  */
 
 /*
@@ -49,11 +49,10 @@
 #ifdef __osf__
 #include <sys/ioctl.h>
 #include <net/if_types.h>
-#include "ppp_mod.h"
 #else
 #include <sys/sockio.h>
-#include <modules/ppp_mod.h>
 #endif
+#include "ppp_mod.h"
 
 #include <sys/stream.h>
 
