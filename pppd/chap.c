@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.6 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.7 1995/04/24 05:59:12 paulus Exp $";
 #endif
 
 /*
@@ -67,7 +67,7 @@ ChapInit(unit)
     cstate->serverstate = CHAPSS_INITIAL;
     cstate->timeouttime = CHAP_DEFTIMEOUT;
     cstate->max_transmits = CHAP_DEFTRANSMITS;
-    srand48((long) time(NULL));	/* joggle random number generator */
+    /* random number generator is initialized in magic_init */
 }
 
 
@@ -506,7 +506,7 @@ ChapReceiveResponse(cstate, inp, id, len)
 	    MD5Final(&mdContext); 
 
 	    /* compare local and remote MDs and send the appropriate status */
-	    if (bcmp (mdContext.digest, remmd, MD5_SIGNATURE_SIZE) == 0)
+	    if (memcmp (mdContext.digest, remmd, MD5_SIGNATURE_SIZE) == 0)
 		code = CHAP_SUCCESS;	/* they are the same! */
 	    break;
 
@@ -806,18 +806,3 @@ ChapPrintPkt(p, plen, printer, arg)
 
     return len + CHAP_HEADERLEN;
 }
-
-#ifdef NO_DRAND48
-
-double drand48()
-{
-  return (double)random() / (double)0x7fffffffL; /* 2**31-1 */
-}
-
-void srand48(seedval)
-long seedval;
-{
-  srand((int)seedval);
-}
-
-#endif
