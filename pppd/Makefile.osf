@@ -1,16 +1,16 @@
 #
 # pppd makefile for OSF/1 on DEC Alpha
-# $Id: Makefile.osf,v 1.6 1997/04/30 05:49:05 paulus Exp $
+# $Id: Makefile.osf,v 1.7 1997/05/22 06:45:44 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-osf.c
+	auth.c options.c demand.c sys-osf.c md4.c chap_ms.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-osf.o
+	auth.o options.o demand.o sys-osf.o md4.o chap_ms.o
 
 CC = cc
 DEBUG_FLAGS = -DDEBUGALL
