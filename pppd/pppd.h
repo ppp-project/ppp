@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.10 1995/12/18 03:47:21 paulus Exp $
+ * $Id: pppd.h,v 1.11 1996/01/01 23:02:23 paulus Exp $
  */
 
 /*
@@ -50,7 +50,7 @@
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name */
-extern int	fd;		/* Serial device file descriptor */
+extern int	ttyfd;		/* Serial device file descriptor */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	phase;		/* Current state of link - see values below */
@@ -73,6 +73,7 @@ extern int	lockflag;	/* Create lock file to lock the serial dev */
 extern int	nodetach;	/* Don't detach from controlling tty */
 extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
+extern char	*welcomer;	/* Script to welcome client after connection */
 extern int	maxconnect;	/* maximum number of seconds for a connection */
 extern char	user[];		/* Username for PAP */
 extern char	passwd[];	/* Password for PAP */
@@ -86,17 +87,22 @@ extern char	our_name[];	/* Our name for authentication purposes */
 extern char	remote_name[];	/* Peer's name for authentication */
 extern int	usehostname;	/* Use hostname for our_name */
 extern int	disable_defaultip; /* Don't use hostname for default IP adrs */
+extern int	demand;		/* Do dial-on-demand */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern int	cryptpap;	/* Others' PAP passwords are encrypted */
+extern int	idle_time_limit;/* Shut down link if idle for this long */
+extern int	holdoff;	/* Dead time before restarting */
 
 /*
  * Values for phase.
  */
 #define PHASE_DEAD		0
-#define PHASE_ESTABLISH		1
-#define PHASE_AUTHENTICATE	2
-#define PHASE_NETWORK		3
-#define PHASE_TERMINATE		4
+#define PHASE_DORMANT		1
+#define PHASE_ESTABLISH		2
+#define PHASE_AUTHENTICATE	3
+#define PHASE_NETWORK		4
+#define PHASE_TERMINATE		5
+#define PHASE_HOLDOFF		6
 
 /*
  * The following struct gives the addresses of procedures to call
@@ -115,6 +121,8 @@ struct protent {
     void (*datainput)();	/* Process a received data packet */
     int  enabled_flag;		/* 0 iff protocol is disabled */
     char *name;			/* Text name of protocol */
+    void (*check_options)();	/* Check requested options, assign dflts */
+    int  (*demand_conf)();	/* Configure interface for demand-dial */
 };
 
 /* Table of pointers to supported protocols */
@@ -148,6 +156,9 @@ void link_required __P((int));	  /* we are starting to use the link */
 void link_terminated __P((int));  /* we are finished with the link */
 void link_down __P((int));	  /* the LCP layer has left the Opened state */
 void link_established __P((int)); /* the link is up; authenticate now */
+void np_up __P((int, int));	  /* a network protocol has come up */
+void np_down __P((int, int));	  /* a network protocol has gone down */
+void np_finished __P((int, int)); /* a network protocol no longer needs link */
 void auth_peer_fail __P((int, int));
 				/* peer failed to authenticate itself */
 void auth_peer_success __P((int, int));
@@ -169,15 +180,30 @@ int  bad_ip_adrs __P((u_int32_t));
 void check_access __P((FILE *, char *));
 				/* check permissions on secrets file */
 
+/* Procedures exported from demand.c */
+void demand_conf __P((void));	/* config interface(s) for demand-dial */
+void demand_block __P((void));	/* set all NPs to queue up packets */
+void demand_unblock __P((void)); /* set all NPs to pass packets */
+void demand_discard __P((void)); /* set all NPs to discard packets */
+void demand_rexmit __P((int));	/* retransmit saved frames for an NP */
+int  loop_chars __P((unsigned char *, int)); /* process chars from loopback */
+int  loop_frame __P((unsigned char *, int)); /* process frame from loopback */
+
 /* Procedures exported from sys-*.c */
 void sys_init __P((void));	/* Do system-dependent initialization */
 void sys_cleanup __P((void));	/* Restore system state before exiting */
+void sys_check_options __P((void)); /* Check options specified */
+void sys_close __P((void));	/* Clean up in a child before execing */
 void note_debug_level __P((void)); /* Note change in debug level */
 int  ppp_available __P((void));	/* Test whether ppp kernel support exists */
-void establish_ppp __P((void));	/* Turn serial port into a ppp interface */
-void disestablish_ppp __P((void)); /* Restore port to normal operation */
+void open_ppp_loopback __P((void)); /* Open loopback for demand-dialling */
+void establish_ppp __P((int));	/* Turn serial port into a ppp interface */
+/*void transfer_ppp __P((int));	/* Transfer ppp unit to another fd */
+void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
+void disestablish_ppp __P((int)); /* Restore port to normal operation */
+void clean_check __P((void));	/* Check if line was 8-bit clean */
 void set_up_tty __P((int, int)); /* Set up port's speed, parameters, etc. */
-void restore_tty __P((void));	/* Restore port's original parameters */
+void restore_tty __P((int));	/* Restore port's original parameters */
 void setdtr __P((int, int));	/* Raise or lower port's DTR line */
 void output __P((int, u_char *, int)); /* Output a PPP packet */
 void wait_input __P((struct timeval *));
@@ -295,9 +321,9 @@ int  logwtmp __P((char *, char *, char *));
 #endif
 
 #ifndef LOG_PPP			/* we use LOG_LOCAL2 for syslog by default */
-#if defined(DEBUGMAIN) || defined(DEBUGFSM) || defined(DEBUG) \
+#if defined(DEBUGMAIN) || defined(DEBUGFSM) || defined(DEBUGSYS) \
   || defined(DEBUGLCP) || defined(DEBUGIPCP) || defined(DEBUGUPAP) \
-  || defined(DEBUGCHAP) 
+  || defined(DEBUGCHAP) || defined(DEBUG)
 #define LOG_PPP LOG_LOCAL2
 #else
 #define LOG_PPP LOG_DAEMON
@@ -308,6 +334,12 @@ int  logwtmp __P((char *, char *, char *));
 #define MAINDEBUG(x)	if (debug) syslog x
 #else
 #define MAINDEBUG(x)
+#endif
+
+#ifdef DEBUGSYS
+#define SYSDEBUG(x)	if (debug) syslog x
+#else
+#define SYSDEBUG(x)
 #endif
 
 #ifdef DEBUGFSM
