@@ -49,7 +49,7 @@ static int owns_unit __P((TDB_DATA pid, int unit));
 	 || ((addr) & 0xfff00000) == 0xac100000		/* 172.16.x.x */  \
 	 || ((addr) & 0xffff0000) == 0xc0a80000)	/* 192.168.x.x */
 
-#define process_exists(n)	(kill(0, (n)) == 0 || errno != ESRCH)
+#define process_exists(n)	(kill((n), 0) == 0 || errno != ESRCH)
 
 void
 mp_check_options()
