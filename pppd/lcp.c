@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: lcp.c,v 1.60 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: lcp.c,v 1.61 2002/09/12 22:51:06 paulus Exp $"
 
 /*
  * TODO:
@@ -1775,7 +1775,7 @@ lcp_up(f)
     lcp_options *ho = &lcp_hisoptions[f->unit];
     lcp_options *go = &lcp_gotoptions[f->unit];
     lcp_options *ao = &lcp_allowoptions[f->unit];
-    int mtu;
+    int mtu, mru;
 
     if (!go->neg_magicnumber)
 	go->magicnumber = 0;
@@ -1788,18 +1788,19 @@ lcp_up(f)
      * set our MRU to the larger of value we wanted and
      * the value we got in the negotiation.
      * Note on the MTU: the link MTU can be the MRU the peer wanted,
-     * the interface MTU is set to the lower of that and the
-     * MTU we want to use.
+     * the interface MTU is set to the lowest of that, the
+     * MTU we want to use, and our link MRU.
      */
     mtu = ho->neg_mru? ho->mru: PPP_MRU;
+    mru = go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU;
 #ifdef HAVE_MULTILINK
     if (!(multilink && go->neg_mrru && ho->neg_mrru))
 #endif /* HAVE_MULTILINK */
-	netif_set_mtu(f->unit, MIN(mtu, ao->mru));
+	netif_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
     ppp_send_config(f->unit, mtu,
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
-    ppp_recv_config(f->unit, (go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU),
+    ppp_recv_config(f->unit, mru,
 		    (lax_recv? 0: go->neg_asyncmap? go->asyncmap: 0xffffffff),
 		    go->neg_pcompression, go->neg_accompression);
 
