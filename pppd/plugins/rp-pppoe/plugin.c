@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.4 2002/02/27 16:00:30 dfs Exp $";
+"$Id: plugin.c,v 1.5 2002/03/14 20:32:41 dfs Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -64,7 +64,7 @@ static char *acName = NULL;
 static char *existingSession = NULL;
 static int printACNames = 0;
 
-static int PPPoEDevnameHook(const char *name);
+static int PPPoEDevnameHook(const char **argv);
 static option_t Options[] = {
     { "device name", o_wild, (void *) &PPPoEDevnameHook,
       "PPPoE device name",
@@ -80,7 +80,7 @@ static option_t Options[] = {
       "Be verbose about discovered access concentrators"},
     { NULL }
 };
-int (*OldDevnameHook)(const char *name) = NULL;
+int (*OldDevnameHook)(const char **argv) = NULL;
 static PPPoEConnection *conn = NULL;
 
 /**********************************************************************
@@ -259,7 +259,7 @@ struct channel pppoe_channel;
 /**********************************************************************
  * %FUNCTION: PPPoEDevnameHook
  * %ARGUMENTS:
- * name -- name of device
+ * argv -- argument vector for option
  * %RETURNS:
  * 1 if we will handle this device; 0 otherwise.
  * %DESCRIPTION:
@@ -267,11 +267,18 @@ struct channel pppoe_channel;
  * sets up devnam (string representation of device).
  ***********************************************************************/
 static int
-PPPoEDevnameHook(const char *name)
+PPPoEDevnameHook(const char **argv)
 {
     int r = 1;
     int fd;
     struct ifreq ifr;
+    char const *name = *argv;
+
+    /* Only do it if name is "ethXXX" */
+    /* Thanks to Russ Couturier for this fix */
+    if (strlen(name) < 4 || strncmp(name, "eth", 3)) {
+	return 0;
+    }
 
     /* Open a socket */
     if ((fd = socket(PF_PACKET, SOCK_RAW, 0)) < 0) {
@@ -327,7 +334,7 @@ PPPoEDevnameHook(const char *name)
 	return 1;
     }
 
-    if (OldDevnameHook) r = OldDevnameHook(name);
+    if (OldDevnameHook) r = OldDevnameHook(argv);
     return r;
 }
 
