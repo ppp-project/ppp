@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.108 2001/12/14 02:51:34 mostrows Exp $"
+#define RCSID	"$Id: main.c,v 1.109 2002/01/11 18:10:16 etbe Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1583,7 +1583,8 @@ reap_kids(waitfor)
 		 (chp? chp->prog: "??"), pid, WTERMSIG(status));
 	} else if (debug)
 	    dbglog("Script %s finished (pid %d), status = 0x%x",
-		   (chp? chp->prog: "??"), pid, status);
+		   (chp? chp->prog: "??"), pid,
+		   WIFEXITED(status) ? WEXITSTATUS(status) : status);
 	if (chp && chp->done)
 	    (*chp->done)(chp->arg);
 	if (chp)
@@ -1785,6 +1786,9 @@ update_db_entry()
     dbuf.dsize = vlen;
     if (tdb_store(pppdb, key, dbuf, TDB_REPLACE))
 	error("tdb_store failed: %s", tdb_error(pppdb));
+
+    if (vbuf)
+        free(vbuf);
 
 }
 
