@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.6 1997/04/30 05:44:58 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.7 1998/03/24 23:52:35 paulus Exp $
  */
 
 /*
@@ -225,6 +225,10 @@ ahdlc_wput(q, mp)
 	    if (iop->ioc_count < sizeof(u_int32_t)
 		|| iop->ioc_count > sizeof(ext_accm))
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ahdlc_wput/%d: PPPIO_XACCM b_cont = 0!\n", state->unit);
+		break;
+	    }
 	    bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)state->xaccm,
 		  iop->ioc_count);
 	    state->xaccm[2] &= ~0x40000000;	/* don't escape 0x5e */
@@ -236,6 +240,10 @@ ahdlc_wput(q, mp)
 	case PPPIO_RACCM:
 	    if (iop->ioc_count != sizeof(u_int32_t))
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ahdlc_wput/%d: PPPIO_RACCM b_cont = 0!\n", state->unit);
+		break;
+	    }
 	    bcopy((caddr_t)mp->b_cont->b_rptr, (caddr_t)&state->raccm,
 		  sizeof(u_int32_t));
 	    iop->ioc_count = 0;

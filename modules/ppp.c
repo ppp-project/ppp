@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.13 1997/11/27 06:05:36 paulus Exp $
+ * $Id: ppp.c,v 1.14 1998/03/24 23:52:33 paulus Exp $
  */
 
 /*
@@ -391,10 +391,12 @@ pppclose(q, flag)
     qprocsoff(q);
 
     up = (upperstr_t *) q->q_ptr;
+    if (up == 0) {
+	DPRINT("pppclose: q_ptr = 0\n");
+	return 0;
+    }
     if (up->flags & US_DBGLOG)
 	DPRINT2("ppp/%d: close, flags=%x\n", up->mn, up->flags);
-    if (up == 0)
-	return 0;
     if (up->flags & US_CONTROL) {
 #ifdef LACHTCP
 	struct ifstats *ifp, *pifp;
@@ -494,6 +496,18 @@ pppuwput(q, mp)
 #endif	/* PRIOQ */
 
     us = (upperstr_t *) q->q_ptr;
+    if (us == 0) {
+	DPRINT("pppuwput: q_ptr = 0!\n");
+	return 0;
+    }
+    if (mp == 0) {
+	DPRINT1("pppuwput/%d: mp = 0!\n", us->mn);
+	return 0;
+    }
+    if (mp->b_datap == 0) {
+	DPRINT1("pppuwput/%d: mp->b_datap = 0!\n", us->mn);
+	return 0;
+    }
     switch (mp->b_datap->db_type) {
 #ifndef NO_DLPI
     case M_PCPROTO:
@@ -533,8 +547,16 @@ pppuwput(q, mp)
 	case I_LINK:
 	    if ((us->flags & US_CONTROL) == 0 || us->lowerq != 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl I_LINK b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    lb = (struct linkblk *) mp->b_cont->b_rptr;
 	    us->lowerq = lq = lb->l_qbot;
+	    if (lq == 0) {
+		DPRINT1("pppuwput/%d: ioctl I_LINK l_qbot = 0!\n", us->mn);
+		break;
+	    }
 	    lq->q_ptr = (caddr_t) us;
 	    RD(lq)->q_ptr = (caddr_t) us;
 	    noenable(RD(lq));
@@ -564,11 +586,17 @@ pppuwput(q, mp)
 	    break;
 
 	case I_UNLINK:
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl I_UNLINK b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    lb = (struct linkblk *) mp->b_cont->b_rptr;
 #if DEBUG
-	    if (us->lowerq != lb->l_qbot)
+	    if (us->lowerq != lb->l_qbot) {
 		DPRINT2("ppp unlink: lowerq=%x qbot=%x\n",
 			us->lowerq, lb->l_qbot);
+		break;
+	    }
 #endif
 	    us->lowerq = 0;
 	    iop->ioc_count = 0;
@@ -608,6 +636,10 @@ pppuwput(q, mp)
 	       the stream (like pppstats) */
 	    if (iop->ioc_count != sizeof(int) || us->ppa != 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_ATTACH b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    for (ppa = ppas; ppa != 0; ppa = ppa->nextppa)
 		if (ppa->ppa_id == n)
@@ -625,6 +657,10 @@ pppuwput(q, mp)
 	    /* Attach to a given SAP. */
 	    if (iop->ioc_count != sizeof(int) || us->ppa == 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_BIND b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    /* n must be a valid PPP network protocol number. */
 	    if (n < 0x21 || n > 0x3fff || (n & 0x101) != 1)
@@ -644,6 +680,10 @@ pppuwput(q, mp)
 	case PPPIO_MRU:
 	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_MRU b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    if (n <= 0 || n > PPP_MAXMRU)
 		break;
@@ -659,6 +699,10 @@ pppuwput(q, mp)
 	case PPPIO_MTU:
 	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_MTU b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    if (n <= 0 || n > PPP_MAXMTU)
 		break;
@@ -681,6 +725,10 @@ pppuwput(q, mp)
 	case PPPIO_DEBUG:
 	    if (iop->ioc_count != sizeof(int))
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_DEBUG b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    if (n == PPPDBG_DUMP + PPPDBG_DRIVER) {
 		qwriter(q, NULL, debug_dump, PERIM_OUTER);
@@ -704,6 +752,10 @@ pppuwput(q, mp)
 		break;
 	    if ((us->flags & US_CONTROL) == 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("pppuwput/%d: ioctl PPPIO_NPMODE b_cont = 0!\n", us->mn);
+		break;
+	    }
 	    sap = ((int *)mp->b_cont->b_rptr)[0];
 	    for (nps = us->next; nps != 0; nps = nps->next)
 		if (nps->sap == sap)

@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.8 1997/04/30 05:45:15 paulus Exp $
+ * $Id: ppp_comp.c,v 1.9 1998/03/24 23:52:37 paulus Exp $
  */
 
 /*
@@ -162,7 +162,7 @@ extern task_t first_task;
 extern struct compressor ppp_bsd_compress;
 #endif
 #if DO_DEFLATE
-extern struct compressor ppp_deflate;
+extern struct compressor ppp_deflate, ppp_deflate_draft;
 #endif
 
 struct compressor *ppp_compressors[] = {
@@ -171,6 +171,7 @@ struct compressor *ppp_compressors[] = {
 #endif
 #if DO_DEFLATE
     &ppp_deflate,
+    &ppp_deflate_draft,
 #endif
     NULL
 };
@@ -340,6 +341,10 @@ ppp_comp_wput(q, mp)
 	    /* set/get CCP state */
 	    if (iop->ioc_count != 2 * sizeof(int))
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ppp_comp_wput/%d: PPPIO_CFLAGS b_cont = 0!\n", cp->unit);
+		break;
+	    }
 	    flags = ((int *) mp->b_cont->b_rptr)[0];
 	    mask = ((int *) mp->b_cont->b_rptr)[1];
 	    cp->flags = (cp->flags & ~mask) | (flags & mask);
@@ -366,6 +371,10 @@ ppp_comp_wput(q, mp)
 	     */
 	    if (iop->ioc_count != 2)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ppp_comp_wput/%d: PPPIO_VJINIT b_cont = 0!\n", cp->unit);
+		break;
+	    }
 	    nxslots = mp->b_cont->b_rptr[0] + 1;
 	    nrslots = mp->b_cont->b_rptr[1] + 1;
 	    if (nxslots > MAX_STATES || nrslots > MAX_STATES)
@@ -380,6 +389,10 @@ ppp_comp_wput(q, mp)
 	case PPPIO_RCOMP:
 	    if (iop->ioc_count <= 0)
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ppp_comp_wput/%d: PPPIO_[XR]COMP b_cont = 0!\n", cp->unit);
+		break;
+	    }
 	    opt_data = mp->b_cont->b_rptr;
 	    len = mp->b_cont->b_wptr - opt_data;
 	    if (len > iop->ioc_count)
@@ -515,6 +528,10 @@ ppp_comp_wput(q, mp)
 	case PPPIO_DEBUG:
 	    if (iop->ioc_count != sizeof(int))
 		break;
+	    if (mp->b_cont == 0) {
+		DPRINT1("ppp_comp_wput/%d: PPPIO_DEBUG b_cont = 0!\n", cp->unit);
+		break;
+	    }
 	    n = *(int *)mp->b_cont->b_rptr;
 	    if (n == PPPDBG_LOG + PPPDBG_COMP) {
 		DPRINT1("ppp_comp%d: debug log enabled\n", cp->unit);
@@ -659,7 +676,7 @@ ppp_comp_wsrv(q)
 		 && cp->xstate != NULL) {
 	    len = msgdsize(mp);
 	    (*cp->xcomp->compress)(cp->xstate, &cmp, mp, len,
-				   (cp->flags & CCP_ISUP? cp->mtu: 0));
+			(cp->flags & CCP_ISUP? cp->mtu + PPP_HDRLEN: 0));
 	    if (cmp != NULL) {
 #ifdef PRIOQ
 		cmp->b_band=mp->b_band;
