@@ -28,7 +28,7 @@ Al Longyear         longyear@netcom.com
 INTRODUCTION
 
 This file is substantially derived from the previous version for
-the pppd process 2.1.2. Michael Callahan wrote that version. This
+the pppd process 2.2.0. Michael Callahan wrote that version. This
 particular version was written, modified, hacked, changed, whatever,
 by Al Longyear. If you find errors in this document, they are probably
 mine and not Michael's.
@@ -158,6 +158,13 @@ joining the PPP channel of linux-activists:
 	subscribe linux-ppp
       contained in the body to majordomo@vger.rutgers.edu
 
+      You may use
+
+      subscribe linux-ppp myname@mail.address
+
+      if you wish the linux-ppp information sent to a different mail
+      address.
+
       To leave the mail list, send 'unsubscribe linux-ppp' to the same
       mail address.
 
@@ -196,137 +203,105 @@ Usenet News Groups
       'ppp' on usenet may cause it to be ignored by the people who
       actually work on the networking code.
 
-kernel driver installation:
+Installation procedure:
 
-      This depends on the kernel version you're using.
+The installation procedure has been totally revised for this
+version. Due to feedback from other users, it was felt that a more
+automated installation procedure be performed.
 
-      Version 1.0.*
-        These versions are not supported.
+Use the following procedure for all kernel versions. There are six steps
+numbered one through six. Please do them in order and not skip one.
 
-      Version 1.1.0 through 1.1.14
-        These versions are not supported.
+1. Issue the command:
 
-      Version 1.1.15 to 1.2.99
-      - Use the source to the ppp.c driver from the 'linux' directory and
-        replace the driver in the /usr/src/linux/drivers/net.
-      - Delete the file /usr/src/linux/drivers/net/ppp.h
-      - Add the following files to /usr/include/net:
-        if_ppp.h
-        if_pppvar.h
-        ppp_comp.h
-        ppp_defs.h
+./configure
 
-      - IF AND ONLY IF you are missing the following files then use the
-        copy provided in the 'linux' directory to supplement the files.
+from the top level directory of pppd. This is the directory which
+contains this README.linux file. The result of this will be to build a
+set of symbolic links to the makefiles. They should link 'Makefile' to
+'Makefile.linux' in each of the directories.
 
-        DO **NOT** REPLACE THE FILE IF IT CURRENTLY EXISTS.
+2. Issue the command:
 
-        if_arp.h
-        if_route.h
+make kernel
 
-      Version 1.3.0 and later
-        The files have been properly updated.
+from the top level directory. This will install the various include
+files and source files into the proper directory for the linux
+kernel. If you don't have the kernel installed in the /usr/src/kernel
+directory then it will not work. Instead it will print a message to
+the effect that you need to specify the kernel location on the
+kinstall command.
 
-      Reboot with the new kernel.  At startup, you should see
-      something line this:
+The actual message will say:
 
-  PPP: version 2.2.0 (dynamic channel allocation)
-  TCP compression code copyright 1989 Regents of the University of California
-  Dynamic channel allocation code copyright 1995 Caldera, Inc.
-  PPP line discipline registered.
+There appears to be no kernel source distribution in /usr/src/linux.
+Give the top-level kernel source directory as the argument to
+this script.
+usage: kinstall.sh [linux-source-directory]
 
-pppd installation:
+If, and only if, you receive this message, do the following:
 
-      First update /usr/include/net as described in the previous section.
+   a. Change to the 'linux' directory with the command:
 
-      Then, in this directory, issue the command:
+cd linux
 
-	./configure
+   b. Issue the command:
 
-      Go to the 'pppd' directory and issue the commands:
+./kinstall.sh /usr/src/linux
 
-      make depend
-      make
+or use the proper location for the kernel rather than
+/usr/src/linux. For example, if you have the kernel installed in
+/usr1/kernel then the command would be:
 
-      This should build the program. If you have any errors then ensure
-      that you have the proper include files and haven't missed one.
+./kinstall.sh /usr1/kernel
 
-      If you are using shadow passwords *AND* have it installed, then you
-      should use the command:
+The script will validate that the kernel is properly installed into
+that directory and check the level of the kernel. The installation
+will not be accepted if your kernel is too early.
 
-      make shadow
+The installation procedure will copy only the files which are
+needed. It will not replace any file which should not be
+replaced. Please don't second-guess the installation script and
+attempt to do the procedure on your own. There are some very subtle
+dependencies and if you are not careful, the installation will not
+work.
 
-      rather than the non-shadow command listed earlier.
+You are free to run the installation script as many times as you
+wish. The additional executions will only change the files which have
+not been changed.
 
-      (Shadow library support will require the addition of some modules
-      to the shadow library. These were overlooked by the package author
-      and I will, or have already, notified him.)
-      
-      This code has been built with the 4.5 and 4.6 subroutine libraries
-      and include files. If your include files are too old then you should
-      upgrade them.
+3. Build the kernel.
 
-      To install the package, issue the command:
+You must rebuild the kernel with this package. The driver is totally
+new and will not work with the older daemon and the newer daemon will
+not work with the older kernel driver. If you don't know how to build
+a kernel, then you should read the README file in the kernel source
+directory.
 
-      make install
+4. Build the programs.
 
-      This will install the binary in /usr/sbin and the man page into
-      /usr/man/man8.
+The programs are built next. The command to build the programs is fairly
+simple. Just issue the command:
 
-      pppd needs to be run as root.  You can either make it setuid
-      root or just use it when you are root.  'make install' will try
-      to install it setuid root.  Making pppd setuid root is
-      convenient for a single-user machine, but has security
-      implications which you should investigate carefully before
-      making it available on a multiuser machine.
+make
 
-      The pppd process must have the following directories to work:
+from the top level directory where this README.linux file is located.
 
-      /var/run
-      /etc/ppp
+5. Install the programs.
 
-      In addition, for the program to run, there must be a 'options' file
-      in the /etc/ppp directory. So, the following commands will accomplish
-      the required operations. They may have errors if the entries currently
-      exist.
+You may use the command
 
-      Perform these commands as the 'root' user.
+make install
 
-      mkdir /var /etc
-      mkdir /var/run /etc/ppp
-      touch /etc/ppp/options
+to install the various programs. They will be installed into the
+/usr/lib/ppp directory. You may not like this directory for the
+executables. The directory name is called BINDIR and is set in the
+file 'linux/Makefile.linux'.
 
-chat installation:
+6. Reboot to the new kernel.
 
-      If you have not already done so, run `./configure' in this directory.
-
-      To compile the chat program, go to the 'chat' directory and issue
-      the command:
-
-      make
-
-      To install the package, issue the command:
-
-      make install
-
-      This will install the binary in /usr/sbin and the man page into
-      /usr/man/man8.
-
-pppstats installation:
-
-      If you have not already done so, run `./configure' in this directory.
-
-      To compile the pppstats program, go to the 'pppstats' directory
-      and issue the command:
-
-      make
-
-      To install the package, issue the command:
-
-      make install
-
-      This will install the binary in /usr/sbin and the man page into
-      /usr/man/man8.
+After building the new kernel, you will need to actually use it. Reboot
+the Linux system and you may then use the new pppd program.
 
 
 GENERAL NETWORK CONFIGURATION
@@ -440,13 +415,12 @@ Going through pppd's options in order:
         this option would actually be redundant.
 
 pppd will write error messages and debugging logs to the syslogd
-daemon using the facility name "local2".  (Verbose output from chat is
-the same.)  These messages may already be logged to the console or to
-a file like /usr/adm/messages; consult your /etc/syslog.conf file to
-see.  If you want to make all pppd and chat messages go to the
-console, add the line
+daemon using the facility name "daemon". These messages may already be
+logged to the console or to a file like /usr/adm/messages; consult
+your /etc/syslog.conf file to see. If you want to make all pppd
+messages go to the console, add the line
 
-   local2.*					/dev/console
+   daemon.*					/dev/console
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
            This is one or more tabs. Do not use spaces.
 
@@ -583,8 +557,8 @@ If you don't seem to get a connection, the thing to do is to collect
 'debug' option, and put the following two lines in your
 /etc/syslog.conf file:
 
-    local2.*					/dev/console
-    local2.*					/usr/adm/ppplog
+    daemon.*					/dev/console
+    daemon.*					/usr/adm/ppplog
 
 This will cause pppd's messages to be written to the current virtual
 console and to the file /usr/adm/ppplog.  Note that the left-hand
@@ -611,8 +585,8 @@ which contains all the bytes being passed between your computer and
 the remote PPP server.  To do this, alter your syslog.conf lines to
 look like this
 
-    local2.*,kern.*				/dev/console
-    local2.*,kern.*				/usr/adm/ppplog
+    daemon.*,kern.*				/dev/console
+    daemon.*,kern.*				/usr/adm/ppplog
 
 and HUP the syslog daemon as before.  Then, run pppd with the option
 "kdebug 25".  Whatever characters arrive over the PPP terminal line
@@ -648,7 +622,7 @@ possible; for example:
  - the version number of Linux PPP you are using
  - the exact command you use to start the PPP session
  - log output from a session run with the 'debug' option, captured
-   using local2.*,kern.* in your syslog.conf file
+   using daemon.*,kern.* in your syslog.conf file
  - the type of PPP peer that you are connecting to (eg, Xyzzy Corp
    terminal server, Morningstar PPP software, etc)
  - the kind of connection you use (modem, hardwired, etc...)

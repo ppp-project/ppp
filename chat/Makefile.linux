@@ -1,6 +1,7 @@
-#	$Id: Makefile.linux,v 1.2 1995/06/12 11:24:12 paulus Exp $
+#	$Id: Makefile.linux,v 1.3 1995/06/30 01:58:21 paulus Exp $
 
-BINDIR=/usr/etc
+BINDIR=/usr/lib/ppp
+MANDIR=/usr/man
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DPIDSTRING			# I like ascii pid values
@@ -20,7 +21,9 @@ chat.o:	chat.c
 	$(CC) -c $(CFLAGS) -o chat.o chat.c
 
 install: chat
+	mkdir -p $(BINDIR)
 	install -c chat $(BINDIR)
+	install -c chat.8 $(MANDIR)/man8
 
 clean:
 	rm -f chat.o chat *~

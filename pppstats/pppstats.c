@@ -36,7 +36,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.9 1995/06/01 02:23:39 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.10 1995/06/30 01:58:25 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -289,6 +289,12 @@ get_ppp_stats(curp)
 {
     struct ifpppstatsreq req;
 
+#ifdef _linux_
+    req.stats_ptr = &req.stats;
+#undef ifr_name
+#define ifr_name ifr__name
+#endif
+
     sprintf(req.ifr_name, "ppp%d", unit);
     if (ioctl(s, SIOCGPPPSTATS, &req) < 0) {
 	if (errno == ENOTTY)
@@ -304,6 +310,12 @@ get_ppp_cstats(csp)
     struct ppp_comp_stats *csp;
 {
     struct ifpppcstatsreq creq;
+
+#ifdef _linux_
+    creq.stats_ptr = &creq.stats;
+#undef  ifr_name
+#define ifr_name ifr__name
+#endif
 
     sprintf(creq.ifr_name, "ppp%d", unit);
     if (ioctl(s, SIOCGPPPCSTATS, &creq) < 0) {
