@@ -1,0 +1,46 @@
+This file describes the installation process for ppp-2.2 on systems
+running SunOS 4.x (or the equivalent).  This package does not
+currently work under Solaris 2.
+
+The STREAMS modules in the sunos directory provide kernel support for
+PPP on SunOS 4.x systems.  They have been tested under SunOS 4.1.3 on
+a SparcStation 10.  They should work under earlier SunOS 4.x systems,
+but no guarantees are given.
+
+The easiest way to install these modules is to load them into the
+running kernel using the `modload' command.  They can alternatively be
+linked into the kernel image, but this requires rebuilding the kernel.
+
+
+Installation.
+*************
+
+1. Run the configure script and make the user-level programs and the
+kernel modules.
+
+	./configure
+	make
+
+2. Install the pppd and chat programs (you need to be root to do this):
+
+	make install
+
+3. Load the ppp module (you need to be root for this too).  In the
+sunos directory, do:
+
+	/usr/etc/modload ppp_driver.o
+
+You will want to do this "modloading" in your /etc/rc.local file
+once you have everything installed.  The ppp module is copied to
+/usr/local/etc by default, so you can put something like the following
+in /etc/rc.local:
+
+	if [ -f /usr/local/etc/ppp_driver.o ]; then 
+		/usr/etc/modload /usr/local/etc/ppp_driver.o
+	fi
+
+On some systems, /usr/local/etc is mounted read-only.  On such
+systems, add `-o /etc/ppp/ppp_driver' to the modload command line.
+
+NOTE: pppstats now works differently, so there is no need to use the
+-sym flag to modload, as required with earlier versions.

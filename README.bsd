@@ -1,0 +1,138 @@
+Installation instructions for installing ppp-2.2 on FreeBSD and
+NetBSD systems.
+
+This package supports NetBSD-1.0 and FreeBSD-2.0.  It should work
+on later systems (it works on NetBSD-current as of this writing).
+Modloading is not yet supported.
+
+I have code which should work on earlier systems (386BSD, NetBSD-0.9,
+FreeBSD-1.1.5.1, etc.), but it is not included in this package because
+I have no way to test or support it.  If you are committed to one of
+these earlier versions and you are willing to try out some code
+without needing major hand-holding, contact me (paulus@cs.anu.edu.au).
+
+To install PPP, you need to rebuild your kernel to include the latest
+version of the PPP driver, as well as compiling and installing the
+user-level applications: pppd, pppstats and chat.  The user-level
+applications can be compiled and installed either before or after you
+reboot with the new kernel (you'll have to reboot with the new kernel
+before you can run them, of course).
+
+The following commands should compile and install the user-level
+applications (in the ppp-2.2 directory):
+
+	./configure
+	make
+	make install		(you need to be root for this)
+
+The process of updating the kernel source files is now largely
+automated.  In the ppp-2.2 directory, issue the command:
+
+	make kernel
+
+(you probably need to be root for this).  This will copy new versions
+of several files into /sys, patch other files, and finally give you
+instructions about modifying your kernel configuration file (if
+necessary), rebuilding the kernel and rebooting.
+
+If you want to do the process by hand, read on...
+
+
+Updating the kernel ppp code.
+-----------------------------
+
+You need to update several files in the /sys/net directory, and patch
+some other files under /sys.
+
+For NetBSD-1.0, copy the following files to /sys/net:
+
+	net/if_ppp.h
+	net/ppp-comp.h
+	net/ppp_defs.h
+	netbsd/bsd-comp.c
+	netbsd/if_ppp.c
+	netbsd/if_pppvar.h
+	netbsd/netisr.h
+	netbsd/ppp_tty.c
+	netbsd/slcompress.c
+	netbsd/slcompress.h
+
+You then need to patch /sys/conf/files and /sys/conf/files.newconf
+using the commands:
+
+	patch -p -N -d /sys/conf <netbsd/files.patch
+	patch -p -N -d /sys/conf <netbsd/files.newconf.patch
+
+The next step is to patch the file containing the code which
+dispatches software interrupts.  Unfortunately, this code is in the
+architecture-dependent files, so the file to patch depends on which
+NetBSD port you are using:
+
+Port	File to patch			   Patch file
+----	-------------			   ----------
+amiga	/sys/arch/amiga/amiga/machdep.c	   netbsd/arch/amiga/machdep.c.patch
+hp300	/sys/arch/hp300/hp300/machdep.c	   netbsd/arch/hp300/machdep.c.patch
+i386	/sys/arch/i386/isa/icu.s	   netbsd/arch/i386/icu.s.patch
+mac68k	/sys/arch/mac68k/mac68k/machdep.c  netbsd/arch/mac68k/machdep.c.patch
+pc532	/sys/arch/pc532/pc532/locore.s	   netbsd/arch/pc532/locore.s.patch
+pmax	/sys/arch/pmax/pmax/trap.c	   netbsd/arch/pmax/trap.c.patch
+sparc	/sys/arch/sparc/sparc/intr.c	   netbsd/arch/sparc/intr.c.patch
+sun3	/sys/arch/sun3/sun3/isr.c	   netbsd/arch/sun3/isr.c.patch
+
+To do the patch, you would use a command something like this:
+
+	patch -p -d /sys/arch/i386/isa <netbsd/arch/i386/icu.s.patch
+
+
+For FreeBSD-2.0, copy the following files to /sys/net:
+
+	net/if_ppp.h
+	net/ppp-comp.h
+	net/ppp_defs.h
+	freebsd-2.0/bsd-comp.c
+	freebsd-2.0/if_ppp.c
+	freebsd-2.0/if_pppvar.h
+	freebsd-2.0/ppp_tty.c
+	freebsd-2.0/pppcompress.c
+	freebsd-2.0/pppcompress.h
+
+You then need to patch /sys/conf/files using the command:
+
+	patch -p -N -d /sys/conf <freebsd-2.0/files.patch
+
+
+Configuring and making the new kernel.
+--------------------------------------
+
+First, make sure that the configuration file you are using includes a
+line something like
+
+	pseudo-device ppp 2
+
+If it doesn't, add one.  The `2' is the number of ppp interfaces to
+configure, that is, the maximum number of simultaneous ppp connections
+you will be able to have; change it as required.
+
+Next, run config or config.new in the directory containing the
+configuration file, giving the configuration file name as an argument.
+Then cd to the compilation directory and make the kernel.  For the
+i386 port of NetBSD, with a configuration file called CONF, this
+involves the following commands:
+
+	cd /sys/arch/i386/conf
+	/usr/sbin/config CONF
+	cd ../compile/CONF
+	make
+
+For FreeBSD, the commands are similar except for different
+directories:
+
+	cd /sys/i386/conf
+	/usr/sbin/config CONF
+	cd ../../compile/CONF
+	make
+
+The result should be a new kernel image (usually called `netbsd' under
+NetBSD, `kernel' under FreeBSD).  Save a copy of the kernel image
+you're currently using, copy the new kernel image file to /, and
+reboot.

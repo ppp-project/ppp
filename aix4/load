@@ -1,0 +1,4 @@
+
+strload -m ppp_async
+strload -m ppp_if
+strload -m ppp_comp

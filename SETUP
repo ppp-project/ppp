@@ -1,0 +1,253 @@
+		Setting up a PPP link.
+
+Setting up a PPP link between two machines involves several steps:
+
+1. Prepare both of the machines which are to be connected:
+   1A. Make and install the pppd, pppstats and chat programs.
+   1B. Install the ppp driver in the kernel.
+The README.* files give details on this step.
+
+2. Decide on the IP addresses to be used and the level of
+authentication required by each machine, and set up the /etc/ppp
+directories accordingly.
+
+3. Set up the serial link between the two machines and run pppd on
+each machine.  The two pppd's then negotiate and set up the link.
+
+Step 1 is described in the system-specific README.* files.  The
+remaining steps are described below.  Steps 1 and 2 need only be done
+once; step 3 is done each time the link is to be established.
+
+
+Choosing IP addresses.
+
+If a host is already connected to the Internet via a LAN such as
+Ethernet, then it will already have at least one IP address assigned,
+which will usually be the IP address of the LAN interface.  In such
+cases, it is usually most convenient to use that address as the local
+IP address of the PPP interface(s) on that host.  This is OK because
+the PPP interface(s) are point-to-point interfaces.
+
+If a host is not connected to the Internet, then an IP address needs
+to be assigned for it.  If PPP is to be used to link it to another
+host which is connected to the Internet, is is usually most convenient
+to assign it an address on the same subnet as the remote host.  If the
+other host is not connected to the Internet either, then the choice of
+IP addresses is quite arbitrary.
+
+Authentication.
+
+The level of authentication required depends on the situation, but
+generally hosts which are connected to the Internet via a LAN should
+be set up to (a) require the remote host to authenticate itself, and
+(b) restrict the remote host's choice of IP address, based on its
+identity.  Otherwise the possibility exists for a remote host to
+impersonate another host on the local subnet.  (However, when you are
+first installing PPP, it is probably easier to leave authentication
+disabled until you get to the point where you can successfully
+establish a link.)
+
+Setting up /etc/ppp.
+
+The /etc/ppp directory contains various files used by pppd; it should
+be created by the system administrator when installing PPP.  It would
+typically contain the following files:
+
+    chap-secrets	Secrets used for authenticating with CHAP
+    pap-secrets		Secrets used for authenticating with PAP
+    options		Options that the system administrator wants to
+			apply whenever pppd is run
+
+Since this directory contains files of secrets used for
+authentication, it should not be in a partition which is accessible
+from other hosts (e.g., exported by NFS).
+
+The `options' file contains any options which the system administrator
+wants pppd to use whenever it is run.  If authentication is to be
+required, this should contain the `auth' and `usehostname' options.
+If the /etc/ppp/options file does not exist, or is not readable by
+pppd, it will refuse to run.
+
+Secrets for PAP (Password Authentication Protocol) authentication are
+stored in /etc/ppp/pap-secrets; secrets for CHAP (Cryptographic
+Authentication Protocol) are stored in /etc/ppp/chap-secrets.  These
+files have the same format, and store secrets both for authenticating
+other hosts, and for authenticating this host to others.  The format
+is that there are 3 or more words per line, which are:
+
+	client - name of the machine to be authenticated
+	server - name of the machine requiring the authentication
+	secret - password or CHAP secret known by both client and server
+	IP addresses - zero or more IP addresses which the client may
+		use (this field is only used on the server).
+
+For example, if a LAN-connected host called "worksun" is to require
+authentication, and a host "bsdbox" is to connect to it and
+authenticate itself using CHAP, then both machines should have a
+/etc/ppp/chap-secrets file, which should contain a line something
+like:
+
+	bsdbox	worksun	"an unguessable secret"	bsdbox.my.domain
+
+Setting up syslog.
+
+pppd issues messages using syslog facility daemon (or local2 if it has
+been compiled with debugging enabled); chat uses facility local2.  It
+is useful to see messages of priority notice or higher on the console.
+To see these, find the line in /etc/syslog.conf which has /dev/console
+on the right-hand side, and add `daemon.notice' on the left.  This
+line should end up something like this:
+
+*.err;kern.debug;daemon,local2,auth.notice;mail.crit	/dev/console
+
+If you want to see more messages from pppd, request messages of
+priority info or higher for facility daemon, like this:
+
+*.err;kern.debug;daemon.info;local2,auth.notice;mail.crit  /dev/console
+
+It is also useful to add a line like this:
+
+daemon,local2.debug		/etc/ppp/ppp-log
+
+If you do this, you will need to create an empty /etc/ppp/ppp-log
+file.
+
+After modifying syslog.conf, you will then need to send a HUP signal
+to syslogd (or reboot).
+
+
+Setting up a PPP link.
+
+Establishing a PPP connection between two machines basically involves
+setting up a serial link and running pppd on both ends of the link.
+How this is done depends on the nature of the serial link, which may
+be as simple as a null modem cable between two machines, or it may
+involve modems, terminal servers, telnet sessions, etc.  The `chat'
+program is very useful in setting up the serial link because it
+enables you to automate any dialog which may be required, e.g.,
+logging in to the remote machine with a username and password, issuing
+a command to start ppp on the remote machine, etc.  As an example,
+the link could be started by issuing a command like
+
+	pppd /dev/ttya 38400 connect 'chat -f /etc/ppp/chat-script'
+
+where the file /etc/ppp/chat-script contains
+
+	"" atdt2135476
+	login: myname
+	Password: "\qmypassword"
+	"$ " "\qpppd"
+
+The words in this script are alternately strings to look for and
+strings to send.  In this example, we start by sending a dial command
+to the modem; then we look for "login:", send "myname", look for
+"Password:", send "mypassword" (the "\q" prevents chat from logging it
+when you use the -v option), look for "$ " (the end of the shell
+prompt) and send "pppd" to start up ppp on the remote machine (the
+"\q" cancels the effect of the previous "\q").
+
+In another scenario, you could establish the serial link manually,
+e.g. using Kermit to dial out, log into the remote machine, and issue
+the commands to start ppp there.  Then you have to exit Kermit without
+having the modem hang up, and then start pppd locally, using a command
+like this:
+
+	pppd /dev/ttya 38400
+
+When a device is given, as in this command line, pppd will put itself
+in the background.  The two pppd's should then negotiate and bring up
+the link.  If you have edited /etc/syslog.conf as described above, you
+will see messages from pppd giving the local and remote IP addresses
+of the link when it is successfully established.
+
+If the local machine has no other connection to the Internet, you can
+ask pppd to add a default route via the remote host by adding the
+`defaultroute' option to the pppd command.
+
+N.B. When you run pppd on the remote machine, you usually want it to
+use the tty device where you logged in.  In this case, do not give a
+device name to pppd; it uses the controlling tty by default.  This may
+be a pty, e.g., if the serial link contains a telnet session, except
+under Ultrix (pppd will not run on a pty under Ultrix, due to the pty
+driver not passing ioctls to the ppp line discipline code).
+
+If the remote machine is connected to the Internet via a LAN, it is
+often useful to add the `proxyarp' option.  The `asyncmap' option is
+also useful if the serial line is not completely transparent;
+`asyncmap 200a0000' is appropriate if the serial link includes a
+telnet.
+
+Some people find it convenient to set up a `ppp' username on the
+remote machine, with no password, and a shell script which runs pppd
+as its login shell.
+
+Other random points about running pppd:
+	- If you want the local address of the PPP link to be
+	  different from the (first) IP address of the host, you need
+	  to put the desired address on the pppd command line with a
+	  colon appended.
+	- The performance will probably be better if you reduce the
+	  MRU (maximum receive unit) on both ends; 296 is a good
+	  value.  To do this, use the option `mru 296'.
+	- You DO NOT need to use ifconfig to configure the addresses
+	  of the ppp interface.  Pppd does all the necessary work
+	  (assigning addresses, marking the interface up, etc.).
+
+
+Terminating the PPP link.
+
+When you wish terminate the PPP link, you should send a TERM or INTR
+signal to one of the pppd's, e.g., with a command like:
+
+	kill `cat /etc/ppp/ppp0.pid`
+
+on SunOS or Ultrix, or
+
+	kill `cat /var/run/ppp0.pid`
+
+on {386,Net,Free}BSD.
+
+That pppd will inform the other pppd to terminate, and they will both
+clean up and exit.
+
+If pppd is attached to a hardware serial port connected to a modem,
+then it should get a HUP signal when the modem hangs up, which will
+cause it to clean up and exit.  Whether it does or not depends on the
+driver, and on Suns, on the setting of the `tty soft carrier' flag,
+which is manipulated by the /usr/etc/ttysoftcar program (see
+ttysoftcar(8)).
+
+
+Debugging.
+
+If the link comes up successfully, you should see messages logged to
+the console like "Local IP address:  xx.xx.xx.xx" and "Remote IP
+address: yy.yy.yy.yy" (assuming you've edited /etc/syslog.conf as
+described above).  If the link doesn't come up, it could be due to any
+of several factors:
+
+- Perhaps the serial connection is not being set up successfully, or
+you haven't succeeded in getting ppp running on the remote machine.
+You can use the -v flag to chat; it will then log the characters it
+sends and receives (using syslog with facility `local2' and level
+`debug').
+
+- Perhaps the PPP negotiation with the peer is failing.  You can use
+the `debug' option to pppd; it will then log the contents of all
+control packets sent and received (using syslog with facility `daemon'
+and level `debug').
+
+In some cases, the link will come up successfully, but you may then be
+unable to use network-based applications over the link.  This usually
+indicates an IP-address assignment problem or a routing problem.  Or
+you may be able to communicate with the peer machine but not any
+machine beyond that.  Typically this is a routing problem.  For the
+common case where the local machine is only connected to the Internet
+via the peer, this problem can usually be solved if you:
+	- assign the local machine an IP address on the same subnet
+	  as the remote machine
+	- use the `defaultroute' option on the local pppd
+	- use the `proxyarp' option on the remote pppd.
+
+For solving routing and network problems, the ifconfig, netstat -i,
+netstat -r, ping and traceroute commands are useful.

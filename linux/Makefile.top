@@ -1,0 +1,13 @@
+# PPP top-level Makefile for Linux.
+
+all:
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+
+install:
+	cd chat; $(MAKE) install
+	cd pppd; $(MAKE) install
+
+clean:
+	cd chat; $(MAKE) clean
+	cd pppd; $(MAKE) clean

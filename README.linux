@@ -1,0 +1,646 @@
+
+PPP for Linux                                             Version 0.2.8
+=============                                                  based on
+                                                              ppp-2.1.0
+                                                               May 1994
+
+Michael Callahan    callahan@maths.ox.ac.uk
+Al Longyear         longyear@netcom.com
+
+  Contents:
+    INTRODUCTION
+    CREDITS
+    FUTURE PLANS
+    INSTALLATION
+    GENERAL NETWORK CONFIGURATION
+    CONNECTING TO A PPP SERVER
+    IF IT WORKS
+    IF IT DOESN'T WORK
+    IF IT STILL DOESN'T WORK (OR, BUG REPORTS)
+    DYNAMIC ADDRESS ASSIGNMENT
+    SETTING UP A MACHINE FOR INCOMING PPP CONNECTIONS
+    ADDING MORE PPP CHANNELS
+    CHANGES FROM LINUX PPP 0.1.x
+    CONCLUSION
+
+
+INTRODUCTION
+
+This is a PPP driver for Linux.  It has been used by many people and
+seems to be quite stable.  It is capable of being used either as a
+'client'--for connecting a Linux machine to a local Internet provider,
+for example--or as a 'server'--allowing a Linux machine with a modem
+and an Ethernet connection to the Internet to provide dial-in PPP
+links.  (In fact, the PPP protocol does not make the distinction
+between client and server, but this is the way people often think
+about it.)
+
+The PPP protocol consists of two parts.  One is a scheme for framing
+and encoding packets, the other is a series of protocols called LCP,
+IPCP, UPAP and CHAP, for negotiating link options and for
+authentication.  This package similarly consists of two parts: a
+kernel module which handles PPP's low-level framing protocol, and a
+user-level program called pppd which implements PPP's negotiation
+protocols.
+
+The kernel module assembles/disassembles PPP frames, handles error
+detection, and forwards packets between the serial port and either the
+kernel network code or the user-level program pppd.  IP packets go
+directly to the kernel network code.  So once pppd has negotiated the
+link, it in practice lies completely dormant until you want to take
+the link down, when it negotiates a graceful disconnect.
+
+CREDITS
+
+I (MJC) wrote the original kernel driver from scratch.  Laurence
+Culhane and Fred van Kempen's slip.c was priceless as a model (a
+perusal of the files will reveal that I often mimicked what slip.c
+did).  Otherwise I just implemented what pppd needs, using RFC1331 as
+a guide.  For the most part, the Linux driver provides the same
+interface as the free 386BSD and SunOS drivers.  The exception is that
+Linux has no support for asynchronous I/O, so I hacked an ioctl into
+the PPP kernel module that provides a signal when packets appear and
+made pppd use this instead.
+
+Al Longyear ported version 2.0.4 of pppd (from the free package
+ppp-2.0.4) to Linux.  He also provided several enhancements to both
+the kernel driver and the OS-independent part of pppd.  His
+contributions to Linux PPP have been immense, and so this release
+is being distributed over both our names.
+
+The pppd program comes from the free distribution of PPP for Suns and
+386BSD machines, maintained by Paul Mackerras.  This package lists
+"thanks to" Brad Parker, Greg Christy, Drew D. Perkins, Rick Adams and
+Chris Torek.
+
+
+FUTURE PLANS
+
+The main missing feature is the ability to fire up a PPP connection
+automatically when a packet destined for the remote host is generated
+("demand-dialing").  Work is progressing on this, but it involves some
+nontrivial design issues.
+
+
+INSTALLATION
+
+This version of PPP has been tested on 1.0.x (x=0..9) and 1.1.x
+(x=0..14) kernels.  It will probably not work on kernels much earlier
+than this due to a change in the routing code.  If you have an earlier
+kernel, please upgrade.
+
+joining the PPP channel of linux-activists:
+
+      This isn't really part of installation, but if you DO use
+      Linux PPP you should do this.  Send a message with the line
+	X-Mn-Admin: join PPP
+      contained in the body to linux-activists-request@niksula.hut.fi
+      You can send to the list by mailing to
+      linux-activists@niksula.hut.fi and putting the line
+        X-Mn-Key: PPP
+      at the start of your message.
+
+      The advantage of subscribing is that you'll be informed of
+      updates and patches, and you'll be able to draw on the
+      experience of many PPP users.  If you have a problem, I may not
+      be able to diagnose it, but someone else may have solved it
+      already.
+
+      Note also that I do not read the linux Usenet newsgroups
+      regularly enough to catch any discussions of PPP; if you want to
+      reach the PPP audience you should join the linux-activists
+      channel.
+
+      To leave the PPP mailing list :-(, send a message with the line
+        X-Mn-Admin: leave PPP
+      to linux-activists-request.
+
+kernel driver installation:
+
+      This depends on the kernel version you're using.
+
+      Since 1.1.14, Linux kernels have had built-in support for PPP.
+      You'll be asked whether you want PPP when you run "make config".
+      It's as easy as that.
+
+      In 1.1.13, PPP is there but the PPP line in config.in is
+      commented out.  If you have 1.1.13, you probably should just
+      upgrade anyway.
+
+      Kernel versions prior to 1.1.13 (including all 1.0.x kernels)
+      have had (hidden) support for PPP in the kernel configuration
+      setup for quite some time.  Adding the PPP kernel driver is
+      easy:
+
+	1) copy ppp.c from the linux subdirectory of the distribution
+           to drivers/net and ppp.h to include/linux
+	2) uncomment the CONFIG_PPP line in config.in
+        3) if you are using 1.1.3 or earlier (including 1.0.x):
+           uncomment the line in ppp.c that begins
+            /* #define NET02D
+           by removing the "/* " characters
+        4) in the top level of the kernel source
+               make config
+               make dep
+               make
+
+      Reboot with the new kernel.  At startup, you should see
+      something line this:
+
+  PPP: version 0.2.8 (4 channels)
+  TCP compression code copyright 1989 Regents of the University of California
+  PPP line discipline registered.
+
+      (If you want more than 4 channels, see the section "ADDING MORE
+      PPP CHANNELS" below.)
+
+      Now, try looking at the contents of /proc/net/dev.  It should
+      look something like this:
+
+  Inter-|   Receive                  |  Transmit
+   face |packets errs drop fifo frame|packets errs drop fifo colls carrier
+      lo:      0    0    0    0    0        0    0    0    0     0    0
+    ppp0:      0    0    0    0    0        0    0    0    0     0    0
+    ppp1:      0    0    0    0    0        0    0    0    0     0    0
+    ppp2:      0    0    0    0    0        0    0    0    0     0    0
+    ppp3:      0    0    0    0    0        0    0    0    0     0    0
+
+      This indicates that the driver is successfully installed.
+
+      (Of course, you should keep a kernel without PPP around, in case
+      something goes wrong.)
+
+pppd installation:
+
+      First execute the following commands (in the ppp-2.2 directory):
+
+	./configure
+	make
+
+      This will make the pppd and chat programs.
+
+      To install, type 'make install' (in the ppp-2.2 directory).
+      This will put chat and pppd binaries in /usr/etc
+      and the pppd.8 manual page in /usr/man/man8.
+
+      pppd needs to be run as root.  You can either make it setuid
+      root or just use it when you are root.  'make install' will try
+      to install it setuid root.  Making pppd setuid root is
+      convenient for a single-user machine, but has security
+      implications which you should investigate carefully before
+      making it available on a multiuser machine.
+
+GENERAL NETWORK CONFIGURATION
+
+Since many people don't use the Linux networking code at all until
+they get a PPP link, this section describes generally what's needed to
+get things running.  In principle none of this is special to PPP.  For
+more details, you should consult the relevant Linux HOWTOs.  If you
+already understand network setup, you can skip this section.
+
+The first file that requires attention is the rc script that does
+network configuration at boot time, called /etc/rc.net or
+/etc/rc.d/rc.net.{1,2} or something similar, depending on your Linux
+distribution.  This file should 'ifconfig' the loopback interface lo,
+and should add an interface route for it.  These lines might look
+something like this:
+        $CONFIG lo 127.0.0.1
+	$ROUTE add loopback
+or
+        /sbin/ifconfig lo 127.0.0.1
+        /sbin/route add 127.0.0.1
+
+However, it should *not* config an ethernet card or install any other
+routes (unless you actually have an ethernet card, in which case I'll
+assume you know what to do).  Many distributions will provide scripts
+that expect you to have an ethernet card.
+
+You also need to decide whether you want to allow incoming
+telnet/ftp/finger, etc.  If so, you should have the rc startup script
+run the 'inetd' daemon.
+
+Next, you should set up /etc/hosts to have two lines.  The first
+should just give the loopback or localhost address and the second
+should give your own host name and the IP address your PPP connection
+will use.  For example:
+     127.0.0.1  loopback localhost   # useful aliases
+     192.1.1.17  billpc.whitehouse.gov bill  # my hostname
+where my IP address is 192.1.1.17 and my hostname is
+billpc.whitehouse.gov.  (Not really, you understand.)  If your PPP
+server does dynamic IP address assignment, give a guess as to an
+address you might get (see also "Dynamic Address Assignment" below).
+
+Finally, you need to configure the domain name system by putting
+appropriate lines in /etc/resolv.conf .  It should look something like
+this:
+     domain whitehouse.gov
+     nameserver 192.1.2.1
+     nameserver 192.1.2.10
+Assuming there are nameservers at 192.1.2.1 and 192.1.2.10, then when
+you get connected with PPP, you can reach hosts whose full names are
+'hillarypc.whitehouse.gov' and 'chelseapc.whitehouse.gov' by the names
+'hillarypc' and 'chelseapc'.  You can probably find out the right
+domain name to use and the IP numbers of nameservers from whoever's
+providing your PPP link.
+
+CONNECTING TO A PPP SERVER
+
+To use PPP, you invoke the pppd program with appropriate options.
+Everything you need to know is contained in the pppd(8) manual page.
+However, it's useful to see some examples:
+
+Example 1: A simple dial-up connection.
+
+Here's a command for connecting to a PPP server by modem.
+
+  pppd connect 'chat -v -f chat-script' \
+      /dev/cua1 38400 -detach debug crtscts modem defaultroute 192.1.1.17:
+
+where the file chat-script contains:
+
+  "" ATDT5551212 CONNECT "" ogin: ppp word: whitewater
+
+Going through pppd's options in order:
+   connect 'chat ...'  This gives a command to run to contact the
+    PPP server.  Here the supplied 'chat' program is used to dial a
+    remote computer.  The whole command is enclosed in single quotes
+    because pppd expects a one-word argument for the 'connect' option.
+    The options to 'chat' itself are:
+         -v              verbose mode; log what we do to syslog
+	 -f chat-script	 expect-send strings are in the file chat-script
+    The strings for chat to look for and to send are stored in the
+    chat-script file.  The strings can be put on the chat command line,
+    but this is not recommended because it makes your password visible
+    to anyone running ps while chat is running.  The strings are:
+         ""            don't wait for any prompt, but instead...
+         ATDT5551212   dial the modem, then
+         CONNECT       wait for answer
+         ""            send a return (null text followed by usual return)
+         ogin: ppp word: whitewater    log in.
+   /dev/cua1  specify the callout serial port cua1
+   38400  specify baud rate
+   -detach   normally, pppd forks and puts itself in the background;
+        this option prevents this
+   debug  log status in syslog
+   crtscts  use hardware flow control between computer and modem
+        (at 38400 this is a must)
+   modem  indicate that this is a modem device; pppd will hang up the
+        phone before and after making the call
+   defaultroute  once the PPP link is established, make it the
+        default route; if you have a PPP link to the Internet this
+        is probably what you want
+   192.1.1.17:  this is a degenerate case of a general option
+        of the form  x.x.x.x:y.y.y.y  .  Here x.x.x.x is the local IP
+        address and y.y.y.y is the IP address of the remote end of the
+        PPP connection.  If this option is not specified, or if just
+        one side is specified, then x.x.x.x defaults to the IP address
+        associated with the local machine's hostname (in /etc/hosts),
+        and y.y.y.y is determined by the remote machine.  So if this
+        example had been taken from the fictional machine 'billpc',
+        this option would actually be redundant.
+
+pppd will write error messages and debugging logs to the syslogd
+daemon using the facility name "daemon".  (Verbose output from chat
+uses facility "local2".)  These messages may already be logged to the
+console or to a file like /usr/adm/messages; consult your
+/etc/syslog.conf file to see.  If you want to make all pppd and chat
+messages go to the console, add the line
+   daemon,local2.*				/dev/console
+to syslog.conf; make sure to put one or more TAB characters between
+the two fields.
+
+Example 2: Connecting to PPP server over hard-wired link.
+
+This is a slightly more complicated example.  This is the script I run
+to make my own PPP link, which is over a hard-wired Gandalf link to an
+Ultrix machine running Morningstar PPP.
+
+  pppd connect /etc/ppp/ppp-connect defaultroute noipdefault debug \
+      kdebug 2 /dev/cua0 9600
+
+Here /etc/ppp/ppp-connect is the following script:
+  #! /bin/sh
+  /etc/ppp/sendbreak
+  chat -v -t60 "" \; "service :" blackice ogin: callahan word: PASSWORD \
+      black% "stty -echo; ppp" "Starting PPP now"  && sleep 5
+
+This sends a break to wake up my terminal server, sends a semicolon
+(which lets my terminal server do autobaud detection), then says we
+want the service "blackice".  It logs in, waits for a shell prompt
+("black%"), then starts PPP.  The -t60 argument sets the timeout to a
+minute, since things here are sometimes very slow.  (Ideally the
+expect-send strings for chat should be in a file.)
+
+The "&& sleep 5" causes the script to pause for 5 seconds, unless chat
+fails in which case it exits immediately.  This is just to give the
+PPP server time to start (it's very slow).  Also, the "stty -echo"
+turned out to be very important for me; without it, my pppd would
+sometimes start to send negotiation packets before the remote PPP
+server had time to turn off echoing.  The negotiation packets would
+then get sent back to my local machine, be rejected (PPP is able to
+detect loopback) and pppd would fail before the remote PPP server even
+got going.  The "stty -echo" command prevents this confusion.  This
+kind of problem should only ever affect a *very* few people who
+connect to a PPP server that runs as a command on a slow Unix machine,
+but I wanted to mention it because it took me several frustrating
+hours to figure out.
+
+The pppd options are mostly familiar.  Two that are new are
+"noipdefault" and "kdebug 2".  "noipdefault" tells pppd to ask the
+remote end for the IP address to use; this is necessary if the PPP
+server implements dynamic IP address assignment as mine does (i.e., I
+don't know what address I'll get ahead of time).  "kdebug 2" sets the
+kernel debugging level to 2, enabling slightly chattier messages from
+the ppp kernel code.
+
+
+
+Anyway, assuming your connection is working, you should see chat dial
+the modem, then perhaps some messages from pppd (depending on your
+syslog.conf setup), then some kernel messages like this:
+
+	ppp: channel ppp0 mtu changed to 1500
+	ppp: channel ppp0 open
+	ppp: channel ppp0 going up for IP packets!
+
+(These messages will only appear if you gave the option "kdebug 2" and
+have kern.info messages directed to the screen.)  Simultaneously, pppd
+is also writing interesting things to /usr/adm/messages (or other log
+file, depending on syslog.conf).
+
+IF IT WORKS
+
+If you think you've got a connection, there are a number of things you
+can do to test it.
+
+First, type
+	/sbin/ifconfig
+(ifconfig may live elsewhere, depending on your distribution.)  This
+should show you all the network interfaces that are 'UP'.  ppp0 should
+be one of them, and you should recognize the first IP address as your
+own and the "POINT-TO-POINT ADDR" as the address of your server.
+Here's what it looks like on my machine:
+
+lo        Link encap Local Loopback  
+          inet addr 127.0.0.1  Bcast 127.255.255.255  Mask 255.0.0.0
+          UP LOOPBACK RUNNING  MTU 2000  Metric 1
+          RX packets 0 errors 0 dropped 0 overrun 0
+          TX packets 0 errors 0 dropped 0 overrun 0
+
+ppp0      Link encap Serial Line IP  
+          inet addr 192.76.32.2  P-t-P 129.67.1.165  Mask 255.255.255.0
+          UP POINTOPOINT RUNNING  MTU 1500  Metric 1
+          RX packets 33 errors 0 dropped 0 overrun 0
+          TX packets 42 errors 0 dropped 0 overrun 0
+
+Now, type
+	ping z.z.z.z
+where z.z.z.z is the address of your server.  This should work.
+Here's what it looks like for me:
+  waddington:~$ ping 129.67.1.165
+  PING 129.67.1.165 (129.67.1.165): 56 data bytes
+  64 bytes from 129.67.1.165: icmp_seq=0 ttl=255 time=268 ms
+  64 bytes from 129.67.1.165: icmp_seq=1 ttl=255 time=247 ms
+  64 bytes from 129.67.1.165: icmp_seq=2 ttl=255 time=266 ms
+  ^C
+  --- 129.67.1.165 ping statistics ---
+  3 packets transmitted, 3 packets received, 0% packet loss
+  round-trip min/avg/max = 247/260/268 ms
+  waddington:~$
+
+Try typing:
+	netstat -nr
+This should show three routes, something like this:
+Kernel routing table
+Destination     Gateway         Genmask         Flags Metric Ref Use    Iface
+129.67.1.165    0.0.0.0         255.255.255.255 UH    0      0        6 ppp0
+127.0.0.0       0.0.0.0         255.0.0.0       U     0      0        0 lo
+0.0.0.0         129.67.1.165    0.0.0.0         UG    0      0     6298 ppp0
+
+If your output looks similar but doesn't have the destination 0.0.0.0
+line (which refers to the default route used for connections), you may
+have run pppd without the 'defaultroute' option.
+
+At this point you can try telnetting/ftping/fingering whereever you
+want, bearing in mind that you'll have to use numeric IP addresses
+unless you've set up your /etc/resolv.conf correctly.
+
+IF IT DOESN'T WORK
+
+If you don't seem to get a connection, the thing to do is to collect
+'debug' output from pppd.  To do this, make sure you run pppd with the
+'debug' option, and put the following two lines in your
+/etc/syslog.conf file:
+    daemon,local2.*				/dev/console
+    daemon,local2.*				/usr/adm/ppplog
+This will cause pppd's messages to be written to the current virtual
+console and to the file /usr/adm/ppplog.  Note that the left-hand
+field and the right-hand field must be separated by at least one TAB
+character.  After modifying /etc/syslog.conf, you must execute the
+command 'kill -HUP <pid>' where <pid> is the process ID of the
+currently running syslogd process to cause it to re-read the
+configuration file.
+
+Some messages to look for: 
+  - "pppd[NNN]: Connected..." means that the "connect" script has
+    completed successfully.  
+  - "pppd[NNN]: sent [LCP ConfReq"... means that pppd has attempted to
+    begin negotiation with the remote end.  
+  - "pppd[NNN]: recv [LCP ConfReq"... means that pppd has received a
+    negotiation frame from the remote end.
+  - "pppd[NNN]: ipcp up" means that pppd has reached the point where
+    it believes the link is ready for IP traffic to travel across it.
+
+If you never see a "recv" message then there may be serious problems
+with your link.  (For example, the link may not be passing all 8
+bits.)  If that's the case, it would be useful to collect a debug log
+which contains all the bytes being passed between your computer and
+the remote PPP server.  To do this, alter your syslog.conf lines to
+look like this
+    local2.*,kern.*				/dev/console
+    local2.*,kern.*				/usr/adm/ppplog
+and HUP the syslog daemon as before.  Then, run pppd with the option
+"kdebug 5".  Whatever characters arrive over the PPP terminal line
+will appear in the debugging output.
+
+Occasionally you may see a message like
+   ppp_toss: tossing frame, reason = 4
+The PPP code is throwing away a packet ("frame") from the remote
+server because of a serial overrun.  This means your CPU isn't able to
+read characters from the serial port as quickly as they arrive; the
+best solution is to get a 16550A serial chip, which gives the CPU some
+grace period.  Reasons other than 4 indicate other kinds of serial
+errors, which should not occur.
+
+During the initial connection sequence, you may see one or more
+messages which indicate "bad fcs".  This refers to a checksum error in
+a received PPP frame, and usually occurs at the start of a session
+when the peer system is sending some "text" messages, such as "hello
+this is the XYZ company".  Messages of "bad fcs" once the link is
+established and the routes have been added are not normal and indicate
+transmssion errors or noise on the telephone line.
+
+IF IT STILL DOESN'T WORK (OR, BUG REPORTS)
+
+If you're still having difficulty, send the linux-activists PPP
+channel a bug report.  It is extremely important to include as much
+information as possible; for example:
+ - the version number of the kernel you are using
+ - the version number of Linux PPP you are using
+ - the exact command you use to start the PPP session
+ - log output from a session run with the 'debug' option, captured
+   using local2.*,kern.* in your syslog.conf file
+ - the type of PPP peer that you are connecting to (eg, Xyzzy Corp
+   terminal server, Morningstar PPP software, etc)
+ - the kind of connection you use (modem, hardwired, etc...)
+
+DYNAMIC ADDRESS ASSIGNMENT
+
+You can use Linux PPP with a PPP server which assigns a different IP
+address every time you connect.  You need to use the 'noipdefault'
+option to tell pppd to request the IP address from the remote host.
+
+Sometimes you may get an error message like "Cannot assign requested
+address" when you use a Linux client (for example, "talk").  This
+happens when the IP address given in /etc/hosts for our hostname
+differs from the IP address used by the PPP interface.  The solution
+is to use ifconfig ppp0 to get the interface address and then edit
+/etc/hosts appropriately.
+
+SETTING UP A MACHINE FOR INCOMING PPP CONNECTIONS
+
+Suppose you want to permit another machine to call yours up and start
+a PPP session.  This is possible using Linux PPP.
+
+One way is to create an account named, say, 'ppp', with the login
+shell being a short script that starts pppd.  For example, the passwd
+entry might look like this:
+  ppp:(encrypted password):102:50:PPP client login:/tmp:/etc/ppp/ppplogin
+Here the file /etc/ppp/ppplogin would be an executable script
+containing something like:
+  #!/bin/sh
+  exec /usr/etc/pppd passive :192.1.2.23
+Here we will insist that the remote machine use IP address 192.1.2.23,
+while the local PPP interface will use the IP address associated with
+this machine's hostname in /etc/hosts.  The 'passive' option (which is
+not required) just means that pppd will try to open negotiations when
+it starts, but if it receives no reply it will just wait silently.
+This is appropriate if the remote end might take some time before it's
+ready to negotiate.  (Note that the meaning of the 'passive' option
+changed between ppp-1.3 and ppp-2.0.)
+
+This setup is sufficient if you just want to connect two machines so
+that they can talk to one another.  If you want to use Linux PPP to
+connect a single machine to an entire network, or to connect two
+networks together, then you need to arrange for packets to be routed
+from the networks to the PPP link.  Setting up a link between networks
+is beyond the scope of this document; you should examine the routing
+options in the manual page for pppd carefully and find out about
+routed, etc.
+
+Let's consider just the first case.  Suppose you have a Linux machine
+attached to an Ethernet, and you want to allow its PPP peer to be able
+to communicate with hosts on that Ethernet.  To do this, you should
+have the remote machine use an IP address that would normally appear
+to be on the local Ethernet segment and you should give the 'proxyarp'
+option to pppd on the server.  Suppose, for example, we have this
+setup:
+
+ 192.1.2.23                        192.1.2.17
++-----------+      PPP link       +----------+
+| chelseapc | ------------------- |  billpc  |
++-----------+		          +----------+
+                                        |           Ethernet 
+                            ----------------------------------- 192.1.2.x 
+
+Here the PPP and Ethernet interfaces of billpc will have IP address
+192.1.2.17.  (It's OK for one or more PPP interfaces on a machine to
+share an IP address with an Ethernet interface.)  There is an
+appropriate entry in /etc/passwd on billpc to allow chelseapc to call
+in, with the /etc/ppp/ppplogin script containing
+  #!/bin/sh
+  exec /usr/etc/pppd passive proxyarp :192.1.2.23
+When the link comes up, pppd will enter a "proxy arp" entry for
+chelseapc into the arp table on billpc.  What this means effectively
+is that billpc will pretend to the other machines on the 192.1.2.x
+Ethernet that its Ethernet interface is ALSO the interface for
+chelseapc (192.1.2.23) as well as billpc (192.1.2.17).  In practice
+this means that chelseapc can communicate just as if it was directly
+connected to the Ethernet.
+
+ADDING MORE PPP CHANNELS
+
+By default, Linux PPP comes with 4 kernel channels, which means that
+at most 4 simultaneous PPP sessions are possible.  If you desire more
+such sessions (for example if you are serving many dialup lines), you
+can easily reconfigure the kernel to add new channels.  There are two
+steps.
+
+First you need to edit the kernel file drivers/net/Space.c .  As
+distributed, it contains a section that looks like this:
+  
+#if defined(CONFIG_PPP)
+extern int ppp_init(struct device *);
+static struct device ppp3_dev = {
+    "ppp3", 0x0, 0x0, 0x0, 0x0, 3, 0, 0, 0, 0, NEXT_DEV,  ppp_init, };
+static struct device ppp2_dev = {
+    "ppp2", 0x0, 0x0, 0x0, 0x0, 2, 0, 0, 0, 0, &ppp3_dev, ppp_init, };
+static struct device ppp1_dev = {
+    "ppp1", 0x0, 0x0, 0x0, 0x0, 1, 0, 0, 0, 0, &ppp2_dev, ppp_init, };
+static struct device ppp0_dev = {
+    "ppp0", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, &ppp1_dev, ppp_init, };
+#undef NEXT_DEV
+#define NEXT_DEV (&ppp0_dev)
+#endif   /* PPP */
+
+The pattern should be obvious.  For more channels, you need to add
+more "static struct device pppN_dev" lines, changing the first, sixth
+and eleventh structure entries as appropriate.  The highest numbered
+PPP device should have NEXT_DEV in its eleventh structure field, and
+you should change the ppp3_dev structure to have &ppp4_dev there
+instead.
+
+For example, to add 2 extra channels, you would have
+
+#if defined(CONFIG_PPP)
+extern int ppp_init(struct device *);
+static struct device ppp5_dev = {
+    "ppp5", 0x0, 0x0, 0x0, 0x0, 5, 0, 0, 0, 0, NEXT_DEV,  ppp_init, };
+static struct device ppp4_dev = {
+    "ppp4", 0x0, 0x0, 0x0, 0x0, 4, 0, 0, 0, 0, &ppp5_dev,  ppp_init, };
+static struct device ppp3_dev = {
+    "ppp3", 0x0, 0x0, 0x0, 0x0, 3, 0, 0, 0, 0, &ppp4_dev,  ppp_init, };
+... etc.
+
+Second, you need to change the line in ppp.h (in include/linux) to
+change the line that reads
+
+#define PPP_NRUNIT     4
+
+to show the new number of channels; in our case it would become
+
+#define PPP_NRUNIT     6
+
+Finally, recompile and reboot.  The bootup message and the contents of
+/proc/net/dev should show the correct number of channels.
+
+CHANGES FROM LINUX PPP 0.1.x
+
+Linux PPP 0.1.x was based on the free PPP package PPP-1.3.  Linux PPP
+0.2.1 is based on PPP-2.0.4.  There have been some changes to the pppd
+options along with significant enhancements.  You should read
+"RELNOTES" in the pppd directory for a description of the changes.
+
+Also, some options which were added to PPP-1.3 for the Linux version
+have now changed names:
+    'defroute'  is now 'defaultroute'
+    'kerndebug' is now 'kdebug'
+    'dropdtr'   is now 'modem'
+In addition, it is now necessary to use the 'noipdefault' option if
+you want to get the local IP address from the remote PPP server.
+
+CONCLUSION
+
+Good luck!
+
+Michael

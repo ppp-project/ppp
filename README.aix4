@@ -1,0 +1,100 @@
+
+AIX 4.1 support is ported from the SunOS code for ppp 2.2. It requires
+a streams-based tty and will not work on AIX 3.2. This is the first
+release of this package for AIX. It is provided free and without warranty
+of any kind. I can't make any promise to support this, but if you e-mail
+me with problems I'll try to help you. Please let me know about any bugs
+you might find.
+
+Introduction
+
+  PPP implements TCP/IP through serial connections. In ppp 2.2, an
+  interface is established by running the program 'pppd'. pppd opens
+  a serial connection, negotiates link attributes with the peer and
+  configures a TCP/IP interface. The interface remains up as long as
+  the peer stays up and 'pppd' remains running. There are no SMIT menus
+  and ppp interfaces can not be defined through ifconfig. An interface 
+  can be brought down by killing pppd.
+
+  The program 'chat' processes send-expect sequences similar to UUCP
+  Dialers commands or a Systems chat string. It can be used to dial
+  a modem.
+
+  'pppstats' prints interface statistics similar to netstat. Some of the
+  statistics are the same as netstat but pppstat also provides additional
+  info specific to ppp interfaces. 
+
+Installation
+
+  First execute the following commands in the ppp-2.2 directory:
+
+	./configure
+	make install		(you need to be root for this)
+
+  By default, pppd, chat and pppstats are placed in /usr/sbin and the
+  streams modules in /usr/lib/drivers. The modules are loaded by the following
+  'strload' commands.
+  
+  strload -m /usr/lib/drivers/ppp_if
+  strload -m /usr/lib/drivers/ppp_comp
+  strload -m /usr/lib/drivers/ppp_async
+  
+  'make install' appends the strloads to /etc/rc.tcpip so the modules
+  will be loaded at boot.  A 'pppd' command can be added to start
+  up an interface.
+  
+  'make install' will also create /etc/ppp/options containing the option
+  'lock' only (lock tty device when in use). Any other options which will
+  always be used should be added by hand.
+  
+  Man pages for pppd and pppstats are installed.
+
+Examples
+
+  To answer a modem and accept connections, use something like
+
+    pppd tty1 myhostname:remotehostname persist
+
+  This will wait for calls on tty1 and establish a connection with any
+  ppp caller. The server will use myhostname and tell the caller
+  to use remotehostname. The persist option tells pppd to remain 
+  active and accept another connection after the call terminates.
+  You can use the 'auth' option to force callers to authenticate
+  themselves. See pppd man page for details of authentication protocols.
+
+  To dial in to a user account and start PPP, use something like
+
+    pppd tty1 myhostname: connect 'chat -f /etc/ppp/chat-script'
+
+  where the file /etc/ppp/chat-script should contain something like
+
+    "" ATDT5551212 CONNECT "" ogin: myname sword: mypassword $ pppd
+
+  This command uses the chat program to dial the modem, log in and
+  start pppd on the server. No ttyname is needed when starting pppd on the
+  server side because pppd will attach to the current terminal (the tty line),
+  if no device is specified. Any pppd options needed can be set in ~/.ppprc
+  on the called system.
+
+  The chat -v option may be helpful in debugging connection failures. The
+  chat output and other debug messages are sent to syslog. You may need
+  to edit /etc/syslog.conf and "refresh -s syslogd" to see the debug messages.
+
+  The simplest way to allow a remote dial-in host to use your network is
+  to use the 'proxyarp' option on the server. This will cause the
+  server to publish an arp entry with the remote's IP address and the 
+  server's hardware address. The remote will then appear to be part of
+  local network to other hosts. The address/netmask used by the remote
+  must be suitable for the subnet you wish to connect to.  If the remote
+  is a standalone system, or has no other default route, use the
+  'defaultroute' option when dialing in. This will create a default route
+  on the remote system through the server. If the remote is on another
+  local network, you might not want this because it could conflict with
+  an existing default route.
+
+  These are just a few examples to help the new user get started. The
+  man page for pppd describes all the options in detail.
+
+	Charlie Wick
+	cwick@prairienet.org
+

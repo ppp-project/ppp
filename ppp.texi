@@ -1,0 +1,214 @@
+\input texinfo @c -*-texinfo-*-
+@setfilename ppp.info
+@settitle PPP
+
+@iftex
+@finalout
+@end iftex
+
+@ifinfo
+@format
+START-INFO-DIR-ENTRY
+* PPP: (ppp).                   Point-to-Point Protocol.
+END-INFO-DIR-ENTRY
+@end format
+
+@titlepage
+@title PPP-2.x
+@author by Paul Mackerras
+@end titlepage
+
+@node Top, Introduction, (dir), (dir)
+
+@ifinfo
+This file documents the ppp-2.x package for setting up network links
+over serial lines using the Point-to-Point Protocol.
+
+@end ifinfo
+
+@menu
+* Introduction::                What PPP is and what you can use it for.
+* Installation::                How to compile and install the software.
+* Configuration::               How to set up your system for
+establishing a link to another system.
+* Security::                    Potential dangers and how to avoid them.
+* Compression::                 
+@end menu
+
+@node Introduction, Installation, Top, Top
+@chapter Introduction
+
+The Point-to-Point Protocol (PPP) is the protocol of choice for
+establishing network links over serial lines.  This package (ppp-2.x)
+provides an implementation of PPP which supports the Internet Protocols
+(TCP/IP, UDP/IP, etc.) and which runs on a range of Unix
+workstations.
+
+As an example, an otherwise isolated system could connect to another
+system via a modem using PPP.  Suppose that the second system was
+connected to the Internet.  When the PPP link is established, the first
+system is then also connected to the Internet.  It can establish
+connections with any other Internet host.  Users can then use
+a wide range of network-based applications on the first system, such as
+telnet, ftp, rlogin, email, Mosaic, sup, and X clients and servers.
+
+Features of PPP include:
+@itemize
+@item
+Multi-protocol support.  The PPP packet encapsulation includes a
+protocol field, allowing packets from many different protocols to be
+multiplexed across a single link.
+@item
+Negotiation of link characteristics.  During link establishment, the two
+systems negotiate about the link configuration parameters, such as the
+IP addresses of each end of the link.
+@item
+Authentication.  Optionally, each system can be configured to require the
+other system to authenticate itself.  In this way, access can be
+restricted to authorized systems.
+@item
+Transparency.  On asynchronous serial lines, PPP can be configured to
+transmit certain characters as a two-character escape sequence.
+@item
+Compression.  PPP includes support for various kinds of compression to
+be applied to the packets before they are transmitted.
+@end itemize
+
+This software consists of two parts:
+
+@itemize @bullet
+
+@item
+Kernel code, which establishes a network interface and passes
+packets between the serial port, the kernel networking code and the
+PPP daemon (pppd).  This code is implemented using STREAMS modules on
+SunOS 4.x, AIX 4.1 and OSF/1, and as a line discipline under Ultrix,
+NextStep, NetBSD, FreeBSD, and Linux.
+
+@item
+The PPP daemon (@code{pppd}), which negotiates with the peer to establish
+the link and sets up the ppp network interface.  Pppd includes support
+for authentication, so you can control which other systems may make a
+PPP connection and what IP addresses they may use.
+@end itemize
+
+@menu
+* PPP Concepts::                
+@end menu
+
+@node PPP Concepts,  , Introduction, Introduction
+@section PPP Concepts
+
+Establishing a PPP link involves communication between two systems.  The
+two systems are called ``peers''.  When we are talking from the point of
+view of one of the systems, the other is often referred to as ``the
+peer''.  Although we may sometimes refer to one system as a ``client''
+and the other as a ``server'', this distinction is not made in the PPP
+protocols.
+
+PPP requires the use of a communications medium which transmits 8 bits
+per character.  Typically this is a serial line, perhaps including
+modems and telephone lines, but other media can be used (even a telnet
+session).  The medium must be full duplex---capable of transmitting
+characters independently in both directions.  Note that PPP cannot work
+over a serial link which transmits only 7 bits per character.
+
+PPP has a mechanism to avoid sending certain characters if it is known
+that the medium interprets them specially.  For example, the DC1 and DC3
+ASCII characters (control-Q and control-S) may be trapped by a modem if
+it is set for ``software'' flow control.  PPP can send these characters
+as a two-character ``escape'' sequence.  The set of characters which are
+to be transmitted as an escape sequence is represented in an ``async
+control character map'' (ACCM).  The ``async'' part refers to the fact
+that this facility is used for asynchronous serial lines.  For
+synchronous serial connections, the HDLC bit-stuffing procedure is used
+instead.
+
+During the lifetime of a PPP link, it proceeds through several phases:
+
+@enumerate
+@item
+Communications establishment.  In this phase, the underlying
+communications medium is prepared for use.  This may involve sending
+commands to a modem to cause it to dial the remote system.  When the
+remote system answers, there may be a dialog involving a username and
+password.  Or, in the case of two systems connected directly by a cable,
+there may be nothing to do.
+
+@item
+Link Control Protocol (LCP) negotiation.  In this phase, the peers send
+LCP packets to each other to negotiate various parameters of the
+link, such as the ACCM to be used in each direction, whether
+authentication is required, and whether or not to use various forms of
+compression.  When the peers reach agreement on these parameters, LCP is
+said to be ``up''.
+
+@item
+Authentication.  If one (or both) of the peers requires the other
+peer to authenticate itself, that occurs next.  If one of the peers
+cannot successfully authenticate itself, the other peer terminates the
+link.
+
+@item
+Network Control Protocol (NP) negotiation.  PPP can potentially support
+several different network protocols, although IP is the only network
+protocol (NP) supported by the ppp-2.x package.  Each NP has an
+associated Network Control Protocol defined for it, which is used to
+negotiate the specific parameters which affect that NP.  For example,
+the IP Control Protocol (IPCP) is used to negotiate the IP addresses for
+each end of the link, and whether the TCP header compression method
+described by Van Jacobsen in RFC 1144 is to be used.
+
+@item
+Network communication.  When each NCP has successfully negotiated the
+parameters for its NP, that NCP is said to be ``up''.  At that point,
+the PPP link is made available for data traffic from that NP.  For
+example, when IPCP comes up, the PPP link is then available for carrying
+IP packets (which of course includes packets from those protocols which
+sit above IP, such as TCP, UDP, etc.)
+
+@item
+Termination.  When the link is no longer required, it is terminated.
+Usually this involves an exchange of LCP packets so that one peer can
+notify the other that it is shutting down the link, enabling both peers
+to shut down in an orderly manner.  But of course there are occasions
+when the link terminates because the underlying communications medium is
+interrupted, for example when the modem loses carrier and hangs up.
+
+@end enumerate
+
+PPP is defined in several RFC (Request For Comments) documents, in
+particular RFCs 1661, 1662, and 1334.  IPCP is defined in RFC 1332.
+Other RFCs describe the control protocols for other network protocols
+(e.g., DECnet, OSI, Appletalk).
+
+@node Installation, Configuration, Introduction, Top
+@chapter Installation
+
+Because ppp-2.x includes code which must be incorporated into the
+kernel, its installation process is necessarily quite heavily
+system-dependent.  In addition, you will require super-user privileges
+(root access) to install the code.
+
+Some systems provide a ``modload'' facility, which
+allows you to load new code into a running kernel without relinking the
+kernel or rebooting.  Under SunOS 4.x, AIX 4.1, OSF/1 and NextStep, this
+is the recommended (or only) way to install the kernel portion of the
+ppp-2.x package.  
+
+Under the remaining supported operating systems
+(NetBSD, FreeBSD, Ultrix, Linux), it is necessary to go through the
+process of creating a new kernel image and reboot.  (Note that NetBSD
+and FreeBSD have a modload facility, but ppp-2.x is currently not
+configured to take advantage of it.)
+
+@node Configuration, Security, Installation, Top
+@chapter Configuration
+
+@node Security, Compression, Configuration, Top
+@chapter Security
+
+@node Compression,  , Security, Top
+@chapter Compression
+
+@bye

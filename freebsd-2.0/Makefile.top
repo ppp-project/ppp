@@ -1,0 +1,13 @@
+#
+# ppp top level makefile for *bsd systems
+#
+
+BINDIR?= /usr/sbin
+
+SUBDIR=	chat pppd pppstats
+MAKE+=  BINDIR=$(BINDIR)
+
+kernel:
+	@sh -e freebsd-2.0/kinstall.sh
+
+.include <bsd.subdir.mk>

@@ -1,0 +1,23 @@
+#
+# ppp top level makefile
+#
+
+BINDIR = /usr/local/etc
+MANDIR = /usr/local/man
+
+all:
+	cd chat; $(MAKE) all
+	cd pppd; $(MAKE) all
+	cd pppstats; $(MAKE) all
+
+install:
+	cd chat; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppd; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+	cd pppstats; $(MAKE) BINDIR=$(BINDIR) MANDIR=$(MANDIR) install
+
+clean:
+	rm -f *~
+	cd chat; $(MAKE) clean
+	cd pppd; $(MAKE) clean
+	cd pppstats; $(MAKE) clean
+

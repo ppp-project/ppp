@@ -1,0 +1,102 @@
+
+This file (README.osf) contains instructions for installing ppp-2.2 on a
+DEC Alpha running OSF/1 version 2.0 or 3.0.  The original STREAMS
+module code is by (and copyrighted by) Brad Clements.  See the source 
+files and the general README file for full credits and copyright notices.
+
+If you would like to be on a mailing list concerning the ppp package,
+send mail to srt@cs.unt.edu and let me know.  This mailing list should
+not have any regular traffic --- I will use it only if bugs are reported
+to notify everyone of bug-fixes.
+
+Note for users of the ppp-2.1.2 package:  I have included a fix
+for the non-STREAMS tty drivers in this release.  If you were using
+version 2.1.2 with a hardware serial port, then you probably used the
+"rlogin-kludge" that I described in the README that came with 2.1.2.
+You don't need this any more, and will have a more efficient connection
+if you get rid of this old work-around.
+
+Below are the steps for installing PPP on a DEC AXP system running OSF/1.
+You must do all of the following as "root".
+
+1.  Make the kernel sources, daemon, chat, and pppstat program by typing 
+
+        ./configure
+        make install
+
+    in the directory that this file unpacked into.  This installs the
+    binaries for the PPP daemon and the statistics program in 
+    /usr/local/etc/ppp.  If you want them somewhere else, just change 
+    the definition of BINDIR in the top level Makefile.osf.
+
+2.  This step differs depending on whether you are running OSF/1 V3.0
+    or later.
+
+    FOR OSF/1 VERSIONS PRIOR TO V3.0:
+
+    | Add the following lines to the file /sys/conf/files:
+    |
+    |      streamsm/ppp_if.c                    optional ppp Notbinary
+    |      streamsm/ppp_async.c                 optional ppp Notbinary
+    |      streamsm/ppp_init.c                  optional ppp Notbinary
+    |      streamsm/vjcompress.c                optional ppp Notbinary
+    |      streamsm/bsd-comp.c                  optional ppp Notbinary
+    |      streamsm/ppp_comp.c                  optional ppp Notbinary
+    |
+    |
+    | Edit the file /sys/streams/str_config.c --- at the end there will be a
+    | comment to the effect of "add new configurations above this comment".
+    | Add the following lines above this comment:
+    |
+    |      bzero((caddr_t)&sb, sizeof(sb));
+    |      sb.sc_version = OSF_STREAMS_CONFIG_10;
+    |
+    |      retval = ppp_configure(SYSCONFIG_CONFIGURE,
+    |                             &sb, sc_size, &sc, sc_size);
+
+    FOR OSF/1 VERSIONS V3.0 AND LATER:
+
+    | Add the following lines to the file /sys/conf/files:
+    |
+    |      streamsm/ppp_if.c          optional ppp if_dynamic ppp Notbinary
+    |      streamsm/ppp_async.c       optional ppp if_dynamic ppp Notbinary
+    |      streamsm/ppp_init.c        optional ppp if_dynamic ppp Notbinary
+    |      streamsm/vjcompress.c      optional ppp if_dynamic ppp Notbinary
+    |      streamsm/bsd-comp.c        optional ppp if_dynamic ppp Notbinary
+    |      streamsm/ppp_comp.c        optional ppp if_dynamic ppp Notbinary
+
+4.  Find your system's configuration file.  This should be called
+    /sys/conf/SYSNAME, where SYSNAME is replaced by the name of your
+    host.  For example, on my machine (zaphod.csci.unt.edu) it it called
+    /sys/conf/ZAPHOD.  I will refer to this file from now on as 
+    /sys/conf/SYSNAME.
+
+5.  Add the following line at the end of /sys/conf/SYSNAME:
+
+	pseudo-device   ppp     2
+
+6.  Build a new kernel by using the command
+
+	doconfig -c SYSNAME
+
+    (say "n" to "Do you want to edit...").
+
+7.  Copy the new kernel to /vmunix --- I'm usually pretty nervous about
+    writing over a perfectly good kernel with one that I'm not sure
+    about, so I will usually "mv /vmunix /vmunix.old" first.  To put
+    the new kernel in place, do a "cp /sys/SYSNAME/vmunix /vmunix".
+
+8.  Make sure your system is set up so that it can act like a gateway
+    for messages to your new connection.  In particular, check the file
+    /etc/rc.config for the line define ROUTER, and make sure it is
+    defined as "yes".
+
+9.  Reboot and you're ready to go!
+
+Hopefully, that should work with no hitches.  If there are problems, or
+if I have made a mistake in these instructions, please let me know.
+
+Steve Tate
+University of North Texas
+srt@cs.unt.edu
+

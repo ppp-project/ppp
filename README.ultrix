@@ -1,0 +1,123 @@
+
+Installing PPP on an Ultrix system requires rebuilding the kernel and
+rebooting, in addition to making and installing the pppd and chat
+programs.  These instructions apply to RISC (MIPS) systems.  This
+software has been tested under Ultrix 4.4; it should also work under
+Ultrix 4.2 or 4.3.
+
+
+Kernel installation procedure.
+******************************
+
+If you have not previously had an earlier version of this package
+installed in the kernel, follow these steps:
+
+1. Become root.
+
+2. Apply the patches in the file ultrix/patches using the command:
+
+	patch -p <ultrix/patches
+
+This will edit the following files, saving the original versions in a
+file with `.orig' appended to the name:
+
+	/usr/sys/h/ioctl.h
+	/usr/sys/net/net/if.h
+	/usr/sys/net/net/netisr.h
+	/usr/sys/net/net/conf_net.c
+	/usr/sys/data/pseudo_data.c
+	/usr/sys/data/tty_conf_data.c
+	/usr/sys/conf/mips/files.mips
+
+Alternatively, edit these files according to the differences shown in
+ultrix/patches.
+
+3. Copy the following files to /sys/io/netif:
+
+	net/if_ppp.h
+	net/ppp-comp.h
+	net/ppp_defs.h
+	net/slcompress.h
+	ultrix/bsd-comp.c
+	ultrix/if_ppp.c
+	ultrix/if_pppvar.h
+	ultrix/ppp_tty.c
+	ultrix/slcompress.c
+
+4. Add a line like this to the configuration file for your kernel:
+
+	pseudo-device ppp	2
+
+The `2' indicates the number of interfaces desired.  The configuration
+file should be in /usr/sys/conf/mips.
+
+5. Rebuild your kernel.  The simplest way to do this is with the
+`doconfig' command, like this:
+
+	/etc/doconfig -c kernel-name
+
+where `kernel-name' should be replaced by the name of your kernel
+configuration file.  Alternatively, run config, cd to the compilation
+directory, and run make.
+
+6. Copy the new /vmunix to /.  It would be a good idea to keep a copy
+of your old /vmunix in / under a different name.
+
+7. Reboot the system.
+
+
+If you have ppp-2.1.2 or earlier already installed in your kernel,
+some files will already have been modified as required.  The files
+which still need to be modified are:
+
+	/usr/sys/net/net/netisr.h
+	/usr/sys/net/net/conf_net.c
+	/usr/sys/conf/mips/files.mips
+
+The file ultrix/upgrade is a patch file to modify these files.  The
+upgrade procedure is much the same as the installation procedure
+described above, except that you use ultrix/upgrade in step 2 instead
+of ultrix/patches, and step 4 should already have been done.
+
+Earlier versions of ppp-2.x replaced if.o with a modified version.
+This version does not need the modifications, so you can use either
+the original or the modified version.
+
+
+Installing pppd and chat.
+*************************
+
+1. cd to the ppp-2.2 directory and do:
+
+	./configure
+	make
+
+2. Become root, and do:
+
+	make install
+
+
+Credits.
+********
+
+The original port to Ultrix was done by:
+
+	Per Sundstrom 
+	DEC, Sweden
+	email: sundstrom@stkhlm.enet.dec.com
+
+and
+
+	Robert Olsson 
+	Swedish University of Agricultural Sciences
+	and also RO Komm. & Konsult
+	email: robert@robur.slu.se
+
+It was updated to ppp-2.2 by
+
+	Paul Mackerras
+	Dept. of Computer Science
+	Australian National University
+	paulus@cs.anu.edu.au
+
+(with some assistance from Per Sundstrom).
