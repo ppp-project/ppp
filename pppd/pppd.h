@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.78 2002/12/04 23:03:32 paulus Exp $
+ * $Id: pppd.h,v 1.79 2003/02/16 22:26:27 paulus Exp $
  */
 
 /*
@@ -109,7 +109,6 @@ typedef struct {
 	const char *source;
 	short int priority;
 	short int winner;
-	void	*addr3;
 } option_t;
 
 /* Values for flags */
