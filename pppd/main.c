@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.66 1999/03/24 05:05:24 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.67 1999/03/25 01:30:32 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -532,10 +532,10 @@ main(argc, argv)
 	    for (;;) {
 		/* If the user specified the device name, become the
 		   user before opening it. */
-		if (!devnam_info.priv)
+		if (!devnam_info.priv && !default_device)
 		    seteuid(uid);
 		ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
-		if (!devnam_info.priv)
+		if (!devnam_info.priv && !default_device)
 		    seteuid(0);
 		if (ttyfd >= 0)
 		    break;
@@ -2379,8 +2379,16 @@ charshunt(ifd, ofd, record_file)
     nibuf = nobuf = 0;
     ibufp = obufp = NULL;
     pty_readable = stdin_readable = 1;
-    gettimeofday(&lasttime, NULL);
     nfds = (ofd > pty_master? ofd: pty_master) + 1;
+    if (recordf != NULL) {
+	gettimeofday(&lasttime, NULL);
+	putc(7, recordf);	/* put start marker */
+	putc(lasttime.tv_sec >> 24, recordf);
+	putc(lasttime.tv_sec >> 16, recordf);
+	putc(lasttime.tv_sec >> 8, recordf);
+	putc(lasttime.tv_sec, recordf);
+	lasttime.tv_usec = 0;
+    }
 
     while (nibuf != 0 || nobuf != 0 || pty_readable || stdin_readable) {
 	FD_ZERO(&ready);
@@ -2496,8 +2504,8 @@ record_write(f, code, buf, nb, tp)
     int diff;
 
     gettimeofday(&now, NULL);
-    diff = (now.tv_sec - tp->tv_sec) * 10
-	+ (now.tv_usec - tp->tv_usec) / 100000;
+    now.tv_usec /= 100000;	/* actually 1/10 s, not usec now */
+    diff = (now.tv_sec - tp->tv_sec) * 10 + (now.tv_usec - tp->tv_usec);
     if (diff > 0) {
 	if (diff > 255) {
 	    putc(5, f);
