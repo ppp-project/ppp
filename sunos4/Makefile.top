@@ -9,6 +9,7 @@ all:
 	cd pppd; $(MAKE) all
 	cd pppstats; $(MAKE) all
 	cd sunos4; $(MAKE) all
+	cd pppdump; $(MAKE) all
 
 install: $(BINDIR) $(MANDIR)/man8 install-progs install-etcppp
 
