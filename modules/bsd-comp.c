@@ -38,19 +38,39 @@
  */
 
 /*
- * This version is for use with STREAMS under SunOS 4.x.
+ * This version is for use with STREAMS under SunOS 4.x,
+ * DEC Alpha OSF/1, and AIX 4.x.
  *
- * $Id: bsd-comp.c,v 1.7 1994/11/30 05:29:36 paulus Exp $
+ * $Id: bsd-comp.c,v 1.8 1994/12/08 00:35:33 paulus Exp $
  */
 
+#ifdef __aix4__
+#include <net/net_globals.h>
+#endif
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stream.h>
-#include <sys/kmem_alloc.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <net/ppp_defs.h>
 #include <net/ppp_str.h>
+
+#ifdef sun
+#include <sys/kmem_alloc.h>
+#define ALLOCATE(n)	kmem_alloc((n), KMEM_NOSLEEP)
+#define FREE(p, n)	kmem_free((p), (n))
+#endif
+
+#ifdef __osf__
+#include <kern/kalloc.h>
+#define ALLOCATE(n)	kalloc((n))
+#define FREE(p, n)	kfree((p), (n))
+#endif
+
+#ifdef __aix4__
+#define ALLOCATE(n)	xmalloc((n), 0, pinned_heap)
+#define FREE(p, n)	xmfree((p), pinned_heap)
+#endif
 
 #define PACKETPTR	mblk_t *
 #include <net/ppp-comp.h>
@@ -352,7 +372,7 @@ bsd_alloc(options, opt_len, decomp)
 
     maxmaxcode = MAXCODE(bits);
     newlen = sizeof(*db) + (hsize-1) * (sizeof(db->dict[0]));
-    db = (struct bsd_db *) kmem_alloc(newlen, KMEM_NOSLEEP);
+    db = (struct bsd_db *) ALLOCATE(newlen);
     if (!db)
 	return NULL;
     bzero(db, sizeof(*db) - sizeof(db->dict));
@@ -360,10 +380,9 @@ bsd_alloc(options, opt_len, decomp)
     if (!decomp) {
 	db->lens = NULL;
     } else {
-	db->lens = (u_short *) kmem_alloc((maxmaxcode+1) * sizeof(db->lens[0]),
-					  KMEM_NOSLEEP);
+	db->lens = (u_short *) ALLOCATE((maxmaxcode+1) * sizeof(db->lens[0]));
 	if (!db->lens) {
-	    kmem_free(db, newlen);
+	    FREE(db, newlen);
 	    return NULL;
 	}
     }
@@ -384,8 +403,8 @@ bsd_free(state)
     struct bsd_db *db = (struct bsd_db *) state;
 
     if (db->lens)
-	kmem_free(db->lens, (db->maxmaxcode+1) * sizeof(db->lens[0]));
-    kmem_free(db, db->totlen);
+	FREE(db->lens, (db->maxmaxcode+1) * sizeof(db->lens[0]));
+    FREE(db, db->totlen);
 }
 
 static void *

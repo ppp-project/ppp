@@ -24,13 +24,24 @@
  * so that the entire packet being decompressed doesn't have
  * to be in contiguous memory (just the compressed header).
  *
- * $Id: vjcompress.c,v 1.3 1994/11/30 05:31:00 paulus Exp $
+ * $Id: vjcompress.c,v 1.4 1994/12/08 00:35:33 paulus Exp $
  */
 
 #include <sys/types.h>
 #include <sys/param.h>
+
+#ifdef __osf__
+#include <net/net_globals.h>
+#endif
 #include <netinet/in.h>
+
+#ifdef __aix4__
+#define _NETINET_IN_SYSTM_H_
+typedef u_long  n_long;
+#else
 #include <netinet/in_systm.h>
+#endif
+
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
@@ -48,6 +59,15 @@
 #define BCOPY(p1, p2, n) bcopy((char *)(p1), (char *)(p2), (int)(n))
 #ifndef KERNEL
 #define ovbcopy bcopy
+#endif
+
+#ifdef __osf__
+#define getip_hl(base)	(((base).ip_vhl)&0xf)
+#define getth_off(base)	((((base).th_xoff)&0xf0)>>4)
+
+#else
+#define getip_hl(base)	((base).ip_hl)
+#define getth_off(base)	((base).th_off)
 #endif
 
 void
@@ -104,7 +124,7 @@ vj_compress_init(comp, max_state)
 		(f) = htonl(ntohl(f) + ((cp[1] << 8) | cp[2])); \
 		cp += 3; \
 	} else { \
-		(f) = htonl(ntohl(f) + (u_long)*cp++); \
+		(f) = htonl(ntohl(f) + (u_int32_t)*cp++); \
 	} \
 }
 
@@ -113,7 +133,7 @@ vj_compress_init(comp, max_state)
 		(f) = htons(ntohs(f) + ((cp[1] << 8) | cp[2])); \
 		cp += 3; \
 	} else { \
-		(f) = htons(ntohs(f) + (u_long)*cp++); \
+		(f) = htons(ntohs(f) + (u_int32_t)*cp++); \
 	} \
 }
 
@@ -122,7 +142,7 @@ vj_compress_init(comp, max_state)
 		(f) = htons((cp[1] << 8) | cp[2]); \
 		cp += 3; \
 	} else { \
-		(f) = htons((u_long)*cp++); \
+		(f) = htons((u_int32_t)*cp++); \
 	} \
 }
 
@@ -135,7 +155,7 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
     u_char **vjhdrp;
 {
     register struct cstate *cs = comp->last_cs->cs_next;
-    register u_int hlen = ip->ip_hl;
+    register u_int hlen = getip_hl(*ip);
     register struct tcphdr *oth;
     register struct tcphdr *th;
     register u_int deltaS, deltaA;
@@ -165,7 +185,7 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
     INCR(vjs_packets);
     if (ip->ip_src.s_addr != cs->cs_ip.ip_src.s_addr ||
 	ip->ip_dst.s_addr != cs->cs_ip.ip_dst.s_addr ||
-	*(int *)th != ((int *)&cs->cs_ip)[cs->cs_ip.ip_hl]) {
+	*(int *)th != ((int *)&cs->cs_ip)[getip_hl(cs->cs_ip)]) {
 	/*
 	 * Wasn't the first -- search for it.
 	 *
@@ -186,7 +206,7 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
 	    INCR(vjs_searches);
 	    if (ip->ip_src.s_addr == cs->cs_ip.ip_src.s_addr
 		&& ip->ip_dst.s_addr == cs->cs_ip.ip_dst.s_addr
-		&& *(int *)th == ((int *)&cs->cs_ip)[cs->cs_ip.ip_hl])
+		&& *(int *)th == ((int *)&cs->cs_ip)[getip_hl(cs->cs_ip)])
 		goto found;
 	} while (cs != lastcs);
 
@@ -200,7 +220,7 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
 	 */
 	INCR(vjs_misses);
 	comp->last_cs = lcs;
-	hlen += th->th_off;
+	hlen += getth_off(*th);
 	hlen <<= 2;
 	if (hlen > mlen)
 	    return (TYPE_IP);
@@ -232,7 +252,7 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
      */
     oth = (struct tcphdr *)&((int *)&cs->cs_ip)[hlen];
     deltaS = hlen;
-    hlen += th->th_off;
+    hlen += getth_off(*th);
     hlen <<= 2;
     if (hlen > mlen)
 	return (TYPE_IP);
@@ -240,9 +260,9 @@ vj_compress_tcp(ip, mlen, comp, compress_cid, vjhdrp)
     if (((u_short *)ip)[0] != ((u_short *)&cs->cs_ip)[0] ||
 	((u_short *)ip)[3] != ((u_short *)&cs->cs_ip)[3] ||
 	((u_short *)ip)[4] != ((u_short *)&cs->cs_ip)[4] ||
-	th->th_off != oth->th_off ||
+	getth_off(*th) != getth_off(*oth) ||
 	(deltaS > 5 && BCMP(ip + 1, &cs->cs_ip + 1, (deltaS - 5) << 2)) ||
-	(th->th_off > 5 && BCMP(th + 1, oth + 1, (th->th_off - 5) << 2)))
+	(getth_off(*th) > 5 && BCMP(th + 1, oth + 1, (getth_off(*th) - 5) << 2)))
 	goto uncompressed;
 
     /*
@@ -409,8 +429,8 @@ vj_uncompress_uncomp(buf, comp)
     cs = &comp->rstate[comp->last_recv = ip->ip_p];
     comp->flags &=~ VJF_TOSS;
     ip->ip_p = IPPROTO_TCP;
-    hlen = ip->ip_hl;
-    hlen += ((struct tcphdr *)&((int *)ip)[hlen])->th_off;
+    hlen = getip_hl(*ip);
+    hlen += getth_off(*((struct tcphdr *)&((int *)ip)[hlen]));
     hlen <<= 2;
     BCOPY(ip, &cs->cs_ip, hlen);
     cs->cs_hlen = hlen;
@@ -462,7 +482,7 @@ vj_uncompress_tcp(buf, buflen, total_len, comp, hdrp, hlenp)
 	}
     }
     cs = &comp->rstate[comp->last_recv];
-    hlen = cs->cs_ip.ip_hl << 2;
+    hlen = getip_hl(cs->cs_ip) << 2;
     th = (struct tcphdr *)&((u_char *)&cs->cs_ip)[hlen];
     th->th_sum = htons((*cp << 8) | cp[1]);
     cp += 2;
