@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: pppio.h,v 1.4 1995/06/30 00:15:02 paulus Exp $
+ * $Id: pppio.h,v 1.5 1995/10/03 05:44:19 paulus Exp $
  */
 
 #define _PPPIO(n)	(('p' << 8) + (n))
@@ -36,7 +36,7 @@
 #define PPPIO_MRU	_PPPIO(134)	/* set max receive unit */
 #define PPPIO_CFLAGS	_PPPIO(135)	/* set/clear/get compression flags */
 #define PPPIO_XCOMP	_PPPIO(136)	/* alloc transmit compressor */
-#define PPPIO_RCOMP	_PPPIO(137)	/* alloc receive compressor */
+#define PPPIO_RCOMP	_PPPIO(137)	/* alloc receive decompressor */
 #define PPPIO_XACCM	_PPPIO(138)	/* set transmit asyncmap */
 #define PPPIO_RACCM	_PPPIO(139)	/* set receive asyncmap */
 #define PPPIO_VJINIT	_PPPIO(140)	/* initialize VJ comp/decomp */
@@ -88,4 +88,5 @@
  * Values for the integer argument to PPPIO_DEBUG.
  */
 #define PPPDBG_DUMP	0x10000		/* print out debug info now */
+#define PPPDBG_LOG	0x100		/* log various things */
 #define PPPDBG_DRIVER	0		/* identifies ppp driver as target */
