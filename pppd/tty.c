@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.16 2004/10/28 00:16:37 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.17 2004/11/04 09:59:12 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -459,7 +459,7 @@ tty_check_options()
 	if (using_pty) {
 		if (!default_device) {
 			option_error("%s option precludes specifying device name",
-				     notty? "notty": "pty");
+				     pty_socket? "socket": notty? "notty": "pty");
 			exit(EXIT_OPTION_ERROR);
 		}
 		if (ptycommand != NULL && notty) {
@@ -655,6 +655,9 @@ int connect_tty()
 		if (!start_charshunt(ttyfd, ttyfd))
 			return -1;
 	}
+
+	if (using_pty || record_file != NULL)
+		ttyfd = pty_slave;
 
 	/* run connection script */
 	if ((connector && connector[0]) || initializer) {
@@ -916,7 +919,6 @@ start_charshunt(ifd, ofd)
     add_notifier(&sigreceived, stop_charshunt, 0);
     close(pty_master);
     pty_master = -1;
-    ttyfd = pty_slave;
     record_child(cpid, "pppd (charshunt)", charshunt_done, NULL);
     return 1;
 }
