@@ -11,7 +11,7 @@
 # PARTICULAR PURPOSE.
 
 #
-# $Id: Makefile.in,v 1.1 2002/01/22 16:03:02 dfs Exp $
+# $Id: Makefile.in,v 1.2 2002/02/20 02:22:35 dfs Exp $
 #
 # Copyright (C) 1995,1997,1998 Lars Fenneberg
 #
@@ -166,8 +166,8 @@ install-libLTLIBRARIES: $(lib_LTLIBRARIES)
 	$(mkinstalldirs) $(DESTDIR)$(libdir)
 	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
 	  if test -f $$p; then \
-	    echo "$(LIBTOOL)  --mode=install $(INSTALL_DATA) $$p $(DESTDIR)$(libdir)/$$p"; \
-	    $(LIBTOOL)  --mode=install $(INSTALL_DATA) $$p $(DESTDIR)$(libdir)/$$p; \
+	    echo "$(LIBTOOL)  --mode=install $(INSTALL) $$p $(DESTDIR)$(libdir)/$$p"; \
+	    $(LIBTOOL)  --mode=install $(INSTALL) $$p $(DESTDIR)$(libdir)/$$p; \
 	  else :; fi; \
 	done
 
