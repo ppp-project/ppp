@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.141 2004/11/04 10:02:26 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.142 2004/11/04 10:05:23 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1276,9 +1276,6 @@ timeout(func, arg, secs, usecs)
 {
     struct callout *newp, *p, **pp;
 
-    MAINDEBUG(("Timeout %p:%p in %d.%03d seconds.", func, arg,
-	       secs, usecs/1000));
-
     /*
      * Allocate timeout.
      */
@@ -1316,8 +1313,6 @@ untimeout(func, arg)
     void *arg;
 {
     struct callout **copp, *freep;
-
-    MAINDEBUG(("Untimeout %p:%p.", func, arg));
 
     /*
      * Find first matching timeout and remove it from the list.

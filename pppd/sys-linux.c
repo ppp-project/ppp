@@ -260,7 +260,6 @@ extern int hungup;
 /* new_fd is the fd of a tty */
 static void set_ppp_fd (int new_fd)
 {
-	SYSDEBUG ((LOG_DEBUG, "setting ppp_fd to %d\n", new_fd));
 	ppp_fd = new_fd;
 	if (!new_style_driver)
 		ppp_dev_fd = new_fd;
@@ -384,8 +383,6 @@ static int set_kdebugflag (int requested_level)
 	    error("ioctl(PPPIOCSDEBUG): %m (line %d)", __LINE__);
 	return (0);
     }
-    SYSDEBUG ((LOG_INFO, "set kernel debugging level to %d",
-		requested_level));
     return (1);
 }
 
@@ -531,9 +528,6 @@ int generic_establish_ppp (int fd)
 	set_kdebugflag (kdebugflag);
 
     looped = 0;
-
-    SYSDEBUG ((LOG_NOTICE, "Using version %d.%d.%d of PPP driver",
-	    driver_version, driver_modification, driver_patch));
 
     return ppp_fd;
 
@@ -1144,8 +1138,6 @@ netif_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
 
-    SYSDEBUG ((LOG_DEBUG, "netif_set_mtu: mtu = %d\n", mtu));
-
     memset (&ifr, '\0', sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
@@ -1204,9 +1196,6 @@ void tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 
 void tty_set_xaccm (ext_accm accm)
 {
-    SYSDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
-		accm[0], accm[1], accm[2], accm[3]));
-
     if (!still_ppp())
 	return;
     if (ioctl(ppp_fd, PPPIOCSXASYNCMAP, accm) < 0 && errno != ENOTTY) {
@@ -1753,8 +1742,6 @@ static int get_ether_addr (u_int32_t ipaddr,
 	return 0;
     }
 
-    SYSDEBUG ((LOG_DEBUG, "proxy arp: scanning %d interfaces for IP %s",
-		ifc.ifc_len / sizeof(struct ifreq), ip_ntoa(ipaddr)));
 /*
  * Scan through looking for an interface with an Internet
  * address on the same subnet as `ipaddr'.
@@ -1764,8 +1751,6 @@ static int get_ether_addr (u_int32_t ipaddr,
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = SIN_ADDR(ifr->ifr_addr);
 	    strlcpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
-	    SYSDEBUG ((LOG_DEBUG, "proxy arp: examining interface %s",
-			ifreq.ifr_name));
 /*
  * Check that the interface is up, and not point-to-point
  * nor loopback.
@@ -1782,8 +1767,6 @@ static int get_ether_addr (u_int32_t ipaddr,
 		continue;
 
 	    mask = SIN_ADDR(ifreq.ifr_addr);
-	    SYSDEBUG ((LOG_DEBUG, "proxy arp: interface addr %s mask %lx",
-		       ip_ntoa(ina), ntohl(mask)));
 
 	    if (((ipaddr ^ ina) & mask) != 0)
 		continue; /* no match */
@@ -1821,16 +1804,6 @@ static int get_ether_addr (u_int32_t ipaddr,
 	    &bestifreq.ifr_hwaddr,
 	    sizeof (struct sockaddr));
 
-    SYSDEBUG ((LOG_DEBUG,
-	   "proxy arp: found hwaddr %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		(int) ((unsigned char *) &hwaddr->sa_data)[0],
-		(int) ((unsigned char *) &hwaddr->sa_data)[1],
-		(int) ((unsigned char *) &hwaddr->sa_data)[2],
-		(int) ((unsigned char *) &hwaddr->sa_data)[3],
-		(int) ((unsigned char *) &hwaddr->sa_data)[4],
-		(int) ((unsigned char *) &hwaddr->sa_data)[5],
-		(int) ((unsigned char *) &hwaddr->sa_data)[6],
-		(int) ((unsigned char *) &hwaddr->sa_data)[7]));
     return 1;
 }
 
@@ -2642,7 +2615,6 @@ open_ppp_loopback(void)
 
     if (!get_pty(&master_fd, &slave_fd, loop_name, 0))
 	fatal("No free pty for loopback");
-    SYSDEBUG(("using %s for loopback", loop_name));
 
     set_ppp_fd(slave_fd);
 
