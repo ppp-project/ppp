@@ -132,6 +132,10 @@ establish_ppp()
 	syslog(LOG_ERR, "ioctl(I_PUSH, ppp_async): %m");
 	die(1);
     }
+    /* push the compress module */
+    if (ioctl(fd, I_PUSH, "pppcomp") < 0) {
+	syslog(LOG_WARNING, "ioctl(I_PUSH, ppp_comp): %m");
+    }
     /* finally, push the ppp_if module that actually handles the */
     /* network interface */ 
     if (ioctl(fd, I_PUSH, "pppif") < 0) {
@@ -139,24 +143,11 @@ establish_ppp()
 	die(1);
     }
     pushed_ppp = 1;
-#if 0
-    if (ioctl(fd, I_SETSIG, S_INPUT) < 0) {
-	syslog(LOG_ERR, "ioctl(I_SETSIG, S_INPUT): %m");
-	die(1);
-    }
-#endif
     /* read mode, message non-discard mode */
     if (ioctl(fd, I_SRDOPT, RMSGN) < 0) {
 	syslog(LOG_ERR, "ioctl(I_SRDOPT, RMSGN): %m");
 	die(1);
     }
-#if 0
-    /* Flush any waiting messages, or we'll never get SIGPOLL */
-    if (ioctl(fd, I_FLUSH, FLUSHRW) < 0) {
-	syslog(LOG_ERR, "ioctl(I_FLUSH, FLUSHRW): %m");
-	die(1);
-    }
-#endif
     /*
      * Find out which interface we were given.
      * (ppp_if handles this ioctl)
@@ -409,6 +400,24 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 }
 
 /*
+ * ccp_test - ask kernel whether a given compression method
+ * is acceptable for use.
+ */
+ccp_test(unit, opt_ptr, opt_len, for_transmit)
+    int unit, opt_len, for_transmit;
+    u_char *opt_ptr;
+{
+    struct ppp_option_data data;
+
+    if ((unsigned) opt_len > MAX_PPP_OPTION)
+	opt_len = MAX_PPP_OPTION;
+    data.length = opt_len;
+    data.transmit = for_transmit;
+    BCOPY(opt_ptr, data.opt_data, opt_len);
+    return ioctl(fd, SIOCSCOMPRESS, (caddr_t) &data) >= 0;
+}
+
+/*
  * ccp_flags_set - inform kernel about the current state of CCP.
  */
 void
@@ -417,11 +426,9 @@ ccp_flags_set(unit, isopen, isup)
 {
     int x;
 
-#if 0
     x = (isopen? 1: 0) + (isup? 2: 0);
-    if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0)
+    if (ioctl(fd, SIOCSIFCOMP, (caddr_t) &x) < 0 && errno != ENOTTY)
 	syslog(LOG_ERR, "ioctl (SIOCSIFCOMP): %m");
-#endif
 }
 
 /*
