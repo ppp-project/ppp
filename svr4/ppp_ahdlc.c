@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.4 1995/08/10 06:54:20 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.5 1995/10/27 03:57:10 paulus Exp $
  */
 
 /*
@@ -607,8 +607,7 @@ unstuff_chars(q, mp)
 	}
 
 	if ((state->flags & (IFLUSH|ESCAPED)) == 0
-	    && state->inlen >= PPP_HDRLEN
-	    && (om = state->cur_blk) != 0) {
+	    && state->inlen > 0 && (om = state->cur_blk) != 0) {
 	    /*
 	     * Process bulk chars as quickly as possible.
 	     */
@@ -729,34 +728,26 @@ unstuff_chars(q, mp)
 		state->cur_blk = om;
 	    }
 	}
+
+	if (state->inlen == 0) {
+	    /*
+	     * We don't do address/control & protocol decompression here,
+	     * but we try to put the first byte at an offset such that
+	     * the info field starts on a word boundary.  The code here
+	     * will do this except for packets with protocol compression
+	     * but not address/control compression.
+	     */
+	    if (c != PPP_ALLSTATIONS) {
+		om->b_wptr += 2;
+		if (c & 1)
+		    ++om->b_wptr;
+		om->b_rptr = om->b_wptr;
+	    }
+	}
+
 	*om->b_wptr++ = c;
 	++state->inlen;
 	state->infcs = PPP_FCS(state->infcs, c);
-
-	if (state->inlen == PPP_HDRLEN) {
-	    /*
-	     * We don't do address/control & protocol decompression here,
-	     * but we do leave space for the decompressed fields and
-	     * arrange for the info field to start on a word boundary.
-	     */
-	    dp = om->b_rptr;
-	    if (PPP_ADDRESS(dp) == PPP_ALLSTATIONS
-		&& PPP_CONTROL(dp) == PPP_UI)
-		dp += 2;
-	    if ((*dp & 1) == 0)
-		++dp;
-	    /* dp is now pointing at the last byte of the ppp protocol field */
-	    offset = 3 - ((unsigned)dp & 3);
-	    if (offset > 0) {
-		dp = om->b_wptr;
-		do {
-		    --dp;
-		    dp[offset] = dp[0];
-		} while (dp > om->b_rptr);
-		om->b_rptr += offset;
-		om->b_wptr += offset;
-	    }
-	}
     }
 }
 
