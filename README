@@ -95,6 +95,18 @@ What's new in ppp-2.4.3.
 * There is a new pppoatm plugin, by various authors, sent in by David
   Woodhouse.
 
+* The multilink code has been substantially reworked.  The first pppd
+  for a bundle still controls the ppp interface, but it doesn't exit
+  until all the links in the bundle have terminated.  If the first
+  pppd is signalled to exit, it signals all the other pppds
+  controlling links in the bundle.
+
+* The TDB code has been updated to the latest version.  This should
+  eliminate the problem that some people have seen where the database
+  file (/var/run/pppd.tdb) keeps on growing.  Unfortunately, however,
+  the new code uses an incompatible database format.  For this reason,
+  pppd now uses /var/run/pppd2.tdb as the database filename.
+
 
 What was new in ppp-2.4.2.
 **************************
@@ -248,4 +260,4 @@ The primary site for releases of this software is:
 	ftp://ftp.samba.org/pub/ppp/
 
 
-($Id: README,v 1.33 2004/11/06 11:36:54 paulus Exp $)
+($Id: README,v 1.34 2004/11/13 12:00:38 paulus Exp $)
