@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.20 1994/10/22 11:49:46 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.21 1995/04/24 05:56:13 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -72,7 +72,6 @@ static pid_t	pgrpid;		/* Process Group ID */
 static uid_t uid;		/* Our real user-id */
 
 int fd = -1;			/* Device file descriptor */
-int s;				/* Socket file descriptor */
 
 int phase;			/* where the link is at */
 int kill_link;
@@ -112,6 +111,11 @@ void pr_log __P((void *, char *, ...));
 
 extern	char	*ttyname __P((int));
 extern	char	*getlogin __P((void));
+
+#ifdef ultrix
+#undef	O_NONBLOCK
+#define	O_NONBLOCK	O_NDELAY
+#endif
 
 /*
  * PPP Data Link Layer "protocol" table.
@@ -213,12 +217,6 @@ main(argc, argv)
     }
     syslog(LOG_NOTICE, "pppd %s.%d started by %s, uid %d",
 	   VERSION, PATCHLEVEL, p, uid);
-
-    /* Get an internet socket for doing socket ioctl's on. */
-    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-	syslog(LOG_ERR, "Couldn't create IP socket: %m");
-	die(1);
-    }
   
     /*
      * Compute mask of all interesting signals and install signal handlers
@@ -566,8 +564,8 @@ timeout(func, arg, time)
 {
     struct callout *newp, *p, **pp;
   
-    MAINDEBUG((LOG_DEBUG, "Timeout %x:%x in %d seconds.",
-	       (int) func, (int) arg, time));
+    MAINDEBUG((LOG_DEBUG, "Timeout %lx:%lx in %d seconds.",
+	       (long) func, (long) arg, time));
   
     /*
      * Allocate timeout.
@@ -586,9 +584,9 @@ timeout(func, arg, time)
      * Find correct place and link it in.
      */
     for (pp = &callout; (p = *pp); pp = &p->c_next)
-	if (p->c_time.tv_sec < newp->c_time.tv_sec
-	    || (p->c_time.tv_sec == newp->c_time.tv_sec
-		&& p->c_time.tv_usec <= newp->c_time.tv_sec))
+	if (newp->c_time.tv_sec < p->c_time.tv_sec
+	    || (newp->c_time.tv_sec == p->c_time.tv_sec
+		&& newp->c_time.tv_usec < p->c_time.tv_sec))
 	    break;
     newp->c_next = p;
     *pp = newp;
@@ -607,7 +605,7 @@ untimeout(func, arg)
     struct callout **copp, *freep;
     int reschedule = 0;
   
-    MAINDEBUG((LOG_DEBUG, "Untimeout %x:%x.", (int) func, (int) arg));
+    MAINDEBUG((LOG_DEBUG, "Untimeout %lx:%lx.", (long) func, (long) arg));
   
     /*
      * Find first matching timeout and remove it from the list.
@@ -757,12 +755,6 @@ device_script(program, in, out)
 {
     int pid;
     int status;
-    sigset_t mask;
-
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGHUP);
-    sigprocmask(SIG_BLOCK, &mask, &mask);
 
     pid = fork();
 
@@ -772,9 +764,8 @@ device_script(program, in, out)
     }
 
     if (pid == 0) {
-	setreuid(getuid(), getuid());
-	setregid(getgid(), getgid());
-	sigprocmask(SIG_SETMASK, &mask, NULL);
+	setuid(getuid());
+	setgid(getgid());
 	dup2(in, 0);
 	dup2(out, 1);
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
@@ -789,7 +780,6 @@ device_script(program, in, out)
 	syslog(LOG_ERR, "error waiting for (dis)connection process: %m");
 	die(1);
     }
-    sigprocmask(SIG_SETMASK, &mask, NULL);
 
     return (status == 0 ? 0 : -1);
 }
@@ -808,6 +798,7 @@ run_program(prog, args, must_exist)
     int must_exist;
 {
     int pid;
+    char *nullenv[1];
 
     pid = fork();
     if (pid == -1) {
@@ -815,20 +806,22 @@ run_program(prog, args, must_exist)
 	return -1;
     }
     if (pid == 0) {
-        int new_fd;
+	int new_fd;
 
 	/* Leave the current location */
 	(void) setsid();    /* No controlling tty. */
-	(void) umask (0);   /* no umask. Must change in script. */
+	(void) umask (S_IRWXG|S_IRWXO);
 	(void) chdir ("/"); /* no current directory. */
+	setuid(geteuid());
+	setgid(getegid());
 
 	/* Ensure that nothing of our device environment is inherited. */
 	close (0);
 	close (1);
 	close (2);
-	close (s);   /* Socket interface to the ppp device */
 	close (fd);  /* tty interface to the ppp device */
-	
+	/* XXX should call sysdep cleanup procedure here */
+
         /* Don't pass handles to the PPP device, even by accident. */
 	new_fd = open (_PATH_DEVNULL, O_RDWR);
 	if (new_fd >= 0) {
@@ -840,14 +833,17 @@ run_program(prog, args, must_exist)
 	    dup2 (0, 2); /* stderr -> /dev/null */
 	}
 
+#ifdef BSD
 	/* Force the priority back to zero if pppd is running higher. */
 	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
 	    syslog (LOG_WARNING, "can't reset priority to 0: %m"); 
+#endif
 
 	/* SysV recommends a second fork at this point. */
 
-	/* run the program */
-	execv(prog, args);
+	/* run the program; give it a null environment */
+	nullenv[0] = NULL;
+	execve(prog, args, nullenv);
 	if (must_exist || errno != ENOENT)
 	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
 	_exit(-1);
