@@ -1,9 +1,9 @@
 #
 # pppstats Makefile for SVR4 systems
-# $Id: Makefile.sol2,v 1.8 1998/03/25 02:21:24 paulus Exp $
+# $Id: Makefile.sol2,v 1.9 2000/04/18 23:51:27 masputra Exp $
 #
 
-include ../svr4/Makedefs
+include ../solaris/Makedefs
 
 CFLAGS = -DSTREAMS -I../include $(COPTS)
 

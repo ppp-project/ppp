@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.24 2000/04/13 11:59:40 paulus Exp $
+# $Id: configure,v 1.25 2000/04/18 23:51:26 masputra Exp $
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -18,10 +18,10 @@ case $system in
     state="known";;
   SunOS)
     case $release in
-      [0-3]*)	state="ancient";;
-      4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
-      5.[1-6]*)	state="known"; ksrc="svr4"; makext="sol2";;
-      5.[789]*)	state="known"; ksrc="svr4"; makext="sol2";
+#      [0-3]*)	state="ancient";;
+#      4*)	state="known"; ksrc="sunos4"; makext="sunos4";;
+      5.[1-6]*)	state="known"; ksrc="solaris"; makext="sol2";;
+      5.[7-9]*)	state="known"; ksrc="solaris"; makext="sol2";
               case $arch in
 		sun4u)	lp64='y';;
 		*)	;;
@@ -118,7 +118,7 @@ if [ -d "$ksrc" ]; then
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
   echo "  Makefile -> $ksrc/Makefile.top"
-  if [ "$ksrc" = svr4 ]; then
+  if [ "$ksrc" = solaris ]; then
     # Point to 64-bit Makefile extension
     if [ "$lp64" = y ]; then 
       makext=$makext-64 
