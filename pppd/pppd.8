@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.23 1996/09/26 06:23:07 paulus Exp $
+.\" $Id: pppd.8,v 1.24 1996/10/08 04:36:16 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -172,7 +172,7 @@ Set the CHAP restart interval (retransmission timeout for challenges)
 to \fIn\fR seconds (default 3).
 .TP
 .B debug
-Increase debugging level.
+Enables connection debugging facilities.
 If this option is given, pppd will log the contents of all
 control packets sent or received in a readable form.  The packets are
 logged through syslog with facility \fIdaemon\fR and level
@@ -818,7 +818,9 @@ successfully authenticates itself.  It is executed with the parameters
 .IP
 and with its standard input, output and error redirected to
 /dev/null.  This program or script is executed with the real and
-effective user-IDs set to root, and with an empty environment.
+effective user-IDs set to root, and with an empty environment.  (Note
+that this script is not executed if the peer doesn't authenticate
+itself, for example when the \fInoauth\fR option is used.)
 .TP
 .B /etc/ppp/auth-down
 A program or script which is executed when the link goes down, if
