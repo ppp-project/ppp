@@ -2,7 +2,10 @@ CC	= gcc
 CFLAGS	= -g -O2 -I.. -I../../include
 LDFLAGS	= -shared
 
-all:	minconn.so
+all:	minconn.so passprompt.so
 
 minconn.so: minconn.c
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) minconn.c
+
+passprompt.so: passprompt.c
+	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) passprompt.c
