@@ -32,7 +32,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: pppstats.c,v 1.16 1996/09/14 05:13:25 paulus Exp $";
+static char rcsid[] = "$Id: pppstats.c,v 1.17 1996/09/26 06:16:51 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -71,7 +71,7 @@ int	signalled;		/* set if alarm goes off "early" */
 char	*progname;
 char	*interface;
 
-#if defined(SUNOS4)
+#if defined(SUNOS4) || defined(ULTRIX)
 extern int optind;
 extern char *optarg;
 #endif
