@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-str.c,v 1.20 1995/05/01 00:26:22 paulus Exp $";
+static char rcsid[] = "$Id: sys-str.c,v 1.21 1995/06/12 12:18:04 paulus Exp $";
 #endif
 
 /*
@@ -1274,4 +1274,15 @@ unlock()
 	free(lock_file);
 	lock_file = NULL;
     }
+}
+
+/*
+ * SunOS doesn't have strtoul :-(
+ */
+unsigned long
+strtoul(str, ptr, base)
+    char *str, **ptr;
+    int base;
+{
+    return (unsigned long) strtol(str, ptr, base);
 }
