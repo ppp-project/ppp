@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.1 1995/10/27 03:54:02 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.2 1995/12/19 02:04:40 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -60,6 +60,10 @@ static char rcsid[] = "$Id: sys-sunos4.c,v 1.1 1995/10/27 03:54:02 paulus Exp $"
 #include <netinet/in.h>
 
 #include "pppd.h"
+
+#if defined(sun) && defined(sparc)
+#include <alloca.h>
+#endif /*sparc*/
 
 static int	pppfd;
 static int	fdmuxid = -1;
