@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.79 2001/03/08 05:11:15 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.80 2001/03/12 22:56:12 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -497,6 +497,7 @@ options_from_list(w, priv)
 	}
 	if (!process_option(opt, w0->word, argv))
 	    goto err;
+	w = w->next;
     }
     ret = 1;
 
@@ -815,8 +816,9 @@ print_option(opt, mainopt, printer, arg)
 	case o_bool:
 		v = opt->flags & OPT_VALUE;
 		if (*(bool *)opt->addr != v)
-			printer(arg, "oops, %s value is %d not %d?\n",
-				opt->name, *(bool *)opt->addr, v);
+			/* this can happen legitimately, e.g. lock
+			   option turned off for default device */
+			break;
 		printer(arg, "%s", opt->name);
 		break;
 	case o_int:
@@ -929,6 +931,7 @@ print_options(printer, arg)
 	struct option_list *list;
 	int i;
 
+	printer(arg, "pppd options in effect:\n");
 	print_option_list(general_options, printer, arg);
 	print_option_list(auth_options, printer, arg);
 	for (list = extra_options; list != NULL; list = list->next)
