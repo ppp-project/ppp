@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.2 1994/02/08 23:49:52 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.3 1994/02/14 04:45:31 paulus Exp $";
 #endif
 
 /*
@@ -508,12 +508,12 @@ ipcp_nakci(f, p, len)
      */
     NAKCIADDR(CI_ADDR, neg_addr, go->old_addrs,
 	      if (go->accept_local && ciaddr1) { /* Do we know our address? */
-		  go->ouraddr = ciaddr1;
+		  try.ouraddr = ciaddr1;
 		  IPCPDEBUG((LOG_INFO, "local IP address %s",
 			     ip_ntoa(ciaddr1)));
 	      }
 	      if (go->accept_remote && ciaddr2) { /* Does he know his? */
-		  go->hisaddr = ciaddr2;
+		  try.hisaddr = ciaddr2;
 		  IPCPDEBUG((LOG_INFO, "remote IP address %s",
 			     ip_ntoa(ciaddr2)));
 	      }
@@ -809,8 +809,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		    go->ouraddr = ciaddr2;	/* accept peer's idea */
 		}
 	    }
-	    if (orc == CONFNAK)
-		break;
 
 	    ho->neg_addr = 1;
 	    ho->old_addrs = 1;
@@ -846,9 +844,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 		}
 	    }
 	
-	    if (orc == CONFNAK)
-		break;
-
 	    ho->neg_addr = 1;
 	    ho->hisaddr = ciaddr1;
 	    break;
@@ -888,8 +883,6 @@ ipcp_reqci(f, inp, len, reject_if_disagree)
 			PUTCHAR(wo->cflag, p);
 		    }
 		}
-		if (orc == CONFNAK)
-		    break;
 		ho->maxslotindex = maxslotindex;
 		ho->cflag = wo->cflag;
 	    }
