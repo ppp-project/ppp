@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.c,v 1.5 1996/09/26 06:24:14 paulus Exp $	*/
+/*	$Id: if_ppp.c,v 1.6 1997/03/04 03:33:00 paulus Exp $	*/
 
 /*
  * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
@@ -129,6 +129,9 @@
 #include <net/ppp-comp.h>
 #endif
 
+static int	pppsioctl __P((struct ifnet *, u_long, caddr_t));
+static int	pppoutput __P((struct ifnet *, struct mbuf *,
+			       struct sockaddr *, struct rtentry *));
 static void	ppp_requeue __P((struct ppp_softc *));
 static void	ppp_outpkt __P((struct ppp_softc *));
 static void	ppp_ccp __P((struct ppp_softc *, struct mbuf *m, int rcvd));
@@ -529,7 +532,7 @@ pppioctl(sc, cmd, data, flag, p)
 /*
  * Process an ioctl request to the ppp network interface.
  */
-int
+static int
 pppsioctl(ifp, cmd, data)
     register struct ifnet *ifp;
     u_long cmd;
