@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.45 1999/08/24 05:31:11 paulus Exp $
+ * $Id: pppd.h,v 1.46 1999/08/25 04:15:51 paulus Exp $
  */
 
 /*
@@ -43,7 +43,7 @@
 #define volatile
 #endif
 
-#if INET6
+#ifdef INET6
 #include "eui64.h"
 #endif
 
@@ -397,9 +397,7 @@ int  sifaddr __P((int, u_int32_t, u_int32_t, u_int32_t));
 				/* Configure IPv4 addresses for i/f */
 int  cifaddr __P((int, u_int32_t, u_int32_t));
 				/* Reset i/f IP addresses */
-#if INET6
-int  sif6up __P((int));		/* Configure i/f up (for IPv6) */
-int  sif6down __P((int));	/* Configure i/f down (for IPv6) */
+#ifdef INET6
 int  sif6addr __P((int, eui64_t, eui64_t));
 				/* Configure IPv6 addresses for i/f */
 int  cif6addr __P((int, eui64_t, eui64_t));
