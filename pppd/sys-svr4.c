@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.10 1996/04/04 04:07:30 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.11 1996/05/27 00:01:53 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -100,6 +100,7 @@ static int dlpi_info_req __P((int));
 static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
 static int strioctl __P((int, int, void *, int, int));
 
+
 /*
  * sys_init - System-dependent initialization.
  */
@@ -114,11 +115,6 @@ sys_init()
 	char space[64];
     } reply;
 #endif
-
-    openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
-    setlogmask(LOG_UPTO(LOG_INFO));
-    if (debug)
-	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     ipfd = open("/dev/ip", O_RDWR, 0);
     if (ipfd < 0) {
@@ -218,7 +214,6 @@ sys_close()
     close(ipfd);
     if (pppfd >= 0)
 	close(pppfd);
-    closelog();
 }
 
 /*
@@ -252,19 +247,6 @@ daemon(nochdir, noclose)
 	fclose(stderr);
     }
     return 0;
-}
-
-/*
- * note_debug_level - note a change in the debug level.
- */
-void
-note_debug_level()
-{
-    if (debug) {
-	setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-	setlogmask(LOG_UPTO(LOG_WARNING));
-    }
 }
 
 /*
@@ -906,7 +888,7 @@ get_idle_time(u, ip)
     return strioctl(pppfd, PPPIO_GIDLE, ip, 0, sizeof(struct ppp_idle)) >= 0;
 }
 
-
+#if 0
 /*
  * set_filters - transfer the pass and active filters to the kernel.
  */
@@ -932,7 +914,7 @@ set_filters(pass, active)
     }
     return ret;
 }
-
+#endif
 
 /*
  * ccp_fatal_error - returns 1 if decompression was disabled as a
