@@ -1,4 +1,4 @@
-/*	$Id: ppp-deflate.c,v 1.2 1996/09/26 06:19:18 paulus Exp $	*/
+/*	$Id: ppp-deflate.c,v 1.3 1997/04/30 06:00:45 paulus Exp $	*/
 
 /*
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
@@ -157,6 +157,7 @@ z_comp_alloc(options, opt_len)
 
     state->strm.next_in = NULL;
     state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zalloc_init = (alloc_func) zalloc;
     state->strm.zfree = (free_func) zfree;
     if (deflateInit2(&state->strm, Z_DEFAULT_COMPRESSION, DEFLATE_METHOD_VAL,
 		     -w_size, 8, Z_DEFAULT_STRATEGY, DEFLATE_OVHD+2) != Z_OK) {
@@ -392,6 +393,7 @@ z_decomp_alloc(options, opt_len)
 
     state->strm.next_out = NULL;
     state->strm.zalloc = (alloc_func) zalloc;
+    state->strm.zalloc_init = (alloc_func) zalloc;
     state->strm.zfree = (free_func) zfree;
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {
 	KM_FREE(state, KM_DEVBUF);
