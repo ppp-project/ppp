@@ -18,12 +18,13 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.8 1994/05/24 11:24:32 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.9 1994/05/25 06:25:48 paulus Exp $";
 #endif
 
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <syslog.h>
@@ -64,6 +65,8 @@ static int setpassive __ARGS((void));
 static int setsilent __ARGS((void));
 static int noopt __ARGS((void));
 static int setnovj __ARGS((void));
+static int setnovjccomp __ARGS((void));
+static int setvjslots __ARGS((char **));
 static int reqpap __ARGS((void));
 static int nopap __ARGS((void));
 static int setupapfile __ARGS((char **));
@@ -116,9 +119,8 @@ static int setchapchal __ARGS((char **));
 static int setchapintv __ARGS((char **));
 static int setipcpaccl __ARGS((void));
 static int setipcpaccr __ARGS((void));
-static int setlcpechointerval __ARGS((char **));
+static int setlcpechointv __ARGS((char **));
 static int setlcpechofails __ARGS((char **));
-static int setslots __ARGS((char **));
 
 static int number_option __ARGS((char *, long *, int));
 static int readable __ARGS((int fd));
@@ -146,7 +148,6 @@ extern int auth_required;
 extern int proxyarp;
 extern int persist;
 extern int uselogin;
-extern int nslots;
 extern u_long lcp_echo_interval;
 extern u_long lcp_echo_fails;
 extern char our_name[];
@@ -162,71 +163,72 @@ static struct cmd {
     int num_args;
     int (*cmd_func)();
 } cmds[] = {
-    "-all", 0, noopt,		/* Don't request/allow any options */
-    "-ac", 0, noaccomp,		/* Disable Address/Control compress */
-    "-am", 0, noasyncmap,	/* Disable asyncmap negotiation */
-    "-as", 1, setasyncmap,	/* set the desired async map */
-    "-d", 0, setdebug,		/* Increase debugging level */
-    "-detach", 0, setnodetach,	/* don't fork */
-    "-ip", 0, noipaddr,		/* Disable IP address negotiation */
-    "-mn", 0, nomagicnumber,	/* Disable magic number negotiation */
-    "-mru", 0, nomru,		/* Disable mru negotiation */
-    "-p", 0, setpassive,	/* Set passive mode */
-    "-pc", 0, nopcomp,		/* Disable protocol field compress */
-    "+ua", 1, setupapfile,	/* Get PAP user and password from file */
-    "+pap", 0, reqpap,		/* Require PAP auth from peer */
-    "-pap", 0, nopap,		/* Don't allow UPAP authentication with peer */
-    "+chap", 0, reqchap,	/* Require CHAP authentication from peer */
-    "-chap", 0, nochap,		/* Don't allow CHAP authentication with peer */
-    "-vj", 0, setnovj,		/* disable VJ compression */
-    "asyncmap", 1, setasyncmap,	/* set the desired async map */
-    "escape", 1, setescape,	/* set chars to escape on transmission */
-    "connect", 1, setconnector,	/* A program to set up a connection */
-    "disconnect", 1, setdisconnector,	/* program to disconnect serial dev. */
-    "crtscts", 0, setcrtscts,	/* set h/w flow control */
-    "xonxoff", 0, setxonxoff,	/* set s/w flow control */
-    "-crtscts", 0, setxonxoff,	/* another name for xonxoff */
-    "debug", 0, setdebug,	/* Increase debugging level */
-    "kdebug", 1, setkdebug,	/* Enable kernel-level debugging */
-    "domain", 1, setdomain,	/* Add given domain name to hostname*/
-    "mru", 1, setmru,		/* Set MRU value for negotiation */
-    "mtu", 1, setmtu,		/* Set our MTU */
-    "netmask", 1, setnetmask,	/* set netmask */
-    "passive", 0, setpassive,	/* Set passive mode */
-    "silent", 0, setsilent,	/* Set silent mode */
-    "modem", 0, setmodem,	/* Use modem control lines */
-    "local", 0, setlocal,	/* Don't use modem control lines */
-    "lock", 0, setlock,		/* Lock serial device (with lock file) */
-    "name", 1, setname,		/* Set local name for authentication */
-    "user", 1, setuser,		/* Set username for PAP auth with peer */
-    "usehostname", 0, setusehostname,	/* Must use hostname for auth. */
-    "remotename", 1, setremote,	/* Set remote name for authentication */
-    "auth", 0, setauth,		/* Require authentication from peer */
-    "file", 1, readfile,	/* Take options from a file */
-    "defaultroute", 0, setdefaultroute,	/* Add default route */
-    "proxyarp", 0, setproxyarp,	/* Add proxy ARP entry */
-    "persist", 0, setpersist,	/* Keep on reopening connection after close */
-    "login", 0, setdologin,	/* Use system password database for UPAP */
-    "noipdefault", 0, setnoipdflt, /* Don't use name for default IP adrs */
-    "lcp-echo-failure", 1, setlcpechofails,	/* consecutive echo failures */
-    "lcp-echo-interval", 1, setlcpechointerval,	/* time for lcp echo events */
-    "lcp-restart", 1, setlcptimeout,	/* Set timeout for LCP */
-    "lcp-max-terminate", 1, setlcpterm,	/* Set max #xmits for term-reqs */
-    "lcp-max-configure", 1, setlcpconf,	/* Set max #xmits for conf-reqs */
-    "lcp-max-failure", 1, setlcpfails,	/* Set max #conf-naks for LCP */
-    "ipcp-restart", 1, setipcptimeout,	/* Set timeout for IPCP */
-    "ipcp-max-terminate", 1, setipcpterm, /* Set max #xmits for term-reqs */
-    "ipcp-max-configure", 1, setipcpconf, /* Set max #xmits for conf-reqs */
-    "ipcp-max-failure", 1, setipcpfails,  /* Set max #conf-naks for IPCP */
-    "ipcp-max-slots", 1, setslots,	/* Set maximum vj header slots */
-    "pap-restart", 1, setpaptimeout,	/* Set timeout for UPAP */
-    "pap-max-authreq", 1, setpapreqs,	/* Set max #xmits for auth-reqs */
-    "chap-restart", 1, setchaptimeout,	/* Set timeout for CHAP */
-    "chap-max-challenge", 1, setchapchal, /* Set max #xmits for challenge */
-    "chap-interval", 1, setchapintv,	/* Set interval for rechallenge */
-    "ipcp-accept-local", 0, setipcpaccl, /* Accept peer's address for us */
-    "ipcp-accept-remote", 0, setipcpaccr, /* Accept peer's address for it */
-    NULL
+    {"-all", 0, noopt},		/* Don't request/allow any options */
+    {"-ac", 0, noaccomp},	/* Disable Address/Control compress */
+    {"-am", 0, noasyncmap},	/* Disable asyncmap negotiation */
+    {"-as", 1, setasyncmap},	/* set the desired async map */
+    {"-d", 0, setdebug},	/* Increase debugging level */
+    {"-detach", 0, setnodetach}, /* don't fork */
+    {"-ip", 0, noipaddr},	/* Disable IP address negotiation */
+    {"-mn", 0, nomagicnumber},	/* Disable magic number negotiation */
+    {"-mru", 0, nomru},		/* Disable mru negotiation */
+    {"-p", 0, setpassive},	/* Set passive mode */
+    {"-pc", 0, nopcomp},	/* Disable protocol field compress */
+    {"+ua", 1, setupapfile},	/* Get PAP user and password from file */
+    {"+pap", 0, reqpap},	/* Require PAP auth from peer */
+    {"-pap", 0, nopap},		/* Don't allow UPAP authentication with peer */
+    {"+chap", 0, reqchap},	/* Require CHAP authentication from peer */
+    {"-chap", 0, nochap},	/* Don't allow CHAP authentication with peer */
+    {"-vj", 0, setnovj},	/* disable VJ compression */
+    {"-vjccomp", 0, setnovjccomp}, /* disable VJ connection-ID compression */
+    {"vj-max-slots", 1, setvjslots}, /* Set maximum VJ header slots */
+    {"asyncmap", 1, setasyncmap}, /* set the desired async map */
+    {"escape", 1, setescape},	/* set chars to escape on transmission */
+    {"connect", 1, setconnector}, /* A program to set up a connection */
+    {"disconnect", 1, setdisconnector},	/* program to disconnect serial dev. */
+    {"crtscts", 0, setcrtscts},	/* set h/w flow control */
+    {"xonxoff", 0, setxonxoff},	/* set s/w flow control */
+    {"-crtscts", 0, setxonxoff}, /* another name for xonxoff */
+    {"debug", 0, setdebug},	/* Increase debugging level */
+    {"kdebug", 1, setkdebug},	/* Enable kernel-level debugging */
+    {"domain", 1, setdomain},	/* Add given domain name to hostname*/
+    {"mru", 1, setmru},		/* Set MRU value for negotiation */
+    {"mtu", 1, setmtu},		/* Set our MTU */
+    {"netmask", 1, setnetmask},	/* set netmask */
+    {"passive", 0, setpassive},	/* Set passive mode */
+    {"silent", 0, setsilent},	/* Set silent mode */
+    {"modem", 0, setmodem},	/* Use modem control lines */
+    {"local", 0, setlocal},	/* Don't use modem control lines */
+    {"lock", 0, setlock},	/* Lock serial device (with lock file) */
+    {"name", 1, setname},	/* Set local name for authentication */
+    {"user", 1, setuser},	/* Set username for PAP auth with peer */
+    {"usehostname", 0, setusehostname},	/* Must use hostname for auth. */
+    {"remotename", 1, setremote}, /* Set remote name for authentication */
+    {"auth", 0, setauth},	/* Require authentication from peer */
+    {"file", 1, readfile},	/* Take options from a file */
+    {"defaultroute", 0, setdefaultroute}, /* Add default route */
+    {"proxyarp", 0, setproxyarp}, /* Add proxy ARP entry */
+    {"persist", 0, setpersist},	/* Keep on reopening connection after close */
+    {"login", 0, setdologin},	/* Use system password database for UPAP */
+    {"noipdefault", 0, setnoipdflt}, /* Don't use name for default IP adrs */
+    {"lcp-echo-failure", 1, setlcpechofails}, /* consecutive echo failures */
+    {"lcp-echo-interval", 1, setlcpechointv}, /* time for lcp echo events */
+    {"lcp-restart", 1, setlcptimeout}, /* Set timeout for LCP */
+    {"lcp-max-terminate", 1, setlcpterm}, /* Set max #xmits for term-reqs */
+    {"lcp-max-configure", 1, setlcpconf}, /* Set max #xmits for conf-reqs */
+    {"lcp-max-failure", 1, setlcpfails}, /* Set max #conf-naks for LCP */
+    {"ipcp-restart", 1, setipcptimeout}, /* Set timeout for IPCP */
+    {"ipcp-max-terminate", 1, setipcpterm}, /* Set max #xmits for term-reqs */
+    {"ipcp-max-configure", 1, setipcpconf}, /* Set max #xmits for conf-reqs */
+    {"ipcp-max-failure", 1, setipcpfails}, /* Set max #conf-naks for IPCP */
+    {"pap-restart", 1, setpaptimeout}, /* Set timeout for UPAP */
+    {"pap-max-authreq", 1, setpapreqs}, /* Set max #xmits for auth-reqs */
+    {"chap-restart", 1, setchaptimeout}, /* Set timeout for CHAP */
+    {"chap-max-challenge", 1, setchapchal}, /* Set max #xmits for challenge */
+    {"chap-interval", 1, setchapintv}, /* Set interval for rechallenge */
+    {"ipcp-accept-local", 0, setipcpaccl}, /* Accept peer's address for us */
+    {"ipcp-accept-remote", 0, setipcpaccr}, /* Accept peer's address for it */
+    {NULL, 0, NULL}
 };
 
 
@@ -879,7 +881,7 @@ reqchap()
 
 
 /*
- * setnovj - diable vj compression
+ * setnovj - disable vj compression
  */
 static int
 setnovj()
@@ -888,6 +890,39 @@ setnovj()
     ipcp_allowoptions[0].neg_vj = 0;
     return (1);
 }
+
+
+/*
+ * setnovjccomp - disable VJ connection-ID compression
+ */
+static int
+setnovjccomp()
+{
+    ipcp_wantoptions[0].cflag = 0;
+    ipcp_allowoptions[0].cflag = 0;
+}
+
+
+/*
+ * setvjslots - set maximum number of connection slots for VJ compression
+ */
+static int
+setvjslots(argv)
+    char **argv;
+{
+    int value;
+
+    if (!int_option(*argv, &value))
+	return 0;
+    if (value < 2 || value > 16) {
+	fprintf(stderr, "pppd: vj-max-slots value must be between 2 and 16\n");
+	return 0;
+    }
+    ipcp_wantoptions [0].maxslotindex =
+        ipcp_allowoptions[0].maxslotindex = value - 1;
+    return 1;
+}
+
 
 /*
  * setconnector - Set a program to connect to a serial line
@@ -1316,16 +1351,18 @@ setdologin()
  * Functions to set the echo interval for modem-less monitors
  */
 
-static int setlcpechointerval(argv)
+static int
+setlcpechointv(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_echo_interval, 0);
+    return int_option(*argv, &lcp_echo_interval);
 }
 
-static int setlcpechofails(argv)
+static int
+setlcpechofails(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_echo_fails, 0);
+    return int_option(*argv, &lcp_echo_fails);
 }
 
 /*
@@ -1335,90 +1372,77 @@ static int
 setlcptimeout(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_fsm[0].timeouttime, 0);
+    return int_option(*argv, &lcp_fsm[0].timeouttime);
 }
 
 static int setlcpterm(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_fsm[0].maxtermtransmits, 0);
+    return int_option(*argv, &lcp_fsm[0].maxtermtransmits);
 }
 
 static int setlcpconf(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_fsm[0].maxconfreqtransmits, 0);
+    return int_option(*argv, &lcp_fsm[0].maxconfreqtransmits);
 }
 
 static int setlcpfails(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_fsm[0].maxnakloops, 0);
+    return int_option(*argv, &lcp_fsm[0].maxnakloops);
 }
 
 static int setipcptimeout(argv)
     char **argv;
 {
-    return int_option(*argv, &ipcp_fsm[0].timeouttime, 0);
+    return int_option(*argv, &ipcp_fsm[0].timeouttime);
 }
 
 static int setipcpterm(argv)
     char **argv;
 {
-    return int_option(*argv, &ipcp_fsm[0].maxtermtransmits, 0);
+    return int_option(*argv, &ipcp_fsm[0].maxtermtransmits);
 }
 
 static int setipcpconf(argv)
     char **argv;
 {
-    return int_option(*argv, &ipcp_fsm[0].maxconfreqtransmits, 0);
+    return int_option(*argv, &ipcp_fsm[0].maxconfreqtransmits);
 }
 
 static int setipcpfails(argv)
     char **argv;
 {
-    return int_option(*argv, &lcp_fsm[0].maxnakloops, 0);
+    return int_option(*argv, &lcp_fsm[0].maxnakloops);
 }
 
 static int setpaptimeout(argv)
     char **argv;
 {
-    return int_option(*argv, &upap[0].us_timeouttime, 0);
+    return int_option(*argv, &upap[0].us_timeouttime);
 }
 
 static int setpapreqs(argv)
     char **argv;
 {
-    return int_option(*argv, &upap[0].us_maxtransmits, 0);
+    return int_option(*argv, &upap[0].us_maxtransmits);
 }
 
 static int setchaptimeout(argv)
     char **argv;
 {
-    return int_option(*argv, &chap[0].timeouttime, 0);
+    return int_option(*argv, &chap[0].timeouttime);
 }
 
 static int setchapchal(argv)
     char **argv;
 {
-    return int_option(*argv, &chap[0].max_transmits, 0);
+    return int_option(*argv, &chap[0].max_transmits);
 }
 
 static int setchapintv(argv)
     char **argv;
 {
-    return int_option(*argv, &chap[0].chal_interval, 0);
-}
-
-static int setslots(argv)
-    char **argv;
-{
-    int value;
-    int answer = int_option(*argv, &value, 0);
-
-    if (answer == 1 && value > 1 && value < 17) {
-        ipcp_wantoptions [0].maxslotindex =
-        ipcp_allowoptions[0].maxslotindex = value - 1;
-    }
-    return answer;
+    return int_option(*argv, &chap[0].chal_interval);
 }
