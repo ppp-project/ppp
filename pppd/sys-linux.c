@@ -415,6 +415,8 @@ int establish_ppp (int tty_fd)
 	    warn("Couldn't set /dev/ppp (channel) to nonblock: %m");
 	set_ppp_fd(fd);
 
+	if (!looped)
+	    ifunit = -1;
 	if (!looped && !multilink) {
 	    /*
 	     * Create a new PPP unit.
