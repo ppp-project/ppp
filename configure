@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.3 1995/06/01 01:48:44 paulus Exp $
+# $Id: configure,v 1.4 1995/10/27 03:25:40 paulus Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -22,7 +22,7 @@ case $system in
     case $release in
       [0-3]*)	state="ancient";;
       4*)	state="known"; ksrc="sunos"; makext="sun";;
-      5*)	state="known"; ksrc="svr4"; makext="svr4";;
+      5*)	state="known"; ksrc="svr4"; makext="sol2";;
     esac;;
   ULTRIX)
     makext="ultrix";
@@ -58,6 +58,14 @@ case $system in
     makext="NeXT";
     ksrc="NeXT";
     state="known";;
+  # Intel SVR4 systems come with a bug in the uname program.  Unless
+  # your provider fixed the bug, or you get a fix for it, uname -S will
+  # overwrite the system name with the node name!
+  UNIX_System_V|`uname -n`)
+    case $release in
+      4.0) state=known; ksrc=svr4; makext=svr4;;
+      4.2) state=late; ksrc=svr4; makext=svr4;;
+    esac;;
 esac
 
 case $state in
@@ -82,6 +90,11 @@ if [ $ksrc ]; then
   rm -f Makefile
   ln -s $ksrc/Makefile.top Makefile
   echo "  Makefile -> $ksrc/Makefile.top"
+  if [ $ksrc = svr4 ]; then
+    rm -f $ksrc/Makefile
+    ln -s Makefile.$makext $ksrc/Makefile
+    echo "  $ksrc/Makefile -> Makefile.$makext"
+  fi
   for dir in pppd pppstats chat; do
     rm -f $dir/Makefile
     ln -s Makefile.$makext $dir/Makefile
