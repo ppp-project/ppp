@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.4 1994/02/08 23:48:50 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.5 1994/04/18 04:07:48 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -45,11 +45,15 @@ static char rcsid[] = "$Id: options.c,v 1.4 1994/02/08 23:48:50 paulus Exp $";
 #define FALSE	0
 #define TRUE	1
 
+#ifdef ultrix
+char *strdup __ARGS((char *));
+#endif
 
 /*
  * Prototypes
  */
 static int setdebug __ARGS((void));
+static int setkdebug __ARGS((char **));
 static int setpassive __ARGS((void));
 static int setsilent __ARGS((void));
 static int noopt __ARGS((void));
@@ -65,16 +69,20 @@ static int noasyncmap __ARGS((void));
 static int noipaddr __ARGS((void));
 static int nomagicnumber __ARGS((void));
 static int setasyncmap __ARGS((char **));
+static int setescape __ARGS((char **));
 static int setmru __ARGS((char **));
+static int setmtu __ARGS((char **));
 static int nomru __ARGS((void));
 static int nopcomp __ARGS((void));
 static int setconnector __ARGS((char **));
+static int setdisconnector __ARGS((char **));
 static int setdomain __ARGS((char **));
 static int setnetmask __ARGS((char **));
 static int setcrtscts __ARGS((void));
 static int setnodetach __ARGS((void));
 static int setmodem __ARGS((void));
 static int setlocal __ARGS((void));
+static int setlock __ARGS((void));
 static int setname __ARGS((char **));
 static int setuser __ARGS((char **));
 static int setremote __ARGS((char **));
@@ -110,10 +118,13 @@ static int number_option __ARGS((char *, long *, int));
  */
 extern char *progname;
 extern int debug;
+extern int kdebugflag;
 extern int modem;
+extern int lockflag;
 extern int crtscts;
 extern int nodetach;
 extern char *connector;
+extern char *disconnector;
 extern int inspeed;
 extern char devname[];
 extern int default_device;
@@ -156,16 +167,21 @@ static struct cmd {
     "-chap", 0, nochap,		/* Don't allow CHAP authentication with peer */
     "-vj", 0, setnovj,		/* disable VJ compression */
     "asyncmap", 1, setasyncmap,	/* set the desired async map */
+    "escape", 1, setescape,	/* set chars to escape on transmission */
     "connect", 1, setconnector,	/* A program to set up a connection */
+    "disconnect", 1, setdisconnector,	/* program to disconnect serial dev. */
     "crtscts", 0, setcrtscts,	/* set h/w flow control */
     "debug", 0, setdebug,	/* Increase debugging level */
+    "kdebug", 1, setkdebug,	/* Enable kernel-level debugging */
     "domain", 1, setdomain,	/* Add given domain name to hostname*/
     "mru", 1, setmru,		/* Set MRU value for negotiation */
+    "mtu", 1, setmtu,		/* Set our MTU */
     "netmask", 1, setnetmask,	/* set netmask */
     "passive", 0, setpassive,	/* Set passive mode */
     "silent", 0, setsilent,	/* Set silent mode */
     "modem", 0, setmodem,	/* Use modem control lines */
     "local", 0, setlocal,	/* Don't use modem control lines */
+    "lock", 0, setlock,		/* Lock serial device (with lock file) */
     "name", 1, setname,		/* Set local name for authentication */
     "user", 1, setuser,		/* Set username for PAP auth with peer */
     "usehostname", 0, setusehostname,	/* Must use hostname for auth. */
@@ -214,34 +230,6 @@ Usage: %s [ arguments ], where arguments are:\n\
 	netmask <n>	Set interface netmask to <n>\n\
 See pppd(8) for more options.\n\
 ";
-
-/*
-Options omitted:
-	-all		Don't request/allow any options\n\
-	-ac		Disable Address/Control compression\n\
-	-am		Disable asyncmap negotiation\n\
-	-as <n>		Set the desired async map to hex <n>\n\
-	-d		Increase debugging level\n\
-	-detach		Don't fork to background\n\
-	-ip		Disable IP address negotiation\n\
-	-mn		Disable magic number negotiation\n\
-	-mru		Disable mru negotiation\n\
-	-p		Set passive mode\n\
-	-pc		Disable protocol field compression\n\
-	+ua <f>		Get username and password for authenticating\n\
-			with peer using PAP from file <f>\n\
-	+pap		Require PAP authentication from peer\n\
-	-pap		Don't agree to authenticating with peer using PAP\n\
-	+chap		Require CHAP authentication from peer\n\
-	-chap		Don't agree to authenticating with peer using CHAP\n\
-        -vj             disable VJ compression\n\
-	-auth		Don't agree to authenticate with peer\n\
-	debug		Increase debugging level\n\
-        domain <d>      Append domain name <d> to hostname for authentication\n\
-	passive		Set passive mode\n\
-	local		Don't use modem control lines\n\
-	proxyarp	Add proxy ARP entry\n\
-*/
 
 
 /*
@@ -549,8 +537,17 @@ static int
 setdebug()
 {
     debug++;
-    setlogmask(LOG_UPTO(LOG_DEBUG));
     return (1);
+}
+
+/*
+ * setkdebug - Set kernel debugging level.
+ */
+static int
+setkdebug(argv)
+    char **argv;
+{
+    return int_option(*argv, &kdebugflag);
 }
 
 /*
@@ -639,6 +636,27 @@ setmru(argv)
 	return 0;
     lcp_wantoptions[0].mru = mru;
     lcp_wantoptions[0].neg_mru = 1;
+    return (1);
+}
+
+
+/*
+ * setmru - Set the largest MTU we'll use.
+ */
+static int
+setmtu(argv)
+    char **argv;
+{
+    long mtu;
+
+    if (!number_option(*argv, &mtu, 0))
+	return 0;
+    if (mtu < MINMRU || mtu > MAXMRU) {
+	fprintf(stderr, "mtu option value of %d is too %s\n", mtu,
+		(mtu < MINMRU? "small": "large"));
+	return 0;
+    }
+    lcp_allowoptions[0].mru = mtu;
     return (1);
 }
 
@@ -788,6 +806,20 @@ setconnector(argv)
     return (1);
 }
 
+/*
+ * setdisconnector - Set a program to disconnect from the serial line
+ */
+static int
+setdisconnector(argv)
+    char **argv;
+{
+    disconnector = strdup(*argv);
+    if (disconnector == NULL)
+	novm("disconnector string");
+  
+    return (1);
+}
+
 
 /*
  * setdomain - Set domain name to append to hostname 
@@ -801,6 +833,10 @@ setdomain(argv)
     return (1);
 }
 
+
+/*
+ * setasyncmap - add bits to asyncmap (what we request peer to escape).
+ */
 static int
 setasyncmap(argv)
     char **argv;
@@ -813,6 +849,38 @@ setasyncmap(argv)
     lcp_wantoptions[0].neg_asyncmap = 1;
     return(1);
 }
+
+
+/*
+ * setescape - add chars to the set we escape on transmission.
+ */
+static int
+setescape(argv)
+    char **argv;
+{
+    int n, ret;
+    char *p, *endp;
+
+    p = *argv;
+    ret = 1;
+    while (*p) {
+	n = strtol(p, &endp, 16);
+	if (p == endp) {
+	    fprintf(stderr, "%s: invalid hex number: %s\n", progname, p);
+	    return 0;
+	}
+	p = endp;
+	if (n < 0 || 0x20 <= n && n <= 0x3F || n == 0x5E || n > 0xFF) {
+	    fprintf(stderr, "%s: can't escape character 0x%x\n", n);
+	    ret = 0;
+	} else
+	    xmit_accm[0][n >> 5] |= 1 << (n & 0x1F);
+	while (*p == ',' || *p == ' ')
+	    ++p;
+    }
+    return ret;
+}
+
 
 /*
  * setspeed - Set the speed.
@@ -1013,6 +1081,19 @@ setnetmask(argv)
     return (1);
 }
 
+/*
+ * Return user specified netmask. A value of zero means no netmask has
+ * been set. 
+ */
+/* ARGSUSED */
+u_long
+GetMask(addr)
+    u_long addr;
+{
+    return(netmask);
+}
+
+
 static int
 setcrtscts()
 {
@@ -1038,6 +1119,13 @@ static int
 setlocal()
 {
     modem = 0;
+    return 1;
+}
+
+static int
+setlock()
+{
+    lockflag = 1;
     return 1;
 }
 
