@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp.c,v 1.9 1997/03/04 03:31:35 paulus Exp $
+ * $Id: ppp.c,v 1.10 1997/04/30 05:44:43 paulus Exp $
  */
 
 /*
@@ -85,10 +85,6 @@
  */
 #ifndef ETHERTYPE_IP
 #define ETHERTYPE_IP	0x800
-#endif
-
-#ifndef PPP_MAXMTU
-#define PPP_MAXMTU	65535
 #endif
 
 extern time_t time;
@@ -185,7 +181,7 @@ static int ppplrsrv __P((queue_t *));
 static int ppplwsrv __P((queue_t *));
 #ifndef NO_DLPI
 static void dlpi_request __P((queue_t *, mblk_t *, upperstr_t *));
-static void dlpi_error __P((queue_t *, int, int, int));
+static void dlpi_error __P((queue_t *, upperstr_t *, int, int, int));
 static void dlpi_ok __P((queue_t *, int));
 #endif
 static int send_data __P((mblk_t *, upperstr_t *));
@@ -197,6 +193,7 @@ static upperstr_t *find_dest __P((upperstr_t *, int));
 static int putctl2 __P((queue_t *, int, int, int));
 static int putctl4 __P((queue_t *, int, int, int));
 static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
+static int ip_hard_filter __P((upperstr_t *ppa, mblk_t *mp, int outbound));
 
 #define PPP_ID 0xb1a6
 static struct module_info ppp_info = {
@@ -519,10 +516,8 @@ pppuwput(q, mp)
 	    break;
 	}
 #ifdef NO_DLPI
-	if (!pass_packet(us->ppa, mp, 1)) {
-	    freemsg(mp);
+	if ((us->flags & US_CONTROL) == 0 && !pass_packet(us, mp, 1))
 	    break;
-	}
 #endif
 	if (!send_data(mp, us))
 	    putq(q, mp);
@@ -650,7 +645,7 @@ pppuwput(q, mp)
 	    if (iop->ioc_count != sizeof(int) || (us->flags & US_CONTROL) == 0)
 		break;
 	    n = *(int *)mp->b_cont->b_rptr;
-	    if (n <= 0 || n > PPP_MAXMTU)
+	    if (n <= 0 || n > PPP_MAXMRU)
 		break;
 	    if (n < PPP_MRU)
 		n = PPP_MRU;
@@ -667,10 +662,9 @@ pppuwput(q, mp)
 	    n = *(int *)mp->b_cont->b_rptr;
 	    if (n <= 0 || n > PPP_MAXMTU)
 		break;
-	    if (n < PPP_MRU)
-		n = PPP_MRU;
 	    us->mtu = n;
 #ifdef LACHTCP
+	    /* The MTU reported in netstat, not used as IP max packet size! */
 	    us->ifstats.ifs_mtu = n;
 #endif
 	    if (us->lowerq)
@@ -831,6 +825,21 @@ pppuwput(q, mp)
 	    error = 0;
 	    break;
 
+	case SIOCSIFMTU:
+	    /*
+	     * Vanilla SVR4 systems don't handle SIOCSIFMTU, rather
+	     * they take the MTU from the DL_INFO_ACK we sent in response
+	     * to their DL_INFO_REQ.  Fortunately, they will update the
+	     * MTU if we send an unsolicited DL_INFO_ACK up.
+	     */
+	    if ((mq = allocb(sizeof(dl_info_req_t), BPRI_HI)) == 0)
+		break;		/* should do bufcall */
+	    ((union DL_primitives *)mq->b_rptr)->dl_primitive = DL_INFO_REQ;
+	    mq->b_wptr = mq->b_rptr + sizeof(dl_info_req_t);
+	    dlpi_request(q, mq, us);
+	    error = 0;
+	    break;
+
 	case SIOCGIFNETMASK:
 	case SIOCSIFNETMASK:
 	case SIOCGIFADDR:
@@ -925,7 +934,7 @@ dlpi_request(q, mp, us)
 	reply->b_wptr += sizeof(dl_info_ack_t);
 	bzero((caddr_t) info, sizeof(dl_info_ack_t));
 	info->dl_primitive = DL_INFO_ACK;
-	info->dl_max_sdu = PPP_MAXMTU;
+	info->dl_max_sdu = us->ppa->mtu;
 	info->dl_min_sdu = 1;
 	info->dl_addr_length = sizeof(ulong);
 #ifdef DL_OTHER
@@ -947,14 +956,14 @@ dlpi_request(q, mp, us)
 	if (size < sizeof(dl_attach_req_t))
 	    goto badprim;
 	if (us->state != DL_UNATTACHED || us->ppa != 0) {
-	    dlpi_error(q, DL_ATTACH_REQ, DL_OUTSTATE, 0);
+	    dlpi_error(q, us, DL_ATTACH_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
 	for (ppa = ppas; ppa != 0; ppa = ppa->nextppa)
 	    if (ppa->ppa_id == d->attach_req.dl_ppa)
 		break;
 	if (ppa == 0) {
-	    dlpi_error(q, DL_ATTACH_REQ, DL_BADPPA, 0);
+	    dlpi_error(q, us, DL_ATTACH_REQ, DL_BADPPA, 0);
 	    break;
 	}
 	us->ppa = ppa;
@@ -965,7 +974,7 @@ dlpi_request(q, mp, us)
 	if (size < sizeof(dl_detach_req_t))
 	    goto badprim;
 	if (us->state != DL_UNBOUND || us->ppa == 0) {
-	    dlpi_error(q, DL_DETACH_REQ, DL_OUTSTATE, 0);
+	    dlpi_error(q, us, DL_DETACH_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
 	qwriter(q, mp, detach_ppa, PERIM_OUTER);
@@ -975,13 +984,16 @@ dlpi_request(q, mp, us)
 	if (size < sizeof(dl_bind_req_t))
 	    goto badprim;
 	if (us->state != DL_UNBOUND || us->ppa == 0) {
-	    dlpi_error(q, DL_BIND_REQ, DL_OUTSTATE, 0);
+	    dlpi_error(q, us, DL_BIND_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
+#if 0
+	/* apparently this test fails (unnecessarily?) on some systems */
 	if (d->bind_req.dl_service_mode != DL_CLDLS) {
-	    dlpi_error(q, DL_BIND_REQ, DL_UNSUPPORTED, 0);
+	    dlpi_error(q, us, DL_BIND_REQ, DL_UNSUPPORTED, 0);
 	    break;
 	}
+#endif
 
 	/* saps must be valid PPP network protocol numbers,
 	   except that we accept ETHERTYPE_IP in place of PPP_IP. */
@@ -990,7 +1002,7 @@ dlpi_request(q, mp, us)
 	if (sap == ETHERTYPE_IP)
 	    sap = PPP_IP;
 	if (sap < 0x21 || sap > 0x3fff || (sap & 0x101) != 1) {
-	    dlpi_error(q, DL_BIND_REQ, DL_BADADDR, 0);
+	    dlpi_error(q, us, DL_BIND_REQ, DL_BADADDR, 0);
 	    break;
 	}
 
@@ -999,7 +1011,7 @@ dlpi_request(q, mp, us)
 	    if (os->sap == sap)
 		break;
 	if (os != 0) {
-	    dlpi_error(q, DL_BIND_REQ, DL_NOADDR, 0);
+	    dlpi_error(q, us, DL_BIND_REQ, DL_NOADDR, 0);
 	    break;
 	}
 
@@ -1025,7 +1037,7 @@ dlpi_request(q, mp, us)
 	if (size < sizeof(dl_unbind_req_t))
 	    goto badprim;
 	if (us->state != DL_IDLE) {
-	    dlpi_error(q, DL_UNBIND_REQ, DL_OUTSTATE, 0);
+	    dlpi_error(q, us, DL_UNBIND_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
 	us->sap = -1;
@@ -1040,7 +1052,7 @@ dlpi_request(q, mp, us)
 	if (size < sizeof(dl_unitdata_req_t))
 	    goto badprim;
 	if (us->state != DL_IDLE) {
-	    dlpi_error(q, DL_UNITDATA_REQ, DL_OUTSTATE, 0);
+	    dlpi_error(q, us, DL_UNITDATA_REQ, DL_OUTSTATE, 0);
 	    break;
 	}
 	if ((ppa = us->ppa) == 0) {
@@ -1132,9 +1144,7 @@ dlpi_request(q, mp, us)
 	mp->b_rptr[1] = PPP_UI;
 	mp->b_rptr[2] = us->sap >> 8;
 	mp->b_rptr[3] = us->sap;
-	if (!pass_packet(ppa, mp, 1)) {
-	    freemsg(mp);
-	} else {
+	if (pass_packet(us, mp, 1)) {
 	    if (!send_data(mp, us))
 		putq(q, mp);
 	}
@@ -1157,18 +1167,18 @@ dlpi_request(q, mp, us)
 #endif
     case DL_CONNECT_REQ:
     case DL_TOKEN_REQ:
-	dlpi_error(q, d->dl_primitive, DL_NOTSUPPORTED, 0);
+	dlpi_error(q, us, d->dl_primitive, DL_NOTSUPPORTED, 0);
 	break;
 
     case DL_CONNECT_RES:
     case DL_DISCONNECT_REQ:
     case DL_RESET_REQ:
     case DL_RESET_RES:
-	dlpi_error(q, d->dl_primitive, DL_OUTSTATE, 0);
+	dlpi_error(q, us, d->dl_primitive, DL_OUTSTATE, 0);
 	break;
 
     case DL_UDQOS_REQ:
-	dlpi_error(q, d->dl_primitive, DL_BADQOSTYPE, 0);
+	dlpi_error(q, us, d->dl_primitive, DL_BADQOSTYPE, 0);
 	break;
 
 #if DL_CURRENT_VERSION >= 2
@@ -1181,20 +1191,23 @@ dlpi_request(q, mp, us)
 	cmn_err(CE_CONT, "ppp: unknown dlpi prim 0x%x\n", d->dl_primitive);
 	/* fall through */
     badprim:
-	dlpi_error(q, d->dl_primitive, DL_BADPRIM, 0);
+	dlpi_error(q, us, d->dl_primitive, DL_BADPRIM, 0);
 	break;
     }
     freemsg(mp);
 }
 
 static void
-dlpi_error(q, prim, err, uerr)
+dlpi_error(q, us, prim, err, uerr)
     queue_t *q;
+    upperstr_t *us;
     int prim, err, uerr;
 {
     mblk_t *reply;
     dl_error_ack_t *errp;
 
+    if (us->flags & US_DBGLOG)
+        DPRINT3("ppp/%d: dlpi error, prim=%x, err=%x\n", us->mn, prim, err);
     reply = allocb(sizeof(dl_error_ack_t), BPRI_HI);
     if (reply == 0)
 	return;			/* XXX should do bufcall */
@@ -1229,20 +1242,44 @@ dlpi_ok(q, prim)
 #endif /* NO_DLPI */
 
 static int
-pass_packet(ppa, mp, outbound)
-    upperstr_t *ppa;
+pass_packet(us, mp, outbound)
+    upperstr_t *us;
     mblk_t *mp;
     int outbound;
 {
+    int pass;
+    upperstr_t *ppa;
+
+    if (us->ppa == 0) {
+	freemsg(mp);
+	return 0;
+    }
+
+#ifdef FILTER_PACKETS
+    pass = ip_hard_filter(us, mp, outbound);
+#else
     /*
      * Here is where we might, in future, decide whether to pass
      * or drop the packet, and whether it counts as link activity.
      */
-    if (outbound)
-	ppa->last_sent = time;
-    else
-	ppa->last_recv = time;
-    return 1;
+    pass = 1;
+#endif /* FILTER_PACKETS */
+
+    if (pass < 0) {
+	/* pass only if link already up, and don't update time */
+	if (us->ppa->lowerq == 0) {
+	    freemsg(mp);
+	    return 0;
+	}
+	pass = 1;
+    } else if (pass) {
+	if (outbound)
+	    ppa->last_sent = time;
+	else
+	    ppa->last_recv = time;
+    }
+
+    return pass;
 }
 
 static int
@@ -1319,7 +1356,7 @@ new_ppa(q, mp)
     us->flags |= US_CONTROL;
     us->npmode = NPMODE_PASS;
 
-    us->mtu = PPP_MRU;
+    us->mtu = PPP_MTU;
     us->mru = PPP_MRU;
 
 #ifdef SOL2
@@ -1643,16 +1680,14 @@ ppplrput(q, mp)
 #ifdef INCR_IPACKETS
 	    INCR_IPACKETS(ppa);
 #endif
-	    if (!pass_packet(ppa, mp, 0)) {
-		freemsg(mp);
-		break;
-	    }
 	    proto = PPP_PROTOCOL(mp->b_rptr);
 	    if (proto < 0x8000 && (us = find_dest(ppa, proto)) != 0) {
 		/*
 		 * A data packet for some network protocol.
 		 * Queue it on the upper stream for that protocol.
 		 */
+		if (!pass_packet(us, mp, 0))
+		    break;
 		if (canput(us->q))
 		    putq(us->q, mp);
 		else
@@ -1775,3 +1810,113 @@ debug_dump(q, mp)
 	}
     }
 }
+
+#ifdef FILTER_PACKETS
+#include <netinet/in_systm.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+#include <netinet/tcp.h>
+
+#define MAX_IPHDR    128     /* max TCP/IP header size */
+
+
+/* The following table contains a hard-coded list of protocol/port pairs.
+ * Any matching packets are either discarded unconditionally, or, 
+ * if ok_if_link_up is non-zero when a connection does not currently exist
+ * (i.e., they go through if the connection is present, but never initiate
+ * a dial-out).
+ * This idea came from a post by dm@garage.uun.org (David Mazieres)
+ */
+static struct pktfilt_tab { 
+	int proto; 
+	u_short port; 
+	u_short ok_if_link_up; 
+} pktfilt_tab[] = {
+	{ IPPROTO_UDP,	520,	1 },	/* RIP, ok to pass if link is up */
+	{ IPPROTO_UDP,	123,	1 },	/* NTP, don't keep up the link for it */
+	{ -1, 		0,	0 }	/* terminator entry has port == -1 */
+};
+
+
+static int
+ip_hard_filter(us, mp, outbound)
+    upperstr_t *us;
+    mblk_t *mp;
+    int outbound;
+{
+    struct ip *ip;
+    struct pktfilt_tab *pft;
+    mblk_t *temp_mp;
+    int proto;
+    int len, hlen;
+
+
+    /* Note, the PPP header has already been pulled up in all cases */
+    proto = PPP_PROTOCOL(mp->b_rptr);
+    if (us->flags & US_DBGLOG)
+        DPRINT3("ppp/%d: filter, proto=0x%x, out=%d\n", us->mn, proto, outbound);
+
+    switch (proto)
+    {
+    case PPP_IP:
+	if ((mp->b_wptr - mp->b_rptr) == PPP_HDRLEN) {
+	    temp_mp = mp->b_cont;
+    	    len = msgdsize(temp_mp);
+	    hlen = (len < MAX_IPHDR) ? len : MAX_IPHDR;
+	    PULLUP(temp_mp, hlen);
+	    if (temp_mp == 0) {
+		DPRINT2("ppp/%d: filter, pullup next failed, len=%d\n", 
+			us->mn, hlen);
+		mp->b_cont = 0;		/* PULLUP() freed the rest */
+	        freemsg(mp);
+	        return 0;
+	    }
+	    ip = (struct ip *)mp->b_cont->b_rptr;
+	}
+	else {
+	    len = msgdsize(mp);
+	    hlen = (len < (PPP_HDRLEN+MAX_IPHDR)) ? len : (PPP_HDRLEN+MAX_IPHDR);
+	    PULLUP(mp, hlen);
+	    if (mp == 0) {
+		DPRINT2("ppp/%d: filter, pullup failed, len=%d\n", 
+			us->mn, hlen);
+	        return 0;
+	    }
+	    ip = (struct ip *)(mp->b_rptr + PPP_HDRLEN);
+	}
+
+	/* For IP traffic, certain packets (e.g., RIP) may be either
+	 *   1.  ignored - dropped completely
+	 *   2.  will not initiate a connection, but
+	 *       will be passed if a connection is currently up.
+	 */
+	for (pft=pktfilt_tab; pft->proto != -1; pft++) {
+	    if (ip->ip_p == pft->proto) {
+		switch(pft->proto) {
+		case IPPROTO_UDP:
+		    if (((struct udphdr *) &((int *)ip)[ip->ip_hl])->uh_dport
+				== htons(pft->port)) goto endfor;
+		    break;
+		case IPPROTO_TCP:
+		    if (((struct tcphdr *) &((int *)ip)[ip->ip_hl])->th_dport
+				== htons(pft->port)) goto endfor;
+		    break;
+		}	
+	    }
+	}
+	endfor:
+	if (pft->proto != -1) {
+	    if (us->flags & US_DBGLOG)
+		DPRINT3("ppp/%d: found IP pkt, proto=0x%x (%d)\n", 
+				us->mn, pft->proto, pft->port);
+	    /* Discard if not connected, or if not pass_with_link_up */
+	    /* else, if link is up let go by, but don't update time */
+	    return pft->ok_if_link_up? -1: 0;
+	}
+        break;
+    } /* end switch (proto) */
+
+    return 1;
+}
+#endif /* FILTER_PACKETS */
+
