@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.100 2000/07/06 11:17:02 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.101 2000/12/27 23:26:41 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -305,7 +305,7 @@ main(argc, argv)
     }
 
     if (!ppp_available()) {
-	option_error(no_ppp_msg);
+	option_error("%s", no_ppp_msg);
 	exit(EXIT_NO_KERNEL_SUPPORT);
     }
 
