@@ -1,6 +1,6 @@
 #
 # pppstats makefile
-# $Id: Makefile.sun,v 1.3 1994/04/21 03:10:50 paulus Exp $
+# $Id: Makefile.sun,v 1.4 1994/09/19 04:15:17 paulus Exp $
 #
 
 PPPSTATSRCS = pppstats.c
@@ -8,15 +8,15 @@ PPPSTATOBJS = pppstats.o
 
 #CC = gcc
 COPTS = -O
-COMPILE_FLAGS = -DSTREAMS -DKVMLIB
-LIBS = -lkvm
+COMPILE_FLAGS = -DSTREAMS
+LIBS =
 
 CFLAGS = -I.. $(COPTS) $(COMPILE_FLAGS)
 
 all: pppstats
 
 install:
-	install -c -g kmem pppstats $(BINDIR)/pppstats
+	install -c pppstats $(BINDIR)/pppstats
 
 pppstats: $(PPPSTATSRCS)
 	$(CC) $(CFLAGS) -o pppstats pppstats.c $(LIBS)
