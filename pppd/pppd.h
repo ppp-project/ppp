@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.64 2002/01/22 16:02:58 dfs Exp $
+ * $Id: pppd.h,v 1.65 2002/02/12 20:07:09 dfs Exp $
  */
 
 /*
@@ -627,6 +627,10 @@ extern void (*ip_choose_hook) __P((u_int32_t *));
 
 extern int (*chap_check_hook) __P((void));
 extern int (*chap_passwd_hook) __P((char *user, char *passwd));
+
+/* Let a plugin snoop sent and received packets.  Useful for L2TP */
+extern void (*snoop_recv_hook) __P((unsigned char *p, int len));
+extern void (*snoop_send_hook) __P((unsigned char *p, int len));
 
 /*
  * Inline versions of get/put char/short/long.

@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.43 2001/05/23 03:39:14 paulus Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.44 2002/02/12 20:07:10 dfs Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1298,6 +1298,7 @@ output(unit, p, len)
     struct pollfd pfd;
 
     dump_packet("sent", p, len);
+    if (snoop_send_hook) snoop_send_hook(p, len);
 
     data.len = len;
     data.buf = (caddr_t) p;

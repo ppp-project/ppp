@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.111 2002/01/22 16:02:58 dfs Exp $"
+#define RCSID	"$Id: main.c,v 1.112 2002/02/12 20:07:09 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -108,6 +108,8 @@ char db_key[32];
 
 int (*holdoff_hook) __P((void)) = NULL;
 int (*new_phase_hook) __P((int)) = NULL;
+void (*snoop_recv_hook) __P((unsigned char *p, int len)) = NULL;
+void (*snoop_send_hook) __P((unsigned char *p, int len)) = NULL;
 
 static int conn_running;	/* we have a [dis]connector running */
 static int devfd;		/* fd of underlying device */
@@ -968,6 +970,7 @@ get_input()
     }
 
     dump_packet("rcvd", p, len);
+    if (snoop_recv_hook) snoop_recv_hook(p, len);
 
     p += 2;				/* Skip address and control */
     GETSHORT(protocol, p);

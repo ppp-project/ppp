@@ -211,6 +211,13 @@ address.  If the hook returns 1, the address is accepted.  If it returns
 in the normal away against the appropriate options and secrets files.
 
 
+void (*snoop_recv_hook)(unsigned char *p, int len)
+void (*snoop_send_hook)(unsigned char *p, int len)
+
+These hooks are called whenever pppd receives or sends a packet.  The
+packet is in p; its length is len.  This allows plugins to "snoop in"
+on the pppd conversation.  The hooks may prove useful in implmenting
+L2TP.
 
 A plugin registers itself with a notifier by declaring a procedure of
 the form:
@@ -258,4 +265,4 @@ Here is a list of the currently-implemented notifiers in pppd.
 
 
 
-## $Id: PLUGINS,v 1.4 2002/01/22 16:02:55 dfs Exp $ ##
+## $Id: PLUGINS,v 1.5 2002/02/12 20:07:09 dfs Exp $ ##

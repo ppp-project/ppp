@@ -127,7 +127,7 @@ static int master_fd = -1;
 #ifdef INET6
 static int sock6_fd = -1;
 #endif /* INET6 */
-static int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
+int ppp_dev_fd = -1;	/* fd for /dev/ppp (new style driver) */
 static int chindex;		/* channel index (new style driver) */
 
 static fd_set in_fds;		/* set of fds that wait_input waits for */
@@ -946,6 +946,7 @@ void output (int unit, unsigned char *p, int len)
     int proto;
 
     dump_packet("sent", p, len);
+    if (snoop_send_hook) snoop_send_hook(p, len);
 
     if (len < PPP_HDRLEN)
 	return;
@@ -1511,6 +1512,8 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     memset (&rt, '\0', sizeof (rt));
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
+
+    rt.rt_dev = ifname;
 
     if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
