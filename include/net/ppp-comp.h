@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h,v 1.1 1994/08/31 23:55:58 paulus Exp $
+ * $Id: ppp-comp.h,v 1.2 1994/09/16 01:57:34 paulus Exp $
  */
 
 /*
@@ -56,11 +56,22 @@ struct compressor {
 	/* Reset a decompressor */
 	void	(*decomp_reset) __P((void *state));
 	/* Decompress a packet. */
-	PACKET	*(*decompress) __P((void *state, PACKET *mp,
-					 int hdroff));
+	int	(*decompress) __P((void *state, PACKET *mp, PACKET **dmpp));
 	/* Update state for an incompressible packet received */
 	void	(*incomp) __P((void *state, PACKET *mp));
 };
+
+/*
+ * Return values for decompress routine.
+ * We need to make these distinctions so that we can disable certain
+ * useful functionality, namely sending a CCP reset-request as a result
+ * of an error detected after decompression.  This is to avoid infringing
+ * a patent held by Motorola.
+ * Don't you just lurve software patents.
+ */
+#define DECOMP_OK		0	/* everything went OK */
+#define DECOMP_ERROR		1	/* error detected before decomp. */
+#define DECOMP_FATALERROR	2	/* error detected after decomp. */
 
 /*
  * CCP codes.
