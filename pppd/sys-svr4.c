@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.18 1998/11/07 06:59:31 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.19 1999/01/20 00:01:53 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -94,7 +94,7 @@ static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static int translate_speed __P((int));
 static int baud_rate_of __P((int));
 static int get_ether_addr __P((u_int32_t, struct sockaddr *));
-static int get_hw_addr __P((char *, struct sockaddr *));
+static int get_hw_addr __P((char *, u_int32_t, struct sockaddr *));
 static int dlpi_attach __P((int, int));
 static int dlpi_info_req __P((int));
 static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
@@ -748,7 +748,7 @@ read_packet(buf)
 	flags = 0;
 	len = getmsg(pppfd, &ctrl, &data, &flags);
 	if (len < 0) {
-	    if (errno = EAGAIN || errno == EINTR)
+	    if (errno == EAGAIN || errno == EINTR)
 		return -1;
 	    syslog(LOG_ERR, "Error reading packet: %m");
 	    die(1);
@@ -1309,7 +1309,7 @@ get_ether_addr(ipaddr, hwaddr)
     }
 
     syslog(LOG_INFO, "found interface %s for proxy ARP", ifr->ifr_name);
-    if (!get_hw_addr(ifr->ifr_name, hwaddr)) {
+    if (!get_hw_addr(ifr->ifr_name, ina, hwaddr)) {
 	syslog(LOG_ERR, "Couldn't get hardware address for %s", ifr->ifr_name);
 	free(ifc.ifc_buf);
 	return 0;
@@ -1323,10 +1323,30 @@ get_ether_addr(ipaddr, hwaddr)
  * get_hw_addr - obtain the hardware address for a named interface.
  */
 static int
-get_hw_addr(name, hwaddr)
+get_hw_addr(name, ina, hwaddr)
     char *name;
+    u_int32_t ina;
     struct sockaddr *hwaddr;
 {
+#if 1
+    /* New way - get the address by doing an arp request. */
+    int s;
+    struct arpreq req;
+
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0)
+	return 0;
+    memset(&req, 0, sizeof(req));
+    req.arp_pa.sin_family = AF_INET;
+    INET_ADDR(req.arp_pa) = ina;
+    if (ioctl(s, SIOCGARP, &req) < 0) {
+	syslog(LOG_ERR, "Couldn't get ARP entry for %s: %m", inet_itoa(ina));
+	return 0;
+    }
+    *hwaddr = req.arp_ha;
+    hwaddr->sa_family = AF_UNSPEC;
+
+#else /* 0 */
     char *p, *q;
     int unit, iffd, adrlen;
     unsigned char *adrp;
@@ -1373,6 +1393,7 @@ get_hw_addr(name, hwaddr)
 #endif
     hwaddr->sa_family = AF_UNSPEC;
     memcpy(hwaddr->sa_data, adrp, adrlen);
+#endif /* 0 */
 
     return 1;
 }
