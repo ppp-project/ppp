@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.21 1995/06/12 12:02:20 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.22 1995/06/30 01:52:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1132,7 +1132,11 @@ static int
 setdomain(argv)
     char **argv;
 {
-    strncat(hostname, *argv, MAXNAMELEN - strlen(hostname));
+    gethostname(hostname, MAXNAMELEN);
+    if (*argv != 0) {
+	strncat(hostname, ".", MAXNAMELEN - strlen(hostname));
+	strncat(hostname, *argv, MAXNAMELEN - strlen(hostname));
+    }
     hostname[MAXNAMELEN-1] = 0;
     return (1);
 }
