@@ -78,7 +78,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chat.c,v 1.19 1998/03/24 23:57:48 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.20 1999/03/31 12:28:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -606,6 +606,11 @@ void break_sequence()
 void terminate(status)
 int status;
 {
+    static int terminating = 0;
+
+    if (terminating)
+	exit(status);
+    terminating = 1;
     echo_stderr(-1);
     if (report_file != (char *) 0 && report_fp != (FILE *) NULL) {
 /*
