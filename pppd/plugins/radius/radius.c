@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.16 2002/10/01 08:36:49 fcusack Exp $";
+"$Id: radius.c,v 1.17 2002/10/01 09:27:50 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -428,7 +428,11 @@ radius_chap_auth(char *user,
 	break;
     }
 #endif
+    }
 
+    if (*remote_number) {
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
+		       VENDOR_NONE);
     }
 
     /* Add user specified vp's */
