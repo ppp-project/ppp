@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.9 1995/05/19 03:17:09 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.10 1995/06/06 01:52:23 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -109,6 +109,7 @@ ccp_init(unit)
     memset(&ccp_allowoptions[unit], 0, sizeof(ccp_options));
     memset(&ccp_hisoptions[unit],   0, sizeof(ccp_options));
 
+    ccp_wantoptions[0].bsd_compress = 1;
     ccp_wantoptions[0].bsd_bits = 12;	/* default value */
 
     ccp_allowoptions[0].bsd_compress = 1;

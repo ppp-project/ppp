@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: magic.c,v 1.4 1995/04/24 05:57:01 paulus Exp $";
+static char rcsid[] = "$Id: magic.c,v 1.5 1995/06/06 01:52:25 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -39,14 +39,17 @@ extern void srand48 __P((long));
  * magic_init - Initialize the magic number generator.
  *
  * Attempts to compute a random number seed which will not repeat.
- * The current method uses the current hostid and current time, currently.
+ * The current method uses the current hostid, current process ID
+ * and current time, currently.
  */
 void
 magic_init()
 {
     long seed;
+    struct timeval t;
 
-    seed = gethostid() ^ time(NULL);
+    gettimeofday(&t, NULL);
+    seed = gethostid() ^ t.tv_sec ^ t.tv_usec ^ getpid();
     srand48(seed);
 }
 
