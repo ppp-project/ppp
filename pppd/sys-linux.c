@@ -73,7 +73,6 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
-#include "patchlevel.h"
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
@@ -563,7 +562,6 @@ static int make_ppp_unit()
 void cfg_bundle(int mrru, int mtru, int rssn, int tssn)
 {
 	int flags;
-	struct ifreq ifr;
 
 	if (!new_style_driver)
 		return;
@@ -573,16 +571,8 @@ void cfg_bundle(int mrru, int mtru, int rssn, int tssn)
 		error("Couldn't set MRRU: %m");
 	flags = get_flags(ppp_dev_fd);
 	flags &= ~(SC_MP_SHORTSEQ | SC_MP_XSHORTSEQ);
-	flags |= (rssn? SC_MP_SHORTSEQ: 0) | (tssn? SC_MP_XSHORTSEQ: 0);
-
-	if (mtru > 0 && mtru != link_mtu) {
-		memset(&ifr, 0, sizeof(ifr));
-		slprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "ppp%d", ifunit);
-		ifr.ifr_mtu = mtru;
-		if (ioctl(sock_fd, SIOCSIFMTU, &ifr) < 0)
-			error("Couldn't set interface MTU: %m");
-		flags |= SC_MULTILINK;
-	}
+	flags |= (rssn? SC_MP_SHORTSEQ: 0) | (tssn? SC_MP_XSHORTSEQ: 0)
+		| (mrru? SC_MULTILINK: 0);
 
 	set_flags(ppp_dev_fd, flags);
 
@@ -608,7 +598,7 @@ void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
 	if (make_ppp_unit() < 0)
 		die(1);
 
-	/* set the mrru, mtu and flags */
+	/* set the mrru and flags */
 	cfg_bundle(mrru, mtru, rssn, tssn);
 }
 
@@ -1044,31 +1034,40 @@ get_loop_output(void)
     return rv;
 }
 
-/********************************************************************
- *
- * ppp_send_config - configure the transmit characteristics of
- * the ppp interface.
- */
-
-void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
-{
-    u_int x;
-    struct ifreq ifr;
-  
-    SYSDEBUG ((LOG_DEBUG, "send_config: mtu = %d\n", mtu));
 /*
- * Set the MTU and other parameters for the ppp device
+ * netif_set_mtu - set the MTU on the PPP network interface.
  */
+void
+netif_set_mtu(int unit, int mtu)
+{
+    struct ifreq ifr;
+
+    SYSDEBUG ((LOG_DEBUG, "netif_set_mtu: mtu = %d\n", mtu));
+
     memset (&ifr, '\0', sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
     ifr.ifr_mtu = mtu;
 	
     if (ifunit >= 0 && ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
 	fatal("ioctl(SIOCSIFMTU): %m(%d)", errno);
-    link_mtu = mtu;
+}
 
+/********************************************************************
+ *
+ * tty_send_config - configure the transmit characteristics of
+ * the ppp interface.
+ */
+
+void tty_send_config (int mtu,u_int32_t asyncmap,int pcomp,int accomp)
+{
+    u_int x;
+
+/*
+ * Set the asyncmap and other parameters for the ppp device
+ */
     if (!still_ppp())
 	return;
+    link_mtu = mtu;
     SYSDEBUG ((LOG_DEBUG, "send_config: asyncmap = %lx\n", asyncmap));
     if (ioctl(ppp_fd, PPPIOCSASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	if (!ok_error(errno))
@@ -1085,10 +1084,10 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
 
 /********************************************************************
  *
- * ppp_set_xaccm - set the extended transmit ACCM for the interface.
+ * tty_set_xaccm - set the extended transmit ACCM for the interface.
  */
 
-void ppp_set_xaccm (int unit, ext_accm accm)
+void tty_set_xaccm (ext_accm accm)
 {
     SYSDEBUG ((LOG_DEBUG, "set_xaccm: %08lx %08lx %08lx %08lx\n",
 		accm[0], accm[1], accm[2], accm[3]));
@@ -1103,11 +1102,11 @@ void ppp_set_xaccm (int unit, ext_accm accm)
 
 /********************************************************************
  *
- * ppp_recv_config - configure the receive-side characteristics of
+ * tty_recv_config - configure the receive-side characteristics of
  * the ppp interface.
  */
 
-void ppp_recv_config (int unit,int mru,u_int32_t asyncmap,int pcomp,int accomp)
+void tty_recv_config (int mru,u_int32_t asyncmap,int pcomp,int accomp)
 {
     SYSDEBUG ((LOG_DEBUG, "recv_config: mru = %d\n", mru));
 /*

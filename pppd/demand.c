@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: demand.c,v 1.14 2000/12/27 23:27:29 paulus Exp $"
+#define RCSID	"$Id: demand.c,v 1.15 2001/03/08 05:14:26 paulus Exp $"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,6 +85,7 @@ demand_conf()
     flush_flag = 0;
     fcs = PPP_INITFCS;
 
+    netif_set_mtu(0, MIN(lcp_allowoptions[0].mru, PPP_MRU));
     ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
     ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0);
 

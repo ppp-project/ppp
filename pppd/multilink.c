@@ -86,8 +86,9 @@ mp_join_bundle()
 {
 	lcp_options *go = &lcp_gotoptions[0];
 	lcp_options *ho = &lcp_hisoptions[0];
+	lcp_options *ao = &lcp_allowoptions[0];
 	int unit, pppd_pid;
-	int l;
+	int l, mtu;
 	char *p;
 	TDB_DATA key, pid, rec;
 
@@ -95,12 +96,17 @@ mp_join_bundle()
 		/* not doing multilink */
 		if (go->neg_mrru)
 			notice("oops, multilink negotiated only for receive");
+		mtu = ho->neg_mru? ho->mru: PPP_MRU;
+		if (mtu > ao->mru)
+			mtu = ao->mru;
 		if (demand) {
 			/* already have a bundle */
 			cfg_bundle(0, 0, 0, 0);
+			netif_set_mtu(0, mtu);
 			return 0;
 		}
 		make_new_bundle(0, 0, 0, 0);
+		netif_set_mtu(0, mtu);
 		set_ifunit(1);
 		return 0;
 	}
@@ -134,8 +140,10 @@ mp_join_bundle()
 	 * For demand mode, we only need to configure the bundle
 	 * and attach the link.
 	 */
+	mtu = MIN(ho->mrru, ao->mru);
 	if (demand) {
 		cfg_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
+		netif_set_mtu(0, mtu);
 		script_setenv("BUNDLE", bundle_id + 7, 1);
 		return 0;
 	}
@@ -178,6 +186,7 @@ mp_join_bundle()
 
 	/* we have to make a new bundle */
 	make_new_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
+	netif_set_mtu(0, mtu);
 	set_ifunit(1);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
 	tdb_writeunlock(pppdb);

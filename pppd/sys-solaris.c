@@ -42,7 +42,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.2 2000/04/21 01:27:57 masputra Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.3 2001/03/08 05:14:26 paulus Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1460,43 +1460,18 @@ get_loop_output()
 }
 
 /*
- * ppp_send_config - configure the transmit characteristics of
- * the ppp interface.
+ * netif_set_mtu - set the MTU on the PPP network interface.
  */
 void
-ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
+netif_set_mtu(unit, mtu)
     int unit, mtu;
-    u_int32_t asyncmap;
-    int pcomp, accomp;
 {
-    int cf[2];
     struct ifreq ifr;
 #if defined(INET6) && defined(SOL2)
     struct lifreq lifr;
     int	fd;
 #endif /* defined(INET6) && defined(SOL2) */
 
-    link_mtu = mtu;
-    if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
-	if (hungup && errno == ENXIO)
-	    return;
-	error("Couldn't set MTU: %m");
-    }
-    if (fdmuxid >= 0) {
-	if (!sync_serial) {
-	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
-		error("Couldn't set transmit ACCM: %m");
-	    }
-	}
-	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
-	cf[1] = COMP_PROT | COMP_AC;
-	if (any_compressions() &&
-	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
-	    error("Couldn't set prot/AC compression: %m");
-	}
-    }
-
-    /* set the MTU for IP as well */
     memset(&ifr, 0, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     ifr.ifr_metric = link_mtu;
@@ -1521,11 +1496,43 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 }
 
 /*
+ * tty_send_config - configure the transmit characteristics of
+ * the ppp interface.
+ */
+void
+tty_send_config(mtu, asyncmap, pcomp, accomp)
+    int mtu;
+    u_int32_t asyncmap;
+    int pcomp, accomp;
+{
+    int cf[2];
+
+    link_mtu = mtu;
+    if (strioctl(pppfd, PPPIO_MTU, &mtu, sizeof(mtu), 0) < 0) {
+	if (hungup && errno == ENXIO)
+	    return;
+	error("Couldn't set MTU: %m");
+    }
+    if (fdmuxid >= 0) {
+	if (!sync_serial) {
+	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0) {
+		error("Couldn't set transmit ACCM: %m");
+	    }
+	}
+	cf[0] = (pcomp? COMP_PROT: 0) + (accomp? COMP_AC: 0);
+	cf[1] = COMP_PROT | COMP_AC;
+	if (any_compressions() &&
+	    strioctl(pppfd, PPPIO_CFLAGS, cf, sizeof(cf), sizeof(int)) < 0) {
+	    error("Couldn't set prot/AC compression: %m");
+	}
+    }
+}
+
+/*
  * ppp_set_xaccm - set the extended transmit ACCM for the interface.
  */
 void
-ppp_set_xaccm(unit, accm)
-    int unit;
+tty_set_xaccm(accm)
     ext_accm accm;
 {
     if (sync_serial)
@@ -1543,8 +1550,8 @@ ppp_set_xaccm(unit, accm)
  * the ppp interface.
  */
 void
-ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
-    int unit, mru;
+tty_recv_config(mru, asyncmap, pcomp, accomp)
+    int mru;
     u_int32_t asyncmap;
     int pcomp, accomp;
 {
