@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.18 1995/05/01 00:23:53 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.19 1995/05/19 03:27:03 paulus Exp $";
 #endif
 
 /*
@@ -350,10 +350,8 @@ read_packet(buf)
     int len;
 
     if ((len = read(fd, buf, PPP_MTU + PPP_HDRLEN)) < 0) {
-	if (errno == EWOULDBLOCK || errno == EINTR) {
-	    MAINDEBUG((LOG_DEBUG, "read(fd): %m"));
+	if (errno == EWOULDBLOCK || errno == EINTR)
 	    return -1;
-	}
 	syslog(LOG_ERR, "read(fd): %m");
 	die(1);
     }
