@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.19 1995/12/11 05:17:42 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.20 1995/12/18 03:43:04 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -44,6 +44,7 @@ static char rcsid[] = "$Id: auth.c,v 1.19 1995/12/11 05:17:42 paulus Exp $";
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 
 #include <netdb.h>
 #include <netinet/in.h>
@@ -61,9 +62,6 @@ static char rcsid[] = "$Id: auth.c,v 1.19 1995/12/11 05:17:42 paulus Exp $";
 #include "fsm.h"
 #include "lcp.h"
 #include "upap.h"
-#include "chap.h"
-#include "ipcp.h"
-#include "ccp.h"
 #include "pathnames.h"
 
 #if defined(sun) && defined(sparc)
@@ -144,8 +142,15 @@ void
 link_down(unit)
     int unit;
 {
-    ipcp_close(0);
-    ccp_close(0);
+    int i;
+    struct protent *protp;
+
+    for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+        if (protp->protocol != PPP_LCP && protp->lowerdown != NULL)
+	    (*protp->lowerdown)(unit);
+        if (protp->protocol < 0xC000 && protp->close != NULL)
+	    (*protp->close)(unit);
+    }
     phase = PHASE_TERMINATE;
 }
 
@@ -161,6 +166,15 @@ link_established(unit)
     lcp_options *wo = &lcp_wantoptions[unit];
     lcp_options *go = &lcp_gotoptions[unit];
     lcp_options *ho = &lcp_hisoptions[unit];
+    int i;
+    struct protent *protp;
+
+    /*
+     * Tell higher-level protocols that LCP is up.
+     */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+        if (protp->protocol != PPP_LCP && protp->lowerup != NULL)
+	    (*protp->lowerup)(unit);
 
     if (auth_required && !(go->neg_chap || go->neg_upap)) {
 	/*
@@ -170,7 +184,7 @@ link_established(unit)
 	 */
 	if (!wo->neg_upap || !null_login(unit)) {
 	    syslog(LOG_WARNING, "peer refused to authenticate");
-	    lcp_close(unit);
+	    lcp_close(unit, "peer refused to authenticate");
 	    phase = PHASE_TERMINATE;
 	    return;
 	}
@@ -205,9 +219,13 @@ static void
 network_phase(unit)
     int unit;
 {
+    int i;
+    struct protent *protp;
+
     phase = PHASE_NETWORK;
-    ipcp_open(unit);
-    ccp_open(unit);
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+        if (protp->protocol < 0xC000 && protp->open != NULL)
+	    (*protp->open)(unit);
 }
 
 /*
@@ -220,7 +238,7 @@ auth_peer_fail(unit, protocol)
     /*
      * Authentication failure: take the link down
      */
-    lcp_close(unit);
+    lcp_close(unit, "Authentication failed");
     phase = PHASE_TERMINATE;
 }
 
@@ -250,11 +268,8 @@ auth_peer_success(unit, protocol)
      * If there is no more authentication still to be done,
      * proceed to the network phase.
      */
-    if ((auth_pending[unit] &= ~bit) == 0) {
-	phase = PHASE_NETWORK;
-	ipcp_open(unit);
-	ccp_open(unit);
-    }
+    if ((auth_pending[unit] &= ~bit) == 0)
+        network_phase(unit);
 }
 
 /*
@@ -719,8 +734,11 @@ auth_ip_addr(unit, addr)
     int unit;
     u_int32_t addr;
 {
-    u_int32_t a;
+    u_int32_t a, mask;
+    int accept;
+    char *ptr_word, *ptr_mask;
     struct hostent *hp;
+    struct netent *np;
     struct wordlist *addrs;
 
     /* don't allow loopback or multicast address */
@@ -732,18 +750,54 @@ auth_ip_addr(unit, addr)
 
     for (; addrs != NULL; addrs = addrs->next) {
 	/* "-" means no addresses authorized */
-	if (strcmp(addrs->word, "-") == 0)
+	ptr_word = addrs->word;
+	if (strcmp(ptr_word, "-") == 0)
 	    break;
-	if ((a = inet_addr(addrs->word)) == -1) {
-	    if ((hp = gethostbyname(addrs->word)) == NULL) {
-		syslog(LOG_WARNING, "unknown host %s in auth. address list",
-		       addrs->word);
-		continue;
-	    } else
-		a = *(u_int32_t *)hp->h_addr;
+
+	accept = 1;
+	if (*ptr_word == '!') {
+	    accept = 0;
+	    ++ptr_word;
 	}
-	if (addr == a)
-	    return 1;
+
+	mask = ~ (u_int32_t) 0;
+	ptr_mask = strchr (ptr_word, '/');
+	if (ptr_mask != NULL) {
+	    int bit_count;
+
+	    bit_count = (int) strtol (ptr_mask+1, (char **) 0, 10);
+	    if (bit_count <= 0 || bit_count > 32) {
+		syslog (LOG_WARNING,
+			"invalid address length %s in auth. address list",
+			ptr_mask);
+		continue;
+	    }
+	    *ptr_mask = '\0';
+	    mask <<= 32 - bit_count;
+	}
+
+	hp = gethostbyname(ptr_word);
+	if (hp != NULL && hp->h_addrtype == AF_INET) {
+	    a    = *(u_int32_t *)hp->h_addr;
+	    mask = ~ (u_int32_t) 0;	/* are we sure we want this? */
+	} else {
+	    np = getnetbyname (ptr_word);
+	    if (np != NULL && np->n_addrtype == AF_INET)
+		a = htonl (*(u_int32_t *)np->n_net);
+	    else
+		a = inet_addr (ptr_word);
+	}
+
+	if (ptr_mask != NULL)
+	    *ptr_mask = '/';
+
+	if (a == -1L)
+	    syslog (LOG_WARNING,
+		    "unknown host %s in auth. address list",
+		    addrs->word);
+	else
+	    if (((addr ^ a) & mask) == 0)
+		return accept;
     }
     return 0;			/* not in list => can't have it */
 }
