@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.16 1997/04/30 05:59:25 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.17 1998/03/25 02:19:31 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -1553,10 +1553,10 @@ logwtmp(line, name, host)
 }
 
 /*
- * gethostid - return the serial number of this machine.
+ * get_host_seed - return the serial number of this machine.
  */
 int
-gethostid()
+get_host_seed()
 {
     char buf[32];
 

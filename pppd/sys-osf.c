@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.12 1997/04/30 05:58:44 paulus Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.13 1998/03/25 02:19:27 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1515,6 +1515,15 @@ strioctl(fd, cmd, ptr, ilen, olen)
 	syslog(LOG_DEBUG, "strioctl: expected %d bytes, got %d for cmd %x\n",
 	       olen, str.ic_len, cmd);
     return 0;
+}
+
+/*
+ * Use the hostid as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    return gethostid();
 }
 
 /*

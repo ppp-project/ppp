@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.29 1997/11/27 06:10:04 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.30 1998/03/25 02:19:26 paulus Exp $";
 /*	$NetBSD: sys-bsd.c,v 1.1.1.3 1997/09/26 18:53:04 christos Exp $	*/
 
 /*
@@ -1387,6 +1387,15 @@ GetMask(addr)
     }
 
     return mask;
+}
+
+/*
+ * Use the hostid as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    return gethostid();
 }
 
 /*

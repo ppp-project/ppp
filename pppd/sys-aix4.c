@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.12 1997/04/30 05:57:19 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.13 1998/03/25 02:19:23 paulus Exp $";
 #endif
 
 /*
@@ -49,7 +49,6 @@ static char rcsid[] = "$Id: sys-aix4.c,v 1.12 1997/04/30 05:57:19 paulus Exp $";
 
 #include <net/if.h>
 #include <net/ppp_defs.h>
-#include <net/ppp_str.h>
 #include <net/route.h>
 #include <net/if_arp.h>
 #include <netinet/in.h>
@@ -1275,6 +1274,15 @@ logwtmp(line, name, host)
 	    (void)ftruncate(fd, buf.st_size);
     }
     close(fd);
+}
+
+/*
+ * Use the hostid as part of the random number seed.
+ */
+int
+get_host_seed()
+{
+    return gethostid();
 }
 
 /*
