@@ -86,6 +86,7 @@ static int has_proxy_arp       = 0;
 static int driver_version      = 0;
 static int driver_modification = 0;
 static int driver_patch        = 0;
+static int driver_is_old       = 0;
 static int restore_term        = 0;	/* 1 => we've munged the terminal */
 static struct termios inittermios;	/* Initial TTY termios */
 
@@ -1258,13 +1259,13 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 
     if (defaultroute_exists(&rt))
       {
-	u_int32_t old_gateway = ((struct sockaddr_in *) (&rt.rt_gateway))->
-	                        sin_addr.s_addr;
+	struct in_addr old_gateway =
+	  ((struct sockaddr_in *) (&rt.rt_gateway))-> sin_addr;
 
-	if (old_gateway != gateway)
+	if (old_gateway.s_addr != gateway)
 	  {
 	    syslog (LOG_ERR,
-		    "ppp not replacing existing default route to %s[%s]",
+		    "not replacing existing default route to %s [%s]",
 		    rt.rt_dev,
 		    inet_ntoa (old_gateway));
 	  }
@@ -1749,9 +1750,10 @@ int ppp_available(void)
     if (!ok)
       {
 	no_ppp_msg = 
-	  "This system lacks kernel support for PPP. To include PPP support\n"
-	  "in the kernel, please follow the steps detailed in the "
-	  "README.linux\nfile in the ppp-2.3 distribution.\n";
+	  "This system lacks kernel support for PPP.  This could be because\n"
+	  "the PPP kernel module is not loaded, or because the kernel is\n"
+	  "not configured for PPP.  See the README.linux file in the\n"
+	  "ppp-2.3.1 distribution.\n";
       }
 /*
  *  This is the PPP device. Validate the version of the driver at this
@@ -1796,7 +1798,12 @@ int ppp_available(void)
 	/* The modification levels must be legal */
 	if (driver_modification < my_modification)
 	  {
-	    ok = 0;
+	    if (driver_modification >= 2) {
+	      /* we can cope with 2.2.0 and above */
+	      driver_is_old = 1;
+	    } else {
+	      ok = 0;
+	    }
 	  }
 
 	close (s);
@@ -2583,4 +2590,10 @@ sys_check_options(void)
 	break;
       }
 #endif
+    if (demand && driver_is_old) {
+      option_error("demand dialling is not supported by kernel driver version "
+		   "%d.%d.%d", driver_version, driver_modification,
+		   driver_patch);
+      demand = 0;
+    }
   }
