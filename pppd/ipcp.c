@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.28 1996/08/28 06:40:29 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.29 1996/09/26 06:21:33 paulus Exp $";
 #endif
 
 /*
@@ -33,9 +33,6 @@ static char rcsid[] = "$Id: ipcp.c,v 1.28 1996/08/28 06:40:29 paulus Exp $";
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -1162,20 +1159,20 @@ ipcp_up(f)
 	}
 	demand_rexmit(PPP_IP);
 	sifnpmode(f->unit, PPP_IP, NPMODE_PASS);
-    }
-#ifndef _linux_  /* Linux destroys routes when the device goes down. */
-    else         /* always use the code which adds the routes. */
-#endif
-    {
+
+    } else {
 	/*
 	 * Set IP addresses and (if specified) netmask.
 	 */
 	mask = GetMask(go->ouraddr);
+
+#if !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
 	if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
 	    IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
+#endif
 
 	/* bring the interface up for IP */
 	if (!sifup(f->unit)) {
@@ -1183,6 +1180,14 @@ ipcp_up(f)
 	    ipcp_close(f->unit, "Interface configuration failed");
 	    return;
 	}
+
+#if (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+	if (!sifaddr(f->unit, go->ouraddr, ho->hisaddr, mask)) {
+	    IPCPDEBUG((LOG_WARNING, "sifaddr failed"));
+	    ipcp_close(f->unit, "Interface configuration failed");
+	    return;
+	}
+#endif
 	sifnpmode(f->unit, PPP_IP, NPMODE_PASS);
 
 	/* assign a default route through the interface if required */
@@ -1408,9 +1413,11 @@ ipcp_printpkt(p, plen, printer, arg)
  * We don't bring the link up for IP fragments or for TCP FIN packets
  * with no data.
  */
-#ifndef IP_OFFMASK
+#define IP_HDRLEN	20	/* bytes */
 #define IP_OFFMASK	0x1fff
-#endif
+#define IPPROTO_TCP	6
+#define TCP_HDRLEN	20
+#define TH_FIN		0x01
 
 /*
  * We use these macros because the IP header may be at an odd address,
@@ -1420,31 +1427,31 @@ ipcp_printpkt(p, plen, printer, arg)
 #define net_short(x)	(((x)[0] << 8) + (x)[1])
 #define get_iphl(x)	(((unsigned char *)(x))[0] & 0xF)
 #define get_ipoff(x)	net_short((unsigned char *)(x) + 6)
+#define get_ipproto(x)	(((unsigned char *)(x))[9])
 #define get_tcpoff(x)	(((unsigned char *)(x))[12] >> 4)
+#define get_tcpflags(x)	(((unsigned char *)(x))[13])
 
 static int
 ip_active_pkt(pkt, len)
     u_char *pkt;
     int len;
 {
-    struct ip *ip;
-    struct tcphdr *tcp;
+    u_char *tcp;
     int hlen;
 
     len -= PPP_HDRLEN;
-    if (len < sizeof(struct ip) + PPP_HDRLEN)
-	return 0;
     pkt += PPP_HDRLEN;
-    ip = (struct ip *) pkt;
-    if ((get_ipoff(ip) & IP_OFFMASK) != 0)
+    if (len < IP_HDRLEN)
 	return 0;
-    if (ip->ip_p != IPPROTO_TCP)
+    if ((get_ipoff(pkt) & IP_OFFMASK) != 0)
+	return 0;
+    if (get_ipproto(pkt) != IPPROTO_TCP)
 	return 1;
-    hlen = get_iphl(ip) * 4;
-    if (len < hlen + sizeof(struct tcphdr))
+    hlen = get_iphl(pkt) * 4;
+    if (len < hlen + TCP_HDRLEN)
 	return 0;
-    tcp = (struct tcphdr *) (pkt + hlen);
-    if ((tcp->th_flags & TH_FIN) != 0 && len == hlen + get_tcpoff(tcp) * 4)
+    tcp = pkt + hlen;
+    if ((get_tcpflags(tcp) & TH_FIN) != 0 && len == hlen + get_tcpoff(tcp) * 4)
 	return 0;
     return 1;
 }
