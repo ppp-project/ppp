@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.48 1999/09/11 12:08:59 paulus Exp $
+ * $Id: pppd.h,v 1.49 1999/12/23 01:29:42 paulus Exp $
  */
 
 /*
@@ -166,6 +166,12 @@ extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
 extern volatile int status;	/* exit status for pppd */
 extern int	devnam_fixed;	/* can no longer change devnam */
 extern int	unsuccess;	/* # unsuccessful connection attempts */
+extern int	do_callback;	/* set if we want to do callback next */
+extern int	doing_callback;	/* set if this is a callback */
+
+/* Values for do_callback and doing_callback */
+#define CALLBACK_DIALIN		1	/* we are expecting the call back */
+#define CALLBACK_DIALOUT	2	/* we are dialling out to call back */
 
 /*
  * Variables set by command-line options.
@@ -183,8 +189,8 @@ extern bool	lockflag;	/* Create lock file to lock the serial dev */
 extern bool	nodetach;	/* Don't detach from controlling tty */
 extern bool	updetach;	/* Detach from controlling tty when link up */
 extern char	*initializer;	/* Script to initialize physical link */
-extern char	*connector;	/* Script to establish physical link */
-extern char	*disconnector;	/* Script to disestablish physical link */
+extern char	*connect_script; /* Script to establish physical link */
+extern char	*disconnect_script; /* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
 extern char	*ptycommand;	/* Command to run on other side of pty */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
@@ -208,6 +214,7 @@ extern bool	sync_serial;	/* Device is synchronous serial device */
 extern int	maxfail;	/* Max # of unsuccessful connection attempts */
 extern char	linkname[MAXPATHLEN]; /* logical name for link */
 extern bool	tune_kernel;	/* May alter kernel settings as necessary */
+extern int	connect_delay;	/* Time to delay after connect script */
 
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
@@ -465,8 +472,8 @@ struct option_info {
 
 extern struct option_info devnam_info;
 extern struct option_info initializer_info;
-extern struct option_info connector_info;
-extern struct option_info disconnector_info;
+extern struct option_info connect_script_info;
+extern struct option_info disconnect_script_info;
 extern struct option_info welcomer_info;
 extern struct option_info ptycommand_info;
 
@@ -480,7 +487,10 @@ extern int (*pap_check_hook) __P((void));
 extern int (*pap_auth_hook) __P((char *user, char *passwd, char **msgp,
 				 struct wordlist **paddrs,
 				 struct wordlist **popts));
+extern void (*pap_logout_hook) __P((void));
 extern int (*pap_passwd_hook) __P((char *user, char *passwd));
+extern void (*ip_up_hook) __P((void));
+extern void (*ip_down_hook) __P((void));
 
 /*
  * Inline versions of get/put char/short/long.
