@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.36 1999/03/02 05:35:09 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.37 1999/03/08 05:34:43 paulus Exp $";
 #endif
 
 /*
@@ -1605,7 +1605,8 @@ ipcp_finished(f)
  * has finished.
  */
 static void
-ipcp_script_done(void *arg)
+ipcp_script_done(arg)
+    void *arg;
 {
     ipcp_script_pid = 0;
     switch (ipcp_script_state) {

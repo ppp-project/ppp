@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.56 1999/03/06 11:28:10 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.57 1999/03/08 05:34:43 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -852,6 +852,15 @@ close_tty()
 
     close(ttyfd);
     ttyfd = -1;
+}
+
+/*
+ * hangup_modem - hang up the modem by clearing DTR.
+ */
+void hangup_modem(ttyfd)
+    int ttyfd;
+{
+    setdtr(ttyfd, 0);
 }
 
 

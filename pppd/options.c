@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.49 1999/03/08 01:47:24 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.50 1999/03/08 05:34:44 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -472,7 +472,8 @@ options_for_tty()
  * This could be optimized by using a hash table.
  */
 static option_t *
-find_option(char *name)
+find_option(name)
+    char *name;
 {
     option_t *opt;
     int i;
@@ -617,7 +618,8 @@ process_option(opt, argv)
  * n_arguments - tell how many arguments an option takes
  */
 static int
-n_arguments(option_t *opt)
+n_arguments(opt)
+    option_t *opt;
 {
     return (opt->type == o_bool || opt->type == o_special_noarg
 	    || (opt->flags & OPT_NOARG))? 0: 1;

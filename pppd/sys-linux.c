@@ -741,14 +741,6 @@ void set_up_tty(int tty_fd, int local)
     restore_term = TRUE;
   }
 
-/*
- * hangup_modem - hang up the modem by clearing DTR.
- */
-void hangup_modem(int ttyfd)
-{
-    setdtr(ttyfd, 0);
-}
-
 /********************************************************************
  *
  * setdtr - control the DTR line on the serial port.

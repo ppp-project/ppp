@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.22 1999/03/08 04:48:48 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.23 1999/03/08 05:34:46 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -626,14 +626,6 @@ restore_tty(fd)
 	ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
-}
-
-/*
- * hangup_modem - hang up the modem by clearing DTR.
- */
-void hangup_modem(int ttyfd)
-{
-    setdtr(ttyfd, 0);
 }
 
 /*

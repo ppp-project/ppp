@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-sunos4.c,v 1.11 1999/03/08 01:46:24 paulus Exp $";
+static char rcsid[] = "$Id: sys-sunos4.c,v 1.12 1999/03/08 05:34:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -1224,7 +1224,8 @@ get_ether_addr(ipaddr, hwaddr)
  * For demand mode to work properly, we have to ignore routes
  * through our own interface.
  */
-int have_route_to(u_int32_t addr)
+int have_route_to(addr)
+    u_int32_t addr;
 {
     return -1;
 }

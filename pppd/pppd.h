@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.27 1999/03/06 11:28:11 paulus Exp $
+ * $Id: pppd.h,v 1.28 1999/03/08 05:34:45 paulus Exp $
  */
 
 /*
@@ -244,6 +244,7 @@ int fmtmsg __P((char *, int, char *, ...));		/* sprintf++ */
 int vfmtmsg __P((char *, int, char *, va_list));	/* vsprintf++ */
 void script_setenv __P((char *, char *));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
+void hangup_modem __P((int));	/* Make modem hang up */
 
 /* Procedures exported from auth.c */
 void link_required __P((int));	  /* we are starting to use the link */
@@ -345,7 +346,6 @@ void logwtmp __P((const char *, const char *, const char *));
 				/* Write entry to wtmp file */
 int  get_host_seed __P((void));	/* Get host-dependent random number seed */
 int  have_route_to __P((u_int32_t)); /* Check if route to addr exists */
-void hangup_modem __P((int));	/* Make modem hang up */
 #ifdef PPP_FILTER
 int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
 				/* Set filter programs in kernel */
