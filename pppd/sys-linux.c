@@ -1835,7 +1835,7 @@ int ppp_available(void)
 	  "This system lacks kernel support for PPP.  This could be because\n"
 	  "the PPP kernel module is not loaded, or because the kernel is\n"
 	  "not configured for PPP.  See the README.linux file in the\n"
-	  "ppp-2.3.5 distribution.\n";
+	  "ppp-2.3.6 distribution.\n";
     }
 /*
  *  This is the PPP device. Validate the version of the driver at this
