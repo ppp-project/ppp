@@ -1,5 +1,20 @@
 /*
- * chap.c - Crytographic Handshake Authentication Protocol.
+ * chap.c - Challenge Handshake Authentication Protocol.
+ *
+ * Copyright (c) 1993 The Australian National University.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms are permitted
+ * provided that the above copyright notice and this paragraph are
+ * duplicated in all such forms and that any documentation,
+ * advertising materials, and other materials related to such
+ * distribution and use acknowledge that the software was developed
+ * by the Australian National University.  The name of the University
+ * may not be used to endorse or promote products derived from this
+ * software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * Copyright (c) 1991 Gregory M. Christy.
  * All rights reserved.
@@ -19,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.11 1996/04/04 03:35:58 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.12 1996/05/28 00:42:27 paulus Exp $";
 #endif
 
 /*
@@ -35,6 +50,9 @@ static char rcsid[] = "$Id: chap.c,v 1.11 1996/04/04 03:35:58 paulus Exp $";
 #include "pppd.h"
 #include "chap.h"
 #include "md5.h"
+#ifdef CHAPMS
+#include "chap_ms.h"
+#endif
 
 struct protent chap_protent = {
     PPP_CHAP, ChapInit, ChapInput, ChapProtocolReject,
@@ -376,8 +394,15 @@ ChapReceiveChallenge(cstate, inp, id, len)
     BCOPY(inp, rhostname, len);
     rhostname[len] = '\000';
 
-    CHAPDEBUG((LOG_INFO, "ChapReceiveChallenge: received name field: %s",
+    CHAPDEBUG((LOG_INFO, "ChapReceiveChallenge: received name field '%s'",
 	       rhostname));
+
+    /* Microsoft doesn't send their name back in the PPP packet */
+    if (rhostname[0] == 0 && cstate->resp_type == CHAP_MICROSOFT) {
+	strcpy(rhostname, remote_name);
+	CHAPDEBUG((LOG_INFO, "ChapReceiveChallenge: using '%s' as remote name",
+		   rhostname));
+    }
 
     /* get secret for authenticating ourselves with the specified host */
     if (!get_secret(cstate->unit, cstate->resp_name, rhostname,
@@ -397,7 +422,7 @@ ChapReceiveChallenge(cstate, inp, id, len)
     /*  generate MD based on negotiated type */
     switch (cstate->resp_type) { 
 
-    case CHAP_DIGEST_MD5:		/* only MD5 is defined for now */
+    case CHAP_DIGEST_MD5:
 	MD5Init(&mdContext);
 	MD5Update(&mdContext, &cstate->resp_id, 1);
 	MD5Update(&mdContext, secret, secret_len);
@@ -406,6 +431,12 @@ ChapReceiveChallenge(cstate, inp, id, len)
 	BCOPY(mdContext.digest, cstate->response, MD5_SIGNATURE_SIZE);
 	cstate->resp_length = MD5_SIGNATURE_SIZE;
 	break;
+
+#ifdef CHAPMS
+    case CHAP_MICROSOFT:
+	ChapMS(cstate, rchallenge, rchallenge_len, secret, secret_len);
+	break;
+#endif
 
     default:
 	CHAPDEBUG((LOG_INFO, "unknown digest type %d", cstate->resp_type));

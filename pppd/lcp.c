@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.25 1996/04/04 03:58:24 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.26 1996/05/28 00:41:13 paulus Exp $";
 #endif
 
 /*
@@ -1204,7 +1204,11 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
 		    break;
 		}
 		GETCHAR(cichar, p);	/* get digest type*/
-		if (cichar != ao->chap_mdtype) {
+		if (cichar != CHAP_DIGEST_MD5
+#ifdef CHAPMS
+		    && cichar != CHAP_MICROSOFT
+#endif
+		    ) {
 		    orc = CONFNAK;
 		    PUTCHAR(CI_AUTHTYPE, nakp);
 		    PUTCHAR(CILEN_CHAP, nakp);

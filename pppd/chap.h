@@ -1,5 +1,20 @@
 /*
- * chap.h - Cryptographic Handshake Authentication Protocol definitions.
+ * chap.h - Challenge Handshake Authentication Protocol definitions.
+ *
+ * Copyright (c) 1993 The Australian National University.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms are permitted
+ * provided that the above copyright notice and this paragraph are
+ * duplicated in all such forms and that any documentation,
+ * advertising materials, and other materials related to such
+ * distribution and use acknowledge that the software was developed
+ * by the Australian National University.  The name of the University
+ * may not be used to endorse or promote products derived from this
+ * software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * Copyright (c) 1991 Gregory M. Christy
  * All rights reserved.
@@ -15,7 +30,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: chap.h,v 1.4 1995/12/18 03:46:21 paulus Exp $
+ * $Id: chap.h,v 1.5 1996/05/28 00:42:28 paulus Exp $
  */
 
 #ifndef __CHAP_INCLUDE__
@@ -29,6 +44,8 @@
 
 #define CHAP_DIGEST_MD5		5	/* use MD5 algorithm */
 #define MD5_SIGNATURE_SIZE	16	/* 16 bytes in a MD5 message digest */
+#define CHAP_MICROSOFT		0x80	/* use Microsoft-compatible alg. */
+#define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
 
 #define CHAP_CHALLENGE		1
 #define CHAP_RESPONSE		2
