@@ -24,27 +24,13 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ccp.h,v 1.3 1994/10/18 02:07:33 paulus Exp $
+ * $Id: ccp.h,v 1.4 1995/04/24 06:00:54 paulus Exp $
  */
-
-/*
- * Compression algorithms = configuration options
- */
-#define CI_BSD_COMPRESS	0x21	/* BSD Compress */
-
-/*
- * Extra codes for CCP.
- */
-#define RESETREQ	14
-#define RESETACK	15
 
 typedef struct ccp_options {
     u_int bsd_compress: 1;	/* do BSD Compress? */
     u_short bsd_bits;		/* # bits/code for BSD Compress */
 } ccp_options;
-
-#define MIN_BSD_BITS	9
-#define MAX_BSD_BITS	15
 
 extern fsm ccp_fsm[];
 extern ccp_options ccp_wantoptions[];

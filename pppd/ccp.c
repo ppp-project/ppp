@@ -26,11 +26,12 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.6 1994/10/24 04:31:11 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.7 1995/04/24 06:01:18 paulus Exp $";
 #endif
 
 #include <syslog.h>
 #include <sys/ioctl.h>
+#include <net/ppp-comp.h>
 
 #include "pppd.h"
 #include "fsm.h"
@@ -74,25 +75,6 @@ static fsm_callbacks ccp_callbacks = {
     ccp_extcode,
     "CCP"
 };
-
-/*
- * Length of configuration options, which describe possible
- * compression methods.
- */
-#define CILEN_BSD	3
-
-/*
- * Configuration option values for compression methods.
- */
-#define CI_BSD_COMPRESS	0x21
-
-/*
- * Information relating to BSD Compress configuration options.
- */
-#define BSD_NBITS(x)		((x) & 0x1F)
-#define BSD_VERSION(x)		((x) >> 5)
-#define BSD_CURRENT_VERSION	1
-#define BSD_MAKE_OPT(v, n)	(((v) << 5) | (n))
 
 /*
  * Do we want / did we get any compression?
@@ -212,15 +194,15 @@ ccp_extcode(f, code, id, p, len)
     int len;
 {
     switch (code) {
-    case RESETREQ:
+    case CCP_RESETREQ:
 	if (f->state != OPENED)
 	    break;
 	/* send a reset-ack, which the transmitter will see and
 	   reset its compression state. */
-	fsm_sdata(f, RESETACK, id, NULL, 0);
+	fsm_sdata(f, CCP_RESETACK, id, NULL, 0);
 	break;
 
-    case RESETACK:
+    case CCP_RESETACK:
 	if (ccp_localstate[f->unit] & RACK_PENDING && id == f->reqid) {
 	    ccp_localstate[f->unit] &= ~(RACK_PENDING | RREQ_REPEAT);
 	    UNTIMEOUT(ccp_rack_timeout, (caddr_t) f);
@@ -258,9 +240,9 @@ ccp_resetci(f)
     *go = ccp_wantoptions[f->unit];
     if (go->bsd_compress) {
 	opt_buf[0] = CI_BSD_COMPRESS;
-	opt_buf[1] = CILEN_BSD;
+	opt_buf[1] = CILEN_BSD_COMPRESS;
 	opt_buf[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
-	if (!ccp_test(f->unit, opt_buf, CILEN_BSD, 0))
+	if (!ccp_test(f->unit, opt_buf, CILEN_BSD_COMPRESS, 0))
 	    go->bsd_compress = 0;
     }
 }
@@ -274,7 +256,7 @@ ccp_cilen(f)
 {
     ccp_options *go = &ccp_gotoptions[f->unit];
 
-    return (go->bsd_compress? CILEN_BSD: 0);
+    return (go->bsd_compress? CILEN_BSD_COMPRESS: 0);
 }
 
 /*
@@ -291,10 +273,10 @@ ccp_addci(f, p, lenp)
 
     if (go->bsd_compress) {
 	p[0] = CI_BSD_COMPRESS;
-	p[1] = CILEN_BSD;
+	p[1] = CILEN_BSD_COMPRESS;
 	p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
-	if (ccp_test(f->unit, p, CILEN_BSD, 0))
-	    p += CILEN_BSD;
+	if (ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 0))
+	    p += CILEN_BSD_COMPRESS;
 	else
 	    go->bsd_compress = 0;
     }
@@ -314,11 +296,12 @@ ccp_ackci(f, p, len)
     ccp_options *go = &ccp_gotoptions[f->unit];
 
     if (go->bsd_compress) {
-	if (len < CILEN_BSD || p[0] != CI_BSD_COMPRESS || p[1] != CILEN_BSD
+	if (len < CILEN_BSD_COMPRESS
+	    || p[0] != CI_BSD_COMPRESS || p[1] != CILEN_BSD_COMPRESS
 	    || p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
 	    return 0;
-	p += CILEN_BSD;
-	len -= CILEN_BSD;
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
     }
     if (len != 0)
 	return 0;
@@ -342,8 +325,8 @@ ccp_nakci(f, p, len)
     memset(&no, 0, sizeof(no));
     try = *go;
 
-    if (go->bsd_compress && !no.bsd_compress && len >= CILEN_BSD
-	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD) {
+    if (go->bsd_compress && !no.bsd_compress && len >= CILEN_BSD_COMPRESS
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD_COMPRESS) {
 	no.bsd_compress = 1;
 	/*
 	 * Peer wants us to use a different number of bits
@@ -353,8 +336,8 @@ ccp_nakci(f, p, len)
 	    try.bsd_compress = 0;
 	else if (BSD_NBITS(p[2]) < go->bsd_bits)
 	    try.bsd_bits = BSD_NBITS(p[2]);
-	p += CILEN_BSD;
-	len -= CILEN_BSD;
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
     }
 
     /*
@@ -383,13 +366,13 @@ ccp_rejci(f, p, len)
 
     try = *go;
 
-    if (go->bsd_compress && len >= CILEN_BSD
-	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD) {
+    if (go->bsd_compress && len >= CILEN_BSD_COMPRESS
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD_COMPRESS) {
 	if (p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
 	    return 0;
 	try.bsd_compress = 0;
-	p += CILEN_BSD;
-	len -= CILEN_BSD;
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
     }
 
     if (len != 0)
@@ -438,7 +421,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 
 	    switch (type) {
 	    case CI_BSD_COMPRESS:
-		if (!ao->bsd_compress || clen != CILEN_BSD) {
+		if (!ao->bsd_compress || clen != CILEN_BSD_COMPRESS) {
 		    newret = CONFREJ;
 		    break;
 		}
@@ -451,7 +434,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 		    nb = ao->bsd_bits;
 		} else if (nb < MIN_BSD_BITS) {
 		    newret = CONFREJ;
-		} else if (!ccp_test(f->unit, p, CILEN_BSD, 1)) {
+		} else if (!ccp_test(f->unit, p, CILEN_BSD_COMPRESS, 1)) {
 		    if (nb > MIN_BSD_BITS) {
 			--nb;
 			newret = CONFNAK;
@@ -471,6 +454,8 @@ ccp_reqci(f, p, lenp, dont_nak)
 
 	if (!(newret == CONFACK || newret == CONFNAK && ret == CONFREJ)) {
 	    /* we're returning this option */
+	    if (newret == CONFREJ && ret == CONFNAK)
+		retp = p0;
 	    ret = newret;
 	    if (p != retp)
 		BCOPY(p, retp, clen);
@@ -571,10 +556,10 @@ ccp_printpkt(p, plen, printer, arg)
 	    optend = p + optlen;
 	    switch (code) {
 	    case CI_BSD_COMPRESS:
-		if (optlen >= CILEN_BSD) {
+		if (optlen >= CILEN_BSD_COMPRESS) {
 		    printer(arg, "bsd v%d %d", BSD_VERSION(p[2]),
 			    BSD_NBITS(p[2]));
-		    p += CILEN_BSD;
+		    p += CILEN_BSD_COMPRESS;
 		}
 		break;
 	    }
@@ -627,7 +612,7 @@ ccp_datainput(unit, pkt, len)
 	     * acknowledgement to a previous reset-request.
 	     */
 	    if (!(ccp_localstate[f->unit] & RACK_PENDING)) {
-		fsm_sdata(f, RESETREQ, f->reqid = ++f->id, NULL, 0);
+		fsm_sdata(f, CCP_RESETREQ, f->reqid = ++f->id, NULL, 0);
 		TIMEOUT(ccp_rack_timeout, (caddr_t) f, RACKTIMEOUT);
 		ccp_localstate[f->unit] |= RACK_PENDING;
 	    } else
@@ -646,7 +631,7 @@ ccp_rack_timeout(arg)
     fsm *f = (fsm *) arg;
 
     if (f->state == OPENED && ccp_localstate[f->unit] & RREQ_REPEAT) {
-	fsm_sdata(f, RESETREQ, f->reqid, NULL, 0);
+	fsm_sdata(f, CCP_RESETREQ, f->reqid, NULL, 0);
 	TIMEOUT(ccp_rack_timeout, (caddr_t) f, RACKTIMEOUT);
 	ccp_localstate[f->unit] &= ~RREQ_REPEAT;
     } else
