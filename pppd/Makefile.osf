@@ -1,6 +1,6 @@
 #
 # pppd makefile for OSF/1 on DEC Alpha
-# $Id: Makefile.osf,v 1.5 1996/07/01 01:05:41 paulus Exp $
+# $Id: Makefile.osf,v 1.6 1997/04/30 05:49:05 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
@@ -14,7 +14,7 @@ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
 
 CC = cc
 DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int -D_SOCKADDR_LEN $(DEBUG_FLAGS)
+COMPILE_FLAGS = -DSTREAMS -DGIDSET_TYPE=int -D_SOCKADDR_LEN -DCHAPMS -DUSE_CRYPT $(DEBUG_FLAGS)
 #COPTS = -O2
 COPTS = -g
 LIBS = 
