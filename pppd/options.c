@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.57 1999/04/12 06:24:47 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.58 1999/05/12 06:19:48 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -90,8 +90,11 @@ bool	notty = 0;		/* Stdin/out is not a tty */
 char	*record_file = NULL;	/* File to record chars sent/received */
 int	using_pty = 0;
 bool	sync_serial = 0;	/* Device is synchronous serial device */
+int	log_to_fd = 1;		/* send log messages to this fd too */
 
 extern option_t auth_options[];
+extern struct stat devstat;
+extern int prepass;		/* Doing pre-pass to find device name */
 
 struct option_info connector_info;
 struct option_info disconnector_info;
@@ -108,7 +111,7 @@ pcap_t  pc;			/* Fake struct pcap so we can compile expr */
 /*
  * Prototypes
  */
-static int setdevname __P((char *, int));
+static int setdevname __P((char *));
 static int setipaddr __P((char *));
 static int setspeed __P((char *));
 static int noopt __P((char **));
@@ -167,9 +170,9 @@ option_t general_options[] = {
       OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
     { "pty", o_string, &ptycommand,
       "Script to run on pseudo-tty master side",
-      OPT_A2INFO | OPT_PRIVFIX, &ptycommand_info },
+      OPT_A2INFO | OPT_PRIVFIX | OPT_PREPASS, &ptycommand_info },
     { "notty", o_bool, &notty,
-      "Input/output is not a tty", 1 },
+      "Input/output is not a tty", OPT_PREPASS | 1 },
     { "record", o_string, &record_file,
       "Record characters sent/received to file" },
     { "maxconnect", o_int, &maxconnect,
@@ -197,9 +200,9 @@ option_t general_options[] = {
     { "local", o_bool, &modem,
       "Don't use modem control lines" },
     { "file", o_special, readfile,
-      "Take options from a file" },
+      "Take options from a file", OPT_PREPASS },
     { "call", o_special, callfile,
-      "Take options from a privileged file" },
+      "Take options from a privileged file", OPT_PREPASS },
     { "persist", o_bool, &persist,
       "Keep on reopening connection after close", 1 },
     { "nopersist", o_bool, &persist,
@@ -214,6 +217,11 @@ option_t general_options[] = {
       "Show brief listing of options" },
     { "sync", o_bool, &sync_serial,
       "Use synchronous HDLC serial encoding", 1 },
+    { "logfd", o_int, &log_to_fd,
+      "Send log messages to this file descriptor" },
+    { "nologfd", o_int, &log_to_fd,
+      "Don't send log messages to any file descriptor",
+      OPT_NOARG | OPT_VAL(-1) },
 
 #ifdef PPP_FILTER
     { "pdebug", o_int, &dflag,
@@ -251,6 +259,8 @@ See pppd(8) for more options.\n\
 
 /*
  * parse_args - parse a string of arguments from the command line.
+ * If prepass is true, we are scanning for the device name and only
+ * processing a few options, so error messages are suppressed.
  */
 int
 parse_args(argc, argv)
@@ -288,7 +298,7 @@ parse_args(argc, argv)
 	/*
 	 * Maybe a tty name, speed or IP address?
 	 */
-	if ((ret = setdevname(arg, 0)) == 0
+	if ((ret = setdevname(arg)) == 0
 	    && (ret = setspeed(arg)) == 0
 	    && (ret = setipaddr(arg)) == 0) {
 	    option_error("unrecognized option '%s'", arg);
@@ -301,6 +311,7 @@ parse_args(argc, argv)
     return 1;
 }
 
+#if 0
 /*
  * scan_args - scan the command line arguments to get the tty name,
  * if specified.  Also checks whether the notty or pty option was given.
@@ -334,6 +345,7 @@ scan_args(argc, argv)
 	(void) setdevname(arg, 1);
     }
 }
+#endif
 
 /*
  * options_from_file - Read a string of options from a file,
@@ -401,7 +413,7 @@ options_from_file(filename, must_exist, check_prot, priv)
 	/*
 	 * Maybe a tty name, speed or IP address?
 	 */
-	if ((i = setdevname(cmd, 0)) == 0
+	if ((i = setdevname(cmd)) == 0
 	    && (i = setspeed(cmd)) == 0
 	    && (i = setipaddr(cmd)) == 0) {
 	    option_error("In file %s: unrecognized option '%s'",
@@ -514,6 +526,9 @@ process_option(opt, argv)
     int iv, a;
     char *sv;
     int (*parser) __P((char **));
+
+    if (prepass && (opt->flags & OPT_PREPASS) == 0)
+	return 1;
 
     if ((opt->flags & OPT_PRIV) && !privileged_option) {
 	option_error("using the %s option requires root privilege", opt->name);
@@ -696,6 +711,10 @@ option_error __V((char *fmt, ...))
     va_start(args);
     fmt = va_arg(args, char *);
 #endif
+    if (prepass) {
+	va_end(args);
+	return;
+    }
     vslprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     if (phase == PHASE_INITIALIZE)
@@ -1177,9 +1196,8 @@ setspeed(arg)
  * setdevname - Set the device name.
  */
 static int
-setdevname(cp, quiet)
+setdevname(cp)
     char *cp;
-    int quiet;
 {
     struct stat statbuf;
     char dev[MAXPATHLEN];
@@ -1194,22 +1212,26 @@ setdevname(cp, quiet)
     }
 
     /*
-     * Check if there is a device by this name.
+     * Check if there is a character device by this name.
      */
     if (stat(cp, &statbuf) < 0) {
-	if (errno == ENOENT || quiet)
+	if (errno == ENOENT)
 	    return 0;
 	option_error("Couldn't stat %s: %m", cp);
 	return -1;
     }
+    if (!S_ISCHR(statbuf.st_mode)) {
+	option_error("%s is not a character device", cp);
+	return -1;
+    }
 
     if (devnam_info.priv && !privileged_option) {
-	if (!quiet)
-	    option_error("device name cannot be overridden");
+	option_error("device name cannot be overridden");
 	return -1;
     }
 
     strlcpy(devnam, cp, sizeof(devnam));
+    devstat = statbuf;
     default_device = 0;
     devnam_info.priv = privileged_option;
     devnam_info.source = option_source;
@@ -1235,6 +1257,8 @@ setipaddr(arg)
      */
     if ((colon = strchr(arg, ':')) == NULL)
 	return 0;
+    if (prepass)
+	return 1;
   
     /*
      * If colon first character, then no local addr.

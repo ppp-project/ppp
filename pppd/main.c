@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.77 1999/04/28 02:45:44 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.78 1999/05/12 06:19:47 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -58,10 +58,6 @@ static char rcsid[] = "$Id: main.c,v 1.77 1999/04/28 02:45:44 paulus Exp $";
 #include "cbcp.h"
 #endif
 
-#if defined(SUNOS4)
-extern char *strerror();
-#endif
-
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
 #endif /* IPX_CHANGE */
@@ -87,7 +83,9 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
-int log_to_fd;			/* send log messages to this fd too */
+struct stat devstat;		/* result of stat() on devnam */
+int prepass = 0;		/* doing prepass to find device name */
+volatile int status;		/* exit status for pppd */
 
 static int fd_ppp = -1;		/* fd for talking PPP */
 static int fd_loop;		/* fd for getting demand-dial packets */
@@ -112,6 +110,7 @@ static int n_children;		/* # child processes still running */
 static int got_sigchld;		/* set if we have received a SIGCHLD */
 
 static int locked;		/* lock() has succeeded */
+static int privopen;		/* don't lock, open device as root */
 
 char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
 
@@ -217,7 +216,6 @@ main(argc, argv)
     struct timeval now;
 
     phase = PHASE_INITIALIZE;
-    log_to_fd = -1;
 
     /*
      * Ensure that fds 0, 1, 2 are open, to /dev/null if nowhere else.
@@ -259,31 +257,56 @@ main(argc, argv)
 
     progname = *argv;
 
+    prepass = 0;
     if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user())
-	exit(1);
-    using_pty = notty || ptycommand != NULL;
-    scan_args(argc-1, argv+1);	/* look for tty name on command line */
+	exit(EXIT_OPTION_ERROR);
+
+    /* scan command line and options files to find device name */
+    prepass = 1;
+    parse_args(argc-1, argv+1);
+    prepass = 0;
 
     /*
      * Work out the device name, if it hasn't already been specified.
      */
-    if (!using_pty) {
-	p = isatty(0)? ttyname(0): NULL;
-	if (p != NULL) {
-	    if (default_device)
-		strlcpy(devnam, p, sizeof(devnam));
-	    else if (strcmp(devnam, p) == 0)
-		default_device = 1;
+    using_pty = notty || ptycommand != NULL;
+    if (!using_pty && default_device) {
+	char *p;
+	if (!isatty(0) || (p = ttyname(0)) == NULL) {
+	    option_error("no device specified and stdin is not a tty");
+	    exit(EXIT_OPTION_ERROR);
 	}
+	strlcpy(devnam, p, sizeof(devnam));
+	if (stat(devnam, &devstat) < 0)
+	    fatal("Couldn't stat default device %s: %m", devnam);
     }
 
     /*
      * Parse the tty options file and the command line.
+     * The per-tty options file should not change
+     * ptycommand, notty or devnam.
      */
-    if (!options_for_tty()
-	|| !parse_args(argc-1, argv+1))
-	exit(1);
+    if (!using_pty) {
+	int save_defdev = default_device;
+
+	default_device = 1;
+	if (!options_for_tty())
+	    exit(EXIT_OPTION_ERROR);
+	if (notty || ptycommand != NULL) {
+	    option_error("%s option may not be used in per-tty options file",
+			 notty? "notty": "pty");
+	    exit(EXIT_OPTION_ERROR);
+	}
+	if (!default_device) {
+	    option_error("per-tty options file may not specify device name");
+	    exit(EXIT_OPTION_ERROR);
+	}
+	default_device = save_defdev;
+    }
+
+    if (!parse_args(argc-1, argv+1))
+	exit(EXIT_OPTION_ERROR);
 
     /*
      * Check that we are running as root.
@@ -291,51 +314,68 @@ main(argc, argv)
     if (geteuid() != 0) {
 	option_error("must be root to run %s, since it is not setuid-root",
 		     argv[0]);
-	exit(1);
+	exit(EXIT_NOT_ROOT);
     }
 
     if (!ppp_available()) {
 	option_error(no_ppp_msg);
-	exit(1);
+	exit(EXIT_NO_KERNEL_SUPPORT);
     }
 
     /*
      * Check that the options given are valid and consistent.
      */
     if (!sys_check_options())
-	exit(1);
+	exit(EXIT_OPTION_ERROR);
     auth_check_options();
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
     if (demand && connector == 0) {
 	option_error("connect script is required for demand-dialling\n");
-	exit(1);
+	exit(EXIT_OPTION_ERROR);
     }
 
     if (using_pty) {
 	if (!default_device) {
 	    option_error("%s option precludes specifying device name",
 			 notty? "notty": "pty");
-	    exit(1);
+	    exit(EXIT_OPTION_ERROR);
 	}
 	if (ptycommand != NULL && notty) {
 	    option_error("pty option is incompatible with notty option");
-	    exit(1);
+	    exit(EXIT_OPTION_ERROR);
 	}
 	default_device = notty;
 	lockflag = 0;
 	modem = 0;
+	if (notty && log_to_fd <= 1)
+	    log_to_fd = -1;
     } else {
-	if (devnam[0] == 0) {
-	    option_error("no device specified and stdin is not a tty");
-	    exit(1);
+	/*
+	 * If the user has specified a device which is the same as
+	 * the one on stdin, pretend they didn't specify any.
+	 * If the device is already open read/write on stdin,
+	 * we assume we don't need to lock it, and we can open it as root.
+	 */
+	if (fstat(0, &statbuf) >= 0 && S_ISCHR(statbuf.st_mode)
+	    && statbuf.st_rdev == devstat.st_rdev) {
+	    default_device = 1;
+	    fdflags = fcntl(0, F_GETFL);
+	    if (fdflags != -1 && (fdflags & O_ACCMODE) == O_RDWR)
+		privopen = 1;
 	}
     }
     if (default_device)
 	nodetach = 1;
-    else
-	log_to_fd = 1;		/* default to stdout */
+
+    /*
+     * Don't send log messages to the serial port, it tends to
+     * confuse the peer. :-)
+     */
+    if (log_to_fd >= 0 && fstat(log_to_fd, &statbuf) >= 0
+	&& S_ISCHR(statbuf.st_mode) && statbuf.st_rdev == devstat.st_rdev)
+	log_to_fd = -1;
 
     script_setenv("DEVICE", devnam);
 
@@ -467,6 +507,7 @@ main(argc, argv)
 	need_holdoff = 1;
 	ttyfd = -1;
 	real_ttyfd = -1;
+	status = EXIT_OK;
 
 	if (demand) {
 	    /*
@@ -520,6 +561,7 @@ main(argc, argv)
 	if (ptycommand != NULL || notty || record_file != NULL) {
 	    if (!get_pty(&pty_master, &pty_slave, ppp_devnam, uid)) {
 		error("Couldn't allocate pseudo-tty");
+		status = EXIT_FATAL_ERROR;
 		goto fail;
 	    }
 	    set_up_tty(pty_slave, 1);
@@ -528,7 +570,8 @@ main(argc, argv)
 	/*
 	 * Lock the device if we've been asked to.
 	 */
-	if (lockflag && !default_device) {
+	status = EXIT_LOCK_FAILED;
+	if (lockflag && !privopen) {
 	    if (lock(devnam) < 0)
 		goto fail;
 	    locked = 1;
@@ -548,17 +591,19 @@ main(argc, argv)
 		/* If the user specified the device name, become the
 		   user before opening it. */
 		int err;
-		if (!devnam_info.priv && !default_device)
+		if (!devnam_info.priv && !privopen)
 		    seteuid(uid);
 		ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
 		err = errno;
-		if (!devnam_info.priv && !default_device)
+		if (!devnam_info.priv && !privopen)
 		    seteuid(0);
 		if (ttyfd >= 0)
 		    break;
 		errno = err;
-		if (err != EINTR)
+		if (err != EINTR) {
 		    error("Failed to open %s: %m", devnam);
+		    status = EXIT_OPEN_FAILED;
+		}
 		if (!persist || err != EINTR)
 		    goto fail;
 	    }
@@ -593,6 +638,7 @@ main(argc, argv)
 	 * If the notty and/or record option was specified,
 	 * start up the character shunt now.
 	 */
+	status = EXIT_PTYCMD_FAILED;
 	if (ptycommand != NULL) {
 	    if (record_file != NULL) {
 		int ipipe[2], opipe[2], ok;
@@ -636,6 +682,7 @@ main(argc, argv)
 
 	    if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
 		error("Connect script failed");
+		status = EXIT_CONNECT_FAILED;
 		goto fail;
 	    }
 	    if (kill_link)
@@ -654,8 +701,10 @@ main(argc, argv)
 	    for (;;) {
 		if ((i = open(devnam, O_RDWR)) >= 0)
 		    break;
-		if (errno != EINTR)
+		if (errno != EINTR) {
 		    error("Failed to reopen %s: %m", devnam);
+		    status = EXIT_OPEN_FAILED;
+		}
 		if (!persist || errno != EINTR || hungup || kill_link)
 		    goto fail;
 	    }
@@ -673,8 +722,10 @@ main(argc, argv)
 
 	/* set up the serial device as a ppp interface */
 	fd_ppp = establish_ppp(ttyfd);
-	if (fd_ppp < 0)
+	if (fd_ppp < 0) {
+	    status = EXIT_FATAL_ERROR;
 	    goto disconnect;
+	}
 
 	if (!demand) {
 	    
@@ -708,6 +759,7 @@ main(argc, argv)
 	lcp_open(0);		/* Start protocol */
 	open_ccp_flag = 0;
 	add_fd(fd_ppp);
+	status = EXIT_NEGOTIATION_FAILED;
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
 	    if (sigsetjmp(sigjmp, 1) == 0) {
 		sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -843,7 +895,7 @@ main(argc, argv)
 	reap_kids(1);
     }
 
-    die(0);
+    die(status);
     return 0;
 }
 
@@ -945,6 +997,7 @@ get_input()
     if (len == 0) {
 	notice("Modem hangup");
 	hungup = 1;
+	status = EXIT_HANGUP;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	link_terminated(0);
 	return;
@@ -1221,6 +1274,8 @@ hup(sig)
 {
     info("Hangup (SIGHUP)");
     kill_link = 1;
+    if (status != EXIT_HANGUP)
+	status = EXIT_USER_REQUEST;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
@@ -1244,6 +1299,7 @@ term(sig)
     info("Terminating on signal %d.", sig);
     persist = 0;		/* don't try to restart */
     kill_link = 1;
+    status = EXIT_USER_REQUEST;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
@@ -1320,7 +1376,7 @@ bad_signal(sig)
 	kill_my_pg(SIGTERM);
     if (charshunt_pid)
 	kill(charshunt_pid, SIGTERM);
-    die(1);
+    die(127);
 }
 
 

@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: cbcp.c,v 1.6 1999/03/16 22:54:38 paulus Exp $";
+static char rcsid[] = "$Id: cbcp.c,v 1.7 1999/05/12 06:19:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -439,6 +439,8 @@ cbcp_recvack(us, pckt, len)
 	    if (address[0])
 	        dbglog("peer will call: %s", address);
 	}
+	if (type == CB_CONF_NO)
+	    return;
     }
 
     cbcp_up(us);
@@ -451,4 +453,5 @@ cbcp_up(us)
 {
     persist = 0;
     lcp_close(0, "Call me back, please");
+    status = EXIT_CALLBACK;
 }

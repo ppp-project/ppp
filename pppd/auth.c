@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.51 1999/04/12 06:24:44 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.52 1999/05/12 06:19:46 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -367,6 +367,7 @@ link_established(unit)
 	if (!wo->neg_upap || !null_login(unit)) {
 	    warn("peer refused to authenticate: terminating link");
 	    lcp_close(unit, "peer refused to authenticate");
+	    status = EXIT_PEER_AUTH_FAILED;
 	    return;
 	}
     }
@@ -460,6 +461,7 @@ auth_peer_fail(unit, protocol)
      * Authentication failure: take the link down
      */
     lcp_close(unit, "Authentication failed");
+    status = EXIT_PEER_AUTH_FAILED;
 }
 
 /*
@@ -562,6 +564,7 @@ np_up(unit, proto)
 	 * At this point we consider that the link has come up successfully.
 	 */
 	need_holdoff = 0;
+	status = EXIT_OK;
 
 	if (idle_time_limit > 0)
 	    TIMEOUT(check_idle, NULL, idle_time_limit);
@@ -625,6 +628,7 @@ check_idle(arg)
 	/* link is idle: shut it down. */
 	notice("Terminating connection due to lack of activity.");
 	lcp_close(0, "Link inactive");
+	status = EXIT_IDLE_TIMEOUT;
     } else {
 	TIMEOUT(check_idle, NULL, idle_time_limit - itime);
     }
@@ -639,6 +643,7 @@ connect_time_expired(arg)
 {
     info("Connect time expired");
     lcp_close(0, "Connect time expired");	/* Close connection */
+    status = EXIT_CONNECT_TIME;
 }
 
 /*

@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.38 1999/04/12 06:24:47 paulus Exp $
+ * $Id: pppd.h,v 1.39 1999/05/12 06:19:49 paulus Exp $
  */
 
 /*
@@ -40,6 +40,7 @@
 #include <varargs.h>
 #define __V(x)	(va_alist) va_dcl
 #define const
+#define volatile
 #endif
 
 /*
@@ -96,6 +97,7 @@ typedef struct {
 #define OPT_A2COPY	0x200000 /* addr2 -> second location to rcv value */
 #define OPT_ENABLE	0x400000 /* use *addr2 as enable for option */
 #define OPT_PRIVFIX	0x800000 /* can't be overridden if noauth */
+#define OPT_PREPASS	0x1000000/* do this opt in pre-pass to find device */
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
 
@@ -147,6 +149,7 @@ extern int	link_stats_valid; /* set if link_stats is valid */
 extern int	using_pty;	/* using pty as device (notty or pty opt.) */
 extern int	log_to_fd;	/* logging to this fd as well as syslog */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
+extern volatile int status;	/* exit status for pppd */
 
 /*
  * Variables set by command-line options.
@@ -491,7 +494,31 @@ extern struct option_info ptycommand_info;
     PUTCHAR(PPP_UI, p); \
     PUTSHORT(t, p); }
 
+/*
+ * Exit status values.
+ */
+#define EXIT_OK			0
+#define EXIT_FATAL_ERROR	1
+#define EXIT_OPTION_ERROR	2
+#define EXIT_NOT_ROOT		3
+#define EXIT_NO_KERNEL_SUPPORT	4
+#define EXIT_USER_REQUEST	5
+#define EXIT_LOCK_FAILED	6
+#define EXIT_OPEN_FAILED	7
+#define EXIT_CONNECT_FAILED	8
+#define EXIT_PTYCMD_FAILED	9
+#define EXIT_NEGOTIATION_FAILED	10
+#define EXIT_PEER_AUTH_FAILED	11
+#define EXIT_IDLE_TIMEOUT	12
+#define EXIT_CONNECT_TIME	13
+#define EXIT_CALLBACK		14
+#define EXIT_PEER_DEAD		15
+#define EXIT_HANGUP		16
 
+/*
+ * Debug macros.  Slightly useful for finding bugs in pppd, not particularly
+ * useful for finding out why your connection isn't being established.
+ */
 #ifdef DEBUGALL
 #define DEBUGMAIN	1
 #define DEBUGFSM	1

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.38 1999/04/16 11:35:43 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.39 1999/05/12 06:19:47 paulus Exp $";
 #endif
 
 /*
@@ -1805,6 +1805,7 @@ void LcpLinkFailure (f)
 	info("No response to %d echo-requests", lcp_echos_pending);
         notice("Serial link appears to be disconnected.");
         lcp_close(f->unit, "Peer not responding");
+	status = EXIT_PEER_DEAD;
     }
 }
 
