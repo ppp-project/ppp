@@ -492,20 +492,22 @@ bsd_compress(state, mret, mp, slen, maxolen)
 	wptr = cp_end = NULL;
     olen = 0;
 
-    /* Copy the PPP header over, changing the protocol */
-    if (wptr) {
-	*wptr++ = rptr[0];	/* assumes the ppp header is */
-	*wptr++ = rptr[1];	/* all in one mblk */
-	*wptr++ = 0;		/* change the protocol */
-	*wptr++ = PPP_COMP;
-    }
-
-    /* install the 3-byte sequence number */
+    /*
+     * Copy the PPP header over, changing the protocol,
+     * and install the 3-byte sequence number.
+     */
     slen += db->seqno - PPP_HDRLEN + 1;
     db->seqno = slen;
-    *wptr++ = slen>>16;
-    *wptr++ = slen>>8;
-    *wptr++ = slen;
+    if (wptr) {
+	wptr[0] = rptr[0];	/* assumes the ppp header is */
+	wptr[1] = rptr[1];	/* all in one mblk */
+	wptr[2] = 0;		/* change the protocol */
+	wptr[3] = PPP_COMP;
+	wptr[4] = slen>>16;
+	wptr[5] = slen>>8;
+	wptr[6] = slen;
+	wptr += PPP_HDRLEN + BSD_OVHD;
+    }
 
     /* start with the protocol byte */
     ent = rptr[3];
@@ -767,10 +769,13 @@ bsd_decompress(state, cmsg, hdroff)
     rptr += 3;
     len = cmsg->b_wptr - rptr;
 
-    /* check the sequence number and give up if the length is nonsense */
+    /*
+     * Check the sequence number and give up if the length is nonsense.
+     * The check is against mru+1 because we compress one byte of protocol.
+     */
     explen = (seq - db->seqno) & 0xffffff;
     db->seqno = seq;
-    if (explen > db->mru || explen < 1) {
+    if (explen > db->mru + 1 || explen < 1) {
 	if (db->debug)
 	    printf("bsd_decomp%d: bad length 0x%x\n", db->unit, explen);
 	return 0;
