@@ -20,3 +20,10 @@ This installs pppd, chat and pppstats in /usr/local/bin and adds the
 ppp STREAMS modules and driver to the system configuration.
 
 3. Rebuild your kernel (with /etc/conf/bin/idbuild) and reboot.
+
+Bug reports.
+************
+
+If you find a bug in this software, please send email to Matthias
+Apitz (Matthias.Apitz@sisis.de) describing the bug and, if possible, a
+workaround or fix for the bug.
