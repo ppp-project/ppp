@@ -1025,7 +1025,7 @@ void output (int unit, unsigned char *p, int len)
 	    fd = ppp_dev_fd;
     }
     if (write(fd, p, len) < 0) {
-	if (errno == EWOULDBLOCK || errno == ENOBUFS
+	if (errno == EWOULDBLOCK || errno == EAGAIN || errno == ENOBUFS
 	    || errno == ENXIO || errno == EIO || errno == EINTR)
 	    warn("write: warning: %m (%d)", errno);
 	else
@@ -1091,7 +1091,8 @@ int read_packet (unsigned char *buf)
     nr = -1;
     if (ppp_fd >= 0) {
 	nr = read(ppp_fd, buf, len);
-	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EAGAIN
+	    && errno != EIO && errno != EINTR)
 	    error("read: %m");
 	if (nr < 0 && errno == ENXIO)
 	    return 0;
@@ -1099,7 +1100,8 @@ int read_packet (unsigned char *buf)
     if (nr < 0 && new_style_driver && ppp_dev_fd >= 0) {
 	/* N.B. we read ppp_fd first since LCP packets come in there. */
 	nr = read(ppp_dev_fd, buf, len);
-	if (nr < 0 && errno != EWOULDBLOCK && errno != EIO && errno != EINTR)
+	if (nr < 0 && errno != EWOULDBLOCK && errno != EAGAIN
+	    && errno != EIO && errno != EINTR)
 	    error("read /dev/ppp: %m");
 	if (nr < 0 && errno == ENXIO)
 	    return 0;
@@ -1133,7 +1135,7 @@ get_loop_output(void)
     if (n == 0)
 	fatal("eof on loopback");
 
-    if (errno != EWOULDBLOCK)
+    if (errno != EWOULDBLOCK && errno != EAGAIN)
 	fatal("read from loopback: %m(%d)", errno);
 
     return rv;
