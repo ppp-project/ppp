@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.2 1993/12/14 05:41:11 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.3 1994/04/11 07:16:50 paulus Exp $";
 #endif
 
 /*
@@ -32,6 +32,7 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.2 1993/12/14 05:41:11 paulus Exp $";
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/errno.h>
+#include <sys/wait.h>
 
 #include <net/if.h>
 #include <net/if_ppp.h>
@@ -95,6 +96,8 @@ output(unit, p, len)
 {
     if (unit != 0)
 	MAINDEBUG((LOG_WARNING, "output: unit != 0!"));
+    if (debug)
+	log_packet(p, len, "sent ");
 
     if (write(fd, p, len) < 0) {
 	syslog(LOG_ERR, "write: %m");
@@ -171,12 +174,16 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
     u_long asyncmap;
     int pcomp, accomp;
 {
-#ifdef notyet
+    int x;
+
+    if (ioctl(fd, PPPIOCSMRU, (caddr_t) &mru) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSMRU): %m");
+	quit();
+    }
     if (ioctl(fd, PPPIOCSRASYNCMAP, (caddr_t) &asyncmap) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSRASYNCMAP): %m");
 	quit();
     }
-
     if (ioctl(fd, PPPIOCGFLAGS, (caddr_t) &x) < 0) {
 	syslog(LOG_ERR, "ioctl (PPPIOCGFLAGS): %m");
 	quit();
@@ -186,14 +193,14 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
-#endif	/* notyet */
 }
 
 /*
  * sifvjcomp - config tcp header compression
  */
 int
-sifvjcomp(u, vjcomp, cidcomp)
+sifvjcomp(u, vjcomp, cidcomp, maxcid)
+    int u, vjcomp, cidcomp, maxcid;
 {
     u_int x;
 
@@ -203,7 +210,11 @@ sifvjcomp(u, vjcomp, cidcomp)
     }
     x = vjcomp ? x | SC_COMP_TCP: x &~ SC_COMP_TCP;
     x = cidcomp? x & ~SC_NO_TCP_CCID: x | SC_NO_TCP_CCID;
-    if(ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+    if (ioctl(fd, PPPIOCSFLAGS, (caddr_t) &x) < 0) {
+	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
+	return 0;
+    }
+    if (ioctl(fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	return 0;
     }
@@ -500,4 +511,43 @@ ppp_available()
     close(s);
 
     return ok;
+}
+
+/*
+ * run-program - execute a program with given arguments.
+ * Returns the exit status, or -1 if an error occurred.
+ * If the program can't be executed, logs an error unless
+ * must_exist is 0 and the program file doesn't exist.
+ */
+
+int
+run_program(prog, args, must_exist)
+    char *prog;
+    char **args;
+    int must_exist;
+{
+    pid_t pid;
+    int status;
+
+    pid = fork();
+    if (pid == -1) {
+	syslog(LOG_ERR, "can't fork to run %s: %m", prog);
+	return -1;
+    }
+    if (pid == 0) {
+	execv(prog, args);
+	if (must_exist || errno != ENOENT)
+	    syslog(LOG_WARNING, "can't execute %s: %m", prog);
+	_exit(-1);
+    }
+    if (waitpid(pid, &status, 0) == -1) {
+	syslog(LOG_ERR, "waitpid: %m");
+	return -1;
+    }
+    if (WIFSIGNALED(status)) {
+	syslog(LOG_INFO, "%s terminated with signal %d", prog,
+	       WTERMSIG(status));
+	return -1;
+    }
+    return WEXITSTATUS(status);
 }
