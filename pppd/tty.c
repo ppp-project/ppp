@@ -73,7 +73,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.12 2003/04/07 00:01:46 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.13 2004/01/13 04:17:59 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -580,6 +580,11 @@ int connect_tty()
 		    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
 			warn("Couldn't reset non-blocking mode on device: %m");
 
+#ifndef __linux__
+		/*
+		 * Linux 2.4 and above blocks normal writes to the tty
+		 * when it is in PPP line discipline, so this isn't needed.
+		 */
 		/*
 		 * Do the equivalent of `mesg n' to stop broadcast messages.
 		 */
@@ -588,6 +593,7 @@ int connect_tty()
 			warn("Couldn't restrict write permissions to %s: %m", devnam);
 		} else
 			tty_mode = statbuf.st_mode;
+#endif /* __linux__ */
 
 		/*
 		 * Set line speed, flow control, etc.
@@ -800,12 +806,14 @@ finish_tty()
 
 	restore_tty(real_ttyfd);
 
+#ifndef __linux__
 	if (tty_mode != (mode_t) -1) {
 		if (fchmod(real_ttyfd, tty_mode) != 0) {
 			/* XXX if devnam is a symlink, this will change the link */
 			chmod(devnam, tty_mode);
 		}
 	}
+#endif /* __linux__ */
 
 	close(real_ttyfd);
 	real_ttyfd = -1;
