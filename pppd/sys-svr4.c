@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.2 1995/06/01 01:31:28 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.3 1995/06/23 01:54:11 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -143,7 +143,7 @@ ppp_available()
 void
 establish_ppp()
 {
-    int i;
+    int i, ifd;
 
     pppfd = open("/dev/ppp", O_RDWR | O_NONBLOCK, 0);
     if (pppfd < 0) {
@@ -154,6 +154,28 @@ establish_ppp()
     /* Assign a new PPA and get its unit number. */
     if (strioctl(pppfd, PPPIO_NEWPPA, &ifunit, 0, sizeof(int)) < 0) {
 	syslog(LOG_ERR, "Can't create new PPP interface: %m");
+	die(1);
+    }
+
+    /*
+     * Open the ppp device again and link it under the ip multiplexor.
+     * IP will assign a unit number which hopefully is the same as ifunit.
+     * I don't know any way to be certain they will be the same. :-(
+     */
+    ifd = open("/dev/ppp", O_RDWR, 0);
+    if (ifd < 0) {
+	syslog(LOG_ERR, "Can't open /dev/ppp (2): %m");
+	die(1);
+    }
+    if (ioctl(ifd, I_PUSH, "ip") < 0) {
+	syslog(LOG_ERR, "Can't push IP module: %m");
+	close(ifd);
+	die(1);
+    }
+    ipmuxid = ioctl(ipfd, I_LINK, ifd);
+    close(ifd);
+    if (ipmuxid < 0) {
+	syslog(LOG_ERR, "Can't link PPP device to IP: %m");
 	die(1);
     }
 
@@ -659,10 +681,6 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    if (ipmuxid < 0) {
-	syslog(LOG_DEBUG, "sifup: not plumbed!");
-	return 0;
-    }
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't mark interface up (get): %m");
@@ -710,25 +728,7 @@ sifaddr(u, o, h, m)
     int u;
     u_int32_t o, h, m;
 {
-    int fd;
     struct ifreq ifr;
-
-    fd = open("/dev/ppp", O_RDWR, 0);
-    if (fd < 0) {
-	syslog(LOG_ERR, "Can't open /dev/ppp (2): %m");
-	die(1);
-    }
-    if (ioctl(fd, I_PUSH, "ip") < 0) {
-	syslog(LOG_ERR, "Can't push IP module: %m");
-	close(fd);
-	return 0;
-    }
-    ipmuxid = ioctl(ipfd, I_LINK, fd);
-    close(fd);
-    if (ipmuxid < 0) {
-	syslog(LOG_ERR, "Can't link PPP device to IP: %m");
-	return 0;
-    }
 
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
@@ -764,6 +764,7 @@ cifaddr(u, o, h)
     int u;
     u_int32_t o, h;
 {
+#if 0
     if (ipmuxid >= 0) {
 	if (ioctl(ipfd, I_UNLINK, ipmuxid) < 0) {
 	    syslog(LOG_ERR, "Can't remove ppp interface unit: %m");
@@ -771,6 +772,7 @@ cifaddr(u, o, h)
 	}
 	ipmuxid = -1;
     }
+#endif
     return 1;
 }
 
