@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.17 1994/09/01 00:28:14 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.18 1994/09/01 00:32:24 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -58,8 +58,6 @@ static char rcsid[] = "$Id: main.c,v 1.17 1994/09/01 00:28:14 paulus Exp $";
 #ifndef	REQ_SYSOPTIONS
 #define REQ_SYSOPTIONS	1
 #endif
-
-static char *pidpath = _PATH_PIDFILE;
 
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
@@ -311,7 +309,7 @@ main(argc, argv)
 	(void) sprintf(ifname, "ppp%d", ifunit);
 
 	/* write pid to file */
-	(void) sprintf(pidfilename, "%s/%s.pid", pidpath, ifname);
+	(void) sprintf(pidfilename, "%s%s.pid", _PATH_VARRUN, ifname);
 	if ((pidfile = fopen(pidfilename, "w")) != NULL) {
 	    fprintf(pidfile, "%d\n", pid);
 	    (void) fclose(pidfile);
