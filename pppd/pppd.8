@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.3
-.\" $Id: pppd.8,v 1.39 1999/04/16 11:34:45 paulus Exp $
+.\" $Id: pppd.8,v 1.40 1999/05/13 00:34:04 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -692,9 +692,9 @@ the `passive' option with ancient versions of pppd).
 .TP
 .B sync
 Use synchronous HDLC serial encoding instead of asynchronous.
-The device used by pppd with this option must support synchronous
-serial communications. Currently supports Microgate SyncLink adapters
-under Linux.
+The device used by pppd with this option must have sync support.
+Currently supports Microgate SyncLink adapters
+under Linux and FreeBSD 2.2.8 and later.
 .TP
 .B usehostname
 Enforce the use of the hostname (with domain name appended, if given)
@@ -1047,6 +1047,74 @@ causes other debugging messages to be logged.
 .LP
 Debugging can also be enabled or disabled by sending a SIGUSR1 signal
 to the pppd process.  This signal acts as a toggle.
+.SH EXIT STATUS
+The exit status of pppd is set to indicate whether any error was
+detected, or the reason for the link being terminated.  The values
+used are:
+.TP
+.B 0
+Pppd has detached, or otherwise the connection was successfully
+established and terminated at the peer's request.
+.TP
+.B 1
+An immediately fatal error of some kind occurred, such as an essential
+system call failing, or running out of virtual memory.
+.TP
+.B 2
+An error was detected in processing the options given, such as two
+mutually exclusive options being used.
+.TP
+.B 3
+Pppd is not setuid-root and the invoking user is not root.
+.TP
+.B 4
+The kernel does not support PPP, for example, the PPP kernel driver is
+not included or cannot be loaded.
+.TP
+.B 5
+Pppd terminated because it was sent a SIGINT, SIGTERM or SIGHUP
+signal.
+.TP
+.B 6
+The serial port could not be locked.
+.TP
+.B 7
+The serial port could not be opened.
+.TP
+.B 8
+The connect script failed (returned a non-zero exit status).
+.TP
+.B 9
+The command specified as the argument to the \fIpty\fR option could
+not be run.
+.TP
+.B 10
+The PPP negotiation failed, that is, it didn't reach the point where
+at least one network protocol (e.g. IP) was running.
+.TP
+.B 11
+The peer system failed (or refused) to authenticate itself.
+.TP
+.B 12
+The link was established successfully and terminated because it was
+idle.
+.TP
+.B 13
+The link was established successfully and terminated because the
+connect time limit was reached.
+.TP
+.B 14
+Callback was negotiated and an incoming call should arrive shortly.
+.TP
+.B 15
+The link was terminated because the peer is not responding to echo
+requests.
+.TP
+.B 16
+The link was terminated by the modem hanging up.
+.TP
+.B 17
+The PPP negotiation failed because serial loopback was detected.
 .SH SCRIPTS
 Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
@@ -1078,14 +1146,30 @@ IPCP has come up.
 .B PEERNAME
 The authenticated name of the peer.  This is only set if the peer
 authenticates itself.
+.TP
 .B SPEED
 The baud rate of the tty device.
 .TP
 .B ORIG_UID
 The real user-id of the user who invoked pppd.
+.TP
 .B PPPLOGNAME
 The username of the real user-id that invoked pppd. This is always set.
+.P
+For the ip-down and auth-down scripts, pppd also sets the following
+variables giving statistics for the connection:
 .TP
+.B CONNECT_TIME
+The number of seconds from when the PPP negotiation started until the
+connection was terminated.
+.TP
+.B BYTES_SENT
+The number of bytes sent (at the level of the serial port) during the
+connection.
+.TP
+.B BYTES_RCVD
+The number of bytes received (at the level of the serial port) during
+the connection.
 .P
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
