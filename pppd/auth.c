@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.52 1999/05/12 06:19:46 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.53 1999/05/13 00:33:05 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -790,7 +790,8 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
     } else {
 	check_access(f, filename);
 	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0
-	    || (secret[0] != 0 && (cryptpap || strcmp(passwd, secret) != 0)
+	    || (!uselogin && secret[0] != 0
+		&& (cryptpap || strcmp(passwd, secret) != 0)
 		&& strcmp(crypt(passwd, secret), secret) != 0)) {
 	    warn("PAP authentication failure for %s", user);
 	    ret = UPAP_AUTHNAK;
