@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.15 1999/04/01 11:48:30 paulus Exp $
+# $Id: configure,v 1.16 1999/04/27 22:18:39 varadhan Exp $
 
 if [ -d /NextApps ]; then
   system="NeXTStep"
@@ -36,9 +36,10 @@ case $system in
   OSF1)
     makext="osf";
     case $release in
-      V1.*)   state="ancient"; ksrc="osf1";;
-      V[23].*)	state="known"; ksrc="osf1";;
-      V[4-9]*) state="late"; ksrc="osf1";;
+      V1.*)   state="neolithic"; ksrc="osf1";;
+      V[23].*)	state="neolithic"; ksrc="osf1";;
+      V4.*)	state="known"; ksrc="osf1";;
+      V[5-9]*) state="late"; ksrc="osf1";;
     esac;;
   Linux)
     makext="linux";
@@ -76,6 +77,10 @@ if [ -d "$ksrc" ]; then :; else
 fi
 
 case $state in
+  neolithic) 
+    echo "This is a newer release on an outdated OS ($system)."
+    echo " This software may  or may not work on this OS."
+    echo " You may want to download an older version of PPP for this OS.";;
   ancient)
     echo "This is an old release of a supported OS ($system)."
     echo "This software cannot be used as-is on this system,"
