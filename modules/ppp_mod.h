@@ -56,7 +56,7 @@
 #include <sys/proc.h>
 #define NOTSUSER()		(suser(u.u_procp->p_rcred, &u.u_acflag) ? EPERM : 0)
 
-#include "ppp_osf.h"
+/* #include "ppp_osf.h" */
 
 #endif /* __osf__ */
 
