@@ -51,7 +51,7 @@
 #define PPP_MAX_DEV	256
 #endif
 
-/* From: ppp.c,v 1.5 1995/06/12 11:36:53 paulus Exp
+/* $Id: ppp.c,v 1.8 1996/09/14 05:37:07 paulus Exp $
  * Added dynamic allocation of channels to eliminate
  *   compiled-in limits on the number of channels.
  *
@@ -78,9 +78,9 @@
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/segment.h>
-#include <linux/netdevice.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
+#include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/inet.h>
 #include <linux/ioctl.h>
@@ -531,7 +531,7 @@ extern inline int
 lock_buffer (register struct ppp_buffer *buf)
 {
 	register int state;
-	int flags;
+	unsigned long flags;
 /*
  * Save the current state and if free then set it to the "busy" state
  */
@@ -988,7 +988,7 @@ ppp_tty_wakeup (struct tty_struct *tty)
 static void
 ppp_kick_tty (struct ppp *ppp, struct ppp_buffer *xbuf)
 {
-	register int flags;
+	unsigned long flags;
 /*
  * Hold interrupts.
  */
@@ -1047,7 +1047,6 @@ ppp_tty_room (struct tty_struct *tty)
 /*
  * Callback function when data is available at the tty driver.
  */
-
 static void
 ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 		 char *flags, int count)
@@ -1055,6 +1054,10 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 	register struct ppp *ppp = tty2ppp (tty);
 	register struct ppp_buffer *buf = NULL;
 	__u8 chr;
+
+	if (count >= TTY_FLIPBUF_SIZE)
+		printk(KERN_WARNING "ppp_tty_receive: got %d chars\n", count);
+
 /*
  * Fetch the pointer to the buffer. Be careful about race conditions.
  */
@@ -1112,13 +1115,9 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
 			ppp->flags |= SC_RCV_EVNP;
 #endif
 /*
- * Branch on the character. Process the escape character. The sequence ESC ESC
- * is defined to be ESC.
+ * Branch on the character.
  */
 		switch (chr) {
-		case PPP_ESCAPE: /* PPP_ESCAPE: invert bit in next character */
-			ppp->escape = PPP_TRANS;
-			break;
 /*
  * FLAG. This is the end of the block. If the block terminated by ESC FLAG,
  * then the block is to be ignored. In addition, characters before the very
@@ -1132,8 +1131,7 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
  * Process frames which are not to be ignored. If the processing failed,
  * then clean up the VJ tables.
  */
-			if ((ppp->toss & 0x80) != 0 ||
-			    ppp_doframe (ppp) == 0) {
+			if (ppp_doframe (ppp) == 0) {
 				slhc_toss (ppp->slcomp);
 			}
 /*
@@ -1149,17 +1147,30 @@ ppp_tty_receive (struct tty_struct *tty, const __u8 * data,
  * receive mask then ignore the character.
  */
 		default:
-			if (in_rmap (ppp, chr))
-				break;
-/*
- * Adjust the character and if the frame is to be discarded then simply
- * ignore the character until the ending FLAG is received.
- */
-			chr ^= ppp->escape;
-			ppp->escape = 0;
-
+			/* If we're tossing, look no further. */
 			if (ppp->toss != 0)
 				break;
+
+			/* If this is a control char to be ignored, do so */
+			if (in_rmap (ppp, chr)) {
+				if (ppp->flags & SC_DEBUG)
+					printk(KERN_DEBUG "ignoring control char %x\n", chr);
+				break;
+			}
+
+			/*
+			 * Modify the next character if preceded by escape.
+			 * The escape character (0x7d) could be an escaped
+			 * 0x5d, if it follows an escape :-)
+			 */
+			if (ppp->escape) {
+				chr ^= ppp->escape;
+				ppp->escape = 0;
+			} else if (chr == PPP_ESCAPE) {
+				ppp->escape = PPP_TRANS;
+				break;
+			}
+
 /*
  * If the count sent is within reason then store the character, bump the
  * count, and update the FCS for the character.
@@ -1523,8 +1534,8 @@ ppp_doframe (struct ppp *ppp)
  */
 	if (ppp->toss) {
 		if (ppp->flags & SC_DEBUG)
-			printk (KERN_WARNING
-				"ppp_toss: tossing frame, reason = %d\n",
+			printk (KERN_DEBUG
+				"ppp_toss: tossing frame, reason = %x\n",
 				ppp->toss);
 		ppp->stats.ppp_ierrors++;
 		return 0;
@@ -1551,10 +1562,12 @@ ppp_doframe (struct ppp *ppp)
  * end of the buffer.
  */
 	if (ppp->rbuf->fcs != PPP_GOODFCS) {
-		if (ppp->flags & SC_DEBUG)
+		if (ppp->flags & SC_DEBUG) {
 			printk (KERN_WARNING
-				"ppp: frame with bad fcs, excess = %x\n",
-				ppp->rbuf->fcs ^ PPP_GOODFCS);
+				"ppp: frame with bad fcs, excess = %x, length = %d\n",
+				ppp->rbuf->fcs ^ PPP_GOODFCS, count);
+			ppp_print_buffer("bad frame", data, count);
+		}
 		ppp->stats.ppp_ierrors++;
 		return 0;
 	}
@@ -1913,10 +1926,6 @@ ppp_dev_xmit_lower (struct ppp *ppp, struct ppp_buffer *buf,
 	write_fcs = buf->fcs ^ 0xFFFF;
 	ppp_stuff_char (ppp, buf, write_fcs);
 	ppp_stuff_char (ppp, buf, write_fcs >> 8);
-
-	if (ppp->flags & SC_DEBUG)
-		printk (KERN_DEBUG "ppp_dev_xmit_lower: fcs is %hx\n",
-			write_fcs);
 /*
  * Add the trailing flag character
  */
@@ -1927,12 +1936,6 @@ ppp_dev_xmit_lower (struct ppp *ppp, struct ppp_buffer *buf,
 	if (ppp->flags & SC_LOG_FLUSH)
 		ppp_print_buffer ("ppp flush", buf_base (buf),
 				  buf->count);
-	else {
-		if (ppp->flags & SC_DEBUG)
-			printk (KERN_DEBUG
-				"ppp_dev_xmit: writing %d chars\n",
-				buf->count);
-	}
 /*
  * Send the block to the tty driver.
  */
@@ -3060,12 +3063,6 @@ ppp_dev_xmit (sk_buff *skb, struct device *dev)
 		return 0;
 	}
 /*
- * Validate the tty linkage
- */
-	if (ppp->flags & SC_DEBUG)
-		printk (KERN_DEBUG "ppp_dev_xmit [%s]: skb %p\n",
-			dev->name, skb);
-/*
  * Validate the tty interface
  */
 	if (tty == NULL) {
@@ -3137,7 +3134,7 @@ ppp_dev_stats (struct device *dev)
 	ppp_stats.tx_heartbeat_errors = 0;
 
 	if (ppp->flags & SC_DEBUG)
-		printk (KERN_INFO "ppp_dev_stats called");
+		printk (KERN_INFO "ppp_dev_stats called\n");
 	return &ppp_stats;
 }
 
@@ -3331,7 +3328,7 @@ static struct compressor_link *ppp_compressors = (struct compressor_link *) 0;
 static struct compressor *find_compressor (int type)
 {
 	struct compressor_link *lnk;
-	__u32 flags;
+	unsigned long flags;
 
 	save_flags(flags);
 	cli();
@@ -3352,7 +3349,7 @@ static struct compressor *find_compressor (int type)
 static int ppp_register_compressor (struct compressor *cp)
 {
 	struct compressor_link *new;
-	__u32 flags;
+	unsigned long flags;
 
 	new = (struct compressor_link *) kmalloc (sizeof (struct compressor_link), GFP_KERNEL);
 
@@ -3380,7 +3377,7 @@ static void ppp_unregister_compressor (struct compressor *cp)
 {
 	struct compressor_link *prev = (struct compressor_link *) 0;
 	struct compressor_link *lnk;
-	__u32 flags;
+	unsigned long flags;
 
 	save_flags(flags);
 	cli();
