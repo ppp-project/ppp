@@ -1,6 +1,7 @@
 This directory contains a set of scripts which have been used on Linux
-systems to initiate or maintain a connection with PPP.  The files in
-this directory were contributed by Al Longyear (longyear@netcom.com).
+as well as Solaris 2.x systems to initiate or maintain a connection 
+with PPP.  The files in this directory were contributed by Al Longyear 
+(longyear@netcom.com) and Adi Masputra (adi.masputra@sun.com)
 
 ------------------------------------------------------------------------
 
@@ -89,3 +90,54 @@ value before it starts the dial sequence. What was needed was a script which
 asked the user at the user's console at the time that it is needed.
 
 This led to the use of expect.
+
+------------------------------------------------------------------------
+
+8. ppp-on-rsh
+
+This script will initiate a PPP connection to a remote machine using rsh.
+This is implemented by creating a master/slave pseudo-tty with the slave 
+pointing to rsh, specifically with the 'pty' and 'notty' options of pppd. 
+It is assumed that the remote machine contains some sort of trust 
+mechanisms (such as ~/.rhosts, et al) to allow the local machine to 
+connect via rsh as root.
+
+------------------------------------------------------------------------
+
+9. ppp-on-ssh
+
+This script will initiate a PPP connection to a remote machine using the 
+secure shell, or ssh. I've only tested this on ssh 1.x, so those of you 
+who are running ssh 2.x mahy need to modify the ssh options slightly.
+This is implemented by creating a master/slave pseudo-ttyt with the slave 
+pointing to ssh, specifically with the 'pty' and 'notty' options of pppd. 
+It is assumed that the remote machine can accept the ssh connection from 
+the local host, in the sense that all ssh authentication mechanisms have 
+been properly configured, so that a remote root user can open a ssh 
+connection.
+
+------------------------------------------------------------------------
+
+10. options-rsh-loc & options-rsh-rem
+
+These options files accompany the ppp-on-rsh script mentioned above. In 
+theory, you'd want to copy the options-rsh-rem to the remote machine where 
+in.rshd is running. The only extra option required on the remote machine 
+options file is the 'notty' option. In addition, all ASCII control characters 
+[0x00 to 0x1f], plus 0xff, are escaped. This may need to be modified 
+depending on the rsh (or pseudo-tty) implementation which may differ across 
+platforms, for further optimizations.
+
+------------------------------------------------------------------------
+
+11. options-ssh-loc & options-ssh-rem
+
+These options files accompany the ppp-on-ssh script mentioned above. I've
+only tested this on ssh 1.x, so those of you who are running ssh 2.x need
+to modify the ssh options slightly. In theory, you'd want to copy the 
+options-ssh-rem to the remote machine where sshd daemon is running. The only 
+extra options required on the remote machine options file is the 'notty' 
+option. In addition, all ASCII control characters [0x00 to 0x1f], plus 0xff, 
+are escaped. This may need to be modified depending on the ssh (or 
+pseudo-tty) implementation which may differ across platforms, for further 
+optimizations.
