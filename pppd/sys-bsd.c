@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.8 1994/08/09 06:30:38 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.9 1994/08/22 00:41:00 paulus Exp $";
 #endif
 
 /*
@@ -275,6 +275,22 @@ ppp_recv_config(unit, mru, asyncmap, pcomp, accomp)
 	syslog(LOG_ERR, "ioctl(PPPIOCSFLAGS): %m");
 	quit();
     }
+}
+
+/*
+ * ccp_test - ask kernel whether a given compression method
+ * is acceptable for use.
+ */
+ccp_test(unit, opt_ptr, opt_len, for_transmit)
+    int unit, opt_len, for_transmit;
+    u_char *opt_ptr;
+{
+    struct ppp_comp_data data;
+
+    data.ptr = opt_ptr;
+    data.length = opt_len;
+    data.transmit = for_transmit;
+    return ioctl(fd, PPPIOCSCOMPRESS, (caddr_t) &data) >= 0;
 }
 
 /*
