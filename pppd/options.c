@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.69 1999/12/23 01:28:52 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.70 2000/03/13 23:39:58 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -93,6 +93,7 @@ int	idle_time_limit = 0;	/* Disconnect if idle for this many seconds */
 int	holdoff = 30;		/* # seconds to pause before reconnecting */
 bool	holdoff_specified;	/* true if a holdoff value has been given */
 bool	notty = 0;		/* Stdin/out is not a tty */
+char	*pty_socket = NULL;	/* Socket to connect to pty */
 char	*record_file = NULL;	/* File to record chars sent/received */
 int	using_pty = 0;
 bool	sync_serial = 0;	/* Device is synchronous serial device */
@@ -101,6 +102,7 @@ int	maxfail = 10;		/* max # of unsuccessful connection attempts */
 char	linkname[MAXPATHLEN];	/* logical name for link */
 bool	tune_kernel;		/* may alter kernel settings */
 int	connect_delay = 1000;	/* wait this many ms after connect script */
+int	max_data_rate;		/* max bytes/sec through charshunt */
 
 extern option_t auth_options[];
 extern struct stat devstat;
@@ -205,6 +207,8 @@ option_t general_options[] = {
       OPT_A2INFO | OPT_PRIVFIX | OPT_DEVNAM, &ptycommand_info },
     { "notty", o_bool, &notty,
       "Input/output is not a tty", OPT_DEVNAM | 1 },
+    { "socket", o_string, &pty_socket,
+      "Send and receive over socket, arg is host:port", OPT_DEVNAM },
     { "record", o_string, &record_file,
       "Record characters sent/received to file" },
     { "maxconnect", o_int, &maxconnect,
@@ -270,6 +274,8 @@ option_t general_options[] = {
       "Don't alter kernel settings", 0 },
     { "connect-delay", o_int, &connect_delay,
       "Maximum time (in ms) to wait after connect script finishes" },
+    { "datarate", o_int, &max_data_rate,
+      "Maximum data rate in bytes/sec (with pty, notty or record option)" },
 #ifdef PLUGIN
     { "plugin", o_special, loadplugin,
       "Load a plug-in module into pppd", OPT_PRIV },

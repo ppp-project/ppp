@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.89 2000/01/18 19:49:52 masputra Exp $"
+#define RCSID	"$Id: main.c,v 1.90 2000/03/13 23:39:58 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -40,6 +40,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -171,6 +172,7 @@ static void holdoff_end __P((void *));
 static int device_script __P((char *, int, int, int));
 static int reap_kids __P((int waitfor));
 static void record_child __P((int, char *, void (*) (void *), void *));
+static int open_socket __P((char *));
 static int start_charshunt __P((int, int));
 static void charshunt_done __P((void *));
 static void charshunt __P((int, int, char *));
@@ -295,7 +297,7 @@ main(argc, argv)
     /*
      * Work out the device name, if it hasn't already been specified.
      */
-    using_pty = notty || ptycommand != NULL;
+    using_pty = notty || ptycommand != NULL || pty_socket != NULL;
     if (!using_pty && default_device) {
 	char *p;
 	if (!isatty(0) || (p = ttyname(0)) == NULL) {
@@ -310,7 +312,7 @@ main(argc, argv)
     /*
      * Parse the tty options file and the command line.
      * The per-tty options file should not change
-     * ptycommand, notty or devnam.
+     * ptycommand, pty_socket, notty or devnam.
      */
     devnam_fixed = 1;
     if (!using_pty) {
@@ -361,6 +363,10 @@ main(argc, argv)
 	}
 	if (ptycommand != NULL && notty) {
 	    option_error("pty option is incompatible with notty option");
+	    exit(EXIT_OPTION_ERROR);
+	}
+	if (pty_socket != NULL && (ptycommand != NULL || notty)) {
+	    option_error("socket option is incompatible with pty and notty");
 	    exit(EXIT_OPTION_ERROR);
 	}
 	default_device = notty;
@@ -576,13 +582,13 @@ main(argc, argv)
 	new_phase(PHASE_SERIALCONN);
 
 	/*
-	 * Get a pty master/slave pair if the pty, notty, or record
-	 * options were specified.
+	 * Get a pty master/slave pair if the pty, notty, socket,
+	 * or record options were specified.
 	 */
 	strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
 	pty_master = -1;
 	pty_slave = -1;
-	if (ptycommand != NULL || notty || record_file != NULL) {
+	if (using_pty || record_file != NULL) {
 	    if (!get_pty(&pty_master, &pty_slave, ppp_devnam, uid)) {
 		error("Couldn't allocate pseudo-tty");
 		status = EXIT_FATAL_ERROR;
@@ -661,7 +667,7 @@ main(argc, argv)
 	}
 
 	/*
-	 * If the notty and/or record option was specified,
+	 * If the pty, socket, notty and/or record option was specified,
 	 * start up the character shunt now.
 	 */
 	status = EXIT_PTYCMD_FAILED;
@@ -686,6 +692,12 @@ main(argc, argv)
 		close(pty_master);
 		pty_master = -1;
 	    }
+	} else if (pty_socket != NULL) {
+	    int fd = open_socket(pty_socket);
+	    if (fd < 0)
+		goto fail;
+	    if (!start_charshunt(fd, fd))
+		goto fail;
 	} else if (notty) {
 	    if (!start_charshunt(0, 1))
 		goto fail;
@@ -1826,9 +1838,9 @@ reap_kids(waitfor)
 	return 0;
     while ((pid = waitpid(-1, &status, (waitfor? 0: WNOHANG))) != -1
 	   && pid != 0) {
-	--n_children;
 	for (prevp = &children; (chp = *prevp) != NULL; prevp = &chp->next) {
 	    if (chp->pid == pid) {
+		--n_children;
 		*prevp = chp->next;
 		break;
 	    }
@@ -1939,6 +1951,60 @@ script_unsetenv(var)
 }
 
 /*
+ * open_socket - establish a stream socket connection to the nominated
+ * host and port.
+ */
+static int
+open_socket(dest)
+    char *dest;
+{
+    char *sep, *endp = NULL;
+    int sock, port = -1;
+    u_int32_t host;
+    struct hostent *hent;
+    struct sockaddr_in sad;
+
+    /* parse host:port and resolve host to an IP address */
+    sep = strchr(dest, ':');
+    if (sep != NULL)
+	port = strtol(sep+1, &endp, 10);
+    if (port < 0 || endp == sep+1 || sep == dest) {
+	error("Can't parse host:port for socket destination");
+	return -1;
+    }
+    *sep = 0;
+    host = inet_addr(dest);
+    if (host == (u_int32_t) -1) {
+	hent = gethostbyname(dest);
+	if (hent == NULL) {
+	    error("%s: unknown host in socket option", dest);
+	    *sep = ':';
+	    return -1;
+	}
+	host = *(u_int32_t *)(hent->h_addr_list[0]);
+    }
+    *sep = ':';
+
+    /* get a socket and connect it to the other end */
+    sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+	error("Can't create socket: %m");
+	return -1;
+    }
+    memset(&sad, 0, sizeof(sad));
+    sad.sin_family = AF_INET;
+    sad.sin_port = htons(port);
+    sad.sin_addr.s_addr = host;
+    if (connect(sock, &sad, sizeof(sad)) < 0) {
+	error("Can't connect to %s: %m", dest);
+	close(sock);
+	return -1;
+    }
+
+    return sock;
+}
+
+/*
  * start_charshunt - create a child process to run the character shunt.
  */
 static int
@@ -1998,6 +2064,8 @@ charshunt(ifd, ofd, record_file)
     int pty_readable, stdin_readable;
     struct timeval lasttime;
     FILE *recordf = NULL;
+    int ilevel, olevel, max_level;
+    struct timeval levelt, tout, *top;
 
     /*
      * Reset signal handlers.
@@ -2071,6 +2139,16 @@ charshunt(ifd, ofd, record_file)
     nibuf = nobuf = 0;
     ibufp = obufp = NULL;
     pty_readable = stdin_readable = 1;
+
+    ilevel = olevel = 0;
+    gettimeofday(&levelt, NULL);
+    if (max_data_rate) {
+	max_level = max_data_rate / 10;
+	if (max_level < 100)
+	    max_level = 100;
+    } else
+	max_level = sizeof(inpacket_buf) + 1;
+
     nfds = (ofd > pty_master? ofd: pty_master) + 1;
     if (recordf != NULL) {
 	gettimeofday(&lasttime, NULL);
@@ -2083,21 +2161,44 @@ charshunt(ifd, ofd, record_file)
     }
 
     while (nibuf != 0 || nobuf != 0 || pty_readable || stdin_readable) {
+	top = 0;
+	tout.tv_sec = 0;
+	tout.tv_usec = 10000;
 	FD_ZERO(&ready);
 	FD_ZERO(&writey);
-	if (nibuf != 0)
-	    FD_SET(pty_master, &writey);
-	else if (stdin_readable)
+	if (nibuf != 0) {
+	    if (ilevel >= max_level)
+		top = &tout;
+	    else
+		FD_SET(pty_master, &writey);
+	} else if (stdin_readable)
 	    FD_SET(ifd, &ready);
-	if (nobuf != 0)
-	    FD_SET(ofd, &writey);
-	else if (pty_readable)
+	if (nobuf != 0) {
+	    if (olevel >= max_level)
+		top = &tout;
+	    else
+		FD_SET(ofd, &writey);
+	} else if (pty_readable)
 	    FD_SET(pty_master, &ready);
-	if (select(nfds, &ready, &writey, NULL, NULL) < 0) {
+	if (select(nfds, &ready, &writey, NULL, top) < 0) {
 	    if (errno != EINTR)
 		fatal("select");
 	    continue;
 	}
+	if (max_data_rate) {
+	    double dt;
+	    int nbt;
+	    struct timeval now;
+
+	    gettimeofday(&now, NULL);
+	    dt = (now.tv_sec - levelt.tv_sec
+		  + (now.tv_usec - levelt.tv_usec) / 1e6);
+	    nbt = (int)(dt * max_data_rate);
+	    ilevel = (nbt < 0 || nbt > ilevel)? 0: ilevel - nbt;
+	    olevel = (nbt < 0 || nbt > olevel)? 0: olevel - nbt;
+	    levelt = now;
+	} else
+	    ilevel = olevel = 0;
 	if (FD_ISSET(ifd, &ready)) {
 	    ibufp = inpacket_buf;
 	    nibuf = read(ifd, ibufp, sizeof(inpacket_buf));
@@ -2153,7 +2254,10 @@ charshunt(ifd, ofd, record_file)
 	    }
 	}
 	if (FD_ISSET(ofd, &writey)) {
-	    n = write(ofd, obufp, nobuf);
+	    n = nobuf;
+	    if (olevel + n > max_level)
+		n = max_level - olevel;
+	    n = write(ofd, obufp, n);
 	    if (n < 0) {
 		if (errno != EIO) {
 		    error("Error writing standard output: %m");
@@ -2164,10 +2268,14 @@ charshunt(ifd, ofd, record_file)
 	    } else {
 		obufp += n;
 		nobuf -= n;
+		olevel += n;
 	    }
 	}
 	if (FD_ISSET(pty_master, &writey)) {
-	    n = write(pty_master, ibufp, nibuf);
+	    n = nibuf;
+	    if (ilevel + n > max_level)
+		n = max_level - ilevel;
+	    n = write(pty_master, ibufp, n);
 	    if (n < 0) {
 		if (errno != EIO) {
 		    error("Error writing pseudo-tty master: %m");
@@ -2178,6 +2286,7 @@ charshunt(ifd, ofd, record_file)
 	    } else {
 		ibufp += n;
 		nibuf -= n;
+		ilevel += n;
 	    }
 	}
     }
