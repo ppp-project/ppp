@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.36 2002/10/12 02:30:21 fcusack Exp $"
+#define RCSID	"$Id: chap.c,v 1.37 2002/10/12 20:09:36 fcusack Exp $"
 
 /*
  * TODO:
@@ -576,10 +576,8 @@ ChapReceiveResponse(cstate, inp, id, len)
 
     UNTIMEOUT(ChapChallengeTimeout, cstate);
 
-    if (len >= sizeof(rhostname))
-	len = sizeof(rhostname) - 1;
-    BCOPY(inp, rhostname, len);
-    rhostname[len] = '\000';
+    /* Null terminate and clean remote name. */
+    slprintf(rhostname, sizeof(rhostname), "%.*v", len, inp);
 
 #ifdef CHAPMS
     /* copy the flags into cstate for use elsewhere */
