@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.26 1996/05/28 00:41:13 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.27 1996/07/01 01:15:19 paulus Exp $";
 #endif
 
 /*
@@ -101,10 +101,33 @@ static fsm_callbacks lcp_callbacks = {	/* LCP callback routines */
     "LCP"			/* String name of protocol */
 };
 
+/*
+ * Protocol entry points.
+ * Some of these are called directly.
+ */
+
+static void lcp_init __P((int));
+static void lcp_input __P((int, u_char *, int));
+static void lcp_protrej __P((int));
+static int  lcp_printpkt __P((u_char *, int,
+			      void (*) __P((void *, char *, ...)), void *));
+
 struct protent lcp_protent = {
-    PPP_LCP, lcp_init, lcp_input, lcp_protrej,
-    lcp_lowerup, lcp_lowerdown, lcp_open, lcp_close,
-    lcp_printpkt, NULL, 1, "LCP", NULL, NULL
+    PPP_LCP,
+    lcp_init,
+    lcp_input,
+    lcp_protrej,
+    lcp_lowerup,
+    lcp_lowerdown,
+    lcp_open,
+    lcp_close,
+    lcp_printpkt,
+    NULL,
+    1,
+    "LCP",
+    NULL,
+    NULL,
+    NULL
 };
 
 int lcp_loopbackfail = DEFLOOPBACKFAIL;
@@ -125,7 +148,7 @@ int lcp_loopbackfail = DEFLOOPBACKFAIL;
 /*
  * lcp_init - Initialize LCP.
  */
-void
+static void
 lcp_init(unit)
     int unit;
 {
@@ -201,6 +224,7 @@ lcp_close(unit, reason)
 {
     fsm *f = &lcp_fsm[unit];
 
+    phase = PHASE_TERMINATE;
     if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
 	/*
 	 * This action is not strictly according to the FSM in RFC1548,
@@ -255,7 +279,7 @@ lcp_lowerdown(unit)
 /*
  * lcp_input - Input LCP packet.
  */
-void
+static void
 lcp_input(unit, p, len)
     int unit;
     u_char *p;
@@ -364,7 +388,7 @@ lcp_rprotrej(f, inp, len)
  * lcp_protrej - A Protocol-Reject was received.
  */
 /*ARGSUSED*/
-void
+static void
 lcp_protrej(unit)
     int unit;
 {
@@ -409,6 +433,7 @@ lcp_resetci(f)
     lcp_wantoptions[f->unit].numloops = 0;
     lcp_gotoptions[f->unit] = lcp_wantoptions[f->unit];
     peer_mru[f->unit] = PPP_MRU;
+    auth_reset(f->unit);
 }
 
 
@@ -737,19 +762,22 @@ lcp_nakci(f, p, len)
      */
     if ((go->neg_chap || go->neg_upap)
 	&& len >= CILEN_SHORT
-	&& p[0] == CI_AUTHTYPE && p[1] >= CILEN_SHORT) {
+	&& p[0] == CI_AUTHTYPE && p[1] >= CILEN_SHORT && p[1] <= len) {
 	cilen = p[1];
+	len -= cilen;
+	no.neg_chap = go->neg_chap;
+	no.neg_upap = go->neg_upap;
 	INCPTR(2, p);
         GETSHORT(cishort, p);
 	if (cishort == PPP_PAP && cilen == CILEN_SHORT) {
 	    /*
-	     * If they are asking for PAP, then they don't want to do CHAP.
+	     * If we were asking for CHAP, they obviously don't want to do it.
 	     * If we weren't asking for CHAP, then we were asking for PAP,
 	     * in which case this Nak is bad.
 	     */
 	    if (!go->neg_chap)
 		goto bad;
-	    go->neg_chap = 0;
+	    try.neg_chap = 0;
 
 	} else if (cishort == PPP_CHAP && cilen == CILEN_CHAP) {
 	    GETCHAR(cichar, p);
@@ -760,12 +788,12 @@ lcp_nakci(f, p, len)
 		 * asking for CHAP.
 		 */
 		if (cichar != go->chap_mdtype)
-		    go->neg_chap = 0;
+		    try.neg_chap = 0;
 	    } else {
 		/*
 		 * Stop asking for PAP if we were asking for it.
 		 */
-		go->neg_upap = 0;
+		try.neg_upap = 0;
 	    }
 
 	} else {
@@ -774,22 +802,11 @@ lcp_nakci(f, p, len)
 	     * Stop asking for what we were asking for.
 	     */
 	    if (go->neg_chap)
-		go->neg_chap = 0;
+		try.neg_chap = 0;
 	    else
-		go->neg_upap = 0;
+		try.neg_upap = 0;
 	    p += cilen - CILEN_SHORT;
 	}
-    }
-
-    /*
-     * Peer shouldn't send Nak for protocol compression or
-     * address/control compression requests; they should send
-     * a Reject instead.  If they send a Nak, treat it as a Reject.
-     */
-    if (!go->neg_chap ){
-	NAKCISHORT(CI_AUTHTYPE, neg_upap,
-		   try.neg_upap = 0;
-		   );
     }
 
     /*
@@ -812,6 +829,11 @@ lcp_nakci(f, p, len)
 	      looped_back = 1;
 	      );
 
+    /*
+     * Peer shouldn't send Nak for protocol compression or
+     * address/control compression requests; they should send
+     * a Reject instead.  If they send a Nak, treat it as a Reject.
+     */
     NAKCIVOID(CI_PCOMPRESSION, neg_pcompression,
 	      try.neg_pcompression = 0;
 	      );
@@ -838,7 +860,7 @@ lcp_nakci(f, p, len)
     while (len > CILEN_VOID) {
 	GETCHAR(citype, p);
 	GETCHAR(cilen, p);
-	if ((len -= cilen) < 0)
+	if (cilen < CILEN_VOID || (len -= cilen) < 0)
 	    goto bad;
 	next = p + cilen - 2;
 
@@ -1462,13 +1484,13 @@ lcp_finished(f)
 /*
  * lcp_printpkt - print the contents of an LCP packet.
  */
-char *lcp_codenames[] = {
+static char *lcp_codenames[] = {
     "ConfReq", "ConfAck", "ConfNak", "ConfRej",
     "TermReq", "TermAck", "CodeRej", "ProtRej",
     "EchoReq", "EchoRep", "DiscReq"
 };
 
-int
+static int
 lcp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
@@ -1479,6 +1501,7 @@ lcp_printpkt(p, plen, printer, arg)
     u_char *pstart, *optend;
     u_short cishort;
     u_int32_t cilong;
+    int fascii;
 
     if (plen < HEADERLEN)
 	return 0;
@@ -1584,6 +1607,17 @@ lcp_printpkt(p, plen, printer, arg)
 	    printer(arg, ">");
 	}
 	break;
+
+    case TERMACK:
+    case TERMREQ:
+	if (len > 0 && *p >= ' ' && *p < 0x7f) {
+	    printer(arg, " ");
+	    print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
+	}
+	break;
+
     case ECHOREQ:
     case ECHOREP:
     case DISCREQ:
@@ -1617,7 +1651,6 @@ void LcpLinkFailure (f)
 	syslog(LOG_INFO, "No response to %d echo-requests", lcp_echos_pending);
         syslog(LOG_NOTICE, "Serial link appears to be disconnected.");
         lcp_close(f->unit, "Peer not responding");
-	phase = PHASE_TERMINATE;
     }
 }
 
