@@ -49,7 +49,7 @@
  *     install a new bsd_comp.c file. Don't change the format of that
  *     line otherwise, so the installation script can recognize it.
  *
- * $Id: bsd_comp.c,v 1.2 1995/12/18 03:37:05 paulus Exp $
+ * $Id: bsd_comp.c,v 1.3 1996/01/18 03:12:47 paulus Exp $
  */
 
 #ifndef MODULE
@@ -501,7 +501,9 @@ static int bsd_init (void *state, unsigned char *options,
     struct bsd_db *db = state;
     int indx;
     
-    if ((opt_len != 3) || (options[0] != CI_BSD_COMPRESS) || (options[1] != 3)
+    if ((opt_len < CILEN_BSD_COMPRESS)
+	|| (options[0] != CI_BSD_COMPRESS)
+	|| (options[1] != CILEN_BSD_COMPRESS)
 	|| (BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	|| (BSD_NBITS(options[2]) != db->maxbits)
 	|| (decomp && db->lens == NULL))

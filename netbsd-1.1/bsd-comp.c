@@ -1,4 +1,4 @@
-/*	$Id: bsd-comp.c,v 1.1 1995/12/11 05:17:05 paulus Exp $	*/
+/*	$Id: bsd-comp.c,v 1.2 1996/01/18 03:13:03 paulus Exp $	*/
 
 /* Because this code is derived from the 4.3BSD compress source:
  *
@@ -42,7 +42,7 @@
 /*
  * This version is for use with mbufs on BSD-derived systems.
  *
- * $Id: bsd-comp.c,v 1.1 1995/12/11 05:17:05 paulus Exp $
+ * $Id: bsd-comp.c,v 1.2 1996/01/18 03:13:03 paulus Exp $
  */
 
 #include <sys/param.h>
@@ -309,7 +309,7 @@ bsd_alloc(options, opt_len, decomp)
     u_int newlen, hsize, hshift, maxmaxcode;
     struct bsd_db *db;
 
-    if (opt_len != CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
+    if (opt_len < CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
 	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION)
 	return NULL;
@@ -407,7 +407,7 @@ bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
 {
     int i;
 
-    if (opt_len != CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
+    if (opt_len < CILEN_BSD_COMPRESS || options[0] != CI_BSD_COMPRESS
 	|| options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION
 	|| BSD_NBITS(options[2]) != db->maxbits

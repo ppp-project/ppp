@@ -41,7 +41,7 @@
  * This version is for use with STREAMS under SunOS 4.x,
  * DEC Alpha OSF/1, AIX 4.x, and SVR4 systems including Solaris 2.
  *
- * $Id: bsd-comp.c,v 1.17 1995/12/11 02:57:48 paulus Exp $
+ * $Id: bsd-comp.c,v 1.18 1996/01/18 03:12:53 paulus Exp $
  */
 
 #ifdef AIX4
@@ -50,10 +50,7 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stream.h>
-#include <sys/socket.h>
-#include <net/if.h>
 #include <net/ppp_defs.h>
-#include <net/ppp_str.h>
 #include "ppp_mod.h"
 
 #ifdef SVR4
@@ -422,7 +419,8 @@ bsd_init(db, options, opt_len, unit, hdrlen, mru, debug, decomp)
 {
     int i;
 
-    if (opt_len != 3 || options[0] != CI_BSD_COMPRESS || options[1] != 3
+    if (opt_len < CILEN_BSD_COMPRESS
+	|| options[0] != CI_BSD_COMPRESS || options[1] != CILEN_BSD_COMPRESS
 	|| BSD_VERSION(options[2]) != BSD_CURRENT_VERSION
 	|| BSD_NBITS(options[2]) != db->maxbits
 	|| decomp && db->lens == NULL)
