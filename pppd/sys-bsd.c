@@ -21,7 +21,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-bsd.c,v 1.27 1997/03/04 03:43:53 paulus Exp $";
+static char rcsid[] = "$Id: sys-bsd.c,v 1.28 1997/04/30 05:57:46 paulus Exp $";
 #endif
 
 /*
@@ -42,6 +42,13 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.27 1997/03/04 03:43:53 paulus Exp $";
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/param.h>
+#ifdef NetBSD1_2
+#include <util.h>
+#endif
+#ifdef PPP_FILTER
+#include <net/bpf.h>
+#endif
 
 #include <net/if.h>
 #include <net/ppp_defs.h>
@@ -55,6 +62,8 @@ static char rcsid[] = "$Id: sys-bsd.c,v 1.27 1997/03/04 03:43:53 paulus Exp $";
 #endif
 
 #include "pppd.h"
+#include "fsm.h"
+#include "ipcp.h"
 
 static int initdisc = -1;	/* Initial TTY discipline for ppp_fd */
 static int initfdflags = -1;	/* Initial file descriptor flags for ppp_fd */
@@ -144,7 +153,6 @@ void
 sys_check_options()
 {
 }
-
 
 /*
  * ppp_available - check whether the system has any ppp interfaces
@@ -523,7 +531,7 @@ output(unit, p, len)
     int len;
 {
     if (debug)
-	log_packet(p, len, "sent ");
+	log_packet(p, len, "sent ", LOG_DEBUG);
 
     if (write(ttyfd, p, len) < 0) {
 	if (errno != EIO)
@@ -792,6 +800,32 @@ get_idle_time(u, ip)
     return ioctl(ppp_fd, PPPIOCGIDLE, ip) >= 0;
 }
 
+
+#ifdef PPP_FILTER
+/*
+ * set_filters - transfer the pass and active filters to the kernel.
+ */
+int
+set_filters(pass, active)
+    struct bpf_program *pass, *active;
+{
+    int ret = 1;
+
+    if (pass->bf_len > 0) {
+	if (ioctl(ppp_fd, PPPIOCSPASS, pass) < 0) {
+	    syslog(LOG_ERR, "Couldn't set pass-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    if (active->bf_len > 0) {
+	if (ioctl(ppp_fd, PPPIOCSACTIVE, active) < 0) {
+	    syslog(LOG_ERR, "Couldn't set active-filter in kernel: %m");
+	    ret = 0;
+	}
+    }
+    return ret;
+}
+#endif
 
 /*
  * sifvjcomp - config tcp header compression
