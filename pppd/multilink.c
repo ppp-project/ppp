@@ -128,23 +128,33 @@ mp_join_bundle()
 	dbglog("bundle_id = %s", bundle_id+7);
 
 	/*
+	 * For demand mode, we only need to configure the bundle
+	 * and attach the link.
+	 */
+	if (demand) {
+		cfg_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
+		script_setenv("BUNDLE", bundle_id + 7, 1);
+		return 0;
+	}
+
+	/*
 	 * Check if the bundle ID is already in the database.
 	 */
 	unit = -1;
-	pppd_pid = -1;
+	tdb_writelock(pppdb);
 	key.dptr = bundle_id;
 	key.dsize = p - bundle_id;
-	tdb_writelock(pppdb);
 	pid = tdb_fetch(pppdb, key);
 	if (pid.dptr != NULL) {
-		/* bundle ID exists, see if the pppd record still exists */
+		/* bundle ID exists, see if the pppd record exists */
 		rec = tdb_fetch(pppdb, pid);
 		if (rec.dptr != NULL) {
 			/* it is, parse the interface number */
 			parse_num(rec.dptr, "IFNAME=ppp", &unit);
 			/* check the pid value */
-			parse_num(rec.dptr, "PPPD_PID=", &pppd_pid);
-			if (!process_exists(pppd_pid) || !owns_unit(pid, unit))
+			if (!parse_num(rec.dptr, "PPPD_PID=", &pppd_pid)
+			    || !process_exists(pppd_pid)
+			    || !owns_unit(pid, unit))
 				unit = -1;
 			free(rec.dptr);
 		}
@@ -152,12 +162,12 @@ mp_join_bundle()
 	}
 
 	if (unit >= 0) {
-		/* attach to existing unit, if the pid still exists */
+		/* attach to existing unit */
 		if (bundle_attach(unit)) {
-			dbglog("attached link to interface %d", ifunit);
 			set_ifunit(0);
 			script_setenv("BUNDLE", bundle_id + 7, 0);
 			tdb_writeunlock(pppdb);
+			info("Link attached to %s", ifname);
 			return 1;
 		}
 		/* attach failed because bundle doesn't exist */
@@ -168,6 +178,7 @@ mp_join_bundle()
 	set_ifunit(1);
 	script_setenv("BUNDLE", bundle_id + 7, 1);
 	tdb_writeunlock(pppdb);
+	info("New bundle %s created", ifname);
 	return 0;
 }
 

@@ -415,7 +415,6 @@ int establish_ppp (int tty_fd)
 	    warn("Couldn't set /dev/ppp (channel) to nonblock: %m");
 	set_ppp_fd(fd);
 
-	ifunit = -1;
 	if (!looped && !multilink) {
 	    /*
 	     * Create a new PPP unit.
@@ -550,22 +549,16 @@ static int make_ppp_unit()
 }
 
 /*
- * make_new_bundle - create a new PPP unit (i.e. a bundle)
- * and connect our channel to it.  This should only get called
- * if `multilink' was set at the time establish_ppp was called.
+ * cfg_bundle - configure the existing bundle.
+ * Used in demand mode.
  */
-void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
+void cfg_bundle(int mrru, int mtru, int rssn, int tssn)
 {
 	int flags;
 	struct ifreq ifr;
 
-	if (looped || !new_style_driver)
+	if (!new_style_driver)
 		return;
-	dbglog("make_new_bundle(%d,%d,%d,%d)", mrru, mtru, rssn, tssn);
-
-	/* make us a ppp unit */
-	if (make_ppp_unit() < 0)
-		die(1);
 
 	/* set the mrru, mtu and flags */
 	if (ioctl(ppp_dev_fd, PPPIOCSMRRU, &mrru) < 0)
@@ -592,7 +585,28 @@ void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
 }
 
 /*
+ * make_new_bundle - create a new PPP unit (i.e. a bundle)
+ * and connect our channel to it.  This should only get called
+ * if `multilink' was set at the time establish_ppp was called.
+ * In demand mode this uses our existing bundle instead of making
+ * a new one.
+ */
+void make_new_bundle(int mrru, int mtru, int rssn, int tssn)
+{
+	if (!new_style_driver)
+		return;
+
+	/* make us a ppp unit */
+	if (make_ppp_unit() < 0)
+		die(1);
+
+	/* set the mrru, mtu and flags */
+	cfg_bundle(mrru, mtru, rssn, tssn);
+}
+
+/*
  * bundle_attach - attach our link to a given PPP unit.
+ * We assume the unit is controlled by another pppd.
  */
 int bundle_attach(int ifnum)
 {
@@ -609,7 +623,6 @@ int bundle_attach(int ifnum)
 	set_flags(ppp_dev_fd, get_flags(ppp_dev_fd) | SC_MULTILINK);
 
 	ifunit = ifnum;
-	dbglog("bundle_attach succeeded");
 	return 1;
 }
 

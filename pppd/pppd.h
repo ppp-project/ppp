@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.53 2000/04/13 12:05:15 paulus Exp $
+ * $Id: pppd.h,v 1.54 2000/04/15 10:10:25 paulus Exp $
  */
 
 /*
@@ -407,6 +407,7 @@ void restore_loop __P((void));	/* Transfer ppp unit back to loopback */
 void disestablish_ppp __P((int)); /* Restore port to normal operation */
 void make_new_bundle __P((int, int, int, int)); /* Create new bundle */
 int  bundle_attach __P((int));	/* Attach link to existing bundle */
+void cfg_bundle __P((int, int, int, int)); /* Configure existing bundle */
 void clean_check __P((void));	/* Check if line was 8-bit clean */
 void set_up_tty __P((int, int)); /* Set up port's speed, parameters, etc. */
 void restore_tty __P((int));	/* Restore port's original parameters */

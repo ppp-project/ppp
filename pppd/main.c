@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.94 2000/04/15 01:27:13 masputra Exp $"
+#define RCSID	"$Id: main.c,v 1.95 2000/04/15 10:10:24 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1017,8 +1017,10 @@ set_ifunit(iskey)
     info("Using interface ppp%d", ifunit);
     slprintf(ifname, sizeof(ifname), "ppp%d", ifunit);
     script_setenv("IFNAME", ifname, iskey);
-    create_pidfile();	/* write pid to file */
-    create_linkpidfile();
+    if (iskey) {
+	create_pidfile();	/* write pid to file */
+	create_linkpidfile();
+    }
 }
 
 /*
