@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 #ifndef lint
-static char rcsid[] = "$Id: utils.c,v 1.3 1999/05/04 06:58:36 paulus Exp $";
+static char rcsid[] = "$Id: utils.c,v 1.4 1999/05/12 06:15:33 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -45,6 +45,10 @@ static char rcsid[] = "$Id: utils.c,v 1.3 1999/05/04 06:58:36 paulus Exp $";
 #endif
 
 #include "pppd.h"
+
+#if defined(SUNOS4)
+extern char *strerror();
+#endif
 
 static void pr_log __P((void *, char *, ...));
 static void logit __P((int, char *, va_list));
@@ -701,7 +705,8 @@ static char lock_file[MAXPATHLEN];
  * lock - create a lock file for the named device
  */
 int
-lock(char *dev)
+lock(dev)
+    char *dev;
 {
 #ifdef LOCKLIB
     int result;
@@ -818,7 +823,8 @@ lock(char *dev)
  * between when the parent died and the child rewrote the lockfile).
  */
 int
-relock(int pid)
+relock(pid)
+    int pid;
 {
 #ifdef LOCKLIB
     /* XXX is there a way to do this? */
