@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.147 2004/11/13 12:02:22 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.148 2004/11/13 12:05:48 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -172,6 +172,7 @@ int devfd = -1;			/* fd of underlying device */
 int fd_ppp = -1;		/* fd for talking PPP */
 int phase;			/* where the link is at */
 int kill_link;
+int asked_to_quit;
 int open_ccp_flag;
 int listen_time;
 int got_sigusr2;
@@ -511,13 +512,13 @@ main(argc, argv)
 	    add_fd(fd_loop);
 	    for (;;) {
 		handle_events();
-		if (kill_link && !persist)
+		if (asked_to_quit)
 		    break;
 		if (get_loop_output())
 		    break;
 	    }
 	    remove_fd(fd_loop);
-	    if (kill_link && !persist)
+	    if (asked_to_quit)
 		break;
 
 	    /*
@@ -536,9 +537,10 @@ main(argc, argv)
 	while (phase != PHASE_DEAD) {
 	    handle_events();
 	    get_input();
-	    if (kill_link) {
-		bundle_terminating = 1;
+	    if (kill_link)
 		lcp_close(0, "User request");
+	    if (asked_to_quit) {
+		bundle_terminating = 1;
 		if (phase == PHASE_MASTER)
 		    mp_bundle_terminated();
 	    }
@@ -550,7 +552,7 @@ main(argc, argv)
 	    }
 	}
 
-	if (!persist || (maxfail > 0 && unsuccess >= maxfail))
+	if (!persist || asked_to_quit || (maxfail > 0 && unsuccess >= maxfail))
 	    break;
 
 	if (demand)
@@ -624,6 +626,7 @@ handle_events()
     if (got_sigterm) {
 	info("Terminating on signal %d", got_sigterm);
 	kill_link = 1;
+	asked_to_quit = 1;
 	persist = 0;
 	status = EXIT_USER_REQUEST;
 	got_sigterm = 0;

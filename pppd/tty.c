@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.20 2004/11/12 09:51:23 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.21 2004/11/13 12:05:48 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -152,6 +152,8 @@ int	using_pty = 0;		/* we're allocating a pty as the device */
 
 extern uid_t uid;
 extern int kill_link;
+extern int asked_to_quit;
+extern int got_sigterm;
 
 /* XXX */
 extern int privopen;		/* don't lock, open device as root */
@@ -547,7 +549,7 @@ int connect_tty()
 	 * in order to wait for the carrier detect signal from the modem.
 	 */
 	hungup = 0;
-	kill_link = 0;
+	got_sigterm = 0;
 	connector = doing_callback? callback_script: connect_script;
 	if (devnam[0] != 0) {
 		for (;;) {
@@ -679,7 +681,7 @@ int connect_tty()
 				status = EXIT_INIT_FAILED;
 				goto errret;
 			}
-			if (kill_link) {
+			if (got_sigterm) {
 				disconnect_tty();
 				goto errret;
 			}
@@ -692,7 +694,7 @@ int connect_tty()
 				status = EXIT_CONNECT_FAILED;
 				goto errret;
 			}
-			if (kill_link) {
+			if (got_sigterm) {
 				disconnect_tty();
 				goto errret;
 			}
@@ -718,7 +720,7 @@ int connect_tty()
 				error("Failed to reopen %s: %m", devnam);
 				status = EXIT_OPEN_FAILED;
 			}
-			if (!persist || errno != EINTR || hungup || kill_link)
+			if (!persist || errno != EINTR || hungup || got_sigterm)
 				goto errret;
 		}
 		close(i);
@@ -757,6 +759,8 @@ int connect_tty()
 		real_ttyfd = -1;
 	}
 	ttyfd = -1;
+	if (got_sigterm)
+		asked_to_quit = 1;
 	return -1;
 }
 
