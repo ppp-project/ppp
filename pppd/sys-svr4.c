@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: sys-svr4.c,v 1.36 1999/10/08 01:09:03 masputra Exp $"
+#define RCSID	"$Id: sys-svr4.c,v 1.37 1999/10/29 00:30:26 masputra Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -494,7 +494,7 @@ sys_init()
     ifr.ifr_ip_muxid = ipmuxid;
 
     /*
-     * In Sol 8 and later, STREAMS dynamic module plumbing feature exits.
+     * In Sol 8 and later, STREAMS dynamic module plumbing feature exists.
      * This is so that an arbitrary module can be inserted, or deleted, 
      * between ip module and the device driver without tearing down the 
      * existing stream. Such feature requires the mux ids, which is set 
@@ -892,6 +892,18 @@ struct speed {
 #endif
 #ifdef B115200
     { 115200, B115200 },
+#endif
+#ifdef B153600
+    { 153600, B153600 },
+#endif
+#ifdef B230400
+    { 230400, B230400 },
+#endif
+#ifdef B307200
+    { 307200, B307200 },
+#endif
+#ifdef B460800
+    { 460800, B460800 },
 #endif
     { 0, 0 }
 };
