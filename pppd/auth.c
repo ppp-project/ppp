@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.4 1994/05/18 05:59:43 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.5 1994/05/24 11:20:26 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -280,6 +280,7 @@ auth_withpeer_success(unit, protocol)
     default:
 	syslog(LOG_WARNING, "auth_peer_success: unknown protocol %x",
 	       protocol);
+	bit = 0;
     }
 
     /*
@@ -643,6 +644,7 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
     char *server;
     char *secret;
     int *secret_len;
+    int save_addrs;
 {
     FILE *f;
     int ret, len;
@@ -861,7 +863,7 @@ scan_authfile(f, client, server, secret, addrs, filename)
 	 */
 	if (addr_list)
 	    free_wordlist(addr_list);
-	addr_list = NULL;
+	addr_list = addr_last = NULL;
 	for (;;) {
 	    if (!getword(f, word, &newline, filename) || newline)
 		break;
