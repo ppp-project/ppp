@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.1 1994/09/21 00:28:59 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.2 1994/10/21 06:26:41 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -53,13 +53,16 @@
  */
 struct ppp_softc {
 	struct	ifnet sc_if;		/* network-visible interface */
-	u_int	sc_flags;		/* see below */
+	u_int	sc_flags;		/* control/status bits; see if_ppp.h */
 	void	*sc_devp;		/* pointer to device-dep structure */
-	int	(*sc_start) __P((struct ppp_softc *));	/* start routine */
+	void	(*sc_start) __P((struct ppp_softc *));	/* start output proc */
+	void	(*sc_ctlp) __P((struct ppp_softc *)); /* rcvd control pkt */
 	short	sc_mru;			/* max receive unit */
 	pid_t	sc_xfer;		/* used in transferring unit */
-	struct	ifqueue sc_inq;		/* TTY side input queue */
-	struct	ifqueue sc_fastq;	/* IP interactive output packet q */
+	struct	ifqueue sc_rawq;	/* received packets */
+	struct	ifqueue sc_inq;		/* queue of input packets for daemon */
+	struct	ifqueue sc_fastq;	/* interactive output packet q */
+	struct	mbuf *sc_togo;		/* output packet ready to go */
 #ifdef	VJC
 	struct	slcompress sc_comp; 	/* vjc control buffer */
 #endif
@@ -86,7 +89,11 @@ struct ppp_softc {
 	int	sc_rawin_count;		/* # in sc_rawin */
 };
 
-struct ppp_softc ppp_softc[NPPP];
+struct	ppp_softc ppp_softc[NPPP];
 
-extern int ppppktin __P((struct ppp_softc *sc, struct mbuf *m));
-struct mbuf *ppp_dequeue __P((struct ppp_softc *sc));
+struct	ppp_softc *pppalloc __P((pid_t pid));
+void	pppdealloc __P((struct ppp_softc *sc));
+int	pppioctl __P((struct ppp_softc *sc, int cmd, caddr_t data,
+		      int flag, struct proc *p));
+void	ppppktin __P((struct ppp_softc *sc, struct mbuf *m, int lost));
+struct	mbuf *ppp_dequeue __P((struct ppp_softc *sc));
