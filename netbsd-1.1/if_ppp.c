@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.c,v 1.3 1996/07/01 01:03:38 paulus Exp $	*/
+/*	$Id: if_ppp.c,v 1.4 1996/07/01 05:30:45 paulus Exp $	*/
 
 /*
  * if_ppp.c - Point-to-Point Protocol (PPP) Asynchronous driver.
@@ -90,6 +90,10 @@
 #include <sys/time.h>
 #include <sys/malloc.h>
 
+#if NetBSD1_0 && defined(i386)
+#include <machine/psl.h>
+#endif
+
 #include <net/if.h>
 #include <net/if_types.h>
 #include <net/netisr.h>
@@ -115,6 +119,10 @@
 #include <net/if_ppp.h>
 #include <net/if_pppvar.h>
 #include <machine/cpu.h>
+
+#if NetBSD1_0
+#define splsoftnet	splnet
+#endif
 
 #ifdef PPP_COMPRESS
 #define PACKETPTR	struct mbuf *
@@ -197,6 +205,18 @@ pppattach()
 	bpfattach(&sc->sc_bpf, &sc->sc_if, DLT_PPP, PPP_HDRLEN);
 #endif
     }
+
+#if NetBSD1_0 && defined(i386)
+    /*
+     * XXX kludge to fix the bug in the i386 interrupt handling code,
+     * where software interrupts could be taken while hardware
+     * interrupts were blocked.
+     */
+    if ((imask[IPL_TTY] & (1 << SIR_NET)) == 0) {
+	imask[IPL_TTY] |= (1 << SIR_NET);
+	intr_calculatemasks();
+    }
+#endif
 }
 
 /*
@@ -622,6 +642,8 @@ pppoutput(ifp, m0, dst, rtp)
     struct ip *ip;
     struct ifqueue *ifq;
     enum NPmode mode;
+    int len;
+    struct mbuf *m;
 
     if (sc->sc_devp == NULL || (ifp->if_flags & IFF_RUNNING) == 0
 	|| ((ifp->if_flags & IFF_UP) == 0 && dst->sa_family != AF_UNSPEC)) {
@@ -694,6 +716,10 @@ pppoutput(ifp, m0, dst, rtp)
     *cp++ = protocol >> 8;
     *cp++ = protocol & 0xff;
     m0->m_len += PPP_HDRLEN;
+
+    len = 0;
+    for (m = m0; m != 0; m = m->m_next)
+	len += m->m_len;
 
     if (sc->sc_flags & SC_LOG_OUTPKT) {
 	printf("ppp%d output: ", ifp->if_unit);
