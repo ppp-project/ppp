@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.36 1996/10/08 04:35:03 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.37 1997/03/04 03:41:58 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -206,6 +206,9 @@ static int setidle __P((char **));
 static int setholdoff __P((char **));
 static int setdnsaddr __P((char **));
 static int resetipxproto __P((void));
+static int setwinsaddr __P((char **));
+static int showversion __P((void));
+static int showhelp __P((void));
 
 #ifdef IPX_CHANGE
 static int setipxproto __P((void));
@@ -345,8 +348,12 @@ static struct cmd {
     {"idle", 1, setidle},		/* idle time limit (seconds) */
     {"holdoff", 1, setholdoff},		/* set holdoff time (seconds) */
     {"ms-dns", 1, setdnsaddr},		/* DNS address for the peer's use */
+    {"ms-wins", 1, setwinsaddr},	/* Nameserver for SMB over TCP/IP for peer */
     {"noipx",  0, resetipxproto},	/* Disable IPXCP (and IPX) */
     {"-ipx",   0, resetipxproto},	/* Disable IPXCP (and IPX) */
+    {"--version", 0, showversion},	/* Show version number */
+    {"--help", 0, showhelp},		/* Show brief listing of options */
+    {"-h", 0, showhelp},		/* ditto */
 
 #ifdef IPX_CHANGE
     {"ipx-network",          1, setipxnetwork}, /* IPX network number */
@@ -493,6 +500,33 @@ usage()
     if (phase == PHASE_INITIALIZE)
 	fprintf(stderr, usage_string, VERSION, PATCHLEVEL, IMPLEMENTATION,
 		progname);
+}
+
+/*
+ * showhelp - print out usage message and exit.
+ */
+static int
+showhelp()
+{
+    if (phase == PHASE_INITIALIZE) {
+	usage();
+	exit(0);
+    }
+    return 0;
+}
+
+/*
+ * showversion - print out the version number and exit.
+ */
+static int
+showversion()
+{
+    if (phase == PHASE_INITIALIZE) {
+	fprintf(stderr, "pppd version %s patch level %d%s\n",
+		VERSION, PATCHLEVEL, IMPLEMENTATION);
+	exit(0);
+    }
+    return 0;
 }
 
 /*
@@ -1657,9 +1691,37 @@ static int
 setnetmask(argv)
     char **argv;
 {
-    u_int32_t mask;
+    u_int32_t mask, b;
+    int n, ok;
+    char *p, *endp;
 
-    if ((mask = inet_addr(*argv)) == -1 || (netmask & ~mask) != 0) {
+    /*
+     * Unfortunately, if we use inet_addr, we can't tell whether
+     * a result of all 1s is an error or a valid 255.255.255.255.
+     */
+    p = *argv;
+    ok = 0;
+    mask = 0;
+    for (n = 3;; --n) {
+	b = strtoul(p, &endp, 0);
+	if (endp == p)
+	    break;
+	if (b < 0 || b > 255) {
+	    if (n == 3) {
+		/* accept e.g. 0xffffff00 */
+		p = endp;
+		mask = b;
+	    }
+	    break;
+	}
+	mask |= b << (n * 8);
+	p = endp;
+	if (*p != '.' || n == 0)
+	    break;
+	++p;
+    }
+
+    if (*p != 0 || (netmask & ~mask) != 0) {
 	option_error("invalid netmask value '%s'", *argv);
 	return 0;
     }
@@ -2140,6 +2202,37 @@ setdnsaddr(argv)
     return (1);
 }
 
+/*
+ * setwinsaddr - set the wins address(es)
+ * This is primrarly used with the Samba package under UNIX or for pointing
+ * the caller to the existing WINS server on a Windows NT platform.
+ */
+static int
+setwinsaddr(argv)
+    char **argv;
+{
+    u_int32_t wins;
+    struct hostent *hp;
+
+    wins = inet_addr(*argv);
+    if (wins == -1) {
+	if ((hp = gethostbyname(*argv)) == NULL) {
+	    option_error("invalid address parameter '%s' for ms-wins option",
+			 *argv);
+	    return 0;
+	}
+	wins = *(u_int32_t *)hp->h_addr;
+    }
+
+    if (ipcp_allowoptions[0].winsaddr[0] == 0) {
+	ipcp_allowoptions[0].winsaddr[0] = wins;
+    } else {
+	ipcp_allowoptions[0].winsaddr[1] = wins;
+    }
+
+    return (1);
+}
+
 #ifdef IPX_CHANGE
 static int
 setipxrouter (argv)
@@ -2215,8 +2308,14 @@ static int
 setipxnetwork(argv)
     char **argv;
 {
-    ipxcp_wantoptions[0].neg_nn = 1;
-    return int_option(*argv, &ipxcp_wantoptions[0].our_network); 
+    u_int32_t v;
+
+    if (!number_option(*argv, &v, 16))
+	return 0;
+
+    ipxcp_wantoptions[0].our_network = (int) v;
+    ipxcp_wantoptions[0].neg_nn      = 1;
+    return 1;
 }
 
 static int
