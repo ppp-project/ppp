@@ -953,7 +953,7 @@ void ppp_send_config (int unit,int mtu,u_int32_t asyncmap,int pcomp,int accomp)
  * Set the MTU and other parameters for the ppp device
  */
 	memset (&ifr, '\0', sizeof (ifr));
-	strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+	strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
 	ifr.ifr_mtu = mtu;
 	
 	if (ioctl(sock_fd, SIOCSIFMTU, (caddr_t) &ifr) < 0)
@@ -1130,7 +1130,7 @@ static int path_to_procfs (void)
     fp = fopen(MOUNTED, "r");
     if (fp == NULL) {
 	/* Default the mount location of /proc */
-	strncpy (route_buffer, "/proc", sizeof (route_buffer)-10);
+	strlcpy (route_buffer, sizeof (route_buffer), "/proc");
 	return 1;
     }
 
@@ -1144,8 +1144,7 @@ static int path_to_procfs (void)
     if (mntent == 0)
 	return 0;
 
-    strncpy(route_buffer, mntent->mnt_dir, sizeof (route_buffer)-10);
-    route_buffer [sizeof (route_buffer)-10] = '\0';
+    strlcpy(route_buffer, sizeof (route_buffer), mntent->mnt_dir);
     return 1;
 }
 
@@ -1160,7 +1159,7 @@ static char *path_to_route (void)
 	syslog (LOG_ERR, "proc file system not mounted");
 	return 0;
     }
-    strcat (route_buffer, "/net/route");
+    strlcat (route_buffer, sizeof(route_buffer), "/net/route");
     return (route_buffer);
 }
 
@@ -1523,7 +1522,7 @@ static int get_ether_addr (u_int32_t ipaddr,
 	if (ifr->ifr_addr.sa_family == AF_INET)
 	  {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	    strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
             SYSDEBUG ((LOG_DEBUG, "proxy arp: examining interface %s",
 			ifreq.ifr_name));
 /*
@@ -1662,7 +1661,7 @@ u_int32_t GetMask (u_int32_t addr)
 /*
  * Check that the interface is up, and not point-to-point nor loopback.
  */
-	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
 	if (ioctl(sock_fd, SIOCGIFFLAGS, &ifreq) < 0)
 	  {
 	    continue;
@@ -1796,7 +1795,7 @@ int ppp_available(void)
 	return 0;
     }
     
-    strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 /*
  * If the device did not exist then attempt to create one by putting the
@@ -1807,7 +1806,7 @@ int ppp_available(void)
     {
 	if (ppp_registered())
 	{
-	    strncpy (ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+	    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
 	    ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
 	}
     }
@@ -1925,11 +1924,11 @@ void logwtmp (const char *line, const char *name, const char *host)
 
     if (ut.ut_id[0] == 0)
       {
-	strncpy(ut.ut_id, line + 3, sizeof(ut.ut_id));
+	strlcpy(ut.ut_id, sizeof(ut.ut_id), line + 3);
       }
 	
-    strncpy(ut.ut_user, name, sizeof(ut.ut_user));
-    strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+    strlcpy(ut.ut_user, sizeof(ut.ut_user), name);
+    strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
 
     time(&ut.ut_time);
 
@@ -1939,7 +1938,7 @@ void logwtmp (const char *line, const char *name, const char *host)
     /* Insert the host name if one is supplied */
     if (*host)
       {
-	strncpy (ut.ut_host, host, sizeof(ut.ut_host));
+	strlcpy (ut.ut_host, sizeof(ut.ut_host), host);
       }
 
     /* Insert the IP address of the remote system if IP is enabled */
@@ -1983,63 +1982,52 @@ void logwtmp (const char *line, const char *name, const char *host)
  */
 
 int lock (char *dev)
-  {
+{
 #ifdef LOCKLIB
     int result;
-    lock_file = malloc(strlen(dev) + 1);
+    lock_file = strdup(dev);
     if (lock_file == NULL)
-      {
 	novm("lock file name");
-      }
-    strcpy (lock_file, dev);
     result = mklock (dev, (void *) 0);
 
-    if (result > 0)
-      {
+    if (result > 0) {
         syslog (LOG_NOTICE, "Device %s is locked by pid %d", dev, result);
 	free (lock_file);
 	lock_file = NULL;
 	result = -1;
-      }
-    else
-      {
-        if (result < 0)
-	  {
+    }
+    else {
+        if (result < 0) {
 	    syslog (LOG_ERR, "Can't create lock file %s", lock_file);
 	    free (lock_file);
 	    lock_file = NULL;
 	    result = -1;
-	  }
-      }
+	}
+    }
     return (result);
 #else
     char hdb_lock_buffer[12];
     int fd, n;
     int pid = getpid();
     char *p;
+    size_t l;
 
     p = strrchr(dev, '/');
     if (p != NULL)
-      {
 	dev = ++p;
-      }
 
-    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
+    l = strlen(LOCK_PREFIX) + strlen(dev) + 1;
+    lock_file = malloc(l);
     if (lock_file == NULL)
-      {
 	novm("lock file name");
-      }
 
-    strcpy (lock_file, LOCK_PREFIX);
-    strcat (lock_file, dev);
+    slprintf(lock_file, l, "%s%s", LOCK_PREFIX, dev);
 /*
  * Attempt to create the lock file at this point.
  */
-    while (1)
-      {
+    while (1) {
 	fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644);
-	if (fd >= 0)
-	  {
+	if (fd >= 0) {
 	    pid = getpid();
 #ifndef PID_BINARY
 	    sprintf (hdb_lock_buffer, "%010d\n", pid);
@@ -2049,34 +2037,28 @@ int lock (char *dev)
 #endif
 	    close(fd);
 	    return 0;
-	  }
+	}
 /*
  * If the file exists then check to see if the pid is stale
  */
-	if (errno == EEXIST)
-	  {
+	if (errno == EEXIST) {
 	    fd = open(lock_file, O_RDONLY, 0);
-	    if (fd < 0)
-	      {
+	    if (fd < 0) {
 		if (errno == ENOENT) /* This is just a timing problem. */
-		  {
 		    continue;
-		  }
 		break;
-	      }
+	    }
 
 	    /* Read the lock file to find out who has the device locked */
 	    n = read (fd, hdb_lock_buffer, 11);
 	    close (fd);
-	    if (n < 0)
-	      {
+	    if (n < 0) {
 		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
 		break;
-	      }
+	    }
 
 	    /* See the process still exists. */
-	    if (n > 0)
-	      {
+	    if (n > 0) {
 #ifndef PID_BINARY
 		hdb_lock_buffer[n] = '\0';
 		sscanf (hdb_lock_buffer, " %d", &pid);
@@ -2085,26 +2067,23 @@ int lock (char *dev)
 #endif
 		if (pid == 0 || pid == getpid()
 		    || (kill(pid, 0) == -1 && errno == ESRCH))
-		  {
 		    n = 0;
-		  }
-	      }
+	    }
 
 	    /* If the process does not exist then try to remove the lock */
-	    if (n == 0 && unlink (lock_file) == 0)
-	      {
+	    if (n == 0 && unlink (lock_file) == 0) {
 		syslog (LOG_NOTICE, "Removed stale lock on %s (pid %d)",
 			dev, pid);
 		continue;
-	      }
+	    }
 
 	    syslog (LOG_NOTICE, "Device %s is locked by pid %d", dev, pid);
 	    break;
-	  }
+	}
 
 	syslog(LOG_ERR, "Can't create lock file %s: %m(%d)", lock_file, errno);
 	break;
-      }
+    }
 
     free(lock_file);
     lock_file = NULL;
@@ -2170,7 +2149,7 @@ int sifup (int u)
     struct ifreq ifr;
 
     memset (&ifr, '\0', sizeof (ifr));
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0)
       {
 	if (! ok_error (errno))
@@ -2205,7 +2184,7 @@ int sifdown (int u)
     if_is_up = 0;
 
     memset (&ifr, '\0', sizeof (ifr));
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0)
       {
 	if (! ok_error (errno))
@@ -2246,7 +2225,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     SET_SA_FAMILY (ifr.ifr_dstaddr, AF_INET); 
     SET_SA_FAMILY (ifr.ifr_netmask, AF_INET); 
 
-    strncpy (ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy (ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
 /*
  *  Set our IP address
  */
@@ -2523,7 +2502,7 @@ int sipxfaddr (int unit, unsigned long int network, unsigned char * node )
     else
       {
 	memset (&ifr, '\0', sizeof (ifr));
-	strcpy (ifr.ifr_name, ifname);
+	strlcpy (ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
 
 	memcpy (sipx->sipx_node, node, IPX_NODE_LEN);
 	sipx->sipx_family  = AF_IPX;
@@ -2585,7 +2564,7 @@ int cipxfaddr (int unit)
     else
       {
 	memset (&ifr, '\0', sizeof (ifr));
-	strcpy (ifr.ifr_name, ifname);
+	strlcpy (ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
 
 	sipx->sipx_type    = IPX_FRAME_ETHERII;
 	sipx->sipx_action  = IPX_DLTITF;
@@ -2665,7 +2644,7 @@ sys_check_options(void)
       {
         if (path_to_procfs())
 	  {
-	    strcat (route_buffer, "/net/ipx_interface");
+	    strlcat (route_buffer, sizeof(route_buffer), "/net/ipx_interface");
 	    if (lstat (route_buffer, &stat_buf) >= 0)
 	      {
 		break;

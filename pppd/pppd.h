@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.28 1999/03/08 05:34:45 paulus Exp $
+ * $Id: pppd.h,v 1.29 1999/03/12 06:07:20 paulus Exp $
  */
 
 /*
@@ -94,8 +94,13 @@ typedef struct {
 #define OPT_A2INFO	0x100000 /* addr2 -> option_info to update */
 #define OPT_A2COPY	0x200000 /* addr2 -> second location to rcv value */
 #define OPT_ENABLE	0x400000 /* use *addr2 as enable for option */
+#define OPT_PRIVFIX	0x800000 /* can't be overridden if noauth */
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
+
+#ifndef GIDSET_TYPE
+#define GIDSET_TYPE	gid_t
+#endif
 
 /*
  * Global variables.
@@ -116,6 +121,8 @@ extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
+extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
+extern int	ngroups;	/* How many groups valid in groups */
 
 /*
  * Variables set by command-line options.
@@ -124,7 +131,7 @@ extern int	detached;	/* Have detached from controlling tty */
 extern int	debug;		/* Debug flag */
 extern int	kdebugflag;	/* Tell kernel to print debug messages */
 extern int	default_device;	/* Using /dev/tty or equivalent */
-extern char	devnam[];	/* Device name */
+extern char	devnam[MAXPATHLEN];	/* Device name */
 extern int	crtscts;	/* Use hardware flow control */
 extern bool	modem;		/* Use modem control lines */
 extern int	inspeed;	/* Input/Output speed requested */
@@ -136,19 +143,20 @@ extern char	*connector;	/* Script to establish physical link */
 extern char	*disconnector;	/* Script to disestablish physical link */
 extern char	*welcomer;	/* Script to welcome client after connection */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
-extern char	user[];		/* Our name for authenticating ourselves */
-extern char	passwd[];	/* Password for PAP */
+extern char	user[MAXNAMELEN];/* Our name for authenticating ourselves */
+extern char	passwd[MAXSECRETLEN];	/* Password for PAP */
 extern bool	auth_required;	/* Peer is required to authenticate */
 extern bool	persist;	/* Reopen link after it goes down */
 extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
-extern char	our_name[];	/* Our name for authentication purposes */
-extern char	remote_name[];	/* Peer's name for authentication */
+extern char	our_name[MAXNAMELEN];/* Our name for authentication purposes */
+extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 extern int	explicit_remote;/* remote_name specified with remotename opt */
 extern bool	demand;		/* Do dial-on-demand */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	idle_time_limit;/* Shut down link if idle for this long */
 extern int	holdoff;	/* Dead time before restarting */
+
 #ifdef PPP_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
@@ -240,11 +248,19 @@ void log_packet __P((u_char *, int, char *, int));
 				/* Format a packet and log it with syslog */
 void print_string __P((char *, int,  void (*) (void *, char *, ...),
 		void *));	/* Format a string for output */
-int fmtmsg __P((char *, int, char *, ...));		/* sprintf++ */
-int vfmtmsg __P((char *, int, char *, va_list));	/* vsprintf++ */
+int slprintf __P((char *, int, char *, ...));		/* sprintf++ */
+int vslprintf __P((char *, int, char *, va_list));	/* vsprintf++ */
 void script_setenv __P((char *, char *));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
 void hangup_modem __P((int));	/* Make modem hang up */
+void strlcpy __P((char *, size_t, const char *));	/* safe strcpy */
+void strlcat __P((char *, size_t, const char *));	/* safe strncpy */
+void dbglog __P((char *, ...));	/* log a debug message */
+void info __P((char *, ...));	/* log an informational message */
+void notice __P((char *, ...));	/* log a notice-level message */
+void warn __P((char *, ...));	/* log a warning message */
+void error __P((char *, ...));	/* log an error message */
+void fatal __P((char *, ...));	/* log an error message and die(1) */
 
 /* Procedures exported from auth.c */
 void link_required __P((int));	  /* we are starting to use the link */
@@ -449,7 +465,7 @@ extern struct option_info welcomer_info;
 #define BZERO(s, n)		memset(s, 0, n)
 #define EXIT(u)			quit()
 
-#define PRINTMSG(m, l)	{ m[l] = '\0'; syslog(LOG_INFO, "Remote message: %s", m); }
+#define PRINTMSG(m, l)		{ info("Remote message: %0.*v", l, m); }
 
 /*
  * MAKEHEADER - Add Header fields to a packet.

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.57 1999/03/08 05:34:43 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.58 1999/03/12 06:07:18 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -93,7 +93,7 @@ int kill_link;
 int open_ccp_flag;
 
 static int waiting;
-static jmp_buf sigjmp;
+static sigjmp_buf sigjmp;
 
 char **script_env;		/* Env. variable values for scripts */
 int s_env_nalloc;		/* # words avail at script_env */
@@ -106,6 +106,9 @@ static int n_children;		/* # child processes still running */
 static int locked;		/* lock() has succeeded */
 
 char *no_ppp_msg = "Sorry - this system lacks PPP kernel support\n";
+
+GIDSET_TYPE groups[NGROUPS_MAX];/* groups the user is in */
+int ngroups;			/* How many groups valid in groups */
 
 /* Prototypes for procedures local to this file. */
 
@@ -181,8 +184,8 @@ main(argc, argv)
     phase = PHASE_INITIALIZE;
     p = ttyname(0);
     if (p)
-	strcpy(devnam, p);
-    strcpy(default_devnam, devnam);
+	strlcpy(devnam, sizeof(devnam), p);
+    strlcpy(default_devnam, sizeof(default_devnam), devnam);
 
     script_env = NULL;
 
@@ -204,6 +207,8 @@ main(argc, argv)
     privileged = uid == 0;
     sprintf(numbuf, "%d", uid);
     script_setenv("ORIG_UID", numbuf);
+
+    ngroups = getgroups(NGROUPS_MAX, groups);
 
     /*
      * Initialize to the standard option set, then parse, in order,
@@ -302,13 +307,11 @@ main(argc, argv)
     sigaddset(&mask, SIGCHLD);
     sigaddset(&mask, SIGUSR2);
 
-#define SIGNAL(s, handler)	{ \
+#define SIGNAL(s, handler)	do { \
 	sa.sa_handler = handler; \
-	if (sigaction(s, &sa, NULL) < 0) { \
-	    syslog(LOG_ERR, "Couldn't establish signal handler (%d): %m", s); \
-	    exit(1); \
-	} \
-    }
+	if (sigaction(s, &sa, NULL) < 0) \
+	    fatal("Couldn't establish signal handler (%d): %m", s); \
+    } while (0)
 
     sa.sa_mask = mask;
     sa.sa_flags = 0;
@@ -367,7 +370,6 @@ main(argc, argv)
     signal(SIGPIPE, SIG_IGN);
 
     waiting = 0;
-    sigprocmask(SIG_BLOCK, &mask, NULL);
 
     /*
      * If we're doing dial-on-demand, set up the interface now.
@@ -398,16 +400,20 @@ main(argc, argv)
 	    /*
 	     * Don't do anything until we see some activity.
 	     */
-	    phase = PHASE_DORMANT;
 	    kill_link = 0;
+	    phase = PHASE_DORMANT;
 	    demand_unblock();
 	    for (;;) {
-		if (setjmp(sigjmp) == 0) {
-		    waiting = 1;
-		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		    wait_loop_output(timeleft(&timo));
+		if (sigsetjmp(sigjmp, 1) == 0) {
+		    sigprocmask(SIG_BLOCK, &mask, NULL);
+		    if (kill_link) {
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		    } else {
+			waiting = 1;
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			wait_loop_output(timeleft(&timo));
+		    }
 		}
-		sigprocmask(SIG_BLOCK, &mask, NULL);
 		waiting = 0;
 		calltimeout();
 		if (kill_link) {
@@ -419,14 +425,14 @@ main(argc, argv)
 		    break;
 		reap_kids();
 	    }
-	    if (kill_link)
+	    if (kill_link && !persist)
 		break;
 
 	    /*
 	     * Now we want to bring up the link.
 	     */
 	    demand_block();
-	    syslog(LOG_INFO, "Starting link");
+	    info("Starting link");
 	}
 
 	/*
@@ -447,7 +453,6 @@ main(argc, argv)
 	 */
 	hungup = 0;
 	kill_link = 0;
-	sigprocmask(SIG_UNBLOCK, &mask, NULL);
 	for (;;) {
 	    /* If the user specified the device name, become the
 	       user before opening it. */
@@ -459,23 +464,20 @@ main(argc, argv)
 	    if (ttyfd >= 0)
 		break;
 	    if (errno != EINTR)
-		syslog(LOG_ERR, "Failed to open %s: %m", devnam);
+		error("Failed to open %s: %m", devnam);
 	    if (!persist || errno != EINTR)
 		goto fail;
 	}
-	sigprocmask(SIG_BLOCK, &mask, NULL);
 	if ((fdflags = fcntl(ttyfd, F_GETFL)) == -1
 	    || fcntl(ttyfd, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
-	    syslog(LOG_WARNING,
-		   "Couldn't reset non-blocking mode on device: %m");
+	    warn("Couldn't reset non-blocking mode on device: %m");
 
 	/*
 	 * Do the equivalent of `mesg n' to stop broadcast messages.
 	 */
 	if (fstat(ttyfd, &statbuf) < 0
 	    || fchmod(ttyfd, statbuf.st_mode & ~(S_IWGRP | S_IWOTH)) < 0) {
-	    syslog(LOG_WARNING,
-		   "Couldn't restrict write permissions to %s: %m", devnam);
+	    warn("Couldn't restrict write permissions to %s: %m", devnam);
 	} else
 	    tty_mode = statbuf.st_mode;
 
@@ -500,11 +502,11 @@ main(argc, argv)
 	    set_up_tty(ttyfd, 1);
 
 	    if (device_script(connector, ttyfd, ttyfd) < 0) {
-		syslog(LOG_ERR, "Connect script failed");
+		error("Connect script failed");
 		goto fail;
 	    }
 
-	    syslog(LOG_INFO, "Serial connection established.");
+	    info("Serial connection established.");
 	    sleep(1);		/* give it time to set up its terminal */
 	}
 
@@ -522,7 +524,7 @@ main(argc, argv)
 		if (i >= 0)
 		    break;
 		if (errno != EINTR)
-		    syslog(LOG_ERR, "Failed to reopen %s: %m", devnam);
+		    error("Failed to reopen %s: %m", devnam);
 		if (!persist || errno != EINTR || hungup || kill_link)
 		    goto fail;
 	    }
@@ -532,7 +534,7 @@ main(argc, argv)
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
 	    if (device_script(welcomer, ttyfd, ttyfd) < 0)
-		syslog(LOG_WARNING, "Welcome script failed");
+		warn("Welcome script failed");
 	}
 
 	/* set up the serial device as a ppp interface */
@@ -540,7 +542,7 @@ main(argc, argv)
 
 	if (!demand) {
 	    
-	    syslog(LOG_INFO, "Using interface ppp%d", ifunit);
+	    info("Using interface ppp%d", ifunit);
 	    (void) sprintf(ifname, "ppp%d", ifunit);
 	    script_setenv("IFNAME", ifname);
 
@@ -551,17 +553,23 @@ main(argc, argv)
 	 * Start opening the connection and wait for
 	 * incoming events (reply, timeout, etc.).
 	 */
+	if (kill_link)
+	    goto fail;
 	syslog(LOG_NOTICE, "Connect: %s <--> %s", ifname, devnam);
 	lcp_lowerup(0);
 	lcp_open(0);		/* Start protocol */
 	open_ccp_flag = 0;
 	for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
-	    if (setjmp(sigjmp) == 0) {
-		waiting = 1;
-		sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		wait_input(timeleft(&timo));
+	    if (sigsetjmp(sigjmp, 1) == 0) {
+		sigprocmask(SIG_BLOCK, &mask, NULL);
+		if (kill_link || open_ccp_flag) {
+		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		} else {
+		    waiting = 1;
+		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		    wait_input(timeleft(&timo));
+		}
 	    }
-	    sigprocmask(SIG_BLOCK, &mask, NULL);
 	    waiting = 0;
 	    calltimeout();
 	    if (kill_link) {
@@ -596,9 +604,9 @@ main(argc, argv)
 	if (disconnector && !hungup) {
 	    set_up_tty(ttyfd, 1);
 	    if (device_script(disconnector, ttyfd, ttyfd) < 0) {
-		syslog(LOG_WARNING, "disconnect script failed");
+		warn("disconnect script failed");
 	    } else {
-		syslog(LOG_INFO, "Serial link disconnected.");
+		info("Serial link disconnected.");
 	    }
 	}
 
@@ -613,25 +621,30 @@ main(argc, argv)
 	if (!demand) {
 	    if (pidfilename[0] != 0
 		&& unlink(pidfilename) < 0 && errno != ENOENT) 
-		syslog(LOG_WARNING, "unable to delete pid file: %m");
+		warn("unable to delete pid file: %m");
 	    pidfilename[0] = 0;
 	}
 
 	if (!persist)
 	    break;
 
+	kill_link = 0;
 	if (demand)
 	    demand_discard();
 	if (holdoff > 0 && need_holdoff) {
 	    phase = PHASE_HOLDOFF;
 	    TIMEOUT(holdoff_end, NULL, holdoff);
 	    do {
-		if (setjmp(sigjmp) == 0) {
-		    waiting = 1;
-		    sigprocmask(SIG_UNBLOCK, &mask, NULL);
-		    wait_time(timeleft(&timo));
+		if (sigsetjmp(sigjmp, 1) == 0) {
+		    sigprocmask(SIG_BLOCK, &mask, NULL);
+		    if (kill_link) {
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		    } else {
+			waiting = 1;
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			wait_time(timeleft(&timo));
+		    }
 		}
-		sigprocmask(SIG_BLOCK, &mask, NULL);
 		waiting = 0;
 		calltimeout();
 		if (kill_link) {
@@ -686,7 +699,7 @@ create_pidfile()
 	fprintf(pidfile, "%d\n", pid);
 	(void) fclose(pidfile);
     } else {
-	syslog(LOG_ERR, "Failed to create pid file %s: %m", pidfilename);
+	error("Failed to create pid file %s: %m", pidfilename);
 	pidfilename[0] = 0;
     }
     sprintf(numbuf, "%d", pid);
@@ -721,7 +734,7 @@ get_input()
 	return;
 
     if (len == 0) {
-	syslog(LOG_NOTICE, "Modem hangup");
+	notice("Modem hangup");
 	hungup = 1;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	link_terminated(0);
@@ -777,7 +790,7 @@ get_input()
     }
 
     if (debug)
-    	syslog(LOG_WARNING, "Unsupported protocol (0x%x) received", protocol);
+    	warn("Unsupported protocol (0x%x) received", protocol);
     lcp_sprotrej(0, p - PPP_HDRLEN, len + PPP_HDRLEN);
 }
 
@@ -816,7 +829,7 @@ cleanup()
 	close_tty();
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0 && errno != ENOENT) 
-	syslog(LOG_WARNING, "unable to delete pid file: %m");
+	warn("unable to delete pid file: %m");
     pidfilename[0] = 0;
 
     if (locked)
@@ -894,10 +907,8 @@ timeout(func, arg, time)
     /*
      * Allocate timeout.
      */
-    if ((newp = (struct callout *) malloc(sizeof(struct callout))) == NULL) {
-	syslog(LOG_ERR, "Out of memory in timeout()!");
-	die(1);
-    }
+    if ((newp = (struct callout *) malloc(sizeof(struct callout))) == NULL)
+	fatal("Out of memory in timeout()!");
     newp->c_arg = arg;
     newp->c_func = func;
     gettimeofday(&timenow, NULL);
@@ -952,10 +963,8 @@ calltimeout()
     while (callout != NULL) {
 	p = callout;
 
-	if (gettimeofday(&timenow, NULL) < 0) {
-	    syslog(LOG_ERR, "Failed to get time of day: %m");
-	    die(1);
-	}
+	if (gettimeofday(&timenow, NULL) < 0)
+	    fatal("Failed to get time of day: %m");
 	if (!(p->c_time.tv_sec < timenow.tv_sec
 	      || (p->c_time.tv_sec == timenow.tv_sec
 		  && p->c_time.tv_usec <= timenow.tv_usec)))
@@ -1021,13 +1030,13 @@ static void
 hup(sig)
     int sig;
 {
-    syslog(LOG_INFO, "Hangup (SIGHUP)");
+    info("Hangup (SIGHUP)");
     kill_link = 1;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
     if (waiting)
-	longjmp(sigjmp, 1);
+	siglongjmp(sigjmp, 1);
 }
 
 
@@ -1041,14 +1050,14 @@ static void
 term(sig)
     int sig;
 {
-    syslog(LOG_INFO, "Terminating on signal %d.", sig);
+    info("Terminating on signal %d.", sig);
     persist = 0;		/* don't try to restart */
     kill_link = 1;
     if (conn_running)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
     if (waiting)
-	longjmp(sigjmp, 1);
+	siglongjmp(sigjmp, 1);
 }
 
 
@@ -1061,7 +1070,7 @@ chld(sig)
     int sig;
 {
     if (waiting)
-	longjmp(sigjmp, 1);
+	siglongjmp(sigjmp, 1);
 }
 
 
@@ -1096,7 +1105,7 @@ open_ccp(sig)
 {
     open_ccp_flag = 1;
     if (waiting)
-	longjmp(sigjmp, 1);
+	siglongjmp(sigjmp, 1);
 }
 
 
@@ -1112,7 +1121,7 @@ bad_signal(sig)
     if (crashed)
 	_exit(127);
     crashed = 1;
-    syslog(LOG_ERR, "Fatal signal %d", sig);
+    error("Fatal signal %d", sig);
     if (conn_running)
 	kill_my_pg(SIGTERM);
     die(1);
@@ -1137,8 +1146,7 @@ device_script(program, in, out)
 
     if (pid < 0) {
 	conn_running = 0;
-	syslog(LOG_ERR, "Failed to create child process: %m");
-	die(1);
+	fatal("Failed to create child process: %m");
     }
 
     if (pid == 0) {
@@ -1171,18 +1179,21 @@ device_script(program, in, out)
 	    }
 	}
 	setuid(uid);
+	if (getuid() != uid) {
+	    syslog(LOG_ERR, "setuid failed");
+	    exit(1);
+	}
 	setgid(getgid());
 	execl("/bin/sh", "sh", "-c", program, (char *)0);
 	syslog(LOG_ERR, "could not exec /bin/sh: %m");
-	_exit(99);
+	exit(99);
 	/* NOTREACHED */
     }
 
     while (waitpid(pid, &status, 0) < 0) {
 	if (errno == EINTR)
 	    continue;
-	syslog(LOG_ERR, "error waiting for (dis)connection process: %m");
-	die(1);
+	fatal("error waiting for (dis)connection process: %m");
     }
     conn_running = 0;
 
@@ -1236,15 +1247,13 @@ run_program(prog, args, must_exist, done, arg)
     if (stat(prog, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)
 	|| (sbuf.st_mode & (S_IXUSR|S_IXGRP|S_IXOTH)) == 0) {
 	if (must_exist || errno != ENOENT)
-	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
+	    warn("Can't execute %s: %m", prog);
 	return 0;
     }
 
     pid = fork();
-    if (pid == -1) {
-	syslog(LOG_ERR, "Failed to create child process for %s: %m", prog);
-	die(1);
-    }
+    if (pid == -1)
+	fatal("Failed to create child process for %s: %m", prog);
     if (pid == 0) {
 	int new_fd;
 
@@ -1277,31 +1286,25 @@ run_program(prog, args, must_exist, done, arg)
 #ifdef BSD
 	/* Force the priority back to zero if pppd is running higher. */
 	if (setpriority (PRIO_PROCESS, 0, 0) < 0)
-	    syslog (LOG_WARNING, "can't reset priority to 0: %m"); 
+	    syslog(LOG_WARNING, "can't reset priority to 0: %m"); 
 #endif
 
 	/* SysV recommends a second fork at this point. */
 
 	/* run the program */
 	execve(prog, args, script_env);
-	if (must_exist || errno != ENOENT) {
-	    int i;
+	if (must_exist || errno != ENOENT)
 	    syslog(LOG_WARNING, "Can't execute %s: %m", prog);
-	    for (i = 0; args[i]; ++i)
-		syslog(LOG_DEBUG, "args[%d] = '%s'", i, args[i]);
-	    for (i = 0; script_env[i]; ++i)
-		syslog(LOG_DEBUG, "env[%d] = '%s'", i, script_env[i]);
-	}
 	_exit(-1);
     }
 
     if (debug)
-	syslog(LOG_DEBUG, "Script %s started; pid = %d", prog, pid);
+	dbglog("Script %s started; pid = %d", prog, pid);
     ++n_children;
 
     chp = (struct subprocess *) malloc(sizeof(struct subprocess));
     if (chp == NULL) {
-	syslog(LOG_WARNING, "losing track of %s process", prog);
+	warn("losing track of %s process", prog);
     } else {
 	chp->pid = pid;
 	chp->prog = prog;
@@ -1333,18 +1336,17 @@ reap_kids()
 	    if (chp->pid == pid)
 		break;
 	if (debug)
-	    syslog(LOG_DEBUG, "process %d (%s) finished, status = 0x%x",
+	    dbglog("process %d (%s) finished, status = 0x%x",
 		   pid, (chp? chp->prog: "??"), status);
 	if (WIFSIGNALED(status)) {
-	    syslog(LOG_WARNING,
-		   "Child process %s (pid %d) terminated with signal %d",
-		   (chp? chp->prog: "??"), pid, WTERMSIG(status));
+	    warn("Child process %s (pid %d) terminated with signal %d",
+		 (chp? chp->prog: "??"), pid, WTERMSIG(status));
 	}
 	if (chp && chp->done)
 	    (*chp->done)(chp->arg);
     }
     if (pid == -1 && errno != ECHILD)
-	syslog(LOG_ERR, "Error waiting for child process: %m");
+	error("Error waiting for child process: %m");
 }
 
 
@@ -1362,7 +1364,7 @@ log_packet(p, len, prefix, level)
     char *prefix;
     int level;
 {
-    strcpy(line, prefix);
+    strlcpy(line, sizeof(line), prefix);
     linep = line + strlen(line);
     format_packet(p, len, pr_log, NULL);
     if (linep != line)
@@ -1428,14 +1430,14 @@ pr_log __V((void *arg, char *fmt, ...))
     fmt = va_arg(pvar, char *);
 #endif
 
-    n = vfmtmsg(buf, sizeof(buf), fmt, pvar);
+    n = vslprintf(buf, sizeof(buf), fmt, pvar);
     va_end(pvar);
 
     if (linep + n + 1 > line + sizeof(line)) {
 	syslog(LOG_DEBUG, "%s", line);
 	linep = line;
     }
-    strcpy(linep, buf);
+    strlcpy(linep, line + sizeof(line) - linep, buf);
     linep += n;
 }
 
@@ -1485,19 +1487,19 @@ void
 novm(msg)
     char *msg;
 {
-    syslog(LOG_ERR, "Virtual memory exhausted allocating %s\n", msg);
-    die(1);
+    fatal("Virtual memory exhausted allocating %s\n", msg);
 }
 
 /*
- * fmtmsg - format a message into a buffer.  Like sprintf except we
+ * slprintf - format a message into a buffer.  Like sprintf except we
  * also specify the length of the output buffer, and we handle
- * %r (recursive format), %m (error message) and %I (IP address) formats.
+ * %r (recursive format), %m (error message), %v (visible string),
+ * %q (quoted string), %t (current time) and %I (IP address) formats.
  * Doesn't do floating-point formats.
  * Returns the number of chars put into buf.
  */
 int
-fmtmsg __V((char *buf, int buflen, char *fmt, ...))
+slprintf __V((char *buf, int buflen, char *fmt, ...))
 {
     va_list args;
     int n;
@@ -1513,18 +1515,18 @@ fmtmsg __V((char *buf, int buflen, char *fmt, ...))
     buflen = va_arg(args, int);
     fmt = va_arg(args, char *);
 #endif
-    n = vfmtmsg(buf, buflen, fmt, args);
+    n = vslprintf(buf, buflen, fmt, args);
     va_end(args);
     return n;
 }
 
 /*
- * vfmtmsg - like fmtmsg, takes a va_list instead of a list of args.
+ * vslprintf - like slprintf, takes a va_list instead of a list of args.
  */
 #define OUTCHAR(c)	(buflen > 0? (--buflen, *buf++ = (c)): 0)
 
 int
-vfmtmsg(buf, buflen, fmt, args)
+vslprintf(buf, buflen, fmt, args)
     char *buf;
     int buflen;
     char *fmt;
@@ -1628,10 +1630,10 @@ vfmtmsg(buf, buflen, fmt, args)
 	case 'r':
 	    f = va_arg(args, char *);
 #ifndef __powerpc__
-	    n = vfmtmsg(buf, buflen + 1, f, va_arg(args, va_list));
+	    n = vslprintf(buf, buflen + 1, f, va_arg(args, va_list));
 #else
 	    /* On the powerpc, a va_list is an array of 1 structure */
-	    n = vfmtmsg(buf, buflen + 1, f, va_arg(args, void *));
+	    n = vslprintf(buf, buflen + 1, f, va_arg(args, void *));
 #endif
 	    buf += n;
 	    buflen -= n;
@@ -1746,16 +1748,14 @@ void
 script_setenv(var, value)
     char *var, *value;
 {
-    int vl = strlen(var);
+    size_t vl = strlen(var) + strlen(value) + 2;
     int i;
     char *p, *newstring;
 
-    newstring = (char *) malloc(vl + strlen(value) + 2);
+    newstring = (char *) malloc(vl);
     if (newstring == 0)
 	return;
-    strcpy(newstring, var);
-    newstring[vl] = '=';
-    strcpy(newstring+vl+1, value);
+    slprintf(newstring, vl, "%s=%s", var, value);
 
     /* check if this variable is already set */
     if (script_env != 0) {
@@ -1811,4 +1811,171 @@ script_unsetenv(var)
 	    break;
 	}
     }
+}
+
+/*
+ * strlcpy - like strcpy/strncpy, doesn't overflow destination buffer,
+ * always leaves destination null-terminated (for len > 0).
+ */
+void
+strlcpy(char *dest, size_t len, const char *src)
+{
+    if (len == 0)
+	return;
+    if (strlen(src) < len)
+	strcpy(dest, src);
+    else {
+	strncpy(dest, src, len - 1);
+	dest[len-1] = 0;
+    }
+}
+
+/*
+ * strlcat - like strcat/strncat, doesn't overflow destination buffer,
+ * always leaves destination null-terminated (for len > 0).
+ */
+void
+strlcat(char *dest, size_t len, const char *src)
+{
+    size_t dlen;
+
+    if (len == 0)
+	return;
+    dlen = strlen(dest);
+    if (dlen < len - 1)
+	strlcpy(dest + dlen, len - dlen, src);
+}
+
+/*
+ * fatal - log an error message and die horribly.
+ */
+void
+fatal __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_ERR, "%s", line);
+
+    die(1);			/* as promised */
+}
+
+/*
+ * error - log an error message.
+ */
+void
+error __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_ERR, "%s", line);
+}
+
+/*
+ * warn - log a warning message.
+ */
+void
+warn __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_WARNING, "%s", line);
+}
+
+/*
+ * notice - log a notice-level message.
+ */
+void
+notice __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_NOTICE, "%s", line);
+}
+
+/*
+ * info - log an informational message.
+ */
+void
+info __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_INFO, "%s", line);
+}
+
+/*
+ * dbglog - log a debug message.
+ */
+void
+dbglog __V((char *fmt, ...))
+{
+    va_list pvar;
+
+#if __STDC__
+    va_start(pvar, fmt);
+#else
+    char *fmt;
+    va_start(pvar);
+    fmt = va_arg(pvar, char *);
+#endif
+
+    vslprintf(line, sizeof(line), fmt, pvar);
+    va_end(pvar);
+
+    syslog(LOG_DEBUG, "%s", line);
 }

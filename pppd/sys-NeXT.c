@@ -20,7 +20,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-NeXT.c,v 1.11 1999/03/08 01:46:19 paulus Exp $";
+static char rcsid[] = "$Id: sys-NeXT.c,v 1.12 1999/03/12 06:07:20 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -126,7 +126,7 @@ sys_cleanup()
     struct ifreq ifr;
 
     if (if_is_up) {
-	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) >= 0
 	    && ((ifr.ifr_flags & IFF_UP) != 0)) {
 	    ifr.ifr_flags &= ~IFF_UP;
@@ -170,7 +170,7 @@ ppp_available()
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	return 1;		/* can't tell - maybe we're not root */
 
-    strncpy(ifr.ifr_name, "ppp0", sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), "ppp0");
     ok = ioctl(s, SIOCGIFFLAGS, (caddr_t) &ifr) >= 0;
     close(s);
 
@@ -602,7 +602,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
     u_int x;
     struct ifreq ifr;
 
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     ifr.ifr_mtu = mtu;
     if (ioctl(sockfd, SIOCSIFMTU, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl(SIOCSIFMTU): %m");
@@ -768,7 +768,7 @@ sifup(u)
     u_int x;
     struct npioctl npi;
 
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	return 0;
@@ -819,7 +819,7 @@ sifdown(u)
     /* ignore errors, because ttyfd might have been closed by now. */
 
 
-    strncpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof (ifr.ifr_name), ifname);
     if (ioctl(sockfd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
 	syslog(LOG_ERR, "ioctl (SIOCGIFFLAGS): %m");
 	rv = 0;
@@ -854,7 +854,7 @@ sifaddr(u, o, h, m)
     struct ifreq ifr;
 
     ret = 1;
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     SET_SA_FAMILY(ifr.ifr_addr, AF_INET);
     ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = o;
     if (ioctl(sockfd, SIOCSIFADDR, (caddr_t) &ifr) < 0) {
@@ -1043,7 +1043,7 @@ get_ether_addr(ipaddr, hwaddr)
 		((char *)&ifr->ifr_addr + sizeof(struct sockaddr))) {
 	if (ifr->ifr_addr.sa_family == AF_INET) {
 	    ina = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr.s_addr;
-	    strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	    strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
 	    /*
 	     * Check that the interface is up, and not point-to-point
 	     * or loopback.
@@ -1105,7 +1105,7 @@ ether_by_host(hostname, etherptr)
      * find the address in the
      * top domain of netinfo.
      */
-    strcat(strcpy(path, "/machines/"), hostname);
+    slprintf(path, sizeof(path), "/machines/%s", hostname);
 
     if (ni_open((void *)0, "/", &conn)
      || ni_root(conn, &root)
@@ -1116,7 +1116,7 @@ ether_by_host(hostname, etherptr)
     /*
      * Now we can convert the returned string into an ethernet address.
      */
-    strcpy(path, val.ni_namelist_val[0]);
+    strlcpy(path, sizeof(path), val.ni_namelist_val[0]);
     ni_free(conn);
     if ((thisptr = (struct ether_addr*)ether_aton(path)) == NULL)
 	return 1;
@@ -1176,7 +1176,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1272,9 +1272,9 @@ logwtmp(line, name, host)
     if ((fd = open(WTMPFILE, O_WRONLY|O_APPEND, 0)) < 0)
 	return;
     if (!fstat(fd, &buf)) {
-	(void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
-	(void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
-	(void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+	strlcpy(ut.ut_line, sizeof(ut.ut_line), line);
+	strlcpy(ut.ut_name, sizeof(ut.ut_name), name);
+	strlcpy(ut.ut_host, sizeof(ut.ut_host), host);
 	(void)time(&ut.ut_time);
 	if (write(fd, (char *)&ut, sizeof(struct utmp)) != sizeof(struct utmp))
 	    (void)ftruncate(fd, buf.st_size);
@@ -1298,13 +1298,15 @@ lock(dev)
 {
     int fd, pid, n;
     char *p;
+    size_t l;
 
     if ((p = strrchr(dev, '/')) != NULL)
 	dev = p + 1;
-    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
+    l = strlen(LOCK_PREFIX) + strlen(dev) + 1;
+    lock_file = malloc(l);
     if (lock_file == NULL)
 	novm("lock file name");
-    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+    slprintf(lock_file, l, "%s%s", LOCK_PREFIX, dev);
 
     while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
 	if (errno == EEXIST

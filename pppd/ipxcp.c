@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.8 1998/11/07 06:59:27 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.9 1999/03/12 06:07:17 paulus Exp $";
 #endif
 
 /*
@@ -1341,38 +1341,38 @@ ipxcp_script(f, script)
     strproto_lcl[0] = '\0';
     if (go->neg_router && ((go->router & BIT(IPX_NONE)) == 0)) {
 	if (go->router & BIT(RIP_SAP))
-	    strcpy (strproto_lcl, "RIP ");
+	    strlcpy (strproto_lcl, sizeof(strproto_lcl), "RIP ");
 	if (go->router & BIT(NLSP))
-	    strcat (strproto_lcl, "NLSP ");
+	    strlcat (strproto_lcl, sizeof(strproto_lcl), "NLSP ");
     }
 
     if (strproto_lcl[0] == '\0')
-	strcpy (strproto_lcl, "NONE ");
+	strlcpy (strproto_lcl, sizeof(strproto_lcl), "NONE ");
 
     strproto_lcl[strlen (strproto_lcl)-1] = '\0';
 
     strproto_rmt[0] = '\0';
     if (ho->neg_router && ((ho->router & BIT(IPX_NONE)) == 0)) {
 	if (ho->router & BIT(RIP_SAP))
-	    strcpy (strproto_rmt, "RIP ");
+	    strlcpy (strproto_rmt, sizeof(strproto_rmt), "RIP ");
 	if (ho->router & BIT(NLSP))
-	    strcat (strproto_rmt, "NLSP ");
+	    strlcat (strproto_rmt, sizeof(strproto_rmt), "NLSP ");
     }
 
     if (strproto_rmt[0] == '\0')
-	strcpy (strproto_rmt, "NONE ");
+	strlcpy (strproto_rmt, sizeof(strproto_rmt), "NONE ");
 
     strproto_rmt[strlen (strproto_rmt)-1] = '\0';
 
-    strcpy (strnetwork, ipx_ntoa (go->network));
+    strlcpy (strnetwork, sizeof(strnetwork), ipx_ntoa (go->network));
 
-    sprintf (strlocal,
-	     "%02X%02X%02X%02X%02X%02X",
-	     NODE(go->our_node));
+    slprintf (strlocal, sizeof(strlocal),
+	      "%02X%02X%02X%02X%02X%02X",
+	      NODE(go->our_node));
 
-    sprintf (strremote,
-	     "%02X%02X%02X%02X%02X%02X",
-	     NODE(ho->his_node));
+    slprintf (strremote, sizeof(strremote),
+	      "%02X%02X%02X%02X%02X%02X",
+	      NODE(ho->his_node));
 
     argv[0]  = script;
     argv[1]  = ifname;

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: options.c,v 1.50 1999/03/08 05:34:44 paulus Exp $";
+static char rcsid[] = "$Id: options.c,v 1.51 1999/03/12 06:07:19 paulus Exp $";
 #endif
 
 #include <ctype.h>
@@ -58,10 +58,6 @@ static char rcsid[] = "$Id: options.c,v 1.50 1999/03/08 05:34:44 paulus Exp $";
 
 #if defined(ultrix) || defined(NeXT)
 char *strdup __P((char *));
-#endif
-
-#ifndef GIDSET_TYPE
-#define GIDSET_TYPE	gid_t
 #endif
 
 /*
@@ -159,11 +155,14 @@ option_t general_options[] = {
     { "-all", o_special_noarg, noopt,
       "Don't request/allow any LCP or IPCP options (useless)" },
     { "connect", o_string, &connector,
-      "A program to set up a connection", OPT_A2INFO, &connector_info },
+      "A program to set up a connection",
+      OPT_A2INFO | OPT_PRIVFIX, &connector_info },
     { "disconnect", o_string, &disconnector,
-      "Program to disconnect serial device", OPT_A2INFO, &disconnector_info },
+      "Program to disconnect serial device",
+      OPT_A2INFO | OPT_PRIVFIX, &disconnector_info },
     { "welcome", o_string, &welcomer,
-      "Script to welcome client", OPT_A2INFO, &welcomer_info },
+      "Script to welcome client",
+      OPT_A2INFO | OPT_PRIVFIX, &welcomer_info },
     { "maxconnect", o_int, &maxconnect,
       "Set connection time limit", OPT_LLIMIT|OPT_NOINCR|OPT_ZEROINF },
     { "crtscts", o_int, &crtscts,
@@ -422,17 +421,17 @@ options_from_user()
     char *user, *path, *file;
     int ret;
     struct passwd *pw;
+    size_t pl;
 
     pw = getpwuid(getuid());
     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
 	return 1;
     file = _PATH_USEROPT;
-    path = malloc(strlen(user) + strlen(file) + 2);
+    pl = strlen(user) + strlen(file) + 2;
+    path = malloc(pl);
     if (path == NULL)
 	novm("init file name");
-    strcpy(path, user);
-    strcat(path, "/");
-    strcat(path, file);
+    slprintf(path, pl, "%s/%s", user, file);
     ret = options_from_file(path, 0, 1, privileged);
     free(path);
     return ret;
@@ -447,20 +446,22 @@ options_for_tty()
 {
     char *dev, *path, *p;
     int ret;
+    size_t pl;
 
     dev = devnam;
     if (strncmp(dev, "/dev/", 5) == 0)
 	dev += 5;
     if (strcmp(dev, "tty") == 0)
 	return 1;		/* don't look for /etc/ppp/options.tty */
-    path = malloc(strlen(_PATH_TTYOPT) + strlen(dev) + 1);
+    pl = strlen(_PATH_TTYOPT) + strlen(dev) + 1;
+    path = malloc(pl);
     if (path == NULL)
 	novm("tty init file name");
-    strcpy(path, _PATH_TTYOPT);
+    slprintf(path, pl, "%s%s", _PATH_TTYOPT, dev);
     /* Turn slashes into dots, for Solaris case (e.g. /dev/term/a) */
-    for (p = path + strlen(path); *dev != 0; ++dev)
-	*p++ = (*dev == '/'? '.': *dev);
-    *p = 0;
+    for (p = path + strlen(_PATH_TTYOPT); *p != 0; ++p)
+	if (*p == '/')
+	    *p = '.';
     ret = options_from_file(path, 0, 0, 1);
     free(path);
     return ret;
@@ -512,6 +513,13 @@ process_option(opt, argv)
     if ((opt->flags & OPT_ENABLE) && *(bool *)(opt->addr2) == 0) {
 	option_error("%s option is disabled", opt->name);
 	return 0;
+    }
+    if ((opt->flags & OPT_PRIVFIX) && !privileged_option) {
+	struct option_info *ip = (struct option_info *) opt->addr2;
+	if (ip && ip->priv) {
+	    option_error("%s option cannot be overridden", opt->name);
+	    return 0;
+	}
     }
 
     switch (opt->type) {
@@ -581,11 +589,7 @@ process_option(opt, argv)
 
     case o_string:
 	if (opt->flags & OPT_STATIC) {
-	    if (opt->upper_limit) {
-		strncpy((char *)(opt->addr), *argv, opt->upper_limit);
-		((char *)(opt->addr))[opt->upper_limit-1] = 0;
-	    } else
-		strcpy((char *)(opt->addr), *argv);
+	    strlcpy((char *)(opt->addr), opt->upper_limit, *argv);
 	} else {
 	    sv = strdup(*argv);
 	    if (sv == NULL)
@@ -683,7 +687,7 @@ option_error __V((char *fmt, ...))
     va_start(args);
     fmt = va_arg(args, char *);
 #endif
-    vfmtmsg(buf, sizeof(buf), fmt, args);
+    vslprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     if (phase == PHASE_INITIALIZE)
 	fprintf(stderr, "%s: %s\n", progname, buf);
@@ -698,9 +702,8 @@ readable(fd)
     int fd;
 {
     uid_t uid;
-    int ngroups, i;
+    int i;
     struct stat sbuf;
-    GIDSET_TYPE groups[NGROUPS_MAX];
 
     uid = getuid();
     if (uid == 0)
@@ -711,7 +714,6 @@ readable(fd)
 	return sbuf.st_mode & S_IRUSR;
     if (sbuf.st_gid == getgid())
 	return sbuf.st_mode & S_IRGRP;
-    ngroups = getgroups(NGROUPS_MAX, groups);
     for (i = 0; i < ngroups; ++i)
 	if (sbuf.st_gid == groups[i])
 	    return sbuf.st_mode & S_IRGRP;
@@ -1053,8 +1055,7 @@ callfile(argv)
     l = strlen(arg) + strlen(_PATH_PEERFILES) + 1;
     if ((fname = (char *) malloc(l)) == NULL)
 	novm("call file name");
-    strcpy(fname, _PATH_PEERFILES);
-    strcat(fname, arg);
+    slprintf(fname, l, "%s%s", _PATH_PEERFILES, arg);
 
     ok = options_from_file(fname, 1, 1, 1);
 
@@ -1176,9 +1177,8 @@ setdevname(cp, quiet)
 	return 0;
 
     if (strncmp("/dev/", cp, 5) != 0) {
-	strcpy(dev, "/dev/");
-	strncat(dev, cp, MAXPATHLEN - 5);
-	dev[MAXPATHLEN-1] = 0;
+	strlcpy(dev, sizeof(dev), "/dev/");
+	strlcat(dev, sizeof(dev), cp);
 	cp = dev;
     }
 
@@ -1192,8 +1192,13 @@ setdevname(cp, quiet)
 	return -1;
     }
 
-    (void) strncpy(devnam, cp, MAXPATHLEN);
-    devnam[MAXPATHLEN-1] = 0;
+    if (devnam_info.priv && !privileged_option) {
+	if (!quiet)
+	    option_error("device name cannot be overridden");
+	return -1;
+    }
+
+    strlcpy(devnam, sizeof(devnam), cp);
     default_device = FALSE;
     devnam_info.priv = privileged_option;
     devnam_info.source = option_source;
@@ -1252,10 +1257,8 @@ setipaddr(arg)
 		return -1;
 	    } else {
 		remote = *(u_int32_t *)hp->h_addr;
-		if (remote_name[0] == 0) {
-		    strncpy(remote_name, colon, MAXNAMELEN);
-		    remote_name[MAXNAMELEN-1] = 0;
-		}
+		if (remote_name[0] == 0)
+		    strlcpy(remote_name, sizeof(remote_name), colon);
 	    }
 	}
 	if (bad_ip_adrs(remote)) {

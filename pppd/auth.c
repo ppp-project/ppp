@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.44 1999/03/08 01:47:54 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.45 1999/03/12 06:07:14 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -42,6 +42,7 @@ static char rcsid[] = "$Id: auth.c,v 1.44 1999/03/08 01:47:54 paulus Exp $";
 #include <unistd.h>
 #include <syslog.h>
 #include <pwd.h>
+#include <grp.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -81,7 +82,7 @@ static char rcsid[] = "$Id: auth.c,v 1.44 1999/03/08 01:47:54 paulus Exp $";
 /* Used for storing a sequence of words.  Usually malloced. */
 struct wordlist {
     struct wordlist	*next;
-    char		word[1];
+    char		*word;
 };
 
 /* Bits in scan_authfile return value */
@@ -154,7 +155,8 @@ static int  scan_authfile __P((FILE *, char *, char *, u_int32_t, char *,
 static void free_wordlist __P((struct wordlist *));
 static void auth_script __P((char *));
 static void set_allowed_addrs __P((int, struct wordlist *));
-static int setupapfile __P((char **));
+static int  setupapfile __P((char **));
+static int  privgroup __P((char **));
 
 /*
  * Authentication-related options.
@@ -195,6 +197,8 @@ option_t auth_options[] = {
       "PAP passwords are encrypted", 1 },
     { "+ua", o_special, setupapfile,
       "Get PAP user and password from file" },
+    { "privgroup", o_special, privgroup,
+      "Allow group members to use privileged options", OPT_PRIV },
     { NULL }
 };
 
@@ -243,6 +247,31 @@ setupapfile(argv)
 	passwd[l-1] = 0;
 
     return (1);
+}
+
+
+/*
+ * privgroup - allow members of the group to have privileged access.
+ */
+static int
+privgroup(argv)
+    char **argv;
+{
+    struct group *g;
+    int i;
+
+    g = getgrnam(*argv);
+    if (g == 0) {
+	option_error("group %s is unknown", *argv);
+	return 0;
+    }
+    for (i = 0; i < ngroups; ++i) {
+	if (groups[i] == g->gr_gid) {
+	    privileged = 1;
+	    break;
+	}
+    }
+    return 1;
 }
 
 
@@ -618,9 +647,9 @@ auth_check_options()
 
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
-	strcpy(our_name, hostname);
+	strlcpy(our_name, sizeof(our_name), hostname);
     if (user[0] == 0)
-	strcpy(user, our_name);
+	strlcpy(user, sizeof(user), our_name);
 
     /* If authentication is required, ask peer for CHAP or PAP. */
     if (auth_required) {
@@ -658,20 +687,6 @@ auth_check_options()
 	    option_error("for authenticating peer %s to us (%s)\n",
 			 remote_name, our_name);
 	exit(1);
-    }
-
-    /*
-     * Check whether the user tried to override certain values
-     * set by root.
-     */
-    if (allow_any_ip) {
-	if ((connector != NULL && connector_info.priv == 0)
-	    || (disconnector != NULL && disconnector_info.priv == 0)
-	    || (welcomer != NULL && welcomer_info.priv == 0)) {
-	    option_error("connect, disconnect and welcome options");
-	    option_error("are privileged when noauth option is used");
-	    exit(1);
-	}
     }
 }
 
@@ -1002,7 +1017,7 @@ plogin(user, passwd, msg, msglen)
 		(void)lseek(fd, (off_t)(pw->pw_uid * sizeof(ll)), SEEK_SET);
 		memset((void *)&ll, 0, sizeof(ll));
 		(void)time(&ll.ll_time);
-		(void)strncpy(ll.ll_line, tty, sizeof(ll.ll_line));
+		(void)strlcpy(ll.ll_line, sizeof(ll.ll_line), tty);
 		(void)write(fd, (char *)&ll, sizeof(ll));
 		(void)close(fd);
 	    }
@@ -1099,6 +1114,7 @@ null_login(unit)
  * get_pap_passwd - get a password for authenticating ourselves with
  * our peer using PAP.  Returns 1 on success, 0 if no suitable password
  * could be found.
+ * Assumes passwd points to MAXSECRETLEN bytes of space (if non-null).
  */
 static int
 get_pap_passwd(passwd)
@@ -1122,10 +1138,8 @@ get_pap_passwd(passwd)
     fclose(f);
     if (ret < 0)
 	return 0;
-    if (passwd != NULL) {
-	strncpy(passwd, secret, MAXSECRETLEN);
-	passwd[MAXSECRETLEN-1] = 0;
-    }
+    if (passwd != NULL)
+	strlcpy(passwd, MAXSECRETLEN, secret);
     BZERO(secret, sizeof(secret));
     return 1;
 }
@@ -1423,7 +1437,8 @@ check_access(f, filename)
  * NONWILD_CLIENT set if the secret didn't have "*" for the client, and
  * NONWILD_SERVER set if the secret didn't have "*" for the server.
  * Any following words on the line (i.e. address authorization
- * info) are placed in a wordlist and returned in *addrs.  
+ * info) are placed in a wordlist and returned in *addrs.
+ * We assume secret is NULL or points to MAXWORDLEN bytes of space.
  */
 static int
 scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
@@ -1501,23 +1516,21 @@ scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
 	 * Special syntax: @filename means read secret from file.
 	 */
 	if (word[0] == '@') {
-	    strcpy(atfile, word+1);
+	    strlcpy(atfile, sizeof(atfile), word+1);
 	    if ((sf = fopen(atfile, "r")) == NULL) {
-		syslog(LOG_WARNING, "can't open indirect secret file %s",
-		       atfile);
+		warn("can't open indirect secret file %s", atfile);
 		continue;
 	    }
 	    check_access(sf, atfile);
 	    if (!getword(sf, word, &xxx, atfile)) {
-		syslog(LOG_WARNING, "no secret in indirect secret file %s",
-		       atfile);
+		warn("no secret in indirect secret file %s", atfile);
 		fclose(sf);
 		continue;
 	    }
 	    fclose(sf);
 	}
 	if (secret != NULL)
-	    strcpy(lsecret, word);
+	    strlcpy(lsecret, sizeof(lsecret), word);
 
 	/*
 	 * Now read address authorization info and make a wordlist.
@@ -1526,12 +1539,13 @@ scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
 	for (;;) {
 	    if (!getword(f, word, &newline, filename) || newline)
 		break;
-	    ap = (struct wordlist *) malloc(sizeof(struct wordlist)
-					    + strlen(word));
+	    ap = (struct wordlist *) malloc(sizeof(struct wordlist));
 	    if (ap == NULL)
 		novm("authorized addresses");
 	    ap->next = NULL;
-	    strcpy(ap->word, word);
+	    ap->word = strdup(word);
+	    if (ap->word == NULL)
+		novm("authorized address");
 	    if (alist == NULL)
 		alist = ap;
 	    else
@@ -1557,7 +1571,7 @@ scan_authfile(f, client, server, ipaddr, secret, addrs, filename)
 	    free_wordlist(addr_list);
 	addr_list = alist;
 	if (secret != NULL)
-	    strcpy(secret, lsecret);
+	    strlcpy(secret, MAXWORDLEN, lsecret);
 
 	if (!newline)
 	    break;

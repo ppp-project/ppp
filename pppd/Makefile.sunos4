@@ -1,13 +1,13 @@
 #
 # Makefile for pppd under SunOS 4.
-# $Id: Makefile.sunos4,v 1.8 1998/03/25 01:27:06 paulus Exp $
+# $Id: Makefile.sunos4,v 1.9 1999/03/12 06:07:14 paulus Exp $
 #
 
 include ../sunos4/Makedefs
 
 LIBS =
 
-CFLAGS = $(COPTS) -I../include -DSUNOS4
+CFLAGS = $(COPTS) -I../include -DSUNOS4 -DGIDSET_TYPE=int
 
 all: pppd
 

@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.23 1998/11/07 06:59:26 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.24 1999/03/12 06:07:14 paulus Exp $";
 #endif
 
 #include <stdlib.h>
@@ -1036,7 +1036,7 @@ ccp_up(f)
 		syslog(LOG_NOTICE, "%s compression enabled",
 		       method_name(go, ho));
 	    } else {
-		strcpy(method1, method_name(go, NULL));
+		strlcpy(method1, sizeof(method1), method_name(go, NULL));
 		syslog(LOG_NOTICE, "%s / %s compression enabled",
 		       method1, method_name(ho, NULL));
 	    }

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.37 1999/03/08 05:34:43 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.38 1999/03/12 06:07:17 paulus Exp $";
 #endif
 
 /*
@@ -1637,9 +1637,9 @@ ipcp_script(script)
     char strspeed[32], strlocal[32], strremote[32];
     char *argv[8];
 
-    sprintf(strspeed, "%d", baud_rate);
-    strcpy(strlocal, ip_ntoa(ipcp_gotoptions[0].ouraddr));
-    strcpy(strremote, ip_ntoa(ipcp_hisoptions[0].hisaddr));
+    slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
+    slprintf(strlocal, sizeof(strlocal), "%I", ipcp_gotoptions[0].ouraddr);
+    slprintf(strremote, sizeof(strremote), "%I", ipcp_hisoptions[0].hisaddr);
 
     argv[0] = script;
     argv[1] = ifname;

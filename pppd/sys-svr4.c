@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-svr4.c,v 1.23 1999/03/08 05:34:46 paulus Exp $";
+static char rcsid[] = "$Id: sys-svr4.c,v 1.24 1999/03/12 06:07:23 paulus Exp $";
 #endif
 
 #include <limits.h>
@@ -824,7 +824,7 @@ ppp_send_config(unit, mtu, asyncmap, pcomp, accomp)
 
     /* set the MTU for IP as well */
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     ifr.ifr_metric = link_mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't set IP MTU: %m");
@@ -1006,7 +1006,7 @@ sifup(u)
 {
     struct ifreq ifr;
 
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't mark interface up (get): %m");
 	return 0;
@@ -1031,7 +1031,7 @@ sifdown(u)
 
     if (ipmuxid < 0)
 	return 1;
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     if (ioctl(ipfd, SIOCGIFFLAGS, &ifr) < 0) {
 	syslog(LOG_ERR, "Couldn't mark interface down (get): %m");
 	return 0;
@@ -1079,7 +1079,7 @@ sifaddr(u, o, h, m)
     int ret = 1;
 
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strlcpy(ifr.ifr_name, sizeof(ifr.ifr_name), ifname);
     ifr.ifr_addr.sa_family = AF_INET;
     INET_ADDR(ifr.ifr_addr) = m;
     if (ioctl(ipfd, SIOCSIFNETMASK, &ifr) < 0) {
@@ -1291,7 +1291,7 @@ get_ether_addr(ipaddr, hwaddr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
 	if (ioctl(ipfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags &
@@ -1367,12 +1367,12 @@ get_hw_addr(name, ina, hwaddr)
      * We have to open the device and ask it for its hardware address.
      * First split apart the device name and unit.
      */
-    strcpy(ifdev, "/dev/");
-    q = ifdev + 5;		/* strlen("/dev/") */
-    while (*name != 0 && !isdigit(*name))
-	*q++ = *name++;
-    *q = 0;
-    unit = atoi(name);
+    slprintf(ifdev, sizeof(ifdev), "/dev/%s", name);
+    for (q = ifdev + strlen(ifdev); --q >= ifdev; )
+	if (!isdigit(*q))
+	    break;
+    unit = atoi(q+1);
+    q[1] = 0;
 
     /*
      * Open the device and do a DLPI attach and phys_addr_req.
@@ -1540,7 +1540,7 @@ GetMask(addr)
 	/*
 	 * Check that the interface is up, and not point-to-point or loopback.
 	 */
-	strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+	strlcpy(ifreq.ifr_name, sizeof(ifreq.ifr_name), ifr->ifr_name);
 	if (ioctl(ipfd, SIOCGIFFLAGS, &ifreq) < 0)
 	    continue;
 	if ((ifreq.ifr_flags & (IFF_UP|IFF_POINTOPOINT|IFF_LOOPBACK))
@@ -1569,9 +1569,9 @@ logwtmp(line, name, host)
 
     if (name[0] != 0) {
 	/* logging in */
-	strncpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
-	strncpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
-	strncpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
+	strlcpy(utmpx.ut_user, sizeof(utmpx.ut_user), name);
+	strlcpy(utmpx.ut_id, sizeof(utmpx.ut_id), ifname);
+	strlcpy(utmpx.ut_line, sizeof(utmpx.ut_line), line);
 	utmpx.ut_pid = getpid();
 	utmpx.ut_type = USER_PROCESS;
     } else {

@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: fsm.c,v 1.13 1997/04/30 05:52:17 paulus Exp $";
+static char rcsid[] = "$Id: fsm.c,v 1.14 1999/03/12 06:07:16 paulus Exp $";
 #endif
 
 /*
@@ -260,8 +260,7 @@ fsm_timeout(arg)
     case ACKRCVD:
     case ACKSENT:
 	if (f->retransmits <= 0) {
-	    syslog(LOG_WARNING, "%s: timeout sending Config-Requests",
-		   PROTO_NAME(f));
+	    warn("%s: timeout sending Config-Requests\n", PROTO_NAME(f));
 	    f->state = STOPPED;
 	    if( (f->flags & OPT_PASSIVE) == 0 && f->callbacks->finished )
 		(*f->callbacks->finished)(f);
@@ -570,8 +569,6 @@ fsm_rtermreq(f, id, p, len)
     u_char *p;
     int len;
 {
-    char str[80];
-
     FSMDEBUG((LOG_INFO, "fsm_rtermreq(%s): Rcvd id %d.",
 	      PROTO_NAME(f), id));
 
@@ -583,10 +580,9 @@ fsm_rtermreq(f, id, p, len)
 
     case OPENED:
 	if (len > 0) {
-	    fmtmsg(str, sizeof(str), "%0.*v", len, p);
-	    syslog(LOG_INFO, "%s terminated by peer (%s)", PROTO_NAME(f), str);
+	    info("%s terminated by peer (%0.*v)", PROTO_NAME(f), len, p);
 	} else
-	    syslog(LOG_INFO, "%s terminated by peer", PROTO_NAME(f));
+	    info("%s terminated by peer", PROTO_NAME(f));
 	if (f->callbacks->down)
 	    (*f->callbacks->down)(f);	/* Inform upper layers */
 	f->retransmits = 0;
@@ -654,8 +650,7 @@ fsm_rcoderej(f, inp, len)
     }
     GETCHAR(code, inp);
     GETCHAR(id, inp);
-    syslog(LOG_WARNING, "%s: Rcvd Code-Reject for code %d, id %d",
-	   PROTO_NAME(f), code, id);
+    warn("%s: Rcvd Code-Reject for code %d, id %d", PROTO_NAME(f), code, id);
 
     if( f->state == ACKRCVD )
 	f->state = REQSENT;

@@ -34,7 +34,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: chap.c,v 1.17 1999/02/26 10:38:51 paulus Exp $";
+static char rcsid[] = "$Id: chap.c,v 1.18 1999/03/12 06:07:15 paulus Exp $";
 #endif
 
 /*
@@ -442,8 +442,7 @@ ChapReceiveChallenge(cstate, inp, id, len)
 
     /* Microsoft doesn't send their name back in the PPP packet */
     if (remote_name[0] != 0 && (explicit_remote || rhostname[0] == 0)) {
-	strncpy(rhostname, remote_name, sizeof(rhostname));
-	rhostname[sizeof(rhostname) - 1] = 0;
+	strlcpy(rhostname, sizeof(rhostname), remote_name);
 	CHAPDEBUG((LOG_INFO, "ChapReceiveChallenge: using '%s' as remote name",
 		   rhostname));
     }
