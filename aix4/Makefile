@@ -2,7 +2,7 @@
 # Makefile for AIX 4.1
 #
 #
-# $Id: Makefile,v 1.3 1995/06/01 06:18:11 paulus Exp $
+# $Id: Makefile,v 1.4 1995/12/11 05:02:57 paulus Exp $
 #
 #ifndef DRIVERS
 DRIVERS=/usr/lib/drivers
@@ -10,7 +10,7 @@ DRIVERS=/usr/lib/drivers
 
 CC=xlc
 IFLAGS = -I..
-DFLAGS = -D_KERNEL -DINET -DPPP_VD -DNUM_PPP=5 -DDEBUGS -DPPP_STATS -DVJC -D__aix4__
+DFLAGS = -D_KERNEL -DINET -DPPP_VD -DNUM_PPP=5 -DDEBUGS -DPPP_STATS -DVJC -D__aix4__ -DAIX4
 CFLAGS = $(DFLAGS) $(IFLAGS)
 
 KIMP = -bI:/lib/pse.exp -bI:/lib/kernex.exp -bI:/lib/syscalls.exp
