@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-osf.c,v 1.26 1999/04/27 22:33:09 varadhan Exp $";
+static char rcsid[] = "$Id: sys-osf.c,v 1.27 1999/05/12 06:16:16 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -375,6 +375,13 @@ establish_ppp(fd)
             if (i != fd && i != sockfd)
                 close(i);
         closed_stdio = 1;
+	/* make sure 0, 1, 2 are open to /dev/null */
+	while ((i = open("/dev/null", O_RDWR)) >= 0) {
+	    if (i > 2) {
+		close(i);
+		break;
+	    }
+	}
     }
 
     /*
