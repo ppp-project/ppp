@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.5 1994/12/05 00:32:37 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.6 1995/04/24 02:42:06 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -145,8 +145,8 @@ struct ppp_comp_stats {
  * the last NP packet was sent or received.
  */
 struct ppp_idle {
-    int xmit_idle;		/* time since last NP packet sent */
-    int recv_idle;		/* time since last NP packet received */
+    time_t xmit_idle;		/* time since last NP packet sent */
+    time_t recv_idle;		/* time since last NP packet received */
 };
 
 #ifndef __P
