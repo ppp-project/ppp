@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.55 1999/07/23 06:55:05 paulus Exp $";
+static const char rcsid[] = "$Id: auth.c,v 1.56 1999/08/12 04:11:20 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -205,6 +205,9 @@ option_t auth_options[] = {
       "PAP passwords are encrypted", 1 },
     { "+ua", o_special, setupapfile,
       "Get PAP user and password from file" },
+    { "password", o_string, passwd,
+      "Password for authenticating us to the peer", OPT_STATIC,
+      NULL, MAXSECRETLEN },
     { "privgroup", o_special, privgroup,
       "Allow group members to use privileged options", OPT_PRIV },
     { NULL }
@@ -527,9 +530,12 @@ auth_withpeer_fail(unit, protocol)
 	BZERO(passwd, MAXSECRETLEN);
     /*
      * We've failed to authenticate ourselves to our peer.
-     * He'll probably take the link down, and there's not much
-     * we can do except wait for that.
+     * Some servers keep sending CHAP challenges, but there
+     * is no point in persisting without any way to get updated
+     * authentication secrets.
      */
+    lcp_close(unit, "Failed to authenticate ourselves to peer");
+    status = EXIT_AUTH_TOPEER_FAILED;
 }
 
 /*
@@ -576,6 +582,7 @@ np_up(unit, proto)
 	 * At this point we consider that the link has come up successfully.
 	 */
 	status = EXIT_OK;
+	unsuccess = 0;
 
 	if (idle_time_limit > 0)
 	    TIMEOUT(check_idle, NULL, idle_time_limit);
@@ -737,8 +744,9 @@ auth_reset(unit)
 
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
     ao->neg_chap = !refuse_chap
-	&& have_chap_secret(user, (explicit_remote? remote_name: NULL),
-			    0, NULL);
+	&& (passwd[0] != 0
+	    || have_chap_secret(user, (explicit_remote? remote_name: NULL),
+				0, NULL));
 
     if (go->neg_upap && !uselogin && !have_pap_secret(NULL))
 	go->neg_upap = 0;
@@ -793,29 +801,32 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg, msglen)
      */
     filename = _PATH_UPAPFILE;
     addrs = NULL;
-    ret = UPAP_AUTHACK;
+    ret = UPAP_AUTHNAK;
     f = fopen(filename, "r");
     if (f == NULL) {
 	error("Can't open PAP password file %s: %m", filename);
-	ret = UPAP_AUTHNAK;
 
     } else {
 	check_access(f, filename);
-	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0
-	    || (!uselogin && secret[0] != 0
-		&& (cryptpap || strcmp(passwd, secret) != 0)
-		&& strcmp(crypt(passwd, secret), secret) != 0)) {
-	    warn("PAP authentication failure for %s", user);
-	    ret = UPAP_AUTHNAK;
+	if (scan_authfile(f, user, our_name, secret, &addrs, filename) < 0) {
+	    warn("no PAP secret found for %s", user);
+	} else if (secret[0] != 0) {
+	    /* password given in pap-secrets - must match */
+	    if ((!cryptpap && strcmp(passwd, secret) == 0)
+		|| strcmp(crypt(passwd, secret), secret) == 0)
+		ret = UPAP_AUTHACK;
+	    else
+		warn("PAP authentication failure for %s", user);
+	} else if (uselogin) {
+	    /* empty password in pap-secrets and login option */
+	    ret = plogin(user, passwd, msg, msglen);
+	    if (ret == UPAP_AUTHNAK)
+		warn("PAP login failure for %s", user);
+	} else {
+	    /* empty password in pap-secrets and login option not used */
+	    ret = UPAP_AUTHACK;
 	}
 	fclose(f);
-    }
-
-    if (uselogin && ret == UPAP_AUTHACK) {
-	ret = plogin(user, passwd, msg, msglen);
-	if (ret == UPAP_AUTHNAK) {
-	    warn("PAP login failure for %s", user);
-	}
     }
 
     if (ret == UPAP_AUTHNAK) {
@@ -1231,13 +1242,13 @@ have_chap_secret(client, server, need_ip, lacks_ipp)
  * (We could be either client or server).
  */
 int
-get_secret(unit, client, server, secret, secret_len, save_addrs)
+get_secret(unit, client, server, secret, secret_len, am_server)
     int unit;
     char *client;
     char *server;
     char *secret;
     int *secret_len;
-    int save_addrs;
+    int am_server;
 {
     FILE *f;
     int ret, len;
@@ -1245,24 +1256,28 @@ get_secret(unit, client, server, secret, secret_len, save_addrs)
     struct wordlist *addrs;
     char secbuf[MAXWORDLEN];
 
-    filename = _PATH_CHAPFILE;
-    addrs = NULL;
-    secbuf[0] = 0;
+    if (!am_server && passwd[0] != 0) {
+	strlcpy(secbuf, passwd, sizeof(secbuf));
+    } else {
+	filename = _PATH_CHAPFILE;
+	addrs = NULL;
+	secbuf[0] = 0;
 
-    f = fopen(filename, "r");
-    if (f == NULL) {
-	error("Can't open chap secret file %s: %m", filename);
-	return 0;
+	f = fopen(filename, "r");
+	if (f == NULL) {
+	    error("Can't open chap secret file %s: %m", filename);
+	    return 0;
+	}
+	check_access(f, filename);
+
+	ret = scan_authfile(f, client, server, secbuf, &addrs, filename);
+	fclose(f);
+	if (ret < 0)
+	    return 0;
+
+	if (am_server)
+	    set_allowed_addrs(unit, addrs);
     }
-    check_access(f, filename);
-
-    ret = scan_authfile(f, client, server, secbuf, &addrs, filename);
-    fclose(f);
-    if (ret < 0)
-	return 0;
-
-    if (save_addrs)
-	set_allowed_addrs(unit, addrs);
 
     len = strlen(secbuf);
     if (len > MAXSECRETLEN) {
@@ -1292,7 +1307,7 @@ set_allowed_addrs(unit, addrs)
     char *ptr_word, *ptr_mask;
     struct hostent *hp;
     struct netent *np;
-    u_int32_t a, mask, ah;
+    u_int32_t a, mask, ah, offset;
     struct ipcp_options *wo = &ipcp_wantoptions[unit];
     u_int32_t suggested_ip = 0;
 
@@ -1342,18 +1357,29 @@ set_allowed_addrs(unit, addrs)
 	}
 
 	mask = ~ (u_int32_t) 0;
+	offset = 0;
 	ptr_mask = strchr (ptr_word, '/');
 	if (ptr_mask != NULL) {
 	    int bit_count;
+	    char *endp;
 
-	    bit_count = (int) strtol (ptr_mask+1, (char **) 0, 10);
+	    bit_count = (int) strtol (ptr_mask+1, &endp, 10);
 	    if (bit_count <= 0 || bit_count > 32) {
 		warn("invalid address length %v in auth. address list",
-		     ptr_mask);
+		     ptr_mask+1);
+		continue;
+	    }
+	    bit_count = 32 - bit_count;	/* # bits in host part */
+	    if (*endp == '+') {
+		offset = ifunit + 1;
+		++endp;
+	    }
+	    if (*endp != 0) {
+		warn("invalid address length syntax: %v", ptr_mask+1);
 		continue;
 	    }
 	    *ptr_mask = '\0';
-	    mask <<= 32 - bit_count;
+	    mask <<= bit_count;
 	}
 
 	hp = gethostbyname(ptr_word);
@@ -1381,15 +1407,24 @@ set_allowed_addrs(unit, addrs)
 	if (ptr_mask != NULL)
 	    *ptr_mask = '/';
 
-	if (a == (u_int32_t)-1L)
+	if (a == (u_int32_t)-1L) {
 	    warn("unknown host %s in auth. address list", ap->word);
-	else {
-	    ip[n].mask = htonl(mask);
-	    ip[n].base = a & ip[n].mask;
-	    ++n;
-	    if (~mask == 0 && suggested_ip == 0)
-		suggested_ip = a;
+	    continue;
 	}
+	if (offset != 0) {
+	    if (offset >= ~mask) {
+		warn("interface unit %d too large for subnet %v",
+		     ifunit, ptr_word);
+		continue;
+	    }
+	    a = htonl((ntohl(a) & mask) + offset);
+	    mask = ~(u_int32_t)0;
+	}
+	ip[n].mask = htonl(mask);
+	ip[n].base = a & ip[n].mask;
+	++n;
+	if (~mask == 0 && suggested_ip == 0)
+	    suggested_ip = a;
     }
 
     ip[n].permit = 0;		/* make the last entry forbid all addresses */
