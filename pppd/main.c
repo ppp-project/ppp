@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.3 1993/12/14 05:16:01 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.4 1993/12/15 00:17:43 paulus Exp $";
 #endif
 
 #define SETSID
@@ -264,8 +264,6 @@ main(argc, argv)
 	    syslog(LOG_ERR, "getpgrp(0): %m");
 	    die(1);
 	}
-	if (pgrpid != pid) 
-	    syslog(LOG_WARNING, "warning... not a process group leader");
 
     } else {
 	/*
@@ -399,14 +397,14 @@ main(argc, argv)
     }
 
     /*
-     * Set process group of device to our process group so we can get SIGIOs.
+     * Set process group of device to our process group so we can get
+     * SIGIOs and SIGHUPs.
      */
 #ifdef SETSID
     if (default_device) {
 	int id = tcgetpgrp(fd);
 	if (id != pgrpid) {
-	    syslog(LOG_WARNING,
-		   "warning: not foreground process group leader");
+	    syslog(LOG_WARNING, "warning: not in tty's process group");
 	}
     } else {
 	if (tcsetpgrp(fd, pgrpid) < 0) {
