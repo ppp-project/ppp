@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.3 1994/04/18 04:00:25 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.4 1994/05/09 04:32:41 paulus Exp $";
 #endif
 
 /*
@@ -183,7 +183,20 @@ void
 lcp_close(unit)
     int unit;
 {
-    fsm_close(&lcp_fsm[unit]);
+    fsm *f = &lcp_fsm[unit];
+
+    if (f->state == STOPPED && f->flags & (OPT_PASSIVE|OPT_SILENT)) {
+	/*
+	 * This action is not strictly according to the FSM in RFC1548,
+	 * but it does mean that the program terminates if you do a
+	 * lcp_close(0) in passive/silent mode when a connection hasn't
+	 * been established.
+	 */
+	f->state = CLOSED;
+	lcp_finished(f);
+
+    } else
+	fsm_close(&lcp_fsm[unit]);
 }
 
 
