@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_ahdlc.c,v 1.2 1995/05/19 02:18:34 paulus Exp $
+ * $Id: ppp_ahdlc.c,v 1.3 1995/05/29 06:45:49 paulus Exp $
  */
 
 /*
@@ -34,13 +34,15 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stream.h>
-#include <sys/modctl.h>
 #include <sys/conf.h>
 #include <sys/kmem.h>
-#include <sys/ddi.h>
-#include <sys/sunddi.h>
 #include <sys/errno.h>
 #include <sys/cmn_err.h>
+#include <sys/ddi.h>
+#ifdef sun
+#include <sys/modctl.h>
+#include <sys/sunddi.h>
+#endif
 #include <net/ppp_defs.h>
 #include <net/pppio.h>
 
@@ -53,6 +55,7 @@ static int ahdlc_wput __P((queue_t *, mblk_t *));
 static int ahdlc_rput __P((queue_t *, mblk_t *));
 static void stuff_frame __P((queue_t *, mblk_t *));
 static void unstuff_chars __P((queue_t *, mblk_t *));
+static int msg_copy __P((uchar_t *, mblk_t *, int));
 
 static struct module_info minfo = {
     0x7d23, "ppp_ahdl", 0, INFPSZ, 4096, 128
@@ -69,7 +72,8 @@ static struct qinit winit = {
 static struct streamtab ahdlc_info = {
     &rinit, &winit, NULL, NULL
 };
-    
+
+#ifdef sun
 static struct fmodsw fsw = {
     "ppp_ahdl",
     &ahdlc_info,
@@ -89,8 +93,9 @@ static struct modlinkage modlinkage = {
     (void *) &modlstrmod,
     NULL
 };
+#endif /* sun */
 
-struct ahdlc_state {
+typedef struct ahdlc_state {
     int flags;
     mblk_t *cur_frame;
     mblk_t *cur_blk;
@@ -101,11 +106,20 @@ struct ahdlc_state {
     int mtu;
     int mru;
     int unit;
-};
+    struct pppstat stats;
+} ahdlc_state_t;
 
 /* Values for flags */
-#define ESCAPED		1	/* last saw escape char on input */
-#define IFLUSH		2	/* flushing input due to error */
+#define ESCAPED		0x100	/* last saw escape char on input */
+#define IFLUSH		0x200	/* flushing input due to error */
+
+/* RCV_B7_1, etc., defined in net/pppio.h, are stored in flags also. */
+#define RCV_FLAGS	(RCV_B7_1|RCV_B7_0|RCV_ODDP|RCV_EVNP)
+
+#ifndef sun
+# define qprocson(q)
+# define qprocsoff(q)
+#endif
 
 /*
  * FCS lookup table as calculated by genfcstab.
@@ -145,6 +159,7 @@ static u_short fcstab[256] = {
 	0x7bc7,	0x6a4e,	0x58d5,	0x495c,	0x3de3,	0x2c6a,	0x1ef1,	0x0f78
 };
 
+#ifdef sun
 /*
  * Entry points for modloading.
  */
@@ -166,6 +181,7 @@ _info(mip)
 {
     return mod_info(&modlinkage, mip);
 }
+#endif
 
 /*
  * STREAMS module entry points.
@@ -177,11 +193,10 @@ ahdlc_open(q, devp, flag, sflag, credp)
     int flag, sflag;
     cred_t *credp;
 {
-    struct ahdlc_state *sp;
+    ahdlc_state_t *sp;
 
     if (q->q_ptr == 0) {
-	sp = (struct ahdlc_state *) kmem_zalloc(sizeof(struct ahdlc_state),
-						KM_SLEEP);
+	sp = (ahdlc_state_t *) kmem_zalloc(sizeof(ahdlc_state_t), KM_SLEEP);
 	if (sp == 0)
 	    return ENOSR;
 	q->q_ptr = sp;
@@ -200,16 +215,16 @@ ahdlc_close(q, flag, credp)
     int flag;
     cred_t *credp;
 {
-    struct ahdlc_state *state;
+    ahdlc_state_t *state;
 
     qprocsoff(q);
     if (q->q_ptr != 0) {
-	state = (struct ahdlc_state *) q->q_ptr;
+	state = (ahdlc_state_t *) q->q_ptr;
 	if (state->cur_frame != 0) {
 	    freemsg(state->cur_frame);
 	    state->cur_frame = 0;
 	}
-	kmem_free(q->q_ptr, sizeof(struct ahdlc_state));
+	kmem_free(q->q_ptr, sizeof(ahdlc_state_t));
     }
     return 0;
 }
@@ -219,11 +234,13 @@ ahdlc_wput(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct ahdlc_state *state;
+    ahdlc_state_t *state;
     struct iocblk *iop;
     int error;
+    mblk_t *np;
+    struct ppp_stats *psp;
 
-    state = (struct ahdlc_state *) q->q_ptr;
+    state = (ahdlc_state_t *) q->q_ptr;
     switch (mp->b_datap->db_type) {
     case M_DATA:
 	/*
@@ -255,6 +272,43 @@ ahdlc_wput(q, mp)
 	    bcopy(mp->b_cont->b_rptr, (caddr_t)&state->raccm,
 		  sizeof(u_int32_t));
 	    iop->ioc_count = 0;
+	    error = 0;
+	    break;
+
+	case PPPIO_GCLEAN:
+	    np = allocb(sizeof(int), BPRI_HI);
+	    if (np == 0) {
+		error = ENOSR;
+		break;
+	    }
+	    if (mp->b_cont != 0)
+		freemsg(mp->b_cont);
+	    mp->b_cont = np;
+	    *(int *)np->b_wptr = state->flags & RCV_FLAGS;
+	    np->b_wptr += sizeof(int);
+	    iop->ioc_count = sizeof(int);
+	    error = 0;
+	    break;
+
+	case PPPIO_GETSTAT:
+	    np = allocb(sizeof(struct ppp_stats), BPRI_HI);
+	    if (np == 0) {
+		error = ENOSR;
+		break;
+	    }
+	    if (mp->b_cont != 0)
+		freemsg(mp->b_cont);
+	    mp->b_cont = np;
+	    psp = (struct ppp_stats *) np->b_wptr;
+	    np->b_wptr += sizeof(struct ppp_stats);
+	    bzero((caddr_t)psp, sizeof(struct ppp_stats));
+	    psp->p = state->stats;
+	    iop->ioc_count = sizeof(struct ppp_stats);
+	    error = 0;
+	    break;
+
+	case PPPIO_LASTMOD:
+	    /* we knew this anyway */
 	    error = 0;
 	    break;
 
@@ -307,7 +361,7 @@ ahdlc_rput(q, mp)
 {
     mblk_t *np;
     uchar_t *cp;
-    struct ahdlc_state *state;
+    ahdlc_state_t *state;
 
     switch (mp->b_datap->db_type) {
     case M_DATA:
@@ -316,7 +370,7 @@ ahdlc_rput(q, mp)
 	break;
 
     case M_HANGUP:
-	state = (struct ahdlc_state *) q->q_ptr;
+	state = (ahdlc_state_t *) q->q_ptr;
 	if (state->cur_frame != 0) {
 	    /* XXX would like to send this up for debugging */
 	    freemsg(state->cur_frame);
@@ -342,25 +396,28 @@ stuff_frame(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct ahdlc_state *state;
-    int ilen, olen, c, extra;
-    mblk_t *omsg, *np, *op;
+    ahdlc_state_t *state;
+    int ilen, olen, c, extra, i;
+    mblk_t *omsg, *op, *np;
     uchar_t *sp, *sp0, *dp, *dp0, *spend;
     ushort_t fcs;
     u_int32_t *xaccm, lcp_xaccm[8];
+    static uchar_t lcphdr[PPP_HDRLEN] = { 0xff, 0x03, 0xc0, 0x21 };
+    uchar_t ppphdr[PPP_HDRLEN];
+
+    state = (ahdlc_state_t *) q->q_ptr;
+    ilen = msgdsize(mp);
 
     /*
      * We estimate the length of the output packet as
      * 1.25 * input length + 16 (for initial flag, FCS, final flag, slop).
      */
-    state = (struct ahdlc_state *) q->q_ptr;
-    ilen = msgdsize(mp);
     olen = ilen + (ilen >> 2) + 16;
     if (olen > OFRAME_BSIZE)
 	olen = OFRAME_BSIZE;
     omsg = op = allocb(olen, BPRI_MED);
     if (omsg == 0)
-	return;
+	goto bomb;
 
     /*
      * Put in an initial flag for now.  We'll remove it later
@@ -372,21 +429,16 @@ stuff_frame(q, mp)
 
     /*
      * For LCP packets, we must escape all control characters.
+     * Inspect the first PPP_HDRLEN bytes of the message to
+     * see whether it is an LCP packet.
      * LCP packets must not be A/C or protocol compressed.
      */
     xaccm = state->xaccm;
-    if (ilen >= PPP_HDRLEN) {
-	if (mp->b_wptr - mp->b_rptr >= PPP_HDRLEN
-	    || pullupmsg(mp, PPP_HDRLEN)) {
-	    if (PPP_ADDRESS(mp->b_rptr) == PPP_ALLSTATIONS
-		&& PPP_CONTROL(mp->b_rptr) == PPP_UI
-		&& PPP_PROTOCOL(mp->b_rptr) == PPP_LCP) {
-		bcopy((caddr_t) state->xaccm, (caddr_t) lcp_xaccm,
-		      sizeof(lcp_xaccm));
-		lcp_xaccm[0] = ~0;
-		xaccm = lcp_xaccm;
-	    }
-	}
+    if (msg_copy(ppphdr, mp, PPP_HDRLEN) == PPP_HDRLEN
+	&& bcmp((caddr_t) ppphdr, (caddr_t) lcphdr, PPP_HDRLEN) == 0) {
+	bcopy((caddr_t) state->xaccm, (caddr_t) lcp_xaccm, sizeof(lcp_xaccm));
+	lcp_xaccm[0] = ~0;
+	xaccm = lcp_xaccm;
     }
 
     sp = mp->b_rptr;
@@ -447,10 +499,8 @@ stuff_frame(q, mp)
 	    if (olen > OFRAME_BSIZE)
 		olen = OFRAME_BSIZE;
 	    np = allocb(olen, BPRI_MED);
-	    if (np == 0) {
-		freemsg(omsg);
-		return;
-	    }
+	    if (np == 0)
+		goto bomb;
 	    op->b_cont = np;
 	    op = np;
 	    dp = op->b_wptr;
@@ -465,10 +515,8 @@ stuff_frame(q, mp)
 	/* Sigh.  Need another block. */
 	op->b_wptr = dp;
 	np = allocb(5, BPRI_MED);
-	if (np == 0) {
-	    freemsg(omsg);
-	    return;
-	}
+	if (np == 0)
+	    goto bomb;
 	op->b_cont = np;
 	op = np;
 	dp = op->b_wptr;
@@ -494,21 +542,46 @@ stuff_frame(q, mp)
     if (qsize(q->q_next) > 0)
 	++omsg->b_rptr;
 
+    /*
+     * Update statistics.
+     */
+    state->stats.ppp_obytes += msgdsize(omsg);
+    state->stats.ppp_opackets++;
+
+    /*
+     * Send it on.
+     */
     putnext(q, omsg);
+    return;
+
+ bomb:
+    if (omsg != 0)
+	freemsg(omsg);
+    state->stats.ppp_oerrors++;
+    putctl1(RD(q)->q_next, M_CTL, PPPCTL_OERROR);
 }
 
+static unsigned paritytab[8] = {
+    0x96696996, 0x69969669, 0x69969669, 0x96696996,
+    0x69969669, 0x96696996, 0x96696996, 0x69969669
+};
+
+/*
+ * Process received characters.
+ */
 static void
 unstuff_chars(q, mp)
     queue_t *q;
     mblk_t *mp;
 {
-    struct ahdlc_state *state;
+    ahdlc_state_t *state;
     mblk_t *om;
     uchar_t *cp, *cpend, *dp, *dp0;
     int c, len, extra, offset;
     ushort_t fcs;
 
-    state = (struct ahdlc_state *) q->q_ptr;
+    state = (ahdlc_state_t *) q->q_ptr;
+    state->stats.ppp_ibytes += msgdsize(mp);
     cp = mp->b_rptr;
     for (;;) {
 	/*
@@ -543,6 +616,14 @@ unstuff_chars(q, mp)
 		if (c == PPP_FLAG)
 		    break;
 		++cp;
+		if (c & 0x80)
+		    state->flags |= RCV_B7_1;
+		else
+		    state->flags |= RCV_B7_0;
+		if (paritytab[c >> 5] & (1 << (c & 0x1F)))
+		    state->flags |= RCV_ODDP;
+		else
+		    state->flags |= RCV_EVNP;
 		if (c == PPP_ESCAPE) {
 		    if (extra > 0) {
 			--extra;
@@ -568,6 +649,14 @@ unstuff_chars(q, mp)
 	}
 
 	c = *cp++;
+	if (c & 0x80)
+	    state->flags |= RCV_B7_1;
+	else
+	    state->flags |= RCV_B7_0;
+	if (paritytab[c >> 5] & (1 << (c & 0x1F)))
+	    state->flags |= RCV_ODDP;
+	else
+	    state->flags |= RCV_EVNP;
 	if (c == PPP_FLAG) {
 	    /*
 	     * End of a frame.
@@ -578,20 +667,23 @@ unstuff_chars(q, mp)
 	    len = state->inlen;
 	    state->cur_frame = 0;
 	    state->inlen = 0;
-	    if (om == 0)
+	    if (len == 0 && (state->flags & IFLUSH) == 0)
 		continue;
-	    if (!(state->flags & (IFLUSH|ESCAPED) || len < PPP_FCSLEN)) {
+	    state->stats.ppp_ipackets++;
+	    if (om != 0 && (state->flags & (IFLUSH|ESCAPED)) == 0
+		&& len > PPP_FCSLEN) {
 		if (state->infcs == PPP_GOODFCS) {
 		    adjmsg(om, -PPP_FCSLEN);	/* chop off fcs */
 		    putnext(q, om);		/* bombs away! */
 		    continue;
 		}
-		/* incr bad fcs stats */
 #if DEBUG
 		cmn_err(CE_CONT, "ppp_ahdl: bad fcs %x\n", state->infcs);
 #endif
 	    }
-	    freemsg(om);
+	    if (om != 0)
+		freemsg(om);
+	    state->stats.ppp_ierrors++;
 	    putctl1(q->q_next, M_CTL, PPPCTL_IERROR);
 	    continue;
 	}
@@ -672,3 +764,25 @@ unstuff_chars(q, mp)
     }
 }
 
+static int
+msg_copy(buf, mp, n)
+    uchar_t *buf;
+    mblk_t *mp;
+    int n;
+{
+    int i;
+    uchar_t *cp;
+
+    cp = mp->b_rptr;
+    for (i = 0; i < n; ++i) {
+	if (cp >= mp->b_wptr) {
+	    do {
+		if ((mp = mp->b_cont) == 0)
+		    return i;
+	    } while (mp->b_rptr >= mp->b_wptr);
+	    cp = mp->b_rptr;
+	}
+	buf[i] = *cp++;
+    }
+    return n;
+}
