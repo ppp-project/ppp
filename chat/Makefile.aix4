@@ -1,0 +1,21 @@
+#
+# Makefile for chat on AIX 4.1
+#
+
+#ifndef BINDIR
+BINDIR=/usr/sbin
+#endif
+
+CC=xlc
+CFLAGS= -D_NO_PROTO
+
+all:	chat
+
+chat: chat.o
+	$(CC) -o chat chat.o
+
+install:
+	install -f $(BINDIR) chat
+
+clean:
+	rm -f *~ *.o chat
