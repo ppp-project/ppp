@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: configure,v 1.32 2004/10/29 00:12:26 paulus Exp $
+# $Id: configure,v 1.33 2004/10/31 21:31:01 paulus Exp $
 
 # Where to install stuff by default
 DESTDIR=/usr/local
@@ -163,23 +163,23 @@ done
 
 mkmkf() {
     rm -f $2
-    echo "  $2 <= $1"
-    sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" $1 >$2
+    if [ -f $1 ]; then
+	echo "  $2 <= $1"
+	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" $1 >$2
+    fi
 }
 
 if [ -d "$ksrc" ]; then
-  echo "Creating Makefiles."
-  mkmkf $ksrc/Makefile.top Makefile
-  mkmkf $ksrc/Makedefs$compiletype Makedefs.com
-  for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe \
-      pppd/plugins/radius; do
-    if [ -f $dir/Makefile.$makext ]; then
-      mkmkf $dir/Makefile.$makext $dir/Makefile
+    echo "Creating Makefiles."
+    mkmkf $ksrc/Makefile.top Makefile
+    mkmkf $ksrc/Makedefs$compiletype Makedefs.com
+    for dir in pppd pppstats chat pppdump pppd/plugins pppd/plugins/rp-pppoe \
+	       pppd/plugins/radius; do
+	mkmkf $dir/Makefile.$makext $dir/Makefile
+    done
+    if [ "$archvariant" ]; then
+	mkmkf Makefile.$makext$archvariant $ksrc/Makefile
     fi
-  done
-  if [ "$archvariant" ]; then
-    mkmkf Makefile.$makext $ksrc/Makefile
-  fi
 else
   echo "Unable to locate kernel source $ksrc"
   exit 1
