@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.11 1994/08/09 06:29:14 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.12 1994/09/01 00:24:14 paulus Exp $";
 #endif
 
 /*
@@ -54,14 +54,11 @@ lcp_options lcp_wantoptions[NPPP];	/* Options that we want to request */
 lcp_options lcp_gotoptions[NPPP];	/* Options that peer ack'd */
 lcp_options lcp_allowoptions[NPPP];	/* Options we allow peer to request */
 lcp_options lcp_hisoptions[NPPP];	/* Options that we ack'd */
-u_long xmit_accm[NPPP][8];		/* extended transmit ACCM */
+uint32 xmit_accm[NPPP][8];		/* extended transmit ACCM */
 
-static u_long lcp_echos_pending = 0;    /* Number of outstanding echo msgs */
-static u_long lcp_echo_number   = 0;    /* ID number of next echo frame */
-static u_long lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
-
-u_long lcp_echo_interval = 0;
-u_long lcp_echo_fails = 0;
+static uint32 lcp_echos_pending = 0;    /* Number of outstanding echo msgs */
+static uint32 lcp_echo_number   = 0;    /* ID number of next echo frame */
+static uint32 lcp_echo_timer_running = 0;  /* TRUE if a timer is running */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -282,8 +279,6 @@ lcp_extcode(f, code, id, inp, len)
 	LCPDEBUG((LOG_INFO, "lcp: Echo-Request, Rcvd id %d", id));
 	magp = inp;
 	PUTLONG(lcp_gotoptions[f->unit].magicnumber, magp);
-	if (len < CILEN_LONG)
-	    len = CILEN_LONG;
 	fsm_sdata(f, ECHOREP, id, inp, len);
 	break;
     
@@ -500,7 +495,7 @@ lcp_ackci(f, p, len)
     lcp_options *go = &lcp_gotoptions[f->unit];
     u_char cilen, citype, cichar;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
 
     /*
      * CIs must be in exactly the same order that we sent.
@@ -616,7 +611,7 @@ lcp_nakci(f, p, len)
     lcp_options *wo = &lcp_wantoptions[f->unit];
     u_char cilen, citype, cichar, *next;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
     lcp_options no;		/* options we've seen Naks for */
     lcp_options try;		/* options to request next time */
     int looped_back = 0;
@@ -845,7 +840,7 @@ lcp_rejci(f, p, len)
     lcp_options *go = &lcp_gotoptions[f->unit];
     u_char cichar;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
     u_char *start = p;
     int plen = len;
     lcp_options try;		/* options to request next time */
@@ -977,7 +972,7 @@ lcp_reqci(f, inp, lenp, reject_if_disagree)
     u_char *cip, *next;		/* Pointer to current and next CIs */
     u_char cilen, citype, cichar;/* Parsed len, type, char value */
     u_short cishort;		/* Parsed short value */
-    u_long cilong;		/* Parse long value */
+    uint32 cilong;		/* Parse long value */
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
@@ -1358,7 +1353,7 @@ lcp_printpkt(p, plen, printer, arg)
     int code, id, len, olen;
     u_char *pstart, *optend;
     u_short cishort;
-    u_long cilong;
+    uint32 cilong;
 
     if (plen < HEADERLEN)
 	return 0;
@@ -1497,10 +1492,10 @@ static void
 LcpEchoCheck (f)
     fsm *f;
 {
-    u_long             delta;
+    uint32             delta;
 #ifdef __linux__
     struct ppp_ddinfo  ddinfo;
-    u_long             latest;
+    uint32             latest;
 /*
  * Read the time since the last packet was received.
  */
@@ -1560,15 +1555,19 @@ lcp_received_echo_reply (f, id, inp, len)
     fsm *f;
     int id; u_char *inp; int len;
 {
-    u_long magic;
+    uint32 magic;
 
     /* Check the magic number - don't count replies from ourselves. */
-    if (len < CILEN_LONG)
+    if (len < 4) {
+	syslog(LOG_DEBUG, "lcp: received short Echo-Reply, length %d", len);
 	return;
+    }
     GETLONG(magic, inp);
     if (lcp_gotoptions[f->unit].neg_magicnumber
-	&& magic == lcp_gotoptions[f->unit].magicnumber)
+	&& magic == lcp_gotoptions[f->unit].magicnumber) {
+	syslog(LOG_WARNING, "appear to have received our own echo-reply!");
 	return;
+    }
 
     /* Reset the number of outstanding echo frames */
     lcp_echos_pending = 0;
@@ -1582,7 +1581,7 @@ static void
 LcpSendEchoRequest (f)
     fsm *f;
 {
-    u_long lcp_magic;
+    uint32 lcp_magic;
     u_char pkt[4], *pktp;
 
 /*
