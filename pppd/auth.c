@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.85 2002/10/10 05:47:34 fcusack Exp $"
+#define RCSID	"$Id: auth.c,v 1.86 2002/10/10 06:12:04 fcusack Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1951,7 +1951,6 @@ auth_number()
 	    l--;
 	if (!strncasecmp(wp->word, remote_number, l))
 	    return 1;
-	}
 	wp = wp->next;
     }
 
