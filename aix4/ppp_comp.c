@@ -24,7 +24,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp_comp.c,v 1.5 1995/05/01 01:42:38 paulus Exp $
+ * $Id: ppp_comp.c,v 1.6 1995/06/23 01:42:54 paulus Exp $
  */
 
 #include <net/net_globals.h>
@@ -182,6 +182,7 @@ ppp_comp_wput(q, mp)
             mp = allocb(sizeof(struct ppp_comp_stats) + sizeof(u_long),
                         BPRI_HI);
             if (mp != NULL) {
+		mp->b_datap->db_type = M_CTL;
                 *(u_char *) mp->b_wptr = IF_CSTATS;
                 mp->b_wptr += sizeof(u_long); /* should be enough alignment */
                 pcp = (struct ppp_comp_stats *) mp->b_wptr;
