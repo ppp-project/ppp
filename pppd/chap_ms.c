@@ -40,7 +40,7 @@
  *   Copyright (c) 2002 Google, Inc.
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.23 2002/11/02 19:48:12 carlsonj Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.24 2002/11/13 12:26:03 fcusack Exp $"
 
 #ifdef CHAPMS
 
@@ -214,7 +214,7 @@ static u_char *StdText = (u_char *)"KGS!@#$%"; /* key from rasapi32.dll */
 
 static void
 ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
-	      MS_ChapResponse *LMResponse)
+	      MS_ChapResponse *response)
 {
     int			i;
     u_char		UcasePassword[MAX_NT_PASSWORD]; /* max is actually 14 */
@@ -228,7 +228,7 @@ ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
     DesEncrypt( StdText, PasswordHash + 0 );
     (void) DesSetkey(UcasePassword + 7);
     DesEncrypt( StdText, PasswordHash + 8 );
-    ChallengeResponse(rchallenge, PasswordHash, LMResponse);
+    ChallengeResponse(rchallenge, PasswordHash, response->LANManResp);
 }
 #endif
 
