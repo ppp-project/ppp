@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: main.c,v 1.10 1994/05/18 06:00:48 paulus Exp $";
+static char rcsid[] = "$Id: main.c,v 1.11 1994/05/24 11:25:33 paulus Exp $";
 #endif
 
 #define SETSID
@@ -62,10 +62,6 @@ static char rcsid[] = "$Id: main.c,v 1.10 1994/05/18 06:00:48 paulus Exp $";
 #include <net/if_ppp.h>
 
 #include <string.h>
-
-#ifndef BSD
-#define BSD 43
-#endif /*BSD*/
 
 #include "ppp.h"
 #include "magic.h"
@@ -156,11 +152,12 @@ int lockflag = 0;		/* lock the serial device */
 
 
 /* prototypes */
-static void hup __ARGS((int, int, struct sigcontext *, char *));
-static void intr __ARGS((int, int, struct sigcontext *, char *));
-static void term __ARGS((int, int, struct sigcontext *, char *));
-static void alrm __ARGS((int, int, struct sigcontext *, char *));
-static void io __ARGS((int, int, struct sigcontext *, char *));
+static void hup __ARGS((int));
+static void intr __ARGS((int));
+static void term __ARGS((int));
+static void alrm __ARGS((int));
+static void io __ARGS((int));
+static void chld __ARGS((int));
 static void incdebug __ARGS((int));
 static void nodebug __ARGS((int));
 void establish_ppp __ARGS((void));
@@ -203,7 +200,7 @@ main(argc, argv)
     char *argv[];
 {
     int mask, i;
-    struct sigvec sv;
+    struct sigaction sa;
     struct cmd *cmdp;
     FILE *pidfile;
     char *p;
@@ -245,14 +242,10 @@ main(argc, argv)
     check_auth_options();
     setipdefault();
 
-    if (lockflag && !default_device)
-	if (lock(devname) < 0)
-	    die(1);
-
     /*
      * Initialize syslog system and magic number package.
      */
-#if (BSD >= 43 || defined(sun)) && !defined(ultrix)
+#if !defined(ultrix)
     openlog("pppd", LOG_PID | LOG_NDELAY, LOG_PPP);
     setlogmask(LOG_UPTO(LOG_INFO));
 #else
@@ -323,6 +316,10 @@ main(argc, argv)
     }
 #endif
 
+    if (lockflag && !default_device)
+	if (lock(devname) < 0)
+	    die(1);
+
     /* Get an internet socket for doing socket ioctl's on. */
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 	syslog(LOG_ERR, "socket : %m");
@@ -339,25 +336,27 @@ main(argc, argv)
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGALRM);
     sigaddset(&mask, SIGIO);
+    sigaddset(&mask, SIGCHLD);
 #ifdef	STREAMS
     sigaddset(&mask, SIGPOLL);
 #endif
 
 #define SIGNAL(s, handler)	{ \
-	sv.sv_handler = handler; \
-	if (sigvec(s, &sv, NULL) < 0) { \
-	    syslog(LOG_ERR, "sigvec(%d): %m", s); \
+	sa.sa_handler = handler; \
+	if (sigaction(s, &sa, NULL) < 0) { \
+	    syslog(LOG_ERR, "sigaction(%d): %m", s); \
 	    die(1); \
 	} \
     }
 
-    sv.sv_mask = mask;
-    sv.sv_flags = 0;
+    sa.sa_mask = mask;
+    sa.sa_flags = 0;
     SIGNAL(SIGHUP, hup);		/* Hangup */
     SIGNAL(SIGINT, intr);		/* Interrupt */
     SIGNAL(SIGTERM, term);		/* Terminate */
     SIGNAL(SIGALRM, alrm);		/* Timeout */
     SIGNAL(SIGIO, io);			/* Input available */
+    SIGNAL(SIGCHLD, chld);		/* Death of child process */
 #ifdef	STREAMS
     SIGNAL(SIGPOLL, io);		/* Input available */
 #endif
@@ -467,6 +466,19 @@ main(argc, argv)
 	syslog(LOG_ERR, "fcntl(F_GETFL): %m");
 	die(1);
     }
+
+#ifdef _linux_ /* This is a kludge for Linux. FIXME !!! -- later. */
+#undef	FASYNC
+#define FASYNC	0
+    {
+	int sig = SIGIO;
+	if (ioctl(fd, PPPIOCSINPSIG, &sig) == -1) {
+	    syslog(LOG_ERR, "ioctl(PPPIOCSINPSIG): %m");
+	    die(1);
+	}
+    }
+#endif
+
     if (fcntl(fd, F_SETFL, FNDELAY | FASYNC) == -1) {
 	syslog(LOG_ERR, "fcntl(F_SETFL, FNDELAY | FASYNC): %m");
 	die(1);
@@ -480,10 +492,8 @@ main(argc, argv)
     sigprocmask(SIG_BLOCK, &mask, NULL); /* Block signals now */
     lcp_lowerup(0);		/* XXX Well, sort of... */
     lcp_open(0);		/* Start protocol */
-    for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; ) {
+    for (phase = PHASE_ESTABLISH; phase != PHASE_DEAD; )
 	sigpause(0);		/* Wait for next signal */
-	reap_kids();		/* Don't leave dead kids lying around */
-    }
 
     /*
      * Run disconnector script, if requested
@@ -642,7 +652,7 @@ set_up_tty(fd, local)
 
 #ifdef CRTSCTS
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL | CRTSCTS);
-    if (crtscts)
+    if (crtscts == 1)
 	tios.c_cflag |= CRTSCTS;
 #else
     tios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | CLOCAL);
@@ -656,6 +666,13 @@ set_up_tty(fd, local)
     tios.c_lflag = 0;
     tios.c_cc[VMIN] = 1;
     tios.c_cc[VTIME] = 0;
+
+    if (crtscts == 2) {
+	tios.c_iflag |= IXOFF;
+	tios.c_cc[VSTOP] = 0x13;	/* DC3 = XOFF = ^S */
+	tios.c_cc[VSTART] = 0x11;	/* DC1 = XON  = ^Q */
+    }
+
     speed = translate_speed(inspeed);
     if (speed) {
 	cfsetospeed(&tios, speed);
@@ -759,6 +776,7 @@ cleanup(status, arg)
 
 	if (initfdflags != -1 && fcntl(fd, F_SETFL, initfdflags) < 0)
 	    syslog(LOG_WARNING, "fcntl(F_SETFL, fdflags): %m");
+	initfdflags = -1;
 
 	disestablish_ppp();
 
@@ -773,7 +791,7 @@ cleanup(status, arg)
 	}
 
 	close(fd);
-	fd = 0;
+	fd = -1;
     }
 
     if (pidfilename[0] != 0 && unlink(pidfilename) < 0) 
@@ -943,12 +961,9 @@ adjtimeout()
  *
  * Indicates that the physical layer has been disconnected.
  */
-/*ARGSUSED*/
 static void
-hup(sig, code, scp, addr)
-    int sig, code;
-    struct sigcontext *scp;
-    char *addr;
+hup(sig)
+    int sig;
 {
     syslog(LOG_INFO, "Hangup (SIGHUP)");
 
@@ -965,12 +980,9 @@ hup(sig, code, scp, addr)
  *
  * Indicates that we should initiate a graceful disconnect and exit.
  */
-/*ARGSUSED*/
 static void
-term(sig, code, scp, addr)
-    int sig, code;
-    struct sigcontext *scp;
-    char *addr;
+term(sig)
+    int sig;
 {
     syslog(LOG_INFO, "Terminating link.");
     persist = 0;		/* don't try to restart */
@@ -984,12 +996,9 @@ term(sig, code, scp, addr)
  *
  * Indicates that we should initiate a graceful disconnect and exit.
  */
-/*ARGSUSED*/
 static void
-intr(sig, code, scp, addr)
-    int sig, code;
-    struct sigcontext *scp;
-    char *addr;
+intr(sig)
+    int sig;
 {
     syslog(LOG_INFO, "Interrupt received: terminating link");
     persist = 0;		/* don't try to restart */
@@ -1003,12 +1012,9 @@ intr(sig, code, scp, addr)
  *
  * Indicates a timeout.
  */
-/*ARGSUSED*/
 static void
-alrm(sig, code, scp, addr)
-    int sig, code;
-    struct sigcontext *scp;
-    char *addr;
+alrm(sig)
+    int sig;
 {
     struct itimerval itv;
     struct callout *freep, *list, *last;
@@ -1061,16 +1067,25 @@ alrm(sig, code, scp, addr)
 
 
 /*
+ * chld - Catch SIGCHLD signal.
+ * Calls reap_kids to get status for any dead kids.
+ */
+static void
+chld(sig)
+    int sig;
+{
+    reap_kids();
+}
+
+
+/*
  * io - Catch SIGIO signal.
  *
  * Indicates that incoming data is available.
  */
-/*ARGSUSED*/
 static void
-io(sig, code, scp, addr)
-    int sig, code;
-    struct sigcontext *scp;
-    char *addr;
+io(sig)
+    int sig;
 {
     int len, i;
     u_char *p;
@@ -1082,25 +1097,6 @@ io(sig, code, scp, addr)
     MAINDEBUG((LOG_DEBUG, "IO signal received"));
     adjtimeout();		/* Adjust timeouts */
 
-    /* we do this to see if the SIGIO handler is being invoked for input */
-    /* ready, or for the socket buffer hitting the low-water mark. */
-
-    notime.tv_sec = 0;
-    notime.tv_usec = 0;
-    FD_ZERO(&fdset);
-    FD_SET(fd, &fdset);
-  
-    if ((ready = select(32, &fdset, (fd_set *) NULL, (fd_set *) NULL,
-		      &notime)) == -1) {
-	syslog(LOG_ERR, "Error in io() select: %m");
-	die(1);
-    }
-    
-    if (ready == 0) {
-	MAINDEBUG((LOG_DEBUG, "IO non-input ready SIGIO occured."));
-	return;
-    }
-
     /* Yup, this is for real */
     for (;;) {			/* Read all available packets */
 	p = inpacket_buf;	/* point to beginning of packet buffer */
@@ -1110,8 +1106,9 @@ io(sig, code, scp, addr)
 	    return;
 
 	if (len == 0) {
-	    syslog(LOG_WARNING, "End of file on fd!");
-	    die(1);
+	    MAINDEBUG((LOG_DEBUG, "End of file on fd!"));
+	    lcp_lowerdown(0);
+	    return;
 	}
 
 	if (debug /*&& (debugflags & DBG_INPACKET)*/)
