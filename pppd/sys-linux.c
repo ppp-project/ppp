@@ -282,7 +282,7 @@ void sys_init(void)
 #ifdef INET6
     sock6_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock6_fd < 0)
-	fatal("Couldn't create IPv6 socket: %m(%d)", errno);
+	sock6_fd = -errno;	/* save errno for later */
 #endif
 
     FD_ZERO(&in_fds);
@@ -2299,6 +2299,11 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct ifreq ifr;
     struct in6_rtmsg rt6;
 
+    if (sock6_fd < 0) {
+	errno = -sock6_fd;
+	error("IPv6 socket creation failed: %m");
+	return 0;
+    }
     memset(&ifr, 0, sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {
@@ -2343,6 +2348,11 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct ifreq ifr;
     struct in6_ifreq ifr6;
 
+    if (sock6_fd < 0) {
+	errno = -sock6_fd;
+	error("IPv6 socket creation failed: %m");
+	return 0;
+    }
     memset(&ifr, 0, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
     if (ioctl(sock6_fd, SIOCGIFINDEX, (caddr_t) &ifr) < 0) {

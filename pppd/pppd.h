@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.54 2000/04/15 10:10:25 paulus Exp $
+ * $Id: pppd.h,v 1.55 2000/06/30 04:54:22 paulus Exp $
  */
 
 /*
@@ -105,6 +105,7 @@ typedef struct {
 #define OPT_INITONLY	0x2000000 /* option can only be set in init phase */
 #define OPT_DEVEQUIV	0x4000000 /* equiv to device name */
 #define OPT_DEVNAM	(OPT_PREPASS | OPT_INITONLY | OPT_DEVEQUIV)
+#define OPT_SEENIT	0x10000000 /* have seen this option already */
 
 #define OPT_VAL(x)	((x) & OPT_VALUE)
 
@@ -152,6 +153,14 @@ struct epdisc {
 #define EPD_MAGIC	4
 #define EPD_PHONENUM	5
 
+typedef void (*notify_func) __P((void *, int));
+
+struct notifier {
+    struct notifier *next;
+    notify_func	    func;
+    void	    *arg;
+};
+
 /*
  * Global variables.
  */
@@ -159,7 +168,6 @@ struct epdisc {
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name */
-extern int	ttyfd;		/* Serial device file descriptor */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	phase;		/* Current state of link - see values below */
@@ -186,6 +194,11 @@ extern int	devnam_fixed;	/* can no longer change devnam */
 extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
+extern char	ppp_devnam[MAXPATHLEN];
+extern struct notifier *pidchange;   /* for notifications of pid changing */
+extern struct notifier *phasechange; /* for notifications of phase changes */
+extern struct notifier *exitnotify;  /* for notification that we're exiting */
+extern struct notifier *sigreceived; /* notification of received signal */
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */
@@ -325,6 +338,9 @@ void timeout __P((void (*func)(void *), void *arg, int t));
 				/* Call func(arg) after t seconds */
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
+void record_child __P((int, char *, void (*) (void *), void *));
+int  device_script __P((char *cmd, int in, int out, int dont_wait));
+				/* Run `cmd' with given stdin and stdout */
 pid_t run_program __P((char *prog, char **args, int must_exist,
 		       void (*done)(void *), void *arg));
 				/* Run program prog with args in child */
@@ -333,6 +349,16 @@ void update_link_stats __P((int)); /* Get stats at link termination */
 void script_setenv __P((char *, char *, int));	/* set script env var */
 void script_unsetenv __P((char *));		/* unset script env var */
 void new_phase __P((int));	/* signal start of new phase */
+void add_notifier __P((struct notifier **, notify_func, void *));
+void remove_notifier __P((struct notifier **, notify_func, void *));
+void notify __P((struct notifier *, int));
+
+/* Procedures exported from tty.c. */
+void tty_init __P((void));
+int  connect_tty __P((void));
+void disconnect_tty __P((void));
+void tty_close_fds __P((void));
+void cleanup_tty __P((void));
 
 /* Procedures exported from utils.c. */
 void log_packet __P((u_char *, int, char *, int));
@@ -528,6 +554,7 @@ extern void (*pap_logout_hook) __P((void));
 extern int (*pap_passwd_hook) __P((char *user, char *passwd));
 extern void (*ip_up_hook) __P((void));
 extern void (*ip_down_hook) __P((void));
+extern void (*ip_choose_hook) __P((u_int32_t *));
 
 /*
  * Inline versions of get/put char/short/long.
