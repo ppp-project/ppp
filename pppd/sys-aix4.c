@@ -19,7 +19,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: sys-aix4.c,v 1.2 1995/04/24 05:33:43 paulus Exp $";
+static char rcsid[] = "$Id: sys-aix4.c,v 1.3 1995/04/24 05:50:43 paulus Exp $";
 #endif
 
 /*
@@ -27,7 +27,9 @@ static char rcsid[] = "$Id: sys-aix4.c,v 1.2 1995/04/24 05:33:43 paulus Exp $";
  */
 
 #include <stdio.h>
+/*
 #include <stdlib.h>
+*/
 #include <errno.h>
 #include <syslog.h>
 #include <termios.h>
@@ -200,7 +202,7 @@ establish_ppp()
 	int i;
 
 	for (i = 0; i <= 2; ++i)
-	    if (i != fd && i != s)
+	    if (i != fd && i != sockfd)
 		close(i);
 	closed_stdio = 1;
     }
@@ -1129,95 +1131,38 @@ logwtmp(line, name, host)
 
 /*
  * Code for locking/unlocking the serial device.
- * This code is derived from chat.c.
  */
 
-#ifndef LOCK_DIR
-# ifdef HDB
-#  define	PIDSTRING
-#  define	LOCK_PREFIX	"/usr/spool/locks/LCK.."
-# else /* HDB */
-#  define	LOCK_PREFIX	"/usr/spool/uucp/LCK.."
-# endif /* HDB */
-#endif /* LOCK_DIR */
+static	char *devlocked = (char *) 0;
 
-/*
- * lock - create a lock file for the named device.
- */
-int
-lock(dev)
-    char *dev;
+int lock(char *device)
 {
-    char hdb_lock_buffer[12];
-    int fd, pid, n;
-    char *p;
+    char	*devname;
+    int		rc;
 
-    if ((p = strrchr(dev, '/')) != NULL)
-	dev = p + 1;
-    lock_file = malloc(strlen(LOCK_PREFIX) + strlen(dev) + 1);
-    if (lock_file == NULL)
-	novm("lock file name");
-    strcat(strcpy(lock_file, LOCK_PREFIX), dev);
+    if (devname = strrchr(device,'/'))
+	++devname;
+    else
+	devname = device;
 
-    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
-	if (errno == EEXIST
-	    && (fd = open(lock_file, O_RDONLY, 0)) >= 0) {
-	    /* Read the lock file to find out who has the device locked */
-#ifdef PIDSTRING
-	    n = read(fd, hdb_lock_buffer, 11);
-	    if (n > 0) {
-		hdb_lock_buffer[n] = 0;
-		pid = atoi(hdb_lock_buffer);
-	    }
-#else
-	    n = read(fd, &pid, sizeof(pid));
-#endif
-	    if (n <= 0) {
-		syslog(LOG_ERR, "Can't read pid from lock file %s", lock_file);
-		close(fd);
-	    } else {
-		if (kill(pid, 0) == -1 && errno == ESRCH) {
-		    /* pid no longer exists - remove the lock file */
-		    if (unlink(lock_file) == 0) {
-			close(fd);
-			syslog(LOG_NOTICE, "Removed stale lock on %s (pid %d)",
-			       dev, pid);
-			continue;
-		    } else
-			syslog(LOG_WARNING, "Couldn't remove stale lock on %s",
-			       dev);
-		} else
-		    syslog(LOG_NOTICE, "Device %s is locked by pid %d",
-			   dev, pid);
-	    }
-	    close(fd);
-	} else
-	    syslog(LOG_ERR, "Can't create lock file %s: %m", lock_file);
-	free(lock_file);
-	lock_file = NULL;
-	return -1;
-    }
+    if ((rc = ttylock(devname)) == 0) {
+	devlocked = (char *) malloc(strlen(devname) + 1);
+	sprintf(devlocked,"%s",devname);
+    } else
+	devlocked = (char *) 0;
 
-#ifdef PIDSTRING
-    sprintf(hdb_lock_buffer, "%10d\n", getpid());
-    write(fd, hdb_lock_buffer, 11);
-#else
-    pid = getpid();
-    write(fd, &pid, sizeof pid);
-#endif
-
-    close(fd);
-    return 0;
+    return(rc);
 }
 
-/*
- *	Remove our lockfile
- */
-unlock()
+int unlock()
 {
-    if (lock_file) {
-	unlink(lock_file);
-	free(lock_file);
-	lock_file = NULL;
+    int rc = 0;
+
+    if (devlocked) {
+	rc = ttyunlock(devlocked);
+	free(devlocked);
+	devlocked = (char *) 0;
     }
+    return(rc);
 }
+
