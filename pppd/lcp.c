@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.14 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.15 1994/10/24 04:31:11 paulus Exp $";
 #endif
 
 /*
@@ -48,12 +48,12 @@ static char rcsid[] = "$Id: lcp.c,v 1.14 1994/09/21 06:47:37 paulus Exp $";
 #endif
 
 /* global vars */
-fsm lcp_fsm[N_PPP];			/* LCP fsm structure (global)*/
-lcp_options lcp_wantoptions[N_PPP];	/* Options that we want to request */
-lcp_options lcp_gotoptions[N_PPP];	/* Options that peer ack'd */
-lcp_options lcp_allowoptions[N_PPP];	/* Options we allow peer to request */
-lcp_options lcp_hisoptions[N_PPP];	/* Options that we ack'd */
-u_int32_t xmit_accm[N_PPP][8];		/* extended transmit ACCM */
+fsm lcp_fsm[NUM_PPP];			/* LCP fsm structure (global)*/
+lcp_options lcp_wantoptions[NUM_PPP];	/* Options that we want to request */
+lcp_options lcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
+lcp_options lcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
+lcp_options lcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
+u_int32_t xmit_accm[NUM_PPP][8];		/* extended transmit ACCM */
 
 static u_int32_t lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static u_int32_t lcp_echo_number   = 0;	/* ID number of next echo frame */

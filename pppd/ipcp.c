@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ipcp.c,v 1.13 1994/10/22 11:54:04 paulus Exp $";
+static char rcsid[] = "$Id: ipcp.c,v 1.14 1994/10/24 04:31:11 paulus Exp $";
 #endif
 
 /*
@@ -38,13 +38,13 @@ static char rcsid[] = "$Id: ipcp.c,v 1.13 1994/10/22 11:54:04 paulus Exp $";
 #include "pathnames.h"
 
 /* global vars */
-ipcp_options ipcp_wantoptions[N_PPP];	/* Options that we want to request */
-ipcp_options ipcp_gotoptions[N_PPP];	/* Options that peer ack'd */
-ipcp_options ipcp_allowoptions[N_PPP];	/* Options we allow peer to request */
-ipcp_options ipcp_hisoptions[N_PPP];	/* Options that we ack'd */
+ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */
+ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
+ipcp_options ipcp_allowoptions[NUM_PPP];	/* Options we allow peer to request */
+ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 
 /* local vars */
-static int cis_received[N_PPP];		/* # Conf-Reqs received */
+static int cis_received[NUM_PPP];		/* # Conf-Reqs received */
 
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
@@ -60,7 +60,7 @@ static void ipcp_up __P((fsm *));		/* We're UP */
 static void ipcp_down __P((fsm *));		/* We're DOWN */
 static void ipcp_script __P((fsm *, char *)); /* Run an up/down script */
 
-fsm ipcp_fsm[N_PPP];		/* IPCP fsm structure */
+fsm ipcp_fsm[NUM_PPP];		/* IPCP fsm structure */
 
 static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
     ipcp_resetci,		/* Reset our Configuration Information */

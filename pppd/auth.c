@@ -33,7 +33,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: auth.c,v 1.11 1994/10/22 11:54:04 paulus Exp $";
+static char rcsid[] = "$Id: auth.c,v 1.12 1994/10/24 04:31:11 paulus Exp $";
 #endif
 
 #include <stdio.h>
@@ -78,9 +78,9 @@ struct wordlist {
 #define TRUE	1
 
 /* Records which authentication operations haven't completed yet. */
-static int auth_pending[N_PPP];
+static int auth_pending[NUM_PPP];
 static int logged_in;
-static struct wordlist *addresses[N_PPP];
+static struct wordlist *addresses[NUM_PPP];
 
 /* Bits in auth_pending[] */
 #define UPAP_WITHPEER	1

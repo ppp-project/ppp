@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.5 1994/09/21 06:47:37 paulus Exp $
+ * $Id: pppd.h,v 1.6 1994/10/24 04:31:11 paulus Exp $
  */
 
 /*
@@ -30,7 +30,7 @@
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <net/ppp_defs.h>
 
-#define N_PPP	1		/* One PPP interface supported (per process) */
+#define NUM_PPP	1		/* One PPP interface supported (per process) */
 
 /*
  * Limits.

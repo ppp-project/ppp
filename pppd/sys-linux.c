@@ -122,7 +122,7 @@ int set_kdebugflag (int requested_level)
 
 void establish_ppp (void)
 {
-    int pppdisc = N_PPP;
+    int pppdisc = NUM_PPP;
     int sig	= SIGIO;
 
     if (ioctl(fd, TIOCEXCL, 0) < 0) {

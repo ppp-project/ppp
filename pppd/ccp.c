@@ -26,7 +26,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: ccp.c,v 1.5 1994/09/21 06:47:37 paulus Exp $";
+static char rcsid[] = "$Id: ccp.c,v 1.6 1994/10/24 04:31:11 paulus Exp $";
 #endif
 
 #include <syslog.h>
@@ -36,11 +36,11 @@ static char rcsid[] = "$Id: ccp.c,v 1.5 1994/09/21 06:47:37 paulus Exp $";
 #include "fsm.h"
 #include "ccp.h"
 
-fsm ccp_fsm[N_PPP];
-ccp_options ccp_wantoptions[N_PPP];	/* what to request the peer to use */
-ccp_options ccp_gotoptions[N_PPP];	/* what the peer agreed to do */
-ccp_options ccp_allowoptions[N_PPP];	/* what we'll agree to do */
-ccp_options ccp_hisoptions[N_PPP];	/* what we agreed to do */
+fsm ccp_fsm[NUM_PPP];
+ccp_options ccp_wantoptions[NUM_PPP];	/* what to request the peer to use */
+ccp_options ccp_gotoptions[NUM_PPP];	/* what the peer agreed to do */
+ccp_options ccp_allowoptions[NUM_PPP];	/* what we'll agree to do */
+ccp_options ccp_hisoptions[NUM_PPP];	/* what we agreed to do */
 
 /*
  * Callbacks for fsm code.
@@ -102,7 +102,7 @@ static fsm_callbacks ccp_callbacks = {
 /*
  * Local state (mainly for handling reset-reqs and reset-acks
  */
-static int ccp_localstate[N_PPP];
+static int ccp_localstate[NUM_PPP];
 #define RACK_PENDING	1	/* waiting for reset-ack */
 #define RREQ_REPEAT	2	/* send another reset-req if no reset-ack */
 
