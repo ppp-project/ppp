@@ -55,7 +55,7 @@ RFC 2759:
 
 You'll see these in your pppd log as a line similar to:
 
-   Remote message: No dialin permission
+   Remote message: E=649 No dialin permission
 
 Previously, pppd would log this as:
 

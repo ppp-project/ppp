@@ -32,7 +32,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.76 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: auth.c,v 1.77 2002/05/21 17:26:49 dfs Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -69,6 +69,8 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "ccp.h"
+#include "ecp.h"
 #include "ipcp.h"
 #include "upap.h"
 #include "chap.h"
@@ -595,42 +597,66 @@ network_phase(unit)
 	free_wordlist(extra_options);
 	extra_options = 0;
     }
-    start_networks();
+    start_networks(unit);
 }
 
 void
-start_networks()
+start_networks(unit)
+    int unit;
 {
+    static int started = 0;
     int i;
     struct protent *protp;
+    int ecp_required, mppe_required;
 
-    new_phase(PHASE_NETWORK);
+    if (!started) {
+	started = 1;
+	new_phase(PHASE_NETWORK);
 
 #ifdef HAVE_MULTILINK
-    if (multilink) {
-	if (mp_join_bundle()) {
-	    if (updetach && !nodetach)
-		detach();
-	    return;
+	if (multilink) {
+	    if (mp_join_bundle()) {
+		if (updetach && !nodetach)
+		    detach();
+		return;
+	    }
 	}
-    }
 #endif /* HAVE_MULTILINK */
 
 #ifdef PPP_FILTER
-    if (!demand)
-	set_filters(&pass_filter, &active_filter);
+	if (!demand)
+	    set_filters(&pass_filter, &active_filter);
 #endif
-    for (i = 0; (protp = protocols[i]) != NULL; ++i)
-        if (protp->protocol < 0xC000 && protp->enabled_flag
-	    && protp->open != NULL) {
-	    (*protp->open)(0);
-	    if (protp->protocol != PPP_CCP)
-		++num_np_open;
-	}
+	/* Start CCP and ECP */
+	for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	    if ((protp->protocol == PPP_ECP || protp->protocol == PPP_CCP)
+		&& protp->enabled_flag && protp->open != NULL)
+		(*protp->open)(0);
+    }
 
-    if (num_np_open == 0)
-	/* nothing to do */
-	lcp_close(0, "No network protocols running");
+    /*
+     * Bring up other network protocols after encryption has completed.
+     * OPENED here merely means that negotiation has completed.  It is
+     * up to the protocol to correctly terminate or disable LCP/NCP 
+     * based on the result of the negotiation.
+     */
+    ecp_required = ecp_gotoptions[unit].required;
+    mppe_required = ccp_gotoptions[unit].mppe;
+    if ((!ecp_required && !mppe_required)
+	|| (ecp_required && ecp_fsm[unit].state == OPENED)
+	|| (mppe_required && ccp_fsm[unit].state == OPENED)) {
+	for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	    if (protp->protocol < 0xC000
+		&& protp->protocol != PPP_CCP && protp->protocol != PPP_ECP
+		&& protp->enabled_flag && protp->open != NULL) {
+		(*protp->open)(0);
+		++num_np_open;
+	    }
+
+	if (num_np_open == 0)
+	    /* nothing to do */
+	    lcp_close(0, "No network protocols running");
+    }
 }
 
 /*

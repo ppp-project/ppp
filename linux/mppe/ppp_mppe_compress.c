@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 20020320==
+ *  ==FILEVERSION 20020521==
  *
  * ppp_mppe_compress.c - interface MPPE to the PPP code.
  * This version is for use with Linux kernel 2.2.19+ and 2.4.x.
@@ -62,13 +62,8 @@ typedef struct ppp_mppe_state {
 #define MPPE_CCOUNT(p) ((((p)[4] & 0x0f) << 8) + (p)[5])
 #define MPPE_CCOUNT_SPACE 0x1000	/* The size of the ccount space */
 
-/*
- * MPPE overhead/packet.
- * Note that we use this differently than other compressors.
- */
 #define MPPE_OVHD	2		/* MPPE overhead/packet */
-/* Max bogon factor we will tolerate */
-#define SANITY_MAX	1600
+#define SANITY_MAX	1600		/* Max bogon factor we will tolerate */
 
 static void	GetNewKeyFromSHA __P((unsigned char *StartKey,
 				      unsigned char *SessionKey,
@@ -236,17 +231,17 @@ mppe_init(void *arg, unsigned char *options, int optlen, int unit, int debug,
 
     if (debug) {
 	int i;
-	char mkey[sizeof(state->master_key) * 3 + 1];
-	char skey[sizeof(state->session_key) * 3 + 1];
+	char mkey[sizeof(state->master_key) * 2 + 1];
+	char skey[sizeof(state->session_key) * 2 + 1];
 
 	printk(KERN_DEBUG "%s[%d]: initialized with %d-bit %s mode\n", debugstr,
 	       unit, (state->keylen == 16)? 128: 40,
 	       (state->stateful)? "stateful": "stateless");
 
 	for (i = 0; i < sizeof(state->master_key); i++)
-	    sprintf(mkey + i * 2, "%.2x ", state->master_key[i]);
+	    sprintf(mkey + i * 2, "%.2x", state->master_key[i]);
 	for (i = 0; i < sizeof(state->session_key); i++)
-	    sprintf(skey + i * 2, "%.2x ", state->session_key[i]);
+	    sprintf(skey + i * 2, "%.2x", state->session_key[i]);
 	printk(KERN_DEBUG "%s[%d]: keys: master: %s initial session: %s\n",
 	       debugstr, unit, mkey, skey);
     }
@@ -544,6 +539,7 @@ mppe_incomp(void *arg, unsigned char *ibuf, int icnt)
 {
     ppp_mppe_state *state = (ppp_mppe_state *) arg;
 
+/* XXX */
     if (state->debug &&
 	(PPP_PROTOCOL(ibuf) >= 0x0021 && PPP_PROTOCOL(ibuf) <= 0x00fa))
 	printk(KERN_DEBUG "mppe_incomp[%d]: incompressible (unencrypted) data! "

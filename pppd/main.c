@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: main.c,v 1.112 2002/02/12 20:07:09 dfs Exp $"
+#define RCSID	"$Id: main.c,v 1.113 2002/05/21 17:26:49 dfs Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -53,6 +53,7 @@
 #include "upap.h"
 #include "chap.h"
 #include "ccp.h"
+#include "ecp.h"
 #include "pathnames.h"
 
 #ifdef USE_TDB
@@ -222,6 +223,7 @@ struct protent *protocols[] = {
     &ipv6cp_protent,
 #endif
     &ccp_protent,
+    &ecp_protent,
 #ifdef IPX_CHANGE
     &ipxcp_protent,
 #endif
@@ -1671,7 +1673,7 @@ remove_notifier(notif, func, arg)
 }
 
 /*
- * notify - call a set of functions registered with add_notify.
+ * notify - call a set of functions registered with add_notifier.
  */
 void
 notify(notif, val)

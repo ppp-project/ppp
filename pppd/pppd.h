@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.67 2002/04/02 13:54:59 dfs Exp $
+ * $Id: pppd.h,v 1.68 2002/05/21 17:26:49 dfs Exp $
  */
 
 /*
@@ -306,6 +306,7 @@ extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 #define CHAP_MD5_WITHPEER	0x10
 #define CHAP_MD5_PEER		0x20
 #ifdef CHAPMS
+#define CHAP_MS_SHIFT		6	/* LSB position for MS auths */
 #define CHAP_MS_WITHPEER	0x40
 #define CHAP_MS_PEER		0x80
 #define CHAP_MS2_WITHPEER	0x100
@@ -478,7 +479,7 @@ void link_required __P((int));	  /* we are starting to use the link */
 void link_terminated __P((int));  /* we are finished with the link */
 void link_down __P((int));	  /* the LCP layer has left the Opened state */
 void link_established __P((int)); /* the link is up; authenticate now */
-void start_networks __P((void));  /* start all the network control protos */
+void start_networks __P((int));   /* start all the network control protos */
 void np_up __P((int, int));	  /* a network protocol has come up */
 void np_down __P((int, int));	  /* a network protocol has gone down */
 void np_finished __P((int, int)); /* a network protocol no longer needs link */

@@ -18,7 +18,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: cbcp.c,v 1.11 2001/03/08 05:11:10 paulus Exp $"
+#define RCSID	"$Id: cbcp.c,v 1.12 2002/05/21 17:26:49 dfs Exp $"
 
 #include <stdio.h>
 #include <string.h>
@@ -383,7 +383,7 @@ cbcp_resp(us)
 	PUTCHAR(len , bufp);
 	PUTCHAR(0, bufp);
 	cbcp_send(us, CBCP_RESP, buf, len);
-	start_networks();
+	start_networks(us->us_unit);
 	return;
     }
 }

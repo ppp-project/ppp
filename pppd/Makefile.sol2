@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.sol2,v 1.20 2001/03/08 05:01:03 paulus Exp $
+# $Id: Makefile.sol2,v 1.21 2002/05/21 17:26:48 dfs Exp $
 #
 
 include ../solaris/Makedefs
@@ -10,7 +10,7 @@ CFLAGS	=  -I../include -DSVR4 -DSOL2 $(COPTS)
 LIBS	= -lsocket -lnsl
 
 OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o tty.o \
-	ccp.o auth.o options.o demand.o utils.o	sys-solaris.o tdb.o
+	ccp.o ecp.o auth.o options.o demand.o utils.o sys-solaris.o tdb.o
 
 #
 # uncomment the following to enable plugins

@@ -33,7 +33,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: chap.c,v 1.31 2002/04/02 14:15:07 dfs Exp $"
+#define RCSID	"$Id: chap.c,v 1.32 2002/05/21 17:26:49 dfs Exp $"
 
 /*
  * TODO:
@@ -585,6 +585,11 @@ ChapReceiveResponse(cstate, inp, id, len)
     BCOPY(inp, rhostname, len);
     rhostname[len] = '\000';
 
+#ifdef CHAPMS
+    /* copy the flags into cstate for use elsewhere */
+    if (cstate->chal_type == CHAP_MICROSOFT_V2)
+	cstate->resp_flags = ((MS_Chap2Response *) remmd)->Flags[0];
+#endif /* CHAPMS */
     /*
      * Get secret for authenticating them with us,
      * do the hash ourselves, and compare the result.
@@ -824,35 +829,35 @@ ChapReceiveFailure(cstate, inp, id, len)
 	    /* No M=<message>; use the error code. */
 	    switch(error) {
 	    case MS_CHAP_ERROR_RESTRICTED_LOGON_HOURS:
-		p = "Restricted logon hours";
+		p = "E=646 Restricted logon hours";
 		break;
 
 	    case MS_CHAP_ERROR_ACCT_DISABLED:
-		p = "Account disabled";
+		p = "E=647 Account disabled";
 		break;
 
 	    case MS_CHAP_ERROR_PASSWD_EXPIRED:
-		p = "Password expired";
+		p = "E=648 Password expired";
 		break;
 
 	    case MS_CHAP_ERROR_NO_DIALIN_PERMISSION:
-		p = "No dialin permission";
+		p = "E=649 No dialin permission";
 		break;
 
 	    case MS_CHAP_ERROR_AUTHENTICATION_FAILURE:
-		p = "Authentication failure";
+		p = "E=691 Authentication failure";
 		break;
 
 	    case MS_CHAP_ERROR_CHANGING_PASSWORD:
 		/* Should never see this, we don't support Change Password. */
-		p = "Error changing password";
+		p = "E=709 Error changing password";
 		break;
 
 	    default:
 		free(msg);
 		p = msg = malloc(len + 33);
 		if (!msg) {
-		    notice("Out of memory in ChapReceiveFailure");
+		    novm("ChapReceiveFailure");
 		    goto print_msg;
 		}
 		slprintf(p, len + 33, "Unknown authentication failure: %.*s",
@@ -935,16 +940,30 @@ ChapSendStatus(cstate, code)
 #ifdef CHAPMS
 	if (cstate->chal_type == CHAP_MICROSOFT_V2) {
 	    /*
-	     * Success message must be formatted as
+	     * Per RFC 2759, success message must be formatted as
 	     *     "S=<auth_string> M=<message>"
 	     * where
 	     *     <auth_string> is the Authenticator Response (mutual auth)
 	     *     <message> is a text message
+	     *
+	     * However, some versions of Windows (win98 tested) do not know
+	     * about the M=<message> part (required per RFC 2759) and flag
+	     * it as an error (reported incorrectly as an encryption error
+	     * to the user).  Since the RFC requires it, and it can be
+	     * useful information, we supply it if the peer is a conforming
+	     * system.  Luckily (?), win98 sets the Flags field to 0x04
+	     * (contrary to RFC requirements) so we can use that to
+	     * distinguish between conforming and non-conforming systems.
+	     *
+	     * Special thanks to Alex Swiridov <say@real.kharkov.ua> for
+	     * help debugging this.
 	     */
 	    slprintf(p, q - p, "S=");
 	    p += 2;
 	    slprintf(p, q - p, "%s", cstate->saresponse);
 	    p += strlen(cstate->saresponse);
+	    if (cstate->resp_flags != 0)
+		goto msgdone;
 	    slprintf(p, q - p, " M=");
 	    p += 3;
 	}
@@ -967,7 +986,16 @@ ChapSendStatus(cstate, code)
 	     *
 	     * The M=m part is only for MS-CHAPv2, but MS-CHAP should ignore
 	     * any extra text according to RFC 2433.  So we'll go the easy
-	     * (read: lazy) route and include it always.
+	     * (read: lazy) route and include it always.  Neither win2k nor
+	     * win98 (others untested) display the message to the user anyway.
+	     * They also both ignore the E=e code.
+	     *
+	     * Note that it's safe to reuse the same challenge as we don't
+	     * actually accept another response based on the error message
+	     * (and no clients try to resend a response anyway).
+	     *
+	     * Basically, this whole bit is useless code, even the small
+	     * implementation here is only because of overspecification.
 	     */
 	    slprintf(p, q - p, "E=691 R=1 C=");
 	    p += 12;
@@ -981,6 +1009,7 @@ ChapSendStatus(cstate, code)
 
 	slprintf(p, q - p, "I don't like you.  Go 'way.");
     }
+msgdone:
     msglen = strlen(msg);
 
     outlen = CHAP_HEADERLEN + msglen;

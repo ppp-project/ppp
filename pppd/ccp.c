@@ -25,7 +25,7 @@
  * OR MODIFICATIONS.
  */
 
-#define RCSID	"$Id: ccp.c,v 1.34 2002/04/02 13:54:59 dfs Exp $"
+#define RCSID	"$Id: ccp.c,v 1.35 2002/05/21 17:26:49 dfs Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +36,7 @@
 #include <net/ppp-comp.h>
 
 #ifdef MPPE
-#include "chap_ms.h"	/* mppe_xx_key */
+#include "chap_ms.h"	/* mppe_xxxx_key */
 #include "lcp.h"	/* lcp_close() */
 #endif
 
@@ -510,6 +510,12 @@ ccp_protrej(unit)
 {
     ccp_flags_set(unit, 0, 0);
     fsm_lowerdown(&ccp_fsm[unit]);
+
+#ifdef MPPE
+    if (ccp_gotoptions[unit].mppe)
+	lcp_close(unit, "MPPE required but peer negotiation failed");
+#endif
+
 }
 
 /*
@@ -542,10 +548,10 @@ ccp_resetci(f)
 	 */
 
 	/* Leave only the mschap auth bits set */
-	auth_mschap_bits &= ~(PAP_WITHPEER | PAP_PEER |
-			      CHAP_WITHPEER | CHAP_PEER |
-			      CHAP_MD5_WITHPEER | CHAP_MD5_PEER);
+	auth_mschap_bits &= (CHAP_MS_WITHPEER  | CHAP_MS_PEER |
+			     CHAP_MS2_WITHPEER | CHAP_MS2_PEER);
 	/* Count the mschap auths */
+	auth_mschap_bits >>= CHAP_MS_SHIFT;
 	numbits = 0;
 	do {
 	    numbits += auth_mschap_bits & 1;
@@ -568,6 +574,7 @@ ccp_resetci(f)
 	    if (go->mppe & MPPE_OPT_40) {
 		notice("Disabling 40-bit MPPE; MS-CHAP LM not supported");
 		go->mppe &= ~MPPE_OPT_40;
+		ccp_wantoptions[f->unit].mppe &= ~MPPE_OPT_40;
 	    }
 	}
 
@@ -1047,6 +1054,9 @@ ccp_reqci(f, p, lenp, dont_nak)
     int len, clen, type, nb;
     ccp_options *ho = &ccp_hisoptions[f->unit];
     ccp_options *ao = &ccp_allowoptions[f->unit];
+#ifdef MPPE
+    bool seen_ci_mppe = 0;
+#endif
 
     ret = CONFACK;
     retp = p0 = p;
@@ -1073,6 +1083,7 @@ ccp_reqci(f, p, lenp, dont_nak)
 		    newret = CONFREJ;
 		    break;
 		}
+		seen_ci_mppe = 1;
 		MPPE_CI_TO_OPTS(&p[2], ho->mppe);
 
 		/* Nak if anything unsupported or unknown are set. */
@@ -1302,8 +1313,10 @@ ccp_reqci(f, p, lenp, dont_nak)
 	else
 	    *lenp = retp - p0;
     }
-    if (ret == CONFREJ && ao->mppe)
+#ifdef MPPE
+    if (ret == CONFREJ && ao->mppe && !seen_ci_mppe)
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
+#endif
     return ret;
 }
 
@@ -1397,6 +1410,13 @@ ccp_up(f)
 	    notice("%s receive compression enabled", method_name(go, NULL));
     } else if (ANY_COMPRESS(*ho))
 	notice("%s transmit compression enabled", method_name(ho, NULL));
+#ifdef MPPE
+    if (go->mppe) {
+	BZERO(mppe_recv_key, MPPE_MAX_KEY_LEN);
+	BZERO(mppe_send_key, MPPE_MAX_KEY_LEN);
+	start_networks(f->unit);		/* Bring up IP et al */
+    }
+#endif
 }
 
 /*
@@ -1410,6 +1430,10 @@ ccp_down(f)
 	UNTIMEOUT(ccp_rack_timeout, f);
     ccp_localstate[f->unit] = 0;
     ccp_flags_set(f->unit, 1, 0);
+#ifdef MPPE
+    if (ccp_gotoptions[f->unit].mppe)
+	lcp_close(f->unit, "MPPE disabled");
+#endif
 }
 
 /*
@@ -1480,6 +1504,9 @@ ccp_printpkt(p, plen, printer, arg)
 			    (p[5] & MPPE_D_BIT)? "+D": "-D",
 			    (p[5] & MPPE_C_BIT)? "+C": "-C",
 			    (mppe_opts & MPPE_OPT_UNKNOWN)? " +U": "");
+		    if (mppe_opts & MPPE_OPT_UNKNOWN)
+			printer(arg, " (%.2x %.2x %.2x %.2x)",
+				p[2], p[3], p[4], p[5]);
 		    p += CILEN_MPPE;
 		}
 		break;

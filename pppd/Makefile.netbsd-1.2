@@ -3,7 +3,7 @@
 PCAPDIR=${.CURDIR}/../../lib/libpcap
 
 PROG=	pppd
-SRCS=	auth.c cbcp.c ccp.c chap.c chap_ms.c demand.c fsm.c ipcp.c \
+SRCS=	auth.c cbcp.c ccp.c ecp.c chap.c chap_ms.c demand.c fsm.c ipcp.c \
 	ipxcp.c lcp.c magic.c main.c options.c sys-bsd.c upap.c
 
 .PATH:	${PCAPDIR} ${.CURDIR}/../../sys/net

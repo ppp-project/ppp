@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.62 2002/04/02 13:54:59 dfs Exp $
+.\" $Id: pppd.8,v 1.63 2002/05/21 17:26:49 dfs Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -890,6 +890,8 @@ Require the use of MPPE (Microsoft Point to Point Encryption).  This
 option disables all other compression types.  This option enables
 both 40\-bit and 128\-bit encryption.  In order for MPPE to successfully
 come up, you must have authenticated with either MS-CHAP or MS-CHAPv2.
+This option is presently only supported under Linux, and only if your
+kernel has been configured to include MPPE support.
 .TP
 .B require-mppe-40
 Require the use of MPPE, with 40\-bit encryption.
