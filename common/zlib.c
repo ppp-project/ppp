@@ -1,12 +1,17 @@
 /*
- * This file is a conglomeration of various .h and .c files
- * from the zlib-0.95 library source, slightly hacked.
+ * This file is derived from various .h and .c files from the zlib-0.95
+ * distribution by Jean-loup Gailly and Mark Adler, with some additions
+ * by Paul Mackerras to aid in implementing Deflate compression and
+ * decompression for PPP packets.  See zlib.h for conditions of
+ * distribution and use.
  *
  * Changes that have been made include:
  * - changed functions not used outside this file to "local"
  * - added minCompression parameter to deflateInit2
  * - added Z_PACKET_FLUSH (see zlib.h for details)
  * - added inflateIncomp
+ *
+ * $Id: zlib.c,v 1.2 1996/04/04 02:43:28 paulus Exp $
  */
 
 
@@ -21,7 +26,7 @@
    subject to change. Applications should only use zlib.h.
  */
 
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: zutil.h,v 1.9 1995/05/03 17:27:12 jloup Exp */
 
 #define _Z_UTIL_H
 
@@ -48,6 +53,10 @@ extern char *z_errmsg[]; /* indexed by 1-zlib_error */
 
 #define ERR_RETURN(strm,err) return (strm->msg=z_errmsg[1-err], err)
 /* To be used only when the state is known to be valid */
+
+#ifndef NULL
+#define NULL	((void *) 0)
+#endif
 
         /* common constants */
 
@@ -137,7 +146,7 @@ typedef uLong (*check_func) OF((uLong check, Bytef *buf, uInt len));
 
 
 /*+++++*/
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: deflate.h,v 1.5 1995/05/03 17:27:09 jloup Exp */
 
 /* ===========================================================================
  * Internal compression state.
@@ -461,9 +470,9 @@ local void ct_stored_type_only OF((deflate_state *s));
  *
  */
 
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: deflate.c,v 1.8 1995/05/03 17:27:08 jloup Exp */
 
-local char copyright[] = " deflate Copyright 1995 Jean-loup Gailly ";
+local char zlib_copyright[] = " deflate Copyright 1995 Jean-loup Gailly ";
 /*
   If you use the zlib library in a product, an acknowledgment is welcome
   in the documentation of your product. If for some reason you cannot
@@ -1223,7 +1232,7 @@ local int deflate_fast(s, flush)
     deflate_state *s;
     int flush;
 {
-    IPos hash_head; /* head of the hash chain */
+    IPos hash_head = NIL; /* head of the hash chain */
     int bflush;     /* set if current block must be flushed */
 
     s->prev_length = MIN_MATCH-1;
@@ -1319,7 +1328,7 @@ local int deflate_slow(s, flush)
     deflate_state *s;
     int flush;
 {
-    IPos hash_head;          /* head of hash chain */
+    IPos hash_head = NIL;    /* head of hash chain */
     int bflush;              /* set if current block must be flushed */
 
     /* Process the input block. */
@@ -1464,7 +1473,7 @@ local int deflate_slow(s, flush)
  *          Addison-Wesley, 1983. ISBN 0-201-06672-6.
  */
 
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: trees.c,v 1.5 1995/05/03 17:27:12 jloup Exp */
 
 #ifdef DEBUG_ZLIB
 #  include <ctype.h>
@@ -3201,7 +3210,7 @@ local uInt border[] = { /* Order of the bit length code lengths */
  */
 
 
-void inflate_blocks_reset(s, z, c)
+local void inflate_blocks_reset(s, z, c)
 inflate_blocks_statef *s;
 z_stream *z;
 uLongf *c;
@@ -3226,7 +3235,7 @@ uLongf *c;
 }
 
 
-inflate_blocks_statef *inflate_blocks_new(z, c, w)
+local inflate_blocks_statef *inflate_blocks_new(z, c, w)
 z_stream *z;
 check_func c;
 uInt w;
@@ -3250,7 +3259,7 @@ uInt w;
 }
 
 
-int inflate_blocks(s, z, r)
+local int inflate_blocks(s, z, r)
 inflate_blocks_statef *s;
 z_stream *z;
 int r;
@@ -3513,7 +3522,7 @@ int r;
 }
 
 
-int inflate_blocks_free(s, z, c)
+local int inflate_blocks_free(s, z, c)
 inflate_blocks_statef *s;
 z_stream *z;
 uLongf *c;
@@ -3887,7 +3896,7 @@ z_stream *zs;           /* for zalloc function */
 }
 
 
-int inflate_trees_bits(c, bb, tb, z)
+local int inflate_trees_bits(c, bb, tb, z)
 uIntf *c;               /* 19 code lengths */
 uIntf *bb;              /* bits tree desired/actual depth */
 inflate_huft * FAR *tb; /* bits tree result */
@@ -3908,7 +3917,7 @@ z_stream *z;            /* for zfree function */
 }
 
 
-int inflate_trees_dynamic(nl, nd, c, bl, bd, tl, td, z)
+local int inflate_trees_dynamic(nl, nd, c, bl, bd, tl, td, z)
 uInt nl;                /* number of literal/length codes */
 uInt nd;                /* number of distance codes */
 uIntf *c;               /* that many (total) code lengths */
@@ -3993,7 +4002,7 @@ uInt n;
 }
 
 
-int inflate_trees_fixed(bl, bd, tl, td)
+local int inflate_trees_fixed(bl, bd, tl, td)
 uIntf *bl;               /* literal desired/actual bit depth */
 uIntf *bd;               /* distance desired/actual bit depth */
 inflate_huft * FAR *tl;  /* literal/length tree result */
@@ -4043,7 +4052,7 @@ inflate_huft * FAR *td;  /* distance tree result */
 }
 
 
-int inflate_trees_free(t, z)
+local int inflate_trees_free(t, z)
 inflate_huft *t;        /* table to free */
 z_stream *z;            /* for zfree function */
 /* Free the malloc'ed tables built by huft_build(), which makes a linked
@@ -4115,7 +4124,7 @@ struct inflate_codes_state {
 };
 
 
-inflate_codes_statef *inflate_codes_new(bl, bd, tl, td, z)
+local inflate_codes_statef *inflate_codes_new(bl, bd, tl, td, z)
 uInt bl, bd;
 inflate_huft *tl, *td;
 z_stream *z;
@@ -4136,7 +4145,7 @@ z_stream *z;
 }
 
 
-int inflate_codes(s, z, r)
+local int inflate_codes(s, z, r)
 inflate_blocks_statef *s;
 z_stream *z;
 int r;
@@ -4296,7 +4305,7 @@ int r;
 }
 
 
-void inflate_codes_free(c, z)
+local void inflate_codes_free(c, z)
 inflate_codes_statef *c;
 z_stream *z;
 {
@@ -4311,7 +4320,7 @@ z_stream *z;
  */
 
 /* copy as much as possible from the sliding window to the output area */
-int inflate_flush(s, z, r)
+local int inflate_flush(s, z, r)
 inflate_blocks_statef *s;
 z_stream *z;
 int r;
@@ -4402,7 +4411,7 @@ int r;
    at least ten.  The ten bytes are six bytes for the longest length/
    distance pair plus four bytes for overloading the bit buffer. */
 
-int inflate_fast(bl, bd, tl, td, s, z)
+local int inflate_fast(bl, bd, tl, td, s, z)
 uInt bl, bd;
 inflate_huft *tl, *td;
 inflate_blocks_statef *s;
@@ -4548,7 +4557,7 @@ z_stream *z;
  * For conditions of distribution and use, see copyright notice in zlib.h 
  */
 
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: zutil.c,v 1.8 1995/05/03 17:27:12 jloup Exp */
 
 char *zlib_version = ZLIB_VERSION;
 
@@ -4569,7 +4578,7 @@ char *z_errmsg[] = {
  * For conditions of distribution and use, see copyright notice in zlib.h 
  */
 
-/* $Id: zlib.c,v 1.1 1996/01/18 03:26:49 paulus Exp $ */
+/* From: adler32.c,v 1.6 1995/05/03 17:27:08 jloup Exp */
 
 #define BASE 65521L /* largest prime smaller than 65536 */
 #define NMAX 5552
