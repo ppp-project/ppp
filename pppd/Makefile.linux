@@ -1,15 +1,15 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.9 1995/12/11 02:55:25 paulus Exp $
+# $Id: Makefile.linux,v 1.10 1995/12/18 03:32:57 paulus Exp $
 #
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c sys-linux.c
+	auth.c options.c sys-linux.c ipxcp.c
 HEADERS = callout.h pathnames.h patchlevel.h chap.h md5.h
 MANPAGES = pppd.8
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o sys-linux.o
+	auth.o options.o sys-linux.o ipxcp.o
 
 all: pppd
 
@@ -22,12 +22,12 @@ endif
 
 # CC = gcc
 # DEBUG_FLAGS = -DDEBUGALL
-COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H
+COMPILE_FLAGS = -D_linux_=1 -DHAVE_PATHS_H # -DUSE_MS_DNS=1 # -DIPX_CHANGE=1
 COPTS = -g # -O2
 VER = 0.2.8
 LIBS = -lbsd
 
-CFLAGS = $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
+CFLAGS= $(COPTS) $(DEBUG_FLAGS) $(COMPILE_FLAGS)
 SOURCE= RELNOTES Makefile.linux $(PPPDSRCS) $(HEADERS) $(MANPAGES)
 
 install: pppd

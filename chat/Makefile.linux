@@ -1,4 +1,4 @@
-#	$Id: Makefile.linux,v 1.4 1995/12/11 02:55:14 paulus Exp $
+#	$Id: Makefile.linux,v 1.5 1995/12/18 03:32:43 paulus Exp $
 
 CDEF1=	-DTERMIOS			# Use the termios structure
 CDEF2=	-DPIDSTRING			# I like ascii pid values
@@ -7,12 +7,12 @@ CDEF4=	-UNO_SLEEP			# Use the usleep function
 CDEF5=	-DFNDELAY=O_NDELAY		# Old name value
 CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4) $(CDEF5)
 
-CFLAGS=	-O2 -N $(CDEFS)
+CFLAGS=	-O2 $(CDEFS)
 
 all:	chat
 
 chat:	chat.o
-	$(CC) -o chat chat.o
+	$(CC) -O2 -o chat chat.o
 
 chat.o:	chat.c
 	$(CC) -c $(CFLAGS) -o chat.o chat.c

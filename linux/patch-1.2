@@ -1,0 +1,23 @@
+This file is used by the 'make kernel' function. It will apply the patch
+to the drivers/net/Makefile to install the bsd_comp.c file into the list
+of files needed to build the kernel.
+
+This file is for the 1.2 kernel.
+
+--- linux/drivers/net/Makefile.orig	Sun Oct  8 17:07:23 1995
++++ linux/drivers/net/Makefile	Sun Oct  8 17:10:25 1995
+@@ -85,12 +85,14 @@
+ NETDRV_OBJS := $(NETDRV_OBJS) ppp.o
+ CONFIG_SLHC = CONFIG_SLHC
+ else
+ MODULES := $(MODULES) ppp.o
+ endif
+ 
++MODULES := $(MODULES) bsd_comp.o
++
+ ifdef CONFIG_SLIP
+ NETDRV_OBJS := $(NETDRV_OBJS) slip.o
+ CONFIG_SLHC = CONFIG_SLHC
+ else
+ MODULES := $(MODULES) slip.o
+ endif

@@ -1,4 +1,4 @@
-/*	$Id: if_ppp.h,v 1.3 1995/06/12 11:36:50 paulus Exp $	*/
+/*	$Id: if_ppp.h,v 1.4 1995/12/18 03:38:01 paulus Exp $	*/
 
 /*
  * if_ppp.h - Point-to-Point Protocol definitions.
@@ -21,19 +21,25 @@
  */
 
 /*
- *  ==PPPVERSION 2.1.3==
+ *  ==FILEVERSION 6==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the last number above.
- *     ppp.c is shipped with a PPP distribution as well as with the kernel;
- *     if everyone increases the PPPVERSION number above, then scripts
- *     can do the right thing when deciding whether to install a new ppp.c
+ *     If you modify this file at all, increment the number above.
+ *     if_ppp.h is shipped with a PPP distribution as well as with the kernel;
+ *     if everyone increases the FILEVERSION number above, then scripts
+ *     can do the right thing when deciding whether to install a new if_ppp.h
  *     file.  Don't change the format of that line otherwise, so the
  *     installation script can recognize it.
  */
 
 #ifndef _IF_PPP_H_
 #define _IF_PPP_H_
+
+#if defined(__linux__)
+#include <linux/if.h>
+#include <linux/ioctl.h>
+#include <linux/ppp_defs.h>
+#endif
 
 /*
  * Packet sizes
@@ -44,6 +50,8 @@
 #define PPP_VERSION	"2.2.0"
 #define PPP_MAGIC	0x5002	/* Magic value for the ppp structure */
 #define PROTO_IPX	0x002b	/* protocol numbers */
+#define PROTO_DNA_RT    0x0027  /* DNA Routing */
+
 
 /*
  * Bit definitions for flags.
@@ -96,10 +104,17 @@ struct ppp_option_data {
 };
 
 struct ifpppstatsreq {
-    char ifr__name[IFNAMSIZ];		/* Name of the device */
-    struct ppp_stats *stats_ptr;	/* Pointer to stats buffer */
-    struct ppp_stats stats;		/* statistic information */
+  struct ifreq	   b;
+  struct ppp_stats stats;			/* statistic information */
 };
+
+struct ifpppcstatsreq {
+  struct ifreq		b;
+  struct ppp_comp_stats stats;
+};
+
+#define ifr__name       b.ifr_ifrn.ifrn_name
+#define stats_ptr       b.ifr_ifru.ifru_data
 
 /*
  * Ioctl definitions.
@@ -121,13 +136,13 @@ struct ifpppstatsreq {
 #define PPPIOCSCOMPRESS	_IOW('t', 77, struct ppp_option_data)
 #define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
-
 #define PPPIOCGDEBUG	_IOR('t', 65, int)	/* Read debug level */
 #define PPPIOCSDEBUG	_IOW('t', 64, int)	/* Set debug level */
-#define PPPIOCGTIME	_IOR('t', 63, struct ppp_ddinfo) /* Read time info */
+#define PPPIOCGIDLE	_IOR('t', 63, struct ppp_idle) /* get idle time */
 
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
-#define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)
+#define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)  /* NEVER change this!! */
+#define SIOCGPPPCSTATS  (SIOCDEVPRIVATE + 2)
 
 #if !defined(ifr_mtu)
 #define ifr_mtu	ifr_ifru.ifru_metric

@@ -1,4 +1,4 @@
-/*	$Id: if_pppvar.h,v 1.2 1995/06/12 11:36:51 paulus Exp $	*/
+/*	$Id: if_pppvar.h,v 1.3 1995/12/18 03:38:02 paulus Exp $	*/
 /*
  * if_pppvar.h - private structures and declarations for PPP.
  *
@@ -42,13 +42,13 @@
  */
 
 /*
- *  ==PPPVERSION 2.1.3==
+ *  ==FILEVERSION 4==
  *
  *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, increment the last number above.
- *     ppp.c is shipped with a PPP distribution as well as with the kernel;
- *     if everyone increases the PPPVERSION number above, then scripts
- *     can do the right thing when deciding whether to install a new ppp.c
+ *     If you modify this file at all, increment the number above.
+ *     if_pppvar.h is shipped with a PPP distribution as well as with the kernel;
+ *     if everyone increases the FILEVERSION number above, then scripts
+ *     can do the right thing when deciding whether to install a new if_pppvar.h
  *     file.  Don't change the format of that line otherwise, so the
  *     installation script can recognize it.
  */
@@ -65,19 +65,21 @@
  * Buffers for the PPP process have the following structure
  */
 
-#define RBUFSIZE 2048   /* MUST be a power of 2 and be <= 4095 */
+#define RBUFSIZE  2048           /* MUST be a power of 2 and be <= 4095 */
+
 struct ppp_buffer {
   int			size;		/* Size of the buffer area	*/
   int			count;		/* Count of characters in bufr	*/
   int			head;		/* index to head of list	*/
   int			tail;		/* index to tail of list	*/
-  int			locked;		/* Buffer is being sent		*/
+  unsigned long		locked;		/* Buffer is being sent		*/
   int			type;		/* Type of the buffer		*/
 					/* =0, device read buffer	*/
 					/* =1, device write buffer	*/
 					/* =2, daemon write buffer	*/
 					/* =3, daemon read buffer	*/
   unsigned short	fcs;		/* Frame Check Sequence (CRC)	*/
+  unsigned char         filler[4];      /* Extra space if needed        */
 };
 
 /* Given a pointer to the ppp_buffer then return base address of buffer */
@@ -100,7 +102,7 @@ struct ppp {
 	ext_accm	xmit_async_map; /* 1 bit means that given control 
 					   character is quoted on output*/
 
-	unsigned long	recv_async_map; /* 1 bit means that given control 
+	__u32		recv_async_map; /* 1 bit means that given control 
 					   character is ignored on input*/
 	int			mtu;	/* maximum xmit frame size	*/
 	int			mru;	/* maximum receive frame size	*/
@@ -122,7 +124,7 @@ struct ppp {
 	struct ppp_buffer *s1buf;	/* Pointer to daemon buffer	*/
 	struct ppp_buffer *s2buf;	/* Pointer to device buffer	*/
 
-	unsigned long	  last_xmit;	/* time of last transmission	*/
+	__u32		  last_xmit;	/* time of last transmission	*/
 
   /* These are pointers to the malloc()ed frame buffers.
      These buffers are used while processing a packet.	If a packet
@@ -140,8 +142,8 @@ struct ppp {
 	struct wait_queue *read_wait;	/* queue for writing processes	*/
 
   /* Statistic information */
-	struct pppstat	  stats;	/* statistic information	*/
-	struct ppp_ddinfo ddinfo;	/* demand dial information	*/
+	struct pppstat        stats;	/* statistic information	*/
+	struct ppp_idle       ddinfo;	/* demand dial information	*/
 
   /* PPP compression protocol information */
 	u_int	sc_bytessent;		  /* count of octets sent */

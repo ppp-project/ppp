@@ -1,0 +1,130 @@
+     This archive represents the file called 'ppp-2.2.0d.tar.gz' for
+     Linux only.
+
+The changes from 2.2.0c to 2.2.0d are:
+
+1. Change chat to recognize the ABORT strings if you specify a sub-string.
+
+2. Change the ppp.c file to prevent the symbol table compilation problems.
+
+3. Augment the IP list in the authentication to include a netmask option
+   and to permit a reject as well as the default accept entries.
+
+4. Flushed the tty input buffer prior to starting the connect program.
+   This prevents old modem responses from a previous session to be fed to
+   the current one.
+
+5. Integrated Paul Mackerras' fix for a bug in the CCP which causes
+   the bsd compression to constantly re-negotiate a smaller and smaller
+   code size.
+
+6. Added options to set the Predictor-1 compressor if so desired. Predictor-1
+   is used by Morningstar's PPP package.
+
+7. Add support for Microsoft DNS parameters by Christoper Lameter.
+
+8. Support for the IPX protocol. It originated, and substantially resembles
+   since it started with, the work by G.Cambell@irl.cri.nz. Many thanks to
+   him for starting and getting the initial code to work. The IPX support
+   requires at least the 1.3.43 kernel.
+
+The changes from 2.2.0b to 2.2.0c are:
+
+1. Correct the reference in the ppp.c file for the definition of the
+   symbol table. This is used if you not using modules.
+
+There is still a compile/link problem with the a.out format. The problem
+is not with ppp, but in the module.h header file. If you are using a.out
+and have problems linking with an unresolved 'mod_use_count_' then use
+the following patch on the /usr/include/linux/module.h header file.
+
+ELF does not have this problem. Only a.out will complain.
+
+--- module.h.orig	Thu Oct 19 05:32:32 1995
++++ module.h	Thu Oct 19 05:33:44 1995
+@@ -90,12 +90,12 @@
+  * define the count variable, and usage macros.
+  */
+ 
+-extern long mod_use_count_;
+ #if defined(CONFIG_MODVERSIONS) && defined(MODULE) && !defined(__GENKSYMS__)
+ int Using_Versions; /* gcc will handle this global (used as a flag) correctly */
+ #endif
+ 
+ #ifdef MODULE
++extern long mod_use_count_;
+ #define MOD_INC_USE_COUNT      mod_use_count_++
+ #define MOD_DEC_USE_COUNT      mod_use_count_--
+ #define MOD_IN_USE	       (mod_use_count_ != 0)
+
+
+The changes from 2.2.0a to 2.2.0b are:
+
+1. Correct a problem with the 1.3.33+ kernels in that they would cause
+   a SIGSEGV should you run the pppd program with the 'defaultroute'
+   option.
+
+2. Corrections in the ppp.c driver for non-module builds regarding the
+   symbol version informaiton.
+
+3. Removed bad definitions of the MOD_INC_USE_COUNT and MOD_DEC_USE_COUNT
+   from ppp.c.
+
+4. Corrected the cleanup logic for the device. The test for ppp_alive
+   was the wrong sense.
+
+5. Corrected the references in chat scripts for "/usr/lib/ppp" to be
+   "/usr/sbin".
+
+The changes from 2.2.0 and 2.2.0a are:
+
+1. The code files have been moved to the /usr/sbin directory. This should
+   have been done in the 2.2.0 package but something happened and an old
+   Makefile was shipped in its place.
+
+2. The BSD compressor module, bsd_comp, will ONLY compile as a loadable
+   module. This was performed for a few technical reasons and one legal
+   reason. (The legal reason is in the README file here.)
+
+3. The test for the presence of ppp support has been moved to after the
+   decode of the options. It means that the test will no longer use /dev/tty
+   which may not be appropriate at that time.
+
+4. The pppstats program has been changed to work with the driver since the
+   driver will no longer attempt to do a floating point operation. This
+   previously would cause a kernel panic.
+
+			ADDITIONAL INFORMATION
+
+1. This distribution requires either a kernel from the 1.2 series
+which is at or later than 1.2.11 or a kernel from the 1.3 series which
+is at or later 1.3.34. In short, you should use the latest version
+from either release. The difficulties in supporting earlier versions
+as they were being developed were too great. This means that the code
+may or may not work. If it does not then when you ask the answer will
+be the same; UPGRADE to the latest revision of the 1.2 or 1.3 kernels!!
+
+2. Please, please, read the README file in this directory __and__ the
+README.linux file. Pay attention to the fact that you _must_ do the
+command:
+
+make kernel
+
+This does not mean that you need to build the kernel, although you
+will need to do this also, but you must do the command from the ppp
+directory to make any appropriate patches.
+
+3. Do not be concerned should the 'make kernel' say that a file is
+current and not need to be replaced. It only means that the kernel
+already has the proper files. To be honest, it is the reason that
+there is a 'make kernel' -- to cover this condition. I had too many
+people put older drivers into the kernel because they followed the
+wrong set of instructions. Now, for all versions, there is only one
+set of instructions -- "do make kernel".
+
+[Ed.: After I wrote this, I received email from someone who had problems
+which could not be addressed by the standard 'make kernel'. It will not
+be able to make the proper changes if you have not applied the sequence
+against an original then there is a version specific instruction in the
+README.linux file.]
+

@@ -1,0 +1,23 @@
+This file is used by the 'make kernel' function. It will apply the patch
+to the drivers/net/Makefile to install the bsd_comp.c file into the list
+of files needed to build the kernel.
+
+This file is for the 1.3 kernel.
+
+--- linux-1.3.32.ORIG/drivers/net/Makefile	Fri Sep  8 23:37:24 1995
++++ linux-1.3.32/drivers/net/Makefile	Sun Sep 24 19:41:35 1995
+@@ -137,10 +137,14 @@
+   CONFIG_SLHC_MODULE = y
+   M_OBJS += ppp.o
+   endif
+ endif
+ 
++ifneq ($(CONFIG_PPP),n)
++  M_OBJS += bsd_comp.o
++endif
++
+ ifeq ($(CONFIG_SLIP),y)
+ L_OBJS += slip.o
+ CONFIG_SLHC_BUILTIN = y
+ else
+   ifeq ($(CONFIG_SLIP),m)

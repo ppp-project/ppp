@@ -31,7 +31,7 @@
  *
  */
 
-static char rcsid[] = "$Id: chat.c,v 1.9 1995/06/12 11:24:15 paulus Exp $";
+static char rcsid[] = "$Id: chat.c,v 1.10 1995/12/18 03:32:46 paulus Exp $";
 
 #include <stdio.h>
 #include <time.h>
@@ -93,6 +93,7 @@ char *program_name;
 #define	DEFAULT_CHAT_TIMEOUT	45
 
 int verbose       = 0;
+int Verbose       = 0;
 int quiet         = 0;
 int report        = 0;
 int exit_code     = 0;
@@ -197,6 +198,10 @@ char **argv;
 	    {
 	    case 'v':
 		++verbose;
+		break;
+
+	    case 'V':
+	        ++Verbose;
 		break;
 
 	    case 'f':
@@ -580,7 +585,7 @@ int status;
 	    fprintf (report_fp, "Closing \"%s\".\n", report_file);
 	    }
 	fclose (report_fp);
-	report_fp = (FILE*) NULL;
+	report_fp = (FILE *) NULL;
         }
 
 #if defined(get_term_param)
@@ -753,11 +758,70 @@ int sending;
     }
 
 /*
+ * A modified version of 'strtok'. This version skips \ sequences.
+ */
+
+char *expect_strtok (s, term)
+char *s, *term;
+    {
+    static char *str        = "";
+    static int	escape_flag = 0;
+    char   *result;
+/*
+ * If a string was specified then do initial processing.
+ */
+    if (s)
+	{
+	str	    = s;
+	escape_flag = 0;
+	}
+
+    result = (char *) 0;
+    while (*str)
+	{
+/*
+ * Look for the terminator sequence.
+ * If the escape flag is set then this character is not the terminator.
+ * We assume that term does not contain the backslash character.
+ */
+	if (escape_flag || strchr (term, *str) == (char *) 0)
+	    {
+	    if (result == (char *) 0)
+		{
+		result = str;
+		}
+
+	    if (escape_flag || *str == '\\')
+	        {
+		escape_flag = !escape_flag;
+		}
+
+	    ++str;
+	    continue;
+	    }
+/*
+ * This is the terminator. If we have a string then this is the end of the
+ * scan operation.
+ */
+	*str++ = '\0';
+	if (result)
+	    {
+	    break;
+	    }
+	}
+    return (result);
+    }
+
+/*
  * Process the expect string
  */
-void chat_expect(s)
-register char *s;
+
+void chat_expect (s)
+char *s;
     {
+    char *expect;
+    char *reply;
+
     if (strcmp(s, "ABORT") == 0)
 	{
 	++abort_next;
@@ -775,81 +839,56 @@ register char *s;
 	++timeout_next;
 	return;
 	}
-
-    while (*s)
+/*
+ * Fetch the expect and reply string.
+ */
+    for (;;)
 	{
-	register char *hyphen;
+	expect = expect_strtok (s, "-");
+	s      = (char *) 0;
 
-	for (hyphen = s; *hyphen; ++hyphen)
+	if (expect == (char *) 0)
 	    {
-	    if (*hyphen == '-')
-	        {
-		if (hyphen == s || hyphen[-1] != '\\')
-		    {
-		    break;
-		    }
-	        }
+	    return;
 	    }
-	
-	if (*hyphen == '-')
+
+	reply = expect_strtok (s, "-");
+/*
+ * Handle the expect string. If successful then exit.
+ */
+	if (get_string (expect))
 	    {
-	    *hyphen = '\0';
-
-	    if (get_string(s))
-	        {
-		return;
-	        }
-	    else
-		{
-		s = hyphen + 1;
-
-		for (hyphen = s; *hyphen; ++hyphen)
-		    {
-		    if (*hyphen == '-')
-		        {
-			if (hyphen == s || hyphen[-1] != '\\')
-			    {
-			    break;
-			    }
-		        }
-		    }
-
-		if (*hyphen == '-')
-		    {
-		    *hyphen = '\0';
-
-		    chat_send(s);
-		    s = hyphen + 1;
-		    }
-		else
-		    {
-		    chat_send(s);
-		    return;
-		    }
-		}
+	    return;
 	    }
-	else
+/*
+ * If there is a sub-reply string then send it. Otherwise any condition
+ * is terminal.
+ */
+	if (reply == (char *) 0 || exit_code != 3)
 	    {
-	    if (get_string(s))
-	        {
-		return;
-	        }
-	    else
-		{
-		if (fail_reason)
-		    {
-		    syslog(LOG_INFO, "Failed (%s)", fail_reason);
-		    }
-		else
-		    {
-		    syslog(LOG_INFO, "Failed");
-		    }
-
-		terminate(exit_code);
-		}
+	    break;
 	    }
+
+	chat_send (reply);
 	}
+/*
+ * The expectation did not occur. This is terminal.
+ */
+    if (fail_reason)
+	{
+	syslog(LOG_INFO, "Failed (%s)", fail_reason);
+	}
+    else
+	{
+	syslog(LOG_INFO, "Failed");
+	}
+    terminate(exit_code);
     }
+
+/*
+ * Translate the input character to the appropriate string for printing
+ * the data.
+ */
 
 char *character(c)
 int c;
@@ -1218,6 +1257,11 @@ register char *string;
 		logf(character(c));
 	        }
 	    }
+
+	if (Verbose) {
+	   if (c == '\n')      fputc( '\n', stderr );
+	   else if (c != '\r') fprintf( stderr, "%s", character(c) );
+	}
 
 	*s++ = c;
 
