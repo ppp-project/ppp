@@ -73,7 +73,7 @@
  * Robert Olsson <robert@robur.slu.se> and Paul Mackerras.
  */
 
-/* $Id: ppp_tty.c,v 1.5 1995/05/02 02:48:32 paulus Exp $ */
+/* $Id: ppp_tty.c,v 1.6 1995/10/27 04:00:10 paulus Exp $ */
 /* from if_sl.c,v 1.11 84/10/04 12:54:47 rick Exp */
 
 #include "ppp.h"
@@ -113,8 +113,7 @@ int	pppopen __P((dev_t dev, struct tty *tp));
 int	pppclose __P((struct tty *tp, int flag));
 int	pppread __P((struct tty *tp, struct uio *uio, int flag));
 int	pppwrite __P((struct tty *tp, struct uio *uio, int flag));
-int	ppptioctl __P((struct tty *tp, int cmd, caddr_t data, int flag,
-		       struct proc *));
+int	ppptioctl __P((struct tty *tp, int cmd, caddr_t data, int flag));
 int	pppinput __P((int c, struct tty *tp));
 int	pppstart __P((struct tty *tp));
 
@@ -162,6 +161,7 @@ static void	ppplogchar __P((struct ppp_softc *, int));
 /*
  * Line specific open routine for async tty devices.
  * Attach the given tty to the first available ppp unit.
+ * Called from device open routine or ttioctl.
  */
 /* ARGSUSED */
 int
@@ -176,19 +176,24 @@ pppopen(dev, tp)
     if (!suser())
 	return EPERM;
 
+    s = spltty();
+
     if (tp->t_line == PPPDISC) {
 	sc = (struct ppp_softc *) tp->t_sc;
-	if (sc != NULL && sc->sc_devp == (void *) tp)
+	if (sc != NULL && sc->sc_devp == (void *) tp) {
+	    splx(s);
 	    return (0);
+	}
     }
 
-    if ((sc = pppalloc(p->p_pid)) == NULL)
+    if ((sc = pppalloc(p->p_pid)) == NULL) {
+	splx(s);
 	return ENXIO;
+    }
 
     if (sc->sc_relinq)
 	(*sc->sc_relinq)(sc);	/* get previous owner to relinquish the unit */
 
-    s = splimp();
     sc->sc_ilen = 0;
     sc->sc_m = NULL;
     bzero(sc->sc_asyncmap, sizeof(sc->sc_asyncmap));
@@ -205,13 +210,14 @@ pppopen(dev, tp)
 
     tp->t_sc = (caddr_t) sc;
     ttyflush(tp, FREAD | FWRITE);
-    splx(s);
 
+    splx(s);
     return (0);
 }
 
 /*
- * Line specific close routine.
+ * Line specific close routine, called from device close routine
+ * and from ttioctl.
  * Detach the tty from the ppp unit.
  * Mimics part of ttyclose().
  */
@@ -224,8 +230,8 @@ pppclose(tp, flag)
     struct mbuf *m;
     int s;
 
-    ttywflush(tp);
-    s = splimp();		/* paranoid; splnet probably ok */
+    s = spltty();
+    ttyflush(tp, FREAD|FWRITE);
     tp->t_line = 0;
     sc = (struct ppp_softc *) tp->t_sc;
     if (sc != NULL) {
@@ -248,7 +254,7 @@ pppasyncrelinq(sc)
 {
     int s;
 
-    s = splimp();
+    s = spltty();
     if (sc->sc_outm) {
 	m_freem(sc->sc_outm);
 	sc->sc_outm = NULL;
@@ -284,7 +290,7 @@ pppread(tp, uio, flag)
      * Loop waiting for input, checking that nothing disasterous
      * happens in the meantime.
      */
-    s = splimp();
+    s = spltty();
     for (;;) {
 	if (tp != (struct tty *) sc->sc_devp || tp->t_line != PPPDISC) {
 	    splx(s);
@@ -483,7 +489,7 @@ pppfcs(fcs, cp, len)
 
 /*
  * This gets called from pppoutput when a new packet is
- * put on a queue.
+ * put on a queue, at splnet.
  */
 static void
 pppasyncstart(sc)
@@ -492,30 +498,34 @@ pppasyncstart(sc)
     register struct tty *tp = (struct tty *) sc->sc_devp;
     int s;
 
-    s = splimp();
+    s = spltty();
     pppstart(tp);
     splx(s);
 }
 
 /*
  * This gets called when a received packet is placed on
- * the inq.
+ * the inq, at splnet.
  */
 static void
 pppasyncctlp(sc)
     struct ppp_softc *sc;
 {
     struct tty *tp;
+    int s;
 
     /* Put a placeholder byte in canq for ttselect()/ttnread(). */
+    s = spltty();
     tp = (struct tty *) sc->sc_devp;
     putc(0, &tp->t_canq);
     ttwakeup(tp);
+    splx(s);
 }
 
 /*
  * Start output on async tty interface.  Get another datagram
  * to send from the interface queue and start sending it.
+ * Called at spltty or higher.
  */
 int
 pppstart(tp)
@@ -707,7 +717,7 @@ ppp_timeout(x)
     struct tty *tp = (struct tty *) sc->sc_devp;
     int s;
 
-    s = splimp();
+    s = spltty();
     sc->sc_flags &= ~SC_TIMEOUT;
     pppstart(tp);
     splx(s);
@@ -724,7 +734,7 @@ pppgetm(sc)
     int len;
     int s;
 
-    s = splimp();
+    s = spltty();
     mp = &sc->sc_m;
     for (len = sc->sc_mru + PPP_HDRLEN + PPP_FCSLEN; len > 0; ){
 	if ((m = *mp) == NULL) {
@@ -762,11 +772,27 @@ pppinput(c, tp)
     if (sc == NULL || tp != (struct tty *) sc->sc_devp)
 	return 0;
 
-    s = spltty();
+    s = spltty();		/* should be unnecessary */
     ++tk_nin;
     ++sc->sc_bytesrcvd;
 
     c &= 0xff;
+
+    if (sc->sc_flags & SC_XONXOFF) {
+	if (c == XOFF) {
+	    if ((tp->t_state & TS_TTSTOP) == 0) {
+		tp->t_state |= TS_TTSTOP;
+		(*cdevsw[major(tp->t_dev)].d_stop)(tp, 0);
+	    }
+	    return 0;
+	}
+	if (c == XON) {
+	    tp->t_state &= ~TS_TTSTOP;
+	    if (tp->t_oproc != NULL)
+		(*tp->t_oproc)(tp);
+	    return 0;
+	}
+    }
 
     if (c & 0x80)
 	sc->sc_flags |= SC_RCV_B7_1;
