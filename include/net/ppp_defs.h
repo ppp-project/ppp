@@ -1,4 +1,4 @@
-/*	$Id: ppp_defs.h,v 1.1 1994/09/19 04:18:43 paulus Exp $	*/
+/*	$Id: ppp_defs.h,v 1.2 1994/09/21 01:31:06 paulus Exp $	*/
 
 /*
  * ppp_defs.h - PPP definitions.
@@ -27,6 +27,9 @@
  * OR MODIFICATIONS.
  */
 
+#ifndef _PPP_DEFS_H_
+#define _PPP_DEFS_H_
+
 /*
  * The basic PPP frame.
  */
@@ -54,8 +57,12 @@
 #define	PPP_VJC_COMP	0x2d	/* VJ compressed TCP */
 #define	PPP_VJC_UNCOMP	0x2f	/* VJ uncompressed TCP */
 #define PPP_COMP	0xfd	/* compressed packet */
-#define PPP_LCP		0xc021	/* Link Control Protocol */
+#define PPP_IPCP	0x8021	/* IP Control Protocol */
 #define PPP_CCP		0x80fd	/* Compression Control Protocol */
+#define PPP_LCP		0xc021	/* Link Control Protocol */
+#define PPP_PAP		0xc023	/* Password Authentication Protocol */
+#define PPP_LQR		0xc025	/* Link Quality Report protocol */
+#define PPP_CHAP	0xc223	/* Cryptographic Handshake Auth. Protocol */
 
 /*
  * Values for FCS calculations.
@@ -137,3 +144,5 @@ struct ppp_stats {
 #define __P(x)	()
 #endif
 #endif
+
+#endif /* _PPP_DEFS_H_ */
