@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.27 2004/11/14 07:26:26 paulus Exp $";
+"$Id: radius.c,v 1.28 2004/11/14 10:27:57 paulus Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -284,7 +284,8 @@ radius_pap_auth(char *user,
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
-    }
+    } else if (ipparam)
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
     /* Add user specified vp's */
     if (rstate.avp)
@@ -459,7 +460,8 @@ radius_chap_verify(char *user, char *ourname, int id,
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
-    }
+    } else if (ipparam)
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
     /* Add user specified vp's */
     if (rstate.avp)
@@ -882,7 +884,8 @@ radius_acct_start(void)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    }
+    } else if (ipparam)
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
@@ -986,7 +989,8 @@ radius_acct_stop(void)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    }
+    } else if (ipparam)
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
     av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
@@ -1129,7 +1133,8 @@ radius_acct_interim(void *ignored)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    }
+    } else if (ipparam)
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
     av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
