@@ -1,7 +1,7 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.1 1993/11/11 03:54:25 paulus Exp $
+ * $Id: pathnames.h,v 1.2 1994/04/11 07:19:57 paulus Exp $
  */
 
 #ifdef STREAMS
@@ -13,3 +13,5 @@
 #define _PATH_UPAPFILE 	"/etc/ppp/pap-secrets"
 #define _PATH_CHAPFILE 	"/etc/ppp/chap-secrets"
 #define _PATH_SYSOPTIONS "/etc/ppp/options"
+#define _PATH_IPUP	"/etc/ppp/ip-up"
+#define _PATH_IPDOWN	"/etc/ppp/ip-down"
