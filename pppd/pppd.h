@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Id: pppd.h,v 1.21 1998/03/26 04:46:08 paulus Exp $
+ * $Id: pppd.h,v 1.22 1998/05/13 05:49:21 paulus Exp $
  */
 
 /*
@@ -302,6 +302,10 @@ int  get_host_seed __P((void));	/* Get host-dependent random number seed */
 #ifdef PPP_FILTER
 int  set_filters __P((struct bpf_program *pass, struct bpf_program *active));
 				/* Set filter programs in kernel */
+#endif
+#ifdef IPX_CHANGE
+int  sipxfaddr __P((int, unsigned long, unsigned char *));
+int  cipxfaddr __P((int));
 #endif
 
 /* Procedures exported from options.c */

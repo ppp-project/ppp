@@ -18,7 +18,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: lcp.c,v 1.31 1997/11/27 06:08:44 paulus Exp $";
+static char rcsid[] = "$Id: lcp.c,v 1.32 1998/05/13 05:49:19 paulus Exp $";
 #endif
 
 /*
@@ -1620,6 +1620,20 @@ lcp_printpkt(p, plen, printer, arg)
 			break;
 		    case PPP_CHAP:
 			printer(arg, "chap");
+			if (p < optend) {
+			    switch (*p) {
+			    case CHAP_DIGEST_MD5:
+				printer(arg, " MD5");
+				++p;
+				break;
+#ifdef CHAPMS
+			    case CHAP_MICROSOFT:
+				printer(arg, " m$oft");
+				++p;
+				break;
+#endif
+			    }
+			}
 			break;
 		    default:
 			printer(arg, "0x%x", cishort);

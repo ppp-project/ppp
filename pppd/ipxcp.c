@@ -19,7 +19,7 @@
 
 #ifdef IPX_CHANGE
 #ifndef lint
-static char rcsid[] = "$Id: ipxcp.c,v 1.6 1998/03/25 03:08:16 paulus Exp $";
+static char rcsid[] = "$Id: ipxcp.c,v 1.7 1998/05/13 05:49:18 paulus Exp $";
 #endif
 
 /*
@@ -29,6 +29,7 @@ static char rcsid[] = "$Id: ipxcp.c,v 1.6 1998/03/25 03:08:16 paulus Exp $";
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -37,6 +38,7 @@ static char rcsid[] = "$Id: ipxcp.c,v 1.6 1998/03/25 03:08:16 paulus Exp $";
 #include "fsm.h"
 #include "ipxcp.h"
 #include "pathnames.h"
+#include "magic.h"
 
 /* global vars */
 ipxcp_options ipxcp_wantoptions[NUM_PPP];	/* Options that we want to request */
