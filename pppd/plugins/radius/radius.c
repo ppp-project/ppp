@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.14 2002/09/01 08:56:01 kad Exp $";
+"$Id: radius.c,v 1.15 2002/09/12 05:41:49 fcusack Exp $";
 
 #include "pppd.h"
 #include "chap.h"
@@ -40,6 +40,7 @@ static char const RCSID[] =
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <string.h>
 
 #define BUF_LEN 1024
 
@@ -81,6 +82,10 @@ static int radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info);
 #define MAXSESSIONID 32
 #endif
 
+#ifndef MAXCLASSLEN
+#define MAXCLASSLEN 500
+#endif
+
 struct radius_state {
     int accounting_started;
     int initialized;
@@ -96,6 +101,8 @@ struct radius_state {
     int acct_interim_interval;
     SERVER *authserver;		/* Authentication server to use */
     SERVER *acctserver;		/* Accounting server to use */
+    int class_len;
+    char class[MAXCLASSLEN];
 };
 
 void (*radius_attributes_hook)(VALUE_PAIR *) = NULL;
@@ -544,7 +551,16 @@ radius_setparams(chap_state *cstate, VALUE_PAIR *vp, char *msg,
 		    rstate.ip_addr = remote;
 		}
 		break;
+	    case PW_CLASS:
+		/* Save Class attribute to pass it in accounting request */
+		if (vp->lvalue <= MAXCLASSLEN) {
+		    rstate.class_len=vp->lvalue;
+		    memcpy(rstate.class, vp->strvalue, rstate.class_len);
+		} /* else too big for our buffer - ignore it */
+		break;
 	    }
+
+
 #ifdef CHAPMS
 	} else if (vp->vendorcode == VENDOR_MICROSOFT) {
 	    switch (vp->attribute) {
@@ -755,6 +771,10 @@ radius_acct_start(void)
 		   rstate.session_id, 0, VENDOR_NONE);
     rc_avpair_add(&send, PW_USER_NAME,
 		   rstate.user, 0, VENDOR_NONE);
+
+    if (rstate.class_len > 0)
+	rc_avpair_add(&send, PW_CLASS,
+		      rstate.class, rstate.class_len, VENDOR_NONE);
 
     av_type = PW_STATUS_START;
     rc_avpair_add(&send, PW_ACCT_STATUS_TYPE, &av_type, 0, VENDOR_NONE);
