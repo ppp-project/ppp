@@ -17,7 +17,7 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#define RCSID	"$Id: options.c,v 1.84 2002/07/13 06:24:36 kad Exp $"
+#define RCSID	"$Id: options.c,v 1.85 2002/07/18 15:25:04 dfs Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -1499,7 +1499,7 @@ setmodir(argv)
     } else if (!strcmp(*argv,"out")) {
         maxoctets_dir = PPP_OCTETS_DIRECTION_OUT;
     } else if (!strcmp(*argv,"max")) {
-        maxoctets_dir = PPP_OCTETS_DIRECTION_MAX;
+        maxoctets_dir = PPP_OCTETS_DIRECTION_MAXOVERAL;
     } else {
         maxoctets_dir = PPP_OCTETS_DIRECTION_SUM;
     }
