@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.72 2003/06/11 00:11:11 paulus Exp $
+.\" $Id: pppd.8,v 1.73 2003/06/29 10:04:50 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -69,10 +69,9 @@ bit (00000001) represents character 0 and the most significant bit
 Pppd will ask the peer to send these characters as a 2-byte
 escape sequence.
 If multiple \fIasyncmap\fR options are given, the values are ORed
-together.  If no \fIasyncmap\fR option is given, no async character
-map will be negotiated for the receive direction; the peer should then
-escape \fIall\fR control characters.  To escape transmitted
-characters, use the \fIescape\fR option.
+together.  If no \fIasyncmap\fR option is given, the default is zero,
+so pppd will ask the peer not to escape any control characters.
+To escape transmitted characters, use the \fIescape\fR option.
 .TP
 .B auth
 Require the peer to authenticate itself before allowing network
@@ -1023,7 +1022,8 @@ the \fIname\fR option).  This option is not normally needed since the
 .B usepeerdns
 Ask the peer for up to 2 DNS server addresses.  The addresses supplied
 by the peer (if any) are passed to the /etc/ppp/ip-up script in the
-environment variables DNS1 and DNS2.  In addition, pppd will create an
+environment variables DNS1 and DNS2, and the environment variable
+USEPEERDNS will be set to 1.  In addition, pppd will create an
 /etc/ppp/resolv.conf file containing one or two nameserver lines with
 the address(es) supplied by the peer.
 .TP
