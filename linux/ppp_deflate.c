@@ -1,5 +1,5 @@
 /*
- *  ==FILEVERSION 970428==
+ *  ==FILEVERSION 970522==
  *
  * ppp_deflate.c - interface the zlib procedures for Deflate compression
  * and decompression (as used by gzip) to the PPP code.
@@ -32,7 +32,7 @@
  */
 
 #include <linux/module.h>
-
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -42,7 +42,15 @@
 #include <linux/ioport.h>
 #include <linux/in.h>
 #include <linux/malloc.h>
+
+#undef VERSION
+/* a nice define to generate linux version numbers */
+#define VERSION(major,minor,patch) (((((major)<<8)+(minor))<<8)+(patch))
+
+#if LINUX_VERSION_CODE >= VERSION(2,1,4)
 #include <linux/vmalloc.h>
+#endif
+
 #include <linux/errno.h>
 #include <linux/sched.h>	/* to get the struct task_struct */
 #include <linux/string.h>	/* used in new tty drivers */
@@ -201,7 +209,7 @@ z_comp_alloc(options, opt_len)
     memset (state, 0, sizeof (struct ppp_deflate_state));
     state->strm.next_in = NULL;
     state->strm.zalloc  = zalloc;
-    state->strm.zalloc_init = zalloc;
+    state->strm.zalloc_init = zalloc_init;
     state->strm.zfree   = zfree;
     state->w_size       = w_size;
 
@@ -386,6 +394,7 @@ z_decomp_alloc(options, opt_len)
     state->w_size        = w_size;
     state->strm.next_out = NULL;
     state->strm.zalloc   = zalloc;
+    state->strm.zalloc_init = zalloc_init;
     state->strm.zfree    = zfree;
 
     if (inflateInit2(&state->strm, -w_size) != Z_OK) {

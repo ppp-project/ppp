@@ -6,7 +6,7 @@
  *  Dynamic PPP devices by Jim Freeman <jfree@caldera.com>.
  *  ppp_tty_receive ``noisy-raise-bug'' fixed by Ove Ewerlid <ewerlid@syscon.uu.se>
  *
- *  ==FILEVERSION 970227==
+ *  ==FILEVERSION 970522==
  *
  *  NOTE TO MAINTAINERS:
  *     If you modify this file at all, please set the number above to the
@@ -51,7 +51,7 @@
 #define PPP_MAX_DEV	256
 #endif
 
-/* $Id: ppp.c,v 1.11 1997/04/30 05:42:36 paulus Exp $
+/* $Id: ppp.c,v 1.12 1997/05/22 06:45:12 paulus Exp $
  * Added dynamic allocation of channels to eliminate
  *   compiled-in limits on the number of channels.
  *
@@ -74,6 +74,10 @@
 
 #if LINUX_VERSION_CODE < VERSION(2,1,14)
 #include <linux/ioport.h>
+#endif
+
+#if LINUX_VERSION_CODE >= VERSION(2,1,23)
+#include <linux/poll.h>
 #endif
 
 #include <linux/in.h>
@@ -159,6 +163,10 @@ do {									  \
 
 #endif
 
+#if LINUX_VERSION_CODE < VERSION(2,1,37)
+#define test_and_set_bit(nr, addr)	set_bit(nr, addr)
+#endif
+
 static int ppp_register_compressor (struct compressor *cp);
 static void ppp_unregister_compressor (struct compressor *cp);
 
@@ -207,6 +215,11 @@ static int  rcv_proto_ccp (struct ppp *, __u16, __u8 *, int);
 static int  flag_time = OPTIMIZE_FLAG_TIME;
 static int  max_dev   = PPP_MAX_DEV;
 
+#if LINUX_VERSION_CODE >= VERSION(2,1,19) 
+MODULE_PARM(flag_time, "i");
+MODULE_PARM(max_dev, "i");
+#endif
+
 /*
  * The "main" procedure to the ppp device
  */
@@ -240,8 +253,12 @@ static int ppp_tty_write (struct tty_struct *, struct file *, const __u8 *,
 			  unsigned int);
 static int ppp_tty_ioctl (struct tty_struct *, struct file *, unsigned int,
 			  unsigned long);
+#if LINUX_VERSION_CODE < VERSION(2,1,23)
 static int ppp_tty_select (struct tty_struct *tty, struct inode *inode,
 		      struct file *filp, int sel_type, select_table * wait);
+#else
+static unsigned int ppp_tty_poll (struct tty_struct *tty, struct file *filp, poll_table * wait);
+#endif
 static int ppp_tty_open (struct tty_struct *);
 static void ppp_tty_close (struct tty_struct *);
 static int ppp_tty_room (struct tty_struct *tty);
@@ -409,7 +426,11 @@ ppp_first_time (void)
 	ppp_ldisc.read		= ppp_tty_read;
 	ppp_ldisc.write		= ppp_tty_write;
 	ppp_ldisc.ioctl		= ppp_tty_ioctl;
+#if LINUX_VERSION_CODE < VERSION(2,1,23)
 	ppp_ldisc.select	= ppp_tty_select;
+#else
+	ppp_ldisc.poll		= ppp_tty_poll;
+#endif
 	ppp_ldisc.receive_room	= ppp_tty_room;
 	ppp_ldisc.receive_buf	= ppp_tty_receive;
 	ppp_ldisc.write_wakeup	= ppp_tty_wakeup;
@@ -432,8 +453,6 @@ ppp_first_time (void)
 static int
 ppp_init_dev (struct device *dev)
 {
-	int    indx;
-
 #if LINUX_VERSION_CODE < VERSION(2,1,15)
 	dev->hard_header      = ppp_dev_header;
 	dev->rebuild_header   = ppp_dev_rebuild;
@@ -452,11 +471,19 @@ ppp_init_dev (struct device *dev)
 	dev->tx_queue_len     = 10;
 	dev->type	      = ARPHRD_PPP;
 
-	for (indx = 0; indx < DEV_NUMBUFFS; indx++)
-		skb_queue_head_init (&dev->buffs[indx]);
+#if LINUX_VERSION_CODE < VERSION(2,1,20)
+	{
+		int    indx;
+
+		for (indx = 0; indx < DEV_NUMBUFFS; indx++)
+			skb_queue_head_init (&dev->buffs[indx]);
+	}
+#else
+	dev_init_buffers(dev);
+#endif
 
 	/* New-style flags */
-	dev->flags	= IFF_POINTOPOINT;
+	dev->flags	= IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
 	dev->family	= AF_INET;
 	dev->pa_addr	= 0;
 	dev->pa_brdaddr = 0;
@@ -714,6 +741,7 @@ ppp_changedmtu (struct ppp *ppp, int new_mtu, int new_mru)
 static void
 ppp_ccp_closed (struct ppp *ppp)
 {
+	ppp->flags &= ~(SC_CCP_OPEN | SC_CCP_UP | SC_COMP_RUN | SC_DECOMP_RUN);
 	if (ppp->sc_xc_state) {
 		(*ppp->sc_xcomp->comp_free) (ppp->sc_xc_state);
 		ppp->sc_xc_state = NULL;
@@ -743,7 +771,7 @@ ppp_release (struct ppp *ppp)
 
 	ppp_ccp_closed (ppp);
 
-	/* Ensure that the pppd process is not hanging on select() */
+	/* Ensure that the pppd process is not hanging on select()/poll() */
 	wake_up_interruptible (&ppp->read_wait);
 	wake_up_interruptible (&ppp->write_wait);
 
@@ -752,7 +780,7 @@ ppp_release (struct ppp *ppp)
 
 	if (dev && dev->flags & IFF_UP) {
 		dev_close (dev); /* close the device properly */
-		dev->flags = 0;	 /* prevent recursion */
+		dev->flags &= ~IFF_UP;	 /* prevent recursion */
 	}
 
 	ppp_free_buf (ppp->rbuf);
@@ -1391,7 +1419,7 @@ rcv_proto_unknown (struct ppp *ppp, __u16 proto,
  * The total length includes the protocol data.
  * Lock the user information buffer.
  */
-	if (set_bit (0, &ppp->ubuf->locked)) {
+	if (test_and_set_bit (0, &ppp->ubuf->locked)) {
 		if (ppp->flags & SC_DEBUG)
 			printk (KERN_DEBUG
 				"ppp_us_queue: can't get lock\n");
@@ -1775,7 +1803,7 @@ ppp_tty_read (struct tty_struct *tty, struct file *file, __u8 * buf,
 		    || tty != ppp->tty)
 			return 0;
 
-		if (set_bit (0, &ppp->ubuf->locked) != 0) {
+		if (test_and_set_bit (0, &ppp->ubuf->locked) != 0) {
 			if (ppp->flags & SC_DEBUG)
 				printk (KERN_DEBUG
 				     "ppp_tty_read: sleeping(ubuf)\n");
@@ -2580,9 +2608,10 @@ ppp_tty_ioctl (struct tty_struct *tty, struct file * file,
 /*
  * TTY callback.
  *
- * Process the select() statement for the PPP device.
+ * Process the select() (or poll()) statement for the PPP device.
  */
 
+#if LINUX_VERSION_CODE < VERSION(2,1,23)
 static int
 ppp_tty_select (struct tty_struct *tty, struct inode *inode,
 		struct file *filp, int sel_type, select_table * wait)
@@ -2605,7 +2634,7 @@ ppp_tty_select (struct tty_struct *tty, struct inode *inode,
  */
 	switch (sel_type) {
 	case SEL_IN:
-		if (set_bit (0, &ppp->ubuf->locked) == 0) {
+		if (test_and_set_bit (0, &ppp->ubuf->locked) == 0) {
 			/* Test for the presence of data in the queue */
 			if (ppp->ubuf->head != ppp->ubuf->tail) {
 				clear_bit (0, &ppp->ubuf->locked);
@@ -2641,6 +2670,38 @@ ppp_tty_select (struct tty_struct *tty, struct inode *inode,
 	return result;
 }
 
+#else	/* 2.1.23 or later */
+
+static unsigned int
+ppp_tty_poll (struct tty_struct *tty, struct file *filp, poll_table * wait)
+{
+	struct ppp *ppp = tty2ppp (tty);
+	unsigned int mask = 0;
+
+	if (ppp && ppp->magic == PPP_MAGIC && tty == ppp->tty) {
+		CHECK_PPP (0);
+
+		poll_wait(&ppp->read_wait, wait);
+		poll_wait(&ppp->write_wait, wait);
+
+		/* Must lock the user buffer area while checking. */
+		if(test_and_set_bit(0, &ppp->ubuf->locked) == 0) {
+			if(ppp->ubuf->head != ppp->ubuf->tail)
+				mask |= POLLIN | POLLRDNORM;
+			clear_bit(0, &ppp->ubuf->locked);
+		}
+		if(tty->flags & (1 << TTY_OTHER_CLOSED))
+			mask |= POLLHUP;
+		if(tty_hung_up_p(filp))
+			mask |= POLLHUP;
+		if(ppp->tbuf->locked == 0)
+			mask |= POLLOUT | POLLWRNORM;
+	}
+	return mask;
+}
+
+#endif
+
 /*************************************************************
  * NETWORK OUTPUT
  *    This routine accepts requests from the network layer
@@ -2659,7 +2720,7 @@ ppp_dev_open (struct device *dev)
 	struct ppp *ppp = dev2ppp (dev);
 
 	/* reset POINTOPOINT every time, since dev_close zaps it! */
-	dev->flags |= IFF_POINTOPOINT;
+	dev->flags |= IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
 
 	if (ppp2tty (ppp) == NULL) {
 		if (ppp->flags & SC_DEBUG)
@@ -3176,7 +3237,7 @@ ppp_alloc (void)
 
 	while (ctl) {
 		ppp = ctl2ppp (ctl);
-		if (!set_bit(0, &ppp->inuse))
+		if (!test_and_set_bit(0, &ppp->inuse))
 			return (ppp);
 		ctl = ctl->next;
 		if (++if_num == max_dev)
