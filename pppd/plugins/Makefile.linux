@@ -4,7 +4,7 @@ LDFLAGS	= -shared
 INSTALL	= install -o root
 
 SUBDIRS = rp-pppoe radius
-PLUGINS = minconn.so passprompt.so
+PLUGINS = minconn.so passprompt.so passwordfd.so
 
 # include dependencies if present
 ifeq (.depend,$(wildcard .depend))
@@ -18,7 +18,7 @@ all:	$(PLUGINS)
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
-LIBDIR	= $(DESTDIR)/usr/lib/pppd/$(VERSION)
+LIBDIR	= $(DESTDIR)/lib/pppd/$(VERSION)
 
 install: $(PLUGINS)
 	$(INSTALL) -d $(LIBDIR)
