@@ -1,18 +1,16 @@
 #
 # pppd makefile for Ultrix
-# $Id: Makefile.ultrix,v 1.7 1996/05/28 00:54:52 paulus Exp $
+# $Id: Makefile.ultrix,v 1.8 1996/07/01 01:05:54 paulus Exp $
 #
 
 BINDIR = /usr/local/etc
 MANDIR = /usr/local/man
 
 PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap.c md5.c ccp.c \
-	auth.c options.c demand.c sys-ultrix.c \
-	gencode.c grammar.c scanner.c nametoaddr.c optimize.c
+	auth.c options.c demand.c sys-ultrix.c
 
 PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap.o md5.o ccp.o \
-	auth.o options.o demand.o sys-ultrix.o \
-	gencode.o grammar.o scanner.o nametoaddr.o optimize.o
+	auth.o options.o demand.o sys-ultrix.o
 
 # CC = gcc
 DEBUG_FLAGS =
