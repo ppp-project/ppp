@@ -22,7 +22,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.12 2004/11/04 10:07:37 paulus Exp $";
+"$Id: plugin.c,v 1.13 2005/07/09 09:12:48 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -182,34 +182,6 @@ PPPOEConnectDevice(void)
 }
 
 static void
-PPPOESendConfig(int mtu,
-		u_int32_t asyncmap,
-		int pcomp,
-		int accomp)
-{
-    int sock;
-    struct ifreq ifr;
-
-    if (mtu > MAX_PPPOE_MTU) {
-	warn("Couldn't increase MTU to %d", mtu);
-	mtu = MAX_PPPOE_MTU;
-    }
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-	error("Couldn't create IP socket: %m");
-	return;
-    }
-    strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-    ifr.ifr_mtu = mtu;
-    if (ioctl(sock, SIOCSIFMTU, &ifr) < 0) {
-	error("Couldn't set interface MTU to %d: %m", mtu);
-	return;
-    }
-    (void) close (sock);
-}
-
-
-static void
 PPPOERecvConfig(int mru,
 		u_int32_t asyncmap,
 		int pcomp,
@@ -331,6 +303,9 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
 	    lcp_allowoptions[0].neg_pcompression = 0;
 	    lcp_wantoptions[0].neg_pcompression = 0;
 
+	    lcp_allowoptions[0].mru = MAX_PPPOE_MTU;
+	    lcp_wantoptions[0].mru = MAX_PPPOE_MTU;
+
 	    ccp_allowoptions[0].deflate = 0 ;
 	    ccp_wantoptions[0].deflate = 0 ;
 
@@ -433,7 +408,7 @@ struct channel pppoe_channel = {
     disconnect: &PPPOEDisconnectDevice,
     establish_ppp: &generic_establish_ppp,
     disestablish_ppp: &generic_disestablish_ppp,
-    send_config: &PPPOESendConfig,
+    send_config: NULL,
     recv_config: &PPPOERecvConfig,
     close: NULL,
     cleanup: NULL
