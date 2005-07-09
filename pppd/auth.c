@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.103 2005/03/21 09:20:16 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.104 2005/07/09 05:49:44 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1651,6 +1651,7 @@ plogin(user, passwd, msg)
 static void
 plogout()
 {
+    char *tty;
 #ifdef USE_PAM
     int pam_error;
 
@@ -1661,14 +1662,12 @@ plogout()
     }
     /* Apparently the pam stuff does closelog(). */
     reopen_log();
-#else /* ! USE_PAM */   
-    char *tty;
+#endif /* USE_PAM */
 
     tty = devnam;
     if (strncmp(tty, "/dev/", 5) == 0)
 	tty += 5;
     logwtmp(tty, "", "");		/* Wipe out utmp logout entry */
-#endif /* ! USE_PAM */
     logged_in = 0;
 }
 
