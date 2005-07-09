@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.96 2004/12/31 06:19:27 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.97 2005/07/09 04:58:36 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -296,10 +296,10 @@ option_t general_options[] = {
 #endif
 
 #ifdef PPP_FILTER
-    { "pass-filter", 1, setpassfilter,
+    { "pass-filter", o_special, setpassfilter,
       "set filter for packets to pass", OPT_PRIO },
 
-    { "active-filter", 1, setactivefilter,
+    { "active-filter", o_special, setactivefilter,
       "set filter for active pkts", OPT_PRIO },
 #endif
 
@@ -1447,13 +1447,13 @@ setpassfilter(argv)
     char **argv;
 {
     pcap_t *pc;
-    int ret = 0;
+    int ret = 1;
 
     pc = pcap_open_dead(DLT_PPP_WITHDIRECTION, 65535);
     if (pcap_compile(pc, &pass_filter, *argv, 1, netmask) == -1) {
 	option_error("error in pass-filter expression: %s\n",
 		     pcap_geterr(pc));
-	ret = 1;
+	ret = 0;
     }
     pcap_close(pc);
 
@@ -1468,13 +1468,13 @@ setactivefilter(argv)
     char **argv;
 {
     pcap_t *pc;
-    int ret = 0;
+    int ret = 1;
 
     pc = pcap_open_dead(DLT_PPP_WITHDIRECTION, 65535);
     if (pcap_compile(pc, &active_filter, *argv, 1, netmask) == -1) {
 	option_error("error in active-filter expression: %s\n",
 		     pcap_geterr(pc));
-	ret = 1;
+	ret = 0;
     }
     pcap_close(pc);
 
