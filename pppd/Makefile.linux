@@ -1,6 +1,6 @@
 #
 # pppd makefile for Linux
-# $Id: Makefile.linux,v 1.66 2004/11/13 12:02:22 paulus Exp $
+# $Id: Makefile.linux,v 1.67 2005/07/10 11:19:10 paulus Exp $
 #
 
 # Default installation locations
@@ -79,7 +79,7 @@ INCLUDE_DIRS= -I../include
 
 COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
-CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS)
+CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) '-DDESTDIR="@DESTDIR@"'
 
 ifdef CHAPMS
 CFLAGS   += -DCHAPMS=1

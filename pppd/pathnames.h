@@ -1,7 +1,7 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.16 2004/11/13 12:02:22 paulus Exp $
+ * $Id: pathnames.h,v 1.17 2005/07/10 11:19:10 paulus Exp $
  */
 
 #ifdef HAVE_PATHS_H
@@ -55,5 +55,10 @@
 #endif /* __STDC__ */
 
 #ifdef PLUGIN
-#define _PATH_PLUGIN	"/usr/lib/pppd/" VERSION
+#ifdef __STDC__
+#define _PATH_PLUGIN	DESTDIR "/lib/pppd/" VERSION
+#else /* __STDC__ */
+#define _PATH_PLUGIN	"/usr/lib/pppd"
+#endif /* __STDC__ */
+
 #endif /* PLUGIN */
