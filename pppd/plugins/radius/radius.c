@@ -24,7 +24,7 @@
 *
 ***********************************************************************/
 static char const RCSID[] =
-"$Id: radius.c,v 1.29 2004/11/15 22:13:26 paulus Exp $";
+"$Id: radius.c,v 1.30 2005/07/10 10:28:55 paulus Exp $";
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -470,6 +470,8 @@ radius_chap_verify(char *user, char *ourname, int id,
 	result = rc_auth(rstate.client_port, send, &received, radius_msg,
 			 req_info);
     }
+
+    strlcpy(message, radius_msg, message_space);
 
     if (result == OK_RC) {
 	if (!rstate.done_chap_once) {
