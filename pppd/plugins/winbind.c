@@ -213,7 +213,7 @@ char * base64_encode(const char *data)
 	int char_count = 0;
 	size_t out_cnt = 0;
 	size_t len = strlen(data);
-	size_t output_len = strlen(data) * 2;
+	size_t output_len = strlen(data) * 2 + 2;
 	char *result = malloc(output_len); /* get us plenty of space */
 
 	while (len-- && out_cnt < (output_len) - 5) {
