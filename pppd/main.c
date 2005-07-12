@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.150 2005/03/21 09:20:16 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.151 2005/07/12 01:07:59 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -534,6 +534,7 @@ main(argc, argv)
 	script_unsetenv("BYTES_RCVD");
 
 	lcp_open(0);		/* Start protocol */
+	start_link(0);
 	while (phase != PHASE_DEAD) {
 	    handle_events();
 	    get_input();

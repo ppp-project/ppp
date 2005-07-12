@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.104 2005/07/09 05:49:44 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.105 2005/07/12 01:07:59 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -526,10 +526,17 @@ set_permitted_number(argv)
 
 /*
  * An Open on LCP has requested a change from Dead to Establish phase.
- * Do what's necessary to bring the physical layer up.
  */
 void
 link_required(unit)
+    int unit;
+{
+}
+
+/*
+ * Bring the link up to the point of being able to do ppp.
+ */
+void start_link(unit)
     int unit;
 {
     char *msg;
