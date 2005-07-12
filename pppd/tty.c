@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.23 2004/12/31 11:49:22 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.24 2005/07/12 01:09:05 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -773,6 +773,7 @@ void disconnect_tty()
 	} else {
 		info("Serial link disconnected.");
 	}
+	stop_charshunt(NULL, 0);
 }
 
 void tty_close_fds()
@@ -936,7 +937,6 @@ start_charshunt(ifd, ofd)
 	exit(0);
     }
     charshunt_pid = cpid;
-    add_notifier(&sigreceived, stop_charshunt, 0);
     record_child(cpid, "pppd (charshunt)", charshunt_done, NULL);
     return 1;
 }
