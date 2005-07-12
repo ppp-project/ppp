@@ -209,42 +209,33 @@ static const char *b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
  **/
 char * base64_encode(const char *data)
 {
-	int bits = 0;
-	int char_count = 0;
 	size_t out_cnt = 0;
 	size_t len = strlen(data);
-	size_t output_len = strlen(data) * 2 + 2;
+	size_t output_len = 4 * ((len + 2) / 3) + 2;
+	const unsigned char *ptr = (const unsigned char *) data;
 	char *result = malloc(output_len); /* get us plenty of space */
+	unsigned int bits;
 
-	while (len-- && out_cnt < (output_len) - 5) {
-		int c = (unsigned char) *(data++);
-		bits += c;
-		char_count++;
-		if (char_count == 3) {
-			result[out_cnt++] = b64[bits >> 18];
-			result[out_cnt++] = b64[(bits >> 12) & 0x3f];
-			result[out_cnt++] = b64[(bits >> 6) & 0x3f];
-	    result[out_cnt++] = b64[bits & 0x3f];
-	    bits = 0;
-	    char_count = 0;
-	} else {
-	    bits <<= 8;
+	for (; len >= 3; len -= 3) {
+		bits = (ptr[0] << 16) + (ptr[1] << 8) + ptr[2];
+		ptr += 3;
+		result[out_cnt++] = b64[bits >> 18];
+		result[out_cnt++] = b64[(bits >> 12) & 0x3f];
+		result[out_cnt++] = b64[(bits >> 6) & 0x3f];
+		result[out_cnt++] = b64[bits & 0x3f];
 	}
-    }
-    if (char_count != 0) {
-	bits <<= 16 - (8 * char_count);
-	result[out_cnt++] = b64[bits >> 18];
-	result[out_cnt++] = b64[(bits >> 12) & 0x3f];
-	if (char_count == 1) {
-	    result[out_cnt++] = '=';
-	    result[out_cnt++] = '=';
-	} else {
-	    result[out_cnt++] = b64[(bits >> 6) & 0x3f];
-	    result[out_cnt++] = '=';
+	if (len != 0) {
+		bits = ptr[0] << 16;
+		if (len > 1)
+			bits |= ptr[1] << 8;
+		result[out_cnt++] = b64[bits >> 18];
+		result[out_cnt++] = b64[(bits >> 12) & 0x3f];
+		result[out_cnt++] = (len > 1)? b64[(bits >> 6) & 0x3f]: '=';
+		result[out_cnt++] = '=';
 	}
-    }
-    result[out_cnt] = '\0';	/* terminate */
-    return result;
+
+	result[out_cnt] = '\0';	/* terminate */
+	return result;
 }
 
 unsigned int run_ntlm_auth(const char *username, 
