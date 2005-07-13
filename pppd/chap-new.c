@@ -28,7 +28,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: chap-new.c,v 1.7 2005/07/10 07:31:26 paulus Exp $"
+#define RCSID	"$Id: chap-new.c,v 1.8 2005/07/13 10:41:58 paulus Exp $"
 
 #include <stdlib.h>
 #include <string.h>
@@ -501,6 +501,7 @@ chap_handle_status(struct chap_client_state *cs, int code, int id,
 		auth_withpeer_success(0, PPP_CHAP, cs->digest->code);
 	else {
 		cs->flags |= AUTH_FAILED;
+		error("CHAP authentication failed");
 		auth_withpeer_fail(0, PPP_CHAP);
 	}
 }
@@ -552,6 +553,7 @@ chap_protrej(int unit)
 	}
 	if ((cs->flags & (AUTH_STARTED|AUTH_DONE)) == AUTH_STARTED) {
 		cs->flags &= ~AUTH_STARTED;
+		error("CHAP authentication failed due to protocol-reject");
 		auth_withpeer_fail(0, PPP_CHAP);
 	}
 }

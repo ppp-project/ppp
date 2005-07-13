@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.105 2005/07/12 01:07:59 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.106 2005/07/13 10:41:58 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -994,10 +994,12 @@ auth_withpeer_success(unit, protocol, prot_flavor)
     int unit, protocol, prot_flavor;
 {
     int bit;
+    const char *prot = "";
 
     switch (protocol) {
     case PPP_CHAP:
 	bit = CHAP_WITHPEER;
+	prot = "CHAP";
 	switch (prot_flavor) {
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_WITHPEER;
@@ -1016,14 +1018,18 @@ auth_withpeer_success(unit, protocol, prot_flavor)
 	if (passwd_from_file)
 	    BZERO(passwd, MAXSECRETLEN);
 	bit = PAP_WITHPEER;
+	prot = "PAP";
 	break;
     case PPP_EAP:
 	bit = EAP_WITHPEER;
+	prot = "EAP";
 	break;
     default:
 	warn("auth_withpeer_success: unknown protocol %x", protocol);
 	bit = 0;
     }
+
+    notice("%s authentication succeeded", prot);
 
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;
