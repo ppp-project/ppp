@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.97 2005/07/09 04:58:36 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.98 2005/07/13 12:31:36 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -58,14 +58,19 @@
 #ifdef PPP_FILTER
 #include <pcap.h>
 /*
- * DLT_PPP_WITH_DIRECTION is in current libpcap cvs, and should be in
- * libpcap-0.8.4.  Until that is released, use DLT_PPP - but that means
+ * There have been 3 or 4 different names for this in libpcap CVS, but
+ * this seems to be what they have settled on...
+ * For older versions of libpcap, use DLT_PPP - but that means
  * we lose the inbound and outbound qualifiers.
  */
-#ifndef DLT_PPP_WITHDIRECTION
-#define DLT_PPP_WITHDIRECTION	DLT_PPP
+#ifndef DLT_PPP_PPPD
+#ifdef DLT_PPP_WITHDIRECTION
+#define DLT_PPP_PPPD	DLT_PPP_WITHDIRECTION
+#else
+#define DLT_PPP_PPPD	DLT_PPP
 #endif
 #endif
+#endif /* PPP_FILTER */
 
 #include "pppd.h"
 #include "pathnames.h"
@@ -1449,7 +1454,7 @@ setpassfilter(argv)
     pcap_t *pc;
     int ret = 1;
 
-    pc = pcap_open_dead(DLT_PPP_WITHDIRECTION, 65535);
+    pc = pcap_open_dead(DLT_PPP_PPPD, 65535);
     if (pcap_compile(pc, &pass_filter, *argv, 1, netmask) == -1) {
 	option_error("error in pass-filter expression: %s\n",
 		     pcap_geterr(pc));
@@ -1470,7 +1475,7 @@ setactivefilter(argv)
     pcap_t *pc;
     int ret = 1;
 
-    pc = pcap_open_dead(DLT_PPP_WITHDIRECTION, 65535);
+    pc = pcap_open_dead(DLT_PPP_PPPD, 65535);
     if (pcap_compile(pc, &active_filter, *argv, 1, netmask) == -1) {
 	option_error("error in active-filter expression: %s\n",
 		     pcap_geterr(pc));
