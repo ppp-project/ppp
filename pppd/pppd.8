@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.84 2005/03/22 10:48:37 paulus Exp $
+.\" $Id: pppd.8,v 1.85 2005/08/25 12:10:18 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -43,7 +43,8 @@ increasingly rare.
 .TP
 .I ttyname
 Use the serial port called \fIttyname\fR to communicate with the
-peer.  The string "/dev/" is prepended to \fIttyname\fR to form the
+peer.  If \fIttyname\fR does not begin with a slash (/),
+the string "/dev/" is prepended to \fIttyname\fR to form the
 name of the device to open.  If no device name is given, or if the
 name of the terminal
 connected to the standard input is given, pppd will use that terminal,
@@ -579,7 +580,8 @@ system.  This is a privileged option.
 .B local
 Don't use the modem control lines.  With this option, pppd will ignore
 the state of the CD (Carrier Detect) signal from the modem and will
-not change the state of the DTR (Data Terminal Ready) signal.
+not change the state of the DTR (Data Terminal Ready) signal.  This is
+the opposite of the \fBmodem\fR option.
 .TP
 .B logfd \fIn
 Send log messages to file descriptor \fIn\fR.  Pppd will send log
@@ -616,7 +618,8 @@ modem to be asserted when opening the serial device (unless a connect
 script is specified), and it will drop the DTR (Data Terminal Ready)
 signal briefly when the connection is terminated and before executing
 the connect script.  On Ultrix, this option implies hardware flow
-control, as for the \fIcrtscts\fR option.
+control, as for the \fIcrtscts\fR option.  This is the opposite of the
+\fBlocal\fR option.
 .TP
 .B mp
 Enables the use of PPP multilink; this is an alias for the `multilink'
@@ -1712,6 +1715,8 @@ system administrator can create options files in this directory to
 permit non-privileged users to dial out without requiring the peer to
 authenticate, but only to certain trusted peers.
 .SH SEE ALSO
+.BR chat (8),
+.BR pppstats (8)
 .TP
 .B RFC1144
 Jacobson, V.
