@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.151 2005/07/12 01:07:59 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.152 2005/08/25 23:59:34 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -1662,7 +1662,7 @@ device_script(program, in, out, dont_wait)
 
 /*
  * run-program - execute a program with given arguments,
- * but don't wait for it.
+ * but don't wait for it unless wait is non-zero.
  * If the program can't be executed, logs an error unless
  * must_exist is 0 and the program file doesn't exist.
  * Returns -1 if it couldn't fork, 0 if the file doesn't exist
@@ -1671,14 +1671,15 @@ device_script(program, in, out, dont_wait)
  * reap_kids) iff the return value is > 0.
  */
 pid_t
-run_program(prog, args, must_exist, done, arg)
+run_program(prog, args, must_exist, done, arg, wait)
     char *prog;
     char **args;
     int must_exist;
     void (*done) __P((void *));
     void *arg;
+    int wait;
 {
-    int pid;
+    int pid, status;
     struct stat sbuf;
 
     /*
@@ -1704,6 +1705,14 @@ run_program(prog, args, must_exist, done, arg)
 	if (debug)
 	    dbglog("Script %s started (pid %d)", prog, pid);
 	record_child(pid, prog, done, arg);
+	if (wait) {
+	    while (waitpid(pid, &status, 0) < 0) {
+		if (errno == EINTR)
+		    continue;
+		fatal("error waiting for script %s: %m", prog);
+	    }
+	    reap_kids();
+	}
 	return pid;
     }
 

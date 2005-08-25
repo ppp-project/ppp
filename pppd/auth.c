@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.106 2005/07/13 10:41:58 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.107 2005/08/25 23:59:34 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -2558,5 +2558,5 @@ auth_script(script)
     argv[5] = strspeed;
     argv[6] = NULL;
 
-    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL);
+    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);
 }

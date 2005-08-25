@@ -1,7 +1,7 @@
 /*
  * define path names
  *
- * $Id: pathnames.h,v 1.17 2005/07/10 11:19:10 paulus Exp $
+ * $Id: pathnames.h,v 1.18 2005/08/25 23:59:34 paulus Exp $
  */
 
 #ifdef HAVE_PATHS_H
@@ -24,6 +24,7 @@
 #define _PATH_SYSOPTIONS _ROOT_PATH "/etc/ppp/options"
 #define _PATH_IPUP	 _ROOT_PATH "/etc/ppp/ip-up"
 #define _PATH_IPDOWN	 _ROOT_PATH "/etc/ppp/ip-down"
+#define _PATH_IPPREUP	 _ROOT_PATH "/etc/ppp/ip-pre-up"
 #define _PATH_AUTHUP	 _ROOT_PATH "/etc/ppp/auth-up"
 #define _PATH_AUTHDOWN	 _ROOT_PATH "/etc/ppp/auth-down"
 #define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options."
