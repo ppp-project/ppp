@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.86 2005/08/26 00:06:35 paulus Exp $
+.\" $Id: pppd.8,v 1.87 2005/08/28 05:21:24 paulus Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -153,7 +153,8 @@ non-privileged user.
 .TP
 .B lock
 Specifies that pppd should create a UUCP-style lock file for the
-serial device to ensure exclusive access to the device.
+serial device to ensure exclusive access to the device.  By default,
+pppd will not create a lock file.
 .TP
 .B mru \fIn
 Set the MRU [Maximum Receive Unit] value to \fIn\fR. Pppd
@@ -747,6 +748,11 @@ for IPXCP negotiation.
 .B noktune
 Opposite of the \fIktune\fR option; disables pppd from changing system
 settings.
+.TP
+.B nolock
+Opposite of the \fIlock\fR option; specifies that pppd should not
+create a UUCP-style lock file for the serial device.  This option is
+privileged.
 .TP
 .B nolog
 Do not send log messages to a file or file descriptor.  This option
