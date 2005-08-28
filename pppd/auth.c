@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.107 2005/08/25 23:59:34 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.108 2005/08/28 05:22:48 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -652,6 +652,8 @@ link_terminated(unit)
 	the_channel->disconnect();
 	devfd = -1;
     }
+    if (the_channel->cleanup)
+	(*the_channel->cleanup)();
 
     if (doing_multilink && multilink_master) {
 	if (!bundle_terminating)
