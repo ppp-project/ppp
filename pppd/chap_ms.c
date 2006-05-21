@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.35 2006/05/21 07:23:15 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.36 2006/05/21 11:56:40 paulus Exp $"
 
 #ifdef CHAPMS
 
@@ -390,7 +390,7 @@ chapms_handle_failure(unsigned char *inp, int len)
 	 * chapms[2]_verify_response.
 	 */
 	if (!strncmp(p, "E=", 2))
-		err = strtol(p, NULL, 10); /* Remember the error code. */
+		err = strtol(p+2, NULL, 10); /* Remember the error code. */
 	else
 		goto print_msg; /* Message is badly formatted. */
 
