@@ -1,4 +1,4 @@
-#	$Id: Makefile.linux,v 1.13 2004/11/03 11:51:47 paulus Exp $
+#	$Id: Makefile.linux,v 1.14 2006/05/22 00:16:57 paulus Exp $
 
 DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
@@ -24,7 +24,7 @@ chat.o:	chat.c
 	$(CC) -c $(CFLAGS) -o chat.o chat.c
 
 install: chat
-	mkdir -p $(BINDIR)
+	mkdir -p $(BINDIR) $(MANDIR)
 	$(INSTALL) -s -c chat $(BINDIR)
 	$(INSTALL) -c -m 644 chat.8 $(MANDIR)
 
