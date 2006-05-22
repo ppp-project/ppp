@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.108 2005/08/28 05:22:48 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.109 2006/05/22 00:04:07 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -746,8 +746,8 @@ link_established(unit)
 	    set_allowed_addrs(unit, NULL, NULL);
 	} else if (!wo->neg_upap || uselogin || !null_login(unit)) {
 	    warn("peer refused to authenticate: terminating link");
-	    lcp_close(unit, "peer refused to authenticate");
 	    status = EXIT_PEER_AUTH_FAILED;
+	    lcp_close(unit, "peer refused to authenticate");
 	    return;
 	}
     }
@@ -906,8 +906,8 @@ auth_peer_fail(unit, protocol)
     /*
      * Authentication failure: take the link down
      */
-    lcp_close(unit, "Authentication failed");
     status = EXIT_PEER_AUTH_FAILED;
+    lcp_close(unit, "Authentication failed");
 }
 
 /*
@@ -984,8 +984,8 @@ auth_withpeer_fail(unit, protocol)
      * is no point in persisting without any way to get updated
      * authentication secrets.
      */
-    lcp_close(unit, "Failed to authenticate ourselves to peer");
     status = EXIT_AUTH_TOPEER_FAILED;
+    lcp_close(unit, "Failed to authenticate ourselves to peer");
 }
 
 /*
@@ -1149,9 +1149,9 @@ check_maxoctets(arg)
     diff = maxoctets - used;
     if(diff < 0) {
 	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
+	status = EXIT_TRAFFIC_LIMIT;
 	lcp_close(0, "Traffic limit");
 	need_holdoff = 0;
-	status = EXIT_TRAFFIC_LIMIT;
     } else {
         TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
     }
@@ -1181,9 +1181,9 @@ check_idle(arg)
     if (tlim <= 0) {
 	/* link is idle: shut it down. */
 	notice("Terminating connection due to lack of activity.");
+	status = EXIT_IDLE_TIMEOUT;
 	lcp_close(0, "Link inactive");
 	need_holdoff = 0;
-	status = EXIT_IDLE_TIMEOUT;
     } else {
 	TIMEOUT(check_idle, NULL, tlim);
     }
