@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.109 2006/05/22 00:04:07 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.110 2006/06/04 07:04:57 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -418,9 +418,13 @@ setupapfile(argv)
     fname = strdup(*argv);
     if (fname == NULL)
 	novm("+ua file name");
-    seteuid(getuid());
+    if (seteuid(getuid()) == -1) {
+	option_error("unable to reset uid before opening %s: %m", fname);
+	return ;
+    }
     ufile = fopen(fname, "r");
-    seteuid(0);
+    if (seteuid(0) == -1)
+	fatal("unable to regain privileges: %m");
     if (ufile == NULL) {
 	option_error("unable to open user login data file %s", fname);
 	return 0;
