@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.36 2006/05/21 11:56:40 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.37 2006/12/19 08:38:14 paulus Exp $"
 
 #ifdef CHAPMS
 
@@ -852,7 +852,7 @@ ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
     u_char *p = &response[MS_CHAP2_PEER_CHALLENGE];
     int i;
 
-    BZERO(response, sizeof(*response));
+    BZERO(response, MS_CHAP2_RESPONSE_LEN);
 
     /* Generate the Peer-Challenge if requested, or copy it if supplied. */
     if (!PeerChallenge)
