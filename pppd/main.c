@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.154 2006/12/19 07:48:19 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.155 2006/12/19 10:22:11 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -2074,7 +2074,7 @@ update_db_entry()
     dbuf.dptr = vbuf;
     dbuf.dsize = vlen;
     if (tdb_store(pppdb, key, dbuf, TDB_REPLACE))
-	error("tdb_store failed: %s", tdb_error(pppdb));
+	error("tdb_store failed: %s", tdb_errorstr(pppdb));
 
     if (vbuf)
         free(vbuf);
@@ -2095,7 +2095,7 @@ add_db_key(str)
     dbuf.dptr = db_key;
     dbuf.dsize = strlen(db_key);
     if (tdb_store(pppdb, key, dbuf, TDB_REPLACE))
-	error("tdb_store key failed: %s", tdb_error(pppdb));
+	error("tdb_store key failed: %s", tdb_errorstr(pppdb));
 }
 
 /*
