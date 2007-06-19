@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.91 2005/08/25 23:59:34 paulus Exp $
+ * $Id: pppd.h,v 1.92 2007/06/19 02:08:35 carlsonj Exp $
  */
 
 /*
@@ -293,6 +293,7 @@ extern char	passwd[MAXSECRETLEN];	/* Password for PAP or CHAP */
 extern bool	auth_required;	/* Peer is required to authenticate */
 extern bool	persist;	/* Reopen link after it goes down */
 extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
+extern bool	session_mgmt;	/* Do session management (login records) */
 extern char	our_name[MAXNAMELEN];/* Our name for authentication purposes */
 extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 extern bool	explicit_remote;/* remote_name specified with remotename opt */

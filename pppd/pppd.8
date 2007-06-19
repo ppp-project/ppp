@@ -1,5 +1,5 @@
 .\" manual page [] for pppd 2.4
-.\" $Id: pppd.8,v 1.88 2006/06/16 00:01:23 paulus Exp $
+.\" $Id: pppd.8,v 1.89 2007/06/19 02:08:35 carlsonj Exp $
 .\" SH section heading
 .\" SS subsection heading
 .\" LP paragraph
@@ -352,6 +352,16 @@ With the \fBdump\fR option, pppd will print out all the option values
 which have been set.  This option is like the \fBdryrun\fR option
 except that pppd proceeds as normal rather than exiting.
 .TP
+.B enable-session
+Enables session accounting via PAM or wtwp/wtmpx, as appropriate.
+When PAM is enabled, the PAM "account" and "session" module stacks
+determine behavior, and are enabled for all PPP authentication
+protocols.  When PAM is disabled, wtmp/wtmpx entries are recorded
+regardless of whether the peer name identifies a valid user on the
+local system, making peers visible in the last(1) log.  This feature
+is automatically enabled when the pppd \fBlogin\fR option is used.
+Session accounting is disabled by default.
+.TP
 .B endpoint \fI<epdisc>
 Sets the endpoint discriminator sent by the local machine to the peer
 during multilink negotiation to \fI<epdisc>\fR.  The default is to use
@@ -602,7 +612,8 @@ the user who invoked pppd, in append mode.
 Use the system password database for authenticating the peer using
 PAP, and record the user in the system wtmp file.  Note that the peer
 must have an entry in the /etc/ppp/pap\-secrets file as well as the
-system password database to be allowed access.
+system password database to be allowed access.  See also the
+\fBenable\-session\fR option.
 .TP
 .B maxconnect \fIn
 Terminate the connection when it has been available for network

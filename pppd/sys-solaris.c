@@ -85,7 +85,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.14 2005/05/04 21:31:20 carlsonj Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.15 2007/06/19 02:08:35 carlsonj Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -2465,8 +2465,13 @@ logwtmp(line, name, host)
     if (name[0] != 0) {
 	/* logging in */
 	strncpy(utmpx.ut_user, name, sizeof(utmpx.ut_user));
-	strncpy(utmpx.ut_id, ifname, sizeof(utmpx.ut_id));
 	strncpy(utmpx.ut_line, line, sizeof(utmpx.ut_line));
+	strncpy(utmpx.ut_host, host, sizeof(utmpx.ut_host));
+	if (*host != '\0') {
+	    utmpx.ut_syslen = strlen(host) + 1;
+	    if (utmpx.ut_syslen > sizeof(utmpx.ut_host))
+		utmpx.ut_syslen = sizeof(utmpx.ut_host);
+	}
 	utmpx.ut_pid = getpid();
 	utmpx.ut_type = USER_PROCESS;
     } else {
