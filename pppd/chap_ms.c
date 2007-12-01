@@ -74,7 +74,7 @@
  *
  */
 
-#define RCSID	"$Id: chap_ms.c,v 1.37 2006/12/19 08:38:14 paulus Exp $"
+#define RCSID	"$Id: chap_ms.c,v 1.38 2007/12/01 20:10:51 carlsonj Exp $"
 
 #ifdef CHAPMS
 
@@ -819,7 +819,8 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
     ChapMS_NT(rchallenge, secret, secret_len, &response[MS_CHAP_NTRESP]);
 
 #ifdef MSLANMAN
-    ChapMS_LANMan(rchallenge, secret, secret_len, &response);
+    ChapMS_LANMan(rchallenge, secret, secret_len,
+		  &response[MS_CHAP_LANMANRESP]);
 
     /* preferred method is set by option  */
     response[MS_CHAP_USENT] = !ms_lanman;
