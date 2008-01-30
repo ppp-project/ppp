@@ -73,6 +73,11 @@
 #include <string.h>
 #include <pwd.h>
 #include <crypt.h>
+#include <shadow.h>
+#include <time.h>
+#include <utmp.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "pppd.h"
 #include "session.h"
 
@@ -164,8 +169,8 @@ session_start(flags, user, passwd, ttyName, msg)
     const char *ttyName;
     char **msg;
 {
-    bool ok = 1;
 #ifdef USE_PAM
+    bool ok = 1;
     const char *usr;
     int pam_error;
     bool try_session = 0;
