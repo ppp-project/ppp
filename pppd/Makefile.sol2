@@ -1,6 +1,6 @@
 #
 # Makefile for pppd under Solaris 2.
-# $Id: Makefile.sol2,v 1.29 2007/12/01 20:10:51 carlsonj Exp $
+# $Id: Makefile.sol2,v 1.30 2008/01/30 14:26:52 carlsonj Exp $
 #
 
 include ../Makedefs.com
@@ -12,8 +12,11 @@ OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o eap.o md5.o \
 	tty.o ccp.o ecp.o auth.o options.o demand.o utils.o sys-solaris.o \
 	chap-md5.o session.o
 
+# Solaris uses shadow passwords
+CFLAGS	+= -DHAS_SHADOW
+
 #
-# uncomment the following to enable plugins
+# Comment the following out to disable plugins
 #
 CFLAGS	+= -DPLUGIN
 LIBS	+= -ldl

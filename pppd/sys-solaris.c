@@ -85,7 +85,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.15 2007/06/19 02:08:35 carlsonj Exp $"
+#define RCSID	"$Id: sys-solaris.c,v 1.16 2008/01/30 14:26:53 carlsonj Exp $"
 
 #include <limits.h>
 #include <stdio.h>
@@ -2220,7 +2220,7 @@ get_hw_addr_dlpi(name, hwaddr)
     char *name;
     struct sockaddr *hwaddr;
 {
-    char *p, *q;
+    char *q;
     int unit, iffd, adrlen;
     unsigned char *adrp;
     char ifdev[24];
@@ -2744,7 +2744,6 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
 {
     int mfd, sfd;
     char *pty_name;
-    struct termios tios;
 
     mfd = open("/dev/ptmx", O_RDWR);
     if (mfd < 0) {

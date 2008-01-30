@@ -294,9 +294,11 @@ session_start(flags, user, passwd, ttyName, msg)
 #else /* #ifdef USE_PAM */
 
 /*
- * Use the non-PAM methods directly
+ * Use the non-PAM methods directly.  'pw' will remain NULL if the user
+ * has not been authenticated using local UNIX system services.
  */
 
+    pw = NULL;
     if ((SESS_AUTH & flags)) {
 	pw = getpwnam(user);
 
@@ -362,7 +364,12 @@ session_start(flags, user, passwd, ttyName, msg)
 	logged_in = 1;
 
 #if defined(_PATH_LASTLOG) && !defined(USE_PAM)
-	{
+	/*
+	 * Enter the user in lastlog only if he has been authenticated using
+	 * local system services.  If he has not, then we don't know what his
+	 * UID might be, and lastlog is indexed by UID.
+	 */
+	if (pw != NULL) {
             struct lastlog ll;
             int fd;
 
