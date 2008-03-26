@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.70 2005/08/25 23:59:34 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.71 2008/03/26 10:57:11 paulus Exp $"
 
 /*
  * TODO:
@@ -1117,6 +1117,8 @@ ipcp_nakci(f, p, len, treat_as_reject)
      * on an option that we didn't include in our request packet.
      * If they want to negotiate about IP addresses, we comply.
      * If they want us to ask for compression, we refuse.
+     * If they want us to ask for ms-dns, we do that, since some
+     * peers get huffy if we don't.
      */
     while (len >= CILEN_VOID) {
 	GETCHAR(citype, p);
@@ -1158,6 +1160,22 @@ ipcp_nakci(f, p, len, treat_as_reject)
 	    if (try.ouraddr != 0)
 		try.neg_addr = 1;
 	    no.neg_addr = 1;
+	    break;
+	case CI_MS_DNS1:
+	    if (go->req_dns1 || no.req_dns1 || cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    try.dnsaddr[0] = htonl(l);
+	    try.req_dns1 = 1;
+	    no.req_dns1 = 1;
+	    break;
+	case CI_MS_DNS2:
+	    if (go->req_dns2 || no.req_dns2 || cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    try.dnsaddr[1] = htonl(l);
+	    try.req_dns2 = 1;
+	    no.req_dns2 = 1;
 	    break;
 	}
 	p = next;
@@ -2114,7 +2132,7 @@ ipcp_printpkt(p, plen, printer, arg)
 	    case CI_MS_DNS2:
 	        p += 2;
 		GETLONG(cilong, p);
-		printer(arg, "ms-dns%d %I", code - CI_MS_DNS1 + 1,
+		printer(arg, "ms-dns%d %I", (code == CI_MS_DNS1? 1: 2),
 			htonl(cilong));
 		break;
 	    case CI_MS_WINS1:
