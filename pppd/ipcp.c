@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.71 2008/03/26 10:57:11 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.72 2008/03/26 11:34:23 paulus Exp $"
 
 /*
  * TODO:
@@ -72,6 +72,7 @@ ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 u_int32_t netmask = 0;		/* IP netmask to set on interface */
 
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
+bool	noremoteip = 0;		/* Let him have no IP address */
 
 /* Hook for a plugin to know when IP protocol has come up */
 void (*ip_up_hook) __P((void)) = NULL;
@@ -218,6 +219,13 @@ static option_t ipcp_option_list[] = {
     { "ipcp-no-address", o_bool, &ipcp_wantoptions[0].neg_addr,
       "Disable IP-Address usage", OPT_A2CLR,
       &ipcp_allowoptions[0].neg_addr },
+#ifdef __linux__
+    { "noremoteip", o_bool, &noremoteip,
+      "Allow peer to have no IP address", 1 },
+#endif
+    { "nosendip", o_bool, &ipcp_wantoptions[0].neg_addr,
+      "Don't send our IP address to peer", OPT_A2CLR,
+      &ipcp_wantoptions[0].old_addrs},
 
     { "IP addresses", o_wild, (void *) &setipaddr,
       "set local and remote IP addresses",
@@ -1599,7 +1607,7 @@ endswitch:
      * option safely.
      */
     if (rc != CONFREJ && !ho->neg_addr && !ho->old_addrs &&
-	wo->req_addr && !reject_if_disagree) {
+	wo->req_addr && !reject_if_disagree && !noremoteip) {
 	if (rc == CONFACK) {
 	    rc = CONFNAK;
 	    ucp = inp;			/* reset pointer */
@@ -1659,7 +1667,7 @@ ip_demand_conf(u)
 {
     ipcp_options *wo = &ipcp_wantoptions[u];
 
-    if (wo->hisaddr == 0) {
+    if (wo->hisaddr == 0 && !noremoteip) {
 	/* make up an arbitrary address for the peer */
 	wo->hisaddr = htonl(0x0a707070 + ifunit);
 	wo->accept_remote = 1;
@@ -1685,7 +1693,8 @@ ip_demand_conf(u)
 	    proxy_arp_set[u] = 1;
 
     notice("local  IP address %I", wo->ouraddr);
-    notice("remote IP address %I", wo->hisaddr);
+    if (wo->hisaddr)
+	notice("remote IP address %I", wo->hisaddr);
 
     return 1;
 }
@@ -1724,13 +1733,14 @@ ipcp_up(f)
 	ipcp_close(f->unit, "Could not determine local IP address");
 	return;
     }
-    if (ho->hisaddr == 0) {
+    if (ho->hisaddr == 0 && !noremoteip) {
 	ho->hisaddr = htonl(0x0a404040 + ifunit);
 	warn("Could not determine remote IP address: defaulting to %I",
 	     ho->hisaddr);
     }
     script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
-    script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
+    if (ho->hisaddr != 0)
+	script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
 
     if (go->dnsaddr[0])
 	script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
@@ -1744,7 +1754,7 @@ ipcp_up(f)
     /*
      * Check that the peer is allowed to use the IP address it wants.
      */
-    if (!auth_ip_addr(f->unit, ho->hisaddr)) {
+    if (ho->hisaddr != 0 && !auth_ip_addr(f->unit, ho->hisaddr)) {
 	error("Peer is not authorized to use remote address %I", ho->hisaddr);
 	ipcp_close(f->unit, "Unauthorized remote IP address");
 	return;
@@ -1767,7 +1777,7 @@ ipcp_up(f)
 		wo->ouraddr = go->ouraddr;
 	    } else
 		script_unsetenv("OLDIPLOCAL");
-	    if (ho->hisaddr != wo->hisaddr) {
+	    if (ho->hisaddr != wo->hisaddr && wo->hisaddr != 0) {
 		warn("Remote IP address changed to %I", ho->hisaddr);
 		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
 		wo->hisaddr = ho->hisaddr;
@@ -1789,7 +1799,7 @@ ipcp_up(f)
 		    default_route_set[f->unit] = 1;
 
 	    /* Make a proxy ARP entry if requested. */
-	    if (ipcp_wantoptions[f->unit].proxy_arp)
+	    if (ho->hisaddr != 0 && ipcp_wantoptions[f->unit].proxy_arp)
 		if (sifproxyarp(f->unit, ho->hisaddr))
 		    proxy_arp_set[f->unit] = 1;
 
@@ -1839,14 +1849,15 @@ ipcp_up(f)
 		default_route_set[f->unit] = 1;
 
 	/* Make a proxy ARP entry if requested. */
-	if (ipcp_wantoptions[f->unit].proxy_arp)
+	if (ho->hisaddr != 0 && ipcp_wantoptions[f->unit].proxy_arp)
 	    if (sifproxyarp(f->unit, ho->hisaddr))
 		proxy_arp_set[f->unit] = 1;
 
 	ipcp_wantoptions[0].ouraddr = go->ouraddr;
 
 	notice("local  IP address %I", go->ouraddr);
-	notice("remote IP address %I", ho->hisaddr);
+	if (ho->hisaddr != 0)
+	    notice("remote IP address %I", ho->hisaddr);
 	if (go->dnsaddr[0])
 	    notice("primary   DNS address %I", go->dnsaddr[0]);
 	if (go->dnsaddr[1])

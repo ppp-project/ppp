@@ -2346,11 +2346,13 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
 /*
  *  Set the gateway address
  */
-    SIN_ADDR(ifr.ifr_dstaddr) = his_adr;
-    if (ioctl(sock_fd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
-	if (! ok_error (errno))
-	    error("ioctl(SIOCSIFDSTADDR): %m (line %d)", __LINE__);
-	return (0);
+    if (his_adr != 0) {
+	SIN_ADDR(ifr.ifr_dstaddr) = his_adr;
+	if (ioctl(sock_fd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
+	    if (! ok_error (errno))
+		error("ioctl(SIOCSIFDSTADDR): %m (line %d)", __LINE__);
+	    return (0);
+	}
     }
 /*
  *  Set the netmask.
