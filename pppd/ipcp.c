@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: ipcp.c,v 1.72 2008/03/26 11:34:23 paulus Exp $"
+#define RCSID	"$Id: ipcp.c,v 1.73 2008/05/26 08:33:22 paulus Exp $"
 
 /*
  * TODO:
@@ -1742,6 +1742,10 @@ ipcp_up(f)
     if (ho->hisaddr != 0)
 	script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
 
+    if (!go->req_dns1)
+	    go->dnsaddr[0] = 0;
+    if (!go->req_dns2)
+	    go->dnsaddr[1] = 0;
     if (go->dnsaddr[0])
 	script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
     if (go->dnsaddr[1])
