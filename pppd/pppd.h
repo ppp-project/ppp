@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.92 2007/06/19 02:08:35 carlsonj Exp $
+ * $Id: pppd.h,v 1.93 2008/06/03 12:06:37 paulus Exp $
  */
 
 /*
@@ -516,7 +516,7 @@ void notice __P((char *, ...));	/* log a notice-level message */
 void warn __P((char *, ...));	/* log a warning message */
 void error __P((char *, ...));	/* log an error message */
 void fatal __P((char *, ...));	/* log an error message and die(1) */
-void init_pr_log __P((char *, int));	/* initialize for using pr_log */
+void init_pr_log __P((const char *, int)); /* initialize for using pr_log */
 void pr_log __P((void *, char *, ...));	/* printer fn, output to syslog */
 void end_pr_log __P((void));	/* finish up after using pr_log */
 void dump_packet __P((const char *, u_char *, int));
