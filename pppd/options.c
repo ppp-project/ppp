@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.100 2006/06/18 11:26:00 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.101 2008/06/03 12:07:13 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -771,17 +771,20 @@ process_option(opt, cmd, argv)
 	if (!(*parser)(argv))
 	    return 0;
 	if (opt->flags & OPT_A2LIST) {
-	    struct option_value *ovp, **pp;
+	    struct option_value *ovp, *pp;
 
 	    ovp = malloc(sizeof(*ovp) + strlen(*argv));
 	    if (ovp != 0) {
 		strcpy(ovp->value, *argv);
 		ovp->source = option_source;
 		ovp->next = NULL;
-		pp = (struct option_value **) &opt->addr2;
-		while (*pp != 0)
-		    pp = &(*pp)->next;
-		*pp = ovp;
+		if (opt->addr2 == NULL) {
+		    opt->addr2 = ovp;
+		} else {
+		    for (pp = opt->addr2; pp->next != NULL; pp = pp->next)
+			;
+		    pp->next = ovp;
+		}
 	    }
 	}
 	break;
