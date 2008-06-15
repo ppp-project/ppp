@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.114 2008/06/15 06:53:06 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.115 2008/06/15 06:56:12 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -189,6 +189,11 @@ int (*null_auth_hook) __P((struct wordlist **paddrs,
 			   struct wordlist **popts)) = NULL;
 
 int (*allowed_address_hook) __P((u_int32_t addr)) = NULL;
+
+#ifdef HAVE_MULTILINK
+/* Hook for plugin to hear when an interface joins a multilink bundle */
+void (*multilink_join_hook) __P((void)) = NULL;
+#endif
 
 /* A notifier for when the peer has authenticated itself,
    and we are proceeding to the network phase. */
@@ -855,6 +860,8 @@ start_networks(unit)
 #ifdef HAVE_MULTILINK
     if (multilink) {
 	if (mp_join_bundle()) {
+	    if (multilink_join_hook)
+		(*multilink_join_hook)();
 	    if (updetach && !nodetach)
 		detach();
 	    return;
