@@ -1,6 +1,6 @@
 CC	= gcc
 COPTS	= -O2 -g
-CFLAGS	= $(COPTS) -I../.. -I../../../include -fPIC
+CFLAGS	= $(COPTS) -I. -I../.. -I../../../include -fPIC
 LDFLAGS	= -shared
 INSTALL	= install
 
@@ -11,7 +11,7 @@ LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 
-PLUGINS := pppol2tp.so
+PLUGINS := pppol2tp.so openl2tp.so
 
 all: $(PLUGINS)
 
