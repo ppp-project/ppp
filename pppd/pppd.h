@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.93 2008/06/03 12:06:37 paulus Exp $
+ * $Id: pppd.h,v 1.94 2008/06/15 06:53:06 paulus Exp $
  */
 
 /*
@@ -115,19 +115,19 @@ typedef struct {
 #define OPT_VALUE	0xff	/* mask for presupplied value */
 #define OPT_HEX		0x100	/* int option is in hex */
 #define OPT_NOARG	0x200	/* option doesn't take argument */
-#define OPT_OR		0x400	/* OR in argument to value */
-#define OPT_INC		0x800	/* increment value */
+#define OPT_OR		0x400	/* for u32, OR in argument to value */
+#define OPT_INC		0x400	/* for o_int, increment value */
 #define OPT_A2OR	0x800	/* for o_bool, OR arg to *(u_char *)addr2 */
 #define OPT_PRIV	0x1000	/* privileged option */
 #define OPT_STATIC	0x2000	/* string option goes into static array */
+#define OPT_NOINCR	0x2000	/* for o_int, value mustn't be increased */
 #define OPT_LLIMIT	0x4000	/* check value against lower limit */
 #define OPT_ULIMIT	0x8000	/* check value against upper limit */
 #define OPT_LIMITS	(OPT_LLIMIT|OPT_ULIMIT)
 #define OPT_ZEROOK	0x10000	/* 0 value is OK even if not within limits */
 #define OPT_HIDE	0x10000	/* for o_string, print value as ?????? */
-#define OPT_A2LIST	0x10000 /* for o_special, keep list of values */
-#define OPT_A2CLRB	0x10000 /* o_bool, clr val bits in *(u_char *)addr2 */
-#define OPT_NOINCR	0x20000	/* value mustn't be increased */
+#define OPT_A2LIST	0x20000 /* for o_special, keep list of values */
+#define OPT_A2CLRB	0x20000 /* o_bool, clr val bits in *(u_char *)addr2 */
 #define OPT_ZEROINF	0x40000	/* with OPT_NOINCR, 0 == infinity */
 #define OPT_PRIO	0x80000	/* process option priorities for this option */
 #define OPT_PRIOSUB	0x100000 /* subsidiary member of priority group */

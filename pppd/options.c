@@ -40,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: options.c,v 1.101 2008/06/03 12:07:13 paulus Exp $"
+#define RCSID	"$Id: options.c,v 1.102 2008/06/15 06:53:06 paulus Exp $"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -796,6 +796,10 @@ process_option(opt, cmd, argv)
 	break;
     }
 
+    /*
+     * If addr2 wasn't used by any flag (OPT_A2COPY, etc.) but is set,
+     * treat it as a bool and set/clear it based on the OPT_A2CLR bit.
+     */
     if (opt->addr2 && (opt->flags & (OPT_A2COPY|OPT_ENABLE
 		|OPT_A2PRINTER|OPT_A2STRVAL|OPT_A2LIST|OPT_A2OR)) == 0)
 	*(bool *)(opt->addr2) = !(opt->flags & OPT_A2CLR);

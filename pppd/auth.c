@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.113 2007/06/19 02:08:35 carlsonj Exp $"
+#define RCSID	"$Id: auth.c,v 1.114 2008/06/15 06:53:06 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -230,6 +230,8 @@ bool usehostname = 0;		/* Use hostname for our_name */
 bool auth_required = 0;		/* Always require authentication from peer */
 bool allow_any_ip = 0;		/* Allow peer to use any IP address */
 bool explicit_remote = 0;	/* User specified explicit remote name */
+bool explicit_user = 0;		/* Set if "user" option supplied */
+bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 
 static char *uafname;		/* name of most recent +ua file */
@@ -355,11 +357,13 @@ option_t auth_options[] = {
       OPT_PRIO | OPT_A2STRVAL, &uafname },
 
     { "user", o_string, user,
-      "Set name for auth with peer", OPT_PRIO | OPT_STATIC, NULL, MAXNAMELEN },
+      "Set name for auth with peer", OPT_PRIO | OPT_STATIC,
+      &explicit_user, MAXNAMELEN },
 
     { "password", o_string, passwd,
       "Password for authenticating us to the peer",
-      OPT_PRIO | OPT_STATIC | OPT_HIDE, NULL, MAXSECRETLEN },
+      OPT_PRIO | OPT_STATIC | OPT_HIDE,
+      &explicit_passwd, MAXSECRETLEN },
 
     { "usehostname", o_bool, &usehostname,
       "Must use hostname for authentication", 1 },
@@ -446,10 +450,14 @@ setupapfile(argv)
     if (l > 0 && p[l-1] == '\n')
 	p[l-1] = 0;
 
-    if (override_value("user", option_priority, fname))
+    if (override_value("user", option_priority, fname)) {
 	strlcpy(user, u, sizeof(user));
-    if (override_value("passwd", option_priority, fname))
+	explicit_user = 1;
+    }
+    if (override_value("passwd", option_priority, fname)) {
 	strlcpy(passwd, p, sizeof(passwd));
+	explicit_passwd = 1;
+    }
 
     return (1);
 }
@@ -770,7 +778,9 @@ link_established(unit)
 	chap_auth_with_peer(unit, user, CHAP_DIGEST(ho->chap_mdtype));
 	auth |= CHAP_WITHPEER;
     } else if (ho->neg_upap) {
-	if (passwd[0] == 0) {
+	/* If a blank password was explicitly given as an option, trust
+	   the user and don't try to look up one. */
+	if (passwd[0] == 0 && !explicit_passwd) {
 	    passwd_from_file = 1;
 	    if (!get_pap_passwd(passwd))
 		error("No secret found for PAP login");
@@ -1212,7 +1222,9 @@ auth_check_options()
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
 	strlcpy(our_name, hostname, sizeof(our_name));
-    if (user[0] == 0)
+    /* If a blank username was explicitly given as an option, trust
+       the user and don't use our_name */
+    if (user[0] == 0 && !explicit_user)
 	strlcpy(user, our_name, sizeof(user));
 
     /*
