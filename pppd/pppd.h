@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.94 2008/06/15 06:53:06 paulus Exp $
+ * $Id: pppd.h,v 1.95 2008/06/15 07:03:05 paulus Exp $
  */
 
 /*
@@ -715,6 +715,7 @@ extern void (*ip_choose_hook) __P((u_int32_t *));
 
 extern int (*chap_check_hook) __P((void));
 extern int (*chap_passwd_hook) __P((char *user, char *passwd));
+extern void (*multilink_join_hook) __P((void));
 
 /* Let a plugin snoop sent and received packets.  Useful for L2TP */
 extern void (*snoop_recv_hook) __P((unsigned char *p, int len));
