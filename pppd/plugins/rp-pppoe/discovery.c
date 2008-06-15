@@ -9,7 +9,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: discovery.c,v 1.5 2008/06/09 08:34:23 paulus Exp $";
+"$Id: discovery.c,v 1.6 2008/06/15 04:35:50 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -274,7 +274,7 @@ sendPADI(PPPoEConnection *conn)
 *%DESCRIPTION:
 * Waits for a PADO packet and copies useful information
 ***********************************************************************/
-static void
+void
 waitForPADO(PPPoEConnection *conn, int timeout)
 {
     fd_set readable;
@@ -331,6 +331,11 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 	if (packet.code == CODE_PADO) {
 	    if (NOT_UNICAST(packet.ethHdr.h_source)) {
 		error("Ignoring PADO packet from non-unicast MAC address");
+		continue;
+	    }
+	    if (conn->req_peer
+		&& memcmp(packet.ethHdr.h_source, conn->req_peer_mac, ETH_ALEN) != 0) {
+		warn("Ignoring PADO packet from wrong MAC address");
 		continue;
 	    }
 	    if (parsePacket(&packet, parsePADOTags, &pc) < 0)

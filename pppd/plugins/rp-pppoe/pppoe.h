@@ -9,7 +9,7 @@
 * This program may be distributed according to the terms of the GNU
 * General Public License, version 2 or (at your option) any later version.
 *
-* $Id: pppoe.h,v 1.3 2008/06/09 08:34:23 paulus Exp $
+* $Id: pppoe.h,v 1.4 2008/06/15 04:35:50 paulus Exp $
 *
 ***********************************************************************/
 
@@ -217,6 +217,8 @@ typedef struct PPPoEConnectionStruct {
     int sessionSocket;		/* Raw socket for session frames */
     unsigned char myEth[ETH_ALEN]; /* My MAC address */
     unsigned char peerEth[ETH_ALEN]; /* Peer's MAC address */
+    unsigned char req_peer_mac[ETH_ALEN]; /* required peer MAC address */
+    unsigned char req_peer;	/* require mac addr to match req_peer_mac */
     UINT16_t session;		/* Session ID */
     char *ifName;		/* Interface name */
     char *serviceName;		/* Desired service name, if any */

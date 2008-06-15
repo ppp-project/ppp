@@ -23,7 +23,7 @@
 ***********************************************************************/
 
 static char const RCSID[] =
-"$Id: plugin.c,v 1.16 2008/06/09 08:34:23 paulus Exp $";
+"$Id: plugin.c,v 1.17 2008/06/15 04:35:50 paulus Exp $";
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
@@ -67,6 +67,8 @@ char *pppd_pppoe_service = NULL;
 static char *acName = NULL;
 static char *existingSession = NULL;
 static int printACNames = 0;
+static char *pppoe_reqd_mac = NULL;
+unsigned char pppoe_reqd_mac_addr[6];
 
 static int PPPoEDevnameHook(char *cmd, char **argv, int doit);
 static option_t Options[] = {
@@ -82,6 +84,8 @@ static option_t Options[] = {
       "Attach to existing session (sessid:macaddr)" },
     { "rp_pppoe_verbose", o_int, &printACNames,
       "Be verbose about discovered access concentrators"},
+    { "pppoe-mac", o_string, &pppoe_reqd_mac,
+      "Only connect to specified MAC address" },
     { NULL }
 };
 int (*OldDevnameHook)(char *cmd, char **argv, int doit) = NULL;
@@ -348,6 +352,21 @@ plugin_init(void)
 
 void pppoe_check_options(void)
 {
+    unsigned int mac[6];
+    int i;
+
+    if (pppoe_reqd_mac != NULL) {
+	if (sscanf(pppoe_reqd_mac, "%x:%x:%x:%x:%x:%x",
+		   &mac[0], &mac[1], &mac[2], &mac[3],
+		   &mac[4], &mac[5]) != 6) {
+	    option_error("cannot parse pppoe-mac option value");
+	    exit(EXIT_OPTION_ERROR);
+	}
+	for (i = 0; i < 6; ++i)
+	    conn->req_peer_mac[i] = mac[i];
+	conn->req_peer = 1;
+    }
+
     lcp_allowoptions[0].neg_accompression = 0;
     lcp_wantoptions[0].neg_accompression = 0;
 
