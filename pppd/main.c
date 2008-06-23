@@ -66,7 +66,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: main.c,v 1.155 2006/12/19 10:22:11 paulus Exp $"
+#define RCSID	"$Id: main.c,v 1.156 2008/06/23 11:47:18 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -220,6 +220,7 @@ struct subprocess {
     char	*prog;
     void	(*done) __P((void *));
     void	*arg;
+    int		killable;
     struct subprocess *next;
 };
 
@@ -1383,7 +1384,21 @@ kill_my_pg(sig)
     int sig;
 {
     struct sigaction act, oldact;
+    struct subprocess *chp;
 
+    if (!detached) {
+	/*
+	 * There might be other things in our process group that we
+	 * didn't start that would get hit if we did a kill(0), so
+	 * just send the signal individually to our children.
+	 */
+	for (chp = children; chp != NULL; chp = chp->next)
+	    if (chp->killable)
+		kill(chp->pid, sig);
+	return;
+    }
+
+    /* We've done a setsid(), so we can just use a kill(0) */
     sigemptyset(&act.sa_mask);		/* unnecessary in fact */
     act.sa_handler = SIG_IGN;
     act.sa_flags = 0;
@@ -1633,15 +1648,15 @@ device_script(program, in, out, dont_wait)
     }
 
     if (pid != 0) {
-	if (dont_wait) {
-	    record_child(pid, program, NULL, NULL);
-	    status = 0;
-	} else {
+	record_child(pid, program, NULL, NULL, 1);
+	status = 0;
+	if (!dont_wait) {
 	    while (waitpid(pid, &status, 0) < 0) {
 		if (errno == EINTR)
 		    continue;
 		fatal("error waiting for (dis)connection process: %m");
 	    }
+	    forget_child(pid, status);
 	    --conn_running;
 	}
 	return (status == 0 ? 0 : -1);
@@ -1663,7 +1678,7 @@ device_script(program, in, out, dont_wait)
 
 
 /*
- * run-program - execute a program with given arguments,
+ * run_program - execute a program with given arguments,
  * but don't wait for it unless wait is non-zero.
  * If the program can't be executed, logs an error unless
  * must_exist is 0 and the program file doesn't exist.
@@ -1706,7 +1721,7 @@ run_program(prog, args, must_exist, done, arg, wait)
     if (pid != 0) {
 	if (debug)
 	    dbglog("Script %s started (pid %d)", prog, pid);
-	record_child(pid, prog, done, arg);
+	record_child(pid, prog, done, arg, 0);
 	if (wait) {
 	    while (waitpid(pid, &status, 0) < 0) {
 		if (errno == EINTR)
@@ -1749,11 +1764,12 @@ run_program(prog, args, must_exist, done, arg, wait)
  * to use.
  */
 void
-record_child(pid, prog, done, arg)
+record_child(pid, prog, done, arg, killable)
     int pid;
     char *prog;
     void (*done) __P((void *));
     void *arg;
+    int killable;
 {
     struct subprocess *chp;
 
@@ -1768,6 +1784,7 @@ record_child(pid, prog, done, arg)
 	chp->done = done;
 	chp->arg = arg;
 	chp->next = children;
+	chp->killable = killable;
 	children = chp;
     }
 }

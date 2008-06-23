@@ -39,7 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: pppd.h,v 1.95 2008/06/15 07:03:05 paulus Exp $
+ * $Id: pppd.h,v 1.96 2008/06/23 11:47:18 paulus Exp $
  */
 
 /*
@@ -474,7 +474,7 @@ void timeout __P((void (*func)(void *), void *arg, int s, int us));
 				/* Call func(arg) after s.us seconds */
 void untimeout __P((void (*func)(void *), void *arg));
 				/* Cancel call to func(arg) */
-void record_child __P((int, char *, void (*) (void *), void *));
+void record_child __P((int, char *, void (*) (void *), void *, int));
 pid_t safe_fork __P((int, int, int));	/* Fork & close stuff in child */
 int  device_script __P((char *cmd, int in, int out, int dont_wait));
 				/* Run `cmd' with given stdin and stdout */
