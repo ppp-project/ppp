@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.115 2008/06/15 06:56:12 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.116 2008/06/25 10:30:36 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -1140,7 +1140,6 @@ static void
 check_maxoctets(arg)
     void *arg;
 {
-    int diff;
     unsigned int used;
 
     update_link_stats(ifunit);
@@ -1161,8 +1160,7 @@ check_maxoctets(arg)
 	    used = link_stats.bytes_in+link_stats.bytes_out;
 	    break;
     }
-    diff = maxoctets - used;
-    if(diff < 0) {
+    if (used > maxoctets) {
 	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
 	status = EXIT_TRAFFIC_LIMIT;
 	lcp_close(0, "Traffic limit");
