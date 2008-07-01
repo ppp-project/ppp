@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: tty.c,v 1.26 2008/06/23 11:44:06 paulus Exp $"
+#define RCSID	"$Id: tty.c,v 1.27 2008/07/01 12:27:56 paulus Exp $"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -554,7 +554,6 @@ int connect_tty()
 	 * out and we want to use the modem lines, we reopen it later
 	 * in order to wait for the carrier detect signal from the modem.
 	 */
-	hungup = 0;
 	got_sigterm = 0;
 	connector = doing_callback? callback_script: connect_script;
 	if (devnam[0] != 0) {

@@ -68,7 +68,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: auth.c,v 1.116 2008/06/25 10:30:36 paulus Exp $"
+#define RCSID	"$Id: auth.c,v 1.117 2008/07/01 12:27:56 paulus Exp $"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -557,6 +557,7 @@ void start_link(unit)
 
     new_phase(PHASE_SERIALCONN);
 
+    hungup = 0;
     devfd = the_channel->connect();
     msg = "Connect script failed";
     if (devfd < 0)
