@@ -1,9 +1,0 @@
-Makefile
-pppd
-pppd.0
-pppd.cat8
-y.tab.h
-y.tab.c
-scanner.c
-grammar.c
-lex.yy.c
