@@ -26,7 +26,7 @@ INSTALL	= install
 RP_VERSION=3.8p
 
 COPTS=-O2 -g
-CFLAGS=$(COPTS) -I../../../include/linux '-DRP_VERSION="$(RP_VERSION)"'
+CFLAGS=$(COPTS) -I../../../include '-DRP_VERSION="$(RP_VERSION)"'
 all: rp-pppoe.so pppoe-discovery
 
 pppoe-discovery: pppoe-discovery.o debug.o
