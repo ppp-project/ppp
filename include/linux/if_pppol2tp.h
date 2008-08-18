@@ -17,10 +17,6 @@
 
 #include <asm/types.h>
 
-#ifdef __KERNEL__
-#include <linux/in.h>
-#endif
-
 /* Structure used to connect() the socket to a particular tunnel UDP
  * socket.
  */
