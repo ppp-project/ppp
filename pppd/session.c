@@ -372,11 +372,13 @@ session_start(flags, user, passwd, ttyName, msg)
 	if (pw != NULL) {
             struct lastlog ll;
             int fd;
+	    time_t tnow;
 
             if ((fd = open(_PATH_LASTLOG, O_RDWR, 0)) >= 0) {
                 (void)lseek(fd, (off_t)(pw->pw_uid * sizeof(ll)), SEEK_SET);
                 memset((void *)&ll, 0, sizeof(ll));
-                (void)time(&ll.ll_time);
+		(void)time(&tnow);
+                ll.ll_time = tnow;
                 (void)strncpy(ll.ll_line, ttyName, sizeof(ll.ll_line));
                 (void)strncpy(ll.ll_host, ifname, sizeof(ll.ll_host));
                 (void)write(fd, (char *)&ll, sizeof(ll));
