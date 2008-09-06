@@ -2016,19 +2016,11 @@ ppp_registered(void)
 
 int ppp_available(void)
 {
-    int s, ok, fd;
+    int s, ok, fd, err;
     struct ifreq ifr;
     int    size;
     int    my_version, my_modification, my_patch;
     int osmaj, osmin, ospatch;
-
-    no_ppp_msg =
-	"This system lacks kernel support for PPP.  This could be because\n"
-	"the PPP kernel module could not be loaded, or because PPP was not\n"
-	"included in the kernel configuration.  If PPP was included as a\n"
-	"module, try `/sbin/modprobe -v ppp'.  If that fails, check that\n"
-	"ppp.o exists in /lib/modules/`uname -r`/net.\n"
-	"See README.linux file in the ppp distribution for more details.\n";
 
     /* get the kernel version now, since we are called before sys_init */
     uname(&utsname);
@@ -2037,21 +2029,6 @@ int ppp_available(void)
     kernel_version = KVERSION(osmaj, osmin, ospatch);
 
     fd = open("/dev/ppp", O_RDWR);
-#if 0
-    if (fd < 0 && errno == ENOENT) {
-	/* try making it and see if that helps. */
-	if (mknod("/dev/ppp", S_IFCHR | S_IRUSR | S_IWUSR,
-		  makedev(108, 0)) >= 0) {
-	    fd = open("/dev/ppp", O_RDWR);
-	    if (fd >= 0)
-		info("Created /dev/ppp device node");
-	    else
-		unlink("/dev/ppp");	/* didn't work, undo the mknod */
-	} else if (errno == EEXIST) {
-	    fd = open("/dev/ppp", O_RDWR);
-	}
-    }
-#endif /* 0 */
     if (fd >= 0) {
 	new_style_driver = 1;
 
@@ -2062,15 +2039,29 @@ int ppp_available(void)
 	close(fd);
 	return 1;
     }
+    err = errno;
+
     if (kernel_version >= KVERSION(2,3,13)) {
+	error("Couldn't open the /dev/ppp device: %m");
 	if (errno == ENOENT)
 	    no_ppp_msg =
-		"pppd is unable to open the /dev/ppp device.\n"
 		"You need to create the /dev/ppp device node by\n"
 		"executing the following command as root:\n"
 		"	mknod /dev/ppp c 108 0\n";
+	else if (errno == ENODEV || errno == ENXIO)
+	    no_ppp_msg =
+		"Please load the ppp_generic kernel module.\n";
 	return 0;
     }
+
+    /* we are running on a really really old kernel */
+    no_ppp_msg =
+	"This system lacks kernel support for PPP.  This could be because\n"
+	"the PPP kernel module could not be loaded, or because PPP was not\n"
+	"included in the kernel configuration.  If PPP was included as a\n"
+	"module, try `/sbin/modprobe -v ppp'.  If that fails, check that\n"
+	"ppp.o exists in /lib/modules/`uname -r`/net.\n"
+	"See README.linux file in the ppp distribution for more details.\n";
 
 /*
  * Open a socket for doing the ioctl operations.
