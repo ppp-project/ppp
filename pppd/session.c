@@ -73,7 +73,9 @@
 #include <string.h>
 #include <pwd.h>
 #include <crypt.h>
+#ifdef USE_SHADOW
 #include <shadow.h>
+#endif
 #include <time.h>
 #include <utmp.h>
 #include <fcntl.h>
