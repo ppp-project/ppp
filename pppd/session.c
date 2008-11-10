@@ -73,7 +73,7 @@
 #include <string.h>
 #include <pwd.h>
 #include <crypt.h>
-#ifdef USE_SHADOW
+#ifdef HAS_SHADOW
 #include <shadow.h>
 #endif
 #include <time.h>
