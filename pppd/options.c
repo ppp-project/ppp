@@ -1559,7 +1559,7 @@ setlogfile(argv)
 	option_error("unable to drop permissions to open %s: %m", *argv);
 	return 0;
     }
-    fd = open(*argv, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0644);
+    fd = open(*argv, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0664);
     if (fd < 0 && errno == EEXIST)
 	fd = open(*argv, O_WRONLY | O_APPEND);
     err = errno;
@@ -1577,6 +1577,43 @@ setlogfile(argv)
     log_to_fd = fd;
     log_default = 0;
     return 1;
+}
+
+void
+reopen_logfile()
+{
+    int fd, err;
+    uid_t euid;
+
+    if (logfile_fd < 0)
+	    /* Not using a log file */
+	    return;
+
+    euid = geteuid();
+    if (!privileged_option && seteuid(getuid()) == -1) {
+	    error("Can't lower privilege to re-open logfile %s", logfile_name);
+	    return;
+    }
+
+    close(logfile_fd);
+
+    fd = open(logfile_name, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0664);
+    if (fd < 0 && errno == EEXIST)
+	fd = open(logfile_name, O_WRONLY | O_APPEND);
+    err = errno;
+
+    if (!privileged_option && seteuid(euid) == -1)
+	fatal("unable to regain privileges: %m while re-opening logfile");
+
+    if (fd < 0) {
+	errno = err;
+	error("Can't re-open log file %s: %m", logfile_name);
+	logfile_fd = -1;
+	log_to_fd = -1;
+	return;
+    }
+    logfile_fd = fd;
+    log_to_fd = fd;
 }
 
 #ifdef MAXOCTETS

@@ -65,6 +65,15 @@ static const char rcsid[] = RCSID;
 extern char *strerror();
 #endif
 
+/* Count of number of bytes written to log file */
+static int log_write_count=0;
+
+/* After writing this number of bytes to the log file, re-open it so that
+ * log file rotation will work.
+ */
+#define LOG_REOPEN_THRESH 10000
+extern void reopen_logfile();
+
 static void logit __P((int, char *, va_list));
 static void log_write __P((int, char *));
 static void vslp_printer __P((void *, char *, ...));
@@ -647,6 +656,7 @@ logit(level, fmt, args)
     log_write(level, buf);
 }
 
+
 static void
 log_write(level, buf)
     int level;
@@ -661,6 +671,11 @@ log_write(level, buf)
 	if (write(log_to_fd, buf, n) != n
 	    || write(log_to_fd, "\n", 1) != 1)
 	    log_to_fd = -1;
+	log_write_count += n;
+	if (log_write_count > LOG_REOPEN_THRESH) {
+		reopen_logfile();
+		log_write_count = 0;
+	}
     }
 }
 
