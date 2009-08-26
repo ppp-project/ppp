@@ -964,7 +964,7 @@ struct protocol_list {
     { 0x8051,	"KNX Bridging Control Protocol" },
     { 0x8053,	"Encryption Control Protocol" },
     { 0x8055,	"Individual Link Encryption Control Protocol" },
-    { 0x8057,	"IPv6 Control Protovol" },
+    { 0x8057,	"IPv6 Control Protocol" },
     { 0x8059,	"PPP Muxing Control Protocol" },
     { 0x805b,	"Vendor-Specific Network Control Protocol (VSNCP)" },
     { 0x806f,	"Stampede Bridging Control Protocol" },
