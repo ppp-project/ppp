@@ -1658,6 +1658,8 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_dst,     AF_INET);
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
+    rt.rt_dev = ifname;
+
     if (kernel_version > KVERSION(2,1,0)) {
 	SET_SA_FAMILY (rt.rt_genmask, AF_INET);
 	SIN_ADDR(rt.rt_genmask) = 0L;
