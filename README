@@ -70,9 +70,16 @@ What's new in ppp-2.4.5.
   possible to have no remote IP address assigned to the ppp interface
   and still route traffic over it.
 
+* Pppd now works better with 3G modems that do strange things such as
+  sending IPCP Configure-Naks with the same values over and over again.
+
 * The PPP over L2TP plugin is included, which works with the pppol2tp
   PPP channel code in the Linux kernel.  This allows pppd to be used
   to set up tunnels using the Layer 2 Tunneling Protocol.
+
+* A new 'enable-session' option has been added, which enables session
+  accounting via PAM or wtwp/wtmpx, as appropriate.  See the pppd man
+  page for details.
 
 * Several bugs have been fixed.
 
