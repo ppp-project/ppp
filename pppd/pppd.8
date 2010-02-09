@@ -193,6 +193,9 @@ will not accept a different value from the peer in the IPCP
 negotiation, unless the \fIipcp\-accept\-local\fR and/or
 \fIipcp\-accept\-remote\fR options are given, respectively.
 .TP
+.B +ipv6
+Enable the IPv6CP and IPv6 protocols.
+.TP
 .B ipv6 \fI<local_interface_identifier>\fR,\fI<remote_interface_identifier>
 Set the local and/or remote 64-bit interface identifier. Either one may be
 omitted. The identifier must be specified in standard ascii notation of
@@ -448,6 +451,11 @@ Provides an extra parameter to the ip\-up, ip\-pre\-up and ip\-down
 scripts.  If this
 option is given, the \fIstring\fR supplied is given as the 6th
 parameter to those scripts.
+.TP
+.B ipv6cp\-accept\-local
+With this option, pppd will accept the peer's idea of our local IPv6
+interface identifier, even if the local IPv6 interface identifier
+was specified in an option.
 .TP
 .B ipv6cp\-max\-configure \fIn
 Set the maximum number of IPv6CP configure-request transmissions to
