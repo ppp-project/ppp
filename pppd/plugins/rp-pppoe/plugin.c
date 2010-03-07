@@ -108,8 +108,6 @@ PPPOEInitDevice(void)
 	novm("PPPoE session data");
     }
     memset(conn, 0, sizeof(PPPoEConnection));
-    conn->acName = acName;
-    conn->serviceName = pppd_pppoe_service;
     conn->ifName = devnam;
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
@@ -133,6 +131,8 @@ PPPOEConnectDevice(void)
 {
     struct sockaddr_pppox sp;
 
+    conn->acName = acName;
+    conn->serviceName = pppd_pppoe_service;
     strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
     if (existingSession) {
 	unsigned int mac[ETH_ALEN];
