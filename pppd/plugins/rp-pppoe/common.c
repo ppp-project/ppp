@@ -58,7 +58,7 @@ parsePacket(PPPoEPacket *packet, ParseFunc *func, void *extra)
     }
 
     /* Do some sanity checks on packet */
-    if (len > ETH_DATA_LEN - 6) { /* 6-byte overhead for PPPoE header */
+    if (len > ETH_JUMBO_LEN - PPPOE_OVERHEAD) { /* 6-byte overhead for PPPoE header */
 	error("Invalid PPPoE packet length (%u)", len);
 	return -1;
     }
@@ -245,6 +245,9 @@ void pppoe_printpkt(PPPoEPacket *packet,
 	    break;
 	case TAG_RELAY_SESSION_ID:
 	    printer(arg, "relay-session-id");
+	    break;
+	case TAG_PPP_MAX_PAYLOAD:
+	    printer(arg, "PPP-max-payload");
 	    break;
 	case TAG_SERVICE_NAME_ERROR:
 	    printer(arg, "service-name-error");
