@@ -1018,6 +1018,13 @@ Authentication Protocol] authentication.
 Require the peer to authenticate itself using PAP [Password
 Authentication Protocol] authentication.
 .TP
+.B set \fIname\fR=\fIvalue
+Set an environment variable for scripts that are invoked by pppd.
+When set by a privileged source, the variable specified by \fIname\fR
+cannot be changed by options contained in an unprivileged source.  See
+also the \fIunset\fR option and the environment described in
+\fISCRIPTS\fR.
+.TP
 .B show\-password
 When logging the contents of PAP packets, this option causes pppd to
 show the password string in the log message.
@@ -1057,6 +1064,13 @@ under Linux and FreeBSD 2.2.8 and later.
 .B unit \fInum
 Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
 connections.
+.TP
+.B unset \fIname
+Remove a variable from the environment variable for scripts that are
+invoked by pppd.  When specified by a privileged source, the variable
+\fIname\fR cannot be set by options contained in an unprivileged
+source.  See also the \fIset\fR option and the environment described
+in \fISCRIPTS\fR.
 .TP
 .B updetach
 With this option, pppd will detach from its controlling terminal once
