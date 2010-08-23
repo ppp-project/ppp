@@ -1146,6 +1146,7 @@ getword(f, word, newlinep, filename)
     len = 0;
     escape = 0;
     comment = 0;
+    quoted = 0;
 
     /*
      * First skip white-space and comments.
@@ -1202,15 +1203,6 @@ getword(f, word, newlinep, filename)
 	if (!isspace(c))
 	    break;
     }
-
-    /*
-     * Save the delimiter for quoted strings.
-     */
-    if (!escape && (c == '"' || c == '\'')) {
-        quoted = c;
-	c = getc(f);
-    } else
-        quoted = 0;
 
     /*
      * Process characters until the end of the word.
@@ -1300,29 +1292,34 @@ getword(f, word, newlinep, filename)
 	    if (!got)
 		c = getc(f);
 	    continue;
-
 	}
 
 	/*
-	 * Not escaped: see if we've reached the end of the word.
-	 */
-	if (quoted) {
-	    if (c == quoted)
-		break;
-	} else {
-	    if (isspace(c) || c == '#') {
-		ungetc (c, f);
-		break;
-	    }
-	}
-
-	/*
-	 * Backslash starts an escape sequence.
+	 * Backslash starts a new escape sequence.
 	 */
 	if (c == '\\') {
 	    escape = 1;
 	    c = getc(f);
 	    continue;
+	}
+
+	/*
+	 * Not escaped: check for the start or end of a quoted
+	 * section and see if we've reached the end of the word.
+	 */
+	if (quoted) {
+	    if (c == quoted) {
+		quoted = 0;
+		c = getc(f);
+		continue;
+	    }
+	} else if (c == '"' || c == '\'') {
+	    quoted = c;
+	    c = getc(f);
+	    continue;
+	} else if (isspace(c) || c == '#') {
+	    ungetc (c, f);
+	    break;
 	}
 
 	/*
@@ -1351,6 +1348,9 @@ getword(f, word, newlinep, filename)
 	 */
 	if (len == 0)
 	    return 0;
+	if (quoted)
+	    option_error("warning: quoted word runs to end of file (%.20s...)",
+			 filename, word);
     }
 
     /*
