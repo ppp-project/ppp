@@ -209,8 +209,8 @@ void pppoe_printpkt(PPPoEPacket *packet,
 		ntohs(packet->ethHdr.h_proto));
     }
 
-    printer(arg, " dst %x:%x:%x:%x:%x:%x ", EH(packet->ethHdr.h_dest));
-    printer(arg, " src %x:%x:%x:%x:%x:%x\n", EH(packet->ethHdr.h_source));
+    printer(arg, " dst %02x:%02x:%02x:%02x:%02x:%02x ", EH(packet->ethHdr.h_dest));
+    printer(arg, " src %02x:%02x:%02x:%02x:%02x:%02x\n", EH(packet->ethHdr.h_source));
     if (ntohs(packet->ethHdr.h_proto) != ETH_PPPOE_DISCOVERY)
 	return;
 
