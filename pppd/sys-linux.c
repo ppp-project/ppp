@@ -2018,7 +2018,7 @@ ppp_registered(void)
 
 int ppp_available(void)
 {
-    int s, ok, fd, err;
+    int s, ok, fd;
     struct ifreq ifr;
     int    size;
     int    my_version, my_modification, my_patch;
@@ -2041,7 +2041,6 @@ int ppp_available(void)
 	close(fd);
 	return 1;
     }
-    err = errno;
 
     if (kernel_version >= KVERSION(2,3,13)) {
 	error("Couldn't open the /dev/ppp device: %m");
@@ -2233,9 +2232,10 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 	u_int x;
 
 	if (vjcomp) {
-		if (ioctl(ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0)
+		if (ioctl(ppp_dev_fd, PPPIOCSMAXCID, (caddr_t) &maxcid) < 0) {
 			error("Couldn't set up TCP header compression: %m");
-		vjcomp = 0;
+			vjcomp = 0;
+		}
 	}
 
 	x = (vjcomp? SC_COMP_TCP: 0) | (cidcomp? 0: SC_NO_TCP_CCID);
