@@ -553,13 +553,10 @@ link_required(unit)
 void start_link(unit)
     int unit;
 {
-    char *msg;
-
     new_phase(PHASE_SERIALCONN);
 
     hungup = 0;
     devfd = the_channel->connect();
-    msg = "Connect script failed";
     if (devfd < 0)
 	goto fail;
 
@@ -572,7 +569,6 @@ void start_link(unit)
      * gives us.  Thus we don't need the tdb_writelock/tdb_writeunlock.
      */
     fd_ppp = the_channel->establish_ppp(devfd);
-    msg = "ppp establishment failed";
     if (fd_ppp < 0) {
 	status = EXIT_FATAL_ERROR;
 	goto disconnect;
