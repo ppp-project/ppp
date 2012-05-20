@@ -40,6 +40,30 @@ static char const RCSID[] =
 
 #include <signal.h>
 
+/* Calculate time remaining until *exp, return 0 if now >= *exp */
+static int time_left(struct timeval *diff, struct timeval *exp)
+{
+    struct timeval now;
+
+    if (gettimeofday(&now, NULL) < 0) {
+	error("gettimeofday: %m");
+	return 0;
+    }
+
+    if (now.tv_sec > exp->tv_sec
+	|| (now.tv_sec == exp->tv_sec && now.tv_usec >= exp->tv_usec))
+	return 0;
+
+    diff->tv_sec = exp->tv_sec - now.tv_sec;
+    diff->tv_usec = exp->tv_usec - now.tv_usec;
+    if (diff->tv_usec < 0) {
+	diff->tv_usec += 1000000;
+	--diff->tv_sec;
+    }
+
+    return 1;
+}
+
 /**********************************************************************
 *%FUNCTION: parseForHostUniq
 *%ARGUMENTS:
@@ -323,6 +347,8 @@ waitForPADO(PPPoEConnection *conn, int timeout)
     fd_set readable;
     int r;
     struct timeval tv;
+    struct timeval expire_at;
+
     PPPoEPacket packet;
     int len;
 
@@ -335,10 +361,16 @@ waitForPADO(PPPoEConnection *conn, int timeout)
     conn->seenMaxPayload = 0;
     conn->error = 0;
 
+    if (gettimeofday(&expire_at, NULL) < 0) {
+	error("gettimeofday (waitForPADO): %m");
+	return;
+    }
+    expire_at.tv_sec += timeout;
+
     do {
 	if (BPF_BUFFER_IS_EMPTY) {
-	    tv.tv_sec = timeout;
-	    tv.tv_usec = 0;
+	    if (!time_left(&tv, &expire_at))
+		return;		/* Timed out */
 
 	    FD_ZERO(&readable);
 	    FD_SET(conn->discoverySocket, &readable);
@@ -351,7 +383,8 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 		error("select (waitForPADO): %m");
 		return;
 	    }
-	    if (r == 0) return;        /* Timed out */
+	    if (r == 0)
+		return;		/* Timed out */
 	}
 
 	/* Get the packet */
@@ -507,14 +540,22 @@ waitForPADS(PPPoEConnection *conn, int timeout)
     fd_set readable;
     int r;
     struct timeval tv;
+    struct timeval expire_at;
+
     PPPoEPacket packet;
     int len;
+
+    if (gettimeofday(&expire_at, NULL) < 0) {
+	error("gettimeofday (waitForPADS): %m");
+	return;
+    }
+    expire_at.tv_sec += timeout;
 
     conn->error = 0;
     do {
 	if (BPF_BUFFER_IS_EMPTY) {
-	    tv.tv_sec = timeout;
-	    tv.tv_usec = 0;
+	    if (!time_left(&tv, &expire_at))
+		return;		/* Timed out */
 
 	    FD_ZERO(&readable);
 	    FD_SET(conn->discoverySocket, &readable);
@@ -527,7 +568,8 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 		error("select (waitForPADS): %m");
 		return;
 	    }
-	    if (r == 0) return;
+	    if (r == 0)
+		return;		/* Timed out */
 	}
 
 	/* Get the packet */
@@ -589,9 +631,6 @@ discovery(PPPoEConnection *conn)
     int padiAttempts = 0;
     int padrAttempts = 0;
     int timeout = conn->discoveryTimeout;
-
-    conn->discoverySocket =
-	openInterface(conn->ifName, Eth_PPPOE_Discovery, conn->myEth);
 
     do {
 	padiAttempts++;
