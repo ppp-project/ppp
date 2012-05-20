@@ -151,6 +151,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <netdb.h>
@@ -1130,7 +1131,7 @@ ipv6_check_options()
 
     if (demand && (eui64_iszero(wo->ourid) || eui64_iszero(wo->hisid))) {
 	option_error("local/remote LL address required for demand-dialling\n");
-	exit(1);
+	exit(EXIT_OPTION_ERROR);
     }
 }
 

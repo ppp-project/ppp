@@ -62,7 +62,7 @@ USE_TDB=y
 
 HAS_SHADOW=y
 #USE_PAM=y
-#HAVE_INET6=y
+HAVE_INET6=y
 
 # Enable plugins
 PLUGIN=y
