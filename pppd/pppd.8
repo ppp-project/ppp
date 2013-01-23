@@ -1633,11 +1633,13 @@ The logical name of the link, set with the \fIlinkname\fR option.
 .TP
 .B DNS1
 If the peer supplies DNS server addresses, this variable is set to the
-first DNS server address supplied.
+first DNS server address supplied (whether or not the usepeerdns
+option was given).
 .TP
 .B DNS2
 If the peer supplies DNS server addresses, this variable is set to the
-second DNS server address supplied.
+second DNS server address supplied (whether or not the usepeerdns
+option was given).
 .P
 Pppd invokes the following scripts, if they exist.  It is not an error
 if they don't exist.
