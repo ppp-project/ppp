@@ -224,14 +224,14 @@ SAY "Waiting up to 2 minutes for connection ... "
 .br
 CONNECT '' 
 .br
-SAY "Connected, now logging in ...\n"
+SAY "Connected, now logging in ...\\n"
 .br
 ogin: account
 .br
 ssword: pass
 .br
 $ \c
-SAY "Logged in OK ...\n"
+SAY "Logged in OK ...\\n"
 \fIetc ...\fR
 .LP
 This sequence will only present the SAY strings to the user and all
@@ -288,7 +288,7 @@ ABORT   'BUSY'
 .br
 ABORT   'NO CARRIER'
 .br
-''      ATZ
+\&''      ATZ
 .br
 OK\\r\\n  ATD1234567
 .br
@@ -318,7 +318,7 @@ signal behavior.  Here is an (simple) example script:
 .IP
 ABORT   'BUSY'
 .br
-''      ATZ
+\&''      ATZ
 .br
 OK\\r\\n  ATD1234567
 .br
@@ -365,7 +365,6 @@ The special reply string of \fIEOT\fR indicates that the chat program
 should send an EOT character to the remote. This is normally the
 End-of-file character sequence. A return character is not sent
 following the EOT.
-.PR
 The EOT sequence may be embedded into the send string using the
 sequence \fI^D\fR.
 .SH GENERATING BREAK
@@ -374,7 +373,6 @@ to be sent. The break is a special signal on the transmitter. The
 normal processing on the receiver is to change the transmission rate.
 It may be used to cycle through the available transmission rates on
 the remote until you are able to receive a valid login prompt.
-.PR
 The break sequence may be embedded into the send string using the
 \fI\\K\fR sequence.
 .SH ESCAPE SEQUENCES
