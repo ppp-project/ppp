@@ -2147,6 +2147,7 @@ int ppp_available(void)
     return ok;
 }
 
+#ifndef HAVE_LOGWTMP
 /********************************************************************
  *
  * Update the wtmp file with the appropriate user name and tty device.
@@ -2220,7 +2221,7 @@ void logwtmp (const char *line, const char *name, const char *host)
     }
 #endif
 }
-
+#endif /* HAVE_LOGWTMP */
 
 /********************************************************************
  *
