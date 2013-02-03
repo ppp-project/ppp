@@ -286,19 +286,6 @@ vslprintf(buf, buflen, fmt, args)
 		     (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
 	    str = num;
 	    break;
-#if 0	/* not used, and breaks on S/390, apparently */
-	case 'r':
-	    f = va_arg(args, char *);
-#ifndef __powerpc__
-	    n = vslprintf(buf, buflen + 1, f, va_arg(args, va_list));
-#else
-	    /* On the powerpc, a va_list is an array of 1 structure */
-	    n = vslprintf(buf, buflen + 1, f, va_arg(args, void *));
-#endif
-	    buf += n;
-	    buflen -= n;
-	    continue;
-#endif
 	case 't':
 	    time(&t);
 	    str = ctime(&t);
