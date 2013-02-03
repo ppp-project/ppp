@@ -50,7 +50,7 @@ keyword. When echoing is enabled, all output from the modem is echoed
 to \fIstderr\fR.
 .TP
 .B \-E
-Enables environment variable substituion within chat scripts using the
+Enables environment variable substitution within chat scripts using the
 standard \fI$xxx\fR syntax.
 .TP
 .B \-v
@@ -77,7 +77,7 @@ SYSLOG.  The use of \-S will prevent both log messages from '\-v' and
 error messages from being sent to the SYSLOG.
 .TP
 .B \-T \fI<phone number>
-Pass in an arbitary string, usually a phone number, that will be
+Pass in an arbitrary string, usually a phone number, that will be
 substituted for the \\T substitution metacharacter in a send string.
 .TP
 .B \-U \fI<phone number 2>
@@ -204,7 +204,7 @@ terminal), standard error will normally be redirected to the file
 .LP
 \fBSAY\fR strings must be enclosed in single or double quotes. If
 carriage return and line feed are needed in the string to be output,
-you must explicitely add them to your string.
+you must explicitly add them to your string.
 .LP
 The SAY strings could be used to give progress messages in sections of
 the script where you want to have 'ECHO OFF' but still let the user
@@ -457,7 +457,7 @@ For example, the character DC1 (17) is shown as \^^Q.
 Environment variables are available within chat scripts, if  the \fI\-E\fR
 option was specified in the command line. The metacharacter \fI$\fR is used
 to introduce the name of the environment variable to substitute. If the
-substition fails, because the requested environment variable is not set,
+substitution fails, because the requested environment variable is not set,
 \fInothing\fR is replaced for the variable.
 .SH TERMINATION CODES
 The \fIchat\fR program will terminate with the following completion
