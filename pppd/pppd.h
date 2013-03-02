@@ -285,6 +285,7 @@ extern u_int32_t netmask;	/* IP netmask to set on interface */
 extern bool	lockflag;	/* Create lock file to lock the serial dev */
 extern bool	nodetach;	/* Don't detach from controlling tty */
 extern bool	updetach;	/* Detach from controlling tty when link up */
+extern bool	master_detach;	/* Detach when multilink master without link */
 extern char	*initializer;	/* Script to initialize physical link */
 extern char	*connect_script; /* Script to establish physical link */
 extern char	*disconnect_script; /* Script to disestablish physical link */

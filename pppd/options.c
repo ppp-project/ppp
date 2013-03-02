@@ -96,6 +96,7 @@ int	default_device = 1;	/* Using /dev/tty or equivalent */
 char	devnam[MAXPATHLEN];	/* Device name */
 bool	nodetach = 0;		/* Don't detach from controlling tty */
 bool	updetach = 0;		/* Detach once link is up */
+bool	master_detach;		/* Detach when we're (only) multilink master */
 int	maxconnect = 0;		/* Maximum connect time */
 char	user[MAXNAMELEN];	/* Username for PAP */
 char	passwd[MAXSECRETLEN];	/* Password for PAP */
@@ -209,6 +210,9 @@ option_t general_options[] = {
     { "updetach", o_bool, &updetach,
       "Detach from controlling tty once link is up",
       OPT_PRIOSUB | OPT_A2CLR | 1, &nodetach },
+
+    { "master_detach", o_bool, &master_detach,
+      "Detach when we're multilink master but have no link", 1 },
 
     { "holdoff", o_int, &holdoff,
       "Set time in seconds before retrying connection",

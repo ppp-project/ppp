@@ -624,6 +624,14 @@ must have an entry in the /etc/ppp/pap\-secrets file as well as the
 system password database to be allowed access.  See also the
 \fBenable\-session\fR option.
 .TP
+.B master_detach
+If multilink is enabled and this pppd process is the multilink bundle
+master, and the link controlled by this pppd process terminates, this
+pppd process continues to run in order to maintain the bundle.  If the
+\fBmaster_detach\fR option has been given, pppd will detach from its
+controlling terminal in this situation, even if the \fBnodetach\fR
+option has been given.
+.TP
 .B maxconnect \fIn
 Terminate the connection when it has been available for network
 traffic for \fIn\fR seconds (i.e. \fIn\fR seconds after the first
