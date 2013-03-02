@@ -320,8 +320,9 @@ can do either.)
 .TP
 .B demand
 Initiate the link only on demand, i.e. when data traffic is present.
-With this option, the remote IP address must be specified by the user
-on the command line or in an options file.  Pppd will initially
+With this option, the remote IP address may be specified by the user
+on the command line or in an options file, or if not, pppd will use
+an arbitrary address in the 10.x.x.x range.  Pppd will initially
 configure the interface and enable it for IP traffic without
 connecting to the peer.  When traffic is available, pppd will
 connect to the peer and perform negotiation, authentication, etc.
@@ -828,8 +829,9 @@ do so by placing this option in the /etc/ppp/options file.
 .B noremoteip
 Allow pppd to operate without having an IP address for the peer.  This
 option is only available under Linux.  Normally, pppd will request the
-peer's IP address, and if the peer does not supply it, pppd will not
-bring up the link for IP traffic.  With this option, if the peer does
+peer's IP address, and if the peer does not supply it, pppd will use
+an arbitrary address in the 10.x.x.x subnet.
+With this option, if the peer does
 not supply its IP address, pppd will not ask the peer for it, and will
 not set the destination address of the ppp interface.  In this
 situation, the ppp interface can be used for routing by creating
