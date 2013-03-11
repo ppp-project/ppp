@@ -553,6 +553,7 @@ link_required(unit)
 void start_link(unit)
     int unit;
 {
+    status = EXIT_CONNECT_FAILED;
     new_phase(PHASE_SERIALCONN);
 
     hungup = 0;
