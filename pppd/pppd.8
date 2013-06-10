@@ -1132,7 +1132,7 @@ the initial /dev/ is removed from the terminal name, and any remaining
 .PP
 An options file is parsed into a series of words, delimited by
 whitespace.  Whitespace can be included in a word by enclosing the
-word in double-quotes (").  A backslash (\\) quotes the following character.
+word in double-quotes (").  A backslash (\e) quotes the following character.
 A hash (#) starts a comment, which continues until the end of the
 line.  There is no restriction on using the \fIfile\fR or \fIcall\fR
 options within an options file.
@@ -1444,9 +1444,9 @@ OK "atdt2468135"
 .br
 "name:" "^Umyuserid"
 .br
-"word:" "\\qmypassword"
+"word:" "\eqmypassword"
 .br
-"ispts" "\\q^Uppp"
+"ispts" "\eq^Uppp"
 .br
 "~\-^Uppp\-~"
 .LP
