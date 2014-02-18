@@ -966,6 +966,9 @@ void set_up_tty(int tty_fd, int local)
 	break;
     }
 
+    if (stop_bits >= 2)
+	tios.c_cflag |= CSTOPB;
+
     speed = translate_speed(inspeed);
     if (speed) {
 	cfsetospeed (&tios, speed);
