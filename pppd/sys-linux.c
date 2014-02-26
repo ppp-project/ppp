@@ -205,6 +205,7 @@ static char loop_name[20];
 static unsigned char inbuf[512]; /* buffer for chars read from loopback */
 
 static int	if_is_up;	/* Interface has been marked up */
+static int	if6_is_up;	/* Interface has been marked up for IPv6, to help differentiate */
 static int	have_default_route;	/* Gateway for default route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static char proxy_arp_dev[16];		/* Device for proxy arp entry */
@@ -338,6 +339,9 @@ void sys_cleanup(void)
 	if_is_up = 0;
 	sifdown(0);
     }
+    if (if6_is_up)
+	sif6down(0);
+
 /*
  * Delete any routes through the device.
  */
@@ -2252,25 +2256,12 @@ int sifvjcomp (int u, int vjcomp, int cidcomp, int maxcid)
 
 int sifup(int u)
 {
-    struct ifreq ifr;
+    int ret;
 
-    memset (&ifr, '\0', sizeof (ifr));
-    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
-    if (ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t) &ifr) < 0) {
-	if (! ok_error (errno))
-	    error("ioctl (SIOCGIFFLAGS): %m (line %d)", __LINE__);
-	return 0;
-    }
+    if ((ret = setifstate(u, 1)))
+	if_is_up++;
 
-    ifr.ifr_flags |= (IFF_UP | IFF_POINTOPOINT);
-    if (ioctl(sock_fd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
-	if (! ok_error (errno))
-	    error("ioctl(SIOCSIFFLAGS): %m (line %d)", __LINE__);
-	return 0;
-    }
-    if_is_up++;
-
-    return 1;
+    return ret;
 }
 
 /********************************************************************
@@ -2281,10 +2272,58 @@ int sifup(int u)
 
 int sifdown (int u)
 {
-    struct ifreq ifr;
-
     if (if_is_up && --if_is_up > 0)
 	return 1;
+
+#ifdef INET6
+    if (if6_is_up)
+	return 1;
+#endif /* INET6 */
+
+    return setifstate(u, 0);
+}
+
+#ifdef INET6
+/********************************************************************
+ *
+ * sif6up - Config the interface up for IPv6
+ */
+
+int sif6up(int u)
+{
+    int ret;
+
+    if ((ret = setifstate(u, 1)))
+	if6_is_up = 1;
+
+    return ret;
+}
+
+/********************************************************************
+ *
+ * sif6down - Disable the IPv6CP protocol and config the interface
+ *	      down if there are no remaining protocols.
+ */
+
+int sif6down (int u)
+{
+    if6_is_up = 0;
+
+    if (if_is_up)
+	return 1;
+
+    return setifstate(u, 0);
+}
+#endif /* INET6 */
+
+/********************************************************************
+ *
+ * setifstate - Config the interface up or down
+ */
+
+int setifstate (int u, int state)
+{
+    struct ifreq ifr;
 
     memset (&ifr, '\0', sizeof (ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
@@ -2294,7 +2333,10 @@ int sifdown (int u)
 	return 0;
     }
 
-    ifr.ifr_flags &= ~IFF_UP;
+    if (state)
+	ifr.ifr_flags |= IFF_UP;
+    else
+	ifr.ifr_flags &= ~IFF_UP;
     ifr.ifr_flags |= IFF_POINTOPOINT;
     if (ioctl(sock_fd, SIOCSIFFLAGS, (caddr_t) &ifr) < 0) {
 	if (! ok_error (errno))
