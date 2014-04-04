@@ -9,12 +9,13 @@
 #
 # Nick Walker (nickwalker@email.com)
 #
+. /etc/sysconfig/network-scripts/network-functions
 
-if [ -n "$USEPEERDNS" -a -f /etc/ppp/resolv.conf ]; then
-	if [ -f /etc/ppp/resolv.prev ]; then
-		cp -f /etc/ppp/resolv.prev /etc/resolv.conf
+if [ -n "$USEPEERDNS" -a -f /var/run/ppp/resolv.conf ]; then
+	if [ -f /var/run/ppp/resolv.prev ]; then
+		change_resolv_conf /var/run/ppp/resolv.prev
 	else
-		rm -f /etc/resolv.conf
+		change_resolv_conf
 	fi
 fi
 
