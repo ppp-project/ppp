@@ -35,9 +35,9 @@
 #define _PATH_AUTHUP	 _ROOT_PATH "/etc/ppp/auth-up"
 #define _PATH_AUTHDOWN	 _ROOT_PATH "/etc/ppp/auth-down"
 #define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options."
-#define _PATH_CONNERRS	 _ROOT_PATH "/etc/ppp/connect-errors"
+#define _PATH_CONNERRS	 _ROOT_PATH "/var/log/ppp/connect-errors"
 #define _PATH_PEERFILES	 _ROOT_PATH "/etc/ppp/peers/"
-#define _PATH_RESOLV	 _ROOT_PATH "/etc/ppp/resolv.conf"
+#define _PATH_RESOLV	 _ROOT_PATH "/var/run/ppp/resolv.conf"
 
 #define _PATH_USEROPT	 ".ppprc"
 #define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
