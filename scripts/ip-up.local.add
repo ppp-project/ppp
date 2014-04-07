@@ -18,6 +18,9 @@ if [ -n "$USEPEERDNS" -a -f /var/run/ppp/resolv.conf ]; then
 		rscf=/var/run/ppp/resolv.new
 		grep domain /var/run/ppp/resolv.prev > $rscf
 		grep search /var/run/ppp/resolv.prev >> $rscf
+		if [ -f /var/run/ppp/resolv.conf ]; then
+			cat /var/run/ppp/resolv.conf >> $rscf
+		fi
 		change_resolv_conf $rscf
 		rm -f $rscf
 	else
