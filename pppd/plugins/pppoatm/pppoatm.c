@@ -135,7 +135,7 @@ static int connect_pppoatm(void)
 
 	if (!device_got_set)
 		no_device_given_pppoatm();
-	fd = socket(AF_ATMPVC, SOCK_DGRAM, 0);
+	fd = socket(AF_ATMPVC, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (fd < 0)
 		fatal("failed to create socket: %m");
 	memset(&qos, 0, sizeof qos);

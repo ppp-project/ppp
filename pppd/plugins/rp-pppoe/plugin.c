@@ -146,7 +146,7 @@ PPPOEConnectDevice(void)
     /* server equipment).                                                  */
     /* Opening this socket just before waitForPADS in the discovery()      */
     /* function would be more appropriate, but it would mess-up the code   */
-    conn->sessionSocket = socket(AF_PPPOX, SOCK_STREAM, PX_PROTO_OE);
+    conn->sessionSocket = socket(AF_PPPOX, SOCK_STREAM | SOCK_CLOEXEC, PX_PROTO_OE);
     if (conn->sessionSocket < 0) {
 	error("Failed to create PPPoE socket: %m");
 	return -1;
@@ -157,7 +157,7 @@ PPPOEConnectDevice(void)
     lcp_wantoptions[0].mru = conn->mru;
 
     /* Update maximum MRU */
-    s = socket(AF_INET, SOCK_DGRAM, 0);
+    s = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (s < 0) {
 	error("Can't get MTU for %s: %m", conn->ifName);
 	goto errout;
@@ -343,7 +343,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     }
 
     /* Open a socket */
-    if ((fd = socket(PF_PACKET, SOCK_RAW, 0)) < 0) {
+    if ((fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, 0)) < 0) {
 	r = 0;
     }
 

@@ -315,12 +315,12 @@ static int modify_flags(int fd, int clear_bits, int set_bits)
 void sys_init(void)
 {
     /* Get an internet socket for doing socket ioctls. */
-    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    sock_fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (sock_fd < 0)
 	fatal("Couldn't create IP socket: %m(%d)", errno);
 
 #ifdef INET6
-    sock6_fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    sock6_fd = socket(AF_INET6, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (sock6_fd < 0)
 	sock6_fd = -errno;	/* save errno for later */
 #endif
@@ -2089,7 +2089,7 @@ get_if_hwaddr(u_char *addr, char *name)
 	struct ifreq ifreq;
 	int ret, sock_fd;
 
-	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	sock_fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 	if (sock_fd < 0)
 		return 0;
 	memset(&ifreq.ifr_hwaddr, 0, sizeof(struct sockaddr));
@@ -2299,7 +2299,7 @@ int ppp_available(void)
 /*
  * Open a socket for doing the ioctl operations.
  */
-    s = socket(AF_INET, SOCK_DGRAM, 0);
+    s = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (s < 0)
 	return 0;
 
@@ -3133,7 +3133,7 @@ ether_to_eui64(eui64_t *p_eui64)
     int skfd;
     const unsigned char *ptr;
 
-    skfd = socket(PF_INET6, SOCK_DGRAM, 0);
+    skfd = socket(PF_INET6, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if(skfd == -1)
     {
         warn("could not open IPv6 socket");

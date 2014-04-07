@@ -899,7 +899,7 @@ open_socket(dest)
     *sep = ':';
 
     /* get a socket and connect it to the other end */
-    sock = socket(PF_INET, SOCK_STREAM, 0);
+    sock = socket(PF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (sock < 0) {
 	error("Can't create socket: %m");
 	return -1;

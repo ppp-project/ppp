@@ -116,7 +116,7 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
     stype = SOCK_PACKET;
 #endif
 
-    if ((fd = socket(domain, stype, htons(type))) < 0) {
+    if ((fd = socket(domain, stype | SOCK_CLOEXEC, htons(type))) < 0) {
 	/* Give a more helpful message for the common error case */
 	if (errno == EPERM) {
 	    fatal("Cannot create raw socket -- pppoe must be run as root.");

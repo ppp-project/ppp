@@ -83,7 +83,7 @@ static int openl2tp_client_create(void)
 	int result;
 
 	if (openl2tp_fd < 0) {
-		openl2tp_fd = socket(PF_UNIX, SOCK_DGRAM, 0);
+		openl2tp_fd = socket(PF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 		if (openl2tp_fd < 0) {
 			error("openl2tp connection create: %m");
 			return -ENOTCONN;
