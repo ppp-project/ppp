@@ -444,7 +444,7 @@ options_from_file(filename, must_exist, check_prot, priv)
 	option_error("unable to drop privileges to open %s: %m", filename);
 	return 0;
     }
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     err = errno;
     if (check_prot && seteuid(euid) == -1)
 	fatal("unable to regain privileges");
