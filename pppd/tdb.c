@@ -1724,7 +1724,7 @@ TDB_CONTEXT *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
 		goto internal;
 	}
 
-	if ((tdb->fd = open(name, open_flags, mode)) == -1) {
+	if ((tdb->fd = open(name, open_flags | O_CLOEXEC, mode)) == -1) {
 		TDB_LOG((tdb, 5, "tdb_open_ex: could not open file %s: %s\n",
 			 name, strerror(errno)));
 		goto fail;	/* errno set by open(2) */
@@ -1967,7 +1967,7 @@ int tdb_reopen(TDB_CONTEXT *tdb)
 	}
 	if (close(tdb->fd) != 0)
 		TDB_LOG((tdb, 0, "tdb_reopen: WARNING closing tdb->fd failed!\n"));
-	tdb->fd = open(tdb->name, tdb->open_flags & ~(O_CREAT|O_TRUNC), 0);
+	tdb->fd = open(tdb->name, (tdb->open_flags & ~(O_CREAT|O_TRUNC)) | O_CLOEXEC, 0);
 	if (tdb->fd == -1) {
 		TDB_LOG((tdb, 0, "tdb_reopen: open failed (%s)\n", strerror(errno)));
 		goto fail;

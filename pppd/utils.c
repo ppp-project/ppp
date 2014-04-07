@@ -922,14 +922,14 @@ lock(dev)
     slprintf(lock_file, sizeof(lock_file), "%s/LCK..%s", LOCK_DIR, dev);
 #endif
 
-    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
+    while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR | O_CLOEXEC, 0644)) < 0) {
 	if (errno != EEXIST) {
 	    error("Can't create lock file %s: %m", lock_file);
 	    break;
 	}
 
 	/* Read the lock file to find out who has the device locked. */
-	fd = open(lock_file, O_RDONLY, 0);
+	fd = open(lock_file, O_RDONLY | O_CLOEXEC, 0);
 	if (fd < 0) {
 	    if (errno == ENOENT) /* This is just a timing problem. */
 		continue;
@@ -1008,7 +1008,7 @@ relock(pid)
 
     if (lock_file[0] == 0)
 	return -1;
-    fd = open(lock_file, O_WRONLY, 0);
+    fd = open(lock_file, O_WRONLY | O_CLOEXEC, 0);
     if (fd < 0) {
 	error("Couldn't reopen lock file %s: %m", lock_file);
 	lock_file[0] = 0;

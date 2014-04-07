@@ -572,7 +572,7 @@ int connect_tty()
 				status = EXIT_OPEN_FAILED;
 				goto errret;
 			}
-			real_ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
+			real_ttyfd = open(devnam, O_NONBLOCK | O_RDWR | O_CLOEXEC, 0);
 			err = errno;
 			if (prio < OPRIO_ROOT && seteuid(0) == -1)
 				fatal("Unable to regain privileges");
@@ -726,7 +726,7 @@ int connect_tty()
 	if (connector == NULL && modem && devnam[0] != 0) {
 		int i;
 		for (;;) {
-			if ((i = open(devnam, O_RDWR)) >= 0)
+			if ((i = open(devnam, O_RDWR | O_CLOEXEC)) >= 0)
 				break;
 			if (errno != EINTR) {
 				error("Failed to reopen %s: %m", devnam);
