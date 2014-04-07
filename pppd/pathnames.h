@@ -6,8 +6,9 @@
 
 #ifdef HAVE_PATHS_H
 #include <paths.h>
-
+#define _PPP_SUBDIR	"ppp/"
 #else /* HAVE_PATHS_H */
+#define _PPP_SUBDIR
 #ifndef _PATH_VARRUN
 #define _PATH_VARRUN 	"/etc/ppp/"
 #endif
@@ -53,13 +54,9 @@
 #endif /* IPX_CHANGE */
 
 #ifdef __STDC__
-#define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd2.tdb"
+#define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN _PPP_SUBDIR "pppd2.tdb"
 #else /* __STDC__ */
-#ifdef HAVE_PATHS_H
-#define _PATH_PPPDB	"/var/run/pppd2.tdb"
-#else
-#define _PATH_PPPDB	"/etc/ppp/pppd2.tdb"
-#endif
+#define _PATH_PPPDB	_PATH_VARRUN _PPP_SUBDIR "pppd2.tdb"
 #endif /* __STDC__ */
 
 #ifdef PLUGIN
