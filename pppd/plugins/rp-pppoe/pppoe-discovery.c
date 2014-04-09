@@ -49,8 +49,13 @@
 #include <net/if_arp.h>
 #endif
 
+#include <dirent.h>
+#include <sys/types.h>
+#include <libudev.h>
+
 char *xstrdup(const char *s);
 void usage(void);
+int get_first_ethernet(char **_r);
 
 void die(int status)
 {
@@ -736,8 +741,15 @@ int main(int argc, char *argv[])
     }
 
     /* default interface name */
-    if (!conn->ifName)
-	conn->ifName = strdup("eth0");
+    if (!conn->ifName) {
+            char *eth_dev;
+            if (get_first_ethernet(&eth_dev) < 0) {
+                    fprintf(stderr, "No ethernet device on the host.\n");
+                    exit(1);
+            }
+            conn->ifName = eth_dev;
+    }
+
 
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
@@ -792,4 +804,105 @@ void usage(void)
 	    "   -W hexvalue    -- Set the Host-Unique to the supplied hex string.\n"
 	    "   -h             -- Print usage information.\n");
     fprintf(stderr, "\nVersion " RP_VERSION "\n");
+}
+
+/*
+ * get_first_ethernet - return the name of the first ethernet-style
+ * interface on this system.
+ */
+int
+get_first_ethernet(char **_r)
+{
+        int r = 0;
+        DIR *d = NULL;
+        struct dirent *entry = NULL;
+        struct udev *udev = NULL;
+        struct udev_device *dev = NULL;
+        char *eth_dev = NULL;
+
+        d = opendir("/sys/class/net");
+        if (!d) {
+                fprintf(stderr, "Failed to open dir /sys/class/net : %m\n");
+                r = -errno;
+                goto fail;
+        }
+
+        udev = udev_new();
+        if (!udev) {
+                fprintf(stderr, "Failed to talk to systemd-udevd\n");
+                r = -EIO;
+                goto fail;
+        }
+
+        while ((entry = readdir(d)) != NULL) {
+                char syspath[PATH_MAX] = {};
+                const char *type = NULL;
+
+                if ((strcmp(entry->d_name, ".") == 0) || (strcmp(entry->d_name, "..") == 0))
+                        continue;
+
+                sprintf(syspath, "/sys/class/net/%s", entry->d_name);
+
+                dev = udev_device_new_from_syspath(udev, syspath);
+                if (!dev)
+                        continue;
+
+                type = udev_device_get_sysattr_value(dev, "type");
+                if (strcmp(type, "1") == 0) {
+                        const char *pci_dev_subclass = NULL, *usb_dev_subclass = NULL;
+
+                        pci_dev_subclass = udev_device_get_property_value(dev,
+                                                                          "ID_PCI_SUBCLASS_FROM_DATABASE");
+                        usb_dev_subclass = udev_device_get_property_value(dev,
+                                                                          "ID_USB_SUBCLASS_FROM_DATABASE");
+
+                        if ((pci_dev_subclass && strcmp(pci_dev_subclass, "Ethernet controller") == 0) ||
+                            (usb_dev_subclass && (strcmp(usb_dev_subclass, "Ethernet Networking") == 0 ||
+                                                  strcmp(usb_dev_subclass, "Ethernet Emulation") == 0))) {
+                                char *d = NULL;
+
+                                d = strdup(entry->d_name);
+                                if (!d) {
+                                        r = -ENOMEM;
+                                        goto fail;
+                                }
+
+                                free(eth_dev);
+                                eth_dev = d;
+                                break;
+                        } else if (!eth_dev) {
+                                eth_dev = strdup(entry->d_name);
+                                if (!eth_dev) {
+                                        r = -ENOMEM;
+                                        goto fail;
+                                }
+                        }
+                }
+
+                udev_device_unref(dev);
+                dev = NULL;
+        }
+
+        if (dev)
+                udev_device_unref(dev);
+        udev_unref(udev);
+        closedir(d);
+
+        *_r = eth_dev;
+
+        return 0;
+
+fail:
+        if (dev)
+                udev_device_unref(dev);
+
+        if (udev)
+                udev_unref(udev);
+
+        if (d)
+                closedir(d);
+
+        free(eth_dev);
+
+        return r;
 }

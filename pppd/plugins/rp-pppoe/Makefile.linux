@@ -31,8 +31,8 @@ COPTS=-O2 -g
 CFLAGS=$(COPTS) -I../../../include '-DRP_VERSION="$(RP_VERSION)"'
 all: rp-pppoe.so pppoe-discovery
 
-pppoe-discovery: pppoe-discovery.o debug.o
-	$(CC) $(LDFLAGS) -o pppoe-discovery pppoe-discovery.o debug.o
+pppoe-discovery: pppoe-discovery.o debug.o common.o
+	$(CC) $(LDFLAGS) -o pppoe-discovery pppoe-discovery.o debug.o -ludev
 
 pppoe-discovery.o: pppoe-discovery.c
 	$(CC) $(CFLAGS) -I../../.. -c -o pppoe-discovery.o pppoe-discovery.c

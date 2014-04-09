@@ -92,6 +92,9 @@
 #include <ctype.h>
 #include <termios.h>
 #include <unistd.h>
+#include <dirent.h>
+
+#include <libudev.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -2105,10 +2108,101 @@ get_if_hwaddr(u_char *addr, char *name)
  * get_first_ethernet - return the name of the first ethernet-style
  * interface on this system.
  */
-char *
-get_first_ethernet()
+int
+get_first_ethernet(char **_r)
 {
-	return "eth0";
+        int r = 0;
+        DIR *d = NULL;
+        struct dirent *entry = NULL;
+        struct udev *udev = NULL;
+        struct udev_device *dev = NULL;
+        char *eth_dev = NULL;
+
+        d = opendir("/sys/class/net");
+        if (!d) {
+                fprintf(stderr, "Failed to open dir /sys/class/net : %m\n");
+                r = -errno;
+                goto fail;
+        }
+
+        udev = udev_new();
+        if (!udev) {
+                fprintf(stderr, "Failed to talk to systemd-udevd\n");
+                r = -EIO;
+                goto fail;
+        }
+
+        while ((entry = readdir(d)) != NULL) {
+                char syspath[PATH_MAX] = {};
+                const char *type = NULL;
+
+                if ((strcmp(entry->d_name, ".") == 0) || (strcmp(entry->d_name, "..") == 0))
+                        continue;
+
+                sprintf(syspath, "/sys/class/net/%s", entry->d_name);
+
+                dev = udev_device_new_from_syspath(udev, syspath);
+                if (!dev)
+                        continue;
+
+                type = udev_device_get_sysattr_value(dev, "type");
+                if (strcmp(type, "1") == 0) {
+                        const char *pci_dev_subclass = NULL, *usb_dev_subclass = NULL;
+
+                        pci_dev_subclass = udev_device_get_property_value(dev,
+                                                                          "ID_PCI_SUBCLASS_FROM_DATABASE");
+                        usb_dev_subclass = udev_device_get_property_value(dev,
+                                                                          "ID_USB_SUBCLASS_FROM_DATABASE");
+
+                        if ((pci_dev_subclass && strcmp(pci_dev_subclass, "Ethernet controller") == 0) ||
+                            (usb_dev_subclass && (strcmp(usb_dev_subclass, "Ethernet Networking") == 0 ||
+                                                  strcmp(usb_dev_subclass, "Ethernet Emulation") == 0))) {
+                                char *d = NULL;
+
+                                d = strdup(entry->d_name);
+                                if (!d) {
+                                        r = -ENOMEM;
+                                        goto fail;
+                                }
+
+                                free(eth_dev);
+                                eth_dev = d;
+                                break;
+                        } else if (!eth_dev) {
+                                eth_dev = strdup(entry->d_name);
+                                if (!eth_dev) {
+                                        r = -ENOMEM;
+                                        goto fail;
+                                }
+                        }
+                }
+
+                udev_device_unref(dev);
+                dev = NULL;
+        }
+
+        if (dev)
+                udev_device_unref(dev);
+        udev_unref(udev);
+        closedir(d);
+
+        *_r = eth_dev;
+
+        return 0;
+
+fail:
+        if (dev)
+                udev_device_unref(dev);
+
+        if (udev)
+                udev_unref(udev);
+
+        if (d)
+                closedir(d);
+
+        free(eth_dev);
+
+        return r;
 }
 
 /********************************************************************
@@ -3132,6 +3226,7 @@ ether_to_eui64(eui64_t *p_eui64)
     struct ifreq ifr;
     int skfd;
     const unsigned char *ptr;
+    char *eth_dev = NULL;
 
     skfd = socket(PF_INET6, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if(skfd == -1)
@@ -3140,11 +3235,19 @@ ether_to_eui64(eui64_t *p_eui64)
         return 0;
     }
 
-    strcpy(ifr.ifr_name, "eth0");
+    if (get_first_ethernet(&eth_dev) < 0)
+    {
+            warn("no ethernet device present on the host");
+            return 0;
+    }
+
+    strcpy(ifr.ifr_name, eth_dev);
+    free(eth_dev);
+
     if(ioctl(skfd, SIOCGIFHWADDR, &ifr) < 0)
     {
         close(skfd);
-        warn("could not obtain hardware address for eth0");
+        warn("could not obtain hardware address for %s", ifr.ifr_name);
         return 0;
     }
     close(skfd);

@@ -436,12 +436,12 @@ static int
 get_default_epdisc(ep)
      struct epdisc *ep;
 {
-	char *p;
+	char *p = NULL;
 	struct hostent *hp;
 	u_int32_t addr;
 
 	/* First try for an ethernet MAC address */
-	p = get_first_ethernet();
+        get_first_ethernet(&p);
 	if (p != 0 && get_if_hwaddr(ep->value, p) >= 0) {
 		ep->class = EPD_MAC;
 		ep->length = 6;
