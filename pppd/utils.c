@@ -850,7 +850,7 @@ complete_read(int fd, void *buf, size_t count)
 /* Procedures for locking the serial device using a lock file. */
 #ifndef LOCK_DIR
 #ifdef __linux__
-#define LOCK_DIR	"/var/lock"
+#define LOCK_DIR	"/var/lock/ppp"
 #else
 #ifdef SVR4
 #define LOCK_DIR	"/var/spool/locks"
