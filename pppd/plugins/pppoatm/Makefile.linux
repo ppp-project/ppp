@@ -37,7 +37,7 @@ $(PLUGIN): $(PLUGIN_OBJS)
 
 install: all
 	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -c -m 4550 $(PLUGIN) $(LIBDIR)
+	$(INSTALL) -c -m 755 $(PLUGIN) $(LIBDIR)
 
 clean:
 	rm -f *.o *.so
