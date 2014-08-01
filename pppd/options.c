@@ -776,10 +776,13 @@ process_option(opt, cmd, argv)
 	if (opt->flags & OPT_STATIC) {
 	    strlcpy((char *)(opt->addr), *argv, opt->upper_limit);
 	} else {
+	    char **optptr = (char **)(opt->addr);
 	    sv = strdup(*argv);
 	    if (sv == NULL)
 		novm("option argument");
-	    *(char **)(opt->addr) = sv;
+	    if (*optptr)
+		free(*optptr);
+	    *optptr = sv;
 	}
 	break;
 
