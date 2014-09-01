@@ -60,19 +60,6 @@ int chap_max_transmits = 10;
 int chap_rechallenge_time = 0;
 
 /*
- * Command-line options.
- */
-static option_t chap_option_list[] = {
-	{ "chap-restart", o_int, &chap_timeout_time,
-	  "Set timeout for CHAP", OPT_PRIO },
-	{ "chap-max-challenge", o_int, &chap_max_transmits,
-	  "Set max #xmits for challenge", OPT_PRIO },
-	{ "chap-interval", o_int, &chap_rechallenge_time,
-	  "Set interval for rechallenge", OPT_PRIO },
-	{ NULL }
-};
-
-/*
  * These limits apply to challenge and response packets we send.
  * The +4 is the +1 that we actually need rounded up.
  */
@@ -104,6 +91,23 @@ static struct chap_server_state {
 	unsigned char challenge[CHAL_MAX_PKTLEN];
 	char message[256];
 } server;
+
+/*
+ * Command-line options.
+ */
+static option_t chap_option_list[] = {
+	{ "chap-restart", o_int, &chap_timeout_time,
+	  "Set timeout for CHAP", OPT_PRIO },
+	{ "chap-max-challenge", o_int, &chap_max_transmits,
+	  "Set max #xmits for challenge", OPT_PRIO },
+	{ "chap-interval", o_int, &chap_rechallenge_time,
+	  "Set interval for rechallenge", OPT_PRIO },
+	{ "chap-response-failure", o_int, &client.maxresptrans,
+	  "Set number of consecutive response failures to indicate CHAP failure", OPT_PRIO },
+	{ "chap-response-interval", o_int, &client.timeout,
+	  "Set interval for retransmit response", OPT_PRIO },
+	{ NULL }
+};
 
 /* Values for flags in chap_client_state and chap_server_state */
 #define LOWERUP			1
@@ -524,9 +528,11 @@ chap_respond(struct chap_client_state *cs, int id,
 	output(0, response, PPP_HDRLEN + len);
 
 	/* start the retransmit timer */
-	cs->response_xmits = 1;
-	cs->flags |= TIMEOUT_PENDING;
-	TIMEOUT(chap_client_timeout, cs, cs->timeout);
+	if (cs->timeout > 0) {
+		cs->response_xmits = 1;
+		cs->flags |= TIMEOUT_PENDING;
+		TIMEOUT(chap_client_timeout, cs, cs->timeout);
+	}
 }
 
 static void
