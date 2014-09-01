@@ -73,21 +73,26 @@ static option_t chap_option_list[] = {
 };
 
 /*
+ * These limits apply to challenge and response packets we send.
+ * The +4 is the +1 that we actually need rounded up.
+ */
+#define CHAL_MAX_PKTLEN	(PPP_HDRLEN + CHAP_HDRLEN + 4 + MAX_CHALLENGE_LEN + MAXNAMELEN)
+#define RESP_MAX_PKTLEN	(PPP_HDRLEN + CHAP_HDRLEN + 4 + MAX_RESPONSE_LEN + MAXNAMELEN)
+
+/*
  * Internal state.
  */
 static struct chap_client_state {
 	int flags;
 	char *name;
 	struct chap_digest_type *digest;
+	int timeout;
+	int maxresptrans;
+	int response_xmits;
+	int response_pktlen;
+	unsigned char response[RESP_MAX_PKTLEN];
 	unsigned char priv[64];		/* private area for digest's use */
 } client;
-
-/*
- * These limits apply to challenge and response packets we send.
- * The +4 is the +1 that we actually need rounded up.
- */
-#define CHAL_MAX_PKTLEN	(PPP_HDRLEN + CHAP_HDRLEN + 4 + MAX_CHALLENGE_LEN + MAXNAMELEN)
-#define RESP_MAX_PKTLEN	(PPP_HDRLEN + CHAP_HDRLEN + 4 + MAX_RESPONSE_LEN + MAXNAMELEN)
 
 static struct chap_server_state {
 	int flags;
@@ -108,6 +113,10 @@ static struct chap_server_state {
 #define TIMEOUT_PENDING		0x10
 #define CHALLENGE_VALID		0x20
 
+/* Timeouts */
+#define CHAP_DEFTIMEOUT   3  /* Timeout time in seconds */
+#define CHAP_DEFTRANSMITS 10 /* Max # times to transmit */
+
 /*
  * Prototypes.
  */
@@ -115,6 +124,7 @@ static void chap_init(int unit);
 static void chap_lowerup(int unit);
 static void chap_lowerdown(int unit);
 static void chap_timeout(void *arg);
+static void chap_client_timeout(void *arg);
 static void chap_generate_challenge(struct chap_server_state *ss);
 static void chap_handle_response(struct chap_server_state *ss, int code,
 		unsigned char *pkt, int len);
@@ -142,6 +152,9 @@ chap_init(int unit)
 {
 	memset(&client, 0, sizeof(client));
 	memset(&server, 0, sizeof(server));
+
+	client.timeout = CHAP_DEFTIMEOUT;
+	client.maxresptrans = CHAP_DEFTRANSMITS;
 
 	chap_md5_init();
 #ifdef CHAPMS
@@ -180,6 +193,8 @@ chap_lowerdown(int unit)
 	struct chap_client_state *cs = &client;
 	struct chap_server_state *ss = &server;
 
+	if (cs->flags & TIMEOUT_PENDING)
+		UNTIMEOUT(chap_client_timeout, cs);
 	cs->flags = 0;
 	if (ss->flags & TIMEOUT_PENDING)
 		UNTIMEOUT(chap_timeout, ss);
@@ -269,6 +284,24 @@ chap_timeout(void *arg)
 	++ss->challenge_xmits;
 	ss->flags |= TIMEOUT_PENDING;
 	TIMEOUT(chap_timeout, arg, chap_timeout_time);
+}
+
+static void
+chap_client_timeout(void *arg)
+{
+	struct chap_client_state *cs = arg;
+
+	cs->flags &= ~TIMEOUT_PENDING;
+	if (cs->response_xmits >= cs->maxresptrans) {
+		cs->flags |= AUTH_DONE | AUTH_FAILED;
+		auth_peer_fail(0, PPP_CHAP);
+		return;
+	}
+
+	output(0, cs->response, cs->response_pktlen);
+	++cs->response_xmits;
+	cs->flags |= TIMEOUT_PENDING;
+	TIMEOUT(chap_client_timeout, arg, cs->timeout);
 }
 
 /*
@@ -438,9 +471,9 @@ chap_respond(struct chap_client_state *cs, int id,
 	int clen, nlen;
 	int secret_len;
 	unsigned char *p;
-	unsigned char response[RESP_MAX_PKTLEN];
-	char rname[MAXNAMELEN+1];
-	char secret[MAXSECRETLEN+1];
+	unsigned char response[RESP_MAX_PKTLEN] = {0};
+	char rname[MAXNAMELEN+1] = {0};
+	char secret[MAXSECRETLEN+1] = {0};
 
 	if ((cs->flags & (LOWERUP | AUTH_STARTED)) != (LOWERUP | AUTH_STARTED))
 		return;		/* not ready */
@@ -481,7 +514,19 @@ chap_respond(struct chap_client_state *cs, int id,
 	p[2] = len >> 8;
 	p[3] = len;
 
+	cs->response_pktlen = PPP_HDRLEN + len;
+	memcpy(cs->response, response, cs->response_pktlen);
+	if (cs->flags & TIMEOUT_PENDING) {
+		cs->flags &= ~TIMEOUT_PENDING;
+		UNTIMEOUT(chap_client_timeout, cs);
+	}
+
 	output(0, response, PPP_HDRLEN + len);
+
+	/* start the retransmit timer */
+	cs->response_xmits = 1;
+	cs->flags |= TIMEOUT_PENDING;
+	TIMEOUT(chap_client_timeout, cs, cs->timeout);
 }
 
 static void
@@ -493,6 +538,10 @@ chap_handle_status(struct chap_client_state *cs, int code, int id,
 	if ((cs->flags & (AUTH_DONE|AUTH_STARTED|LOWERUP))
 	    != (AUTH_STARTED|LOWERUP))
 		return;
+	if (cs->flags & TIMEOUT_PENDING) {
+		cs->flags &= ~TIMEOUT_PENDING;
+		UNTIMEOUT(chap_client_timeout, cs);
+	}
 	cs->flags |= AUTH_DONE;
 
 	if (code == CHAP_SUCCESS) {
@@ -567,6 +616,10 @@ chap_protrej(int unit)
 	if (ss->flags & AUTH_STARTED) {
 		ss->flags = 0;
 		auth_peer_fail(0, PPP_CHAP);
+	}
+	if (cs->flags & TIMEOUT_PENDING) {
+		cs->flags &= ~TIMEOUT_PENDING;
+		UNTIMEOUT(chap_client_timeout, cs);
 	}
 	if ((cs->flags & (AUTH_STARTED|AUTH_DONE)) == AUTH_STARTED) {
 		cs->flags &= ~AUTH_STARTED;
