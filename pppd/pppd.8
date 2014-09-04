@@ -1087,6 +1087,10 @@ When operating as an EAP SRP\-SHA1 client, attempt to use the pseudonym
 stored in ~/.ppp_pseudonym first as the identity, and save in this
 file any pseudonym offered by the peer during authentication.
 .TP
+.B stop\-bits \fIn
+Set the number of stop bits for the serial port. Valid values are 1 or 2.
+The default value is 1.
+.TP
 .B sync
 Use synchronous HDLC serial encoding instead of asynchronous.
 The device used by pppd with this option must have sync support.
