@@ -4,6 +4,10 @@
 # Where to install stuff by default
 DESTDIR=/usr/local
 SYSCONF=/etc
+LIBDIR=$DESTDIR/lib
+INCDIR=$DESTDIR/include
+
+VERSION=$(awk -F '"' '/VERSION/ { print $2; }' pppd/patchlevel.h)
 
 #  if [ -d /NextApps ]; then
 #    system="NeXTStep"
@@ -178,6 +182,8 @@ while [ $# -gt 0 ]; do
     case $arg in
 	--prefix)	DESTDIR=$val ;;
 	--sysconfdir)	SYSCONF=$val ;;
+	--libdir)	LIBDIR=$val ;;
+	--includedir)	INCDIR=$val ;;
     esac
 done
 
@@ -185,7 +191,9 @@ mkmkf() {
     rm -f $2
     if [ -f $1 ]; then
 	echo "  $2 <= $1"
-	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" $1 >$2
+	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" \
+            -e "s,@LIBDIR@,$LIBDIR,g" -e "s,@INCDIR@,$INCDIR,g" \
+            -e "s,@VERSION@,$VERSION,g" $1 >$2
     fi
 }
 
@@ -201,6 +209,8 @@ if [ -d "$ksrc" ]; then
     if [ -f $ksrc/Makefile.$makext$archvariant ]; then
 	mkmkf $ksrc/Makefile.$makext$archvariant $ksrc/Makefile
     fi
+    echo "Creating pkg-config file."
+    mkmkf pppd/plugins/pppd.pc.in pppd/plugins/pppd.pc
 else
   echo "Unable to locate kernel source $ksrc"
   exit 1
