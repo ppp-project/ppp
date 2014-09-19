@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@prefix@
+libdir=@LIBDIR@
+includedir=@INCDIR@
+version=@VERSION@
+plugindir=@LIBDIR@/pppd/${version}
+
+Name: pppd
+Description: PPPD Plugins
+Version: @VERSION@
+Cflags: -I${includedir}
