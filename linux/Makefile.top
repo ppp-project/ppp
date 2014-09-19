@@ -1,10 +1,10 @@
 # PPP top-level Makefile for Linux.
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-INCDIR = $(DESTDIR)/include
+INCDIR = @INCDIR@
 MANDIR = $(DESTDIR)/share/man
-ETCDIR = $(INSTROOT)@SYSCONF@/ppp
+ETCDIR = @SYSCONF@/ppp
 
 # uid 0 = root
 INSTALL= install
@@ -16,7 +16,7 @@ all:
 	cd pppstats; $(MAKE) $(MFLAGS) all
 	cd pppdump; $(MAKE) $(MFLAGS) all
 
-install: $(BINDIR) $(MANDIR)/man8 install-progs install-devel
+install: $(INSTROOT)$(BINDIR) $(INSTROOT)$(MANDIR)/man8 install-progs install-devel
 
 install-progs:
 	cd chat; $(MAKE) $(MFLAGS) install
@@ -25,24 +25,24 @@ install-progs:
 	cd pppstats; $(MAKE) $(MFLAGS) install
 	cd pppdump; $(MAKE) $(MFLAGS) install
 
-install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
-	$(ETCDIR)/chap-secrets
+install-etcppp: $(INSTROOT)$(ETCDIR) $(INSTROOT)$(ETCDIR)/options $(INSTROOT)$(ETCDIR)/pap-secrets \
+	$(INSTROOT)$(ETCDIR)/chap-secrets
 
 install-devel:
 	cd pppd; $(MAKE) $(MFLAGS) install-devel
 
-$(ETCDIR)/options:
+$(INSTROOT)$(ETCDIR)/options:
 	$(INSTALL) -c -m 644 etc.ppp/options $@
-$(ETCDIR)/pap-secrets:
+$(INSTROOT)$(ETCDIR)/pap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/pap-secrets $@
-$(ETCDIR)/chap-secrets:
+$(INSTROOT)$(ETCDIR)/chap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/chap-secrets $@
 
-$(BINDIR):
+$(INSTROOT)$(BINDIR):
 	$(INSTALL) -d -m 755 $@
-$(MANDIR)/man8:
+$(INSTROOT)$(MANDIR)/man8:
 	$(INSTALL) -d -m 755 $@
-$(ETCDIR):
+$(INSTROOT)$(ETCDIR):
 	$(INSTALL) -d -m 755 $@
 
 clean:

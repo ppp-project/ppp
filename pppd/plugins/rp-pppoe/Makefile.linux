@@ -14,11 +14,11 @@
 # $Id: Makefile.linux,v 1.8 2008/06/09 08:34:23 paulus Exp $
 #***********************************************************************
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-LIBDIR = $(DESTDIR)/lib/pppd/$(PPPDVERSION)
-
-PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
+LIBDIR = @LIBDIR@
+VERSION = @VERSION@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
 INSTALL	= install
 
@@ -42,10 +42,10 @@ rp-pppoe.so: plugin.o discovery.o if.o common.o
 	$(CC) -o rp-pppoe.so -shared plugin.o discovery.o if.o common.o
 
 install: all
-	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -s -c -m 4550 rp-pppoe.so $(LIBDIR)
-	$(INSTALL) -d -m 755 $(BINDIR)
-	$(INSTALL) -s -c -m 555 pppoe-discovery $(BINDIR)
+	$(INSTALL) -d -m 755 $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) -s -c -m 4550 rp-pppoe.so $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) -d -m 755 $(INSTROOT)$(BINDIR)
+	$(INSTALL) -s -c -m 555 pppoe-discovery $(INSTROOT)$(BINDIR)
 
 clean:
 	rm -f *.o *.so pppoe-discovery

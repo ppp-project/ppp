@@ -6,10 +6,11 @@ INSTALL	= install
 
 #***********************************************************************
 
-DESTDIR = $(INSTROOT)@DESTDIR@
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+DESTDIR = @DESTDIR@
+LIBDIR = @LIBDIR@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
-VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
+VERSION = @VERSION@
 
 PLUGIN := pppoatm.so
 PLUGIN_OBJS := pppoatm.o 
@@ -36,8 +37,8 @@ $(PLUGIN): $(PLUGIN_OBJS)
 	$(CC) $(CFLAGS) -o $@ -shared $^ $(LIBS)
 
 install: all
-	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -c -m 4550 $(PLUGIN) $(LIBDIR)
+	$(INSTALL) -d -m 755 $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) -c -m 4550 $(PLUGIN) $(INSTROOT)$(PLUGINDIR)
 
 clean:
 	rm -f *.o *.so
