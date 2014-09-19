@@ -1,8 +1,8 @@
 # PPP top-level Makefile for Linux.
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-INCDIR = $(DESTDIR)/include
+INCDIR = @INCDIR@
 MANDIR = $(DESTDIR)/share/man
 ETCDIR = $(INSTROOT)@SYSCONF@/ppp
 
@@ -16,7 +16,7 @@ all:
 	cd pppstats; $(MAKE) $(MFLAGS) all
 	cd pppdump; $(MAKE) $(MFLAGS) all
 
-install: $(BINDIR) $(MANDIR)/man8 install-progs install-devel
+install: $(INSTROOT)$(BINDIR) $(INSTROOT)$(MANDIR)/man8 install-progs install-devel
 
 install-progs:
 	cd chat; $(MAKE) $(MFLAGS) install
@@ -38,11 +38,11 @@ $(ETCDIR)/pap-secrets:
 $(ETCDIR)/chap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/chap-secrets $@
 
-$(BINDIR):
+$(INSTROOT)$(BINDIR):
 	$(INSTALL) -d -m 755 $@
-$(MANDIR)/man8:
+$(INSTROOT)$(MANDIR)/man8:
 	$(INSTALL) -d -m 755 $@
-$(ETCDIR):
+$(INSTROOT)$(ETCDIR):
 	$(INSTALL) -d -m 755 $@
 
 clean:

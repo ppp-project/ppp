@@ -7,9 +7,10 @@ INSTALL	= install
 #***********************************************************************
 
 DESTDIR = @DESTDIR@
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+LIBDIR = @LIBDIR@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
-VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
+VERSION = @VERSION@
 
 PLUGINS := pppol2tp.so openl2tp.so
 
@@ -19,8 +20,8 @@ all: $(PLUGINS)
 	$(CC) $(CFLAGS) -o $@ -shared $^ $(LIBS)
 
 install: all
-	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -c -m 755 $(PLUGINS) $(LIBDIR)
+	$(INSTALL) -d -m 755 $(INSTROOT)$(LIBDIR)
+	$(INSTALL) -c -m 755 $(PLUGINS) $(INSTROOT)$(LIBDIR)
 
 clean:
 	rm -f *.o *.so

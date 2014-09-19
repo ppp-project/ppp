@@ -1,4 +1,4 @@
-DESTDIR = $(INSTROOT)@DESTDIR@
+DESTDIR = @DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
 
@@ -16,6 +16,6 @@ clean:
 	rm -f pppdump $(OBJS) *~
 
 install:
-	mkdir -p $(BINDIR) $(MANDIR)
-	$(INSTALL) -s -c pppdump $(BINDIR)
-	$(INSTALL) -c -m 444 pppdump.8 $(MANDIR)
+	mkdir -p $(INSTROOT)$(BINDIR) $(MANDIR)
+	$(INSTALL) -s -c pppdump $(INSTROOT)$(BINDIR)
+	$(INSTALL) -c -m 444 pppdump.8 $(INSTROOT)$(MANDIR)

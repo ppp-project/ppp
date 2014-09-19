@@ -4,10 +4,12 @@ CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS	= -shared
 INSTALL	= install
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+DESTDIR = @DESTDIR@
+LIBDIR = @LIBDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+INCDIR = @INCDIR@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
 SUBDIRS := rp-pppoe pppoatm pppol2tp
 # Uncomment the next line to include the radius authentication plugin
@@ -32,11 +34,11 @@ all:	$(PLUGINS)
 %.so: %.c
 	$(CC) -o $@ $(LDFLAGS) $(CFLAGS) $^
 
-VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
+VERSION = @VERSION@
 
 install: $(PLUGINS)
-	$(INSTALL) -d $(LIBDIR)
-	$(INSTALL) $? $(LIBDIR)
+	$(INSTALL) -d $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) $? $(INSTROOT)$(PLUGINDIR)
 	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d install; done
 
 clean:
