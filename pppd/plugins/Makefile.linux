@@ -10,6 +10,7 @@ BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
 INCDIR = @INCDIR@
 PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
+PKGCONFDIR = $(LIBDIR)/pkgconfig
 
 SUBDIRS := rp-pppoe pppoatm pppol2tp
 # Uncomment the next line to include the radius authentication plugin
@@ -37,8 +38,9 @@ all:	$(PLUGINS)
 VERSION = @VERSION@
 
 install: $(PLUGINS)
-	$(INSTALL) -d $(INSTROOT)$(PLUGINDIR)
-	$(INSTALL) $? $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) -d $(INSTROOT)$(PLUGINDIR) $(INSTROOT)$(PKGCONFDIR)
+	$(INSTALL) $(PLUGINS) $(INSTROOT)$(PLUGINDIR)
+	$(INSTALL) -c -m 644 pppd.pc $(INSTROOT)$(PKGCONFDIR)
 	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d install; done
 
 clean:

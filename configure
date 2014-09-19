@@ -209,6 +209,8 @@ if [ -d "$ksrc" ]; then
     if [ -f $ksrc/Makefile.$makext$archvariant ]; then
 	mkmkf $ksrc/Makefile.$makext$archvariant $ksrc/Makefile
     fi
+    echo "Creating pkg-config file."
+    mkmkf pppd/plugins/pppd.pc.in pppd/plugins/pppd.pc
 else
   echo "Unable to locate kernel source $ksrc"
   exit 1
