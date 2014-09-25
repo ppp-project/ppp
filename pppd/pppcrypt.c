@@ -34,6 +34,22 @@
 #include "pppd.h"
 #include "pppcrypt.h"
 
+/* This code can use one of three DES libraries. The first, if USE_LIBDES is
+ * defined, are the libdes functions. This interface is still supported by
+ * OpenSSL as backwards compatibility. If USE_CRYPT is defined then the
+ * libcrypt functions are used. Lastly, if USE_OPENSSL is defined the "modern"
+ * OpenSSL interface is used. */
+
+#if defined(USE_CRYPT)
+#include <crypt.h>
+#elif defined(USE_OPENSSL)
+#include <openssl/des.h>
+#elif defined(USE_LIBDES)
+#include <des.h>
+#else
+#error "Must define one of USE_CRYPT, USE_LIBDES or USE_OPENSSL"
+#endif
+
 static u_char
 Get7Bits(input, startBit)
 u_char *input;
@@ -63,12 +79,12 @@ u_char *des_key;	/* OUT 64 bit DES key with parity bits added */
 	des_key[6] = Get7Bits(key, 42);
 	des_key[7] = Get7Bits(key, 49);
 
-#ifndef USE_CRYPT
+#if defined(USE_LIBDES)
 	des_set_odd_parity((des_cblock *)des_key);
 #endif
 }
 
-#ifdef USE_CRYPT
+#if defined(USE_CRYPT)
 /*
  * in == 8-byte string (expanded version of the 56-bit key)
  * out == 64-byte string where each byte is either 1 or 0
@@ -157,7 +173,40 @@ u_char *clear;	/* OUT 8 octets */
 	return (1);
 }
 
-#else /* USE_CRYPT */
+#elif defined(USE_OPENSSL)
+static DES_key_schedule key_schedule;
+
+bool
+DesSetkey(key)
+u_char *key;
+{
+	DES_cblock des_key;
+	MakeKey(key, (u_char*) &des_key);
+	DES_set_key(&des_key, &key_schedule);
+	return (1);
+}
+
+bool
+DesEncrypt(clear, cipher)
+u_char *clear;	/* IN  8 octets */
+u_char *cipher;	/* OUT 8 octets */
+{
+	DES_ecb_encrypt((DES_cblock *)clear, (DES_cblock *)cipher,
+	    &key_schedule, 1 /* encrypt */);
+	return (1);
+}
+
+bool
+DesDecrypt(cipher, clear)
+u_char *cipher;	/* IN  8 octets */
+u_char *clear;	/* OUT 8 octets */
+{
+	DES_ecb_encrypt((DES_cblock *)cipher, (DES_cblock *)clear,
+	    &key_schedule, 0 /* decrypt */);
+	return (1);
+}
+
+#elif defined(USE_LIBDES)
 static des_key_schedule	key_schedule;
 
 bool
@@ -189,5 +238,9 @@ u_char *clear;	/* OUT 8 octets */
 	    key_schedule, 0);
 	return (1);
 }
+
+#else
+
+#error "Must define one of USE_CRYPT, USE_LIBDES or USE_OPENSSL"
 
 #endif /* USE_CRYPT */

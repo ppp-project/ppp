@@ -39,6 +39,9 @@ LIBS =
 # MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.linux.
 CHAPMS=y
 USE_CRYPT=y
+# Alternatively, if you want to use OpenSSL for DES functions, comment out
+# USE_CRYPT, above, and uncomment this line.
+#USE_OPENSSL=y
 # Don't use MSLANMAN unless you really know what you're doing.
 #MSLANMAN=y
 # Uncomment the next line to include support for MPPE.  CHAPMS (above) must
@@ -131,10 +134,17 @@ LIBS	+= -lutil
 endif
 
 ifdef NEEDDES
+ifdef USE_OPENSSL
+CFLAGS   += -DUSE_OPENSSL=1
+LIBS     += -lcrypto
+else
 ifndef USE_CRYPT
-LIBS     += -ldes $(LIBS)
+CFLAGS   += -DUSE_LIBDES=1
+LIBS     += -ldes
 else
 CFLAGS   += -DUSE_CRYPT=1
+LIBS     += -lcrypt
+endif
 endif
 PPPDOBJS += pppcrypt.o
 HEADERS += pppcrypt.h
