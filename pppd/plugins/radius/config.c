@@ -132,7 +132,7 @@ static int set_option_srv(char *filename, int line, OPTION *option, char *p)
 
 static int set_option_auo(char *filename, int line, OPTION *option, char *p)
 {
-	int *iptr;
+	int *iptr = NULL;
 
 	if (p == NULL) {
 		warn("%s: line %d: bogus option value", filename, line);
@@ -153,6 +153,8 @@ static int set_option_auo(char *filename, int line, OPTION *option, char *p)
 			*iptr = AUTH_RADIUS_FST;
 	else {
 		error("%s: auth_order: unknown keyword: %s", filename, p);
+		if (iptr)
+			free(iptr);
 		return (-1);
 	}
 
@@ -165,6 +167,8 @@ static int set_option_auo(char *filename, int line, OPTION *option, char *p)
 			*iptr = (*iptr) | AUTH_RADIUS_SND;
 		else {
 			error("%s: auth_order: unknown or unexpected keyword: %s", filename, p);
+			if (iptr) 
+				free(iptr);
 			return (-1);
 		}
 	}

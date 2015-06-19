@@ -21,6 +21,8 @@ struct map2id_s {
 
 static struct map2id_s *map2id_list = NULL;
 
+#define DEVPATH	"/dev/"
+
 /*
  * Function: rc_read_mapfile
  *
@@ -108,9 +110,9 @@ UINT4 rc_map2id(char *name)
 
 	*ttyname = '\0';
 	if (*name != '/')
-		strcpy(ttyname, "/dev/");
+		strcpy(ttyname, DEVPATH);
 
-	strncat(ttyname, name, sizeof(ttyname));
+	strncat(ttyname, name, sizeof(ttyname) - strlen(DEVPATH));
 
 	for(p = map2id_list; p; p = p->next)
 		if (!strcmp(ttyname, p->name)) return p->id;

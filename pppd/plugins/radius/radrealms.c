@@ -44,7 +44,7 @@ lookup_realm(char const *user,
 {
     char *realm;
     FILE *fd;
-    SERVER *accts, *auths, *s;
+    SERVER *accts = NULL, *auths = NULL, *s = NULL;
     char buffer[512], *p;
     int line = 0;
     
@@ -68,6 +68,10 @@ lookup_realm(char const *user,
     
     if ((fd = fopen(radrealms_config, "r")) == NULL) {
 	option_error("cannot open %s", radrealms_config);
+	if (auths) 
+		free(auths);
+	if (accts)
+		free(accts);
 	return;
     } 
     info("Reading %s", radrealms_config);
