@@ -1,0 +1,29 @@
+#!/bin/sh
+# This script shows the example how to replace IPv6's default route when
+# PPP connection is estabished.
+# the options file (such as dsl-provider) is supposed to be included:
+#   +ipv6
+#   ipparam ipv6defaultroute
+# or:
+#   +ipv6
+#   ipparam ipv6replacedefaultroute
+#
+# Service of DHCPv6 from WIDE project is also triggered to start
+# at the end of the sample script
+#
+# This script is modified from a post in Debian Bug#477245
+# - http://bugs.debian.org/477245#45
+
+if [ -z "${CONNECT_TIME}" ]; then
+	if [ "${PPP_IPPARAM}" = "ipv6defaultroute" ]; then
+		ip -6 r add default dev ${PPP_IFACE}
+	elif [ "${PPP_IPPARAM}" = "ipv6replacedefaultroute" ]; then
+		ip -6 r del default
+		ip -6 r add default dev ${PPP_IFACE}
+	fi
+	if [ -r /var/run/dhcp6c.pid ]; then
+		service wide-dhcpv6-client restart
+	else
+		service wide-dhcpv6-client start
+	fi
+fi
