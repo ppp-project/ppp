@@ -273,9 +273,10 @@ PPPOEDisconnectDevice(void)
 		sizeof(struct sockaddr_pppox)) < 0 && errno != EALREADY)
 	error("Failed to disconnect PPPoE socket: %d %m", errno);
     close(conn->sessionSocket);
-    /* don't send PADT?? */
-    if (conn->discoverySocket >= 0)
+    if (conn->discoverySocket >= 0) {
+        sendPADT(conn, NULL);
 	close(conn->discoverySocket);
+    }
 }
 
 static void
