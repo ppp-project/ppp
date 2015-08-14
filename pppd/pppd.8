@@ -121,6 +121,12 @@ the gateway, when IPCP negotiation is successfully completed.
 This entry is removed when the PPP connection is broken.  This option
 is privileged if the \fInodefaultroute\fR option has been specified.
 .TP
+.B defaultroute-metric
+Define the metric of the \fIdefaultroute\fR and only add it if there
+is no other default route with the same metric.  With the default
+value of -1, the route is only added if there is no default route at
+all.
+.TP
 .B disconnect \fIscript
 Execute the command specified by \fIscript\fR, by passing it to a
 shell, after
