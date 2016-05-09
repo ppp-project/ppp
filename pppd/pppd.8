@@ -1592,7 +1592,7 @@ Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
 usually shell scripts, but could be executable code files instead.
 Pppd does not wait for the scripts to finish (except for the ip-pre-up
-script).  The scripts are
+and the ipv6-pre-up script).  The scripts are
 executed as root (with the real and effective user-id set to 0), so
 that they can do things such as update routing tables or run
 privileged daemons.  Be careful that the contents of these scripts do
