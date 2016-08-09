@@ -50,6 +50,8 @@
 #ifndef _PPP_DEFS_H_
 #define _PPP_DEFS_H_
 
+#include <sys/types.h>
+
 /*
  * The basic PPP frame.
  */
