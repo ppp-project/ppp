@@ -9,6 +9,7 @@
  *
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -53,6 +54,14 @@ void usage(void);
 void die(int status)
 {
 	exit(status);
+}
+
+void error(char *fmt, ...)
+{
+    va_list pvar;
+    va_start(pvar, fmt);
+    vfprintf(stderr, fmt, pvar);
+    va_end(pvar);
 }
 
 /* Initialize frame types to RFC 2516 values.  Some broken peers apparently
