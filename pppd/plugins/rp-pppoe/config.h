@@ -59,26 +59,14 @@
 /* Define if you have the <getopt.h> header file.  */
 #define HAVE_GETOPT_H 1
 
-/* Define if you have the <linux/if_ether.h> header file.  */
-#define HAVE_LINUX_IF_ETHER_H 1
-
-/* Define if you have kernel-mode PPPoE in Linux file.  */
-#define HAVE_LINUX_KERNEL_PPPOE 1
-
 /* Define if you have the <linux/if_packet.h> header file.  */
 #define HAVE_LINUX_IF_PACKET_H 1
-
-/* Define if you have the <linux/if_pppox.h> header file.  */
-#define HAVE_LINUX_IF_PPPOX_H 1
 
 /* Define if you have the <net/bpf.h> header file.  */
 #define HAVE_NET_BPF_H 1
 
 /* Define if you have the <net/if_arp.h> header file.  */
 #define HAVE_NET_IF_ARP_H 1
-
-/* Define if you have the <net/ethernet.h> header file.  */
-#define HAVE_NET_ETHERNET_H 1
 
 /* Define if you have the <net/if.h> header file.  */
 #define HAVE_NET_IF_H 1
@@ -89,23 +77,11 @@
 /* Define if you have the <net/if_dl.h> header file.  */
 /* #undef HAVE_NET_IF_DL_H */
 
-/* Define if you have the <net/if_ether.h> header file.  */
-/* #undef HAVE_NET_IF_ETHER_H */
-
 /* Define if you have the <net/if_types.h> header file.  */
 /* #undef HAVE_NET_IF_TYPES_H */
 
-/* Define if you have the <netinet/if_ether.h> header file.  */
-#define HAVE_NETINET_IF_ETHER_H 1
-
 /* Define if you have the <netpacket/packet.h> header file.  */
 #define HAVE_NETPACKET_PACKET_H 1
-
-/* Define if you have the <sys/cdefs.h> header file.  */
-#define HAVE_SYS_CDEFS_H 1
-
-/* Define if you have the <sys/dlpi.h> header file.  */
-/* #undef HAVE_SYS_DLPI_H */
 
 /* Define if you have the <sys/ioctl.h> header file.  */
 #define HAVE_SYS_IOCTL_H 1

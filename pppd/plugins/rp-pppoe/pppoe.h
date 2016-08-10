@@ -39,10 +39,6 @@
 #error Unknown method for accessing raw Ethernet frames
 #endif
 
-#ifdef HAVE_SYS_CDEFS_H
-#include <sys/cdefs.h>
-#endif
-
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
@@ -80,24 +76,12 @@ typedef unsigned long UINT32_t;
 #error Could not find a 32-bit integer type
 #endif
 
-#ifdef HAVE_LINUX_IF_ETHER_H
-#include <linux/if_ether.h>
-#endif
-
 #include <netinet/in.h>
-
-#ifdef HAVE_NETINET_IF_ETHER_H
-#include <sys/types.h>
+#include <linux/if_pppox.h>
 
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#ifndef HAVE_SYS_DLPI_H
-#include <netinet/if_ether.h>
-#endif
-#endif
-
-
 
 /* Ethernet frame types according to RFC 2516 */
 #define ETH_PPPOE_DISCOVERY 0x8863
