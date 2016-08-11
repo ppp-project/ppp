@@ -124,6 +124,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
+#include "sys-linux-termios2.h"
 
 #ifdef IPX_CHANGE
 #include "ipxcp.h"
@@ -986,9 +987,9 @@ void set_up_tty(int tty_fd, int local)
  * since that implies that the serial port is disabled.
  */
     else {
-	speed = cfgetospeed(&tios);
-	if (speed == B0)
-	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
+	warn("Forcing non standard baudrate %d\n", inspeed);
+	if (force_baudrate(tty_fd, inspeed) == -1)
+	    error("Failed to set non standard baudrate (%d)", errno);
     }
 
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
