@@ -643,6 +643,21 @@ static int make_ppp_unit()
 	}
 	if (x < 0)
 		error("Couldn't create new ppp unit: %m");
+
+	if (x == 0 && req_ifname[0] != '\0') {
+		struct ifreq ifr;
+		char t[MAXIFNAMELEN];
+		memset(&ifr, 0, sizeof(struct ifreq));
+		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
+		strncpy(ifr.ifr_name, t, IF_NAMESIZE);
+		strncpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
+		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
+		if (x < 0)
+		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
+		else
+		    info("Renamed interface %s to %s", t, req_ifname);
+	}
+
 	return x;
 }
 

@@ -1079,7 +1079,13 @@ under Linux and FreeBSD 2.2.8 and later.
 .TP
 .B unit \fInum
 Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
-connections.
+connections.  If the unit is already in use a dynamically allocated number will
+be used.
+.TP
+.B ifname \fIstring
+Set the ppp interface name for outbound connections.  If the interface name is
+already in use, or if the name cannot be used for any other reason, pppd will
+terminate.
 .TP
 .B unset \fIname
 Remove a variable from the environment variable for scripts that are
