@@ -982,19 +982,20 @@ void set_up_tty(int tty_fd, int local)
 	cfsetospeed (&tios, speed);
 	cfsetispeed (&tios, speed);
     }
-/*
- * We can't proceed if the serial port speed is B0,
- * since that implies that the serial port is disabled.
- */
-    else {
-	warn("Forcing non standard baudrate %d\n", inspeed);
-	if (force_baudrate(tty_fd, inspeed) == -1)
-	    error("Failed to set non standard baudrate (%d)", errno);
-    }
 
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
 	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
+
+/*
+ * We can't proceed if the serial port speed is B0,
+ * since that implies that the serial port is disabled.
+ */
+    if (!speed) {
+	warn("Forcing non standard baudrate %d on fd %d\n", inspeed, tty_fd);
+	if (force_baudrate(tty_fd, inspeed) == -1)
+	    error("Failed to set non standard baudrate (%d)", errno);
+    }
 
     baud_rate    = baud_rate_of(speed);
     restore_term = 1;
