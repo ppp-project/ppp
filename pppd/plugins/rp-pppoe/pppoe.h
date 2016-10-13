@@ -84,7 +84,7 @@ typedef unsigned long UINT32_t;
 #include <linux/if_ether.h>
 #endif
 
-#include <netinet/in.h>
+#include <linux/in.h>
 
 #ifdef HAVE_NETINET_IF_ETHER_H
 #include <sys/types.h>
