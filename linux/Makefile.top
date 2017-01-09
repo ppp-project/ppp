@@ -1,9 +1,9 @@
 # PPP top-level Makefile for Linux.
 
-DESTDIR = @DESTDIR@
-BINDIR = $(DESTDIR)/sbin
+prefix = @prefix@
+BINDIR = $(prefix)/sbin
 INCDIR = @INCDIR@
-MANDIR = $(DESTDIR)/share/man
+MANDIR = $(prefix)/share/man
 ETCDIR = @SYSCONF@/ppp
 
 # uid 0 = root

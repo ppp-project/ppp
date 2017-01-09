@@ -5,7 +5,7 @@
 
 include ../Makedefs.com
 
-CFLAGS	=  -I../include -DSVR4 -DSOL2 $(COPTS) '-DDESTDIR="@DESTDIR@"'
+CFLAGS	=  -I../include -DSVR4 -DSOL2 $(COPTS) -DPREFIX="\"@prefix@\""
 LIBS	= -lsocket -lnsl
 
 OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o eap.o md5.o \

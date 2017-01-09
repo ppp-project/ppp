@@ -4,9 +4,9 @@
 #
 
 # Default installation locations
-DESTDIR = @DESTDIR@
-BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/share/man/man8
+prefix = @prefix@
+BINDIR = $(prefix)/sbin
+MANDIR = $(prefix)/share/man/man8
 INCDIR = @INCDIR@
 
 TARGETS = pppd
@@ -82,7 +82,7 @@ INCLUDE_DIRS= -I../include
 
 COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
-CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) '-DDESTDIR="@DESTDIR@"'
+CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) -DPREFIX="\"@prefix@\""
 
 ifdef CHAPMS
 CFLAGS   += -DCHAPMS=1

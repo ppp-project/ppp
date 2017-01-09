@@ -14,8 +14,8 @@
 # $Id: Makefile.linux,v 1.8 2008/06/09 08:34:23 paulus Exp $
 #***********************************************************************
 
-DESTDIR = @DESTDIR@
-BINDIR = $(DESTDIR)/sbin
+prefix = @prefix@
+BINDIR = $(prefix)/sbin
 LIBDIR = @LIBDIR@
 VERSION = @VERSION@
 PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)

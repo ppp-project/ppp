@@ -3,8 +3,8 @@
 # Copyright 2002 Roaring Penguin Software Inc.
 #
 
-DESTDIR = @DESTDIR@
-MANDIR = $(DESTDIR)/share/man/man8
+prefix = @prefix@
+MANDIR = $(prefix)/share/man/man8
 LIBDIR = @LIBDIR@
 PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 

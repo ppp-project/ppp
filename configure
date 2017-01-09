@@ -2,10 +2,10 @@
 # $Id: configure,v 1.38 2008/06/15 07:08:49 paulus Exp $
 
 # Where to install stuff by default
-DESTDIR=/usr/local
+prefix=/usr/local
 SYSCONF=/etc
-LIBDIR=$DESTDIR/lib
-INCDIR=$DESTDIR/include
+LIBDIR='${prefix}'/lib
+INCDIR='${prefix}'/include
 
 VERSION=$(awk -F '"' '/VERSION/ { print $2; }' pppd/patchlevel.h)
 
@@ -180,7 +180,7 @@ while [ $# -gt 0 ]; do
 	    ;;
     esac
     case $arg in
-	--prefix)	DESTDIR=$val ;;
+	--prefix)	prefix=$val ;;
 	--sysconfdir)	SYSCONF=$val ;;
 	--libdir)	LIBDIR=$val ;;
 	--includedir)	INCDIR=$val ;;
@@ -191,7 +191,7 @@ mkmkf() {
     rm -f $2
     if [ -f $1 ]; then
 	echo "  $2 <= $1"
-	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" \
+	sed -e "s,@prefix@,$prefix,g" -e "s,@SYSCONF@,$SYSCONF,g" \
             -e "s,@LIBDIR@,$LIBDIR,g" -e "s,@INCDIR@,$INCDIR,g" \
             -e "s,@VERSION@,$VERSION,g" $1 >$2
     fi

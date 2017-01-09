@@ -4,8 +4,8 @@
 
 INSTALL= /usr/sbin/install
 
-BINDIR = @DESTDIR@/bin
-MANDIR = @DESTDIR@/man
+BINDIR = @prefix@/bin
+MANDIR = @prefix@/man
 ETCDIR = @SYSCONF@/ppp
 
 CC = gcc

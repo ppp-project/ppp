@@ -4,10 +4,10 @@ CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS	= -shared
 INSTALL	= install
 
-DESTDIR = @DESTDIR@
+prefix = @prefix@
 LIBDIR = @LIBDIR@
-BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/share/man/man8
+BINDIR = $(prefix)/sbin
+MANDIR = $(prefix)/share/man/man8
 INCDIR = @INCDIR@
 PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
