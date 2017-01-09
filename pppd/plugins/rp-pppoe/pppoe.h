@@ -47,6 +47,10 @@
 #include <sys/socket.h>
 #endif
 
+/* This has to be included before Linux 4.8's linux/in.h
+ * gets dragged in. */
+#include <netinet/in.h>
+
 /* Ugly header files on some Linux boxes... */
 #if defined(HAVE_LINUX_IF_H)
 #include <linux/if.h>
@@ -84,8 +88,6 @@ typedef unsigned long UINT32_t;
 #include <linux/if_ether.h>
 #endif
 
-#include <netinet/in.h>
-
 #ifdef HAVE_NETINET_IF_ETHER_H
 #include <sys/types.h>
 
@@ -96,7 +98,6 @@ typedef unsigned long UINT32_t;
 #include <netinet/if_ether.h>
 #endif
 #endif
-
 
 
 /* Ethernet frame types according to RFC 2516 */
