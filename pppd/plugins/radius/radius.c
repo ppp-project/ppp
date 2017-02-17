@@ -996,6 +996,10 @@ radius_acct_stop(void)
 
     rc_avpair_add(&send, PW_USER_NAME, rstate.user, 0, VENDOR_NONE);
 
+    if (rstate.class_len > 0)
+	rc_avpair_add(&send, PW_CLASS,
+		      rstate.class, rstate.class_len, VENDOR_NONE);
+
     av_type = PW_STATUS_STOP;
     rc_avpair_add(&send, PW_ACCT_STATUS_TYPE, &av_type, 0, VENDOR_NONE);
 
@@ -1139,6 +1143,10 @@ radius_acct_interim(void *ignored)
 		   0, VENDOR_NONE);
 
     rc_avpair_add(&send, PW_USER_NAME, rstate.user, 0, VENDOR_NONE);
+
+    if (rstate.class_len > 0)
+	rc_avpair_add(&send, PW_CLASS,
+		      rstate.class, rstate.class_len, VENDOR_NONE);
 
     av_type = PW_STATUS_ALIVE;
     rc_avpair_add(&send, PW_ACCT_STATUS_TYPE, &av_type, 0, VENDOR_NONE);
