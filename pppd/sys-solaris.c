@@ -198,11 +198,19 @@ static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 	l.lifr_addr = laddr;			\
 	} while (0)
 
+#define _IN6A_LLX_FROM_EUI64(s, eui64, as) do {	\
+	s->s6_addr32[0] = htonl(as); 	\
+	eui64_copy(eui64, s->s6_addr32[2]);	\
+	} while (0)
+
 #define IN6_LLADDR_FROM_EUI64(l, s, eui64)  \
     _IN6_LLX_FROM_EUI64(l, s, eui64, 0xfe800000)
 
 #define IN6_LLTOKEN_FROM_EUI64(l, s, eui64) \
     _IN6_LLX_FROM_EUI64(l, s, eui64, 0)
+
+#define IN6A_LLADDR_FROM_EUI64(s, eui64)  \
+    _IN6A_LLX_FROM_EUI64(s, eui64, 0xfe800000)
 
 #endif /* defined(INET6) && defined(SOL2) */
 
@@ -238,6 +246,7 @@ static int	tty_npushed;
 static int	if_is_up;	/* Interface has been marked up */
 static u_int32_t remote_addr;		/* IP address of peer */
 static u_int32_t default_route_gateway;	/* Gateway for default route added */
+static eui64_t	default_route_gateway6;	/* Gateway for default IPv6 route added */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 /* Prototypes for procedures local to this file. */
@@ -787,6 +796,8 @@ sys_cleanup()
 	sifdown(0);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway, default_route_gateway);
+    if (default_route_gateway6)
+	cif6defaultroute(0, default_route_gateway6, default_route_gateway6);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
 #if defined(SOL2)
@@ -1954,6 +1965,62 @@ cif6addr(u, o, h)
     int u;
     eui64_t o, h;
 {
+    return 1;
+}
+
+/*
+ * sif6defaultroute - assign a default route through the address given.
+ */
+int
+sif6defaultroute(u, l, g)
+    int u;
+    eui64_t l, g;
+{
+    struct rtentry rt;
+
+#if defined(__USLC__)
+    g = l;			/* use the local address as gateway */
+#endif
+    memset(&rt, 0, sizeof(rt));
+    memset(&rt.rtmsg_dst, 0, sizeof(rt.rtmsg_dst));
+    rt.rtmsg_dst_len = 0;
+    IN6A_LLADDR_FROM_EUI64(&rt.rtmsg_gateway, g);
+    rt.rtmsg_flags = RTF_GATEWAY;
+
+    if (ioctl(ip6fd, SIOCADDRT, &rt) < 0) {
+	error("Can't add default route: %m");
+	return 0;
+    }
+
+    default_route_gateway6 = g;
+    return 1;
+}
+
+/*
+ * cif6defaultroute - delete a default route through the address given.
+ */
+int
+cif6defaultroute(u, l, g)
+    int u;
+    eui64_t l, g;
+{
+    struct rtentry rt;
+
+#if defined(__USLC__)
+    g = l;			/* use the local address as gateway */
+#endif
+    memset(&rt, 0, sizeof(rt));
+    memset(&rt.rtmsg_dst, 0, sizeof(rt.rtmsg_dst));
+    rt.rtmsg_dst_len = 0;
+    IN6A_LLADDR_FROM_EUI64(&rt.rtmsg_gateway, g);
+    rt.rtmsg_flags = RTF_GATEWAY;
+
+    if (ioctl(ip6fd, SIOCDELRT, &rt) < 0) {
+	error("Can't delete default route: %m");
+	return 0;
+    }
+
+    default_route_gateway6 = 0;
     return 1;
 }
 
