@@ -60,6 +60,11 @@ HAVE_MULTILINK=y
 # Linux distributions: Please leave TDB ENABLED in your builds.
 USE_TDB=y
 
+# Uncomment the next line to enable Type=notify services in systemd
+# If enabled, and the user sets the up_sdnotify option, then
+# pppd will not detach and will notify systemd when up.
+#SYSTEMD=y
+
 HAS_SHADOW=y
 #USE_PAM=y
 HAVE_INET6=y
@@ -168,6 +173,11 @@ endif
 ifdef LOCKLIB
 LIBS     += -llock
 CFLAGS   += -DLOCKLIB=1
+endif
+
+ifdef SYSTEMD
+LIBS += -lsystemd
+CFLAGS   += -DSYSTEMD=1
 endif
 
 ifdef PLUGIN

@@ -295,6 +295,9 @@ extern int	inspeed;	/* Input/Output speed requested */
 extern u_int32_t netmask;	/* IP netmask to set on interface */
 extern bool	lockflag;	/* Create lock file to lock the serial dev */
 extern bool	nodetach;	/* Don't detach from controlling tty */
+#ifdef SYSTEMD
+extern bool	up_sdnotify;	/* Notify systemd once link is up (implies nodetach) */
+#endif
 extern bool	updetach;	/* Detach from controlling tty when link up */
 extern bool	master_detach;	/* Detach when multilink master without link */
 extern char	*initializer;	/* Script to initialize physical link */

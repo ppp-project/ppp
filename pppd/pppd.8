@@ -1100,6 +1100,15 @@ it has successfully established the ppp connection (to the point where
 the first network control protocol, usually the IP control protocol,
 has come up).
 .TP
+.B up_sdnotify
+Use this option to run pppd in systemd service units of Type=notify
+(\fBup_sdnotify\fR implies \fBnodetach\fR).
+When \fBup_sdnotify\fR is enabled, pppd will notify systemd once
+it has successfully established the ppp connection (to the point where
+the first network control protocl, usually the IP control protocol,
+has come up). This option is only availble when pppd is compiled with
+systemd support.
+.TP
 .B usehostname
 Enforce the use of the hostname (with domain name appended, if given)
 as the name of the local system for authentication purposes (overrides

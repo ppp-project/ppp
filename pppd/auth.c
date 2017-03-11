@@ -100,6 +100,10 @@
 #endif
 #include <time.h>
 
+#ifdef SYSTEMD
+#include <systemd/sd-daemon.h>
+#endif
+
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
@@ -1099,8 +1103,15 @@ np_up(unit, proto)
 	/*
 	 * Detach now, if the updetach option was given.
 	 */
-	if (updetach && !nodetach)
+	if (updetach && !nodetach) {
+	    dbglog("updetach is set. Now detaching.");
 	    detach();
+#ifdef SYSTEMD
+	} else if (nodetach && up_sdnotify) {
+	    dbglog("up_sdnotify is set. Now notifying systemd: READY=1");
+	    sd_notify(0, "READY=1");
+#endif
+	}
     }
     ++num_np_up;
 }
