@@ -47,7 +47,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
-
+#include "net/ppp_defs.h"
 #include "pppd.h"
 #include "magic.h"
 
