@@ -1452,8 +1452,10 @@ pattern_match(pattern, string, len)
     regex_t re;
 
     if(regex) {
-        if(regcomp(&re, pattern, REG_NOSUB | REG_EXTENDED) != 0)
+        if(regcomp(&re, pattern, REG_NOSUB | REG_EXTENDED) != 0) {
+            fatal(1, "Can't compile regular expression '%s'!", pattern);
             return -1;
+        }
     }
 #endif
 
