@@ -252,6 +252,8 @@ void terminate __P ((int status));
 void pack_array __P ((char **array, int end));
 char *expect_strtok __P ((char *, char *));
 int vfmtmsg __P ((char *, int, const char *, va_list)); /* vsprintf++ */
+int pattern_match __P ((char *pattern, char *istring, int len, int *p_match_len));
+
 
 int main __P ((int, char *[]));
 
@@ -1441,49 +1443,72 @@ echo_stderr (n)
  * return 0 on match
  */
 int
-pattern_match(pattern, string, len)
+pattern_match(pattern, istring, len, p_match_len)
     char *pattern;
-    char *string;
-    int len;
+    char *istring;
+    int len, *p_match_len;
 {
-    char tmp = string[len];
-    int r, i;
+    int r = -1, i, ix, l_string = 0;
+    char string[STR_LEN];
 #ifdef REGEX_ENABLED
+    char *p;
+    int l_tok;
     regex_t re;
 
     if(regex) {
-        if(regcomp(&re, pattern, REG_NOSUB | REG_EXTENDED) != 0) {
+        if(regcomp(&re, pattern, REG_NOSUB | REG_EXTENDED | REG_NEWLINE) != 0) {
             fatal(1, "Can't compile regular expression '%s'!", pattern);
             return -1;
         }
     }
 #endif
 
-    string[len] = 0;
+    *p_match_len = 0;
 
-    /* match pattern on each position in string */
-    for(i = 0; i < len; ++i) {
-#ifdef REGEX_ENABLED
-        if(regex)
-            r = regexec(&re, string + i, 1, NULL, 0);
-        else
-#endif
-        {
-            r = fnmatch(pattern, string + i, 0);
+    if(regex) {
+        // convert \r\n -> \n, regex can't match \r
+        for(i = 0; i < len; ++i) {
+            if(i >= len - 1 || istring[i] != '\r' || istring[i+1] != '\n')
+                string[l_string++] = istring[i];
+            else {
+                string[l_string++] = '\n';
+                ++i;
+            }
         }
 
-        if(r == 0)
-          break;
+        string[l_string] = 0;
     }
-    
-    string[len] = tmp;
+    else {
+        memcpy(string, istring, len);
+        l_string = len;
+    }
 
+    if(regex) {
 #ifdef REGEX_ENABLED
-    if(regex)
+        for(p = strtok(string, "\n"); p; p = strtok(NULL, "\n")) {
+            ix = p - string;
+            l_tok = strlen(p);
+
+            r = regexec(&re, p, 0, NULL, (ix + l_tok < l_string) ? 0 : REG_NOTEOL);
+            if(r == 0) {
+                *p_match_len = ix + l_tok;
+                break;
+            }
+        }
+
         regfree(&re);
 #endif
+    }
+    else {
+        for(i = 0; i < l_string - 1; ++i) {
+            if((r = fnmatch(pattern, string + i, 0)) == 0) {
+                *p_match_len = i + 1;   /* don't know really */
+                break;
+            }
+        }
+    }
 
-    return r;
+    return (r != 0) ? -1 : 0;
 }
 
 /*
@@ -1495,9 +1520,9 @@ get_string (string, globflg)
      int globflg;
 {
   char temp[STR_LEN];
-  int c, printed = 0, len, minlen, match;
+  int c, printed = 0, len, minlen, match, l_match = 0;
   register char *s = temp, *end = s + STR_LEN;
-  char *logged = temp;
+  char *logged = temp, *match_start = temp;
 
   fail_reason = (char *) 0;
   string = clean (string, 0);
@@ -1580,8 +1605,11 @@ get_string (string, globflg)
 
     if(!globflg)
       match = (s - temp >= len && c == string[len - 1] && strncmp (s - len, string, len) == 0);
-    else
-      match = (pattern_match(string, temp, s - temp) == 0);
+    else {
+      match = (pattern_match(string, match_start, s - match_start, &l_match) == 0);
+      if(match)
+          match_start += l_match;
+    }
 
     if (match) {
       if (verbose) {
@@ -1619,6 +1647,7 @@ get_string (string, globflg)
         logged = s;
       }
       s -= minlen;
+      match_start = (match_start - temp >= minlen) ? (match_start - minlen) : temp;
       memmove (temp, s, minlen);
       logged = temp + (logged - s);
       s = temp + minlen;
