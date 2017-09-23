@@ -105,6 +105,16 @@ static const char rcsid[] =
 #include <syslog.h>
 #include <fnmatch.h>
 
+#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
+#define REGEX_ENABLED
+#else
+#undef REGEX_ENABLED
+#endif
+
+#ifdef REGEX_ENABLED
+#include <regex.h>
+#endif
+
 #ifndef TERMIO
 #undef	TERMIOS
 #define TERMIOS
@@ -182,6 +192,7 @@ char *chat_file = (char *) 0;
 char *phone_num = (char *) 0;
 char *phone_num2 = (char *) 0;
 int timeout = DEFAULT_CHAT_TIMEOUT;
+int regex = 0;
 
 int have_tty_parameters = 0;
 
@@ -367,6 +378,10 @@ main (argc, argv)
         usage ();
       break;
 
+    case 'R':
+      regex = 1;
+      break;
+
     default:
       usage ();
       break;
@@ -507,7 +522,7 @@ usage ()
 {
   fprintf (stderr, "\
 Usage: %s [-e] [-E] [-v] [-V] [-t timeout] [-r report-file]\n\
-     [-T phone-number] [-U phone-number2] {-f chat-file | chat-script}\n", program_name);
+     [-T phone-number] [-U phone-number2] [-R] {-f chat-file | chat-script}\n", program_name);
   exit (1);
 }
 
@@ -1422,26 +1437,49 @@ echo_stderr (n)
  * Match pattern against non-terminated string
  * string is expected to be at least one byte larger
  * than len
+ *
+ * return 0 on match
  */
 int
-globmatch(pattern, string, len)
+pattern_match(pattern, string, len)
     char *pattern;
     char *string;
     int len;
 {
     char tmp = string[len];
     int r, i;
+#ifdef REGEX_ENABLED
+    regex_t re;
+
+    if(regex) {
+        if(regcomp(&re, pattern, REG_NOSUB | REG_EXTENDED) != 0)
+            return -1;
+    }
+#endif
 
     string[len] = 0;
 
     /* match pattern on each position in string */
     for(i = 0; i < len; ++i) {
-        r = fnmatch(pattern, string + i, 0);
+#ifdef REGEX_ENABLED
+        if(regex)
+            r = regexec(&re, string + i, 1, NULL, 0);
+        else
+#endif
+        {
+            r = fnmatch(pattern, string + i, 0);
+        }
+
         if(r == 0)
           break;
     }
-
+    
     string[len] = tmp;
+
+#ifdef REGEX_ENABLED
+    if(regex)
+        regfree(&re);
+#endif
 
     return r;
 }
@@ -1541,7 +1579,7 @@ get_string (string, globflg)
     if(!globflg)
       match = (s - temp >= len && c == string[len - 1] && strncmp (s - len, string, len) == 0);
     else
-      match = (globmatch(string, temp, s - temp) == 0);
+      match = (pattern_match(string, temp, s - temp) == 0);
 
     if (match) {
       if (verbose) {
