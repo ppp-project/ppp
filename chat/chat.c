@@ -103,6 +103,7 @@ static const char rcsid[] =
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <syslog.h>
+#include <fnmatch.h>
 
 #ifndef TERMIO
 #undef	TERMIOS
@@ -226,14 +227,14 @@ void echo_stderr __P ((int));
 void break_sequence __P ((void));
 void terminate __P ((int status));
 void do_file __P ((char *chat_file));
-int get_string __P ((register char *string));
+int get_string __P ((register char *string, int globflg));
 int put_string __P ((register char *s));
 int write_char __P ((int c));
 int put_char __P ((int c));
 int get_char __P ((void));
 void chat_send __P ((register char *s));
 char *character __P ((int c));
-void chat_expect __P ((register char *s));
+void chat_expect __P ((register char *s, int globflg));
 char *clean __P ((register char *s, int sending));
 void break_sequence __P ((void));
 void terminate __P ((int status));
@@ -401,7 +402,7 @@ main (argc, argv)
   }
   else {
     while ((arg = ARG (argc, argv)) != NULL) {
-      chat_expect (arg);
+      chat_expect (arg, 0);
 
       if ((arg = ARG (argc, argv)) != NULL)
         chat_send (arg);
@@ -420,7 +421,7 @@ void
 do_file (chat_file)
      char *chat_file;
 {
-  int linect, sendflg;
+  int linect, sendflg, globflg;
   char *sp, *arg, quote;
   char buf[STR_LEN];
   FILE *cfp;
@@ -437,6 +438,7 @@ do_file (chat_file)
     if (sp)
       *sp = '\0';
 
+    globflg = 0;
     linect++;
     sp = buf;
 
@@ -464,6 +466,20 @@ do_file (chat_file)
           }
         }
       }
+      else if (!sendflg && *sp == '/') {
+        arg = ++sp;
+        while (*sp != '/') {
+          if (*sp == '\0')
+            fatal (1, "unterminated glob (line %d)", linect);
+
+          if (*sp++ == '\\') {
+            if (*sp != '\0')
+              ++sp;
+          }
+        }
+
+        globflg = 1;
+      }
       else {
         arg = sp;
         while (*sp != '\0' && *sp != ' ' && *sp != '\t')
@@ -476,7 +492,7 @@ do_file (chat_file)
       if (sendflg)
         chat_send (arg);
       else
-        chat_expect (arg);
+        chat_expect (arg, globflg);
       sendflg = !sendflg;
     }
   }
@@ -941,8 +957,9 @@ expect_strtok (s, term)
  */
 
 void
-chat_expect (s)
+chat_expect (s, globflg)
      char *s;
+     int globflg;
 {
   char *expect;
   char *reply;
@@ -1002,7 +1019,7 @@ chat_expect (s)
 /*
  * Handle the expect string. If successful then exit.
  */
-    if (get_string (expect))
+    if (get_string (expect, globflg))
       return;
 
 /*
@@ -1402,14 +1419,43 @@ echo_stderr (n)
 }
 
 /*
+ * Match pattern against non-terminated string
+ * string is expected to be at least one byte larger
+ * than len
+ */
+int
+globmatch(pattern, string, len)
+    char *pattern;
+    char *string;
+    int len;
+{
+    char tmp = string[len];
+    int r, i;
+
+    string[len] = 0;
+
+    /* match pattern on each position in string */
+    for(i = 0; i < len; ++i) {
+        r = fnmatch(pattern, string + i, 0);
+        if(r == 0)
+          break;
+    }
+
+    string[len] = tmp;
+
+    return r;
+}
+
+/*
  *	'Wait for' this string to appear on this file descriptor.
  */
 int
-get_string (string)
+get_string (string, globflg)
      register char *string;
+     int globflg;
 {
   char temp[STR_LEN];
-  int c, printed = 0, len, minlen;
+  int c, printed = 0, len, minlen, match;
   register char *s = temp, *end = s + STR_LEN;
   char *logged = temp;
 
@@ -1492,8 +1538,12 @@ get_string (string)
       }
     }
 
-    if (s - temp >= len &&
-        c == string[len - 1] && strncmp (s - len, string, len) == 0) {
+    if(!globflg)
+      match = (s - temp >= len && c == string[len - 1] && strncmp (s - len, string, len) == 0);
+    else
+      match = (globmatch(string, temp, s - temp) == 0);
+
+    if (match) {
       if (verbose) {
         if (s > logged)
           msgf ("%0.*v", s - logged, logged);
