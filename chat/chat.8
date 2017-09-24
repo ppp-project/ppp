@@ -53,6 +53,10 @@ to \fIstderr\fR.
 Enables environment variable substitution within chat scripts using the
 standard \fI$xxx\fR syntax.
 .TP
+.B \-R
+Enable posix extended regular expressions matching. Shell globs are used
+otherwise. Requires POSIX.1-2001 compliant system.
+.TP
 .B \-v
 Request that the \fIchat\fR script be executed in a verbose mode. The
 \fIchat\fR program will then log the execution state of the chat
@@ -143,6 +147,20 @@ for the same login: prompt, however, if one was not received, a single
 return sequence is sent and then it will look for login: again. Should line
 noise obscure the first login prompt then sending the empty line will
 usually generate a login prompt again.
+.LP
+Pattern matching can be used in place of standard expect strings. Patterns are
+enclosed in slashes '/'. Pattern is considered posix extended regular expression
+when \fI-R\fR option is passed to \fIchat\fR program, shell glob otherwise.
+Examples:
+.LP
+with \fI-R\fR option (regex):
+.IP
+/\\+CREG: ([01],[15]$|[15]($|,"))/
+.LP
+without \fI-R\fR option (glob):
+.IP
+/+CREG: *,*/
+
 .SH COMMENTS
 Comments can be embedded in the chat script. A comment is a line which
 starts with the \fB#\fR (hash) character in column 1. Such comment
