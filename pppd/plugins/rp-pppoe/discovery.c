@@ -149,6 +149,9 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    !strncmp((char *) data, conn->acName, len)) {
 	    pc->acNameOK = 1;
 	}
+	conn->PeerName.type = htons(type);
+	conn->PeerName.length = htons(len);
+	memcpy(conn->PeerName.payload, data, len);
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;

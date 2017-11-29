@@ -219,6 +219,7 @@ PPPOEConnectDevice(void)
 	 conn->ifName);
 
     script_setenv("MACREMOTE", remote_number, 0);
+    script_setenv("ACNAME", conn->PeerName.payload, 0);
 
     if (connect(conn->sessionSocket, (struct sockaddr *) &sp,
 		sizeof(struct sockaddr_pppox)) < 0) {

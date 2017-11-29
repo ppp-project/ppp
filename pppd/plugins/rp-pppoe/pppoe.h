@@ -242,6 +242,7 @@ typedef struct PPPoEConnectionStruct {
     int numPADOs;		/* Number of PADO packets received */
     PPPoETag cookie;		/* We have to send this if we get it */
     PPPoETag relayId;		/* Ditto */
+    PPPoETag PeerName;		/* Access-Concentrator name */
     int error;			/* Error packet received */
     int debug;			/* Set to log packets sent and received */
     int discoveryTimeout;       /* Timeout for discovery packets */
