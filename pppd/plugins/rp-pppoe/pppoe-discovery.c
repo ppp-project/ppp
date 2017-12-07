@@ -387,7 +387,9 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
     switch(type) {
     case TAG_AC_NAME:
 	pc->seenACName = 1;
-	printf("Access-Concentrator: %.*s\n", (int) len, data);
+	if (conn->printACNames) {
+	    printf("Access-Concentrator: %.*s\n", (int) len, data);
+	}
 	if (conn->acName && len == strlen(conn->acName) &&
 	    !strncmp((char *) data, conn->acName, len)) {
 	    pc->acNameOK = 1;
@@ -395,7 +397,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;
-	if (len > 0) {
+	if (conn->printACNames && len > 0) {
 	    printf("       Service-Name: %.*s\n", (int) len, data);
 	}
 	if (conn->serviceName && len == strlen(conn->serviceName) &&
@@ -404,37 +406,47 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	}
 	break;
     case TAG_AC_COOKIE:
-	printf("Got a cookie:");
-	/* Print first 20 bytes of cookie */
-	for (i=0; i<len && i < 20; i++) {
-	    printf(" %02x", (unsigned) data[i]);
+	if (conn->printACNames) {
+	    printf("Got a cookie:");
+	    /* Print first 20 bytes of cookie */
+	    for (i=0; i<len && i < 20; i++) {
+		printf(" %02x", (unsigned) data[i]);
+	    }
+	    if (i < len) printf("...");
+	    printf("\n");
 	}
-	if (i < len) printf("...");
-	printf("\n");
 	conn->cookie.type = htons(type);
 	conn->cookie.length = htons(len);
 	memcpy(conn->cookie.payload, data, len);
 	break;
     case TAG_RELAY_SESSION_ID:
-	printf("Got a Relay-ID:");
-	/* Print first 20 bytes of relay ID */
-	for (i=0; i<len && i < 20; i++) {
-	    printf(" %02x", (unsigned) data[i]);
+	if (conn->printACNames) {
+	    printf("Got a Relay-ID:");
+	    /* Print first 20 bytes of relay ID */
+	    for (i=0; i<len && i < 20; i++) {
+		printf(" %02x", (unsigned) data[i]);
+	    }
+	    if (i < len) printf("...");
+	    printf("\n");
 	}
-	if (i < len) printf("...");
-	printf("\n");
 	conn->relayId.type = htons(type);
 	conn->relayId.length = htons(len);
 	memcpy(conn->relayId.payload, data, len);
 	break;
     case TAG_SERVICE_NAME_ERROR:
-	printf("Got a Service-Name-Error tag: %.*s\n", (int) len, data);
+	if (conn->printACNames) {
+	    printf("Got a Service-Name-Error tag: %.*s\n", (int) len, data);
+	}
 	break;
     case TAG_AC_SYSTEM_ERROR:
-	printf("Got a System-Error tag: %.*s\n", (int) len, data);
+	if (conn->printACNames) {
+	    printf("Got a System-Error tag: %.*s\n", (int) len, data);
+	}
 	break;
     case TAG_GENERIC_ERROR:
-	printf("Got a Generic-Error tag: %.*s\n", (int) len, data);
+	if (conn->printACNames) {
+	    printf("Got a Generic-Error tag: %.*s\n", (int) len, data);
+	}
 	break;
     }
 }
@@ -590,7 +602,6 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 		continue;
 	    }
 	    conn->numPADOs++;
-	    printf("--------------------------------------------------\n");
 	    if (pc.acNameOK && pc.serviceNameOK) {
 		memcpy(conn->peerEth, packet.ethHdr.h_source, ETH_ALEN);
 		if (conn->printACNames) {
@@ -601,6 +612,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 			   (unsigned) conn->peerEth[3],
 			   (unsigned) conn->peerEth[4],
 			   (unsigned) conn->peerEth[5]);
+		    printf("--------------------------------------------------\n");
 		    continue;
 		}
 		conn->discoveryState = STATE_RECEIVED_PADO;
@@ -653,7 +665,9 @@ int main(int argc, char *argv[])
 
     memset(conn, 0, sizeof(PPPoEConnection));
 
-    while ((opt = getopt(argc, argv, "I:D:VUAS:C:h")) > 0) {
+    conn->printACNames = 1;
+
+    while ((opt = getopt(argc, argv, "I:D:VUQS:C:h")) > 0) {
 	switch(opt) {
 	case 'S':
 	    conn->serviceName = xstrdup(optarg);
@@ -676,8 +690,8 @@ int main(int argc, char *argv[])
 	case 'I':
 	    conn->ifName = xstrdup(optarg);
 	    break;
-	case 'A':
-	    /* this is the default */
+	case 'Q':
+	    conn->printACNames = 0;
 	    break;
 	case 'V':
 	case 'h':
@@ -695,7 +709,6 @@ int main(int argc, char *argv[])
 
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
-    conn->printACNames = 1;
 
     discovery(conn);
 
@@ -738,6 +751,7 @@ void usage(void)
     fprintf(stderr, "   -D filename    -- Log debugging information in filename.\n");
     fprintf(stderr,
 	    "   -V             -- Print version and exit.\n"
+	    "   -Q             -- Quit Mode: Do not print access concentrator names\n"
 	    "   -S name        -- Set desired service name.\n"
 	    "   -C name        -- Set desired access concentrator name.\n"
 	    "   -U             -- Use Host-Unique to allow multiple PPPoE sessions.\n"
