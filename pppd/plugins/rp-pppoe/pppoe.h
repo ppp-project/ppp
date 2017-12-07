@@ -245,6 +245,7 @@ typedef struct PPPoEConnectionStruct {
     int error;			/* Error packet received */
     int debug;			/* Set to log packets sent and received */
     int discoveryTimeout;       /* Timeout for discovery packets */
+    int discoveryAttempts;      /* Number of discovery attempts */
     int seenMaxPayload;
     int mtu;			/* Stored MTU */
     int mru;			/* Stored MRU */

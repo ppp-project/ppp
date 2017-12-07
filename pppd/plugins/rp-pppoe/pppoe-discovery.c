@@ -635,14 +635,14 @@ void
 discovery(PPPoEConnection *conn)
 {
     int padiAttempts = 0;
-    int timeout = PADI_TIMEOUT;
+    int timeout = conn->discoveryTimeout;
 
     conn->discoverySocket =
 	openInterface(conn->ifName, Eth_PPPOE_Discovery, conn->myEth);
 
     do {
 	padiAttempts++;
-	if (padiAttempts > MAX_PADI_ATTEMPTS) {
+	if (padiAttempts > conn->discoveryAttempts) {
 	    fprintf(stderr, "Timeout waiting for PADO packets\n");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;
@@ -666,14 +666,34 @@ int main(int argc, char *argv[])
     memset(conn, 0, sizeof(PPPoEConnection));
 
     conn->printACNames = 1;
+    conn->discoveryTimeout = PADI_TIMEOUT;
+    conn->discoveryAttempts = MAX_PADI_ATTEMPTS;
 
-    while ((opt = getopt(argc, argv, "I:D:VUQS:C:h")) > 0) {
+    while ((opt = getopt(argc, argv, "I:D:VUQS:C:t:a:h")) > 0) {
 	switch(opt) {
 	case 'S':
 	    conn->serviceName = xstrdup(optarg);
 	    break;
 	case 'C':
 	    conn->acName = xstrdup(optarg);
+	    break;
+	case 't':
+	    if (sscanf(optarg, "%d", &conn->discoveryTimeout) != 1) {
+		fprintf(stderr, "Illegal argument to -t: Should be -t timeout\n");
+		exit(EXIT_FAILURE);
+	    }
+	    if (conn->discoveryTimeout < 1) {
+		conn->discoveryTimeout = 1;
+	    }
+	    break;
+	case 'a':
+	    if (sscanf(optarg, "%d", &conn->discoveryAttempts) != 1) {
+		fprintf(stderr, "Illegal argument to -a: Should be -a attempts\n");
+		exit(EXIT_FAILURE);
+	    }
+	    if (conn->discoveryAttempts < 1) {
+		conn->discoveryAttempts = 1;
+	    }
 	    break;
 	case 'U':
 	    conn->useHostUniq = 1;
@@ -750,6 +770,8 @@ void usage(void)
     fprintf(stderr, "   -I if_name     -- Specify interface (default eth0)\n");
     fprintf(stderr, "   -D filename    -- Log debugging information in filename.\n");
     fprintf(stderr,
+	    "   -t timeout     -- Initial timeout for discovery packets in seconds\n"
+	    "   -a attempts    -- Number of discovery attempts\n"
 	    "   -V             -- Print version and exit.\n"
 	    "   -Q             -- Quit Mode: Do not print access concentrator names\n"
 	    "   -S name        -- Set desired service name.\n"
