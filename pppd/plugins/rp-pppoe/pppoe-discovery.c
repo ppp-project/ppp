@@ -729,5 +729,14 @@ char *xstrdup(const char *s)
 void usage(void)
 {
     fprintf(stderr, "Usage: pppoe-discovery [options]\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "   -I if_name     -- Specify interface (default eth0)\n");
+    fprintf(stderr, "   -D filename    -- Log debugging information in filename.\n");
+    fprintf(stderr,
+	    "   -V             -- Print version and exit.\n"
+	    "   -S name        -- Set desired service name.\n"
+	    "   -C name        -- Set desired access concentrator name.\n"
+	    "   -U             -- Use Host-Unique to allow multiple PPPoE sessions.\n"
+	    "   -h             -- Print usage information.\n");
     fprintf(stderr, "\nVersion " RP_VERSION "\n");
 }
