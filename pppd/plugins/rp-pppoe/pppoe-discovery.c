@@ -698,7 +698,11 @@ int main(int argc, char *argv[])
     conn->printACNames = 1;
 
     discovery(conn);
-    exit(0);
+
+    if (!conn->numPADOs)
+	exit(1);
+    else
+	exit(0);
 }
 
 void rp_fatal(char const *str)
