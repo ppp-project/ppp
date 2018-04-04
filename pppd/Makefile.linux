@@ -182,7 +182,7 @@ endif
 
 ifdef PLUGIN
 CFLAGS	+= -DPLUGIN
-LDFLAGS	+= -Wl,-E
+LDFLAGS_PLUGIN	+= -Wl,-E
 LIBS	+= -ldl
 endif
 
@@ -224,7 +224,7 @@ install: pppd
 	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)
 
 pppd: $(PPPDOBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LDFLAGS_PLUGIN) -o pppd $(PPPDOBJS) $(LIBS)
 
 srp-entry:	srp-entry.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ srp-entry.c $(LIBS)
