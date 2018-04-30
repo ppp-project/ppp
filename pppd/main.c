@@ -371,6 +371,7 @@ main(argc, argv)
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
+#ifndef ALLOW_START_AS_NON_ROOT
     /*
      * Check that we are running as root.
      */
@@ -379,6 +380,7 @@ main(argc, argv)
 		     argv[0]);
 	exit(EXIT_NOT_ROOT);
     }
+#endif
 
     if (!ppp_available()) {
 	option_error("%s", no_ppp_msg);
