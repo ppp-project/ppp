@@ -702,11 +702,13 @@ process_option(opt, cmd, argv)
 		     opt->name, optopt);
 	return 0;
     }
+#ifndef ALLOW_START_AS_NON_ROOT
     if ((opt->flags & OPT_PRIV) && !privileged_option) {
 	option_error("using the %s%s requires root privilege",
 		     opt->name, optopt);
 	return 0;
     }
+#endif
     if ((opt->flags & OPT_ENABLE) && *(bool *)(opt->addr2) == 0) {
 	option_error("%s%s is disabled", opt->name, optopt);
 	return 0;
