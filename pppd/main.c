@@ -81,6 +81,7 @@
 #include <utmp.h>
 #include <pwd.h>
 #include <setjmp.h>
+#include <time.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -1257,7 +1258,7 @@ struct	callout {
 };
 
 static struct callout *callout = NULL;	/* Callout list */
-static struct timeval timenow;		/* Current time */
+static struct timespec timenow;		/* Current time from monotonic clock */
 
 /*
  * timeout - Schedule a timeout.
@@ -1277,9 +1278,10 @@ timeout(func, arg, secs, usecs)
 	fatal("Out of memory in timeout()!");
     newp->c_arg = arg;
     newp->c_func = func;
-    gettimeofday(&timenow, NULL);
+    if (clock_gettime(CLOCK_MONOTONIC, &timenow))
+        fatal("Failed to get monotonic clock %m");
     newp->c_time.tv_sec = timenow.tv_sec + secs;
-    newp->c_time.tv_usec = timenow.tv_usec + usecs;
+    newp->c_time.tv_usec = (timenow.tv_nsec / 1000) + usecs;
     if (newp->c_time.tv_usec >= 1000000) {
 	newp->c_time.tv_sec += newp->c_time.tv_usec / 1000000;
 	newp->c_time.tv_usec %= 1000000;
@@ -1331,11 +1333,11 @@ calltimeout()
     while (callout != NULL) {
 	p = callout;
 
-	if (gettimeofday(&timenow, NULL) < 0)
-	    fatal("Failed to get time of day: %m");
+    if (clock_gettime(CLOCK_MONOTONIC, &timenow) < 0)
+        fatal("Failed to get monotonic clock %m");
 	if (!(p->c_time.tv_sec < timenow.tv_sec
 	      || (p->c_time.tv_sec == timenow.tv_sec
-		  && p->c_time.tv_usec <= timenow.tv_usec)))
+		  && p->c_time.tv_usec <= (timenow.tv_nsec / 1000))))
 	    break;		/* no, it's not time yet */
 
 	callout = p->c_next;
@@ -1356,9 +1358,10 @@ timeleft(tvp)
     if (callout == NULL)
 	return NULL;
 
-    gettimeofday(&timenow, NULL);
+    if (clock_gettime(CLOCK_MONOTONIC, &timenow) < 0)
+        fatal("Failed to get monotonic clock %m");
     tvp->tv_sec = callout->c_time.tv_sec - timenow.tv_sec;
-    tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_usec;
+    tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_nsec / 1000;
     if (tvp->tv_usec < 0) {
 	tvp->tv_usec += 1000000;
 	tvp->tv_sec -= 1;
