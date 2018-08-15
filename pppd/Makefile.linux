@@ -33,7 +33,7 @@ endif
 # CC = gcc
 #
 COPTS = -O2 -pipe -Wall -g
-LIBS =
+LIBS = -lrt
 
 # Uncomment the next line to include support for Microsoft's
 # MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.linux.

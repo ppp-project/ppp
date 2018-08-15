@@ -522,7 +522,7 @@ main(argc, argv)
 	    info("Starting link");
 	}
 
-	gettimeofday(&start_time, NULL);
+	get_time(&start_time);
 	script_unsetenv("CONNECT_TIME");
 	script_unsetenv("BYTES_SENT");
 	script_unsetenv("BYTES_RCVD");
@@ -1216,7 +1216,7 @@ reset_link_stats(u)
 {
     if (!get_ppp_stats(u, &old_link_stats))
 	return;
-    gettimeofday(&start_time, NULL);
+    get_time(&start_time);
 }
 
 /*
@@ -1230,7 +1230,7 @@ update_link_stats(u)
     char numbuf[32];
 
     if (!get_ppp_stats(u, &link_stats)
-	|| gettimeofday(&now, NULL) < 0)
+	|| get_time(&now) < 0)
 	return;
     link_connect_time = now.tv_sec - start_time.tv_sec;
     link_stats_valid = 1;
@@ -1277,7 +1277,7 @@ timeout(func, arg, secs, usecs)
 	fatal("Out of memory in timeout()!");
     newp->c_arg = arg;
     newp->c_func = func;
-    gettimeofday(&timenow, NULL);
+    get_time(&timenow);
     newp->c_time.tv_sec = timenow.tv_sec + secs;
     newp->c_time.tv_usec = timenow.tv_usec + usecs;
     if (newp->c_time.tv_usec >= 1000000) {
@@ -1331,7 +1331,7 @@ calltimeout()
     while (callout != NULL) {
 	p = callout;
 
-	if (gettimeofday(&timenow, NULL) < 0)
+	if (get_time(&timenow) < 0)
 	    fatal("Failed to get time of day: %m");
 	if (!(p->c_time.tv_sec < timenow.tv_sec
 	      || (p->c_time.tv_sec == timenow.tv_sec
@@ -1356,7 +1356,7 @@ timeleft(tvp)
     if (callout == NULL)
 	return NULL;
 
-    gettimeofday(&timenow, NULL);
+    get_time(&timenow);
     tvp->tv_sec = callout->c_time.tv_sec - timenow.tv_sec;
     tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_usec;
     if (tvp->tv_usec < 0) {
