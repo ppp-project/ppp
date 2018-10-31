@@ -84,6 +84,7 @@ USE_LIBUTIL=y
 MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
+OPENSSL_INCLUDE_DIR= /usr/include/openssl
 
 COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
@@ -137,7 +138,7 @@ endif
 
 ifdef NEEDDES
 ifndef USE_CRYPT
-CFLAGS   += -I/usr/include/openssl
+CFLAGS   += -I$(OPENSSL_INCLUDE_DIR)
 LIBS     += -lcrypto
 else
 CFLAGS   += -DUSE_CRYPT=1
