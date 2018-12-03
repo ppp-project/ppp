@@ -33,10 +33,10 @@ pppoe-discovery: pppoe-discovery.o debug.o
 	$(CC) $(LDFLAGS) -o pppoe-discovery pppoe-discovery.o debug.o
 
 pppoe-discovery.o: pppoe-discovery.c
-	$(CC) $(CFLAGS) -c -o pppoe-discovery.o pppoe-discovery.c
+	$(CC) $(CFLAGS) -I../../.. -c -o pppoe-discovery.o pppoe-discovery.c
 
 debug.o: debug.c
-	$(CC) $(CFLAGS) -c -o debug.o debug.c
+	$(CC) $(CFLAGS) -I../../.. -c -o debug.o debug.c
 
 rp-pppoe.so: plugin.o discovery.o if.o common.o
 	$(CC) $(LDFLAGS) -o rp-pppoe.so -shared plugin.o discovery.o if.o common.o

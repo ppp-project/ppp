@@ -898,7 +898,7 @@ radius_acct_start(void)
 
     rstate.start_time = time(NULL);
 
-    strncpy(rstate.session_id, rc_mksid(), sizeof(rstate.session_id));
+    strlcpy(rstate.session_id, rc_mksid(), MAXSESSIONID);
 
     rc_avpair_add(&send, PW_ACCT_SESSION_ID,
 		   rstate.session_id, 0, VENDOR_NONE);
