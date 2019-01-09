@@ -43,7 +43,7 @@
  */
 
 /* Musl libc does not provide __P() macro (it is not used anymore in current glibc) */
-#if !defined(__GLIBC__) && !defined(__UCLIBC__)
+#ifndef __P
 #define __P(args) args
 #endif
 
