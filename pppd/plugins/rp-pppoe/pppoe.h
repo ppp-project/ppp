@@ -80,7 +80,8 @@ typedef unsigned long UINT32_t;
 #error Could not find a 32-bit integer type
 #endif
 
-#ifdef HAVE_LINUX_IF_ETHER_H
+/* Do not include if_ether.h twice when using musl libc on Linux */
+#if defined(HAVE_LINUX_IF_ETHER_H) && (defined(__GLIBC__) || (defined(__UCLIBC__)))
 #include <linux/if_ether.h>
 #endif
 
