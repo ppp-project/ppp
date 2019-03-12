@@ -730,7 +730,28 @@ set_ifunit(iskey)
     int iskey;
 {
     if (req_ifname[0] != '\0')
-	slprintf(ifname, sizeof(ifname), "%s", req_ifname);
+    {
+	char *ptr;
+	ptr = strchr(req_ifname, 'N');
+
+	if (ptr == NULL)
+	    slprintf(ifname, sizeof(ifname), "%s", req_ifname);
+
+	else {
+	    int index=0;
+	    char req_ifname_t[MAXIFNAMELEN];
+	    index = (int)(ptr - req_ifname);
+	    memset(req_ifname_t, 0, MAXIFNAMELEN); // force cleanup
+	    strncpy(req_ifname_t, req_ifname, index);
+
+	    // Copy the part of the req_ifname which doesn't contains "N"
+	    strncpy(req_ifname_t, req_ifname, index);
+
+	    // Add the ifunit to the end of the interface name
+	    slprintf(ifname, sizeof(ifname), "%s%d", req_ifname_t, ifunit);
+	    info("Using ifname in format ifnameN. Set to new name: '%s'", ifname);
+	}
+    }
     else
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     info("Using interface %s", ifname);

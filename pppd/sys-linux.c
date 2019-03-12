@@ -647,15 +647,49 @@ static int make_ppp_unit()
 	if (x == 0 && req_ifname[0] != '\0') {
 		struct ifreq ifr;
 		char t[MAXIFNAMELEN];
-		memset(&ifr, 0, sizeof(struct ifreq));
-		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
-		strncpy(ifr.ifr_name, t, IF_NAMESIZE);
-		strncpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
-		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
-		if (x < 0)
-		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
-		else
-		    info("Renamed interface %s to %s", t, req_ifname);
+
+		char *ptr;
+		ptr = strchr(req_ifname, 'N');
+
+		if (ptr == NULL) {
+			memset(&ifr, 0, sizeof(struct ifreq));
+			slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
+			strncpy(ifr.ifr_name, t, IF_NAMESIZE);
+			strncpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
+			x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
+			if (x < 0)
+			    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
+			else
+			    info("Renamed interface %s to %s", t, req_ifname);
+		}
+		else 
+		{
+			int index=0;
+			char t2[MAXIFNAMELEN];
+			char req_ifname_t[MAXIFNAMELEN];
+
+			index = (int)(ptr - req_ifname);
+
+			// Copy the part of the req_ifname which doesn't contains "N"
+			memset(req_ifname_t, 0, MAXIFNAMELEN); // force cleanup
+			strncpy(req_ifname_t, req_ifname, index);
+
+			memset(&ifr, 0, sizeof(struct ifreq));
+
+			slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
+			strncpy(ifr.ifr_name, t, IF_NAMESIZE);
+
+			slprintf(t2, sizeof(t2), "%s%d", req_ifname_t, ifunit);
+			strncpy(ifr.ifr_newname, t2, IF_NAMESIZE);
+
+			info("Found ifname in format ifnameN. Using %s as interface", t2);
+
+			x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
+			if (x < 0)
+			    error("Couldn't rename interface %s to %s: %m", t, t2);
+			else
+			    info("Renamed interface %s to %s", t, t2);
+		}
 	}
 
 	return x;

@@ -39,6 +39,7 @@ static char const RCSID[] =
 #include "ipcp.h"
 #include <syslog.h>
 #include <sys/types.h>
+#include <regex.h>
 #include <sys/time.h>
 #include <string.h>
 #include <netinet/in.h>
@@ -1314,7 +1315,25 @@ static int
 get_client_port(char *ifname)
 {
     int port;
-    if (sscanf(ifname, "ppp%d", &port) == 1) {
+    char cport[10];
+    int reti;
+    regex_t regex;
+    regmatch_t matches[2]; /* Array of matches */
+
+    /* Compile regular expression */
+    reti = regcomp(&regex, "^[[:alpha:]]\\+\\([0-9]\\+\\)$", 0);
+    /* Execute regular expression */
+    reti = regexec(&regex, ifname, 2, matches, 0);
+    regfree(&regex);
+
+    //info("radius.c: get_client_port: %s", ifname);
+
+    if (!reti) {
+        memset(cport, 0, 10); // force cleanup
+        strncpy(cport, ifname + matches[1].rm_so, (int)(matches[1].rm_eo-matches[1].rm_so));
+        port = atoi(cport);
+        //info("radius.c: get_client_port: %s", cport);
+        //info("radius.c: get_client_port: %d", port);
 	return port;
     }
     return rc_map2id(ifname);

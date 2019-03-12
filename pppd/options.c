@@ -294,7 +294,7 @@ option_t general_options[] = {
       OPT_PRIO | OPT_LLIMIT, 0, 0 },
 
     { "ifname", o_string, req_ifname,
-      "Set PPP interface name",
+      "Set PPP interface name. If format is like ifnameN, N it will be replaced by unit number",
       OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, MAXIFNAMELEN },
 
     { "dump", o_bool, &dump_options,
