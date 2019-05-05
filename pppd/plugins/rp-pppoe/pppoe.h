@@ -22,6 +22,8 @@
 #include <stdio.h>		/* For FILE */
 #include <sys/types.h>		/* For pid_t */
 
+#include "pppd/pppd.h"		/* For error */
+
 /* How do we access raw Ethernet devices? */
 #undef USE_LINUX_PACKET
 #undef USE_BPF

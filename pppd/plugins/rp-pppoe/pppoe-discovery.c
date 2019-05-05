@@ -181,7 +181,8 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
     sa.sll_family = AF_PACKET;
     sa.sll_protocol = htons(type);
 
-    strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+    ifr.ifr_name[IFNAMSIZ - 1] = 0;
     if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
 	fatalSys("ioctl(SIOCFIGINDEX): Could not get interface index");
     }
