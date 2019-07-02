@@ -50,6 +50,8 @@
 #define __PPPD_H__
 
 #include <stdio.h>		/* for FILE */
+#include <stdlib.h>		/* for encrypt */
+#include <unistd.h>		/* for setkey */
 #include <limits.h>		/* for NGROUPS_MAX */
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
