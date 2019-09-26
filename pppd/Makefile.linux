@@ -125,7 +125,7 @@ CFLAGS   += -DHAS_SHADOW
 #LIBS     += -lshadow $(LIBS)
 endif
 
-ifneq ($(wildcard /usr/include/crypt.h),)
+ifneq ($(wildcard $(shell $CC --print-sysroot)/usr/include/crypt.h),)
 CFLAGS  += -DHAVE_CRYPT_H=1
 LIBS	+= -lcrypt
 endif
@@ -137,7 +137,7 @@ endif
 
 ifdef NEEDDES
 ifndef USE_CRYPT
-CFLAGS   += -I/usr/include/openssl
+CFLAGS   += -I$(shell $CC --print-sysroot)/usr/include/openssl
 LIBS     += -lcrypto
 else
 CFLAGS   += -DUSE_CRYPT=1
