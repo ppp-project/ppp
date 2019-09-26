@@ -56,7 +56,6 @@
 #include "chap-new.h"
 #include "magic.h"
 
-static const char rcsid[] = RCSID;
 
 /*
  * When the link comes up we want to be able to wait for a short while,

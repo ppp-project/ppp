@@ -166,7 +166,6 @@
 #define	UDP6_DEV_NAME	"/dev/udp6"
 #endif /* !defined(UDP6_DEV_NAME) && defined(SOL2) */
 
-static const char rcsid[] = RCSID;
 
 #if defined(SOL2)
 /*

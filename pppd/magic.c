@@ -51,7 +51,6 @@
 #include "pppd.h"
 #include "magic.h"
 
-static const char rcsid[] = RCSID;
 
 extern long mrand48 (void);
 extern void srand48 (long);

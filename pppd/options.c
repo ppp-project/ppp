@@ -79,7 +79,6 @@
 char *strdup __P((char *));
 #endif
 
-static const char rcsid[] = RCSID;
 
 struct option_value {
     struct option_value *next;

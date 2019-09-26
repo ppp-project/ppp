@@ -168,7 +168,6 @@
 #include "magic.h"
 #include "pathnames.h"
 
-static const char rcsid[] = RCSID;
 
 /* global vars */
 ipv6cp_options ipv6cp_wantoptions[NUM_PPP];     /* Options that we want to request */

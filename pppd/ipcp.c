@@ -61,7 +61,6 @@
 #include "ipcp.h"
 #include "pathnames.h"
 
-static const char rcsid[] = RCSID;
 
 /* global vars */
 ipcp_options ipcp_wantoptions[NUM_PPP];	/* Options that we want to request */

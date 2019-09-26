@@ -52,7 +52,6 @@
 #include "ipcp.h"
 #include "lcp.h"
 
-static const char rcsid[] = RCSID;
 
 char *frame;
 int framelen;

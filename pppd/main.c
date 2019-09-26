@@ -121,7 +121,6 @@
 #include "atcp.h"
 #endif
 
-static const char rcsid[] = RCSID;
 
 /* interface vars */
 char ifname[MAXIFNAMELEN];	/* Interface name */

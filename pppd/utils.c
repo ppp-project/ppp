@@ -59,7 +59,6 @@
 #include "fsm.h"
 #include "lcp.h"
 
-static const char rcsid[] = RCSID;
 
 #if defined(SUNOS4)
 extern char *strerror();

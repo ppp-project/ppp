@@ -76,7 +76,6 @@
 #define	SHA_DIGESTSIZE 20
 #endif
 
-static const char rcsid[] = RCSID;
 
 eap_state eap_states[NUM_PPP];		/* EAP state; one for each unit */
 #ifdef USE_SRP

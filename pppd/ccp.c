@@ -43,7 +43,6 @@
 #include "lcp.h"	/* lcp_close(), lcp_fsm */
 #endif
 
-static const char rcsid[] = RCSID;
 
 /*
  * Unfortunately there is a bug in zlib which means that using a
