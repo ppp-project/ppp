@@ -35,8 +35,6 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <time.h>
-
 #ifndef _PPP_DEFS_H_
 #define _PPP_DEFS_H_
 
