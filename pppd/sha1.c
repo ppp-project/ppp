@@ -17,6 +17,7 @@
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
 
 #include <string.h>
+#include <time.h>
 #include <netinet/in.h>	/* htonl() */
 #include <net/ppp_defs.h>
 #include "sha1.h"
