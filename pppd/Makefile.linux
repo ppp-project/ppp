@@ -88,6 +88,9 @@ endif
 # Enable EAP-TLS authentication (requires MPPE support, libssl and libcrypto)
 USE_EAPTLS=y
 
+# Enable PEAP (requires MPPE support, libssl)
+USE_PEAP=y
+
 MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
@@ -137,6 +140,19 @@ NEEDCRYPTOLIB = y
 PPPDSRC += eap-tls.c
 HEADERS += eap-tls.h
 PPPDOBJS += eap-tls.o
+endif
+
+# PEAP
+ifdef USE_PEAP
+ifdef MPPE
+CFLAGS += -DUSE_PEAP=1
+ifndef USE_EAPTLS
+LIBS += -lssl
+endif
+PPPDSRC += peap.c
+HEADERS += peap.h
+PPPDOBJS += peap.o
+endif
 endif
 
 ifdef HAS_SHADOW
