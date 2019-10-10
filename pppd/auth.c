@@ -271,6 +271,7 @@ char *tls_verify_method = NULL;
 bool tls_verify_key_usage = 0;
 bool need_peer_eap = 0;			/* Require peer to authenticate us */
 #endif
+bool tls_verify_cert = 0;	/* Do not verify server's SSL certificate */
 
 static char *uafname;		/* name of most recent +ua file */
 
@@ -444,6 +445,9 @@ option_t auth_options[] = {
     { "allow-number", o_special, (void *)set_permitted_number,
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
+
+    { "tls-verify-certificate", o_bool, &tls_verify_cert,
+      "Enable server's SSL certificate validation", 1 },
 
 #ifdef USE_EAPTLS
     { "ca", o_string, &cacert_file,   "EAP-TLS CA certificate in PEM format" },
