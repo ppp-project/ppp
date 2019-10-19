@@ -127,6 +127,12 @@ is no other default route with the same metric.  With the default
 value of -1, the route is only added if there is no default route at
 all.
 .TP
+.B defaultroute6
+Add a default IPv6 route to the system routing tables, using the peer as
+the gateway, when IPv6CP negotiation is successfully completed.
+This entry is removed when the PPP connection is broken.  This option
+is privileged if the \fInodefaultroute6\fR option has been specified.
+.TP
 .B disconnect \fIscript
 Execute the command specified by \fIscript\fR, by passing it to a
 shell, after
@@ -741,6 +747,11 @@ disable both forms of hardware flow control.
 .B nodefaultroute
 Disable the \fIdefaultroute\fR option.  The system administrator who
 wishes to prevent users from creating default routes with pppd
+can do so by placing this option in the /etc/ppp/options file.
+.TP
+.B nodefaultroute6
+Disable the \fIdefaultroute6\fR option.  The system administrator who
+wishes to prevent users from adding a default route with pppd
 can do so by placing this option in the /etc/ppp/options file.
 .TP
 .B nodeflate
