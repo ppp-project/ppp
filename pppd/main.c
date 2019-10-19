@@ -737,13 +737,14 @@ void
 set_ifunit(iskey)
     int iskey;
 {
+    char ifkey[32];
+
     if (req_ifname[0] != '\0')
 	slprintf(ifname, sizeof(ifname), "%s", req_ifname);
     else
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     info("Using interface %s", ifname);
     script_setenv("IFNAME", ifname, iskey);
-    char ifkey[32];
     slprintf(ifkey, sizeof(ifkey), "%d", ifunit);
     script_setenv("UNIT", ifkey, iskey);
     if (iskey) {
