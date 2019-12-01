@@ -656,8 +656,8 @@ static int make_ppp_unit()
 		char t[MAXIFNAMELEN];
 		memset(&ifr, 0, sizeof(struct ifreq));
 		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
-		strncpy(ifr.ifr_name, t, IF_NAMESIZE);
-		strncpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
+		strlcpy(ifr.ifr_name, t, IF_NAMESIZE);
+		strlcpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
 		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
 		if (x < 0)
 		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);

@@ -737,7 +737,7 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 		}
 		else
 		{
-			sprintf (buffer, "%ld", pair->lvalue);
+			sprintf (buffer, "%d", pair->lvalue);
 			strncpy(value, buffer, (size_t) lv);
 		}
 		break;

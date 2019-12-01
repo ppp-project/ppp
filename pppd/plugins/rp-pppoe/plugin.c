@@ -302,8 +302,10 @@ PPPOEDisconnectDevice(void)
 static void
 PPPOEDeviceOptions(void)
 {
-    char buf[256];
-    snprintf(buf, 256, _PATH_ETHOPT "%s", devnam);
+    char buf[MAXPATHLEN];
+
+    strlcpy(buf, _PATH_ETHOPT, MAXPATHLEN);
+    strlcat(buf, devnam, MAXPATHLEN);
     if (!options_from_file(buf, 0, 0, 1))
 	exit(EXIT_OPTION_ERROR);
 
