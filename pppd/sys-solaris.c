@@ -188,6 +188,12 @@ static int	ip6fd;		/* IP file descriptor */
 static int	ip6muxid = -1;	/* Multiplexer file descriptor */
 static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 
+#define IN6_SOCKADDR_FROM_EUI64(s, eui64) do { \
+	(s)->sin6_family = AF_INET6; \
+	(s)->sin6_addr.s6_addr32[0] = htonl(0xfe800000); \
+	eui64_copy(eui64, (s)->sin6_addr.s6_addr32[2]); \
+	} while(0)
+
 #define _IN6_LLX_FROM_EUI64(l, s, eui64, as) do {	\
 	s->sin6_addr.s6_addr32[0] = htonl(as); 	\
 	eui64_copy(eui64, s->sin6_addr.s6_addr32[2]);	\
@@ -795,7 +801,7 @@ sys_cleanup()
 	sifdown(0);
     if (default_route_gateway)
 	cifdefaultroute(0, default_route_gateway, default_route_gateway);
-    if (default_route_gateway6)
+    if (default_route_gateway6.e32[0] != 0 || default_route_gateway6.e32[1] != 0)
 	cif6defaultroute(0, default_route_gateway6, default_route_gateway6);
     if (proxy_arp_addr)
 	cifproxyarp(0, proxy_arp_addr);
@@ -1975,21 +1981,43 @@ sif6defaultroute(u, l, g)
     int u;
     eui64_t l, g;
 {
-    struct rtentry rt;
+    struct {
+	struct rt_msghdr rtm;
+	struct sockaddr_in6 dst;
+	struct sockaddr_in6 gw;
+    } rmsg;
+    static int seq;
+    int rtsock;
 
 #if defined(__USLC__)
     g = l;			/* use the local address as gateway */
 #endif
-    memset(&rt, 0, sizeof(rt));
-    memset(&rt.rtmsg_dst, 0, sizeof(rt.rtmsg_dst));
-    rt.rtmsg_dst_len = 0;
-    IN6A_LLADDR_FROM_EUI64(&rt.rtmsg_gateway, g);
-    rt.rtmsg_flags = RTF_GATEWAY;
+    memset(&rmsg, 0, sizeof(rmsg));
 
-    if (ioctl(ip6fd, SIOCADDRT, &rt) < 0) {
+    rmsg.rtm.rtm_msglen = sizeof (rmsg);
+    rmsg.rtm.rtm_version = RTM_VERSION;
+    rmsg.rtm.rtm_type = RTM_ADD;
+    rmsg.rtm.rtm_flags = RTF_GATEWAY;
+    rmsg.rtm.rtm_addrs = RTA_DST | RTA_GATEWAY;
+    rmsg.rtm.rtm_pid = getpid();
+    rmsg.rtm.rtm_seq = seq++;
+
+    rmsg.dst.sin6_family = AF_INET6;
+
+    rmsg.gw.sin6_family = AF_INET6;
+    IN6_SOCKADDR_FROM_EUI64(&rmsg.gw, g);
+
+    rtsock = socket(PF_ROUTE, SOCK_RAW, 0);
+
+    if (rtsock < 0) {
 	error("Can't add default route: %m");
 	return 0;
     }
+
+    if (write(rtsock, &rmsg, sizeof(rmsg)) < 0)
+	error("Can't add default route: %m");
+
+    close(rtsock);
 
     default_route_gateway6 = g;
     return 1;
@@ -2003,23 +2031,9 @@ cif6defaultroute(u, l, g)
     int u;
     eui64_t l, g;
 {
-    struct rtentry rt;
-
-#if defined(__USLC__)
-    g = l;			/* use the local address as gateway */
-#endif
-    memset(&rt, 0, sizeof(rt));
-    memset(&rt.rtmsg_dst, 0, sizeof(rt.rtmsg_dst));
-    rt.rtmsg_dst_len = 0;
-    IN6A_LLADDR_FROM_EUI64(&rt.rtmsg_gateway, g);
-    rt.rtmsg_flags = RTF_GATEWAY;
-
-    if (ioctl(ip6fd, SIOCDELRT, &rt) < 0) {
-	error("Can't delete default route: %m");
-	return 0;
-    }
-
-    default_route_gateway6 = 0;
+    /* No need to do this on Solaris; the kernel deletes the
+       route when the interface goes down. */
+    memset(&default_route_gateway6, 0, sizeof(default_route_gateway6));
     return 1;
 }
 
