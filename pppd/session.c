@@ -186,8 +186,6 @@ session_start(flags, user, passwd, ttyName, msg)
 #endif /* #ifdef HAS_SHADOW */
 #endif /* #ifdef USE_PAM */
 
-    SET_MSG(msg, SUCCESS_MSG);
-
     /* If no verification is requested, then simply return an OK */
     if (!(SESS_ALL & flags)) {
         return SESSION_OK;
