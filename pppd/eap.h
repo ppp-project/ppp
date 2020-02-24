@@ -59,6 +59,18 @@ extern "C" {
 #define	EAPT_NOKIACARD		18	/* Nokia IP smart card */
 #define	EAPT_SRP		19	/* Secure Remote Password */
 /* 20 is deprecated */
+#define	EAPT_TTLS		21	/* EAP Tunneled TLS Authentication Protocol RFC5281 */
+#define	EAPT_RAS		22	/* Remote Access Service */
+#define	EAPT_AKA		23	/* EAP method for 3rd Generation Authentication and Key Agreement RFC4187 */
+#define	EAPT_3COM		24	/* EAP-3Com Wireless */
+#define	EAPT_PEAP		25	/* Protected EAP */
+#define	EAPT_MSCHAPV2		26	/* EAP-MSCHAPv2 RFC-draft-kamath-pppext-eap-mschapv2-02 */
+
+/* OpCodes for MSCHAPv2 */
+#define CHAP_CHALLENGE	1
+#define CHAP_RESPONSE	2
+#define CHAP_SUCCESS	3
+#define CHAP_FAILURE	4
 
 /* EAP SRP-SHA1 Subtypes */
 #define	EAPSRP_CHALLENGE	1	/* Request 1 - Challenge */
