@@ -801,6 +801,11 @@ process_option(opt, cmd, argv)
 		free(*optptr);
 	    *optptr = sv;
 	}
+	/* obfuscate original argument for things like password */
+	if (opt->flags & OPT_HIDE) {
+	    memset(*argv, '?', strlen(*argv));
+	    *argv = "********";
+	}
 	break;
 
     case o_special_noarg:
