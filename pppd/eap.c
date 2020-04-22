@@ -43,6 +43,11 @@
  * Based on draft-ietf-pppext-eap-srp-03.txt.
  */
 
+/*
+ * Modification by Beniamino Galvani, Mar 2005
+ * Implemented EAP-TLS authentication
+ */
+
 #define RCSID	"$Id: eap.c,v 1.4 2004/11/09 22:39:25 paulus Exp $"
 
 /*
@@ -62,8 +67,12 @@
 
 #include "pppd.h"
 #include "pathnames.h"
-#include "md5.h"
 #include "eap.h"
+#ifdef USE_OPENSSL_MD5
+#include "openssl/md5.h"
+#else
+#include "md5.h"
+#endif /* USE_OPENSSL_MD5 */
 
 #ifdef USE_SRP
 #include <t_pwd.h>
@@ -72,8 +81,12 @@
 #include "pppcrypt.h"
 #endif /* USE_SRP */
 
-#ifndef SHA_DIGESTSIZE
-#define	SHA_DIGESTSIZE 20
+#ifdef USE_EAPTLS
+#include "eap-tls.h"
+#endif /* USE_EAPTLS */
+
+#ifndef SHA_DIGEST_LENGTH
+#define	SHA_DIGEST_LENGTH 20
 #endif
 
 
@@ -208,6 +221,9 @@ int unit;
 	esp->es_server.ea_id = (u_char)(drand48() * 0x100);
 	esp->es_client.ea_timeout = EAP_DEFREQTIME;
 	esp->es_client.ea_maxrequests = EAP_DEFALLOWREQ;
+#ifdef USE_EAPTLS
+	esp->es_client.ea_using_eaptls = 0;
+#endif /* USE_EAPTLS */
 }
 
 /*
@@ -316,8 +332,8 @@ pncrypt_setkey(int timeoffs)
 {
 	struct tm *tp;
 	char tbuf[9];
-	SHA1_CTX ctxt;
-	u_char dig[SHA_DIGESTSIZE];
+	SHA_CTX ctxt;
+	u_char dig[SHA_DIGEST_LENGTH];
 	time_t reftime;
 
 	if (pn_secret == NULL)
@@ -435,8 +451,16 @@ int status;
 	u_char vals[2];
 	struct b64state bs;
 #endif /* USE_SRP */
+#ifdef USE_EAPTLS
+	struct eaptls_session *ets;
+	int secret_len;
+	char secret[MAXWORDLEN];
+#endif /* USE_EAPTLS */
 
 	esp->es_server.ea_timeout = esp->es_savedtime;
+#ifdef USE_EAPTLS
+	esp->es_server.ea_prev_state = esp->es_server.ea_state;
+#endif /* USE_EAPTLS */
 	switch (esp->es_server.ea_state) {
 	case eapBadAuth:
 		return;
@@ -561,8 +585,80 @@ int status;
 			break;
 		}
 #endif /* USE_SRP */
+#ifdef USE_EAPTLS
+                if (!get_secret(esp->es_unit, esp->es_server.ea_peer,
+                    esp->es_server.ea_name, secret, &secret_len, 1)) {
+
+			esp->es_server.ea_state = eapTlsStart;
+			break;
+		}
+#endif /* USE_EAPTLS */
+
 		esp->es_server.ea_state = eapMD5Chall;
 		break;
+
+#ifdef USE_EAPTLS
+	case eapTlsStart:
+		/* Initialize ssl session */
+		if(!eaptls_init_ssl_server(esp)) {
+			esp->es_server.ea_state = eapBadAuth;
+			break;
+		}
+
+		esp->es_server.ea_state = eapTlsRecv;
+		break;
+
+	case eapTlsRecv:
+		ets = (struct eaptls_session *) esp->es_server.ea_session;
+
+		if(ets->alert_sent) {
+			esp->es_server.ea_state = eapTlsSendAlert;
+			break;
+		}
+
+		if (status) {
+			esp->es_server.ea_state = eapBadAuth;
+			break;
+		}
+		ets = (struct eaptls_session *) esp->es_server.ea_session;
+
+		if(ets->frag)
+			esp->es_server.ea_state = eapTlsSendAck;
+		else
+			esp->es_server.ea_state = eapTlsSend;
+		break;
+
+	case eapTlsSend:
+		ets = (struct eaptls_session *) esp->es_server.ea_session;
+
+		if(ets->frag)
+			esp->es_server.ea_state = eapTlsRecvAck;
+		else
+			if(SSL_is_init_finished(ets->ssl)) 
+				esp->es_server.ea_state = eapTlsRecvClient; 
+			else
+				/* JJK Add "TLS empty record" message here ??? */
+				esp->es_server.ea_state = eapTlsRecv; 
+		break;
+
+	case eapTlsSendAck:
+		esp->es_server.ea_state = eapTlsRecv;
+		break;
+
+	case eapTlsRecvAck:
+		if (status)
+		{
+			esp->es_server.ea_state = eapBadAuth;
+			break;
+		}
+
+		esp->es_server.ea_state = eapTlsSend;
+		break;
+
+	case eapTlsSendAlert:
+		esp->es_server.ea_state = eapTlsRecvAlertAck;
+		break;
+#endif /* USE_EAPTLS */
 
 	case eapSRP1:
 #ifdef USE_SRP
@@ -629,6 +725,10 @@ int status;
 	}
 	if (esp->es_server.ea_state == eapBadAuth)
 		eap_send_failure(esp);
+
+#ifdef USE_EAPTLS
+	dbglog("EAP id=0x%2x '%s' -> '%s'", esp->es_server.ea_id, eap_state_name(esp->es_server.ea_prev_state), eap_state_name(esp->es_server.ea_state));
+#endif /* USE_EAPTLS */
 }
 
 /*
@@ -647,10 +747,10 @@ eap_state *esp;
 	char *str;
 #ifdef USE_SRP
 	struct t_server *ts;
-	u_char clear[8], cipher[8], dig[SHA_DIGESTSIZE], *optr, *cp;
+	u_char clear[8], cipher[8], dig[SHA_DIGEST_LENGTH], *optr, *cp;
 	int i, j;
 	struct b64state b64;
-	SHA1_CTX ctxt;
+	SHA_CTX ctxt;
 #endif /* USE_SRP */
 
 	/* Handle both initial auth and restart */
@@ -717,6 +817,30 @@ eap_state *esp;
 		INCPTR(esp->es_server.ea_namelen, outp);
 		break;
 
+#ifdef USE_EAPTLS
+	case eapTlsStart:
+		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(EAP_TLS_FLAGS_START, outp);
+		eap_figure_next_state(esp, 0);
+		break;
+
+	case eapTlsSend:
+		eaptls_send(esp->es_server.ea_session, &outp);
+		eap_figure_next_state(esp, 0);
+		break;
+
+	case eapTlsSendAck:
+		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(0, outp);
+		eap_figure_next_state(esp, 0);
+		break;
+
+	case eapTlsSendAlert:
+		eaptls_send(esp->es_server.ea_session, &outp);
+		eap_figure_next_state(esp, 0);
+		break;
+#endif /* USE_EAPTLS */
+
 #ifdef USE_SRP
 	case eapSRP1:
 		PUTCHAR(EAPT_SRP, outp);
@@ -763,8 +887,8 @@ eap_state *esp;
 		PUTLONG(SRPVAL_EBIT, outp);
 		ts = (struct t_server *)esp->es_server.ea_session;
 		assert(ts != NULL);
-		BCOPY(t_serverresponse(ts), outp, SHA_DIGESTSIZE);
-		INCPTR(SHA_DIGESTSIZE, outp);
+		BCOPY(t_serverresponse(ts), outp, SHA_DIGEST_LENGTH);
+		INCPTR(SHA_DIGEST_LENGTH, outp);
 
 		if (pncrypt_setkey(0)) {
 			/* Generate pseudonym */
@@ -804,9 +928,9 @@ eap_state *esp;
 			/* Set length and pad out to next 20 octet boundary */
 			i = outp - optr - 1;
 			*optr = i;
-			i %= SHA_DIGESTSIZE;
+			i %= SHA_DIGEST_LENGTH;
 			if (i != 0) {
-				while (i < SHA_DIGESTSIZE) {
+				while (i < SHA_DIGEST_LENGTH) {
 					*outp++ = drand48() * 0x100;
 					i++;
 				}
@@ -822,14 +946,14 @@ eap_state *esp;
 			while (optr < outp) {
 				SHA1Final(dig, &ctxt);
 				cp = dig;
-				while (cp < dig + SHA_DIGESTSIZE)
+				while (cp < dig + SHA_DIGEST_LENGTH)
 					*optr++ ^= *cp++;
 				SHA1Init(&ctxt);
 				SHA1Update(&ctxt, &esp->es_server.ea_id, 1);
 				SHA1Update(&ctxt, esp->es_server.ea_skey,
 				    SESSION_KEY_LEN);
-				SHA1Update(&ctxt, optr - SHA_DIGESTSIZE,
-				    SHA_DIGESTSIZE);
+				SHA1Update(&ctxt, optr - SHA_DIGEST_LENGTH,
+				    SHA_DIGEST_LENGTH);
 			}
 		}
 		break;
@@ -903,10 +1027,56 @@ static void
 eap_server_timeout(arg)
 void *arg;
 {
+#ifdef USE_EAPTLS
+	u_char *outp;
+	u_char *lenloc;
+	int outlen;
+#endif /* USE_EAPTLS */
+
 	eap_state *esp = (eap_state *) arg;
 
 	if (!eap_server_active(esp))
 		return;
+
+#ifdef USE_EAPTLS
+	switch(esp->es_server.ea_prev_state) {
+
+	/* 
+	 *  In eap-tls the state changes after a request, so we return to
+	 *  previous state ...
+	 */
+	case(eapTlsStart):
+	case(eapTlsSendAck):
+		esp->es_server.ea_state = esp->es_server.ea_prev_state;
+		break;
+
+	/*
+	 *  ... or resend the stored data
+	 */
+	case(eapTlsSend):
+	case(eapTlsSendAlert):
+		outp = outpacket_buf;
+		MAKEHEADER(outp, PPP_EAP);
+		PUTCHAR(EAP_REQUEST, outp);
+		PUTCHAR(esp->es_server.ea_id, outp);
+		lenloc = outp;
+		INCPTR(2, outp);
+
+		eaptls_retransmit(esp->es_server.ea_session, &outp);
+
+		outlen = (outp - outpacket_buf) - PPP_HDRLEN;
+		PUTSHORT(outlen, lenloc);
+		output(esp->es_unit, outpacket_buf, outlen + PPP_HDRLEN);
+		esp->es_server.ea_requests++;
+
+		if (esp->es_server.ea_timeout > 0)
+			TIMEOUT(eap_server_timeout, esp, esp->es_server.ea_timeout);
+
+		return;
+	default:
+		break;
+	}
+#endif /* USE_EAPTLS */
 
 	/* EAP ID number must not change on timeout. */
 	eap_send_request(esp);
@@ -1154,16 +1324,89 @@ u_char *str;
 	PUTCHAR(id, outp);
 	esp->es_client.ea_id = id;
 	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + sizeof (u_int32_t) +
-	    SHA_DIGESTSIZE;
+	    SHA_DIGEST_LENGTH;
 	PUTSHORT(msglen, outp);
 	PUTCHAR(EAPT_SRP, outp);
 	PUTCHAR(EAPSRP_CVALIDATOR, outp);
 	PUTLONG(flags, outp);
-	BCOPY(str, outp, SHA_DIGESTSIZE);
+	BCOPY(str, outp, SHA_DIGEST_LENGTH);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
 }
 #endif /* USE_SRP */
+
+#ifdef USE_EAPTLS
+/*
+ * Send an EAP-TLS response message with tls data
+ */
+static void
+eap_tls_response(esp, id)
+eap_state *esp;
+u_char id;
+{
+	u_char *outp;
+	int outlen;
+	u_char *lenloc;
+
+	outp = outpacket_buf;
+
+	MAKEHEADER(outp, PPP_EAP);
+
+	PUTCHAR(EAP_RESPONSE, outp);
+	PUTCHAR(id, outp);
+
+	lenloc = outp;
+	INCPTR(2, outp);        
+
+	/*
+	   If the id in the request is unchanged, we must retransmit
+	   the old data
+	*/
+	if(id == esp->es_client.ea_id)
+		eaptls_retransmit(esp->es_client.ea_session, &outp);
+	else
+		eaptls_send(esp->es_client.ea_session, &outp);
+
+	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
+	PUTSHORT(outlen, lenloc);
+
+	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
+
+	esp->es_client.ea_id = id;
+}
+
+/*
+ * Send an EAP-TLS ack
+ */
+static void
+eap_tls_sendack(esp, id)
+eap_state *esp;
+u_char id;
+{
+	u_char *outp;
+	int outlen;
+	u_char *lenloc;
+
+	outp = outpacket_buf;
+
+	MAKEHEADER(outp, PPP_EAP);
+
+	PUTCHAR(EAP_RESPONSE, outp);
+	PUTCHAR(id, outp);
+	esp->es_client.ea_id = id;
+
+	lenloc = outp;
+	INCPTR(2, outp);
+
+	PUTCHAR(EAPT_TLS, outp);
+	PUTCHAR(0, outp);
+
+	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
+	PUTSHORT(outlen, lenloc);
+
+	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
+}
+#endif /* USE_EAPTLS */
 
 static void
 eap_send_nak(esp, id, type)
@@ -1251,8 +1494,8 @@ int len, id;
 {
 	u_char val;
 	u_char *datp, *digp;
-	SHA1_CTX ctxt;
-	u_char dig[SHA_DIGESTSIZE];
+	SHA_CTX ctxt;
+	u_char dig[SHA_DIGEST_LENGTH];
 	int dsize, fd, olen = len;
 
 	/*
@@ -1261,21 +1504,21 @@ int len, id;
 	 */
 	val = id;
 	while (len > 0) {
-		if ((dsize = len % SHA_DIGESTSIZE) == 0)
-			dsize = SHA_DIGESTSIZE;
+		if ((dsize = len % SHA_DIGEST_LENGTH) == 0)
+			dsize = SHA_DIGEST_LENGTH;
 		len -= dsize;
 		datp = inp + len;
 		SHA1Init(&ctxt);
 		SHA1Update(&ctxt, &val, 1);
 		SHA1Update(&ctxt, esp->es_client.ea_skey, SESSION_KEY_LEN);
 		if (len > 0) {
-			SHA1Update(&ctxt, datp, SHA_DIGESTSIZE);
+			SHA1Update(&ctxt, datp, SHA_DIGEST_LENGTH);
 		} else {
 			SHA1Update(&ctxt, esp->es_client.ea_name,
 			    esp->es_client.ea_namelen);
 		}
 		SHA1Final(dig, &ctxt);
-		for (digp = dig; digp < dig + SHA_DIGESTSIZE; digp++)
+		for (digp = dig; digp < dig + SHA_DIGEST_LENGTH; digp++)
 			*datp++ ^= *digp;
 	}
 
@@ -1319,12 +1562,17 @@ int len;
 	char rhostname[256];
 	MD5_CTX mdContext;
 	u_char hash[MD5_SIGNATURE_SIZE];
+#ifdef USE_EAPTLS
+	u_char flags;
+	struct eaptls_session *ets = esp->es_client.ea_session;
+#endif /* USE_EAPTLS */
+
 #ifdef USE_SRP
 	struct t_client *tc;
 	struct t_num sval, gval, Nval, *Ap, Bval;
 	u_char vals[2];
-	SHA1_CTX ctxt;
-	u_char dig[SHA_DIGESTSIZE];
+	SHA_CTX ctxt;
+	u_char dig[SHA_DIGEST_LENGTH];
 	int fd;
 #endif /* USE_SRP */
 
@@ -1460,6 +1708,96 @@ int len;
 		eap_chap_response(esp, id, hash, esp->es_client.ea_name,
 		    esp->es_client.ea_namelen);
 		break;
+
+#ifdef USE_EAPTLS
+	case EAPT_TLS:
+
+		switch(esp->es_client.ea_state) {
+
+		case eapListen:
+
+			if (len < 1) {
+				error("EAP: received EAP-TLS Listen packet with no data");
+				/* Bogus request; wait for something real. */
+				return;
+			}
+			GETCHAR(flags, inp);
+			if(flags & EAP_TLS_FLAGS_START){
+
+				esp->es_client.ea_using_eaptls = 1;
+
+				if (explicit_remote){
+					esp->es_client.ea_peer = strdup(remote_name);
+					esp->es_client.ea_peerlen = strlen(remote_name);
+				} else 
+					esp->es_client.ea_peer = NULL;
+
+				/* Init ssl session */
+				if(!eaptls_init_ssl_client(esp)) {
+					dbglog("cannot init ssl");
+					eap_send_nak(esp, id, EAPT_TLS);
+					esp->es_client.ea_using_eaptls = 0;
+					break;
+				}
+
+				ets = esp->es_client.ea_session;
+				eap_tls_response(esp, id);
+				esp->es_client.ea_state = (ets->frag ? eapTlsRecvAck : eapTlsRecv);
+				break;
+			}
+
+			/* The server has sent a bad start packet. */
+			eap_send_nak(esp, id, EAPT_TLS);
+			break;
+
+		case eapTlsRecvAck:
+			eap_tls_response(esp, id);
+			esp->es_client.ea_state = (ets->frag ? eapTlsRecvAck : eapTlsRecv);
+			break;
+
+		case eapTlsRecv:
+			if (len < 1) {
+				error("EAP: discarding EAP-TLS Receive packet with no data");
+				/* Bogus request; wait for something real. */
+				return;
+			}
+			eaptls_receive(ets, inp, len);
+
+			if(ets->frag) {
+				eap_tls_sendack(esp, id);
+				esp->es_client.ea_state = eapTlsRecv;
+				break;
+			}
+
+			if(ets->alert_recv) {
+				eap_tls_sendack(esp, id);
+				esp->es_client.ea_state = eapTlsRecvFailure;
+				break;
+			}
+
+			/* Check if TLS handshake is finished */
+			if(eaptls_is_init_finished(ets)) {
+#ifdef MPPE
+ 				eaptls_gen_mppe_keys(ets, 1);
+#endif
+				eaptls_free_session(ets);
+				eap_tls_sendack(esp, id);
+				esp->es_client.ea_state = eapTlsRecvSuccess;
+				break;
+			}
+
+			eap_tls_response(esp,id);
+			esp->es_client.ea_state = (ets->frag ? eapTlsRecvAck : eapTlsRecv);
+			break;
+
+		default:
+			eap_send_nak(esp, id, EAPT_TLS);
+			esp->es_client.ea_using_eaptls = 0;
+			break;
+		}
+
+		break;
+#endif /* USE_EAPTLS */
 
 #ifdef USE_SRP
 	case EAPT_SRP:
@@ -1645,7 +1983,7 @@ int len;
 					    esp->es_client.ea_id, id);
 				}
 			} else {
-				len -= sizeof (u_int32_t) + SHA_DIGESTSIZE;
+				len -= sizeof (u_int32_t) + SHA_DIGEST_LENGTH;
 				if (len < 0 || t_clientverify(tc, inp +
 					sizeof (u_int32_t)) != 0) {
 					error("EAP: SRP server verification "
@@ -1655,7 +1993,7 @@ int len;
 				GETLONG(esp->es_client.ea_keyflags, inp);
 				/* Save pseudonym if user wants it. */
 				if (len > 0 && esp->es_usepseudo) {
-					INCPTR(SHA_DIGESTSIZE, inp);
+					INCPTR(SHA_DIGEST_LENGTH, inp);
 					write_pseudonym(esp, inp, len, id);
 				}
 			}
@@ -1682,7 +2020,7 @@ int len;
 			    esp->es_client.ea_namelen);
 			SHA1Final(dig, &ctxt);
 			eap_srp_response(esp, id, EAPSRP_LWRECHALLENGE, dig,
-			    SHA_DIGESTSIZE);
+			    SHA_DIGEST_LENGTH);
 			break;
 
 		default:
@@ -1740,7 +2078,14 @@ int len;
 	struct t_num A;
 	SHA1_CTX ctxt;
 	u_char dig[SHA_DIGESTSIZE];
+	SHA_CTX ctxt;
+	u_char dig[SHA_DIGEST_LENGTH];
 #endif /* USE_SRP */
+ 
+#ifdef USE_EAPTLS
+	struct eaptls_session *ets;
+	u_char flags;
+#endif /* USE_EAPTLS */
 
 	/*
 	 * Ignore responses if we're not open
@@ -1787,6 +2132,64 @@ int len;
 		eap_figure_next_state(esp, 0);
 		break;
 
+#ifdef USE_EAPTLS
+	case EAPT_TLS:
+		switch(esp->es_server.ea_state) {
+
+		case eapTlsRecv:
+	
+			ets = (struct eaptls_session *) esp->es_server.ea_session;
+
+			eap_figure_next_state(esp, 
+				eaptls_receive(esp->es_server.ea_session, inp, len));
+
+			if(ets->alert_recv) {
+				eap_send_failure(esp);
+				break;
+			}
+			break;
+
+		case eapTlsRecvAck:
+			if(len > 1) {
+				dbglog("EAP-TLS ACK with extra data");
+			}
+			eap_figure_next_state(esp, 0);
+			break;
+
+		case eapTlsRecvClient:
+			/* Receive authentication response from client */
+			if (len > 0) {
+				GETCHAR(flags, inp);
+
+				if(len == 1 && !flags) {	/* Ack = ok */
+#ifdef MPPE
+ 					eaptls_gen_mppe_keys( esp->es_server.ea_session, 0 );
+#endif
+					eap_send_success(esp);
+				}
+				else {			/* failure */
+					warn("Server authentication failed");
+					eap_send_failure(esp);
+				}
+			}
+			else
+				warn("Bogus EAP-TLS packet received from client");
+
+			eaptls_free_session(esp->es_server.ea_session);
+
+			break;
+
+		case eapTlsRecvAlertAck:
+			eap_send_failure(esp);
+			break;
+
+		default:
+			eap_figure_next_state(esp, 1);
+			break;
+		}
+		break;
+#endif /* USE_EAPTLS */
+
 	case EAPT_NOTIFICATION:
 		dbglog("EAP unexpected Notification; response discarded");
 		break;
@@ -1817,6 +2220,13 @@ int len;
 		case EAPT_MD5CHAP:
 			esp->es_server.ea_state = eapMD5Chall;
 			break;
+
+#ifdef USE_EAPTLS
+			/* Send EAP-TLS start packet */
+		case EAPT_TLS:
+			esp->es_server.ea_state = eapTlsStart;
+			break;
+#endif /* USE_EAPTLS */
 
 		default:
 			dbglog("EAP: peer requesting unknown Type %d", vallen);
@@ -1935,9 +2345,9 @@ int len;
 				eap_figure_next_state(esp, 1);
 				break;
 			}
-			if (len < sizeof (u_int32_t) + SHA_DIGESTSIZE) {
+			if (len < sizeof (u_int32_t) + SHA_DIGEST_LENGTH) {
 				error("EAP: M1 length %d < %d", len,
-				    sizeof (u_int32_t) + SHA_DIGESTSIZE);
+				    sizeof (u_int32_t) + SHA_DIGEST_LENGTH);
 				eap_figure_next_state(esp, 1);
 				break;
 			}
@@ -1974,7 +2384,7 @@ int len;
 				info("EAP: unexpected SRP Subtype 4 Response");
 				return;
 			}
-			if (len != SHA_DIGESTSIZE) {
+			if (len != SHA_DIGEST_LENGTH) {
 				error("EAP: bad Lightweight rechallenge "
 				    "response");
 				return;
@@ -1988,7 +2398,7 @@ int len;
 			SHA1Update(&ctxt, esp->es_server.ea_peer,
 			    esp->es_server.ea_peerlen);
 			SHA1Final(dig, &ctxt);
-			if (BCMP(dig, inp, SHA_DIGESTSIZE) != 0) {
+			if (BCMP(dig, inp, SHA_DIGEST_LENGTH) != 0) {
 				error("EAP: failed Lightweight rechallenge");
 				eap_send_failure(esp);
 				break;
@@ -2029,12 +2439,26 @@ u_char *inp;
 int id;
 int len;
 {
-	if (esp->es_client.ea_state != eapOpen && !eap_client_active(esp)) {
+	if (esp->es_client.ea_state != eapOpen && !eap_client_active(esp)
+#ifdef USE_EAPTLS
+		&& esp->es_client.ea_state != eapTlsRecvSuccess
+#endif /* USE_EAPTLS */
+		) {
 		dbglog("EAP unexpected success message in state %s (%d)",
 		    eap_state_name(esp->es_client.ea_state),
 		    esp->es_client.ea_state);
 		return;
 	}
+
+#ifdef USE_EAPTLS
+	if(esp->es_client.ea_using_eaptls && esp->es_client.ea_state != 
+		eapTlsRecvSuccess) {
+		dbglog("EAP-TLS unexpected success message in state %s (%d)",
+                    eap_state_name(esp->es_client.ea_state),
+                    esp->es_client.ea_state);
+		return;
+	}
+#endif /* USE_EAPTLS */
 
 	if (esp->es_client.ea_timeout > 0) {
 		UNTIMEOUT(eap_client_timeout, (void *)esp);
@@ -2167,6 +2591,9 @@ void *arg;
 	int code, id, len, rtype, vallen;
 	u_char *pstart;
 	u_int32_t uval;
+#ifdef USE_EAPTLS
+	u_char flags;
+#endif /* USE_EAPTLS */
 
 	if (inlen < EAP_HEADERLEN)
 		return (0);
@@ -2230,6 +2657,24 @@ void *arg;
 				printer(arg, " <No name>");
 			}
 			break;
+
+#ifdef USE_EAPTLS
+		case EAPT_TLS:
+			if (len < 1)
+				break;
+			GETCHAR(flags, inp);
+			len--;
+
+                        if(flags == 0 && len == 0){
+                                printer(arg, " Ack");
+                                break;
+                        }
+
+			printer(arg, flags & EAP_TLS_FLAGS_LI ? " L":" -");
+			printer(arg, flags & EAP_TLS_FLAGS_MF ? "M":"-");
+			printer(arg, flags & EAP_TLS_FLAGS_START ? "S":"- ");
+			break;
+#endif /* USE_EAPTLS */
 
 		case EAPT_SRP:
 			if (len < 3)
@@ -2298,10 +2743,10 @@ void *arg;
 				if (uval != 0) {
 					printer(arg, " f<%X>", uval);
 				}
-				if ((vallen = len) > SHA_DIGESTSIZE)
-					vallen = SHA_DIGESTSIZE;
+				if ((vallen = len) > SHA_DIGEST_LENGTH)
+					vallen = SHA_DIGEST_LENGTH;
 				printer(arg, " <M2%.*B%s>", len, inp,
-				    len < SHA_DIGESTSIZE ? "?" : "");
+				    len < SHA_DIGEST_LENGTH ? "?" : "");
 				INCPTR(vallen, inp);
 				len -= vallen;
 				if (len > 0) {
@@ -2341,6 +2786,25 @@ void *arg;
 				len = 0;
 			}
 			break;
+
+#ifdef USE_EAPTLS
+		case EAPT_TLS:
+			if (len < 1)
+				break;
+			GETCHAR(flags, inp);
+			len--;
+
+                        if(flags == 0 && len == 0){
+                                printer(arg, " Ack");
+                                break;
+                        }
+
+			printer(arg, flags & EAP_TLS_FLAGS_LI ? " L":" -");
+			printer(arg, flags & EAP_TLS_FLAGS_MF ? "M":"-");
+			printer(arg, flags & EAP_TLS_FLAGS_START ? "S":"- ");
+
+			break;
+#endif /* USE_EAPTLS */
 
 		case EAPT_NAK:
 			if (len <= 0) {
@@ -2405,7 +2869,7 @@ void *arg;
 					printer(arg, " f<%X>", uval);
 				}
 				printer(arg, " <M1%.*B%s>", len, inp,
-				    len == SHA_DIGESTSIZE ? "" : "?");
+				    len == SHA_DIGEST_LENGTH ? "" : "?");
 				INCPTR(len, inp);
 				len = 0;
 				break;
@@ -2415,9 +2879,9 @@ void *arg;
 
 			case EAPSRP_LWRECHALLENGE:
 				printer(arg, " <Response%.*B%s>", len, inp,
-				    len == SHA_DIGESTSIZE ? "" : "?");
-				if ((vallen = len) > SHA_DIGESTSIZE)
-					vallen = SHA_DIGESTSIZE;
+				    len == SHA_DIGEST_LENGTH ? "" : "?");
+				if ((vallen = len) > SHA_DIGEST_LENGTH)
+					vallen = SHA_DIGEST_LENGTH;
 				INCPTR(vallen, inp);
 				len -= vallen;
 				break;
@@ -2443,3 +2907,4 @@ void *arg;
 
 	return (inp - pstart);
 }
+

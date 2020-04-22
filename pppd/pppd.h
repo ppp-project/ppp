@@ -341,6 +341,12 @@ extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
+#ifdef USE_EAPTLS
+extern char	*crl_dir;
+extern char	*crl_file;
+extern char *max_tls_version;
+#endif /* USE_EAPTLS */
+
 #ifdef MAXOCTETS
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
 extern int       maxoctets_dir;      /* Direction :
@@ -762,6 +768,10 @@ extern void (*ipv6_down_hook) __P((void));
 extern int (*chap_check_hook) __P((void));
 extern int (*chap_passwd_hook) __P((char *user, char *passwd));
 extern void (*multilink_join_hook) __P((void));
+
+#ifdef USE_EAPTLS
+extern int (*eaptls_passwd_hook) __P((char *user, char *passwd));
+#endif
 
 /* Let a plugin snoop sent and received packets.  Useful for L2TP */
 extern void (*snoop_recv_hook) __P((unsigned char *p, int len));

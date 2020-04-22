@@ -534,7 +534,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 	      char *username, u_char Challenge[8])
     
 {
-    SHA1_CTX	sha1Context;
+    SHA_CTX	sha1Context;
     u_char	sha1Hash[SHA1_SIGNATURE_SIZE];
     char	*user;
 
@@ -670,7 +670,7 @@ GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	  0x6E };
 
     int		i;
-    SHA1_CTX	sha1Context;
+    SHA_CTX	sha1Context;
     u_char	Digest[SHA1_SIGNATURE_SIZE];
     u_char	Challenge[8];
 
@@ -724,7 +724,7 @@ GenerateAuthenticatorResponsePlain
 void
 mppe_set_keys(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
 {
-    SHA1_CTX	sha1Context;
+    SHA_CTX	sha1Context;
     u_char	Digest[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
 
     SHA1_Init(&sha1Context);
@@ -768,7 +768,7 @@ void
 mppe_set_keys2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	       u_char NTResponse[24], int IsServer)
 {
-    SHA1_CTX	sha1Context;
+    SHA_CTX	sha1Context;
     u_char	MasterKey[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
     u_char	Digest[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
 

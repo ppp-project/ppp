@@ -31,6 +31,7 @@
  */
 
 #include <errno.h>
+#include <stdlib.h>
 #include "pppd.h"
 #include "pppcrypt.h"
 

@@ -107,4 +107,7 @@ void plugin_init(void)
 {
     add_options(options);
     pap_passwd_hook = promptpass;
+#ifdef USE_EAPTLS
+    eaptls_passwd_hook = promptpass;
+#endif
 }

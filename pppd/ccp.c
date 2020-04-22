@@ -539,6 +539,9 @@ ccp_resetci(f)
     if (go->mppe) {
 	ccp_options *ao = &ccp_allowoptions[f->unit];
 	int auth_mschap_bits = auth_done[f->unit];
+#ifdef USE_EAPTLS
+	int auth_eap_bits = auth_done[f->unit];
+#endif
 	int numbits;
 
 	/*
@@ -566,8 +569,23 @@ ccp_resetci(f)
 	    lcp_close(f->unit, "MPPE required but not available");
 	    return;
 	}
+
+#ifdef USE_EAPTLS
+    /*
+     * MPPE is also possible in combination with EAP-TLS.
+     * It is not possible to detect if we're doing EAP or EAP-TLS
+     * at this stage, hence we accept all forms of EAP. If TLS is
+     * not used then the MPPE keys will not be derived anyway.
+     */
+	/* Leave only the eap auth bits set */
+	auth_eap_bits &= (EAP_WITHPEER | EAP_PEER );
+
+	if ((numbits == 0) && (auth_eap_bits == 0)) {
+	    error("MPPE required, but MS-CHAP[v2] nor EAP-TLS auth are performed.");
+#else
 	if (!numbits) {
-	    error("MPPE required, but MS-CHAP[v2] auth not performed.");
+		error("MPPE required, but MS-CHAP[v2] auth not performed.");
+#endif
 	    lcp_close(f->unit, "MPPE required but not available");
 	    return;
 	}

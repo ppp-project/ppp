@@ -11,16 +11,16 @@ INCDIR = $(DESTDIR)/include
 
 TARGETS = pppd
 
-PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap-new.c md5.c ccp.c \
-	   ecp.c ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c \
+PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap-new.c ccp.c \
+	   ecp.c ipxcp.c auth.c options.c sys-linux.c chap_ms.c \
 	   demand.c utils.c tty.c eap.c chap-md5.c session.c
 
 HEADERS = ccp.h session.h chap-new.h ecp.h fsm.h ipcp.h \
-	ipxcp.h lcp.h magic.h md5.h patchlevel.h pathnames.h pppd.h \
+	ipxcp.h lcp.h magic.h patchlevel.h pathnames.h pppd.h \
 	upap.h eap.h
 
 MANPAGES = pppd.8
-PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o md5.o ccp.o \
+PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o ccp.o \
 	   ecp.o auth.o options.o demand.o utils.o sys-linux.o ipxcp.o tty.o \
 	   eap.o chap-md5.o session.o
 
@@ -81,6 +81,13 @@ PLUGIN=y
 # Use libutil
 USE_LIBUTIL=y
 
+# Enable EAP-TLS authentication (requires MPPE support, libssl and libcrypto)
+USE_EAPTLS=y
+
+# Either use the internal {md5,sha1} routines or use the openssl versions
+USE_OPENSSL_MD5=y
+USE_OPENSSL_SHA1=y
+
 MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
@@ -92,8 +99,9 @@ CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) '-DDESTDIR="@DESTDIR@"'
 ifdef CHAPMS
 CFLAGS   += -DCHAPMS=1
 NEEDDES=y
-PPPDOBJS += md4.o chap_ms.o
+PPPDSRC += md4.c chap_ms.c
 HEADERS	+= md4.h chap_ms.h
+PPPDOBJS += md4.o chap_ms.o
 ifdef MSLANMAN
 CFLAGS   += -DMSLANMAN=1
 endif
@@ -111,11 +119,31 @@ EXTRAINSTALL = $(INSTALL) -s -c -m 555 srp-entry $(BINDIR)/srp-entry
 MANPAGES += srp-entry.8
 EXTRACLEAN += srp-entry.o
 NEEDDES=y
+endif
+
+# EAP-TLS
+ifdef USE_EAPTLS
+CFLAGS += -DUSE_EAPTLS=1
+LIBS += -lssl -lcrypto
+PPPDSRC += eap-tls.c
+HEADERS += eap-tls.h
+PPPDOBJS += eap-tls.o
+endif
+
+ifdef USE_OPENSSL_MD5
+CFLAGS += -DUSE_OPENSSL_MD5=1 
+LIBS += -lcrypto
 else
-# OpenSSL has an integrated version of SHA-1, and its implementation
-# is incompatible with this local SHA-1 implementation.  We must use
-# one or the other, not both.
-PPPDSRCS += sha1.c
+PPPDSRC += md5.c
+HEADERS += md5.h
+PPPDOBJS += md5.o
+endif
+
+ifdef USE_OPENSSL_SHA1
+CFLAGS += -DUSE_OPENSSL_SHA1=1 
+LIBS += -lcrypto
+else
+PPPDSRC += sha1.c
 HEADERS += sha1.h
 PPPDOBJS += sha1.o
 endif

@@ -1550,6 +1550,26 @@ netif_set_mtu(unit, mtu)
 #endif /* defined(INET6) && defined(SOL2) */
 }
 
+
+
+/*
+ * netif_get_mtu - get the MTU on the PPP network interface.
+ */
+int
+netif_get_mtu(int unit)
+{
+    struct ifreq ifr;
+
+    memset (&ifr, '\0', sizeof (ifr));
+    strlcpy(ifr.ifr_name, ifname, sizeof (ifr.ifr_name));
+
+    if (ioctl(ipfd, SIOCGIFMTU, (caddr_t) &ifr) < 0) {
+    error("ioctl(SIOCGIFMTU): %m (line %d)", __LINE__);
+    return 0;
+    }
+    return ifr.ifr_mtu;
+}
+
 /*
  * tty_send_config - configure the transmit characteristics of
  * the ppp interface.
