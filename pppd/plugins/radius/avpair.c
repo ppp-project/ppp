@@ -222,6 +222,14 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 			{
 
 			    case PW_TYPE_STRING:
+
+			    if (attrlen > sizeof(pair->strvalue))
+			    {
+				    error("Received an attr str value too long!");
+				    rc_avpair_free(vp);
+				    return NULL;
+			    }
+
 				memcpy (pair->strvalue, (char *) ptr, (size_t) attrlen);
 				pair->strvalue[attrlen] = '\0';
 				pair->lvalue = attrlen;
