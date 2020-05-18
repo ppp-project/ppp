@@ -223,6 +223,7 @@ struct notifier {
  * Global variables.
  */
 
+extern int	got_sigterm;	/* SIGINT or SIGTERM was received */
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name */

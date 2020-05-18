@@ -835,7 +835,7 @@ complete_read(int fd, void *buf, size_t count)
 	for (done = 0; done < count; ) {
 		nb = read(fd, ptr, count - done);
 		if (nb < 0) {
-			if (errno == EINTR)
+			if (errno == EINTR && !got_sigterm)
 				continue;
 			return -1;
 		}
