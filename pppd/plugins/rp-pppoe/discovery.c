@@ -45,8 +45,8 @@ static int time_left(struct timeval *diff, struct timeval *exp)
 {
     struct timeval now;
 
-    if (gettimeofday(&now, NULL) < 0) {
-	error("gettimeofday: %m");
+    if (get_time(&now) < 0) {
+	error("get_time: %m");
 	return 0;
     }
 
@@ -353,8 +353,8 @@ waitForPADO(PPPoEConnection *conn, int timeout)
     conn->seenMaxPayload = 0;
     conn->error = 0;
 
-    if (gettimeofday(&expire_at, NULL) < 0) {
-	error("gettimeofday (waitForPADO): %m");
+    if (get_time(&expire_at) < 0) {
+	error("get_time (waitForPADO): %m");
 	return;
     }
     expire_at.tv_sec += timeout;
@@ -533,8 +533,8 @@ waitForPADS(PPPoEConnection *conn, int timeout)
     PPPoEPacket packet;
     int len;
 
-    if (gettimeofday(&expire_at, NULL) < 0) {
-	error("gettimeofday (waitForPADS): %m");
+    if (get_time(&expire_at) < 0) {
+	error("get_time (waitForPADS): %m");
 	return;
     }
     expire_at.tv_sec += timeout;
