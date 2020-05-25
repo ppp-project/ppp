@@ -32,7 +32,7 @@ static int promptpass(char *user, char *passwd)
     int readgood, wstat;
     ssize_t red;
 
-    if (promptprog[0] == 0 || access(promptprog, X_OK) < 0)
+    if (asked_to_quit || promptprog[0] == 0 || access(promptprog, X_OK) < 0)
 	return -1;	/* sorry, can't help */
 
     if (!passwd)
@@ -97,9 +97,14 @@ static int promptpass(char *user, char *passwd)
     passwd[readgood] = 0;
     if (!WIFEXITED(wstat))
 	warn("%s terminated abnormally", promptprog);
-    if (WEXITSTATUS(wstat))
-	warn("%s exited with code %d", promptprog, WEXITSTATUS(status));
-
+    if (WEXITSTATUS(wstat)) {
+	warn("%s exited with code %d", promptprog, WEXITSTATUS(wstat));
+	/* code when program asked to quit */
+	if (WEXITSTATUS(wstat) == 128) {
+		asked_to_quit = 1;
+	}
+	return -1;
+    }
     return 1;
 }
 

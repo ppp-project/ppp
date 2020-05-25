@@ -153,7 +153,6 @@ int	using_pty = 0;		/* we're allocating a pty as the device */
 
 extern uid_t uid;
 extern int kill_link;
-extern int asked_to_quit;
 extern int got_sigterm;
 
 /* XXX */
