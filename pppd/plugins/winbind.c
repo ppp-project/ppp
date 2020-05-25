@@ -443,7 +443,7 @@ unsigned int run_ntlm_auth(const char *username,
                 return NOT_AUTHENTICATED;
         }
 
-	while ((wait(&status) == -1) && errno == EINTR)
+	while ((wait(&status) == -1) && errno == EINTR && !got_sigterm)
                 ;
 
 	if ((authenticated == AUTHENTICATED) && nt_key && !got_user_session_key) {

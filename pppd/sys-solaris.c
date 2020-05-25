@@ -2427,7 +2427,7 @@ dlpi_get_reply(fd, reply, expected_prim, maxlen)
     pfd.events = POLLIN | POLLPRI;
     do {
 	n = poll(&pfd, 1, 1000);
-    } while (n == -1 && errno == EINTR);
+    } while (n == -1 && errno == EINTR && !got_sigterm);
     if (n <= 0)
 	return -1;
 

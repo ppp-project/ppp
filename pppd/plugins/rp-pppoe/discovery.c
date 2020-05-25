@@ -369,7 +369,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR) break;
+		if (r >= 0 || errno != EINTR || got_sigterm) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADO): %m");
@@ -550,7 +550,7 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR) break;
+		if (r >= 0 || errno != EINTR || got_sigterm) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADS): %m");
@@ -622,7 +622,7 @@ discovery(PPPoEConnection *conn)
 
     do {
 	padiAttempts++;
-	if (padiAttempts > conn->discoveryAttempts) {
+	if (got_sigterm || padiAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADO packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;
@@ -638,7 +638,7 @@ discovery(PPPoEConnection *conn)
     timeout = conn->discoveryTimeout;
     do {
 	padrAttempts++;
-	if (padrAttempts > conn->discoveryAttempts) {
+	if (got_sigterm || padrAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADS packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;
