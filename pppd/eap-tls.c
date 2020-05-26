@@ -40,6 +40,7 @@
 #include <openssl/engine.h>
 #include <openssl/hmac.h>
 #include <openssl/err.h>
+#include <openssl/ui.h>
 #include <openssl/x509v3.h>
 
 #include "pppd.h"
@@ -439,6 +440,8 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
 	return e;
 }
 
+
+
 /*
  * Initialize the SSL stacks and tests if certificates, key and crl
  * for client or server use can be loaded.
@@ -579,7 +582,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 		}
 	}
 
-	SSL_CTX_set_default_passwd_cb (ctx, password_callback);
+//	SSL_CTX_set_default_passwd_cb (ctx, password_callback);
 
 	if (strlen(cacertfile) == 0) cacertfile = NULL;
 	if (strlen(capath) == 0)     capath = NULL;
@@ -669,12 +672,33 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 	{
 		EVP_PKEY   *pkey = NULL;
 		PW_CB_DATA  cb_data;
+		UI_METHOD* transfer_pin = NULL;
 
 		cb_data.password = passwd;
 		cb_data.prompt_info = pkey_identifier;
 
+		if (passwd[0] != 0)
+		{
+			UI_METHOD* transfer_pin = UI_create_method("transfer_pin");
+
+			int writer (UI *ui, UI_STRING *uis)
+			{
+				PW_CB_DATA* cb_data = (PW_CB_DATA*)UI_get0_user_data(ui);
+				UI_set_result(ui, uis, cb_data->password);
+				return 1;
+			};
+			int stub (UI* ui) {return 1;};
+			int stub_reader (UI *ui, UI_STRING *uis) {return 1;};
+
+			UI_method_set_writer(transfer_pin,  writer);
+			UI_method_set_opener(transfer_pin,  stub);
+			UI_method_set_closer(transfer_pin,  stub);
+			UI_method_set_flusher(transfer_pin, stub);
+			UI_method_set_reader(transfer_pin,  stub_reader);
+		}
+
 		dbglog( "Loading private key '%s' from engine", pkey_identifier );
-		pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, NULL, &cb_data);
+		pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, transfer_pin, &cb_data);
 		if (pkey)
 		{
 		    dbglog( "Got the private key, adding it to SSL context" );
@@ -689,6 +713,8 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 			warn("EAP-TLS: Cannot load PKCS11 key %s", pkey_identifier);
 			log_ssl_errors();
 		}
+
+		if (transfer_pin) UI_destroy_method(transfer_pin);
 	}
 	else
 	{
