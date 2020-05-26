@@ -114,6 +114,7 @@
 #include <sys/dlpi.h>
 #include <sys/stat.h>
 #include <sys/mkdev.h>
+#include <sys/time.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
@@ -2446,7 +2447,7 @@ dlpi_get_reply(fd, reply, expected_prim, maxlen)
     pfd.events = POLLIN | POLLPRI;
     do {
 	n = poll(&pfd, 1, 1000);
-    } while (n == -1 && errno == EINTR);
+    } while (n == -1 && errno == EINTR && !got_sigterm);
     if (n <= 0)
 	return -1;
 
@@ -2882,4 +2883,14 @@ get_pty(master_fdp, slave_fdp, slave_name, uid)
     *slave_fdp = sfd;
 
     return 1;
+}
+
+/********************************************************************
+ *
+ * get_time - Get current time, monotonic if possible.
+ */
+int
+get_time(struct timeval *tv)
+{
+    return gettimeofday(tv, NULL);
 }

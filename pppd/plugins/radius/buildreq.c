@@ -293,7 +293,7 @@ int rc_acct_using_server(SERVER *acctserver,
 	SEND_DATA       data;
 	VALUE_PAIR	*adt_vp;
 	int		result;
-	time_t		start_time, dtime;
+	struct timeval	start_time, dtime;
 	char		msg[4096];
 	int		i;
 	int		timeout = rc_conf_int("radius_timeout");
@@ -320,11 +320,11 @@ int rc_acct_using_server(SERVER *acctserver,
 	 * Fill in Acct-Delay-Time
 	 */
 
-	dtime = 0;
-	if ((adt_vp = rc_avpair_add(&(data.send_pairs), PW_ACCT_DELAY_TIME, &dtime, 0, VENDOR_NONE)) == NULL)
+	dtime.tv_sec = 0;
+	if ((adt_vp = rc_avpair_add(&(data.send_pairs), PW_ACCT_DELAY_TIME, &dtime.tv_sec, 0, VENDOR_NONE)) == NULL)
 		return (ERROR_RC);
 
-	start_time = time(NULL);
+	get_time(&start_time);
 	result = ERROR_RC;
 	for(i=0; (i<acctserver->max) && (result != OK_RC) && (result != BADRESP_RC)
 		; i++)
@@ -336,8 +336,9 @@ int rc_acct_using_server(SERVER *acctserver,
 		rc_buildreq(&data, PW_ACCOUNTING_REQUEST, acctserver->name[i],
 			    acctserver->port[i], timeout, retries);
 
-		dtime = time(NULL) - start_time;
-		rc_avpair_assign(adt_vp, &dtime, 0);
+		get_time(&dtime);
+		dtime.tv_sec -= start_time.tv_sec;
+		rc_avpair_assign(adt_vp, &dtime.tv_sec, 0);
 
 		result = rc_send_server (&data, msg, NULL);
 	}

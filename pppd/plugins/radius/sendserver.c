@@ -302,7 +302,7 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 		FD_SET (sockfd, &readfds);
 		if (select (sockfd + 1, &readfds, NULL, NULL, &authtime) < 0)
 		{
-			if (errno == EINTR)
+			if (errno == EINTR && !got_sigterm)
 				continue;
 			error("rc_send_server: select: %m");
 			memset (secret, '\0', sizeof (secret));

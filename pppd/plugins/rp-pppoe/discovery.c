@@ -45,8 +45,8 @@ static int time_left(struct timeval *diff, struct timeval *exp)
 {
     struct timeval now;
 
-    if (gettimeofday(&now, NULL) < 0) {
-	error("gettimeofday: %m");
+    if (get_time(&now) < 0) {
+	error("get_time: %m");
 	return 0;
     }
 
@@ -353,8 +353,8 @@ waitForPADO(PPPoEConnection *conn, int timeout)
     conn->seenMaxPayload = 0;
     conn->error = 0;
 
-    if (gettimeofday(&expire_at, NULL) < 0) {
-	error("gettimeofday (waitForPADO): %m");
+    if (get_time(&expire_at) < 0) {
+	error("get_time (waitForPADO): %m");
 	return;
     }
     expire_at.tv_sec += timeout;
@@ -369,7 +369,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR) break;
+		if (r >= 0 || errno != EINTR || got_sigterm) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADO): %m");
@@ -533,8 +533,8 @@ waitForPADS(PPPoEConnection *conn, int timeout)
     PPPoEPacket packet;
     int len;
 
-    if (gettimeofday(&expire_at, NULL) < 0) {
-	error("gettimeofday (waitForPADS): %m");
+    if (get_time(&expire_at) < 0) {
+	error("get_time (waitForPADS): %m");
 	return;
     }
     expire_at.tv_sec += timeout;
@@ -550,7 +550,7 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR) break;
+		if (r >= 0 || errno != EINTR || got_sigterm) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADS): %m");
@@ -622,7 +622,7 @@ discovery(PPPoEConnection *conn)
 
     do {
 	padiAttempts++;
-	if (padiAttempts > conn->discoveryAttempts) {
+	if (got_sigterm || padiAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADO packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;
@@ -638,7 +638,7 @@ discovery(PPPoEConnection *conn)
     timeout = conn->discoveryTimeout;
     do {
 	padrAttempts++;
-	if (padrAttempts > conn->discoveryAttempts) {
+	if (got_sigterm || padrAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADS packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;

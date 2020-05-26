@@ -3165,3 +3165,38 @@ ether_to_eui64(eui64_t *p_eui64)
     return 1;
 }
 #endif
+
+/********************************************************************
+ *
+ * get_time - Get current time, monotonic if possible.
+ */
+int
+get_time(struct timeval *tv)
+{
+/* Old glibc (< 2.3.4) does define CLOCK_MONOTONIC, but kernel may have it.
+ * Runtime checking makes it safe. */
+#ifndef CLOCK_MONOTONIC
+#define CLOCK_MONOTONIC 1
+#endif
+    static int monotonic = -1;
+    struct timespec ts;
+    int ret;
+
+    if (monotonic) {
+	ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+	if (ret == 0) {
+	    monotonic = 1;
+	    if (tv) {
+		tv->tv_sec = ts.tv_sec;
+		tv->tv_usec = ts.tv_nsec / 1000;
+	    }
+	    return ret;
+	} else if (monotonic > 0)
+	    return ret;
+
+	monotonic = 0;
+	warn("Couldn't use monotonic clock source: %m");
+    }
+
+    return gettimeofday(tv, NULL);
+}
