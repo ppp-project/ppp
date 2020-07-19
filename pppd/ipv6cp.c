@@ -443,7 +443,7 @@ ipv6cp_init(unit)
     memset(wo, 0, sizeof(*wo));
     memset(ao, 0, sizeof(*ao));
 
-    wo->accept_local = 1;
+    wo->accept_local = 0;
     wo->neg_ifaceid = 1;
     ao->neg_ifaceid = 1;
 
@@ -544,6 +544,7 @@ ipv6cp_resetci(f)
     wo->req_ifaceid = wo->neg_ifaceid && ipv6cp_allowoptions[f->unit].neg_ifaceid;
     
     if (!wo->opt_local) {
+	wo->accept_local = 1;
 	eui64_magic_nz(wo->ourid);
     }
     
