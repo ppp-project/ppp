@@ -421,8 +421,8 @@ chapms2_check_success(int id, unsigned char *msg, int len)
 	/* Authenticator Response matches. */
 	msg += MS_AUTH_RESPONSE_LENGTH; /* Eat it */
 	len -= MS_AUTH_RESPONSE_LENGTH;
-	if ((len >= 3) && !strncmp((char *)msg, " M=", 3)) {
-		msg += 3; /* Eat the delimiter */
+	if ((len >= 2) && !strncmp((char *)msg, "M=", 2)) {
+		msg += 2; /* Eat the delimiter */
 	} else if (len) {
 		/* Packet has extra text which does not begin " M=" */
 		error("MS-CHAPv2 Success packet is badly formed.");
