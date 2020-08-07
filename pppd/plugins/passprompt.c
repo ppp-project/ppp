@@ -17,6 +17,7 @@
 char pppd_version[] = VERSION;
 
 static char promptprog[PATH_MAX+1];
+static int promptprog_refused = 0;
 
 static option_t options[] = {
     { "promptprog", o_string, promptprog,
@@ -32,7 +33,7 @@ static int promptpass(char *user, char *passwd)
     int readgood, wstat;
     ssize_t red;
 
-    if (promptprog[0] == 0 || access(promptprog, X_OK) < 0)
+    if (promptprog_refused || promptprog[0] == 0 || access(promptprog, X_OK) < 0)
 	return -1;	/* sorry, can't help */
 
     if (!passwd)
@@ -97,9 +98,14 @@ static int promptpass(char *user, char *passwd)
     passwd[readgood] = 0;
     if (!WIFEXITED(wstat))
 	warn("%s terminated abnormally", promptprog);
-    if (WEXITSTATUS(wstat))
-	warn("%s exited with code %d", promptprog, WEXITSTATUS(status));
-
+    if (WEXITSTATUS(wstat)) {
+	    warn("%s exited with code %d", promptprog, WEXITSTATUS(wstat));
+	    /* code when cancel was hit in the prompt prog */
+	    if (WEXITSTATUS(wstat) == 128) {
+	        promptprog_refused = 1;
+	    }
+	    return -1;
+    }
     return 1;
 }
 
