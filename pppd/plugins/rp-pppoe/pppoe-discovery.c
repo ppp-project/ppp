@@ -328,14 +328,10 @@ void
 parseForHostUniq(UINT16_t type, UINT16_t len, unsigned char *data,
 		 void *extra)
 {
-    int *val = (int *) extra;
-    if (type == TAG_HOST_UNIQ && len == sizeof(pid_t)) {
-	pid_t tmp;
-	memcpy(&tmp, data, len);
-	if (tmp == getpid()) {
-	    *val = 1;
-	}
-    }
+    PPPoETag *tag = extra;
+
+    if (type == TAG_HOST_UNIQ && len == ntohs(tag->length))
+	tag->length = memcmp(data, tag->payload, len);
 }
 
 /**********************************************************************
@@ -352,7 +348,7 @@ parseForHostUniq(UINT16_t type, UINT16_t len, unsigned char *data,
 int
 packetIsForMe(PPPoEConnection *conn, PPPoEPacket *packet)
 {
-    int forMe = 0;
+    PPPoETag hostUniq = conn->hostUniq;
 
     /* If packet is not directed to our MAC address, forget it */
     if (memcmp(packet->ethHdr.h_dest, conn->myEth, ETH_ALEN)) return 0;
@@ -360,8 +356,8 @@ packetIsForMe(PPPoEConnection *conn, PPPoEPacket *packet)
     /* If we're not using the Host-Unique tag, then accept the packet */
     if (!conn->hostUniq.length) return 1;
 
-    parsePacket(packet, parseForHostUniq, &forMe);
-    return forMe;
+    parsePacket(packet, parseForHostUniq, &hostUniq);
+    return !hostUniq.length;
 }
 
 /**********************************************************************
