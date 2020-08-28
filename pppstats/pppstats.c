@@ -106,13 +106,13 @@ extern char *optarg;
 #define PPP_DRV_NAME    "ppp"
 #endif /* !defined(PPP_DRV_NAME) */
 
-static void usage __P((void));
-static void catchalarm __P((int));
-static void get_ppp_stats __P((struct ppp_stats *));
-static void get_ppp_cstats __P((struct ppp_comp_stats *));
-static void intpr __P((void));
+static void usage(void);
+static void catchalarm(int);
+static void get_ppp_stats(struct ppp_stats *);
+static void get_ppp_cstats(struct ppp_comp_stats *);
+static void intpr(void);
 
-int main __P((int, char *argv[]));
+int main(int, char *argv[]);
 
 static void
 usage()

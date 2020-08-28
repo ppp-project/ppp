@@ -256,15 +256,15 @@ static eui64_t	default_route_gateway6;	/* Gateway for default IPv6 route added *
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 /* Prototypes for procedures local to this file. */
-static int translate_speed __P((int));
-static int baud_rate_of __P((int));
-static int get_ether_addr __P((u_int32_t, struct sockaddr *));
-static int get_hw_addr __P((char *, u_int32_t, struct sockaddr *));
-static int get_hw_addr_dlpi __P((char *, struct sockaddr *));
-static int dlpi_attach __P((int, int));
-static int dlpi_info_req __P((int));
-static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
-static int strioctl __P((int, int, void *, int, int));
+static int translate_speed(int);
+static int baud_rate_of(int);
+static int get_ether_addr(u_int32_t, struct sockaddr *);
+static int get_hw_addr(char *, u_int32_t, struct sockaddr *);
+static int get_hw_addr_dlpi(char *, struct sockaddr *);
+static int dlpi_attach(int, int);
+static int dlpi_info_req(int);
+static int dlpi_get_reply(int, union DL_primitives *, int, int);
+static int strioctl(int, int, void *, int, int);
 
 #ifdef SOL2
 /*

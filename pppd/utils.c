@@ -64,10 +64,10 @@
 extern char *strerror();
 #endif
 
-static void logit __P((int, char *, va_list));
-static void log_write __P((int, char *));
-static void vslp_printer __P((void *, char *, ...));
-static void format_packet __P((u_char *, int, printer_func, void *));
+static void logit(int, char *, va_list);
+static void log_write(int, char *);
+static void vslp_printer(void *, char *, ...);
+static void format_packet(u_char *, int, printer_func, void *);
 
 struct buffer_info {
     char *ptr;

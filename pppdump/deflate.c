@@ -65,17 +65,17 @@ struct deflate_state {
 
 #define DEFLATE_OVHD	2		/* Deflate overhead/packet */
 
-static void	*z_alloc __P((void *, u_int items, u_int size));
-static void	z_free __P((void *, void *ptr, u_int nb));
-static void	*z_decomp_alloc __P((u_char *options, int opt_len));
-static void	z_decomp_free __P((void *state));
-static int	z_decomp_init __P((void *state, u_char *options, int opt_len,
-				     int unit, int hdrlen, int mru, int debug));
-static void	z_incomp __P((void *state, u_char *dmsg, int len));
-static int	z_decompress __P((void *state, u_char *cmp, int inlen,
-				    u_char *dmp, int *outlenp));
-static void	z_decomp_reset __P((void *state));
-static void	z_comp_stats __P((void *state, struct compstat *stats));
+static void	*z_alloc(void *, u_int items, u_int size);
+static void	z_free(void *, void *ptr, u_int nb);
+static void	*z_decomp_alloc(u_char *options, int opt_len);
+static void	z_decomp_free(void *state);
+static int	z_decomp_init(void *state, u_char *options, int opt_len,
+				     int unit, int hdrlen, int mru, int debug);
+static void	z_incomp(void *state, u_char *dmsg, int len);
+static int	z_decompress(void *state, u_char *cmp, int inlen,
+				    u_char *dmp, int *outlenp);
+static void	z_decomp_reset(void *state);
+static void	z_comp_stats(void *state, struct compstat *stats);
 
 /*
  * Procedures exported to if_ppp.c.

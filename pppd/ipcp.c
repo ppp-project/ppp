@@ -74,13 +74,13 @@ bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 bool	noremoteip = 0;		/* Let him have no IP address */
 
 /* Hook for a plugin to know when IP protocol has come up */
-void (*ip_up_hook) __P((void)) = NULL;
+void (*ip_up_hook)(void) = NULL;
 
 /* Hook for a plugin to know when IP protocol has come down */
-void (*ip_down_hook) __P((void)) = NULL;
+void (*ip_down_hook)(void) = NULL;
 
 /* Hook for a plugin to choose the remote IP address */
-void (*ip_choose_hook) __P((u_int32_t *)) = NULL;
+void (*ip_choose_hook)(u_int32_t *) = NULL;
 
 /* Notifiers for when IPCP goes up and down */
 struct notifier *ip_up_notifier = NULL;
@@ -99,16 +99,16 @@ static char netmask_str[20];		/* string form of netmask value */
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
  */
-static void ipcp_resetci __P((fsm *));	/* Reset our CI */
-static int  ipcp_cilen __P((fsm *));	        /* Return length of our CI */
-static void ipcp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
-static int  ipcp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipcp_nakci __P((fsm *, u_char *, int, int));/* Peer nak'd our CI */
-static int  ipcp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
-static int  ipcp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
-static void ipcp_up __P((fsm *));		/* We're UP */
-static void ipcp_down __P((fsm *));		/* We're DOWN */
-static void ipcp_finished __P((fsm *));	/* Don't need lower layer */
+static void ipcp_resetci(fsm *);	/* Reset our CI */
+static int  ipcp_cilen(fsm *);	        /* Return length of our CI */
+static void ipcp_addci(fsm *, u_char *, int *); /* Add our CI */
+static int  ipcp_ackci(fsm *, u_char *, int);	/* Peer ack'd our CI */
+static int  ipcp_nakci(fsm *, u_char *, int, int);/* Peer nak'd our CI */
+static int  ipcp_rejci(fsm *, u_char *, int);	/* Peer rej'd our CI */
+static int  ipcp_reqci(fsm *, u_char *, int *, int); /* Rcv CI */
+static void ipcp_up(fsm *);		/* We're UP */
+static void ipcp_down(fsm *);		/* We're DOWN */
+static void ipcp_finished(fsm *);	/* Don't need lower layer */
 
 fsm ipcp_fsm[NUM_PPP];		/* IPCP fsm structure */
 
@@ -133,12 +133,12 @@ static fsm_callbacks ipcp_callbacks = { /* IPCP callback routines */
 /*
  * Command-line options.
  */
-static int setvjslots __P((char **));
-static int setdnsaddr __P((char **));
-static int setwinsaddr __P((char **));
-static int setnetmask __P((char **));
-int setipaddr __P((char *, char **, int));
-static void printipaddr __P((option_t *, void (*)(void *, char *,...),void *));
+static int setvjslots(char **);
+static int setdnsaddr(char **);
+static int setwinsaddr(char **);
+static int setnetmask(char **);
+int setipaddr(char *, char **, int);
+static void printipaddr(option_t *, void (*)(void *, char *,...),void *);
 
 static option_t ipcp_option_list[] = {
     { "noip", o_bool, &ipcp_protent.enabled_flag,
@@ -236,19 +236,19 @@ static option_t ipcp_option_list[] = {
 /*
  * Protocol entry points from main code.
  */
-static void ipcp_init __P((int));
-static void ipcp_open __P((int));
-static void ipcp_close __P((int, char *));
-static void ipcp_lowerup __P((int));
-static void ipcp_lowerdown __P((int));
-static void ipcp_input __P((int, u_char *, int));
-static void ipcp_protrej __P((int));
-static int  ipcp_printpkt __P((u_char *, int,
-			       void (*) __P((void *, char *, ...)), void *));
-static void ip_check_options __P((void));
-static int  ip_demand_conf __P((int));
-static int  ip_active_pkt __P((u_char *, int));
-static void create_resolv __P((u_int32_t, u_int32_t));
+static void ipcp_init(int);
+static void ipcp_open(int);
+static void ipcp_close(int, char *);
+static void ipcp_lowerup(int);
+static void ipcp_lowerdown(int);
+static void ipcp_input(int, u_char *, int);
+static void ipcp_protrej(int);
+static int  ipcp_printpkt(u_char *, int,
+			       void (*)(void *, char *, ...), void *);
+static void ip_check_options(void);
+static int  ip_demand_conf(int);
+static int  ip_active_pkt(u_char *, int);
+static void create_resolv(u_int32_t, u_int32_t);
 
 struct protent ipcp_protent = {
     PPP_IPCP,
@@ -270,9 +270,9 @@ struct protent ipcp_protent = {
     ip_active_pkt
 };
 
-static void ipcp_clear_addrs __P((int, u_int32_t, u_int32_t));
-static void ipcp_script __P((char *, int));	/* Run an up/down script */
-static void ipcp_script_done __P((void *));
+static void ipcp_clear_addrs(int, u_int32_t, u_int32_t);
+static void ipcp_script(char *, int);	/* Run an up/down script */
+static void ipcp_script_done(void *);
 
 /*
  * Lengths of configuration options.
@@ -481,7 +481,7 @@ setipaddr(arg, argv, doit)
 static void
 printipaddr(opt, printer, arg)
     option_t *opt;
-    void (*printer) __P((void *, char *, ...));
+    void (*printer)(void *, char *, ...);
     void *arg;
 {
 	ipcp_options *wo = &ipcp_wantoptions[0];
@@ -2144,7 +2144,7 @@ static int
 ipcp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer) __P((void *, char *, ...));
+    void (*printer)(void *, char *, ...);
     void *arg;
 {
     int code, id, len, olen;

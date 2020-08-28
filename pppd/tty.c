@@ -97,28 +97,28 @@
 #include "fsm.h"
 #include "lcp.h"
 
-void tty_process_extra_options __P((void));
-void tty_check_options __P((void));
-int  connect_tty __P((void));
-void disconnect_tty __P((void));
-void tty_close_fds __P((void));
-void cleanup_tty __P((void));
-void tty_do_send_config __P((int, u_int32_t, int, int));
+void tty_process_extra_options(void);
+void tty_check_options(void);
+int  connect_tty(void);
+void disconnect_tty(void);
+void tty_close_fds(void);
+void cleanup_tty(void);
+void tty_do_send_config(int, u_int32_t, int, int);
 
-static int setdevname __P((char *, char **, int));
-static int setspeed __P((char *, char **, int));
-static int setxonxoff __P((char **));
-static int setescape __P((char **));
-static void printescape __P((option_t *, void (*)(void *, char *,...),void *));
-static void finish_tty __P((void));
-static int start_charshunt __P((int, int));
-static void stop_charshunt __P((void *, int));
-static void charshunt_done __P((void *));
-static void charshunt __P((int, int, char *));
-static int record_write __P((FILE *, int code, u_char *buf, int nb,
-			     struct timeval *));
-static int open_socket __P((char *));
-static void maybe_relock __P((void *, int));
+static int setdevname(char *, char **, int);
+static int setspeed(char *, char **, int);
+static int setxonxoff(char **);
+static int setescape(char **);
+static void printescape(option_t *, void (*)(void *, char *,...),void *);
+static void finish_tty(void);
+static int start_charshunt(int, int);
+static void stop_charshunt(void *, int);
+static void charshunt_done(void *);
+static void charshunt(int, int, char *);
+static int record_write(FILE *, int code, u_char *buf, int nb,
+			     struct timeval *);
+static int open_socket(char *);
+static void maybe_relock(void *, int);
 
 static int pty_master;		/* fd for master side of pty */
 static int pty_slave;		/* fd for slave side of pty */
@@ -377,7 +377,7 @@ setescape(argv)
 static void
 printescape(opt, printer, arg)
     option_t *opt;
-    void (*printer) __P((void *, char *, ...));
+    void (*printer)(void *, char *, ...);
     void *arg;
 {
 	int n;

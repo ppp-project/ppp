@@ -109,11 +109,11 @@ typedef unsigned int            uintpointer_t;
 
 MOD_OPEN_DECL(ahdlc_open);
 MOD_CLOSE_DECL(ahdlc_close);
-static int ahdlc_wput __P((queue_t *, mblk_t *));
-static int ahdlc_rput __P((queue_t *, mblk_t *));
-static void ahdlc_encode __P((queue_t *, mblk_t *));
-static void ahdlc_decode __P((queue_t *, mblk_t *));
-static int msg_byte __P((mblk_t *, unsigned int));
+static int ahdlc_wput(queue_t *, mblk_t *);
+static int ahdlc_rput(queue_t *, mblk_t *);
+static void ahdlc_encode(queue_t *, mblk_t *);
+static void ahdlc_decode(queue_t *, mblk_t *);
+static int msg_byte(mblk_t *, unsigned int);
 
 #if defined(SOL2)
 /*

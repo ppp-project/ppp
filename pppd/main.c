@@ -157,10 +157,10 @@ TDB_CONTEXT *pppdb;		/* database for storing status etc. */
 
 char db_key[32];
 
-int (*holdoff_hook) __P((void)) = NULL;
-int (*new_phase_hook) __P((int)) = NULL;
-void (*snoop_recv_hook) __P((unsigned char *p, int len)) = NULL;
-void (*snoop_send_hook) __P((unsigned char *p, int len)) = NULL;
+int (*holdoff_hook)(void) = NULL;
+int (*new_phase_hook)(int) = NULL;
+void (*snoop_recv_hook)(unsigned char *p, int len) = NULL;
+void (*snoop_send_hook)(unsigned char *p, int len) = NULL;
 
 static int conn_running;	/* we have a [dis]connector running */
 static int fd_loop;		/* fd for getting demand-dial packets */
@@ -216,7 +216,7 @@ bool bundle_terminating;
 struct subprocess {
     pid_t	pid;
     char	*prog;
-    void	(*done) __P((void *));
+    void	(*done)(void *);
     void	*arg;
     int		killable;
     struct subprocess *next;
@@ -226,37 +226,37 @@ static struct subprocess *children;
 
 /* Prototypes for procedures local to this file. */
 
-static void setup_signals __P((void));
-static void create_pidfile __P((int pid));
-static void create_linkpidfile __P((int pid));
-static void cleanup __P((void));
-static void get_input __P((void));
-static void calltimeout __P((void));
-static struct timeval *timeleft __P((struct timeval *));
-static void kill_my_pg __P((int));
-static void hup __P((int));
-static void term __P((int));
-static void chld __P((int));
-static void toggle_debug __P((int));
-static void open_ccp __P((int));
-static void bad_signal __P((int));
-static void holdoff_end __P((void *));
-static void forget_child __P((int pid, int status));
-static int reap_kids __P((void));
-static void childwait_end __P((void *));
+static void setup_signals(void);
+static void create_pidfile(int pid);
+static void create_linkpidfile(int pid);
+static void cleanup(void);
+static void get_input(void);
+static void calltimeout(void);
+static struct timeval *timeleft(struct timeval *);
+static void kill_my_pg(int);
+static void hup(int);
+static void term(int);
+static void chld(int);
+static void toggle_debug(int);
+static void open_ccp(int);
+static void bad_signal(int);
+static void holdoff_end(void *);
+static void forget_child(int pid, int status);
+static int reap_kids(void);
+static void childwait_end(void *);
 
 #ifdef USE_TDB
-static void update_db_entry __P((void));
-static void add_db_key __P((const char *));
-static void delete_db_key __P((const char *));
-static void cleanup_db __P((void));
+static void update_db_entry(void);
+static void add_db_key(const char *);
+static void delete_db_key(const char *);
+static void cleanup_db(void);
 #endif
 
-static void handle_events __P((void));
-void print_link_stats __P((void));
+static void handle_events(void);
+void print_link_stats(void);
 
-extern	char	*getlogin __P((void));
-int main __P((int, char *[]));
+extern	char	*getlogin(void);
+int main(int, char *[]);
 
 #ifdef ultrix
 #undef	O_NONBLOCK
@@ -1264,7 +1264,7 @@ update_link_stats(u)
 struct	callout {
     struct timeval	c_time;		/* time at which to call routine */
     void		*c_arg;		/* argument to routine */
-    void		(*c_func) __P((void *)); /* routine */
+    void		(*c_func)(void *); /* routine */
     struct		callout *c_next;
 };
 
@@ -1276,7 +1276,7 @@ static struct timeval timenow;		/* Current time */
  */
 void
 timeout(func, arg, secs, usecs)
-    void (*func) __P((void *));
+    void (*func)(void *);
     void *arg;
     int secs, usecs;
 {
@@ -1315,7 +1315,7 @@ timeout(func, arg, secs, usecs)
  */
 void
 untimeout(func, arg)
-    void (*func) __P((void *));
+    void (*func)(void *);
     void *arg;
 {
     struct callout **copp, *freep;
@@ -1785,7 +1785,7 @@ run_program(prog, args, must_exist, done, arg, wait)
     char *prog;
     char **args;
     int must_exist;
-    void (*done) __P((void *));
+    void (*done)(void *);
     void *arg;
     int wait;
 {
@@ -1861,7 +1861,7 @@ void
 record_child(pid, prog, done, arg, killable)
     int pid;
     char *prog;
-    void (*done) __P((void *));
+    void (*done)(void *);
     void *arg;
     int killable;
 {

@@ -386,75 +386,75 @@ typedef struct env
 
 /*	avpair.c		*/
 
-VALUE_PAIR *rc_avpair_add __P((VALUE_PAIR **, int, void *, int, int));
-int rc_avpair_assign __P((VALUE_PAIR *, void *, int));
-VALUE_PAIR *rc_avpair_new __P((int, void *, int, int));
-VALUE_PAIR *rc_avpair_gen __P((AUTH_HDR *));
-VALUE_PAIR *rc_avpair_get __P((VALUE_PAIR *, UINT4));
-VALUE_PAIR *rc_avpair_copy __P((VALUE_PAIR *));
-void rc_avpair_insert __P((VALUE_PAIR **, VALUE_PAIR *, VALUE_PAIR *));
-void rc_avpair_free __P((VALUE_PAIR *));
-int rc_avpair_parse __P((char *, VALUE_PAIR **));
-int rc_avpair_tostr __P((VALUE_PAIR *, char *, int, char *, int));
-VALUE_PAIR *rc_avpair_readin __P((FILE *));
+VALUE_PAIR *rc_avpair_add(VALUE_PAIR **, int, void *, int, int);
+int rc_avpair_assign(VALUE_PAIR *, void *, int);
+VALUE_PAIR *rc_avpair_new(int, void *, int, int);
+VALUE_PAIR *rc_avpair_gen(AUTH_HDR *);
+VALUE_PAIR *rc_avpair_get(VALUE_PAIR *, UINT4);
+VALUE_PAIR *rc_avpair_copy(VALUE_PAIR *);
+void rc_avpair_insert(VALUE_PAIR **, VALUE_PAIR *, VALUE_PAIR *);
+void rc_avpair_free(VALUE_PAIR *);
+int rc_avpair_parse(char *, VALUE_PAIR **);
+int rc_avpair_tostr(VALUE_PAIR *, char *, int, char *, int);
+VALUE_PAIR *rc_avpair_readin(FILE *);
 
 /*	buildreq.c		*/
 
-void rc_buildreq __P((SEND_DATA *, int, char *, unsigned short, int, int));
-unsigned char rc_get_seqnbr __P((void));
-int rc_auth __P((UINT4, VALUE_PAIR *, VALUE_PAIR **, char *, REQUEST_INFO *));
-int rc_auth_using_server __P((SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **,
-			      char *, REQUEST_INFO *));
-int rc_auth_proxy __P((VALUE_PAIR *, VALUE_PAIR **, char *));
-int rc_acct __P((UINT4, VALUE_PAIR *));
-int rc_acct_using_server __P((SERVER *, UINT4, VALUE_PAIR *));
-int rc_acct_proxy __P((VALUE_PAIR *));
-int rc_check __P((char *, unsigned short, char *));
+void rc_buildreq(SEND_DATA *, int, char *, unsigned short, int, int);
+unsigned char rc_get_seqnbr(void);
+int rc_auth(UINT4, VALUE_PAIR *, VALUE_PAIR **, char *, REQUEST_INFO *);
+int rc_auth_using_server(SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **,
+			      char *, REQUEST_INFO *);
+int rc_auth_proxy(VALUE_PAIR *, VALUE_PAIR **, char *);
+int rc_acct(UINT4, VALUE_PAIR *);
+int rc_acct_using_server(SERVER *, UINT4, VALUE_PAIR *);
+int rc_acct_proxy(VALUE_PAIR *);
+int rc_check(char *, unsigned short, char *);
 
 /*	clientid.c		*/
 
-int rc_read_mapfile __P((char *));
-UINT4 rc_map2id __P((char *));
+int rc_read_mapfile(char *);
+UINT4 rc_map2id(char *);
 
 /*	config.c		*/
 
-int rc_read_config __P((char *));
-char *rc_conf_str __P((char *));
-int rc_conf_int __P((char *));
-SERVER *rc_conf_srv __P((char *));
-int rc_find_server __P((char *, UINT4 *, char *));
+int rc_read_config(char *);
+char *rc_conf_str(char *);
+int rc_conf_int(char *);
+SERVER *rc_conf_srv(char *);
+int rc_find_server(char *, UINT4 *, char *);
 
 /*	dict.c			*/
 
-int rc_read_dictionary __P((char *));
-DICT_ATTR *rc_dict_getattr __P((int, int));
-DICT_ATTR *rc_dict_findattr __P((char *));
-DICT_VALUE *rc_dict_findval __P((char *));
-DICT_VALUE * rc_dict_getval __P((UINT4, char *));
-VENDOR_DICT * rc_dict_findvendor __P((char *));
-VENDOR_DICT * rc_dict_getvendor __P((int));
+int rc_read_dictionary(char *);
+DICT_ATTR *rc_dict_getattr(int, int);
+DICT_ATTR *rc_dict_findattr(char *);
+DICT_VALUE *rc_dict_findval(char *);
+DICT_VALUE * rc_dict_getval(UINT4, char *);
+VENDOR_DICT * rc_dict_findvendor(char *);
+VENDOR_DICT * rc_dict_getvendor(int);
 
 /*	ip_util.c		*/
 
-UINT4 rc_get_ipaddr __P((char *));
-int rc_good_ipaddr __P((char *));
-const char *rc_ip_hostname __P((UINT4));
-UINT4 rc_own_ipaddress __P((void));
-UINT4 rc_own_bind_ipaddress __P((void));
+UINT4 rc_get_ipaddr(char *);
+int rc_good_ipaddr(char *);
+const char *rc_ip_hostname(UINT4);
+UINT4 rc_own_ipaddress(void);
+UINT4 rc_own_bind_ipaddress(void);
 
 
 /*	sendserver.c		*/
 
-int rc_send_server __P((SEND_DATA *, char *, REQUEST_INFO *));
+int rc_send_server(SEND_DATA *, char *, REQUEST_INFO *);
 
 /*	util.c			*/
 
-void rc_str2tm __P((char *, struct tm *));
-char *rc_mksid __P((void));
-void rc_mdelay __P((int));
+void rc_str2tm(char *, struct tm *);
+char *rc_mksid(void);
+void rc_mdelay(int);
 
 /* md5.c			*/
 
-void rc_md5_calc __P((unsigned char *, unsigned char *, unsigned int));
+void rc_md5_calc(unsigned char *, unsigned char *, unsigned int);
 
 #endif /* RADIUSCLIENT_H */

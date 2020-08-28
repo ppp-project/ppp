@@ -129,7 +129,7 @@ static void chap_handle_status(struct chap_client_state *cs, int code, int id,
 static void chap_protrej(int unit);
 static void chap_input(int unit, unsigned char *pkt, int pktlen);
 static int chap_print_pkt(unsigned char *p, int plen,
-		void (*printer) __P((void *, char *, ...)), void *arg);
+		void (*printer)(void *, char *, ...), void *arg);
 
 /* List of digest types that we know about */
 static struct chap_digest_type *chap_digests;
@@ -584,7 +584,7 @@ static char *chap_code_names[] = {
 
 static int
 chap_print_pkt(unsigned char *p, int plen,
-	       void (*printer) __P((void *, char *, ...)), void *arg)
+	       void (*printer)(void *, char *, ...), void *arg)
 {
 	int code, id, len;
 	int clen, nlen;

@@ -181,10 +181,10 @@ static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
 
 /* Hook for a plugin to know when IPv6 protocol has come up */
-void (*ipv6_up_hook) __P((void)) = NULL;
+void (*ipv6_up_hook)(void) = NULL;
 
 /* Hook for a plugin to know when IPv6 protocol has come down */
-void (*ipv6_down_hook) __P((void)) = NULL;
+void (*ipv6_down_hook)(void) = NULL;
 
 /* Notifiers for when IPCPv6 goes up and down */
 struct notifier *ipv6_up_notifier = NULL;
@@ -193,16 +193,16 @@ struct notifier *ipv6_down_notifier = NULL;
 /*
  * Callbacks for fsm code.  (CI = Configuration Information)
  */
-static void ipv6cp_resetci __P((fsm *));	/* Reset our CI */
-static int  ipv6cp_cilen __P((fsm *));	        /* Return length of our CI */
-static void ipv6cp_addci __P((fsm *, u_char *, int *)); /* Add our CI */
-static int  ipv6cp_ackci __P((fsm *, u_char *, int));	/* Peer ack'd our CI */
-static int  ipv6cp_nakci __P((fsm *, u_char *, int, int));/* Peer nak'd our CI */
-static int  ipv6cp_rejci __P((fsm *, u_char *, int));	/* Peer rej'd our CI */
-static int  ipv6cp_reqci __P((fsm *, u_char *, int *, int)); /* Rcv CI */
-static void ipv6cp_up __P((fsm *));		/* We're UP */
-static void ipv6cp_down __P((fsm *));		/* We're DOWN */
-static void ipv6cp_finished __P((fsm *));	/* Don't need lower layer */
+static void ipv6cp_resetci(fsm *);	/* Reset our CI */
+static int  ipv6cp_cilen(fsm *);	        /* Return length of our CI */
+static void ipv6cp_addci(fsm *, u_char *, int *); /* Add our CI */
+static int  ipv6cp_ackci(fsm *, u_char *, int);	/* Peer ack'd our CI */
+static int  ipv6cp_nakci(fsm *, u_char *, int, int);/* Peer nak'd our CI */
+static int  ipv6cp_rejci(fsm *, u_char *, int);	/* Peer rej'd our CI */
+static int  ipv6cp_reqci(fsm *, u_char *, int *, int); /* Rcv CI */
+static void ipv6cp_up(fsm *);		/* We're UP */
+static void ipv6cp_down(fsm *);		/* We're DOWN */
+static void ipv6cp_finished(fsm *);	/* Don't need lower layer */
 
 fsm ipv6cp_fsm[NUM_PPP];		/* IPV6CP fsm structure */
 
@@ -227,9 +227,9 @@ static fsm_callbacks ipv6cp_callbacks = { /* IPV6CP callback routines */
 /*
  * Command-line options.
  */
-static int setifaceid __P((char **arg));
-static void printifaceid __P((option_t *,
-			      void (*)(void *, char *, ...), void *));
+static int setifaceid(char **arg);
+static void printifaceid(option_t *,
+			      void (*)(void *, char *, ...), void *);
 
 static option_t ipv6cp_option_list[] = {
     { "ipv6", o_special, (void *)setifaceid,
@@ -279,18 +279,18 @@ static option_t ipv6cp_option_list[] = {
 /*
  * Protocol entry points from main code.
  */
-static void ipv6cp_init __P((int));
-static void ipv6cp_open __P((int));
-static void ipv6cp_close __P((int, char *));
-static void ipv6cp_lowerup __P((int));
-static void ipv6cp_lowerdown __P((int));
-static void ipv6cp_input __P((int, u_char *, int));
-static void ipv6cp_protrej __P((int));
-static int  ipv6cp_printpkt __P((u_char *, int,
-			       void (*) __P((void *, char *, ...)), void *));
-static void ipv6_check_options __P((void));
-static int  ipv6_demand_conf __P((int));
-static int  ipv6_active_pkt __P((u_char *, int));
+static void ipv6cp_init(int);
+static void ipv6cp_open(int);
+static void ipv6cp_close(int, char *);
+static void ipv6cp_lowerup(int);
+static void ipv6cp_lowerdown(int);
+static void ipv6cp_input(int, u_char *, int);
+static void ipv6cp_protrej(int);
+static int  ipv6cp_printpkt(u_char *, int,
+			       void (*)(void *, char *, ...), void *);
+static void ipv6_check_options(void);
+static int  ipv6_demand_conf(int);
+static int  ipv6_active_pkt(u_char *, int);
 
 struct protent ipv6cp_protent = {
     PPP_IPV6CP,
@@ -312,9 +312,9 @@ struct protent ipv6cp_protent = {
     ipv6_active_pkt
 };
 
-static void ipv6cp_clear_addrs __P((int, eui64_t, eui64_t));
-static void ipv6cp_script __P((char *));
-static void ipv6cp_script_done __P((void *));
+static void ipv6cp_clear_addrs(int, eui64_t, eui64_t);
+static void ipv6cp_script(char *);
+static void ipv6cp_script_done(void *);
 
 /*
  * Lengths of configuration options.
@@ -400,7 +400,7 @@ char *llv6_ntoa(eui64_t ifaceid);
 static void
 printifaceid(opt, printer, arg)
     option_t *opt;
-    void (*printer) __P((void *, char *, ...));
+    void (*printer)(void *, char *, ...);
     void *arg;
 {
 	ipv6cp_options *wo = &ipv6cp_wantoptions[0];
@@ -1448,7 +1448,7 @@ static int
 ipv6cp_printpkt(p, plen, printer, arg)
     u_char *p;
     int plen;
-    void (*printer) __P((void *, char *, ...));
+    void (*printer)(void *, char *, ...);
     void *arg;
 {
     int code, id, len, olen;
