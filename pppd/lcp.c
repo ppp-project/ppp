@@ -2339,12 +2339,10 @@ LcpSendEchoRequest (f)
      */
     if (lcp_echo_adaptive) {
 	static unsigned int last_pkts_in = 0;
+	struct pppd_stats cur_stats;
 
-	update_link_stats(f->unit);
-	link_stats_valid = 0;
-
-	if (link_stats.pkts_in != last_pkts_in) {
-	    last_pkts_in = link_stats.pkts_in;
+	if (get_ppp_stats(f->unit, &cur_stats) && cur_stats.pkts_in != last_pkts_in) {
+	    last_pkts_in = cur_stats.pkts_in;
 	    return;
 	}
     }
