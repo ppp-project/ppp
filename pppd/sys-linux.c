@@ -2757,7 +2757,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     memset(&ifr6, 0, sizeof(ifr6));
     IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
     ifr6.ifr6_ifindex = ifr.ifr_ifindex;
-    ifr6.ifr6_prefixlen = 10;
+    ifr6.ifr6_prefixlen = 128;
 
     if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
 	error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
@@ -2768,7 +2768,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     memset(&rt6, 0, sizeof(rt6));
     IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
     rt6.rtmsg_flags = RTF_UP;
-    rt6.rtmsg_dst_len = 10;
+    rt6.rtmsg_dst_len = 128;
     rt6.rtmsg_ifindex = ifr.ifr_ifindex;
     rt6.rtmsg_metric = 1;
 
@@ -2805,7 +2805,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     memset(&ifr6, 0, sizeof(ifr6));
     IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
     ifr6.ifr6_ifindex = ifr.ifr_ifindex;
-    ifr6.ifr6_prefixlen = 10;
+    ifr6.ifr6_prefixlen = 128;
 
     if (ioctl(sock6_fd, SIOCDIFADDR, &ifr6) < 0) {
 	if (errno != EADDRNOTAVAIL) {
