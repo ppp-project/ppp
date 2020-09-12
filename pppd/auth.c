@@ -1338,7 +1338,7 @@ auth_reset(unit)
     hadchap = -1;
     ao->neg_upap = !refuse_pap && (passwd[0] != 0 || get_pap_passwd(NULL));
     ao->neg_chap = (!refuse_chap || !refuse_mschap || !refuse_mschap_v2)
-	&& (passwd[0] != 0 ||
+	&& ((passwd[0] != 0 || explicit_passwd) ||
 	    (hadchap = have_chap_secret(user, (explicit_remote? remote_name:
 					       NULL), 0, NULL)));
     ao->neg_eap = !refuse_eap && (
