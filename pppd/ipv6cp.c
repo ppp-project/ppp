@@ -303,7 +303,7 @@ struct protent ipv6cp_protent = {
     ipv6cp_close,
     ipv6cp_printpkt,
     NULL,
-    0,
+    1,
     "IPV6CP",
     "IPV6",
     ipv6cp_option_list,
