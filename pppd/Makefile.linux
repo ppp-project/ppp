@@ -81,6 +81,9 @@ PLUGIN=y
 # Use libutil
 USE_LIBUTIL=y
 
+# Enable EAP-TLS authentication (requires MPPE support, libssl and libcrypto)
+USE_EAPTLS=y
+
 MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
@@ -106,7 +109,8 @@ endif
 # EAP SRP-SHA1
 ifdef USE_SRP
 CFLAGS	+= -DUSE_SRP -DOPENSSL -I/usr/local/ssl/include
-LIBS	+= -lsrp -L/usr/local/ssl/lib -lcrypto
+LIBS	+= -lsrp -L/usr/local/ssl/lib
+NEEDCRYPTOLIB = y
 TARGETS	+= srp-entry
 EXTRAINSTALL = $(INSTALL) -s -c -m 555 srp-entry $(BINDIR)/srp-entry
 MANPAGES += srp-entry.8
@@ -119,6 +123,16 @@ else
 PPPDSRCS += sha1.c
 HEADERS += sha1.h
 PPPDOBJS += sha1.o
+endif
+
+# EAP-TLS
+ifdef USE_EAPTLS
+CFLAGS += -DUSE_EAPTLS=1
+LIBS += -lssl
+NEEDCRYPTOLIB = y
+PPPDSRC += eap-tls.c
+HEADERS += eap-tls.h
+PPPDOBJS += eap-tls.o
 endif
 
 ifdef HAS_SHADOW
@@ -139,12 +153,16 @@ endif
 ifdef NEEDDES
 ifndef USE_CRYPT
 CFLAGS   += -I$(shell $(CC) --print-sysroot)/usr/include/openssl
-LIBS     += -lcrypto
+NEEDCRYPTOLIB = y
 else
 CFLAGS   += -DUSE_CRYPT=1
 endif
 PPPDOBJS += pppcrypt.o
 HEADERS += pppcrypt.h
+endif
+
+ifdef NEEDCRYPTOLIB
+LIBS     += -lcrypto
 endif
 
 # For "Pluggable Authentication Modules", see ftp.redhat.com:/pub/pam/.

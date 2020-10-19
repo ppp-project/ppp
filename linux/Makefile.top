@@ -26,7 +26,7 @@ install-progs:
 	cd pppdump; $(MAKE) $(MFLAGS) install
 
 install-etcppp: $(ETCDIR) $(ETCDIR)/options $(ETCDIR)/pap-secrets \
-	$(ETCDIR)/chap-secrets
+	$(ETCDIR)/chap-secrets $(ETCDIR)/eaptls-server $(ETCDIR)/eaptls-client
 
 install-devel:
 	cd pppd; $(MAKE) $(MFLAGS) install-devel
@@ -37,6 +37,10 @@ $(ETCDIR)/pap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/pap-secrets $@
 $(ETCDIR)/chap-secrets:
 	$(INSTALL) -c -m 600 etc.ppp/chap-secrets $@
+$(ETCDIR)/eaptls-server:
+	$(INSTALL) -c -m 600 etc.ppp/eaptls-server $@
+$(ETCDIR)/eaptls-client:
+	$(INSTALL) -c -m 600 etc.ppp/eaptls-client $@
 
 $(BINDIR):
 	$(INSTALL) -d -m 755 $@

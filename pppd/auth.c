@@ -78,6 +78,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -113,6 +114,9 @@
 #include "upap.h"
 #include "chap-new.h"
 #include "eap.h"
+#ifdef USE_EAPTLS
+#include "eap-tls.h"
+#endif
 #ifdef CBCP_SUPPORT
 #include "cbcp.h"
 #endif
@@ -186,6 +190,11 @@ int (*chap_check_hook) __P((void)) = NULL;
 /* Hook for a plugin to get the CHAP password for authenticating us */
 int (*chap_passwd_hook) __P((char *user, char *passwd)) = NULL;
 
+#ifdef USE_EAPTLS
+/* Hook for a plugin to get the EAP-TLS password for authenticating us */
+int (*eaptls_passwd_hook) __P((char *user, char *passwd)) = NULL;
+#endif
+
 /* Hook for a plugin to say whether it is OK if the peer
    refuses to authenticate. */
 int (*null_auth_hook) __P((struct wordlist **paddrs,
@@ -241,6 +250,16 @@ bool explicit_remote = 0;	/* User specified explicit remote name */
 bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
+#ifdef USE_EAPTLS
+char *cacert_file  = NULL;	/* CA certificate file (pem format) */
+char *ca_path      = NULL;	/* directory with CA certificates */
+char *cert_file    = NULL;	/* client certificate file (pem format) */
+char *privkey_file = NULL;	/* client private key file (pem format) */
+char *crl_dir      = NULL;	/* directory containing CRL files */
+char *crl_file     = NULL;	/* Certificate Revocation List (CRL) file (pem format) */
+char *max_tls_version = NULL;	/* Maximum TLS protocol version (default=1.2) */
+bool need_peer_eap = 0;			/* Require peer to authenticate us */
+#endif
 
 static char *uafname;		/* name of most recent +ua file */
 
@@ -257,6 +276,19 @@ static int  have_pap_secret __P((int *));
 static int  have_chap_secret __P((char *, char *, int, int *));
 static int  have_srp_secret __P((char *client, char *server, int need_ip,
     int *lacks_ipp));
+
+#ifdef USE_EAPTLS
+static int  have_eaptls_secret_server
+__P((char *client, char *server, int need_ip, int *lacks_ipp));
+static int  have_eaptls_secret_client __P((char *client, char *server));
+static int  scan_authfile_eaptls __P((FILE * f, char *client, char *server,
+			       char *cli_cert, char *serv_cert,
+			       char *ca_cert, char *pk,
+			       struct wordlist ** addrs,
+			       struct wordlist ** opts,
+			       char *filename, int flags));
+#endif
+
 static int  ip_addr_check __P((u_int32_t, struct permitted_ip *));
 static int  scan_authfile __P((FILE *, char *, char *, char *,
 			       struct wordlist **, struct wordlist **,
@@ -404,6 +436,18 @@ option_t auth_options[] = {
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
 
+#ifdef USE_EAPTLS
+    { "ca", o_string, &cacert_file,   "EAP-TLS CA certificate in PEM format" },
+    { "capath", o_string, &ca_path,   "EAP-TLS CA certificate directory" },
+    { "cert", o_string, &cert_file,   "EAP-TLS client certificate in PEM format" },
+    { "key", o_string, &privkey_file, "EAP-TLS client private key in PEM format" },
+    { "crl-dir", o_string, &crl_dir,  "Use CRLs in directory" },
+    { "crl", o_string, &crl_file,     "Use specific CRL file" },
+    { "max-tls-version", o_string, &max_tls_version,
+      "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)" },
+    { "need-peer-eap", o_bool, &need_peer_eap,
+      "Require the peer to authenticate us", 1 },
+#endif /* USE_EAPTLS */
     { NULL }
 };
 
@@ -737,6 +781,9 @@ link_established(unit)
     lcp_options *wo = &lcp_wantoptions[unit];
     lcp_options *go = &lcp_gotoptions[unit];
     lcp_options *ho = &lcp_hisoptions[unit];
+#ifdef USE_EAPTLS
+    lcp_options *ao = &lcp_allowoptions[unit];
+#endif
     int i;
     struct protent *protp;
 
@@ -770,6 +817,22 @@ link_established(unit)
 	    return;
 	}
     }
+
+#ifdef USE_EAPTLS
+    if (need_peer_eap && !ao->neg_eap) {
+	warn("eap required to authenticate us but no suitable secrets");
+	lcp_close(unit, "couldn't negotiate eap");
+	status = EXIT_AUTH_TOPEER_FAILED;
+	return;
+    }
+
+    if (need_peer_eap && !ho->neg_eap) {
+	warn("peer doesn't want to authenticate us with eap");
+	lcp_close(unit, "couldn't negotiate eap");
+	status = EXIT_PEER_AUTH_FAILED;
+	return;
+    }
+#endif
 
     new_phase(PHASE_AUTHENTICATE);
     auth = 0;
@@ -1291,6 +1354,15 @@ auth_check_options()
 				    our_name, 1, &lacks_ip);
     }
 
+#ifdef USE_EAPTLS
+    if (!can_auth && wo->neg_eap) {
+	can_auth =
+	    have_eaptls_secret_server((explicit_remote ? remote_name :
+				       NULL), our_name, 1, &lacks_ip);
+
+    }
+#endif
+
     if (auth_required && !can_auth && noauth_addrs == NULL) {
 	if (default_auth) {
 	    option_error(
@@ -1345,7 +1417,11 @@ auth_reset(unit)
 	passwd[0] != 0 ||
 	(hadchap == 1 || (hadchap == -1 && have_chap_secret(user,
 	    (explicit_remote? remote_name: NULL), 0, NULL))) ||
-	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL));
+	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL)
+#ifdef USE_EAPTLS
+		|| have_eaptls_secret_client(user, (explicit_remote? remote_name: NULL))
+#endif
+	);
 
     hadchap = -1;
     if (go->neg_upap && !uselogin && !have_pap_secret(NULL))
@@ -1360,7 +1436,12 @@ auth_reset(unit)
 	    !have_chap_secret((explicit_remote? remote_name: NULL), our_name,
 		1, NULL))) &&
 	!have_srp_secret((explicit_remote? remote_name: NULL), our_name, 1,
-	    NULL))
+	    NULL)
+#ifdef USE_EAPTLS
+	 && !have_eaptls_secret_server((explicit_remote? remote_name: NULL),
+				   our_name, 1, NULL)
+#endif
+		)
 	go->neg_eap = 0;
 }
 
@@ -2373,3 +2454,344 @@ auth_script(script)
 
     auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);
 }
+
+
+#ifdef USE_EAPTLS
+static int
+have_eaptls_secret_server(client, server, need_ip, lacks_ipp)
+    char *client;
+    char *server;
+    int need_ip;
+    int *lacks_ipp;
+{
+    FILE *f;
+    int ret;
+    char *filename;
+    struct wordlist *addrs;
+    char servcertfile[MAXWORDLEN];
+    char clicertfile[MAXWORDLEN];
+    char cacertfile[MAXWORDLEN];
+    char pkfile[MAXWORDLEN];
+
+    filename = _PATH_EAPTLSSERVFILE;
+    f = fopen(filename, "r");
+    if (f == NULL)
+		return 0;
+
+    if (client != NULL && client[0] == 0)
+		client = NULL;
+    else if (server != NULL && server[0] == 0)
+		server = NULL;
+
+    ret =
+	scan_authfile_eaptls(f, client, server, clicertfile, servcertfile,
+			     cacertfile, pkfile, &addrs, NULL, filename,
+			     0);
+
+    fclose(f);
+
+/*
+    if (ret >= 0 && !eaptls_init_ssl(1, cacertfile, servcertfile,
+				clicertfile, pkfile))
+		ret = -1;
+*/
+
+	if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
+		if (lacks_ipp != 0)
+			*lacks_ipp = 1;
+		ret = -1;
+    }
+    if (addrs != 0)
+		free_wordlist(addrs);
+
+    return ret >= 0;
+}
+
+
+static int
+have_eaptls_secret_client(client, server)
+    char *client;
+    char *server;
+{
+    FILE *f;
+    int ret;
+    char *filename;
+    struct wordlist *addrs = NULL;
+    char servcertfile[MAXWORDLEN];
+    char clicertfile[MAXWORDLEN];
+    char cacertfile[MAXWORDLEN];
+    char pkfile[MAXWORDLEN];
+
+    if (client != NULL && client[0] == 0)
+		client = NULL;
+    else if (server != NULL && server[0] == 0)
+		server = NULL;
+
+	if ((cacert_file || ca_path) && cert_file && privkey_file)
+		return 1;
+
+    filename = _PATH_EAPTLSCLIFILE;
+    f = fopen(filename, "r");
+    if (f == NULL)
+		return 0;
+
+    ret =
+	scan_authfile_eaptls(f, client, server, clicertfile, servcertfile,
+			     cacertfile, pkfile, &addrs, NULL, filename,
+			     0);
+    fclose(f);
+
+/*
+    if (ret >= 0 && !eaptls_init_ssl(0, cacertfile, clicertfile,
+				servcertfile, pkfile))
+		ret = -1;
+*/
+
+    if (addrs != 0)
+		free_wordlist(addrs);
+
+    return ret >= 0;
+}
+
+
+static int
+scan_authfile_eaptls(f, client, server, cli_cert, serv_cert, ca_cert, pk,
+		     addrs, opts, filename, flags)
+    FILE *f;
+    char *client;
+    char *server;
+    char *cli_cert;
+    char *serv_cert;
+    char *ca_cert;
+    char *pk;
+    struct wordlist **addrs;
+    struct wordlist **opts;
+    char *filename;
+    int flags;
+{
+    int newline;
+    int got_flag, best_flag;
+    struct wordlist *ap, *addr_list, *alist, **app;
+    char word[MAXWORDLEN];
+
+    if (addrs != NULL)
+	*addrs = NULL;
+    if (opts != NULL)
+	*opts = NULL;
+    addr_list = NULL;
+    if (!getword(f, word, &newline, filename))
+	return -1;		/* file is empty??? */
+    newline = 1;
+    best_flag = -1;
+    for (;;) {
+	/*
+	 * Skip until we find a word at the start of a line.
+	 */
+	while (!newline && getword(f, word, &newline, filename));
+	if (!newline)
+	    break;		/* got to end of file */
+
+	/*
+	 * Got a client - check if it's a match or a wildcard.
+	 */
+	got_flag = 0;
+	if (client != NULL && strcmp(word, client) != 0 && !ISWILD(word)) {
+	    newline = 0;
+	    continue;
+	}
+	if (!ISWILD(word))
+	    got_flag = NONWILD_CLIENT;
+
+	/*
+	 * Now get a server and check if it matches.
+	 */
+	if (!getword(f, word, &newline, filename))
+	    break;
+	if (newline)
+	    continue;
+	if (!ISWILD(word)) {
+	    if (server != NULL && strcmp(word, server) != 0)
+		continue;
+	    got_flag |= NONWILD_SERVER;
+	}
+
+	/*
+	 * Got some sort of a match - see if it's better than what
+	 * we have already.
+	 */
+	if (got_flag <= best_flag)
+	    continue;
+
+	/*
+	 * Get the cli_cert
+	 */
+	if (!getword(f, word, &newline, filename))
+	    break;
+	if (newline)
+	    continue;
+	if (strcmp(word, "-") != 0) {
+	    strlcpy(cli_cert, word, MAXWORDLEN);
+	} else
+	    cli_cert[0] = 0;
+
+	/*
+	 * Get serv_cert
+	 */
+	if (!getword(f, word, &newline, filename))
+	    break;
+	if (newline)
+	    continue;
+	if (strcmp(word, "-") != 0) {
+	    strlcpy(serv_cert, word, MAXWORDLEN);
+	} else
+	    serv_cert[0] = 0;
+
+	/*
+	 * Get ca_cert
+	 */
+	if (!getword(f, word, &newline, filename))
+	    break;
+	if (newline)
+	    continue;
+	strlcpy(ca_cert, word, MAXWORDLEN);
+
+	/*
+	 * Get pk
+	 */
+	if (!getword(f, word, &newline, filename))
+	    break;
+	if (newline)
+	    continue;
+	strlcpy(pk, word, MAXWORDLEN);
+
+
+	/*
+	 * Now read address authorization info and make a wordlist.
+	 */
+	app = &alist;
+	for (;;) {
+	    if (!getword(f, word, &newline, filename) || newline)
+		break;
+	    ap = (struct wordlist *)
+		malloc(sizeof(struct wordlist) + strlen(word) + 1);
+	    if (ap == NULL)
+		novm("authorized addresses");
+	    ap->word = (char *) (ap + 1);
+	    strcpy(ap->word, word);
+	    *app = ap;
+	    app = &ap->next;
+	}
+	*app = NULL;
+	/*
+	 * This is the best so far; remember it.
+	 */
+	best_flag = got_flag;
+	if (addr_list)
+	    free_wordlist(addr_list);
+	addr_list = alist;
+
+	if (!newline)
+	    break;
+    }
+
+    /* scan for a -- word indicating the start of options */
+    for (app = &addr_list; (ap = *app) != NULL; app = &ap->next)
+	if (strcmp(ap->word, "--") == 0)
+	    break;
+    /* ap = start of options */
+    if (ap != NULL) {
+	ap = ap->next;		/* first option */
+	free(*app);		/* free the "--" word */
+	*app = NULL;		/* terminate addr list */
+    }
+    if (opts != NULL)
+	*opts = ap;
+    else if (ap != NULL)
+	free_wordlist(ap);
+    if (addrs != NULL)
+	*addrs = addr_list;
+    else if (addr_list != NULL)
+	free_wordlist(addr_list);
+
+    return best_flag;
+}
+
+
+int
+get_eaptls_secret(unit, client, server, clicertfile, servcertfile,
+		  cacertfile, capath, pkfile, am_server)
+    int unit;
+    char *client;
+    char *server;
+    char *clicertfile;
+    char *servcertfile;
+    char *cacertfile;
+    char *capath;
+    char *pkfile;
+    int am_server;
+{
+    FILE *fp;
+    int ret;
+    char *filename         = NULL;
+    struct wordlist *addrs = NULL;
+    struct wordlist *opts  = NULL;
+
+	/* maybe overkill, but it eases debugging */
+	bzero(clicertfile, MAXWORDLEN);
+	bzero(servcertfile, MAXWORDLEN);
+	bzero(cacertfile, MAXWORDLEN);
+	bzero(capath, MAXWORDLEN);
+	bzero(pkfile, MAXWORDLEN);
+
+	/* the ca+cert+privkey can also be specified as options */
+	if (!am_server && (cacert_file || ca_path) && cert_file && privkey_file )
+	{
+		strlcpy( clicertfile, cert_file, MAXWORDLEN );
+		if (cacert_file)
+			strlcpy( cacertfile, cacert_file, MAXWORDLEN );
+		if (ca_path)
+			strlcpy( capath, ca_path, MAXWORDLEN );
+		strlcpy( pkfile, privkey_file, MAXWORDLEN );
+	}
+	else
+	{
+		filename = (am_server ? _PATH_EAPTLSSERVFILE : _PATH_EAPTLSCLIFILE);
+		addrs = NULL;
+
+		fp = fopen(filename, "r");
+		if (fp == NULL)
+		{
+			error("Can't open eap-tls secret file %s: %m", filename);
+			return 0;
+		}
+
+		check_access(fp, filename);
+
+		ret = scan_authfile_eaptls(fp, client, server, clicertfile, servcertfile,
+				cacertfile, pkfile, &addrs, &opts, filename, 0);
+
+		fclose(fp);
+
+		if (ret < 0) return 0;
+	}
+
+    if (eaptls_passwd_hook)
+    {
+		dbglog( "Calling eaptls password hook" );
+		if ( (*eaptls_passwd_hook)(pkfile, passwd) < 0)
+		{
+			 error("Unable to obtain EAP-TLS password for %s (%s) from plugin",
+				client, pkfile);
+		    return 0;
+		}
+	}
+    if (am_server)
+		set_allowed_addrs(unit, addrs, opts);
+    else if (opts != NULL)
+		free_wordlist(opts);
+    if (addrs != NULL)
+		free_wordlist(addrs);
+
+    return 1;
+}
+#endif

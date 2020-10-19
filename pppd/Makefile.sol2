@@ -39,6 +39,14 @@ OBJS	+= ipv6cp.o eui64.o
 CFLAGS += -DUSE_CRYPT -DCHAPMS -DMSLANMAN -DHAVE_CRYPT_H
 OBJS += chap_ms.o pppcrypt.o md4.o sha1.o
 
+# Uncomment to enable MPPE (in both CHAP and EAP-TLS)
+CFLAGS += -DMPPE
+
+# Uncomment to enable EAP-TLS
+CFLAGS += -DUSE_EAPTLS
+LIBS += -lcrypto -lssl
+OBJS += eap-tls.o
+
 # Uncomment for CBCP
 #CFLAGS += -DCBCP_SUPPORT
 #OBJS += cbcp.o

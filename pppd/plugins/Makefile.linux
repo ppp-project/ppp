@@ -4,6 +4,9 @@ CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS_SHARED	= -shared
 INSTALL	= install
 
+# EAP-TLS
+CFLAGS += -DUSE_EAPTLS=1
+
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8

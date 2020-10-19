@@ -1,0 +1,10 @@
+# Parameters for authentication using EAP-TLS (client)
+
+# client name (can be *)
+# server name (can be *)
+# client certificate file (required)
+# server certificate file (optional, if unused put '-')
+# CA certificate file (required)
+# client private key file (required)
+
+#client	server	/root/cert/client.crt	-	/root/cert/ca.crt	/root/cert/client.key
