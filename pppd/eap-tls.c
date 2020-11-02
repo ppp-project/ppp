@@ -508,7 +508,6 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     {
         EVP_PKEY   *pkey = NULL;
         PW_CB_DATA  cb_data;
-        UI_METHOD* transfer_pin = NULL;
 
         cb_data.password = passwd;
         cb_data.prompt_info = pkey_identifier;
@@ -534,6 +533,8 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 
             dbglog( "Using our private key '%s' in engine", pkey_identifier );
             pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, transfer_pin, &cb_data);
+
+            if (transfer_pin) UI_destroy_method(transfer_pin);
         }
         else {
             dbglog( "Loading private key '%s' from engine", pkey_identifier );
@@ -553,8 +554,6 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
             warn("EAP-TLS: Cannot load PKCS11 key %s", pkey_identifier);
             log_ssl_errors();
         }
-
-        if (transfer_pin) UI_destroy_method(transfer_pin);
     }
     else
     {
@@ -982,7 +981,7 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
  
         ets->data = malloc(len);
         if (!ets->data)
-            fatal("EAP-TLS: allocation error\n");
+            fatal("EAP-TLS: memory allocation error in eaptls_receive\n");
  
         ets->datalen = 0;
         ets->tlslen = len;
@@ -1065,11 +1064,13 @@ int eaptls_send(struct eaptls_session *ets, u_char ** outp)
         ets->datalen = res;
 
         ets->data = malloc(ets->datalen);
+        if (!ets->data)
+            fatal("EAP-TLS: memory allocation error in eaptls_send\n");
+
         BCOPY(fromtls, ets->data, ets->datalen);
 
         ets->offset = 0;
         first = 1;
-
     }
 
     size = ets->datalen - ets->offset;
