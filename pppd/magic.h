@@ -42,6 +42,11 @@
  * $Id: magic.h,v 1.5 2003/06/11 23:56:26 paulus Exp $
  */
 
+/* Musl libc does not provide __P() macro (it is not used anymore in current glibc) */
+#if !defined(__GLIBC__) && !defined(__UCLIBC__)
+#define __P(args) args
+#endif
+
 void magic_init (void);	/* Initialize the magic number generator */
 u_int32_t magic (void);	/* Returns the next magic number */
 
