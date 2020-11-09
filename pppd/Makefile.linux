@@ -31,7 +31,7 @@ ifeq (.depend,$(wildcard .depend))
 include .depend
 endif
 
-# CC = gcc
+CC = gcc
 #
 COPTS = -O2 -pipe -Wall -g
 LIBS = -lrt
