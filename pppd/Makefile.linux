@@ -92,6 +92,8 @@ COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) '-DDESTDIR="@DESTDIR@"'
 
+STRIP_FLAG=-s
+
 ifdef CHAPMS
 CFLAGS   += -DCHAPMS=1
 NEEDDES=y
@@ -112,7 +114,7 @@ CFLAGS	+= -DUSE_SRP -DOPENSSL -I/usr/local/ssl/include
 LIBS	+= -lsrp -L/usr/local/ssl/lib
 NEEDCRYPTOLIB = y
 TARGETS	+= srp-entry
-EXTRAINSTALL = $(INSTALL) -s -c -m 555 srp-entry $(BINDIR)/srp-entry
+EXTRAINSTALL = $(INSTALL) $(STRIP_FLAG) -c -m 555 srp-entry $(BINDIR)/srp-entry
 MANPAGES += srp-entry.8
 EXTRACLEAN += srp-entry.o
 NEEDDES=y
@@ -238,7 +240,7 @@ all: $(TARGETS)
 install: pppd
 	mkdir -p $(BINDIR) $(MANDIR)
 	$(EXTRAINSTALL)
-	$(INSTALL) -s -c -m 555 pppd $(BINDIR)/pppd
+	$(INSTALL) $(STRIP_FLAG) -c -m 555 pppd $(BINDIR)/pppd
 	if chgrp pppusers $(BINDIR)/pppd 2>/dev/null; then \
 	  chmod o-rx,u+s $(BINDIR)/pppd; fi
 	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)

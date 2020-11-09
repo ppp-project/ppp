@@ -14,6 +14,7 @@ COPTS = -O
 COMPILE_FLAGS = -I../include
 LIBS =
 
+STRIP_FLAG=-s
 INSTALL= install -p
 
 CFLAGS = $(COPTS) $(COMPILE_FLAGS)
@@ -22,7 +23,7 @@ all: pppstats
 
 install: pppstats
 	-mkdir -p $(MANDIR)
-	$(INSTALL) -s -c pppstats $(BINDIR)
+	$(INSTALL) $(STRIP_FLAG) -c pppstats $(BINDIR)
 	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)
 
 pppstats: $(PPPSTATSRCS)

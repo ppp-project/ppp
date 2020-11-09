@@ -5,6 +5,7 @@ MANDIR = $(DESTDIR)/share/man/man8
 CFLAGS= -O -I../include/net
 OBJS = pppdump.o bsd-comp.o deflate.o zlib.o
 
+STRIP_FLAG=-s
 INSTALL= install -p
 
 all:	pppdump
@@ -17,5 +18,5 @@ clean:
 
 install:
 	mkdir -p $(BINDIR) $(MANDIR)
-	$(INSTALL) -s -c pppdump $(BINDIR)
+	$(INSTALL) $(STRIP_FLAG) -c pppdump $(BINDIR)
 	$(INSTALL) -c -m 444 pppdump.8 $(MANDIR)
