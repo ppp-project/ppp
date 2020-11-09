@@ -14,7 +14,7 @@ COPTS = -O
 COMPILE_FLAGS = -I../include
 LIBS =
 
-INSTALL= install
+INSTALL= install -p
 
 CFLAGS = $(COPTS) $(COMPILE_FLAGS)
 

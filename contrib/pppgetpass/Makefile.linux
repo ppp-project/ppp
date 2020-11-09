@@ -8,9 +8,9 @@ pppgetpass.gtk.o: pppgetpass.gtk.c
 	$(CC) $(CFLAGS) -c pppgetpass.gtk.c `pkg-config --cflags glib-2.0 gtk+-2.0`
 
 install: all
-	install -m 755 pppgetpass.sh /usr/bin/pppgetpass
-	install -m 4755 -o root -g root pppgetpass.vt /usr/bin/
-	install -m 755 -o root -g root pppgetpass.gtk /usr/X11/bin/
+	install -p -m 755 pppgetpass.sh /usr/bin/pppgetpass
+	install -p -m 4755 -o root -g root pppgetpass.vt /usr/bin/
+	install -p -m 755 -o root -g root pppgetpass.gtk /usr/X11/bin/
 
 clean:
 	rm -f *.o pppgetpass.gtk pppgetpass.vt core

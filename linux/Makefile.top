@@ -9,7 +9,7 @@ RUNDIR = $(DESTDIR)/var/run/ppp
 LOGDIR = $(DESTDIR)/var/log/ppp
 
 # uid 0 = root
-INSTALL= install
+INSTALL= install -p
 
 all:
 	cd chat; $(MAKE) $(MFLAGS) all

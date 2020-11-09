@@ -2,7 +2,7 @@
 COPTS	= -O2 -g
 CFLAGS	= $(COPTS) -I. -I../.. -I../../../include -fPIC
 LDFLAGS_SHARED	= -shared
-INSTALL	= install
+INSTALL	= install -p
 
 #***********************************************************************
 

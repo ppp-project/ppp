@@ -9,7 +9,7 @@ LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 
-INSTALL	= install
+INSTALL	= install -p
 
 PLUGIN=radius.so radattr.so radrealms.so
 CFLAGS=-I. -I../.. -I../../../include -O2 -fPIC -DRC_LOG_FACILITY=LOG_DAEMON

@@ -13,7 +13,7 @@ CDEFS=	$(CDEF1) $(CDEF2) $(CDEF3) $(CDEF4)
 COPTS=	-O2 -g -pipe
 CFLAGS=	$(COPTS) $(CDEFS)
 
-INSTALL= install
+INSTALL= install -p
 
 all:	chat
 

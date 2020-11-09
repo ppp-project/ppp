@@ -231,7 +231,7 @@ ifdef MAXOCTETS
      CFLAGS += -DMAXOCTETS
 endif
 
-INSTALL= install
+INSTALL= install -p
 
 all: $(TARGETS)
 
