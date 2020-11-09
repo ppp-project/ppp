@@ -10,7 +10,7 @@ CFLAGS += -DUSE_EAPTLS=1
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+LIBDIR = $(DESTDIR)/lib/$(shell $(CC) -print-multi-os-directory 2> /dev/null)/pppd/$(VERSION)
 
 SUBDIRS := rp-pppoe pppoatm pppol2tp
 # Uncomment the next line to include the radius authentication plugin

@@ -16,7 +16,7 @@
 
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
-LIBDIR = $(DESTDIR)/lib/pppd/$(PPPDVERSION)
+LIBDIR = $(DESTDIR)/lib/$(shell gcc -print-multi-os-directory 2> /dev/null)/pppd/$(PPPDVERSION)
 
 PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 

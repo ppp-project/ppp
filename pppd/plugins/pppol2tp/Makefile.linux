@@ -6,8 +6,8 @@ INSTALL	= install -p
 
 #***********************************************************************
 
-DESTDIR = @DESTDIR@
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+DESTDIR = $(INSTROOT)@DESTDIR@
+LIBDIR = $(DESTDIR)/lib/$(shell gcc -print-multi-os-directory 2> /dev/null)/pppd/$(VERSION)
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 
