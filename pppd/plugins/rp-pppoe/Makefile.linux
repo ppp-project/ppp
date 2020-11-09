@@ -16,6 +16,7 @@
 
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/share/man/man8
 LIBDIR = $(DESTDIR)/lib/$(shell gcc -print-multi-os-directory 2> /dev/null)/pppd/$(PPPDVERSION)
 
 PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
@@ -47,6 +48,7 @@ install: all
 	$(INSTALL) $(STRIP_FLAG) -c -m 755 rp-pppoe.so $(LIBDIR)
 	$(INSTALL) -d -m 755 $(BINDIR)
 	$(INSTALL) $(STRIP_FLAG) -c -m 755 pppoe-discovery $(BINDIR)
+	$(INSTALL) -c -m 644 pppoe-discovery.8 $(MANDIR)
 
 clean:
 	rm -f *.o *.so pppoe-discovery
