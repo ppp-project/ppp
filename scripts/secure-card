@@ -1,4 +1,4 @@
-#!/usr/local/bin/expect -f
+#!/usr/bin/expect -f
 #
 # This  script was  written  by  Jim Isaacson  <jcisaac@crl.com>.  It is
 # designed to work  as a script to use the  SecureCARD(tm) device.  This
