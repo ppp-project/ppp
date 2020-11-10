@@ -222,6 +222,9 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 			{
 
 			    case PW_TYPE_STRING:
+			    case PW_TYPE_IFID:
+			    case PW_TYPE_IPV6ADDR:
+			    case PW_TYPE_IPV6PREFIX:
 				memcpy (pair->strvalue, (char *) ptr, (size_t) attrlen);
 				pair->strvalue[attrlen] = '\0';
 				pair->lvalue = attrlen;
@@ -692,9 +695,10 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 {
 	DICT_VALUE     *dval;
-	char            buffer[32];
+	char            buffer[INET6_ADDRSTRLEN + 4]; // for a prefix: addr + '/' + prefixlen
 	struct in_addr  inad;
 	unsigned char         *ptr;
+	char		*str;
 
 	*name = *value = '\0';
 
@@ -750,6 +754,26 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 	    case PW_TYPE_DATE:
 		strftime (buffer, sizeof (buffer), "%m/%d/%y %H:%M:%S",
 			  gmtime ((time_t *) & pair->lvalue));
+		strncpy(value, buffer, lv-1);
+		break;
+
+	    case PW_TYPE_IFID:
+		ptr = pair->strvalue;
+		snprintf(buffer, sizeof (buffer), "%x:%x:%x:%x",
+			 (ptr[0] << 8) + ptr[1], (ptr[2] << 8) + ptr[3],
+			 (ptr[4] << 8) + ptr[5], (ptr[6] << 8) + ptr[7]);
+		strncpy(value, buffer, lv-1);
+		break;
+
+	    case PW_TYPE_IPV6ADDR:
+		inet_ntop(AF_INET6, pair->strvalue, buffer, sizeof (buffer));
+		strncpy(value, buffer, lv-1);
+		break;
+
+	    case PW_TYPE_IPV6PREFIX:
+		inet_ntop(AF_INET6, pair->strvalue + 2, buffer, sizeof (buffer));
+		str = buffer + strlen(buffer);
+		snprintf(str, sizeof (buffer) - (str - buffer), "/%d", *(pair->strvalue + 1));
 		strncpy(value, buffer, lv-1);
 		break;
 
