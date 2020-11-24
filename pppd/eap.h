@@ -59,6 +59,18 @@ extern "C" {
 #define	EAPT_NOKIACARD		18	/* Nokia IP smart card */
 #define	EAPT_SRP		19	/* Secure Remote Password */
 /* 20 is deprecated */
+#define	EAPT_TTLS		21	/* EAP Tunneled TLS Authentication Protocol RFC5281 */
+#define	EAPT_RAS		22	/* Remote Access Service */
+#define	EAPT_AKA		23	/* EAP method for 3rd Generation Authentication and Key Agreement RFC4187 */
+#define	EAPT_3COM		24	/* EAP-3Com Wireless */
+#define	EAPT_PEAP		25	/* Protected EAP */
+#define	EAPT_MSCHAPV2		26	/* EAP-MSCHAPv2 RFC-draft-kamath-pppext-eap-mschapv2-02 */
+
+/* OpCodes for MSCHAPv2 */
+#define CHAP_CHALLENGE		1
+#define CHAP_RESPONSE		2
+#define CHAP_SUCCESS		3
+#define CHAP_FAILURE		4
 
 /* EAP SRP-SHA1 Subtypes */
 #define	EAPSRP_CHALLENGE	1	/* Request 1 - Challenge */
@@ -98,6 +110,7 @@ enum eap_state_code {
 	eapSRP2,	/* Sent EAP SRP-SHA1 Subtype 2 */
 	eapSRP3,	/* Sent EAP SRP-SHA1 Subtype 3 */
 	eapMD5Chall,	/* Sent MD5-Challenge */
+	eapMSCHAPv2Chall,	/* Sent MSCHAPv2-Challenge */
 	eapOpen,	/* Completed authentication */
 	eapSRP4,	/* Sent EAP SRP-SHA1 Subtype 4 */
 	eapBadAuth	/* Failed authentication */
@@ -107,7 +120,7 @@ enum eap_state_code {
 	"Initial", "Pending", "Closed", "Listen", "Identify", \
 	"TlsStart", "TlsRecv", "TlsSendAck", "TlsSend", "TlsRecvAck", "TlsRecvClient",\
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
-	"SRP1", "SRP2", "SRP3", "MD5Chall", "Open", "SRP4", "BadAuth"
+	"SRP1", "SRP2", "SRP3", "MD5Chall", "MSCHAPv2Chall", "Open", "SRP4", "BadAuth"
 
 #ifdef USE_EAPTLS
 #define	eap_client_active(esp)	((esp)->es_client.ea_state != eapInitial &&\
