@@ -659,6 +659,8 @@ discovery(PPPoEConnection *conn)
     }
 
     /* We're done. */
+    close(conn->discoverySocket);
+    conn->discoverySocket = -1;
     conn->discoveryState = STATE_SESSION;
     return;
 }
