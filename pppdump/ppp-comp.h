@@ -58,21 +58,21 @@ struct compressor {
 	int	compress_proto;	/* CCP compression protocol number */
 
 	/* Allocate space for a decompressor (receive side) */
-	void	*(*decomp_alloc) __P((u_char *options, int opt_len));
+	void	*(*decomp_alloc)(u_char *options, int opt_len);
 	/* Free space used by a decompressor */
-	void	(*decomp_free) __P((void *state));
+	void	(*decomp_free)(void *state);
 	/* Initialize a decompressor */
-	int	(*decomp_init) __P((void *state, u_char *options, int opt_len,
-				    int unit, int hdrlen, int mru, int debug));
+	int	(*decomp_init)(void *state, u_char *options, int opt_len,
+			       int unit, int hdrlen, int mru, int debug);
 	/* Reset a decompressor */
-	void	(*decomp_reset) __P((void *state));
+	void	(*decomp_reset)(void *state);
 	/* Decompress a packet. */
-	int	(*decompress) __P((void *state, u_char *mp, int inlen,
-				   u_char *dmp, int *outlen));
+	int	(*decompress)(void *state, u_char *mp, int inlen,
+			      u_char *dmp, int *outlen);
 	/* Update state for an incompressible packet received */
-	void	(*incomp) __P((void *state, u_char *mp, int len));
+	void	(*incomp)(void *state, u_char *mp, int len);
 	/* Return decompression statistics */
-	void	(*decomp_stat) __P((void *state, struct compstat *stats));
+	void	(*decomp_stat)(void *state, struct compstat *stats);
 };
 
 /*

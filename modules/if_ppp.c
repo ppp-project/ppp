@@ -80,10 +80,10 @@
 
 #define ifr_mtu		ifr_metric
 
-static int if_ppp_open __P((queue_t *, int, int, int));
-static int if_ppp_close __P((queue_t *, int));
-static int if_ppp_wput __P((queue_t *, mblk_t *));
-static int if_ppp_rput __P((queue_t *, mblk_t *));
+static int if_ppp_open(queue_t *, int, int, int);
+static int if_ppp_close(queue_t *, int);
+static int if_ppp_wput(queue_t *, mblk_t *);
+static int if_ppp_rput(queue_t *, mblk_t *);
 
 #define PPP_IF_ID 0x8021
 static struct module_info minfo = {
@@ -117,11 +117,11 @@ static int ppp_nalloc;		/* Number of elements of ifs and states */
 static struct ifnet **ifs;	/* Array of pointers to interface structs */
 static if_ppp_t **states;	/* Array of pointers to state structs */
 
-static int if_ppp_output __P((struct ifnet *, struct mbuf *,
-			      struct sockaddr *));
-static int if_ppp_ioctl __P((struct ifnet *, u_int, caddr_t));
-static struct mbuf *make_mbufs __P((mblk_t *, int));
-static mblk_t *make_message __P((struct mbuf *, int));
+static int if_ppp_output(struct ifnet *, struct mbuf *,
+			 struct sockaddr *);
+static int if_ppp_ioctl(struct ifnet *, u_int, caddr_t);
+static struct mbuf *make_mbufs(mblk_t *, int);
+static mblk_t *make_message(struct mbuf *, int);
 
 #ifdef SNIT_SUPPORT
 /* Fake ether header for SNIT */
@@ -129,7 +129,7 @@ static struct ether_header snit_ehdr = {{0}, {0}, ETHERTYPE_IP};
 #endif
 
 #ifndef __osf__
-static void ppp_if_detach __P((struct ifnet *));
+static void ppp_if_detach(struct ifnet *);
 
 /*
  * Detach all the interfaces before unloading.

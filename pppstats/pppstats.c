@@ -106,16 +106,16 @@ extern char *optarg;
 #define PPP_DRV_NAME    "ppp"
 #endif /* !defined(PPP_DRV_NAME) */
 
-static void usage __P((void));
-static void catchalarm __P((int));
-static void get_ppp_stats __P((struct ppp_stats *));
-static void get_ppp_cstats __P((struct ppp_comp_stats *));
-static void intpr __P((void));
+static void usage(void);
+static void catchalarm(int);
+static void get_ppp_stats(struct ppp_stats *);
+static void get_ppp_cstats(struct ppp_comp_stats *);
+static void intpr(void);
 
-int main __P((int, char *argv[]));
+int main(int, char *argv[]);
 
 static void
-usage()
+usage(void)
 {
     fprintf(stderr, "Usage: %s [-a|-d] [-v|-r|-z] [-c count] [-w wait] [interface]\n",
 	    progname);
@@ -127,8 +127,7 @@ usage()
  * Sets a flag to not wait for the alarm.
  */
 static void
-catchalarm(arg)
-    int arg;
+catchalarm(int arg)
 {
     signalled = 1;
 }
@@ -136,8 +135,7 @@ catchalarm(arg)
 
 #ifndef STREAMS
 static void
-get_ppp_stats(curp)
-    struct ppp_stats *curp;
+get_ppp_stats(struct ppp_stats *curp)
 {
     struct ifpppstatsreq req;
 
@@ -163,8 +161,7 @@ get_ppp_stats(curp)
 }
 
 static void
-get_ppp_cstats(csp)
-    struct ppp_comp_stats *csp;
+get_ppp_cstats(struct ppp_comp_stats *csp)
 {
     struct ifpppcstatsreq creq;
 
@@ -219,9 +216,7 @@ get_ppp_cstats(csp)
 #else	/* STREAMS */
 
 int
-strioctl(fd, cmd, ptr, ilen, olen)
-    int fd, cmd, ilen, olen;
-    char *ptr;
+strioctl(int fd, int cmd, char *ptr, int ilen, int olen)
 {
     struct strioctl str;
 
@@ -238,8 +233,7 @@ strioctl(fd, cmd, ptr, ilen, olen)
 }
 
 static void
-get_ppp_stats(curp)
-    struct ppp_stats *curp;
+get_ppp_stats(struct ppp_stats *curp)
 {
     if (strioctl(s, PPPIO_GETSTAT, curp, 0, sizeof(*curp)) < 0) {
 	fprintf(stderr, "%s: ", progname);
@@ -252,8 +246,7 @@ get_ppp_stats(curp)
 }
 
 static void
-get_ppp_cstats(csp)
-    struct ppp_comp_stats *csp;
+get_ppp_cstats(struct ppp_comp_stats *csp)
 {
     if (strioctl(s, PPPIO_GETCSTAT, csp, 0, sizeof(*csp)) < 0) {
 	fprintf(stderr, "%s: ", progname);
@@ -287,7 +280,7 @@ get_ppp_cstats(csp)
  * First line printed is cumulative.
  */
 static void
-intpr()
+intpr(void)
 {
     register int line = 0;
     sigset_t oldmask, mask;
@@ -444,9 +437,7 @@ intpr()
 }
 
 int
-main(argc, argv)
-    int argc;
-    char *argv[];
+main(int argc, char *argv[])
 {
     int c;
 #ifdef STREAMS

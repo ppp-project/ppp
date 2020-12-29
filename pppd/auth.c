@@ -168,43 +168,43 @@ static int passwd_from_file;
 static bool default_auth;
 
 /* Hook to enable a plugin to control the idle time limit */
-int (*idle_time_hook) __P((struct ppp_idle *)) = NULL;
+int (*idle_time_hook)(struct ppp_idle *) = NULL;
 
 /* Hook for a plugin to say whether we can possibly authenticate any peer */
-int (*pap_check_hook) __P((void)) = NULL;
+int (*pap_check_hook)(void) = NULL;
 
 /* Hook for a plugin to check the PAP user and password */
-int (*pap_auth_hook) __P((char *user, char *passwd, char **msgp,
-			  struct wordlist **paddrs,
-			  struct wordlist **popts)) = NULL;
+int (*pap_auth_hook)(char *user, char *passwd, char **msgp,
+		     struct wordlist **paddrs,
+		     struct wordlist **popts) = NULL;
 
 /* Hook for a plugin to know about the PAP user logout */
-void (*pap_logout_hook) __P((void)) = NULL;
+void (*pap_logout_hook)(void) = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
-int (*pap_passwd_hook) __P((char *user, char *passwd)) = NULL;
+int (*pap_passwd_hook)(char *user, char *passwd) = NULL;
 
 /* Hook for a plugin to say if we can possibly authenticate a peer using CHAP */
-int (*chap_check_hook) __P((void)) = NULL;
+int (*chap_check_hook)(void) = NULL;
 
 /* Hook for a plugin to get the CHAP password for authenticating us */
-int (*chap_passwd_hook) __P((char *user, char *passwd)) = NULL;
+int (*chap_passwd_hook)(char *user, char *passwd) = NULL;
 
 #ifdef USE_EAPTLS
 /* Hook for a plugin to get the EAP-TLS password for authenticating us */
-int (*eaptls_passwd_hook) __P((char *user, char *passwd)) = NULL;
+int (*eaptls_passwd_hook)(char *user, char *passwd) = NULL;
 #endif
 
 /* Hook for a plugin to say whether it is OK if the peer
    refuses to authenticate. */
-int (*null_auth_hook) __P((struct wordlist **paddrs,
-			   struct wordlist **popts)) = NULL;
+int (*null_auth_hook)(struct wordlist **paddrs,
+		      struct wordlist **popts) = NULL;
 
-int (*allowed_address_hook) __P((u_int32_t addr)) = NULL;
+int (*allowed_address_hook)(u_int32_t addr) = NULL;
 
 #ifdef HAVE_MULTILINK
 /* Hook for plugin to hear when an interface joins a multilink bundle */
-void (*multilink_join_hook) __P((void)) = NULL;
+void (*multilink_join_hook)(void) = NULL;
 #endif
 
 /* A notifier for when the peer has authenticated itself,
@@ -263,50 +263,50 @@ bool need_peer_eap = 0;			/* Require peer to authenticate us */
 
 static char *uafname;		/* name of most recent +ua file */
 
-extern char *crypt __P((const char *, const char *));
+extern char *crypt (const char *, const char *);
 
 /* Prototypes for procedures local to this file. */
 
-static void network_phase __P((int));
-static void check_idle __P((void *));
-static void connect_time_expired __P((void *));
-static int  null_login __P((int));
-static int  get_pap_passwd __P((char *));
-static int  have_pap_secret __P((int *));
-static int  have_chap_secret __P((char *, char *, int, int *));
-static int  have_srp_secret __P((char *client, char *server, int need_ip,
-    int *lacks_ipp));
+static void network_phase (int);
+static void check_idle (void *);
+static void connect_time_expired (void *);
+static int  null_login (int);
+static int  get_pap_passwd (char *);
+static int  have_pap_secret (int *);
+static int  have_chap_secret (char *, char *, int, int *);
+static int  have_srp_secret(char *client, char *server, int need_ip,
+    int *lacks_ipp);
 
 #ifdef USE_EAPTLS
 static int  have_eaptls_secret_server
-__P((char *client, char *server, int need_ip, int *lacks_ipp));
-static int  have_eaptls_secret_client __P((char *client, char *server));
-static int  scan_authfile_eaptls __P((FILE * f, char *client, char *server,
+(char *client, char *server, int need_ip, int *lacks_ipp);
+static int  have_eaptls_secret_client (char *client, char *server);
+static int  scan_authfile_eaptls(FILE * f, char *client, char *server,
 			       char *cli_cert, char *serv_cert,
 			       char *ca_cert, char *pk,
 			       struct wordlist ** addrs,
 			       struct wordlist ** opts,
-			       char *filename, int flags));
+			       char *filename, int flags);
 #endif
 
-static int  ip_addr_check __P((u_int32_t, struct permitted_ip *));
-static int  scan_authfile __P((FILE *, char *, char *, char *,
-			       struct wordlist **, struct wordlist **,
-			       char *, int));
-static void free_wordlist __P((struct wordlist *));
-static void auth_script __P((char *));
-static void auth_script_done __P((void *));
-static void set_allowed_addrs __P((int, struct wordlist *, struct wordlist *));
-static int  some_ip_ok __P((struct wordlist *));
-static int  setupapfile __P((char **));
-static int  privgroup __P((char **));
-static int  set_noauth_addr __P((char **));
-static int  set_permitted_number __P((char **));
-static void check_access __P((FILE *, char *));
-static int  wordlist_count __P((struct wordlist *));
+static int  ip_addr_check (u_int32_t, struct permitted_ip *);
+static int  scan_authfile(FILE *, char *, char *, char *,
+			  struct wordlist **, struct wordlist **,
+			  char *, int);
+static void free_wordlist (struct wordlist *);
+static void auth_script (char *);
+static void auth_script_done (void *);
+static void set_allowed_addrs (int, struct wordlist *, struct wordlist *);
+static int  some_ip_ok (struct wordlist *);
+static int  setupapfile (char **);
+static int  privgroup (char **);
+static int  set_noauth_addr (char **);
+static int  set_permitted_number (char **);
+static void check_access (FILE *, char *);
+static int  wordlist_count (struct wordlist *);
 
 #ifdef MAXOCTETS
-static void check_maxoctets __P((void *));
+static void check_maxoctets (void *);
 #endif
 
 /*
@@ -455,8 +455,7 @@ option_t auth_options[] = {
  * setupapfile - specifies UPAP info for authenticating with peer.
  */
 static int
-setupapfile(argv)
-    char **argv;
+setupapfile(char **argv)
 {
     FILE *ufile;
     int l;
@@ -523,8 +522,7 @@ setupapfile(argv)
  * privgroup - allow members of the group to have privileged access.
  */
 static int
-privgroup(argv)
-    char **argv;
+privgroup(char **argv)
 {
     struct group *g;
     int i;
@@ -549,8 +547,7 @@ privgroup(argv)
  * Equivalent to specifying an entry like `"" * "" addr' in pap-secrets.
  */
 static int
-set_noauth_addr(argv)
-    char **argv;
+set_noauth_addr(char **argv)
 {
     char *addr = *argv;
     int l = strlen(addr) + 1;
@@ -571,8 +568,7 @@ set_noauth_addr(argv)
  * set_permitted_number - set remote telephone number(s) that may connect.
  */
 static int
-set_permitted_number(argv)
-    char **argv;
+set_permitted_number(char **argv)
 {
     char *number = *argv;
     int l = strlen(number) + 1;
@@ -593,16 +589,14 @@ set_permitted_number(argv)
  * An Open on LCP has requested a change from Dead to Establish phase.
  */
 void
-link_required(unit)
-    int unit;
+link_required(int unit)
 {
 }
 
 /*
  * Bring the link up to the point of being able to do ppp.
  */
-void start_link(unit)
-    int unit;
+void start_link(int unit)
 {
     status = EXIT_CONNECT_FAILED;
     new_phase(PHASE_SERIALCONN);
@@ -661,8 +655,7 @@ void start_link(unit)
  * physical layer down.
  */
 void
-link_terminated(unit)
-    int unit;
+link_terminated(int unit)
 {
     if (phase == PHASE_DEAD || phase == PHASE_MASTER)
 	return;
@@ -731,8 +724,7 @@ link_terminated(unit)
  * LCP has gone down; it will either die or try to re-establish.
  */
 void
-link_down(unit)
-    int unit;
+link_down(int unit)
 {
     if (auth_state != s_down) {
 	notify(link_down_notifier, 0);
@@ -774,8 +766,7 @@ void upper_layers_down(int unit)
  * Proceed to the Dead, Authenticate or Network phase as appropriate.
  */
 void
-link_established(unit)
-    int unit;
+link_established(int unit)
 {
     int auth;
     lcp_options *wo = &lcp_wantoptions[unit];
@@ -874,8 +865,7 @@ link_established(unit)
  * Proceed to the network phase.
  */
 static void
-network_phase(unit)
-    int unit;
+network_phase(int unit)
 {
     lcp_options *go = &lcp_gotoptions[unit];
 
@@ -918,8 +908,7 @@ network_phase(unit)
 }
 
 void
-start_networks(unit)
-    int unit;
+start_networks(int unit)
 {
     int i;
     struct protent *protp;
@@ -959,8 +948,7 @@ start_networks(unit)
 }
 
 void
-continue_networks(unit)
-    int unit;
+continue_networks(int unit)
 {
     int i;
     struct protent *protp;
@@ -985,8 +973,7 @@ continue_networks(unit)
  * The peer has failed to authenticate himself using `protocol'.
  */
 void
-auth_peer_fail(unit, protocol)
-    int unit, protocol;
+auth_peer_fail(int unit, int protocol)
 {
     /*
      * Authentication failure: take the link down
@@ -999,10 +986,8 @@ auth_peer_fail(unit, protocol)
  * The peer has been successfully authenticated using `protocol'.
  */
 void
-auth_peer_success(unit, protocol, prot_flavor, name, namelen)
-    int unit, protocol, prot_flavor;
-    char *name;
-    int namelen;
+auth_peer_success(int unit, int protocol, int prot_flavor,
+		  char *name, int namelen)
 {
     int bit;
 
@@ -1058,8 +1043,7 @@ auth_peer_success(unit, protocol, prot_flavor, name, namelen)
  * We have failed to authenticate ourselves to the peer using `protocol'.
  */
 void
-auth_withpeer_fail(unit, protocol)
-    int unit, protocol;
+auth_withpeer_fail(int unit, int protocol)
 {
     if (passwd_from_file)
 	BZERO(passwd, MAXSECRETLEN);
@@ -1077,8 +1061,7 @@ auth_withpeer_fail(unit, protocol)
  * We have successfully authenticated ourselves with the peer using `protocol'.
  */
 void
-auth_withpeer_success(unit, protocol, prot_flavor)
-    int unit, protocol, prot_flavor;
+auth_withpeer_success(int unit, int protocol, int prot_flavor)
 {
     int bit;
     const char *prot = "";
@@ -1134,8 +1117,7 @@ auth_withpeer_success(unit, protocol, prot_flavor)
  * np_up - a network protocol has come up.
  */
 void
-np_up(unit, proto)
-    int unit, proto;
+np_up(int unit, int proto)
 {
     int tlim;
 
@@ -1186,8 +1168,7 @@ np_up(unit, proto)
  * np_down - a network protocol has gone down.
  */
 void
-np_down(unit, proto)
-    int unit, proto;
+np_down(int unit, int proto)
 {
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
@@ -1203,8 +1184,7 @@ np_down(unit, proto)
  * np_finished - a network protocol has finished using the link.
  */
 void
-np_finished(unit, proto)
-    int unit, proto;
+np_finished(int unit, int proto)
 {
     if (--num_np_open <= 0) {
 	/* no further use for the link: shut up shop. */
@@ -1214,8 +1194,7 @@ np_finished(unit, proto)
 
 #ifdef MAXOCTETS
 static void
-check_maxoctets(arg)
-    void *arg;
+check_maxoctets(void *arg)
 {
     unsigned int used;
 
@@ -1253,8 +1232,7 @@ check_maxoctets(arg)
  * enough that we can shut it down.
  */
 static void
-check_idle(arg)
-    void *arg;
+check_idle(void *arg)
 {
     struct ppp_idle idle;
     time_t itime;
@@ -1283,8 +1261,7 @@ check_idle(arg)
  * connect_time_expired - log a message and close the connection.
  */
 static void
-connect_time_expired(arg)
-    void *arg;
+connect_time_expired(void *arg)
 {
     info("Connect time expired");
     status = EXIT_CONNECT_TIME;
@@ -1295,7 +1272,7 @@ connect_time_expired(arg)
  * auth_check_options - called to check authentication options.
  */
 void
-auth_check_options()
+auth_check_options(void)
 {
     lcp_options *wo = &lcp_wantoptions[0];
     int can_auth;
@@ -1400,8 +1377,7 @@ auth_check_options()
  * to use for authenticating ourselves and/or the peer.
  */
 void
-auth_reset(unit)
-    int unit;
+auth_reset(int unit)
 {
     lcp_options *go = &lcp_gotoptions[unit];
     lcp_options *ao = &lcp_allowoptions[unit];
@@ -1457,13 +1433,9 @@ auth_reset(unit)
  * In either case, msg points to an appropriate message.
  */
 int
-check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
-    int unit;
-    char *auser;
-    int userlen;
-    char *apasswd;
-    int passwdlen;
-    char **msg;
+check_passwd(int unit,
+	     char *auser, int userlen,
+	     char *apasswd, int passwdlen, char **msg)
 {
     int ret;
     char *filename;
@@ -1585,8 +1557,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
  * and return 1.
  */
 static int
-null_login(unit)
-    int unit;
+null_login(int unit)
 {
     char *filename;
     FILE *f;
@@ -1636,8 +1607,7 @@ null_login(unit)
  * Assumes passwd points to MAXSECRETLEN bytes of space (if non-null).
  */
 static int
-get_pap_passwd(passwd)
-    char *passwd;
+get_pap_passwd(char *passwd)
 {
     char *filename;
     FILE *f;
@@ -1676,8 +1646,7 @@ get_pap_passwd(passwd)
  * secrets that we could possibly use for authenticating the peer.
  */
 static int
-have_pap_secret(lacks_ipp)
-    int *lacks_ipp;
+have_pap_secret(int *lacks_ipp)
 {
     FILE *f;
     int ret;
@@ -1718,11 +1687,8 @@ have_pap_secret(lacks_ipp)
  * know the identity yet.
  */
 static int
-have_chap_secret(client, server, need_ip, lacks_ipp)
-    char *client;
-    char *server;
-    int need_ip;
-    int *lacks_ipp;
+have_chap_secret(char *client, char *server,
+		 int need_ip, int *lacks_ipp)
 {
     FILE *f;
     int ret;
@@ -1767,11 +1733,7 @@ have_chap_secret(client, server, need_ip, lacks_ipp)
  * know the identity yet.
  */
 static int
-have_srp_secret(client, server, need_ip, lacks_ipp)
-    char *client;
-    char *server;
-    int need_ip;
-    int *lacks_ipp;
+have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
 {
     FILE *f;
     int ret;
@@ -1808,13 +1770,8 @@ have_srp_secret(client, server, need_ip, lacks_ipp)
  * (We could be either client or server).
  */
 int
-get_secret(unit, client, server, secret, secret_len, am_server)
-    int unit;
-    char *client;
-    char *server;
-    char *secret;
-    int *secret_len;
-    int am_server;
+get_secret(int unit, char *client, char *server,
+	   char *secret, int *secret_len, int am_server)
 {
     FILE *f;
     int ret, len;
@@ -1874,12 +1831,8 @@ get_secret(unit, client, server, secret, secret_len, am_server)
  * (We could be either client or server).
  */
 int
-get_srp_secret(unit, client, server, secret, am_server)
-    int unit;
-    char *client;
-    char *server;
-    char *secret;
-    int am_server;
+get_srp_secret(int unit, char *client, char *server,
+	       char *secret, int am_server)
 {
     FILE *fp;
     int ret;
@@ -1923,10 +1876,8 @@ get_srp_secret(unit, client, server, secret, am_server)
  * and leaves the following words in extra_options.
  */
 static void
-set_allowed_addrs(unit, addrs, opts)
-    int unit;
-    struct wordlist *addrs;
-    struct wordlist *opts;
+set_allowed_addrs(int unit, struct wordlist *addrs,
+		  struct wordlist *opts)
 {
     int n;
     struct wordlist *ap, **plink;
@@ -2079,9 +2030,7 @@ set_allowed_addrs(unit, addrs, opts)
  * a given IP address.  Returns 1 if authorized, 0 otherwise.
  */
 int
-auth_ip_addr(unit, addr)
-    int unit;
-    u_int32_t addr;
+auth_ip_addr(int unit, u_int32_t addr)
 {
     int ok;
 
@@ -2106,9 +2055,7 @@ auth_ip_addr(unit, addr)
 }
 
 static int
-ip_addr_check(addr, addrs)
-    u_int32_t addr;
-    struct permitted_ip *addrs;
+ip_addr_check(u_int32_t addr, struct permitted_ip *addrs)
 {
     for (; ; ++addrs)
 	if ((addr & addrs->mask) == addrs->base)
@@ -2121,8 +2068,7 @@ ip_addr_check(addr, addrs)
  * addr is in network byte order.
  */
 int
-bad_ip_adrs(addr)
-    u_int32_t addr;
+bad_ip_adrs(u_int32_t addr)
 {
     addr = ntohl(addr);
     return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET
@@ -2134,8 +2080,7 @@ bad_ip_adrs(addr)
  * IP address(es).
  */
 static int
-some_ip_ok(addrs)
-    struct wordlist *addrs;
+some_ip_ok(struct wordlist *addrs)
 {
     for (; addrs != 0; addrs = addrs->next) {
 	if (addrs->word[0] == '-')
@@ -2151,7 +2096,7 @@ some_ip_ok(addrs)
  * Returns 1 if authorized, 0 otherwise.
  */
 int
-auth_number()
+auth_number(void)
 {
     struct wordlist *wp = permitted_numbers;
     int l;
@@ -2178,9 +2123,7 @@ auth_number()
  * check_access - complain if a secret file has too-liberal permissions.
  */
 static void
-check_access(f, filename)
-    FILE *f;
-    char *filename;
+check_access(FILE *f, char *filename)
 {
     struct stat sbuf;
 
@@ -2208,15 +2151,10 @@ check_access(f, filename)
  * match.
  */
 static int
-scan_authfile(f, client, server, secret, addrs, opts, filename, flags)
-    FILE *f;
-    char *client;
-    char *server;
-    char *secret;
-    struct wordlist **addrs;
-    struct wordlist **opts;
-    char *filename;
-    int flags;
+scan_authfile(FILE *f, char *client, char *server,
+	      char *secret, struct wordlist **addrs,
+	      struct wordlist **opts, char *filename,
+	      int flags)
 {
     int newline, xxx;
     int got_flag, best_flag;
@@ -2371,8 +2309,7 @@ scan_authfile(f, client, server, secret, addrs, opts, filename, flags)
  * wordlist_count - return the number of items in a wordlist
  */
 static int
-wordlist_count(wp)
-    struct wordlist *wp;
+wordlist_count(struct wordlist *wp)
 {
     int n;
 
@@ -2385,8 +2322,7 @@ wordlist_count(wp)
  * free_wordlist - release memory allocated for a wordlist.
  */
 static void
-free_wordlist(wp)
-    struct wordlist *wp;
+free_wordlist(struct wordlist *wp)
 {
     struct wordlist *next;
 
@@ -2402,8 +2338,7 @@ free_wordlist(wp)
  * has finished.
  */
 static void
-auth_script_done(arg)
-    void *arg;
+auth_script_done(void *arg)
 {
     auth_script_pid = 0;
     switch (auth_script_state) {
@@ -2427,8 +2362,7 @@ auth_script_done(arg)
  * interface-name peer-name real-user tty speed
  */
 static void
-auth_script(script)
-    char *script;
+auth_script(char *script)
 {
     char strspeed[32];
     struct passwd *pw;
@@ -2458,11 +2392,8 @@ auth_script(script)
 
 #ifdef USE_EAPTLS
 static int
-have_eaptls_secret_server(client, server, need_ip, lacks_ipp)
-    char *client;
-    char *server;
-    int need_ip;
-    int *lacks_ipp;
+have_eaptls_secret_server(char *client, char *server,
+			  int need_ip, int *lacks_ipp)
 {
     FILE *f;
     int ret;
@@ -2509,9 +2440,7 @@ have_eaptls_secret_server(client, server, need_ip, lacks_ipp)
 
 
 static int
-have_eaptls_secret_client(client, server)
-    char *client;
-    char *server;
+have_eaptls_secret_client(char *client, char *server)
 {
     FILE *f;
     int ret;
@@ -2555,19 +2484,11 @@ have_eaptls_secret_client(client, server)
 
 
 static int
-scan_authfile_eaptls(f, client, server, cli_cert, serv_cert, ca_cert, pk,
-		     addrs, opts, filename, flags)
-    FILE *f;
-    char *client;
-    char *server;
-    char *cli_cert;
-    char *serv_cert;
-    char *ca_cert;
-    char *pk;
-    struct wordlist **addrs;
-    struct wordlist **opts;
-    char *filename;
-    int flags;
+scan_authfile_eaptls(FILE *f, char *client, char *server,
+		     char *cli_cert, char *serv_cert, char *ca_cert,
+		     char *pk, struct wordlist **addrs,
+		     struct wordlist **opts,
+		     char *filename, int flags)
 {
     int newline;
     int got_flag, best_flag;
@@ -2718,17 +2639,9 @@ scan_authfile_eaptls(f, client, server, cli_cert, serv_cert, ca_cert, pk,
 
 
 int
-get_eaptls_secret(unit, client, server, clicertfile, servcertfile,
-		  cacertfile, capath, pkfile, am_server)
-    int unit;
-    char *client;
-    char *server;
-    char *clicertfile;
-    char *servcertfile;
-    char *cacertfile;
-    char *capath;
-    char *pkfile;
-    int am_server;
+get_eaptls_secret(int unit, char *client, char *server,
+		  char *clicertfile, char *servcertfile, char *cacertfile,
+		  char *capath, char *pkfile, int am_server)
 {
     FILE *fp;
     int ret;

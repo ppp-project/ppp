@@ -143,10 +143,10 @@ typedef int minor_t;
  */
 #ifdef SVR4
 #define MOD_OPEN_DECL(name)	\
-static int name __P((queue_t *, dev_t *, int, int, cred_t *))
+static int name(queue_t *, dev_t *, int, int, cred_t *)
 
 #define MOD_CLOSE_DECL(name)	\
-static int name __P((queue_t *, int, cred_t *))
+static int name(queue_t *, int, cred_t *)
 
 #define MOD_OPEN(name)				\
 static int name(q, devp, flag, sflag, credp)	\
@@ -168,10 +168,10 @@ static int name(q, flag, credp)	\
 
 #else	/* not SVR4 */
 #define MOD_OPEN_DECL(name)	\
-static int name __P((queue_t *, int, int, int))
+static int name(queue_t *, int, int, int)
 
 #define MOD_CLOSE_DECL(name)	\
-static int name __P((queue_t *, int))
+static int name(queue_t *, int)
 
 #define MOD_OPEN(name)		\
 static int name(q, dev, flag, sflag)	\

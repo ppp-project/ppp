@@ -85,8 +85,6 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: sys-solaris.c,v 1.16 2008/01/30 14:26:53 carlsonj Exp $"
-
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -256,15 +254,15 @@ static eui64_t	default_route_gateway6;	/* Gateway for default IPv6 route added *
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 
 /* Prototypes for procedures local to this file. */
-static int translate_speed __P((int));
-static int baud_rate_of __P((int));
-static int get_ether_addr __P((u_int32_t, struct sockaddr *));
-static int get_hw_addr __P((char *, u_int32_t, struct sockaddr *));
-static int get_hw_addr_dlpi __P((char *, struct sockaddr *));
-static int dlpi_attach __P((int, int));
-static int dlpi_info_req __P((int));
-static int dlpi_get_reply __P((int, union DL_primitives *, int, int));
-static int strioctl __P((int, int, void *, int, int));
+static int translate_speed(int);
+static int baud_rate_of(int);
+static int get_ether_addr(u_int32_t, struct sockaddr *);
+static int get_hw_addr(char *, u_int32_t, struct sockaddr *);
+static int get_hw_addr_dlpi(char *, struct sockaddr *);
+static int dlpi_attach(int, int);
+static int dlpi_info_req(int);
+static int dlpi_get_reply(int, union DL_primitives *, int, int);
+static int strioctl(int, int, void *, int, int);
 
 #ifdef SOL2
 /*
@@ -302,7 +300,7 @@ sifppa(fd, ppa)
  * NOTE: This is the lifreq version (Solaris 8 and above)
  */
 char *
-get_first_ethernet()
+get_first_ethernet(void)
 {
     struct lifnum lifn;
     struct lifconf lifc;
@@ -396,7 +394,7 @@ get_first_ethernet()
  * NOTE: This is the ifreq version (before Solaris 8). 
  */
 char *
-get_first_ethernet()
+get_first_ethernet(void)
 {
     struct ifconf ifc;
     struct ifreq *pifreq;
@@ -511,9 +509,7 @@ get_if_hwaddr(u_char *addr, char *if_name)
  * be set in order to declare this as an IPv6 interface
  */
 static int
-slifname(fd, ppa)
-    int fd;
-    int ppa;
+slifname(int fd, int ppa)
 {
     struct  lifreq lifr;
     int	    ret;
@@ -585,7 +581,7 @@ ether_to_eui64(eui64_t *p_eui64)
  * sys_init - System-dependent initialization.
  */
 void
-sys_init()
+sys_init(void)
 {
     int ifd, x;
     struct ifreq ifr;
@@ -785,7 +781,7 @@ sys_init()
  * This should call die() because it's called from die().
  */
 void
-sys_cleanup()
+sys_cleanup(void)
 {
 #if defined(SOL2)
     struct ifreq ifr;
@@ -859,7 +855,7 @@ sys_cleanup()
  * sys_close - Clean up in a child process before execing.
  */
 void
-sys_close()
+sys_close(void)
 {
     close(ipfd);
 #if defined(INET6) && defined(SOL2)
@@ -873,7 +869,7 @@ sys_close()
  * sys_check_options - check the options that the user specified
  */
 int
-sys_check_options()
+sys_check_options(void)
 {
     return 1;
 }
@@ -883,8 +879,7 @@ sys_check_options()
  * daemon - Detach us from controlling terminal session.
  */
 int
-daemon(nochdir, noclose)
-    int nochdir, noclose;
+daemon(int nochdir, int noclose)
 {
     int pid;
 
@@ -908,7 +903,7 @@ daemon(nochdir, noclose)
  * ppp_available - check whether the system has any ppp interfaces
  */
 int
-ppp_available()
+ppp_available(void)
 {
     struct stat buf;
 
@@ -925,7 +920,7 @@ ppp_available()
  * no point of having the comp module be pushed on the stream.
  */
 static int
-any_compressions()
+any_compressions(void)
 {
     if ((!lcp_wantoptions[0].neg_accompression) &&
 	(!lcp_wantoptions[0].neg_pcompression) &&
@@ -940,8 +935,7 @@ any_compressions()
  * tty_establish_ppp - Turn the serial port into a ppp interface.
  */
 int
-tty_establish_ppp(fd)
-    int fd;
+tty_establish_ppp(int fd)
 {
     int i;
 
@@ -1000,8 +994,7 @@ tty_establish_ppp(fd)
  * modules.  This shouldn't call die() because it's called from die().
  */
 void
-tty_disestablish_ppp(fd)
-    int fd;
+tty_disestablish_ppp(int fd)
 {
     int i;
 
@@ -1037,7 +1030,7 @@ tty_disestablish_ppp(fd)
  * Check whether the link seems not to be 8-bit clean.
  */
 void
-clean_check()
+clean_check(void)
 {
     int x;
     char *s;
@@ -1159,8 +1152,7 @@ struct speed {
  * Translate from bits/second to a speed_t.
  */
 static int
-translate_speed(bps)
-    int bps;
+translate_speed(int bps)
 {
     struct speed *speedp;
 
@@ -1177,8 +1169,7 @@ translate_speed(bps)
  * Translate from a speed_t to bits/second.
  */
 static int
-baud_rate_of(speed)
-    int speed;
+baud_rate_of(int speed)
 {
     struct speed *speedp;
 
@@ -1196,8 +1187,7 @@ baud_rate_of(speed)
  * regardless of whether the modem option was specified.
  */
 void
-set_up_tty(fd, local)
-    int fd, local;
+set_up_tty(int fd, int local)
 {
     int speed;
     struct termios tios;
@@ -1292,8 +1282,7 @@ set_up_tty(fd, local)
  * restore_tty - restore the terminal to the saved settings.
  */
 void
-restore_tty(fd)
-    int fd;
+restore_tty(int fd)
 {
     if (restore_term) {
 	if (!default_device) {
@@ -1325,8 +1314,7 @@ restore_tty(fd)
  * This is called from die(), so it shouldn't call die().
  */
 void
-setdtr(fd, on)
-int fd, on;
+setdtr(int fd, int on)
 {
     int modembits = TIOCM_DTR;
 
@@ -1339,7 +1327,7 @@ int fd, on;
  * to the ppp driver.
  */
 int
-open_ppp_loopback()
+open_ppp_loopback(void)
 {
     return pppfd;
 }
@@ -1348,10 +1336,7 @@ open_ppp_loopback()
  * output - Output PPP packet.
  */
 void
-output(unit, p, len)
-    int unit;
-    u_char *p;
-    int len;
+output(int unit, u_char *p, int len)
 {
     struct strbuf data;
     int retries;
@@ -1382,8 +1367,7 @@ output(unit, p, len)
  * if timo is NULL).
  */
 void
-wait_input(timo)
-    struct timeval *timo;
+wait_input(struct timeval *timo)
 {
     int t;
 
@@ -1395,8 +1379,7 @@ wait_input(timo)
 /*
  * add_fd - add an fd to the set that wait_input waits for.
  */
-void add_fd(fd)
-    int fd;
+void add_fd(int fd)
 {
     int n;
 
@@ -1414,8 +1397,7 @@ void add_fd(fd)
 /*
  * remove_fd - remove an fd from the set that wait_input waits for.
  */
-void remove_fd(fd)
-    int fd;
+void remove_fd(int fd)
 {
     int n;
 
@@ -1436,8 +1418,7 @@ void remove_fd(fd)
  * if timo is NULL).
  */
 void
-wait_loop_output(timo)
-    struct timeval *timo;
+wait_loop_output(struct timeval *timo)
 {
     wait_input(timo);
 }
@@ -1447,8 +1428,7 @@ wait_loop_output(timo)
  * signal is received.
  */
 void
-wait_time(timo)
-    struct timeval *timo;
+wait_time(struct timeval *timo)
 {
     int n;
 
@@ -1463,8 +1443,7 @@ wait_time(timo)
  * read_packet - get a PPP packet from the serial device.
  */
 int
-read_packet(buf)
-    u_char *buf;
+read_packet(u_char *buf)
 {
     struct strbuf ctrl, data;
     int flags, len;
@@ -1503,7 +1482,7 @@ read_packet(buf)
  * Return value is 1 if we need to bring up the link, 0 otherwise.
  */
 int
-get_loop_output()
+get_loop_output(void)
 {
     int len;
     int rv = 0;
@@ -1519,8 +1498,7 @@ get_loop_output()
  * netif_set_mtu - set the MTU on the PPP network interface.
  */
 void
-netif_set_mtu(unit, mtu)
-    int unit, mtu;
+netif_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
 #if defined(INET6) && defined(SOL2)
@@ -1576,10 +1554,7 @@ netif_get_mtu(int unit)
  * the ppp interface.
  */
 void
-tty_send_config(mtu, asyncmap, pcomp, accomp)
-    int mtu;
-    u_int32_t asyncmap;
-    int pcomp, accomp;
+tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 {
     int cf[2];
 
@@ -1608,8 +1583,7 @@ tty_send_config(mtu, asyncmap, pcomp, accomp)
  * tty_set_xaccm - set the extended transmit ACCM for the interface.
  */
 void
-tty_set_xaccm(accm)
-    ext_accm accm;
+tty_set_xaccm(ext_accm accm)
 {
     if (sync_serial)
 	return;
@@ -1626,10 +1600,7 @@ tty_set_xaccm(accm)
  * the ppp interface.
  */
 void
-tty_recv_config(mru, asyncmap, pcomp, accomp)
-    int mru;
-    u_int32_t asyncmap;
-    int pcomp, accomp;
+tty_recv_config(int mru, u_int32_t asyncmap, int pcomp, int accomp)
 {
     int cf[2];
 
@@ -1659,9 +1630,7 @@ tty_recv_config(mru, asyncmap, pcomp, accomp)
  * is acceptable for use.
  */
 int
-ccp_test(unit, opt_ptr, opt_len, for_transmit)
-    int unit, opt_len, for_transmit;
-    u_char *opt_ptr;
+ccp_test(int unit, u_char *opt_ptr, int opt_len, int for_transmit)
 {
     if (strioctl(pppfd, (for_transmit? PPPIO_XCOMP: PPPIO_RCOMP),
 		 opt_ptr, opt_len, 0) >= 0)
@@ -1673,8 +1642,7 @@ ccp_test(unit, opt_ptr, opt_len, for_transmit)
  * ccp_flags_set - inform kernel about the current state of CCP.
  */
 void
-ccp_flags_set(unit, isopen, isup)
-    int unit, isopen, isup;
+ccp_flags_set(int unit, int isopen, int isup)
 {
     int cf[2];
 
@@ -1690,9 +1658,7 @@ ccp_flags_set(unit, isopen, isup)
  * get_idle_time - return how long the link has been idle.
  */
 int
-get_idle_time(u, ip)
-    int u;
-    struct ppp_idle *ip;
+get_idle_time(int u, struct ppp_idle *ip)
 {
     return strioctl(pppfd, PPPIO_GIDLE, ip, 0, sizeof(struct ppp_idle)) >= 0;
 }
@@ -1701,9 +1667,7 @@ get_idle_time(u, ip)
  * get_ppp_stats - return statistics for the link.
  */
 int
-get_ppp_stats(u, stats)
-    int u;
-    struct pppd_stats *stats;
+get_ppp_stats(int u, struct pppd_stats *stats)
 {
     struct ppp_stats s;
 
@@ -1724,8 +1688,7 @@ get_ppp_stats(u, stats)
  * set_filters - transfer the pass and active filters to the kernel.
  */
 int
-set_filters(pass, active)
-    struct bpf_program *pass, *active;
+set_filters(struct bpf_program *pass, struct bpf_program *active)
 {
     int ret = 1;
 
@@ -1753,8 +1716,7 @@ set_filters(pass, active)
  * 0 otherwise.  This is necessary because of patent nonsense.
  */
 int
-ccp_fatal_error(unit)
-    int unit;
+ccp_fatal_error(int unit)
 {
     int cf[2];
 
@@ -1771,8 +1733,7 @@ ccp_fatal_error(unit)
  * sifvjcomp - config tcp header compression
  */
 int
-sifvjcomp(u, vjcomp, xcidcomp, xmaxcid)
-    int u, vjcomp, xcidcomp, xmaxcid;
+sifvjcomp(int u, int vjcomp, int xcidcomp, int xmaxcid)
 {
     int cf[2];
     char maxcid[2];
@@ -1800,8 +1761,7 @@ sifvjcomp(u, vjcomp, xcidcomp, xmaxcid)
  * sifup - Config the interface up and enable IP packets to pass.
  */
 int
-sifup(u)
-    int u;
+sifup(int u)
 {
     struct ifreq ifr;
 
@@ -1823,8 +1783,7 @@ sifup(u)
  * sifdown - Config the interface down and disable IP.
  */
 int
-sifdown(u)
-    int u;
+sifdown(int u)
 {
     struct ifreq ifr;
 
@@ -1848,10 +1807,7 @@ sifdown(u)
  * sifnpmode - Set the mode for handling packets for a given NP.
  */
 int
-sifnpmode(u, proto, mode)
-    int u;
-    int proto;
-    enum NPmode mode;
+sifnpmode(int u, int proto, enum NPmode mode)
 {
     int npi[2];
 
@@ -1869,8 +1825,7 @@ sifnpmode(u, proto, mode)
  * sif6up - Config the IPv6 interface up and enable IPv6 packets to pass.
  */
 int
-sif6up(u)
-    int u;
+sif6up(int u)
 {
     struct lifreq lifr;
     int fd;
@@ -1903,8 +1858,7 @@ sif6up(u)
  * sifdown - Config the IPv6 interface down and disable IPv6.
  */
 int
-sif6down(u)
-    int u;
+sif6down(int u)
 {
     struct lifreq lifr;
     int fd;
@@ -1936,9 +1890,7 @@ sif6down(u)
  * sif6addr - Config the interface with an IPv6 link-local address
  */
 int
-sif6addr(u, o, h)
-    int u;
-    eui64_t o, h;
+sif6addr(int u, eui64_t o, eui64_t h)
 {
     struct lifreq lifr;
     struct sockaddr_storage laddr;
@@ -1987,9 +1939,7 @@ sif6addr(u, o, h)
  * cif6addr - Remove the IPv6 address from interface
  */
 int
-cif6addr(u, o, h)
-    int u;
-    eui64_t o, h;
+cif6addr(int u, eui64_t o, eui64_t h)
 {
     return 1;
 }
@@ -1998,9 +1948,7 @@ cif6addr(u, o, h)
  * sif6defaultroute - assign a default route through the address given.
  */
 int
-sif6defaultroute(u, l, g)
-    int u;
-    eui64_t l, g;
+sif6defaultroute(int u, eui64_t l, eui64_t g)
 {
     struct {
 	struct rt_msghdr rtm;
@@ -2048,9 +1996,7 @@ sif6defaultroute(u, l, g)
  * cif6defaultroute - delete a default route through the address given.
  */
 int
-cif6defaultroute(u, l, g)
-    int u;
-    eui64_t l, g;
+cif6defaultroute(int u, eui64_t l, eui64_t g)
 {
     /* No need to do this on Solaris; the kernel deletes the
        route when the interface goes down. */
@@ -2067,9 +2013,7 @@ cif6defaultroute(u, l, g)
  * sifaddr - Config the interface IP addresses and netmask.
  */
 int
-sifaddr(u, o, h, m)
-    int u;
-    u_int32_t o, h, m;
+sifaddr(int u, u_int32_t o, u_int32_t h, u_int32_t m)
 {
     struct ifreq ifr;
     int ret = 1;
@@ -2117,9 +2061,7 @@ sifaddr(u, o, h, m)
  * through the interface if possible.
  */
 int
-cifaddr(u, o, h)
-    int u;
-    u_int32_t o, h;
+cifaddr(int u, u_int32_t o, u_int32_t h)
 {
 #if defined(__USLC__)		/* was: #if 0 */
     cifroute(unit, ouraddr, hisaddr);
@@ -2140,9 +2082,7 @@ cifaddr(u, o, h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(u, l, g)
-    int u;
-    u_int32_t l, g;
+sifdefaultroute(int u, u_int32_t l, u_int32_t g)
 {
     struct rtentry rt;
 
@@ -2169,9 +2109,7 @@ sifdefaultroute(u, l, g)
  * cifdefaultroute - delete a default route through the address given.
  */
 int
-cifdefaultroute(u, l, g)
-    int u;
-    u_int32_t l, g;
+cifdefaultroute(int u, u_int32_t l, u_int32_t g)
 {
     struct rtentry rt;
 
@@ -2198,9 +2136,7 @@ cifdefaultroute(u, l, g)
  * sifproxyarp - Make a proxy ARP entry for the peer.
  */
 int
-sifproxyarp(unit, hisaddr)
-    int unit;
-    u_int32_t hisaddr;
+sifproxyarp(int unit, u_int32_t hisaddr)
 {
     struct arpreq arpreq;
 
@@ -2224,9 +2160,7 @@ sifproxyarp(unit, hisaddr)
  * cifproxyarp - Delete the proxy ARP entry for the peer.
  */
 int
-cifproxyarp(unit, hisaddr)
-    int unit;
-    u_int32_t hisaddr;
+cifproxyarp(int unit, u_int32_t hisaddr)
 {
     struct arpreq arpreq;
 
@@ -2249,9 +2183,7 @@ cifproxyarp(unit, hisaddr)
 #define MAX_IFS		32
 
 static int
-get_ether_addr(ipaddr, hwaddr)
-    u_int32_t ipaddr;
-    struct sockaddr *hwaddr;
+get_ether_addr(u_int32_t ipaddr, struct sockaddr *hwaddr)
 {
     struct ifreq *ifr, *ifend, ifreq;
     int nif;
@@ -2320,9 +2252,7 @@ get_ether_addr(ipaddr, hwaddr)
  * get_hw_addr_dlpi - obtain the hardware address using DLPI
  */
 static int
-get_hw_addr_dlpi(name, hwaddr)
-    char *name;
-    struct sockaddr *hwaddr;
+get_hw_addr_dlpi(char *name, struct sockaddr *hwaddr)
 {
     char *q;
     int unit, iffd, adrlen;
@@ -2379,10 +2309,7 @@ get_hw_addr_dlpi(name, hwaddr)
  * get_hw_addr - obtain the hardware address for a named interface.
  */
 static int
-get_hw_addr(name, ina, hwaddr)
-    char *name;
-    u_int32_t ina;
-    struct sockaddr *hwaddr;
+get_hw_addr(char *name, u_int32_t ina, struct sockaddr *hwaddr)
 {
     /* New way - get the address by doing an arp request. */
     int s;
@@ -2405,8 +2332,7 @@ get_hw_addr(name, ina, hwaddr)
 }
 
 static int
-dlpi_attach(fd, ppa)
-    int fd, ppa;
+dlpi_attach(int fd, int ppa)
 {
     dl_attach_req_t req;
     struct strbuf buf;
@@ -2419,8 +2345,7 @@ dlpi_attach(fd, ppa)
 }
 
 static int
-dlpi_info_req(fd)
-    int fd;
+dlpi_info_req(int fd)
 {
     dl_info_req_t req;
     struct strbuf buf;
@@ -2432,9 +2357,7 @@ dlpi_info_req(fd)
 }
 
 static int
-dlpi_get_reply(fd, reply, expected_prim, maxlen)
-    union DL_primitives *reply;
-    int fd, expected_prim, maxlen;
+dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, maxlen)
 {
     struct strbuf buf;
     int flags, n;
@@ -2492,8 +2415,7 @@ dlpi_get_reply(fd, reply, expected_prim, maxlen)
  * user-specified netmask.
  */
 u_int32_t
-GetMask(addr)
-    u_int32_t addr;
+GetMask(u_int32_t addr)
 {
     u_int32_t mask, nmask, ina;
     struct ifreq *ifr, *ifend, ifreq;
@@ -2561,8 +2483,7 @@ GetMask(addr)
  * logwtmp - write an accounting record to the /var/adm/wtmp file.
  */
 void
-logwtmp(line, name, host)
-    const char *line, *name, *host;
+logwtmp(const char *line, const char *name, const char *host)
 {
     static struct utmpx utmpx;
 
@@ -2589,7 +2510,7 @@ logwtmp(line, name, host)
  * get_host_seed - return the serial number of this machine.
  */
 int
-get_host_seed()
+get_host_seed(void)
 {
     char buf[32];
 
@@ -2601,9 +2522,7 @@ get_host_seed()
 }
 
 static int
-strioctl(fd, cmd, ptr, ilen, olen)
-    int fd, cmd, ilen, olen;
-    void *ptr;
+strioctl(int fd, int cmd, void *ptr, int ilen, int olen)
 {
     struct strioctl str;
 
@@ -2628,8 +2547,7 @@ strioctl(fd, cmd, ptr, ilen, olen)
 static char lock_file[40];	/* name of lock file created */
 
 int
-lock(dev)
-    char *dev;
+lock(char *dev)
 {
     int n, fd, pid;
     struct stat sbuf;
@@ -2690,7 +2608,7 @@ lock(dev)
  * unlock - remove our lockfile
  */
 void
-unlock()
+unlock(void)
 {
     if (lock_file[0]) {
 	unlink(lock_file);
@@ -2703,9 +2621,7 @@ unlock()
  * cifroute - delete a route through the addresses given.
  */
 int
-cifroute(u, our, his)
-    int u;
-    u_int32_t our, his;
+cifroute(int u, u_int32_t our, u_int32_t his)
 {
     struct rtentry rt;
 
@@ -2736,8 +2652,7 @@ cifroute(u, our, his)
 #endif
 
 int
-have_route_to(addr)
-    u_int32_t addr;
+have_route_to(u_int32_t addr)
 {
 #ifdef SOL2
     int fd, r, flags, i;
@@ -2840,11 +2755,7 @@ have_route_to(addr)
  * the uid given.  Assumes slave_name points to MAXPATHLEN bytes of space.
  */
 int
-get_pty(master_fdp, slave_fdp, slave_name, uid)
-    int *master_fdp;
-    int *slave_fdp;
-    char *slave_name;
-    int uid;
+get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 {
     int mfd, sfd;
     char *pty_name;

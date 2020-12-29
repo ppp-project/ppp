@@ -150,7 +150,7 @@ struct ifpppcstatsreq {
 #endif
 
 #if (defined(_KERNEL) || defined(KERNEL)) && !defined(NeXT)
-void pppattach __P((void));
-void pppintr __P((void));
+void pppattach(void);
+void pppintr(void);
 #endif
 #endif /* _IF_PPP_H_ */

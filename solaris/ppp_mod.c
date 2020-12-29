@@ -47,16 +47,10 @@
 #include <sys/sunddi.h>
 #include <sys/ksynch.h>
 
-#ifdef __STDC__
-#define __P(x)	x
-#else
-#define __P(x)	()
-#endif
-
-static int ppp_identify __P((dev_info_t *));
-static int ppp_attach __P((dev_info_t *, ddi_attach_cmd_t));
-static int ppp_detach __P((dev_info_t *, ddi_detach_cmd_t));
-static int ppp_devinfo __P((dev_info_t *, ddi_info_cmd_t, void *, void **));
+static int ppp_identify(dev_info_t *);
+static int ppp_attach(dev_info_t *, ddi_attach_cmd_t);
+static int ppp_detach(dev_info_t *, ddi_detach_cmd_t);
+static int ppp_devinfo(dev_info_t *, ddi_info_cmd_t, void *, void **);
 
 extern struct streamtab pppinfo;
 extern krwlock_t ppp_lower_lock;

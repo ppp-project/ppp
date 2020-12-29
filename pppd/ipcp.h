@@ -38,8 +38,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * $Id: ipcp.h,v 1.14 2002/12/04 23:03:32 paulus Exp $
  */
 
 /*
@@ -91,6 +89,6 @@ extern ipcp_options ipcp_gotoptions[];
 extern ipcp_options ipcp_allowoptions[];
 extern ipcp_options ipcp_hisoptions[];
 
-char *ip_ntoa __P((u_int32_t));
+char *ip_ntoa(u_int32_t);
 
 extern struct protent ipcp_protent;

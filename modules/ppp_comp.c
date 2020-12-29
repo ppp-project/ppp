@@ -31,8 +31,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * $Id: ppp_comp.c,v 1.14 2002/12/06 09:49:15 paulus Exp $
  */
 
 /*
@@ -74,12 +72,12 @@
 
 MOD_OPEN_DECL(ppp_comp_open);
 MOD_CLOSE_DECL(ppp_comp_close);
-static int ppp_comp_rput __P((queue_t *, mblk_t *));
-static int ppp_comp_rsrv __P((queue_t *));
-static int ppp_comp_wput __P((queue_t *, mblk_t *));
-static int ppp_comp_wsrv __P((queue_t *));
-static void ppp_comp_ccp __P((queue_t *, mblk_t *, int));
-static int msg_byte __P((mblk_t *, unsigned int));
+static int ppp_comp_rput(queue_t *, mblk_t *);
+static int ppp_comp_rsrv(queue_t *);
+static int ppp_comp_wput(queue_t *, mblk_t *);
+static int ppp_comp_wsrv(queue_t *);
+static void ppp_comp_ccp(queue_t *, mblk_t *, int);
+static int msg_byte(mblk_t *, unsigned int);
 
 /* Extract byte i of message mp. */
 #define MSG_BYTE(mp, i)	((i) < (mp)->b_wptr - (mp)->b_rptr? (mp)->b_rptr[i]: \
@@ -118,7 +116,7 @@ int ppp_comp_count;		/* number of module instances in use */
 
 #ifdef __osf__
 
-static void ppp_comp_alloc __P((comp_state_t *));
+static void ppp_comp_alloc(comp_state_t *);
 typedef struct memreq {
     unsigned char comp_opts[20];
     int cmd;

@@ -40,8 +40,6 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define RCSID	"$Id: magic.c,v 1.11 2003/06/11 23:56:26 paulus Exp $"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -625,7 +625,7 @@ void generic_disestablish_ppp(int dev_fd)
  * make_ppp_unit - make a new ppp unit for ppp_dev_fd.
  * Assumes new_style_driver.
  */
-static int make_ppp_unit()
+static int make_ppp_unit(void)
 {
 	int x, flags;
 
@@ -1377,9 +1377,7 @@ int set_filters(struct bpf_program *pass, struct bpf_program *active)
  * get_idle_time - return how long the link has been idle.
  */
 int
-get_idle_time(u, ip)
-    int u;
-    struct ppp_idle *ip;
+get_idle_time(int u, struct ppp_idle *ip)
 {
     return ioctl(ppp_dev_fd, PPPIOCGIDLE, ip) >= 0;
 }
@@ -1389,9 +1387,7 @@ get_idle_time(u, ip)
  * get_ppp_stats - return statistics for the link.
  */
 int
-get_ppp_stats(u, stats)
-    int u;
-    struct pppd_stats *stats;
+get_ppp_stats(int u, struct pppd_stats *stats)
 {
     struct ifpppstatsreq req;
 
@@ -2106,7 +2102,7 @@ get_if_hwaddr(u_char *addr, char *name)
  * interface on this system.
  */
 char *
-get_first_ethernet()
+get_first_ethernet(void)
 {
 	return "eth0";
 }
@@ -2826,11 +2822,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
  * to the uid given.  Assumes slave_name points to >= 16 bytes of space.
  */
 int
-get_pty(master_fdp, slave_fdp, slave_name, uid)
-    int *master_fdp;
-    int *slave_fdp;
-    char *slave_name;
-    int uid;
+get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 {
     int i, mfd, sfd = -1;
     char pty_name[16];
@@ -2956,10 +2948,7 @@ open_ppp_loopback(void)
  */
 
 int
-sifnpmode(u, proto, mode)
-    int u;
-    int proto;
-    enum NPmode mode;
+sifnpmode(int u, int proto, enum NPmode mode)
 {
     struct npioctl npi;
 
@@ -3070,7 +3059,7 @@ int cipxfaddr (int unit)
  * Use the hostname as part of the random number seed.
  */
 int
-get_host_seed()
+get_host_seed(void)
 {
     int h;
     char *p = hostname;

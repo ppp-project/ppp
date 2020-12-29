@@ -31,8 +31,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * $Id: ppp.c,v 1.4 2005/06/27 00:59:57 carlsonj Exp $
  */
 
 /*
@@ -84,12 +82,6 @@
 #endif	/* PRIOQ */
 
 #include <netinet/in.h>	/* leave this outside of PRIOQ for htons */
-
-#ifdef __STDC__
-#define __P(x)	x
-#else
-#define __P(x)	()
-#endif
 
 /*
  * The IP module may use this SAP value for IP packets.
@@ -254,45 +246,45 @@ static upperstr_t *minor_devs = NULL;
 static upperstr_t *ppas = NULL;
 
 #ifdef SVR4
-static int pppopen __P((queue_t *, dev_t *, int, int, cred_t *));
-static int pppclose __P((queue_t *, int, cred_t *));
+static int pppopen(queue_t *, dev_t *, int, int, cred_t *);
+static int pppclose(queue_t *, int, cred_t *);
 #else
-static int pppopen __P((queue_t *, int, int, int));
-static int pppclose __P((queue_t *, int));
+static int pppopen(queue_t *, int, int, int);
+static int pppclose(queue_t *, int);
 #endif /* SVR4 */
-static int pppurput __P((queue_t *, mblk_t *));
-static int pppuwput __P((queue_t *, mblk_t *));
-static int pppursrv __P((queue_t *));
-static int pppuwsrv __P((queue_t *));
-static int ppplrput __P((queue_t *, mblk_t *));
-static int ppplwput __P((queue_t *, mblk_t *));
-static int ppplrsrv __P((queue_t *));
-static int ppplwsrv __P((queue_t *));
+static int pppurput(queue_t *, mblk_t *);
+static int pppuwput(queue_t *, mblk_t *);
+static int pppursrv(queue_t *);
+static int pppuwsrv(queue_t *);
+static int ppplrput(queue_t *, mblk_t *);
+static int ppplwput(queue_t *, mblk_t *);
+static int ppplrsrv(queue_t *);
+static int ppplwsrv(queue_t *);
 #ifndef NO_DLPI
-static void dlpi_request __P((queue_t *, mblk_t *, upperstr_t *));
-static void dlpi_error __P((queue_t *, upperstr_t *, int, int, int));
-static void dlpi_ok __P((queue_t *, int));
+static void dlpi_request(queue_t *, mblk_t *, upperstr_t *);
+static void dlpi_error(queue_t *, upperstr_t *, int, int, int);
+static void dlpi_ok(queue_t *, int);
 #endif
-static int send_data __P((mblk_t *, upperstr_t *));
-static void new_ppa __P((queue_t *, mblk_t *));
-static void attach_ppa __P((queue_t *, mblk_t *));
+static int send_data(mblk_t *, upperstr_t *);
+static void new_ppa(queue_t *, mblk_t *);
+static void attach_ppa(queue_t *, mblk_t *);
 #ifndef NO_DLPI
-static void detach_ppa __P((queue_t *, mblk_t *));
+static void detach_ppa(queue_t *, mblk_t *);
 #endif
-static void detach_lower __P((queue_t *, mblk_t *));
-static void debug_dump __P((queue_t *, mblk_t *));
-static upperstr_t *find_dest __P((upperstr_t *, int));
+static void detach_lower(queue_t *, mblk_t *);
+static void debug_dump(queue_t *, mblk_t *);
+static upperstr_t *find_dest(upperstr_t *, int);
 #if defined(SOL2)
-static upperstr_t *find_promisc __P((upperstr_t *, int));
-static mblk_t *prepend_ether __P((upperstr_t *, mblk_t *, int));
-static mblk_t *prepend_udind __P((upperstr_t *, mblk_t *, int));
-static void promisc_sendup __P((upperstr_t *, mblk_t *, int, int));
+static upperstr_t *find_promisc(upperstr_t *, int);
+static mblk_t *prepend_ether(upperstr_t *, mblk_t *, int);
+static mblk_t *prepend_udind(upperstr_t *, mblk_t *, int);
+static void promisc_sendup(upperstr_t *, mblk_t *, int, int);
 #endif /* defined(SOL2) */
-static int putctl2 __P((queue_t *, int, int, int));
-static int putctl4 __P((queue_t *, int, int, int));
-static int pass_packet __P((upperstr_t *ppa, mblk_t *mp, int outbound));
+static int putctl2(queue_t *, int, int, int);
+static int putctl4(queue_t *, int, int, int);
+static int pass_packet(upperstr_t *ppa, mblk_t *mp, int outbound);
 #ifdef FILTER_PACKETS
-static int ip_hard_filter __P((upperstr_t *ppa, mblk_t *mp, int outbound));
+static int ip_hard_filter(upperstr_t *ppa, mblk_t *mp, int outbound);
 #endif /* FILTER_PACKETS */
 
 #define PPP_ID 0xb1a6
