@@ -1202,6 +1202,43 @@ overridden by a non-privileged user.
 .B xonxoff
 Use software flow control (i.e. XON/XOFF) to control the flow of data on
 the serial port.
+.SH PPPOE OPTIONS
+To establish PPP link over Ethernet (PPPoE) it is needed to load pppd's
+\fBplugin rp-pppoe.so\fR and then specify option \fBnic-\fIinterface\fR
+instead of modem options \fIttyname\fR and \fIspeed\fR.
+Recognized pppd's PPPoE options are:
+.TP
+.B nic-\fIinterface
+Use the ethernet device \fIinterface\fR to communicate with the peer.
+For example, establishing PPPoE link on \fIeth0\fR interface is done
+by specifying ppp'd option \fBnic-eth0\fR. Prefix \fBnic-\fR for this
+option may be avoided if interface name is unambiguous and does not
+look like any other pppd's option.
+.TP
+.B rp_pppoe_service \fIname
+Connect to specified PPPoE service name.
+.TP
+.B rp_pppoe_ac \fIname
+Connect to specified PPPoE access concentrator name.
+.TP
+.B rp_pppoe_sess \fIsessid\fP:\fImacaddr
+Attach to existing PPPoE session.
+.TP
+.B rp_pppoe_verbose \fIn
+Be verbose about discovered access concentrators.
+.TP
+.B pppoe-mac \fImacaddr
+Connect to specified MAC address.
+.TP
+.B host-uniq \fIstring
+Set the PPPoE Host-Uniq tag to the supplied hex string.
+By default PPPoE Host-Uniq tag is set to the pppd's process PID.
+.TP
+.B pppoe-padi-timeout \fIn
+Initial timeout for discovery packets in seconds (default 5).
+.TP
+.B pppoe-padi-attempts \fIn
+Number of discovery attempts (default 3).
 .SH OPTIONS FILES
 Options can be taken from files as well as the command line.  Pppd
 reads options from the files /etc/ppp/options, ~/.ppprc and
