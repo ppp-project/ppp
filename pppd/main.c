@@ -763,8 +763,7 @@ detach(void)
 	/* update pid files if they have been written already */
 	if (pidfilename[0])
 	    create_pidfile(pid);
-	if (linkpidfile[0])
-	    create_linkpidfile(pid);
+	create_linkpidfile(pid);
 	exit(0);		/* parent dies */
     }
     setsid();
