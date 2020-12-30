@@ -1442,6 +1442,7 @@ callfile(char **argv)
     if ((fname = (char *) malloc(l)) == NULL)
 	novm("call file name");
     slprintf(fname, l, "%s%s", _PATH_PEERFILES, arg);
+    script_setenv("CALL_FILE", arg, 0);
 
     ok = options_from_file(fname, 1, 1, 1);
 
