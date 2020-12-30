@@ -258,7 +258,7 @@ static int get_hw_addr(char *, u_int32_t, struct sockaddr *);
 static int get_hw_addr_dlpi(char *, struct sockaddr *);
 static int dlpi_attach(int, int);
 static int dlpi_info_req(int);
-static int dlpi_get_reply(int, union DL_primitives *, int, int);
+static int dlpi_get_reply(int, union DL_primitives *, int, size_t);
 static int strioctl(int, int, void *, int, int);
 
 #ifdef SOL2
@@ -1499,7 +1499,7 @@ netif_get_mtu(int unit)
     error("ioctl(SIOCGIFMTU): %m (line %d)", __LINE__);
     return 0;
     }
-    return ifr.ifr_mtu;
+    return ifr.ifr_metric;
 }
 
 /*
@@ -2315,7 +2315,7 @@ dlpi_info_req(int fd)
 }
 
 static int
-dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, maxlen)
+dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, size_t maxlen)
 {
     struct strbuf buf;
     int flags, n;
