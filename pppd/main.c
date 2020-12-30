@@ -293,6 +293,9 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
+    strlcpy(path_ipup, _PATH_IPUP, sizeof(path_ipup));
+    strlcpy(path_ipdown, _PATH_IPDOWN, sizeof(path_ipdown));
+
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
 
