@@ -30,10 +30,6 @@ static char const RCSID[] =
 #include <linux/if_packet.h>
 #endif
 
-#ifdef HAVE_NET_ETHERNET_H
-#include <net/ethernet.h>
-#endif
-
 #ifdef HAVE_ASM_TYPES_H
 #include <asm/types.h>
 #endif

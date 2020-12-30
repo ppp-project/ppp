@@ -82,7 +82,7 @@ typedef unsigned long UINT32_t;
 
 #ifdef HAVE_LINUX_IF_ETHER_H
 #include <linux/if_ether.h>
-#endif
+#else
 
 #ifdef HAVE_NETINET_IF_ETHER_H
 #include <sys/types.h>
@@ -94,7 +94,7 @@ typedef unsigned long UINT32_t;
 #include <netinet/if_ether.h>
 #endif
 #endif
-
+#endif
 
 /* Ethernet frame types according to RFC 2516 */
 #define ETH_PPPOE_DISCOVERY 0x8863
