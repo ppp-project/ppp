@@ -112,7 +112,7 @@ CFLAGS	+= -DUSE_SRP -DOPENSSL -I/usr/local/ssl/include
 LIBS	+= -lsrp -L/usr/local/ssl/lib
 NEEDCRYPTOLIB = y
 TARGETS	+= srp-entry
-EXTRAINSTALL = $(INSTALL) -s -c -m 555 srp-entry $(BINDIR)/srp-entry
+EXTRAINSTALL = $(INSTALL) -c -m 555 srp-entry $(BINDIR)/srp-entry
 MANPAGES += srp-entry.8
 EXTRACLEAN += srp-entry.o
 NEEDDES=y
@@ -238,7 +238,7 @@ all: $(TARGETS)
 install: pppd
 	mkdir -p $(BINDIR) $(MANDIR)
 	$(EXTRAINSTALL)
-	$(INSTALL) -s -c -m 555 pppd $(BINDIR)/pppd
+	$(INSTALL) -c -m 555 pppd $(BINDIR)/pppd
 	if chgrp pppusers $(BINDIR)/pppd 2>/dev/null; then \
 	  chmod o-rx,u+s $(BINDIR)/pppd; fi
 	$(INSTALL) -c -m 444 pppd.8 $(MANDIR)

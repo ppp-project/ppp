@@ -22,7 +22,7 @@ all: pppstats
 
 install: pppstats
 	-mkdir -p $(MANDIR)
-	$(INSTALL) -s -c pppstats $(BINDIR)
+	$(INSTALL) -c pppstats $(BINDIR)
 	$(INSTALL) -c -m 444 pppstats.8 $(MANDIR)
 
 pppstats: $(PPPSTATSRCS)
