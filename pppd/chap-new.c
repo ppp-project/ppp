@@ -59,6 +59,7 @@ int chap_server_timeout_time = 3;
 int chap_max_transmits = 10;
 int chap_rechallenge_time = 0;
 int chap_client_timeout_time = 60;
+int chapms_strip_domain = 0;
 
 /*
  * Command-line options.
@@ -72,6 +73,8 @@ static option_t chap_option_list[] = {
 	  "Set interval for rechallenge", OPT_PRIO },
 	{ "chap-timeout", o_int, &chap_client_timeout_time,
 	  "Set timeout for CHAP (as client)", OPT_PRIO },
+	{ "chapms-strip-domain", o_bool, &chapms_strip_domain,
+	  "Strip the domain prefix before the Username", 1 },
 	{ NULL }
 };
 
@@ -355,6 +358,14 @@ chap_handle_response(struct chap_server_state *ss, int id,
 			/* Null terminate and clean remote name. */
 			slprintf(rname, sizeof(rname), "%.*v", len, name);
 			name = rname;
+
+			/* strip the MS domain name */
+			if (chapms_strip_domain && strrchr(rname, '\\')) {
+				char tmp[MAXNAMELEN+1];
+
+				strcpy(tmp, strrchr(rname, '\\') + 1);
+				strcpy(rname, tmp);
+			}
 		}
 
 		if (chap_verify_hook)
