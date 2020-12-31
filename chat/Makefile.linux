@@ -25,7 +25,7 @@ chat.o:	chat.c
 
 install: chat
 	mkdir -p $(BINDIR) $(MANDIR)
-	$(INSTALL) -s -c chat $(BINDIR)
+	$(INSTALL) -c chat $(BINDIR)
 	$(INSTALL) -c -m 644 chat.8 $(MANDIR)
 
 clean:
