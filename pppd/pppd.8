@@ -1215,24 +1215,30 @@ by specifying ppp'd option \fBnic-eth0\fR. Prefix \fBnic-\fR for this
 option may be avoided if interface name is unambiguous and does not
 look like any other pppd's option.
 .TP
-.B rp_pppoe_service \fIname
-Connect to specified PPPoE service name.
+.B pppoe-service \fIname
+Connect to specified PPPoE service name. For backward compatibility also
+\fBrp_pppoe_service\fP option name is supported.
 .TP
-.B rp_pppoe_ac \fIname
-Connect to specified PPPoE access concentrator name.
+.B pppoe-ac \fIname
+Connect to specified PPPoE access concentrator name. For backward
+compatibility also \fBrp_pppoe_ac\fP option name is supported.
 .TP
-.B rp_pppoe_sess \fIsessid\fP:\fImacaddr
-Attach to existing PPPoE session.
+.B pppoe-sess \fIsessid\fP:\fImacaddr
+Attach to existing PPPoE session. For backward compatibility also
+\fBrp_pppoe_sess\fP option name is supported.
 .TP
-.B rp_pppoe_verbose \fIn
-Be verbose about discovered access concentrators.
+.B pppoe-verbose \fIn
+Be verbose about discovered access concentrators. For backward
+compatibility also \fBrp_pppoe_verbose\fP option name is supported.
 .TP
 .B pppoe-mac \fImacaddr
 Connect to specified MAC address.
 .TP
-.B host-uniq \fIstring
+.B pppoe-host-uniq \fIstring
 Set the PPPoE Host-Uniq tag to the supplied hex string.
 By default PPPoE Host-Uniq tag is set to the pppd's process PID.
+For backward compatibility this option may be specified without
+\fBpppoe-\fP prefix.
 .TP
 .B pppoe-padi-timeout \fIn
 Initial timeout for discovery packets in seconds (default 5).
