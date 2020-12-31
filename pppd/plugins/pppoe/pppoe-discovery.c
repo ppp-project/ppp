@@ -713,7 +713,7 @@ int main(int argc, char *argv[])
 			optarg, strerror(errno));
 		exit(1);
 	    }
-	    fprintf(conn->debugFile, "pppoe-discovery %s\n", RP_VERSION);
+	    fprintf(conn->debugFile, "pppoe-discovery from pppd %s\n", VERSION);
 	    break;
 	case 'I':
 	    conn->ifName = xstrdup(optarg);
@@ -787,5 +787,5 @@ void usage(void)
 	    "   -U             -- Use Host-Unique to allow multiple PPPoE sessions.\n"
 	    "   -W hexvalue    -- Set the Host-Unique to the supplied hex string.\n"
 	    "   -h             -- Print usage information.\n");
-    fprintf(stderr, "\nVersion " RP_VERSION "\n");
+    fprintf(stderr, "\npppoe-discovery from pppd " VERSION "\n");
 }

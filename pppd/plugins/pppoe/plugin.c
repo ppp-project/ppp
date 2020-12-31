@@ -399,8 +399,7 @@ plugin_init(void)
 
     add_options(Options);
 
-    info("RP-PPPoE plugin version %s compiled against pppd %s",
-	 RP_VERSION, VERSION);
+    info("PPPoE plugin from pppd %s", VERSION);
 }
 
 void pppoe_check_options(void)

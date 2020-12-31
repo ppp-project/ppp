@@ -12,7 +12,7 @@ BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
 LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
-SUBDIRS := rp-pppoe pppoatm pppol2tp
+SUBDIRS := pppoe pppoatm pppol2tp
 # Uncomment the next line to include the radius authentication plugin
 SUBDIRS += radius
 PLUGINS := minconn.so passprompt.so passwordfd.so winbind.so
