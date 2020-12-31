@@ -76,7 +76,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit)
 
 	memset(&addr, 0, sizeof addr);
 	if (text2atm(cp, (struct sockaddr *) &addr, sizeof(addr),
-	    T2A_PVC | T2A_NAME) < 0) {
+	    T2A_PVC | T2A_NAME | T2A_WILDCARD) < 0) {
 		if (doit)
 			info("cannot parse the ATM address: %s", cp);
 		return 0;
