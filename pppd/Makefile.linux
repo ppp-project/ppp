@@ -207,10 +207,8 @@ LIBS	+= -ldl
 endif
 
 ifdef FILTER
-ifneq ($(wildcard /usr/include/pcap-bpf.h),)
 LIBS    += -lpcap
 CFLAGS  += -DPPP_FILTER
-endif
 endif
 
 ifdef HAVE_INET6
