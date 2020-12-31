@@ -7,3 +7,17 @@ jobs:
     steps:
       - name: Checkout Buildroot sources
         run: git clone --depth=1 --branch=2020.11.1 https://git.busybox.net/buildroot
+      - name: Select latest PPP version
+        working-directory: buildroot/package/pppd
+        run: |
+          # Allow package to build when musl libc is selected
+          sed -i '/depends on !BR2_TOOLCHAIN_USES_MUSL/d' Config.in
+          # Do not check for package hash, so there is no need to compute it
+          rm pppd.hash
+          # Get package sources from head of master branch
+          sed -i '/PPPD_VERSION =/c\\PPPD_VERSION = master' pppd.mk
+          sed -i '/PPPD_SITE =/c\\PPPD_SITE = https://github.com/paulusmack/ppp' pppd.mk
+          sed -i '9iPPPD_MUSL_SITE_METHOD = git' pppd.mk
+          ls
+          cat Config.in
+          cat pppd.mk
