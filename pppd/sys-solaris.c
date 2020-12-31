@@ -1508,7 +1508,7 @@ netif_set_mtu(int unit, int mtu)
 
     memset(&ifr, 0, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-    ifr.ifr_metric = link_mtu;
+    ifr.ifr_metric = mtu;
     if (ioctl(ipfd, SIOCSIFMTU, &ifr) < 0) {
 	error("Couldn't set IP MTU (%s): %m", ifr.ifr_name);
     }
@@ -1520,7 +1520,7 @@ netif_set_mtu(int unit, int mtu)
 
     memset(&lifr, 0, sizeof(lifr));
     strlcpy(lifr.lifr_name, ifname, sizeof(lifr.lifr_name));
-    lifr.lifr_mtu = link_mtu;
+    lifr.lifr_mtu = mtu;
     if (ioctl(fd, SIOCSLIFMTU, &lifr) < 0) {
 	close(fd);
 	error("Couldn't set IPv6 MTU (%s): %m", ifr.ifr_name);
