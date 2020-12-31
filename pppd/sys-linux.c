@@ -2087,7 +2087,7 @@ get_if_hwaddr(u_char *addr, char *name)
 
 	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock_fd < 0)
-		return 0;
+		return -1;
 	memset(&ifreq.ifr_hwaddr, 0, sizeof(struct sockaddr));
 	strlcpy(ifreq.ifr_name, name, sizeof(ifreq.ifr_name));
 	ret = ioctl(sock_fd, SIOCGIFHWADDR, &ifreq);
