@@ -2,39 +2,15 @@ DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
 
-DO_DEFLATE=y
-DO_BSD_COMPRESS=y
-HAVE_ZLIB=n
-
 CFLAGS= -O -I../include/net
-OBJS = pppdump.o
-LIBS =
-
-ifdef DO_DEFLATE
-CFLAGS += -DDO_DEFLATE=1
-OBJS += deflate.o
-ifdef HAVE_ZLIB
-LIBS += -lz
-else
-OBJS += zlib.o
-endif
-else
-CFLAGS += -DDO_DEFLATE=0
-endif
-
-ifdef DO_BSD_COMPRESS
-CFLAGS += -DDO_BSD_COMPRESS=1
-OBJS += bsd-comp.o
-else
-CFLAGS += -DDO_BSD_COMPRESS=0
-endif
+OBJS = pppdump.o bsd-comp.o deflate.o zlib.o
 
 INSTALL= install
 
 all:	pppdump
 
 pppdump: $(OBJS)
-	$(CC) $(LDFLAGS) -o pppdump $(OBJS) $(LIBS)
+	$(CC) $(LDFLAGS) -o pppdump $(OBJS)
 
 clean:
 	rm -f pppdump $(OBJS) *~
