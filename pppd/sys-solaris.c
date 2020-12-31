@@ -531,50 +531,6 @@ slifname_done:
 
 
 }
-
-
-/*
- * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
- *
- * walks the list of valid ethernet interfaces, and convert the first
- * found 48-bit MAC address into EUI 64. caller also assumes that
- * the system has a properly configured Ethernet interface for this
- * function to return non-zero.
- */
-int
-ether_to_eui64(eui64_t *p_eui64)
-{
-    struct sockaddr s_eth_addr;
-    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
-    char *if_name;
-
-    if ((if_name = get_first_ethernet()) == NULL) {
-	error("no persistent id can be found");
-	return 0;
-    }
- 
-    /*
-     * Send DL_INFO_REQ to the driver to solicit its MAC address
-     */
-    if (!get_hw_addr_dlpi(if_name, &s_eth_addr)) {
-	error("could not obtain hardware address for %s", if_name);
-	return 0;
-    }
-
-    /*
-     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
-     */
-    p_eui64->e8[0] = (eth_addr->ether_addr_octet[0] & 0xFF) | 0x02;
-    p_eui64->e8[1] = (eth_addr->ether_addr_octet[1] & 0xFF);
-    p_eui64->e8[2] = (eth_addr->ether_addr_octet[2] & 0xFF);
-    p_eui64->e8[3] = 0xFF;
-    p_eui64->e8[4] = 0xFE;
-    p_eui64->e8[5] = (eth_addr->ether_addr_octet[3] & 0xFF);
-    p_eui64->e8[6] = (eth_addr->ether_addr_octet[4] & 0xFF);
-    p_eui64->e8[7] = (eth_addr->ether_addr_octet[5] & 0xFF);
-
-    return 1;
-}
 #endif /* defined(SOL2) && defined(INET6) */
 
 /*

@@ -3147,54 +3147,6 @@ sys_check_options(void)
     return 1;
 }
 
-#ifdef INET6
-/*
- * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
- *
- * convert the 48-bit MAC address of eth0 into EUI 64. caller also assumes
- * that the system has a properly configured Ethernet interface for this
- * function to return non-zero.
- */
-int
-ether_to_eui64(eui64_t *p_eui64)
-{
-    struct ifreq ifr;
-    int skfd;
-    const unsigned char *ptr;
-
-    skfd = socket(PF_INET6, SOCK_DGRAM, 0);
-    if(skfd == -1)
-    {
-        warn("could not open IPv6 socket");
-        return 0;
-    }
-
-    strcpy(ifr.ifr_name, "eth0");
-    if(ioctl(skfd, SIOCGIFHWADDR, &ifr) < 0)
-    {
-        close(skfd);
-        warn("could not obtain hardware address for eth0");
-        return 0;
-    }
-    close(skfd);
-
-    /*
-     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
-     */
-    ptr = (unsigned char *) ifr.ifr_hwaddr.sa_data;
-    p_eui64->e8[0] = ptr[0] | 0x02;
-    p_eui64->e8[1] = ptr[1];
-    p_eui64->e8[2] = ptr[2];
-    p_eui64->e8[3] = 0xFF;
-    p_eui64->e8[4] = 0xFE;
-    p_eui64->e8[5] = ptr[3];
-    p_eui64->e8[6] = ptr[4];
-    p_eui64->e8[7] = ptr[5];
-
-    return 1;
-}
-#endif
-
 /********************************************************************
  *
  * get_time - Get current time, monotonic if possible.

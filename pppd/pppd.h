@@ -672,7 +672,6 @@ int  sifaddr(int, u_int32_t, u_int32_t, u_int32_t);
 int  cifaddr(int, u_int32_t, u_int32_t);
 				/* Reset i/f IP addresses */
 #ifdef INET6
-int  ether_to_eui64(eui64_t *p_eui64);	/* convert eth0 hw address to EUI64 */
 int  sif6up(int);		/* Configure i/f up for IPv6 */
 int  sif6down(int);	/* Configure i/f down for IPv6 */
 int  sif6addr(int, eui64_t, eui64_t);
