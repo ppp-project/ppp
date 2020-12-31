@@ -4,6 +4,9 @@ on: [push]
 jobs:
   matrix_build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        defconfig_name: [qemu_x86_defconfig, qemu_x86_64_defconfig]
     steps:
       - name: Checkout Buildroot sources
         run: git clone --depth=1 --branch=2020.11.1 https://git.busybox.net/buildroot
@@ -18,6 +21,9 @@ jobs:
           sed -i '/PPPD_VERSION =/c\\PPPD_VERSION = master' pppd.mk
           sed -i '/PPPD_SITE =/c\\PPPD_SITE = https://github.com/paulusmack/ppp' pppd.mk
           sed -i '9iPPPD_MUSL_SITE_METHOD = git' pppd.mk
-          ls
-          cat Config.in
-          cat pppd.mk
+      - name: Enable PPP build
+        working-directory: buildroot
+        run: |
+          echo "BR2_PACKAGE_PPPD=y" >> configs/${{ matrix.defconfig_name }}
+          # TODO enable other PPP package options if needed
+          cat configs/${{ matrix.defconfig_name }}
