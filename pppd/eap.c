@@ -68,6 +68,10 @@
 #include "md5.h"
 #include "eap.h"
 
+#ifdef CHAPMS
+#include "chap_ms.h"
+#endif
+
 #ifdef USE_SRP
 #include <t_pwd.h>
 #include <t_server.h>
@@ -1673,6 +1677,41 @@ write_pseudonym(eap_state *esp, u_char *inp, int len, int id)
 }
 #endif /* USE_SRP */
 
+#if CHAPMS
+/*
+ * Format and send an CHAPV2-Challenge EAP Response message.
+ */
+static void
+eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, char *user, int user_len)
+{
+    u_char *outp;
+    int msglen;
+
+    outp = outpacket_buf;
+
+    MAKEHEADER(outp, PPP_EAP);
+
+    PUTCHAR(EAP_RESPONSE, outp);
+    PUTCHAR(id, outp);
+    esp->es_client.ea_id = id;
+    msglen = EAP_HEADERLEN + 6 * sizeof (u_char) + MS_CHAP2_RESPONSE_LEN + user_len;
+    PUTSHORT(msglen, outp);
+    PUTCHAR(EAPT_MSCHAPV2, outp);
+    PUTCHAR(CHAP_RESPONSE, outp);
+    PUTCHAR(chapid, outp);
+    PUTCHAR(0, outp);
+    /* len */
+    PUTCHAR(5 + user_len +MS_CHAP2_RESPONSE_LEN, outp);
+    /* len response */
+    PUTCHAR(MS_CHAP2_RESPONSE_LEN, outp)
+    BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN);
+    INCPTR(MS_CHAP2_RESPONSE_LEN, outp);
+    BCOPY(user, outp, user_len);
+
+    output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+}
+#endif
+
 /*
  * eap_request - Receive EAP Request message (client mode).
  */
@@ -2154,6 +2193,97 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		}
 		break;
 #endif /* USE_SRP */
+    
+#ifdef CHAPMS
+    case EAPT_MSCHAPV2:
+	    if (len < 1) {
+		error("EAP: received short MSCHAPv2");
+		/* Bogus request; wait for something real. */
+		return;
+	    }
+	    unsigned char chopcode;
+	    GETCHAR(chopcode, inp);
+	    len--;
+	    dbglog("EAP: CHAP opcode %d", chopcode);
+
+	    if (chopcode==CHAP_CHALLENGE) {
+
+		unsigned char chapid; /* Chapv2-ID */
+		GETCHAR(chapid, inp);
+		short mssize;
+		GETSHORT(mssize, inp);
+		unsigned char vsize;
+		GETCHAR(vsize, inp);
+		len-=4;
+
+		dbglog("EAP: chapid %d mssize %d vsize %d inplen %d, challen %d", chapid, mssize, vsize, len, MS_CHAP2_PEER_CHAL_LEN);
+
+		unsigned char *rchallenge = calloc(1, MS_CHAP2_PEER_CHAL_LEN);
+		BCOPY(inp, rchallenge, MS_CHAP2_PEER_CHAL_LEN);
+		INCPTR(MS_CHAP2_PEER_CHAL_LEN,inp);
+
+		/*
+		 * Get the secret for authenticating ourselves with
+		 * the specified host.
+		 */
+		if (!get_secret(esp->es_unit, esp->es_client.ea_name,
+		    rhostname, secret, &secret_len, 0)) {
+		    dbglog("EAP: no CHAP secret for auth to %q", rhostname);
+		    eap_send_nak(esp, id, EAPT_SRP);
+		    break;
+		}
+
+		char *user = calloc(1, esp->es_client.ea_namelen + 1);
+		memcpy(user, esp->es_client.ea_name, esp->es_client.ea_namelen);
+		*(user + esp->es_client.ea_namelen) = '\0';
+		dbglog("EAP: user %s, user_len %d", user, esp->es_client.ea_namelen);
+
+		/* mschapv2 response */
+		unsigned char response[49];
+		unsigned char authResponse[41];
+		ChapMS2(rchallenge, NULL, user, secret, secret_len, response,
+			authResponse, MS_CHAP2_AUTHENTICATEE);
+
+		eap_chapv2_response(esp, id, chapid, response, esp->es_client.ea_name, esp->es_client.ea_namelen);
+
+		free(user);
+		free(rchallenge);
+
+	    } else if (chopcode==CHAP_SUCCESS) {
+
+		unsigned char chapid; /* Chapv2-ID */
+		GETCHAR(chapid, inp);
+		short mssize;
+		GETSHORT(mssize, inp);
+		len-=3;
+		dbglog("EAP: chapid %d mssize %d inplen %d", chapid, mssize, len );
+		dbglog("Chap authentication succeeded: %.*v", len, inp);
+		u_char response[1];
+		response[0]=CHAP_SUCCESS;
+		eap_send_response(esp, id, EAPT_MSCHAPV2, response, 1);
+
+	    } else if (chopcode==CHAP_FAILURE) {
+
+		unsigned char chapid; /* Chapv2-ID */
+		GETCHAR(chapid, inp);
+		short mssize;
+		GETSHORT(mssize, inp);
+		len-=3;
+		dbglog("EAP: chapid %d mssize %d inplen %d", chapid, mssize, len );
+		dbglog("Chap authentication failed: %.*v", len, inp);
+		u_char response[1];
+		response[0]=CHAP_FAILURE;
+		eap_send_response(esp, id, EAPT_MSCHAPV2, response, 1);
+		goto client_failure; /* force termination */
+
+	    } else {
+
+		dbglog("EAP: Unknown CHAP opcode %d", chopcode);
+		eap_send_nak(esp, id, EAPT_SRP);
+	    }
+
+	    break;
+#endif /* CHAPMS */
 
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
@@ -2168,13 +2298,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	}
 	return;
 
-#ifdef USE_SRP
 client_failure:
 	esp->es_client.ea_state = eapBadAuth;
 	if (esp->es_client.ea_timeout > 0) {
 		UNTIMEOUT(eap_client_timeout, (void *)esp);
 	}
 	esp->es_client.ea_session = NULL;
+#ifdef USE_SRP
 	t_clientclose(tc);
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 #endif /* USE_SRP */
