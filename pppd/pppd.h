@@ -325,6 +325,8 @@ extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
+extern char	path_ipup[MAXPATHLEN]; /* pathname of ip-up script */
+extern char	path_ipdown[MAXPATHLEN]; /* pathname of ip-down script */
 extern char	req_ifname[MAXIFNAMELEN]; /* interface name to use */
 extern bool	multilink;	/* enable multilink operation */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
