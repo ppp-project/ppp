@@ -1068,18 +1068,10 @@ static int
 ether_to_eui64(eui64_t *p_eui64)
 {
     u_char addr[6];
-    char *if_name;
 
-    if (get_if_hwaddr(addr, devnam) < 0) {
-        if ((if_name = get_first_ethernet()) == NULL) {
-            error("no persistent id can be found");
-            return 0;
-        }
-
-        if (get_if_hwaddr(addr, if_name) < 0) {
-            error("could not obtain hardware address for %s", if_name);
-            return 0;
-        }
+    if (get_if_hwaddr(addr, devnam) < 0 || get_first_ether_hwaddr(addr) < 0) {
+        error("ipv6cp: no persistent id can be found");
+        return 0;
     }
 
     /*
