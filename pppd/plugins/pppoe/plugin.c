@@ -64,7 +64,7 @@ extern int new_style_driver;
 char *pppd_pppoe_service = NULL;
 static char *acName = NULL;
 static char *existingSession = NULL;
-static int printACNames = 0;
+int pppoe_verbose = 0;
 static char *pppoe_reqd_mac = NULL;
 unsigned char pppoe_reqd_mac_addr[6];
 static char *pppoe_host_uniq;
@@ -89,9 +89,9 @@ static option_t Options[] = {
       "Attach to existing session (sessid:macaddr)" },
     { "rp_pppoe_sess",    o_string, &existingSession,
       "Legacy alias for pppoe-sess", OPT_ALIAS },
-    { "pppoe-verbose", o_int, &printACNames,
+    { "pppoe-verbose", o_int, &pppoe_verbose,
       "Be verbose about discovered access concentrators" },
-    { "rp_pppoe_verbose", o_int, &printACNames,
+    { "rp_pppoe_verbose", o_int, &pppoe_verbose,
       "Legacy alias for pppoe-verbose", OPT_ALIAS },
     { "pppoe-mac", o_string, &pppoe_reqd_mac,
       "Only connect to specified MAC address" },
@@ -128,7 +128,6 @@ PPPOEInitDevice(void)
     conn->ifName = devnam;
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
-    conn->printACNames = printACNames;
     conn->discoveryTimeout = pppoe_padi_timeout;
     conn->discoveryAttempts = pppoe_padi_attempts;
     return 1;

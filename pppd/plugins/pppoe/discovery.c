@@ -138,7 +138,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
     switch(type) {
     case TAG_AC_NAME:
 	pc->seenACName = 1;
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    info("Access-Concentrator: %.*s", (int) len, data);
 	}
 	if (conn->acName && len == strlen(conn->acName) &&

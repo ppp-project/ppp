@@ -233,7 +233,6 @@ typedef struct PPPoEConnectionStruct {
     char *acName;		/* Desired AC name, if any */
     int synchronous;		/* Use synchronous PPP */
     PPPoETag hostUniq;		/* Use Host-Uniq tag */
-    int printACNames;		/* Just print AC names */
     FILE *debugFile;		/* Debug file for dumping packets */
     int numPADOs;		/* Number of PADO packets received */
     PPPoETag cookie;		/* We have to send this if we get it */
@@ -282,6 +281,7 @@ void discovery(PPPoEConnection *conn);
 unsigned char *findTag(PPPoEPacket *packet, UINT16_t tagType,
 		       PPPoETag *tag);
 
+extern int pppoe_verbose;
 void pppoe_printpkt(PPPoEPacket *packet,
 		    void (*printer)(void *, char *, ...), void *arg);
 void pppoe_log_packet(const char *prefix, PPPoEPacket *packet);
