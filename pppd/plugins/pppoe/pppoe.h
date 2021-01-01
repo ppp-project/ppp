@@ -242,8 +242,10 @@ typedef struct PPPoEConnectionStruct {
     int discoveryTimeout;       /* Timeout for discovery packets */
     int discoveryAttempts;      /* Number of discovery attempts */
     int seenMaxPayload;
-    int mtu;			/* Stored MTU */
-    int mru;			/* Stored MRU */
+    int storedmtu;		/* Stored MTU */
+    int storedmru;		/* Stored MRU */
+    int mtu;
+    int mru;
 } PPPoEConnection;
 
 /* Structure used to determine acceptable PADO or PADS packet */

@@ -168,10 +168,10 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    memcpy(&mru, data, sizeof(mru));
 	    mru = ntohs(mru);
 	    if (mru >= ETH_PPPOE_MTU) {
-		if (lcp_allowoptions[0].mru > mru)
-		    lcp_allowoptions[0].mru = mru;
-		if (lcp_wantoptions[0].mru > mru)
-		    lcp_wantoptions[0].mru = mru;
+		if (conn->mtu > mru)
+		    conn->mtu = mru;
+		if (conn->mru > mru)
+		    conn->mru = mru;
 		conn->seenMaxPayload = 1;
 	    }
 	}
@@ -218,10 +218,10 @@ parsePADSTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    memcpy(&mru, data, sizeof(mru));
 	    mru = ntohs(mru);
 	    if (mru >= ETH_PPPOE_MTU) {
-		if (lcp_allowoptions[0].mru > mru)
-		    lcp_allowoptions[0].mru = mru;
-		if (lcp_wantoptions[0].mru > mru)
-		    lcp_wantoptions[0].mru = mru;
+		if (conn->mtu > mru)
+		    conn->mtu = mru;
+		if (conn->mru > mru)
+		    conn->mru = mru;
 		conn->seenMaxPayload = 1;
 	    }
 	}
@@ -306,9 +306,9 @@ sendPADI(PPPoEConnection *conn)
     }
 
     /* Add our maximum MTU/MRU */
-    if (MIN(lcp_allowoptions[0].mru, lcp_wantoptions[0].mru) > ETH_PPPOE_MTU) {
+    if (MIN(conn->mtu, conn->mru) > ETH_PPPOE_MTU) {
 	PPPoETag maxPayload;
-	UINT16_t mru = htons(MIN(lcp_allowoptions[0].mru, lcp_wantoptions[0].mru));
+	UINT16_t mru = htons(MIN(conn->mtu, conn->mru));
 	maxPayload.type = htons(TAG_PPP_MAX_PAYLOAD);
 	maxPayload.length = htons(sizeof(mru));
 	memcpy(maxPayload.payload, &mru, sizeof(mru));
@@ -479,9 +479,9 @@ sendPADR(PPPoEConnection *conn)
     }
 
     /* Add our maximum MTU/MRU */
-    if (MIN(lcp_allowoptions[0].mru, lcp_wantoptions[0].mru) > ETH_PPPOE_MTU) {
+    if (MIN(conn->mtu, conn->mru) > ETH_PPPOE_MTU) {
 	PPPoETag maxPayload;
-	UINT16_t mru = htons(MIN(lcp_allowoptions[0].mru, lcp_wantoptions[0].mru));
+	UINT16_t mru = htons(MIN(conn->mtu, conn->mru));
 	maxPayload.type = htons(TAG_PPP_MAX_PAYLOAD);
 	maxPayload.length = htons(sizeof(mru));
 	memcpy(maxPayload.payload, &mru, sizeof(mru));
@@ -666,10 +666,10 @@ discovery2(PPPoEConnection *conn)
 
     if (!conn->seenMaxPayload) {
 	/* RFC 4638: MUST limit MTU/MRU to 1492 */
-	if (lcp_allowoptions[0].mru > ETH_PPPOE_MTU)
-	    lcp_allowoptions[0].mru = ETH_PPPOE_MTU;
-	if (lcp_wantoptions[0].mru > ETH_PPPOE_MTU)
-	    lcp_wantoptions[0].mru = ETH_PPPOE_MTU;
+	if (conn->mtu > ETH_PPPOE_MTU)
+	    conn->mtu = ETH_PPPOE_MTU;
+	if (conn->mru > ETH_PPPOE_MTU)
+	    conn->mru = ETH_PPPOE_MTU;
     }
 
     /* We're done. */
