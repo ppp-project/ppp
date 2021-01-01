@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        defconfig_name: [qemu_x86_defconfig, qemu_x86_64_defconfig]
+        defconfig_name: [qemu_x86_defconfig, qemu_x86_64_defconfig, raspberrypi4_defconfig, raspberrypi4_64_defconfig, qemu_ppc64le_pseries_defconfig, qemu_mips32r2_malta_defconfig, qemu_mips64_malta_defconfig]
         libc_name: [glibc, uclibc, musl]
     steps:
       - name: Checkout Buildroot sources
