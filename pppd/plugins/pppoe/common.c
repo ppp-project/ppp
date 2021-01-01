@@ -203,7 +203,7 @@ void pppoe_printpkt(PPPoEPacket *packet,
 		    void (*printer)(void *, char *, ...), void *arg)
 {
     int len = ntohs(packet->length);
-    int i, tag, tlen, text;
+    int i, j, tag, tlen, text;
 
     switch (ntohs(packet->ethHdr.h_proto)) {
     case ETH_PPPOE_DISCOVERY:
@@ -300,12 +300,13 @@ void pppoe_printpkt(PPPoEPacket *packet,
 	}
 	if (tlen) {
 	    if (text)
-		printer(arg, " %.*v", tlen, &packet->payload[i]);
-	    else if (tlen <= 32)
-		printer(arg, " %.*B", tlen, &packet->payload[i]);
-	    else
-		printer(arg, " %.32B... (length %d)",
-			&packet->payload[i], tlen);
+		printer(arg, " %.*s", tlen, &packet->payload[i]);
+	    else {
+		for (j = 0; j < tlen && j < 32; j++)
+		    printer(arg, " %02x", (unsigned) *(&packet->payload[i]+j));
+		if (j < tlen)
+		    printer(arg, "... (length %d)", tlen);
+	    }
 	}
 	printer(arg, "]");
     }
