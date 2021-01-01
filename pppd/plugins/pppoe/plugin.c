@@ -165,8 +165,8 @@ PPPOEConnectDevice(void)
     }
 
     /* Restore configuration */
-    lcp_allowoptions[0].mru = conn->mtu;
-    lcp_wantoptions[0].mru = conn->mru;
+    lcp_allowoptions[0].mru = conn->mtu = conn->storedmtu;
+    lcp_wantoptions[0].mru = conn->mru = conn->storedmru;
 
     /* Update maximum MRU */
     s = socket(AF_INET, SOCK_DGRAM, 0);
@@ -183,9 +183,9 @@ PPPOEConnectDevice(void)
     close(s);
 
     if (lcp_allowoptions[0].mru > ifr.ifr_mtu - TOTAL_OVERHEAD)
-	lcp_allowoptions[0].mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
+	lcp_allowoptions[0].mru = conn->mtu = ifr.ifr_mtu - TOTAL_OVERHEAD;
     if (lcp_wantoptions[0].mru > ifr.ifr_mtu - TOTAL_OVERHEAD)
-	lcp_wantoptions[0].mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
+	lcp_wantoptions[0].mru = conn->mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
 
     if (pppoe_host_uniq) {
 	if (!parseHostUniq(pppoe_host_uniq, &conn->hostUniq))
@@ -221,11 +221,17 @@ PPPOEConnectDevice(void)
 	    goto errout;
 	}
 	discovery1(conn);
+	/* discovery1() may update conn->mtu and conn->mru */
+	lcp_allowoptions[0].mru = conn->mtu;
+	lcp_wantoptions[0].mru = conn->mru;
 	if (conn->discoveryState != STATE_RECEIVED_PADO) {
 	    error("Unable to complete PPPoE Discovery phase 1");
 	    goto errout;
 	}
 	discovery2(conn);
+	/* discovery2() may update conn->mtu and conn->mru */
+	lcp_allowoptions[0].mru = conn->mtu;
+	lcp_wantoptions[0].mru = conn->mru;
 	if (conn->discoveryState != STATE_SESSION) {
 	    error("Unable to complete PPPoE Discovery phase 2");
 	    goto errout;
@@ -456,8 +462,8 @@ void pppoe_check_options(void)
 	lcp_wantoptions[0].mru = MAX_PPPOE_MTU;
 
     /* Save configuration */
-    conn->mtu = lcp_allowoptions[0].mru;
-    conn->mru = lcp_wantoptions[0].mru;
+    conn->storedmtu = lcp_allowoptions[0].mru;
+    conn->storedmru = lcp_wantoptions[0].mru;
 
     ccp_allowoptions[0].deflate = 0;
     ccp_wantoptions[0].deflate = 0;
