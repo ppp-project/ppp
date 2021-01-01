@@ -605,19 +605,18 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 }
 
 /**********************************************************************
-*%FUNCTION: discovery
+*%FUNCTION: discovery1
 *%ARGUMENTS:
 * conn -- PPPoE connection info structure
 *%RETURNS:
 * Nothing
 *%DESCRIPTION:
-* Performs the PPPoE discovery phase
+* Performs the PPPoE discovery phase 1
 ***********************************************************************/
 void
-discovery(PPPoEConnection *conn)
+discovery1(PPPoEConnection *conn)
 {
     int padiAttempts = 0;
-    int padrAttempts = 0;
     int timeout = conn->discoveryTimeout;
 
     do {
@@ -634,8 +633,23 @@ discovery(PPPoEConnection *conn)
 
 	timeout *= 2;
     } while (conn->discoveryState == STATE_SENT_PADI);
+}
 
-    timeout = conn->discoveryTimeout;
+/**********************************************************************
+*%FUNCTION: discovery2
+*%ARGUMENTS:
+* conn -- PPPoE connection info structure
+*%RETURNS:
+* Nothing
+*%DESCRIPTION:
+* Performs the PPPoE discovery phase 2
+***********************************************************************/
+void
+discovery2(PPPoEConnection *conn)
+{
+    int padrAttempts = 0;
+    int timeout = conn->discoveryTimeout;
+
     do {
 	padrAttempts++;
 	if (got_sigterm || padrAttempts > conn->discoveryAttempts) {
