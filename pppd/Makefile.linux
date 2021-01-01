@@ -3,6 +3,10 @@
 # Processed by configure to produce pppd/Makefile
 #
 
+CROSS_COMPILE=@CROSS_COMPILE@
+CC=$(CROSS_COMPILE)@CC@
+COPTS=@CFLAGS@
+
 # Default installation locations
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
@@ -30,9 +34,6 @@ ifeq (.depend,$(wildcard .depend))
 include .depend
 endif
 
-# CC = gcc
-#
-COPTS = -O2 -pipe -Wall -g
 LIBS = -lrt
 
 # Uncomment the next line to include support for Microsoft's
@@ -90,7 +91,7 @@ MAXOCTETS=y
 
 INCLUDE_DIRS= -I../include
 
-COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP
+COMPILE_FLAGS= -DHAVE_PATHS_H -DIPX_CHANGE -DHAVE_MMAP -pipe
 
 CFLAGS= $(COPTS) $(COMPILE_FLAGS) $(INCLUDE_DIRS) '-DDESTDIR="@DESTDIR@"'
 

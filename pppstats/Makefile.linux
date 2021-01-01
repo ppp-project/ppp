@@ -1,7 +1,10 @@
 #
 # pppstats makefile
-# $Id: Makefile.linux,v 1.9 2006/06/04 05:07:46 paulus Exp $
 #
+CROSS_COMPILE=@CROSS_COMPILE@
+CC=$(CROSS_COMPILE)@CC@
+COPTS=@CFLAGS@
+
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
@@ -9,8 +12,6 @@ MANDIR = $(DESTDIR)/share/man/man8
 PPPSTATSRCS = pppstats.c
 PPPSTATOBJS = pppstats.o
 
-#CC = gcc
-COPTS = -O
 COMPILE_FLAGS = -I../include
 LIBS =
 

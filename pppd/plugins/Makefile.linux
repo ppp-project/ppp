@@ -1,16 +1,18 @@
-#CC	= gcc
-COPTS	= -O2 -g
+CROSS_COMPILE=@CROSS_COMPILE@
+CC=$(CROSS_COMPILE)@CC@
+COPTS=@CFLAGS@
+
+DESTDIR = $(INSTROOT)@DESTDIR@
+BINDIR = $(DESTDIR)/sbin
+MANDIR = $(DESTDIR)/share/man/man8
+LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+
 CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS_SHARED	= -shared
 INSTALL	= install
 
 # EAP-TLS
 CFLAGS += -DUSE_EAPTLS=1
-
-DESTDIR = $(INSTROOT)@DESTDIR@
-BINDIR = $(DESTDIR)/sbin
-MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
 
 SUBDIRS := pppoe pppoatm pppol2tp
 # Uncomment the next line to include the radius authentication plugin

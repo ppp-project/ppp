@@ -1,4 +1,3 @@
-# Generated automatically from Makefile.in by configure.
 #***********************************************************************
 #
 # Makefile
@@ -11,8 +10,11 @@
 # This program may be distributed according to the terms of the GNU
 # General Public License, version 2 or (at your option) any later version.
 #
-# $Id: Makefile.linux,v 1.8 2008/06/09 08:34:23 paulus Exp $
 #***********************************************************************
+
+CROSS_COMPILE=@CROSS_COMPILE@
+CC=$(CROSS_COMPILE)@CC@
+COPTS=@CFLAGS@
 
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
@@ -23,7 +25,6 @@ PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 INSTALL	= install
 LN_S	= ln -sf
 
-COPTS=-O2 -g
 CFLAGS=$(COPTS) -I../../../include
 all: pppoe.so pppoe-discovery
 
