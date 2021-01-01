@@ -1058,7 +1058,8 @@ endswitch:
 /*
  * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
  *
- * walks the list of valid ethernet interfaces, and convert the first
+ * walks the list of valid ethernet interfaces, starting with devnam
+ * (for PPPoE it is ethernet interface), and convert the first
  * found 48-bit MAC address into EUI 64. caller also assumes that
  * the system has a properly configured Ethernet interface for this
  * function to return non-zero.
@@ -1069,14 +1070,16 @@ ether_to_eui64(eui64_t *p_eui64)
     u_char addr[6];
     char *if_name;
 
-    if ((if_name = get_first_ethernet()) == NULL) {
-        error("no persistent id can be found");
-        return 0;
-    }
+    if (get_if_hwaddr(addr, devnam) < 0) {
+        if ((if_name = get_first_ethernet()) == NULL) {
+            error("no persistent id can be found");
+            return 0;
+        }
 
-    if (get_if_hwaddr(addr, if_name) < 0) {
-        error("could not obtain hardware address for %s", if_name);
-        return 0;
+        if (get_if_hwaddr(addr, if_name) < 0) {
+            error("could not obtain hardware address for %s", if_name);
+            return 0;
+        }
     }
 
     /*
