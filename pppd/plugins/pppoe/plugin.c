@@ -213,6 +213,10 @@ PPPOEConnectDevice(void)
     } else {
 	conn->discoverySocket =
             openInterface(conn->ifName, Eth_PPPOE_Discovery, conn->myEth);
+	if (conn->discoverySocket < 0) {
+	    error("Failed to create PPPoE discovery socket: %m");
+	    goto errout;
+	}
 	discovery(conn);
 	if (conn->discoveryState != STATE_SESSION) {
 	    error("Unable to complete PPPoE Discovery");
