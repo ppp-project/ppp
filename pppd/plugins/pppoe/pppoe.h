@@ -233,7 +233,6 @@ typedef struct PPPoEConnectionStruct {
     char *acName;		/* Desired AC name, if any */
     int synchronous;		/* Use synchronous PPP */
     PPPoETag hostUniq;		/* Use Host-Uniq tag */
-    FILE *debugFile;		/* Debug file for dumping packets */
     int numPADOs;		/* Number of PADO packets received */
     PPPoETag cookie;		/* We have to send this if we get it */
     PPPoETag relayId;		/* Ditto */
@@ -261,7 +260,6 @@ UINT16_t etherType(PPPoEPacket *packet);
 int openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr);
 int sendPacket(PPPoEConnection *conn, int sock, PPPoEPacket *pkt, int size);
 int receivePacket(int sock, PPPoEPacket *pkt, int *size);
-void fatalSys(char const *str);
 void dumpPacket(FILE *fp, PPPoEPacket *packet, char const *dir);
 void dumpHex(FILE *fp, unsigned char const *buf, int len);
 int parsePacket(PPPoEPacket *packet, ParseFunc *func, void *extra);
