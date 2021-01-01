@@ -130,7 +130,7 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
     if ((fd = socket(domain, stype, htons(type))) < 0) {
 	/* Give a more helpful message for the common error case */
 	if (errno == EPERM) {
-	    rp_fatal("Cannot create raw socket -- pppoe must be run as root.");
+	    fatal("Cannot create raw socket -- pppoe must be run as root.");
 	}
 	fatalSys("socket");
     }
@@ -148,17 +148,11 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
 	memcpy(hwaddr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 #ifdef ARPHRD_ETHER
 	if (ifr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
-	    char buffer[256];
-	    sprintf(buffer, "Interface %.16s is not Ethernet", ifname);
-	    rp_fatal(buffer);
+	    fatal("Interface %.16s is not Ethernet", ifname);
 	}
 #endif
 	if (NOT_UNICAST(hwaddr)) {
-	    char buffer[256];
-	    sprintf(buffer,
-		    "Interface %.16s has broadcast/multicast MAC address??",
-		    ifname);
-	    rp_fatal(buffer);
+	    fatal("Interface %.16s has broadcast/multicast MAC address??", ifname);
 	}
     }
 
@@ -214,18 +208,18 @@ sendPacket(PPPoEConnection *conn, int sock, PPPoEPacket *pkt, int size)
 {
 #if defined(HAVE_STRUCT_SOCKADDR_LL)
     if (send(sock, pkt, size, 0) < 0) {
-	sysErr("send (sendPacket)");
+	fatalSys("send (sendPacket)");
 	return -1;
     }
 #else
     struct sockaddr sa;
 
     if (!conn) {
-	rp_fatal("relay and server not supported on Linux 2.0 kernels");
+	fatal("relay and server not supported on Linux 2.0 kernels");
     }
     strcpy(sa.sa_data, conn->ifName);
     if (sendto(sock, pkt, size, 0, &sa, sizeof(sa)) < 0) {
-	sysErr("sendto (sendPacket)");
+	fatalSys("sendto (sendPacket)");
 	return -1;
     }
 #endif
@@ -247,7 +241,7 @@ int
 receivePacket(int sock, PPPoEPacket *pkt, int *size)
 {
     if ((*size = recv(sock, pkt, sizeof(PPPoEPacket), 0)) < 0) {
-	sysErr("recv (receivePacket)");
+	fatalSys("recv (receivePacket)");
 	return -1;
     }
     return 0;
@@ -713,7 +707,7 @@ int main(int argc, char *argv[])
 			optarg, strerror(errno));
 		exit(1);
 	    }
-	    fprintf(conn->debugFile, "pppoe-discovery %s\n", RP_VERSION);
+	    fprintf(conn->debugFile, "pppoe-discovery from pppd %s\n", VERSION);
 	    break;
 	case 'I':
 	    conn->ifName = xstrdup(optarg);
@@ -746,9 +740,13 @@ int main(int argc, char *argv[])
 	exit(0);
 }
 
-void rp_fatal(char const *str)
+void fatal(char * fmt, ...)
 {
-    fprintf(stderr, "%s\n", str);
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fputc('\n', stderr);
     exit(1);
 }
 
@@ -758,16 +756,11 @@ void fatalSys(char const *str)
     exit(1);
 }
 
-void sysErr(char const *str)
-{
-    rp_fatal(str);
-}
-
 char *xstrdup(const char *s)
 {
     register char *ret = strdup(s);
     if (!ret)
-	sysErr("strdup");
+	fatalSys("strdup");
     return ret;
 }
 
@@ -787,5 +780,5 @@ void usage(void)
 	    "   -U             -- Use Host-Unique to allow multiple PPPoE sessions.\n"
 	    "   -W hexvalue    -- Set the Host-Unique to the supplied hex string.\n"
 	    "   -h             -- Print usage information.\n");
-    fprintf(stderr, "\nVersion " RP_VERSION "\n");
+    fprintf(stderr, "\npppoe-discovery from pppd " VERSION "\n");
 }
