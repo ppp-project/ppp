@@ -28,14 +28,11 @@ LN_S	= ln -sf
 CFLAGS=$(COPTS) -I../../../include
 all: pppoe.so pppoe-discovery
 
-pppoe-discovery: pppoe-discovery.o debug.o discovery.o if.o common.o
-	$(CC) $(LDFLAGS) -o pppoe-discovery pppoe-discovery.o debug.o discovery.o if.o common.o
+pppoe-discovery: pppoe-discovery.o discovery.o if.o common.o
+	$(CC) $(LDFLAGS) -o pppoe-discovery pppoe-discovery.o discovery.o if.o common.o
 
 pppoe-discovery.o: pppoe-discovery.c
 	$(CC) $(CFLAGS) -I../../.. -c -o pppoe-discovery.o pppoe-discovery.c
-
-debug.o: debug.c
-	$(CC) $(CFLAGS) -I../../.. -c -o debug.o debug.c
 
 pppoe.so: plugin.o discovery.o if.o common.o
 	$(CC) $(LDFLAGS) -o pppoe.so -shared plugin.o discovery.o if.o common.o
