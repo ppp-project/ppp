@@ -45,22 +45,103 @@
 #include <net/if_arp.h>
 #endif
 
+int debug;
+int got_sigterm;
 int pppoe_verbose;
 
-char *xstrdup(const char *s);
-void usage(void);
-
-void die(int status)
-{
-	exit(status);
-}
-
-void error(char *fmt, ...)
+void
+fatal(char *fmt, ...)
 {
     va_list pvar;
     va_start(pvar, fmt);
     vfprintf(stderr, fmt, pvar);
     va_end(pvar);
+    fputc('\n', stderr);
+    exit(1);
+}
+
+void fatalSys(char const *str)
+{
+    perror(str);
+    exit(1);
+}
+
+void
+error(char *fmt, ...)
+{
+    va_list pvar;
+    va_start(pvar, fmt);
+    vfprintf(stderr, fmt, pvar);
+    fputc('\n', stderr);
+    va_end(pvar);
+}
+
+void
+warn(char *fmt, ...)
+{
+    va_list pvar;
+    va_start(pvar, fmt);
+    vfprintf(stderr, fmt, pvar);
+    fputc('\n', stderr);
+    va_end(pvar);
+}
+
+void
+info(char *fmt, ...)
+{
+    va_list pvar;
+    va_start(pvar, fmt);
+    vprintf(fmt, pvar);
+    putchar('\n');
+    va_end(pvar);
+}
+
+void
+init_pr_log(const char *prefix, int level)
+{
+}
+
+void
+end_pr_log(void)
+{
+}
+
+void
+pr_log(void *arg, char *fmt, ...)
+{
+}
+
+size_t
+strlcpy(char *dest, const char *src, size_t len)
+{
+    size_t ret = strlen(src);
+
+    if (len != 0) {
+	if (ret < len)
+	    strcpy(dest, src);
+	else {
+	    strncpy(dest, src, len - 1);
+	    dest[len-1] = 0;
+	}
+    }
+    return ret;
+}
+
+static char *
+xstrdup(const char *s)
+{
+    char *ret = strdup(s);
+    if (!ret) {
+        perror("strdup");
+        exit(1);
+    }
+    return ret;
+}
+
+int
+get_time(struct timeval *tv)
+{
+    return gettimeofday(tv, NULL);
 }
 
 /* Initialize frame types to RFC 2516 values.  Some broken peers apparently
@@ -640,6 +721,14 @@ discovery(PPPoEConnection *conn)
     } while (!conn->numPADOs);
 }
 
+static void
+term_handler(int signum)
+{
+    got_sigterm = 1;
+}
+
+static void usage(void);
+
 int main(int argc, char *argv[])
 {
     int opt;
@@ -742,31 +831,8 @@ int main(int argc, char *argv[])
 	exit(0);
 }
 
-void fatal(char * fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fputc('\n', stderr);
-    exit(1);
-}
-
-void fatalSys(char const *str)
-{
-    perror(str);
-    exit(1);
-}
-
-char *xstrdup(const char *s)
-{
-    register char *ret = strdup(s);
-    if (!ret)
-	fatalSys("strdup");
-    return ret;
-}
-
-void usage(void)
+static void
+usage(void)
 {
     fprintf(stderr, "Usage: pppoe-discovery [options]\n");
     fprintf(stderr, "Options:\n");

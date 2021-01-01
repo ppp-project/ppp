@@ -238,7 +238,6 @@ typedef struct PPPoEConnectionStruct {
     PPPoETag cookie;		/* We have to send this if we get it */
     PPPoETag relayId;		/* Ditto */
     int error;			/* Error packet received */
-    int debug;			/* Set to log packets sent and received */
     int discoveryTimeout;       /* Timeout for discovery packets */
     int discoveryAttempts;      /* Number of discovery attempts */
     int seenMaxPayload;
