@@ -220,9 +220,14 @@ PPPOEConnectDevice(void)
 	    error("Failed to create PPPoE discovery socket: %m");
 	    goto errout;
 	}
-	discovery(conn);
+	discovery1(conn);
+	if (conn->discoveryState != STATE_RECEIVED_PADO) {
+	    error("Unable to complete PPPoE Discovery phase 1");
+	    goto errout;
+	}
+	discovery2(conn);
 	if (conn->discoveryState != STATE_SESSION) {
-	    error("Unable to complete PPPoE Discovery");
+	    error("Unable to complete PPPoE Discovery phase 2");
 	    goto errout;
 	}
     }
