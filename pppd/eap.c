@@ -222,6 +222,9 @@ eap_init(int unit)
 #ifdef USE_EAPTLS
 	esp->es_client.ea_using_eaptls = 0;
 #endif /* USE_EAPTLS */
+#ifdef CHAPMS
+        esp->es_client.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+#endif
 }
 
 /*
@@ -1697,11 +1700,9 @@ eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, 
     PUTCHAR(chapid, outp);
     PUTCHAR(0, outp);
     /* len */
-    PUTCHAR(5 + user_len +MS_CHAP2_RESPONSE_LEN, outp);
-    /* len response */
-    PUTCHAR(MS_CHAP2_RESPONSE_LEN, outp)
-    BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN);
-    INCPTR(MS_CHAP2_RESPONSE_LEN, outp);
+    PUTCHAR(5 + user_len + MS_CHAP2_RESPONSE_LEN, outp);
+    BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN+1); // VLEN + VALUE
+    INCPTR(MS_CHAP2_RESPONSE_LEN+1, outp);
     BCOPY(user, outp, user_len);
 
     output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
@@ -1894,7 +1895,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				/* Init ssl session */
 				if(!eaptls_init_ssl_client(esp)) {
 					dbglog("cannot init ssl");
-					eap_send_nak(esp, id, EAPT_TLS);
+					eap_send_nak(esp, id, EAPT_MSCHAPV2);
 					esp->es_client.ea_using_eaptls = 0;
 					break;
 				}
@@ -1906,7 +1907,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			}
 
 			/* The server has sent a bad start packet. */
-			eap_send_nak(esp, id, EAPT_TLS);
+			eap_send_nak(esp, id, EAPT_MSCHAPV2);
 			break;
 
 		case eapTlsRecvAck:
@@ -2191,37 +2192,65 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 #endif /* USE_SRP */
     
 #ifdef CHAPMS
-    case EAPT_MSCHAPV2:
-	    if (len < 1) {
-		error("EAP: received short MSCHAPv2");
-		/* Bogus request; wait for something real. */
+        case EAPT_MSCHAPV2:
+	    if (len < 4) {
+		error("EAP: received invalid MSCHAPv2 packet, too short");
 		return;
 	    }
-	    unsigned char chopcode;
-	    GETCHAR(chopcode, inp);
-	    len--;
-	    dbglog("EAP: CHAP opcode %d", chopcode);
+	    unsigned char opcode;
+	    GETCHAR(opcode, inp);
+	    unsigned char chapid; /* Chapv2-ID */
+	    GETCHAR(chapid, inp);
+	    short mssize;
+	    GETSHORT(mssize, inp);
 
-	    if (chopcode==CHAP_CHALLENGE) {
+	    /* Validate the mssize field */
+	    if (len != mssize) { 
+		error("EAP: received invalid MSCHAPv2 packet, invalid length");
+		return;
+	    }
+	    len -= 4;
 
-		unsigned char chapid; /* Chapv2-ID */
-		GETCHAR(chapid, inp);
-		short mssize;
-		GETSHORT(mssize, inp);
+	    /* If MSCHAPv2 digest was not found, NAK the packet */
+	    if (!esp->es_client.digest) {
+		error("EAP MSCHAPv2 not supported");
+		eap_send_nak(esp, id, EAPT_SRP);
+		return;
+	    }
+
+	    switch (opcode) {
+	    case CHAP_CHALLENGE: {
+
+		/* make_response() expects: VLEN + VALUE */
+		u_char *challenge = inp;
+
 		unsigned char vsize;
 		GETCHAR(vsize, inp);
-		len-=4;
+                len -= 1;
 
-		dbglog("EAP: chapid %d mssize %d vsize %d inplen %d, challen %d", chapid, mssize, vsize, len, MS_CHAP2_PEER_CHAL_LEN);
+		/* Validate the VALUE field */
+                if (vsize != MS_CHAP2_PEER_CHAL_LEN) {
+                    error("EAP: received invalid MSCHAPv2 packet, invalid value-length: %d", vsize);
+                    return;
+                }
 
-		unsigned char *rchallenge = calloc(1, MS_CHAP2_PEER_CHAL_LEN);
-		BCOPY(inp, rchallenge, MS_CHAP2_PEER_CHAL_LEN);
-		INCPTR(MS_CHAP2_PEER_CHAL_LEN,inp);
+		/* Increment past the VALUE field */
+		INCPTR(MS_CHAP2_PEER_CHAL_LEN, inp);
+		len -= MS_CHAP2_PEER_CHAL_LEN;
 
-		/*
-		 * Get the secret for authenticating ourselves with
-		 * the specified host.
-		 */
+		/* Extract the hostname */
+		if (len >= sizeof (rhostname)) {
+		    dbglog("EAP: trimming really long peer name down");
+		    len = sizeof(rhostname) - 1;
+		}
+		BCOPY(inp, rhostname, len);
+		rhostname[len] = '\0';
+
+		/* In case the remote doesn't give us his name. */
+		if (explicit_remote || (remote_name[0] != '\0' && len == 0))
+		    strlcpy(rhostname, remote_name, sizeof(rhostname));
+
+		/* Get the secret for authenticating ourselves with the specified host. */
 		if (!get_secret(esp->es_unit, esp->es_client.ea_name,
 		    rhostname, secret, &secret_len, 0)) {
 		    dbglog("EAP: no CHAP secret for auth to %q", rhostname);
@@ -2229,52 +2258,37 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		    break;
 		}
 
-		char *user = calloc(1, esp->es_client.ea_namelen + 1);
-		memcpy(user, esp->es_client.ea_name, esp->es_client.ea_namelen);
-		*(user + esp->es_client.ea_namelen) = '\0';
-		dbglog("EAP: user %s, user_len %d", user, esp->es_client.ea_namelen);
-
-		/* mschapv2 response */
-		unsigned char response[49];
-		unsigned char authResponse[41];
-		ChapMS2(rchallenge, NULL, user, secret, secret_len, response,
-			authResponse, MS_CHAP2_AUTHENTICATEE);
+		/* Create the MSCHAPv2 response (and add to cache) */
+		unsigned char response[MS_CHAP2_RESPONSE_LEN+1]; // VLEN + VALUE
+		esp->es_client.digest->make_response(response, chapid, esp->es_client.ea_name,
+			challenge, secret, secret_len, NULL);
 
 		eap_chapv2_response(esp, id, chapid, response, esp->es_client.ea_name, esp->es_client.ea_namelen);
+		break;
+	    }
+	    case CHAP_SUCCESS: {
 
-		free(user);
-		free(rchallenge);
+		/* Check response for mutual authentication */
+		u_char status = CHAP_FAILURE;
+		if (esp->es_client.digest->check_success(chapid, inp, len) == 1) {
+		     info("Chap authentication succeeded! %.*v", len, inp);
+		     status = CHAP_SUCCESS;
+		}
+		eap_send_response(esp, id, EAPT_MSCHAPV2, &status, sizeof(status));
+		break;
+	    }
+	    case CHAP_FAILURE: {
 
-	    } else if (chopcode==CHAP_SUCCESS) {
+		/* Process the failure string, and log appropriate information */
+		esp->es_client.digest->handle_failure(inp, len);
 
-		unsigned char chapid; /* Chapv2-ID */
-		GETCHAR(chapid, inp);
-		short mssize;
-		GETSHORT(mssize, inp);
-		len-=3;
-		dbglog("EAP: chapid %d mssize %d inplen %d", chapid, mssize, len );
-		dbglog("Chap authentication succeeded: %.*v", len, inp);
-		u_char response[1];
-		response[0]=CHAP_SUCCESS;
-		eap_send_response(esp, id, EAPT_MSCHAPV2, response, 1);
-
-	    } else if (chopcode==CHAP_FAILURE) {
-
-		unsigned char chapid; /* Chapv2-ID */
-		GETCHAR(chapid, inp);
-		short mssize;
-		GETSHORT(mssize, inp);
-		len-=3;
-		dbglog("EAP: chapid %d mssize %d inplen %d", chapid, mssize, len );
-		dbglog("Chap authentication failed: %.*v", len, inp);
-		u_char response[1];
-		response[0]=CHAP_FAILURE;
-		eap_send_response(esp, id, EAPT_MSCHAPV2, response, 1);
+		u_char status = CHAP_FAILURE;
+		eap_send_response(esp, id, EAPT_MSCHAPV2, &status, sizeof(status));
 		goto client_failure; /* force termination */
+	    }
+	    default:
 
-	    } else {
-
-		dbglog("EAP: Unknown CHAP opcode %d", chopcode);
+                error("EAP: received invalid MSCHAPv2 packet, invalid or unsupported opcode: %d", opcode);
 		eap_send_nak(esp, id, EAPT_SRP);
 	    }
 
@@ -3217,7 +3231,7 @@ eap_printpkt(u_char *inp, int inlen,
 			len--;
 			printer(arg, " <Suggested-type %02X", rtype);
 			if (rtype >= 1 &&
-			    rtype < sizeof (eap_typenames) / sizeof (char *))
+			    rtype <= sizeof (eap_typenames) / sizeof (char *))
 				printer(arg, " (%s)", eap_typenames[rtype-1]);
 			printer(arg, ">");
 			break;
