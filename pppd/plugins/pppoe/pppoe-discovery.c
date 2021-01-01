@@ -49,6 +49,8 @@
 #include <net/if_arp.h>
 #endif
 
+int pppoe_verbose;
+
 char *xstrdup(const char *s);
 void usage(void);
 
@@ -379,7 +381,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
     switch(type) {
     case TAG_AC_NAME:
 	pc->seenACName = 1;
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Access-Concentrator: %.*s\n", (int) len, data);
 	}
 	if (conn->acName && len == strlen(conn->acName) &&
@@ -389,7 +391,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;
-	if (conn->printACNames && len > 0) {
+	if (pppoe_verbose >= 1 && len > 0) {
 	    printf("       Service-Name: %.*s\n", (int) len, data);
 	}
 	if (conn->serviceName && len == strlen(conn->serviceName) &&
@@ -398,7 +400,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	}
 	break;
     case TAG_AC_COOKIE:
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Got a cookie:");
 	    /* Print first 20 bytes of cookie */
 	    for (i=0; i<len && i < 20; i++) {
@@ -412,7 +414,7 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	memcpy(conn->cookie.payload, data, len);
 	break;
     case TAG_RELAY_SESSION_ID:
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Got a Relay-ID:");
 	    /* Print first 20 bytes of relay ID */
 	    for (i=0; i<len && i < 20; i++) {
@@ -426,17 +428,17 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	memcpy(conn->relayId.payload, data, len);
 	break;
     case TAG_SERVICE_NAME_ERROR:
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Got a Service-Name-Error tag: %.*s\n", (int) len, data);
 	}
 	break;
     case TAG_AC_SYSTEM_ERROR:
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Got a System-Error tag: %.*s\n", (int) len, data);
 	}
 	break;
     case TAG_GENERIC_ERROR:
-	if (conn->printACNames) {
+	if (pppoe_verbose >= 1) {
 	    printf("Got a Generic-Error tag: %.*s\n", (int) len, data);
 	}
 	break;
@@ -592,7 +594,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 	    conn->numPADOs++;
 	    if (pc.acNameOK && pc.serviceNameOK) {
 		memcpy(conn->peerEth, packet.ethHdr.h_source, ETH_ALEN);
-		if (conn->printACNames) {
+		if (pppoe_verbose >= 1) {
 		    printf("AC-Ethernet-Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
 			   (unsigned) conn->peerEth[0], 
 			   (unsigned) conn->peerEth[1],
@@ -653,7 +655,7 @@ int main(int argc, char *argv[])
 
     memset(conn, 0, sizeof(PPPoEConnection));
 
-    conn->printACNames = 1;
+    pppoe_verbose = 1;
     conn->discoveryTimeout = PADI_TIMEOUT;
     conn->discoveryAttempts = MAX_PADI_ATTEMPTS;
 
@@ -717,7 +719,7 @@ int main(int argc, char *argv[])
 	    conn->ifName = xstrdup(optarg);
 	    break;
 	case 'Q':
-	    conn->printACNames = 0;
+	    pppoe_verbose = 0;
 	    break;
 	case 'V':
 	case 'h':
