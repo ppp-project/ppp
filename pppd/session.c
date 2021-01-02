@@ -359,7 +359,7 @@ session_start(const int flags, const char *user, const char *passwd, const char 
 	    ttyName += 5;
 	logwtmp(ttyName, user, ifname); /* Add wtmp login entry */
 	logged_in = 1;
-
+// THIS IS A TEST PR
 #if defined(_PATH_LASTLOG) && !defined(USE_PAM)
 	/*
 	 * Enter the user in lastlog only if he has been authenticated using
