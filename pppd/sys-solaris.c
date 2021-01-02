@@ -2038,9 +2038,14 @@ cifaddr(int u, u_int32_t o, u_int32_t h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(int u, u_int32_t l, u_int32_t g)
+sifdefaultroute(int u, u_int32_t l, u_int32_t g, bool replace)
 {
     struct rtentry rt;
+
+    if (replace) {
+	error("Replacing the default route is not implemented on Solaris yet");
+	return 0;
+    }
 
 #if defined(__USLC__)
     g = l;			/* use the local address as gateway */
