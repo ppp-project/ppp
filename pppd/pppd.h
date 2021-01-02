@@ -710,7 +710,7 @@ int  sipxfaddr(int, unsigned long, unsigned char *);
 int  cipxfaddr(int);
 #endif
 int  get_if_hwaddr(u_char *addr, char *name);
-char *get_first_ethernet(void);
+int  get_first_ether_hwaddr(u_char *addr);
 int get_time(struct timeval *);
 				/* Get current time, monotonic if possible. */
 

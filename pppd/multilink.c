@@ -430,13 +430,11 @@ owns_unit(TDB_DATA key, int unit)
 static int
 get_default_epdisc(struct epdisc *ep)
 {
-	char *p;
 	struct hostent *hp;
 	u_int32_t addr;
 
 	/* First try for an ethernet MAC address */
-	p = get_first_ethernet();
-	if (p != 0 && get_if_hwaddr(ep->value, p) >= 0) {
+	if (get_first_ether_hwaddr(ep->value) >= 0) {
 		ep->class = EPD_MAC;
 		ep->length = 6;
 		return 1;

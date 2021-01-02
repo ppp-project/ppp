@@ -218,10 +218,7 @@ static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 
 #endif /* defined(INET6) && defined(SOL2) */
 
-#if defined(INET6) && defined(SOL2)
-static char	first_ether_name[LIFNAMSIZ];	/* Solaris 8 and above */
-#else
-static char	first_ether_name[IFNAMSIZ];	/* Before Solaris 8 */
+#if !defined(INET6) || !defined(SOL2)
 #define MAXIFS		256			/* Max # of interfaces */
 #endif /* defined(INET6) && defined(SOL2) */
 
@@ -294,13 +291,13 @@ sifppa(fd, ppa)
 
 #if defined(SOL2) && defined(INET6)
 /*
- * get_first_ethernet - returns the first Ethernet interface name found in 
- * the system, or NULL if none is found
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  *
  * NOTE: This is the lifreq version (Solaris 8 and above)
  */
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
     struct lifnum lifn;
     struct lifconf lifc;
@@ -312,7 +309,7 @@ get_first_ethernet(void)
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-	return 0;
+	return -1;
     }
 
     /*
@@ -323,7 +320,7 @@ get_first_ethernet(void)
     if (ioctl(fd, SIOCGLIFNUM, &lifn) < 0) {
 	close(fd);
 	error("could not determine number of interfaces: %m");
-	return 0;
+	return -1;
     }
 
     num_ifs = lifn.lifn_count;
@@ -332,7 +329,7 @@ get_first_ethernet(void)
     if (req == NULL) {
 	close(fd);
 	error("out of memory");
-	return 0;
+	return -1;
     }
 
     /*
@@ -346,7 +343,7 @@ get_first_ethernet(void)
 	close(fd);
 	free(req);
 	error("SIOCGLIFCONF: %m");
-	return 0;
+	return -1;
     }
 
     /*
@@ -363,15 +360,16 @@ get_first_ethernet(void)
 	memset(&lifr, 0, sizeof(lifr));
 	strncpy(lifr.lifr_name, plifreq->lifr_name, sizeof(lifr.lifr_name));
 	if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
-	    close(fd);
-	    free(req);
 	    error("SIOCGLIFFLAGS: %m");
-	    return 0;
+	    break;
 	}
 	fl = lifr.lifr_flags;
 
 	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
 		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	if (get_if_hwaddr(addr, lifr.lifr_name) < 0)
 	    continue;
 
 	found = 1;
@@ -380,21 +378,20 @@ get_first_ethernet(void)
     free(req);
     close(fd);
 
-    if (found) {
-	strncpy(first_ether_name, lifr.lifr_name, sizeof(first_ether_name));
-	return (char *)first_ether_name;
-    } else
-	return NULL;
+    if (found)
+	return 0;
+    else
+	return -1;
 }
 #else
 /*
- * get_first_ethernet - returns the first Ethernet interface name found in 
- * the system, or NULL if none is found
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  *
  * NOTE: This is the ifreq version (before Solaris 8). 
  */
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
     struct ifconf ifc;
     struct ifreq *pifreq;
@@ -405,7 +402,7 @@ get_first_ethernet(void)
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-	return 0;
+	return -1;
     }
 
     /*
@@ -420,7 +417,7 @@ get_first_ethernet(void)
     if (req == NULL) {
 	close(fd);
 	error("out of memory");
-	return 0;
+	return -1;
     }
 
     /*
@@ -432,7 +429,7 @@ get_first_ethernet(void)
 	close(fd);
 	free(req);
 	error("SIOCGIFCONF: %m");
-	return 0;
+	return -1;
     }
 
     /*
@@ -449,15 +446,16 @@ get_first_ethernet(void)
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, pifreq->ifr_name, sizeof(ifr.ifr_name));
 	if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
-	    close(fd);
-	    free(req);
 	    error("SIOCGIFFLAGS: %m");
-	    return 0;
+	    break;
 	}
 	fl = ifr.ifr_flags;
 
 	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
 		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	if (get_if_hwaddr(addr, ifr.ifr_name) < 0)
 	    continue;
 
 	found = 1;
@@ -466,11 +464,10 @@ get_first_ethernet(void)
     free(req);
     close(fd);
 
-    if (found) {
-	strncpy(first_ether_name, ifr.ifr_name, sizeof(first_ether_name));
-	return (char *)first_ether_name;
-    } else
-	return NULL;
+    if (found)
+	return 0;
+    else
+	return -1;
 }
 #endif /* defined(SOL2) && defined(INET6) */
 

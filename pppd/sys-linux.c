@@ -2159,12 +2159,11 @@ get_if_hwaddr(u_char *addr, char *name)
 }
 
 /*
- * get_first_ethernet - return the name of the first ethernet-style
- * interface on this system.
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  */
-static char first_ether_name[IF_NAMESIZE];
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
 	struct if_nameindex *if_ni, *i;
 	struct ifreq ifreq;
@@ -2172,33 +2171,31 @@ get_first_ethernet(void)
 
 	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock_fd < 0)
-		return NULL;
+		return -1;
 
 	if_ni = if_nameindex();
 	if (!if_ni) {
 		close(sock_fd);
-		return NULL;
+		return -1;
 	}
 
-	first_ether_name[0] = 0;
+	ret = -1;
 
 	for (i = if_ni; !(i->if_index == 0 && i->if_name == NULL); i++) {
 		memset(&ifreq.ifr_hwaddr, 0, sizeof(struct sockaddr));
 		strlcpy(ifreq.ifr_name, i->if_name, sizeof(ifreq.ifr_name));
 		ret = ioctl(sock_fd, SIOCGIFHWADDR, &ifreq);
 		if (ret >= 0 && ifreq.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
-			strlcpy(first_ether_name, i->if_name, sizeof(first_ether_name));
+			memcpy(addr, ifreq.ifr_hwaddr.sa_data, 6);
 			break;
 		}
+		ret = -1;
 	}
 
 	if_freenameindex(if_ni);
 	close(sock_fd);
 
-	if (!first_ether_name[0])
-		return NULL;
-
-	return first_ether_name;
+	return ret;
 }
 
 /********************************************************************
