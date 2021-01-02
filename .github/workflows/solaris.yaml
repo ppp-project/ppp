@@ -11,9 +11,7 @@ jobs:
       uses: vmactions/solaris-vm@v0.0.1
       with:
         run: |
-          pwd
-          ls -lah
-          whoami
-          env
-          cat /etc/release
-          echo "OK"
+          pkg update
+          pkg install gcc
+          ./configure
+          make
