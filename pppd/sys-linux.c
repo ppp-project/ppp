@@ -121,6 +121,12 @@
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
 
+#ifdef INET6
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <linux/if_addr.h>
+#endif
+
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
@@ -209,6 +215,8 @@ static int	if_is_up;	/* Interface has been marked up */
 static int	if6_is_up;	/* Interface has been marked up for IPv6, to help differentiate */
 static int	have_default_route;	/* Gateway for default route added */
 static int	have_default_route6;	/* Gateway for default IPv6 route added */
+static struct	rtentry old_def_rt;	/* Old default route */
+static int	default_rt_repl_rest;	/* replace and restore old default rt */
 static u_int32_t proxy_arp_addr;	/* Addr for proxy arp entry added */
 static char proxy_arp_dev[16];		/* Device for proxy arp entry */
 static u_int32_t our_old_addr;		/* for detecting address changes */
@@ -1573,6 +1581,9 @@ static int read_route_table(struct rtentry *rt)
 	p = NULL;
     }
 
+    SET_SA_FAMILY (rt->rt_dst,     AF_INET);
+    SET_SA_FAMILY (rt->rt_gateway, AF_INET);
+
     SIN_ADDR(rt->rt_dst) = strtoul(cols[route_dest_col], NULL, 16);
     SIN_ADDR(rt->rt_gateway) = strtoul(cols[route_gw_col], NULL, 16);
     SIN_ADDR(rt->rt_genmask) = strtoul(cols[route_mask_col], NULL, 16);
@@ -1645,20 +1656,53 @@ int have_route_to(u_int32_t addr)
 /********************************************************************
  *
  * sifdefaultroute - assign a default route through the address given.
+ *
+ * If the global default_rt_repl_rest flag is set, then this function
+ * already replaced the original system defaultroute with some other
+ * route and it should just replace the current defaultroute with
+ * another one, without saving the current route. Use: demand mode,
+ * when pppd sets first a defaultroute it it's temporary ppp0 addresses
+ * and then changes the temporary addresses to the addresses for the real
+ * ppp connection when it has come up.
  */
 
-int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
+int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway, bool replace)
 {
-    struct rtentry rt;
+    struct rtentry rt, tmp_rt;
+    struct rtentry *del_rt = NULL;
 
-    if (defaultroute_exists(&rt, dfl_route_metric) && strcmp(rt.rt_dev, ifname) != 0) {
-	if (rt.rt_flags & RTF_GATEWAY)
-	    error("not replacing existing default route via %I with metric %d",
-		  SIN_ADDR(rt.rt_gateway), dfl_route_metric);
-	else
-	    error("not replacing existing default route through %s with metric %d",
-		  rt.rt_dev, dfl_route_metric);
-	return 0;
+    if (default_rt_repl_rest) {
+	/* We have already replaced the original defaultroute, if we
+	 * are called again, we will delete the current default route
+	 * and set the new default route in this function.
+	 * - this is normally only the case the doing demand: */
+	if (defaultroute_exists(&tmp_rt, -1))
+	    del_rt = &tmp_rt;
+    } else if (defaultroute_exists(&old_def_rt, -1           ) &&
+			    strcmp( old_def_rt.rt_dev, ifname) != 0) {
+	/*
+	 * We did not yet replace an existing default route, let's
+	 * check if we should save and replace a default route:
+	 */
+	u_int32_t old_gateway = SIN_ADDR(old_def_rt.rt_gateway);
+
+	if (old_gateway != gateway) {
+	    if (!replace) {
+		error("not replacing default route to %s [%I]",
+			old_def_rt.rt_dev, old_gateway);
+		return 0;
+	    } else {
+		/* we need to copy rt_dev because we need it permanent too: */
+		char * tmp_dev = malloc(strlen(old_def_rt.rt_dev)+1);
+		strcpy(tmp_dev, old_def_rt.rt_dev);
+		old_def_rt.rt_dev = tmp_dev;
+
+		notice("replacing old default route to %s [%I]",
+			old_def_rt.rt_dev, old_gateway);
+		default_rt_repl_rest = 1;
+		del_rt = &old_def_rt;
+	    }
+	}
     }
 
     memset (&rt, 0, sizeof (rt));
@@ -1678,6 +1722,12 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 	    error("default route ioctl(SIOCADDRT): %m");
 	return 0;
     }
+    if (default_rt_repl_rest && del_rt)
+	if (ioctl(sock_fd, SIOCDELRT, del_rt) < 0) {
+	    if ( ! ok_error ( errno ))
+		error("del old default route ioctl(SIOCDELRT): %m(%d)", errno);
+	    return 0;
+	}
 
     have_default_route = 1;
     return 1;
@@ -1715,6 +1765,16 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 		error("default route ioctl(SIOCDELRT): %m");
 	    return 0;
 	}
+    }
+    if (default_rt_repl_rest) {
+	notice("restoring old default route to %s [%I]",
+			old_def_rt.rt_dev, SIN_ADDR(old_def_rt.rt_gateway));
+	if (ioctl(sock_fd, SIOCADDRT, &old_def_rt) < 0) {
+	    if ( ! ok_error ( errno ))
+		error("restore default route ioctl(SIOCADDRT): %m(%d)", errno);
+	    return 0;
+	}
+	default_rt_repl_rest = 0;
     }
 
     return 1;
@@ -2105,12 +2165,11 @@ get_if_hwaddr(u_char *addr, char *name)
 }
 
 /*
- * get_first_ethernet - return the name of the first ethernet-style
- * interface on this system.
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  */
-static char first_ether_name[IF_NAMESIZE];
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
 	struct if_nameindex *if_ni, *i;
 	struct ifreq ifreq;
@@ -2118,33 +2177,31 @@ get_first_ethernet(void)
 
 	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock_fd < 0)
-		return NULL;
+		return -1;
 
 	if_ni = if_nameindex();
 	if (!if_ni) {
 		close(sock_fd);
-		return NULL;
+		return -1;
 	}
 
-	first_ether_name[0] = 0;
+	ret = -1;
 
 	for (i = if_ni; !(i->if_index == 0 && i->if_name == NULL); i++) {
 		memset(&ifreq.ifr_hwaddr, 0, sizeof(struct sockaddr));
 		strlcpy(ifreq.ifr_name, i->if_name, sizeof(ifreq.ifr_name));
 		ret = ioctl(sock_fd, SIOCGIFHWADDR, &ifreq);
 		if (ret >= 0 && ifreq.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
-			strlcpy(first_ether_name, i->if_name, sizeof(first_ether_name));
+			memcpy(addr, ifreq.ifr_hwaddr.sa_data, 6);
 			break;
 		}
+		ret = -1;
 	}
 
 	if_freenameindex(if_ni);
 	close(sock_fd);
 
-	if (!first_ether_name[0])
-		return NULL;
-
-	return first_ether_name;
+	return ret;
 }
 
 /********************************************************************
@@ -2767,6 +2824,135 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 }
 
 #ifdef INET6
+static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_addr, struct in6_addr *remote_addr)
+{
+    struct msghdr msg;
+    struct sockaddr_nl sa;
+    struct iovec iov;
+    struct nlmsghdr *nlmsg;
+    struct ifaddrmsg *ifa;
+    struct rtattr *local_rta;
+    struct rtattr *remote_rta;
+    char buf[NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)))];
+    ssize_t nlmsg_len;
+    struct nlmsgerr *errmsg;
+    int one;
+    int fd;
+
+    fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (fd < 0)
+        return 0;
+
+    /* do not ask for error message content */
+    one = 1;
+    setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
+
+    memset(&sa, 0, sizeof(sa));
+    sa.nl_family = AF_NETLINK;
+    sa.nl_pid = 0;
+    sa.nl_groups = 0;
+
+    if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        close(fd);
+        return 0;
+    }
+
+    memset(buf, 0, sizeof(buf));
+
+    nlmsg = (struct nlmsghdr *)buf;
+    nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)));
+    nlmsg->nlmsg_type = RTM_NEWADDR;
+    nlmsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_REPLACE;
+    nlmsg->nlmsg_seq = 1;
+    nlmsg->nlmsg_pid = 0;
+
+    ifa = NLMSG_DATA(nlmsg);
+    ifa->ifa_family = AF_INET6;
+    ifa->ifa_prefixlen = 128;
+    ifa->ifa_flags = 0;
+    ifa->ifa_scope = RT_SCOPE_UNIVERSE;
+    ifa->ifa_index = iface;
+
+    local_rta = IFA_RTA(ifa);
+    local_rta->rta_len = RTA_LENGTH(sizeof(*local_addr));
+    local_rta->rta_type = IFA_LOCAL;
+    memcpy(RTA_DATA(local_rta), local_addr, sizeof(*local_addr));
+
+    remote_rta = (struct rtattr *)((char *)local_rta + local_rta->rta_len);
+    remote_rta->rta_len = RTA_LENGTH(sizeof(*remote_addr));
+    remote_rta->rta_type = IFA_ADDRESS;
+    memcpy(RTA_DATA(remote_rta), remote_addr, sizeof(*remote_addr));
+
+    memset(&sa, 0, sizeof(sa));
+    sa.nl_family = AF_NETLINK;
+    sa.nl_pid = 0;
+    sa.nl_groups = 0;
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = nlmsg;
+    iov.iov_len = nlmsg->nlmsg_len;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &sa;
+    msg.msg_namelen = sizeof(sa);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = NULL;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+
+    if (sendmsg(fd, &msg, 0) < 0) {
+        close(fd);
+        return 0;
+    }
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = buf;
+    iov.iov_len = sizeof(buf);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = NULL;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+
+    nlmsg_len = recvmsg(fd, &msg, 0);
+    close(fd);
+
+    if (nlmsg_len < 0)
+        return 0;
+
+    if ((size_t)nlmsg_len < sizeof(*nlmsg)) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    nlmsg = (struct nlmsghdr *)buf;
+
+    /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
+    if (nlmsg->nlmsg_type != NLMSG_ERROR) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    if ((size_t)nlmsg_len < NLMSG_LENGTH(sizeof(*errmsg))) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    errmsg = NLMSG_DATA(nlmsg);
+
+    /* error == 0 indicates success */
+    if (errmsg->error == 0)
+        return 1;
+
+    errno = -errmsg->error;
+    return 0;
+}
+
 /********************************************************************
  *
  * sif6addr - Config the interface with an IPv6 link-local address
@@ -2776,6 +2962,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct in6_ifreq ifr6;
     struct ifreq ifr;
     struct in6_rtmsg rt6;
+    struct in6_addr remote_addr;
 
     if (sock6_fd < 0) {
 	errno = -sock6_fd;
@@ -2800,17 +2987,28 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 	return 0;
     }
 
-    /* Route to remote host */
-    memset(&rt6, 0, sizeof(rt6));
-    IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
-    rt6.rtmsg_flags = RTF_UP;
-    rt6.rtmsg_dst_len = 128;
-    rt6.rtmsg_ifindex = ifr.ifr_ifindex;
-    rt6.rtmsg_metric = 1;
+    if (kernel_version >= KVERSION(2,1,16)) {
+        /* Set remote peer address (and route for it) */
+        IN6_LLADDR_FROM_EUI64(remote_addr, his_eui64);
+        if (!append_peer_ipv6_address(ifr.ifr_ifindex, &ifr6.ifr6_addr, &remote_addr)) {
+            error("sif6addr: setting remote peer address failed: %m");
+            return 0;
+        }
+    }
 
-    if (ioctl(sock6_fd, SIOCADDRT, &rt6) < 0) {
-	error("sif6addr: ioctl(SIOCADDRT): %m (line %d)", __LINE__);
-	return 0;
+    if (kernel_version < KVERSION(2,1,16)) {
+        /* Route to remote host */
+        memset(&rt6, 0, sizeof(rt6));
+        IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
+        rt6.rtmsg_flags = RTF_UP;
+        rt6.rtmsg_dst_len = 128;
+        rt6.rtmsg_ifindex = ifr.ifr_ifindex;
+        rt6.rtmsg_metric = 1;
+
+        if (ioctl(sock6_fd, SIOCADDRT, &rt6) < 0) {
+            error("sif6addr: ioctl(SIOCADDRT): %m (line %d)", __LINE__);
+            return 0;
+        }
     }
 
     return 1;
@@ -3146,54 +3344,6 @@ sys_check_options(void)
     }
     return 1;
 }
-
-#ifdef INET6
-/*
- * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
- *
- * convert the 48-bit MAC address of eth0 into EUI 64. caller also assumes
- * that the system has a properly configured Ethernet interface for this
- * function to return non-zero.
- */
-int
-ether_to_eui64(eui64_t *p_eui64)
-{
-    struct ifreq ifr;
-    int skfd;
-    const unsigned char *ptr;
-
-    skfd = socket(PF_INET6, SOCK_DGRAM, 0);
-    if(skfd == -1)
-    {
-        warn("could not open IPv6 socket");
-        return 0;
-    }
-
-    strcpy(ifr.ifr_name, "eth0");
-    if(ioctl(skfd, SIOCGIFHWADDR, &ifr) < 0)
-    {
-        close(skfd);
-        warn("could not obtain hardware address for eth0");
-        return 0;
-    }
-    close(skfd);
-
-    /*
-     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
-     */
-    ptr = (unsigned char *) ifr.ifr_hwaddr.sa_data;
-    p_eui64->e8[0] = ptr[0] | 0x02;
-    p_eui64->e8[1] = ptr[1];
-    p_eui64->e8[2] = ptr[2];
-    p_eui64->e8[3] = 0xFF;
-    p_eui64->e8[4] = 0xFE;
-    p_eui64->e8[5] = ptr[3];
-    p_eui64->e8[6] = ptr[4];
-    p_eui64->e8[7] = ptr[5];
-
-    return 1;
-}
-#endif
 
 /********************************************************************
  *

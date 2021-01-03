@@ -52,7 +52,7 @@ to connect to their ISP who is providing PPPoE based services.
 
 4.  Add the following line to /etc/ppp/options:
 
-    plugin rp-pppoe.so
+    plugin pppoe.so
 
     The effect of this line is simply to make "eth0", "eth1",
     ....,"ethx" all valid device names for pppd (just like ttyS0,

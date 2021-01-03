@@ -133,6 +133,11 @@ the gateway, when IPv6CP negotiation is successfully completed.
 This entry is removed when the PPP connection is broken.  This option
 is privileged if the \fInodefaultroute6\fR option has been specified.
 .TP
+.B replacedefaultroute
+This option is a flag to the defaultroute option. If defaultroute is
+set and this flag is also set, pppd replaces an existing default route
+with the new default route.  This option is privileged.
+.TP
 .B disconnect \fIscript
 Execute the command specified by \fIscript\fR, by passing it to a
 shell, after
@@ -297,6 +302,12 @@ to \fIn\fR seconds (default 3).
 .TP
 .B chap-timeout \fIn
 Set timeout for CHAP authentication by peer to \fIn\fR seconds (default 60).
+.TP
+.B chapms\-strip\-domain
+Some Windows 9x/ME clients might be transmitting the MS domain before the
+username in the provided client name. This option enables stripping the domain
+from the client name on the server side before matching it against the secret
+file.
 .TP
 .B child\-timeout \fIn
 When exiting, wait for up to \fIn\fR seconds for any child processes
@@ -792,8 +803,12 @@ disable both forms of hardware flow control.
 .TP
 .B nodefaultroute
 Disable the \fIdefaultroute\fR option.  The system administrator who
-wishes to prevent users from creating default routes with pppd
+wishes to prevent users from adding a default route with pppd
 can do so by placing this option in the /etc/ppp/options file.
+.TP
+.B noreplacedefaultroute
+Disable the \fIreplacedefaultroute\fR option. This allows to disable a
+\fIreplacedefaultroute\fR option set previously in the configuration.
 .TP
 .B nodefaultroute6
 Disable the \fIdefaultroute6\fR option.  The system administrator who
@@ -1204,7 +1219,7 @@ Use software flow control (i.e. XON/XOFF) to control the flow of data on
 the serial port.
 .SH PPPOE OPTIONS
 To establish PPP link over Ethernet (PPPoE) it is needed to load pppd's
-\fBplugin rp-pppoe.so\fR and then specify option \fBnic-\fIinterface\fR
+\fBplugin pppoe.so\fR and then specify option \fBnic-\fIinterface\fR
 instead of modem options \fIttyname\fR and \fIspeed\fR.
 Recognized pppd's PPPoE options are:
 .TP
@@ -1215,24 +1230,30 @@ by specifying ppp'd option \fBnic-eth0\fR. Prefix \fBnic-\fR for this
 option may be avoided if interface name is unambiguous and does not
 look like any other pppd's option.
 .TP
-.B rp_pppoe_service \fIname
-Connect to specified PPPoE service name.
+.B pppoe-service \fIname
+Connect to specified PPPoE service name. For backward compatibility also
+\fBrp_pppoe_service\fP option name is supported.
 .TP
-.B rp_pppoe_ac \fIname
-Connect to specified PPPoE access concentrator name.
+.B pppoe-ac \fIname
+Connect to specified PPPoE access concentrator name. For backward
+compatibility also \fBrp_pppoe_ac\fP option name is supported.
 .TP
-.B rp_pppoe_sess \fIsessid\fP:\fImacaddr
-Attach to existing PPPoE session.
+.B pppoe-sess \fIsessid\fP:\fImacaddr
+Attach to existing PPPoE session. For backward compatibility also
+\fBrp_pppoe_sess\fP option name is supported.
 .TP
-.B rp_pppoe_verbose \fIn
-Be verbose about discovered access concentrators.
+.B pppoe-verbose \fIn
+Be verbose about discovered access concentrators. For backward
+compatibility also \fBrp_pppoe_verbose\fP option name is supported.
 .TP
 .B pppoe-mac \fImacaddr
 Connect to specified MAC address.
 .TP
-.B host-uniq \fIstring
+.B pppoe-host-uniq \fIstring
 Set the PPPoE Host-Uniq tag to the supplied hex string.
 By default PPPoE Host-Uniq tag is set to the pppd's process PID.
+For backward compatibility this option may be specified without
+\fBpppoe-\fP prefix.
 .TP
 .B pppoe-padi-timeout \fIn
 Initial timeout for discovery packets in seconds (default 5).

@@ -1056,6 +1056,41 @@ endswitch:
 
 
 /*
+ * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
+ *
+ * walks the list of valid ethernet interfaces, starting with devnam
+ * (for PPPoE it is ethernet interface), and convert the first
+ * found 48-bit MAC address into EUI 64. caller also assumes that
+ * the system has a properly configured Ethernet interface for this
+ * function to return non-zero.
+ */
+static int
+ether_to_eui64(eui64_t *p_eui64)
+{
+    u_char addr[6];
+
+    if (get_if_hwaddr(addr, devnam) < 0 || get_first_ether_hwaddr(addr) < 0) {
+        error("ipv6cp: no persistent id can be found");
+        return 0;
+    }
+
+    /*
+     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
+     */
+    p_eui64->e8[0] = addr[0] | 0x02;
+    p_eui64->e8[1] = addr[1];
+    p_eui64->e8[2] = addr[2];
+    p_eui64->e8[3] = 0xFF;
+    p_eui64->e8[4] = 0xFE;
+    p_eui64->e8[5] = addr[3];
+    p_eui64->e8[6] = addr[4];
+    p_eui64->e8[7] = addr[5];
+
+    return 1;
+}
+
+
+/*
  * ipv6_check_options - check that any IP-related options are OK,
  * and assign appropriate defaults.
  */

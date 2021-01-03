@@ -672,7 +672,6 @@ int  sifaddr(int, u_int32_t, u_int32_t, u_int32_t);
 int  cifaddr(int, u_int32_t, u_int32_t);
 				/* Reset i/f IP addresses */
 #ifdef INET6
-int  ether_to_eui64(eui64_t *p_eui64);	/* convert eth0 hw address to EUI64 */
 int  sif6up(int);		/* Configure i/f up for IPv6 */
 int  sif6down(int);	/* Configure i/f down for IPv6 */
 int  sif6addr(int, eui64_t, eui64_t);
@@ -680,7 +679,7 @@ int  sif6addr(int, eui64_t, eui64_t);
 int  cif6addr(int, eui64_t, eui64_t);
 				/* Remove an IPv6 address from i/f */
 #endif
-int  sifdefaultroute(int, u_int32_t, u_int32_t);
+int  sifdefaultroute(int, u_int32_t, u_int32_t, bool replace_default_rt);
 				/* Create default route through i/f */
 int  cifdefaultroute(int, u_int32_t, u_int32_t);
 				/* Delete default route through i/f */
@@ -711,7 +710,7 @@ int  sipxfaddr(int, unsigned long, unsigned char *);
 int  cipxfaddr(int);
 #endif
 int  get_if_hwaddr(u_char *addr, char *name);
-char *get_first_ethernet(void);
+int  get_first_ether_hwaddr(u_char *addr);
 int get_time(struct timeval *);
 				/* Get current time, monotonic if possible. */
 

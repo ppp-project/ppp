@@ -218,10 +218,7 @@ static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 
 #endif /* defined(INET6) && defined(SOL2) */
 
-#if defined(INET6) && defined(SOL2)
-static char	first_ether_name[LIFNAMSIZ];	/* Solaris 8 and above */
-#else
-static char	first_ether_name[IFNAMSIZ];	/* Before Solaris 8 */
+#if !defined(INET6) || !defined(SOL2)
 #define MAXIFS		256			/* Max # of interfaces */
 #endif /* defined(INET6) && defined(SOL2) */
 
@@ -261,7 +258,7 @@ static int get_hw_addr(char *, u_int32_t, struct sockaddr *);
 static int get_hw_addr_dlpi(char *, struct sockaddr *);
 static int dlpi_attach(int, int);
 static int dlpi_info_req(int);
-static int dlpi_get_reply(int, union DL_primitives *, int, int);
+static int dlpi_get_reply(int, union DL_primitives *, int, size_t);
 static int strioctl(int, int, void *, int, int);
 
 #ifdef SOL2
@@ -294,13 +291,13 @@ sifppa(fd, ppa)
 
 #if defined(SOL2) && defined(INET6)
 /*
- * get_first_ethernet - returns the first Ethernet interface name found in 
- * the system, or NULL if none is found
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  *
  * NOTE: This is the lifreq version (Solaris 8 and above)
  */
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
     struct lifnum lifn;
     struct lifconf lifc;
@@ -312,7 +309,7 @@ get_first_ethernet(void)
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-	return 0;
+	return -1;
     }
 
     /*
@@ -323,7 +320,7 @@ get_first_ethernet(void)
     if (ioctl(fd, SIOCGLIFNUM, &lifn) < 0) {
 	close(fd);
 	error("could not determine number of interfaces: %m");
-	return 0;
+	return -1;
     }
 
     num_ifs = lifn.lifn_count;
@@ -332,7 +329,7 @@ get_first_ethernet(void)
     if (req == NULL) {
 	close(fd);
 	error("out of memory");
-	return 0;
+	return -1;
     }
 
     /*
@@ -346,7 +343,7 @@ get_first_ethernet(void)
 	close(fd);
 	free(req);
 	error("SIOCGLIFCONF: %m");
-	return 0;
+	return -1;
     }
 
     /*
@@ -363,15 +360,16 @@ get_first_ethernet(void)
 	memset(&lifr, 0, sizeof(lifr));
 	strncpy(lifr.lifr_name, plifreq->lifr_name, sizeof(lifr.lifr_name));
 	if (ioctl(fd, SIOCGLIFFLAGS, &lifr) < 0) {
-	    close(fd);
-	    free(req);
 	    error("SIOCGLIFFLAGS: %m");
-	    return 0;
+	    break;
 	}
 	fl = lifr.lifr_flags;
 
 	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
 		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	if (get_if_hwaddr(addr, lifr.lifr_name) < 0)
 	    continue;
 
 	found = 1;
@@ -380,21 +378,20 @@ get_first_ethernet(void)
     free(req);
     close(fd);
 
-    if (found) {
-	strncpy(first_ether_name, lifr.lifr_name, sizeof(first_ether_name));
-	return (char *)first_ether_name;
-    } else
-	return NULL;
+    if (found)
+	return 0;
+    else
+	return -1;
 }
 #else
 /*
- * get_first_ethernet - returns the first Ethernet interface name found in 
- * the system, or NULL if none is found
+ * get_first_ether_hwaddr - get the hardware address for the first
+ * ethernet-style interface on this system.
  *
  * NOTE: This is the ifreq version (before Solaris 8). 
  */
-char *
-get_first_ethernet(void)
+int
+get_first_ether_hwaddr(u_char *addr)
 {
     struct ifconf ifc;
     struct ifreq *pifreq;
@@ -405,7 +402,7 @@ get_first_ethernet(void)
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-	return 0;
+	return -1;
     }
 
     /*
@@ -420,7 +417,7 @@ get_first_ethernet(void)
     if (req == NULL) {
 	close(fd);
 	error("out of memory");
-	return 0;
+	return -1;
     }
 
     /*
@@ -432,7 +429,7 @@ get_first_ethernet(void)
 	close(fd);
 	free(req);
 	error("SIOCGIFCONF: %m");
-	return 0;
+	return -1;
     }
 
     /*
@@ -449,15 +446,16 @@ get_first_ethernet(void)
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, pifreq->ifr_name, sizeof(ifr.ifr_name));
 	if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
-	    close(fd);
-	    free(req);
 	    error("SIOCGIFFLAGS: %m");
-	    return 0;
+	    break;
 	}
 	fl = ifr.ifr_flags;
 
 	if ((fl & (IFF_UP|IFF_BROADCAST|IFF_POINTOPOINT|IFF_LOOPBACK|IFF_NOARP))
 		!= (IFF_UP | IFF_BROADCAST))
+	    continue;
+
+	if (get_if_hwaddr(addr, ifr.ifr_name) < 0)
 	    continue;
 
 	found = 1;
@@ -466,11 +464,10 @@ get_first_ethernet(void)
     free(req);
     close(fd);
 
-    if (found) {
-	strncpy(first_ether_name, ifr.ifr_name, sizeof(first_ether_name));
-	return (char *)first_ether_name;
-    } else
-	return NULL;
+    if (found)
+	return 0;
+    else
+	return -1;
 }
 #endif /* defined(SOL2) && defined(INET6) */
 
@@ -530,50 +527,6 @@ slifname_done:
     return ret;
 
 
-}
-
-
-/*
- * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
- *
- * walks the list of valid ethernet interfaces, and convert the first
- * found 48-bit MAC address into EUI 64. caller also assumes that
- * the system has a properly configured Ethernet interface for this
- * function to return non-zero.
- */
-int
-ether_to_eui64(eui64_t *p_eui64)
-{
-    struct sockaddr s_eth_addr;
-    struct ether_addr *eth_addr = (struct ether_addr *)&s_eth_addr.sa_data;
-    char *if_name;
-
-    if ((if_name = get_first_ethernet()) == NULL) {
-	error("no persistent id can be found");
-	return 0;
-    }
- 
-    /*
-     * Send DL_INFO_REQ to the driver to solicit its MAC address
-     */
-    if (!get_hw_addr_dlpi(if_name, &s_eth_addr)) {
-	error("could not obtain hardware address for %s", if_name);
-	return 0;
-    }
-
-    /*
-     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
-     */
-    p_eui64->e8[0] = (eth_addr->ether_addr_octet[0] & 0xFF) | 0x02;
-    p_eui64->e8[1] = (eth_addr->ether_addr_octet[1] & 0xFF);
-    p_eui64->e8[2] = (eth_addr->ether_addr_octet[2] & 0xFF);
-    p_eui64->e8[3] = 0xFF;
-    p_eui64->e8[4] = 0xFE;
-    p_eui64->e8[5] = (eth_addr->ether_addr_octet[3] & 0xFF);
-    p_eui64->e8[6] = (eth_addr->ether_addr_octet[4] & 0xFF);
-    p_eui64->e8[7] = (eth_addr->ether_addr_octet[5] & 0xFF);
-
-    return 1;
 }
 #endif /* defined(SOL2) && defined(INET6) */
 
@@ -1546,7 +1499,7 @@ netif_get_mtu(int unit)
     error("ioctl(SIOCGIFMTU): %m (line %d)", __LINE__);
     return 0;
     }
-    return ifr.ifr_mtu;
+    return ifr.ifr_metric;
 }
 
 /*
@@ -2082,9 +2035,14 @@ cifaddr(int u, u_int32_t o, u_int32_t h)
  * sifdefaultroute - assign a default route through the address given.
  */
 int
-sifdefaultroute(int u, u_int32_t l, u_int32_t g)
+sifdefaultroute(int u, u_int32_t l, u_int32_t g, bool replace)
 {
     struct rtentry rt;
+
+    if (replace) {
+	error("Replacing the default route is not implemented on Solaris yet");
+	return 0;
+    }
 
 #if defined(__USLC__)
     g = l;			/* use the local address as gateway */
@@ -2357,7 +2315,7 @@ dlpi_info_req(int fd)
 }
 
 static int
-dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, maxlen)
+dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, size_t maxlen)
 {
     struct strbuf buf;
     int flags, n;
