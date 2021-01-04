@@ -876,8 +876,8 @@ network_phase(int unit)
     /*
      * If the peer had to authenticate, run the auth-up script now.
      */
+    notify(auth_up_notifier, 0);
     if (go->neg_chap || go->neg_upap || go->neg_eap) {
-	notify(auth_up_notifier, 0);
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
