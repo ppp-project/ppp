@@ -167,6 +167,18 @@ chap_register_digest(struct chap_digest_type *dp)
 }
 
 /*
+ * Lookup a digest type by code
+ */
+struct chap_digest_type *
+chap_find_digest(int digest_code) {
+    struct chap_digest_type *dp = NULL;
+	for (dp = chap_digests; dp != NULL; dp = dp->next)
+		if (dp->code == digest_code)
+			break;
+    return dp;
+}
+
+/*
  * chap_lowerup - we can start doing stuff now.
  */
 static void
