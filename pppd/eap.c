@@ -1951,7 +1951,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 
 		default:
-			eap_send_nak(esp, id, EAPT_TLS);
+			eap_send_nak(esp, id, EAPT_MSCHAPV2);
 			esp->es_client.ea_using_eaptls = 0;
 			break;
 		}
