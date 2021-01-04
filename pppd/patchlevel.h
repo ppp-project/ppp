@@ -1,2 +1,2 @@
-#define VERSION		"2.4.8"
-#define DATE		"31 December 2019"
+#define VERSION		"2.4.9"
+#define DATE		"5 January 2021"
