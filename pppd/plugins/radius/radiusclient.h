@@ -31,7 +31,7 @@ typedef int          INT4;
 #define AUTH_VECTOR_LEN		16
 #define AUTH_PASS_LEN		(3 * 16) /* multiple of 16 */
 #define AUTH_ID_LEN		64
-#define AUTH_STRING_LEN		128	 /* maximum of 253 */
+#define AUTH_STRING_LEN		253	 /* maximum of 253 */
 
 #define	BUFFER_LEN		8192
 

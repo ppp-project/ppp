@@ -175,12 +175,12 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 	{
 		attribute = *ptr++;
 		attrlen = *ptr++;
-		attrlen -= 2;
-		if (attrlen < 0)
+		if (attrlen < 2 || attrlen > length)
 		{
 			error("rc_avpair_gen: received attribute with invalid length");
 			break;
 		}
+		attrlen -= 2;
 
 		/* Handle vendor-specific specially */
 		if (attribute == PW_VENDOR_SPECIFIC) {
