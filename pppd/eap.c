@@ -64,10 +64,6 @@
 #include "md5.h"
 #include "eap.h"
 
-#ifdef CHAPMS
-#include "chap_ms.h"
-#endif
-
 #ifdef USE_SRP
 #include <t_pwd.h>
 #include <t_server.h>
@@ -82,8 +78,8 @@
 #ifdef USE_EAPTLS
 #include "eap-tls.h"
 #endif /* USE_EAPTLS */
+
 #ifdef CHAPMS
-#include "magic.h"
 #include "chap_ms.h"
 #include "chap-new.h"
 #endif /* CHAPMS */
@@ -223,7 +219,8 @@ eap_init(int unit)
 	esp->es_client.ea_using_eaptls = 0;
 #endif /* USE_EAPTLS */
 #ifdef CHAPMS
-        esp->es_client.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+	esp->es_client.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+	esp->es_server.digest = chap_find_digest(CHAP_MICROSOFT_V2);
 #endif
 }
 
@@ -719,92 +716,6 @@ eap_figure_next_state(eap_state *esp, int status)
 }
 
 #if CHAPMS
-static int
-eap_chapms2_verify_response(int id, char *name,
-			    unsigned char *secret, int secret_len,
-			    unsigned char *challenge, unsigned char *response,
-			    char *message, int message_space)
-{
-	unsigned char md[MS_CHAP2_RESPONSE_LEN];
-	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
-	int challenge_len, response_len;
-
-	challenge_len = *challenge++;	/* skip length, is 16 */
-	response_len = *response++;
-	if (response_len != MS_CHAP2_RESPONSE_LEN)
-		goto bad;	/* not even the right length */
-
-	/* Generate the expected response and our mutual auth. */
-	ChapMS2(challenge, &response[MS_CHAP2_PEER_CHALLENGE], name,
-		(char *)secret, secret_len, md,
-		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR);
-
-	/* compare MDs and send the appropriate status */
-	/*
-	 * Per RFC 2759, success message must be formatted as
-	 *     "S=<auth_string> M=<message>"
-	 * where
-	 *     <auth_string> is the Authenticator Response (mutual auth)
-	 *     <message> is a text message
-	 *
-	 * However, some versions of Windows (win98 tested) do not know
-	 * about the M=<message> part (required per RFC 2759) and flag
-	 * it as an error (reported incorrectly as an encryption error
-	 * to the user).  Since the RFC requires it, and it can be
-	 * useful information, we supply it if the peer is a conforming
-	 * system.  Luckily (?), win98 sets the Flags field to 0x04
-	 * (contrary to RFC requirements) so we can use that to
-	 * distinguish between conforming and non-conforming systems.
-	 *
-	 * Special thanks to Alex Swiridov <say@real.kharkov.ua> for
-	 * help debugging this.
-	 */
-	if (memcmp(&md[MS_CHAP2_NTRESP], &response[MS_CHAP2_NTRESP],
-		   MS_CHAP2_NTRESP_LEN) == 0) {
-		if (response[MS_CHAP2_FLAGS])
-			slprintf(message, message_space, "S=%s", saresponse);
-		else
-			slprintf(message, message_space, "S=%s M=%s",
-				 saresponse, "Access granted");
-		return 1;
-	}
-
- bad:
-	/*
-	 * Failure message must be formatted as
-	 *     "E=e R=r C=c V=v M=m"
-	 * where
-	 *     e = error code (we use 691, ERROR_AUTHENTICATION_FAILURE)
-	 *     r = retry (we use 1, ok to retry)
-	 *     c = challenge to use for next response, we reuse previous
-	 *     v = Change Password version supported, we use 0
-	 *     m = text message
-	 *
-	 * The M=m part is only for MS-CHAPv2.  Neither win2k nor
-	 * win98 (others untested) display the message to the user anyway.
-	 * They also both ignore the E=e code.
-	 *
-	 * Note that it's safe to reuse the same challenge as we don't
-	 * actually accept another response based on the error message
-	 * (and no clients try to resend a response anyway).
-	 *
-	 * Basically, this whole bit is useless code, even the small
-	 * implementation here is only because of overspecification.
-	 */
-	slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0 M=%s",
-		 challenge_len, challenge, "Access denied");
-	return 0;
-}
-
-static struct chap_digest_type eap_chapms2_digest = {
-	CHAP_MICROSOFT_V2,	/* code */
-	NULL, /* chapms2_generate_challenge, */
-	eap_chapms2_verify_response,
-	NULL, /* chapms2_make_response, */
-	NULL, /* chapms2_check_success, */
-	NULL, /* chapms_handle_failure, */
-};
-
 /*
  * eap_chap_verify_response - check whether the peer's response matches
  * what we think it should be.  Returns 1 if it does (authentication
@@ -961,10 +872,9 @@ eap_send_request(eap_state *esp)
 
 #ifdef CHAPMS
 	case eapMSCHAPv2Chall:
-		challen = 0x10;
+		esp->es_server.digest->generate_challenge(esp->es_challenge);
+		challen = esp->es_challenge[0];
 		esp->es_challen = challen;
-		esp->es_challenge[0] = challen;
-		random_bytes(&esp->es_challenge[1], challen);
 
 		PUTCHAR(EAPT_MSCHAPV2, outp);
 		PUTCHAR(CHAP_CHALLENGE, outp);
@@ -2500,6 +2410,12 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #ifdef CHAPMS
 		case EAPT_MSCHAPV2:
 			info("EAP: peer proposes MSCHAPv2");
+			/* If MSCHAPv2 digest was not found, NAK the packet */
+			if (!esp->es_server.digest) {
+				error("EAP MSCHAPv2 not supported");
+				eap_send_nak(esp, id, EAPT_SRP);
+				break;
+			}
 			esp->es_server.ea_state = eapMSCHAPv2Chall;
 			break;
 #endif /* CHAPMS */
@@ -2638,7 +2554,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			if ((*chap_verifier)(rhostname,
 						esp->es_server.ea_name,
 						id,
-						&eap_chapms2_digest,
+						esp->es_server.digest,
 						esp->es_challenge,
 						inp - 1,
 						response_message,
