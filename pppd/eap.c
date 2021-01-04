@@ -2229,7 +2229,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
                 len -= 1;
 
 		/* Validate the VALUE field */
-                if (vsize != MS_CHAP2_PEER_CHAL_LEN) {
+                if (vsize != MS_CHAP2_PEER_CHAL_LEN || len < MS_CHAP2_PEER_CHAL_LEN) {
                     error("EAP: received invalid MSCHAPv2 packet, invalid value-length: %d", vsize);
                     return;
                 }
@@ -2239,12 +2239,15 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		len -= MS_CHAP2_PEER_CHAL_LEN;
 
 		/* Extract the hostname */
-		if (len >= sizeof (rhostname)) {
-		    dbglog("EAP: trimming really long peer name down");
-		    len = sizeof(rhostname) - 1;
+		rhostname[0] = '\0';
+		if (len > 0) {
+		    if (len >= sizeof (rhostname)) {
+			dbglog("EAP: trimming really long peer name down");
+			len = sizeof(rhostname) - 1;
+		    }
+		    BCOPY(inp, rhostname, len);
+		    rhostname[len] = '\0';
 		}
-		BCOPY(inp, rhostname, len);
-		rhostname[len] = '\0';
 
 		/* In case the remote doesn't give us his name. */
 		if (explicit_remote || (remote_name[0] != '\0' && len == 0))
