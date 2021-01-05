@@ -400,7 +400,7 @@ main(int argc, char *argv[])
 	die(0);
 
     /* Make sure fds 0, 1, 2 are open to somewhere. */
-    fd_devnull = open(_PATH_DEVNULL, O_RDWR);
+    fd_devnull = open(_PATH_DEVNULL, O_RDWR | O_CLOEXEC);
     if (fd_devnull < 0)
 	fatal("Couldn't open %s: %m", _PATH_DEVNULL);
     while (fd_devnull <= 2) {
@@ -1642,7 +1642,7 @@ device_script(char *program, int in, int out, int dont_wait)
     if (log_to_fd >= 0)
 	errfd = log_to_fd;
     else
-	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
 
     ++conn_running;
     pid = safe_fork(in, out, errfd);

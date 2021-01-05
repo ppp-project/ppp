@@ -1602,7 +1602,7 @@ open_pn_file(mode_t modebits)
 
 	if ((path = name_of_pn_file()) == NULL)
 		return (-1);
-	fd = open(path, modebits, S_IRUSR | S_IWUSR);
+	fd = open(path, modebits, S_IRUSR | S_IWUSR | O_CLOEXEC);
 	err = errno;
 	free(path);
 	errno = err;
