@@ -19,7 +19,8 @@ COPTS=@CFLAGS@
 DESTDIR = $(INSTROOT)@DESTDIR@
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(PPPDVERSION)
+LIB = lib
+LIBDIR = $(DESTDIR)/$(LIB)/pppd/$(PPPDVERSION)
 
 PPPDVERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 

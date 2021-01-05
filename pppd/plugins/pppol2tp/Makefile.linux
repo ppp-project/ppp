@@ -4,7 +4,8 @@ CC=$(CROSS_COMPILE)@CC@
 COPTS=@CFLAGS@
 
 DESTDIR = $(INSTROOT)/@DESTDIR@
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+LIB = lib
+LIBDIR = $(DESTDIR)/$(LIB)/pppd/$(VERSION)
 
 VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
 
