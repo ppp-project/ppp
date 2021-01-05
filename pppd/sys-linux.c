@@ -1455,7 +1455,7 @@ static char *path_to_procfs(const char *tail)
 	/* Default the mount location of /proc */
 	strlcpy (proc_path, "/proc", sizeof(proc_path));
 	proc_path_len = 5;
-	fp = fopen(MOUNTED, "r");
+	fp = fopen(MOUNTED, "re");
 	if (fp != NULL) {
 	    while ((mntent = getmntent(fp)) != NULL) {
 		if (strcmp(mntent->mnt_type, MNTTYPE_IGNORE) == 0)
@@ -1515,7 +1515,7 @@ static int open_route_table (void)
     close_route_table();
 
     path = path_to_procfs("/net/route");
-    route_fd = fopen (path, "r");
+    route_fd = fopen (path, "re");
     if (route_fd == NULL) {
 	error("can't open routing table %s: %m", path);
 	return 0;
