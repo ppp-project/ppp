@@ -42,11 +42,11 @@ pppoe.so: plugin.o discovery.o if.o common.o
 
 install: all
 	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -c -m 4550 pppoe.so $(LIBDIR)
+	$(INSTALL) -c -m 755 pppoe.so $(LIBDIR)
 	# Symlink for backward compatibility
 	$(LN_S) pppoe.so $(LIBDIR)/rp-pppoe.so
 	$(INSTALL) -d -m 755 $(BINDIR)
-	$(INSTALL) -c -m 555 pppoe-discovery $(BINDIR)
+	$(INSTALL) -c -m 755 pppoe-discovery $(BINDIR)
 
 clean:
 	rm -f *.o *.so pppoe-discovery
