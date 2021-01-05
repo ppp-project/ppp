@@ -123,7 +123,7 @@ mkmkf() {
 	echo "  $2 <= $1"
 	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" \
 	    -e "s,@CROSS_COMPILE@,$CROSS_COMPILE,g" -e "s,@CC@,$CC,g" \
-	    -e "s,@CFLAGS@,$CFLAGS,g" $1 >$2
+	    -e "s|@CFLAGS@|$CFLAGS|g" $1 >$2
     fi
 }
 
