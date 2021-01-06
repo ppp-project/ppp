@@ -82,6 +82,8 @@
 #ifdef CHAPMS
 #include "chap_ms.h"
 #include "chap-new.h"
+
+extern int chapms_strip_domain;
 #endif /* CHAPMS */
 
 eap_state eap_states[NUM_PPP];		/* EAP state; one for each unit */
@@ -2544,6 +2546,14 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			if (explicit_remote ||
 					(remote_name[0] != '\0' && vallen == len))
 				strlcpy(rhostname, remote_name, sizeof (rhostname));
+
+			/* strip the MS domain name */
+			if (chapms_strip_domain && strrchr(rhostname, '\\')) {
+				char tmp[MAXNAMELEN+1];
+
+				strcpy(tmp, strrchr(rhostname, '\\') + 1);
+				strcpy(rhostname, tmp);
+			}
 
 			if (chap_verify_hook)
 				chap_verifier = chap_verify_hook;
