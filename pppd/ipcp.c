@@ -1759,6 +1759,12 @@ ipcp_up(fsm *f)
     /*
      * We must have a non-zero IP address for both ends of the link.
      */
+
+    if (wo->hisaddr && !wo->accept_remote && (!(ho->neg_addr || ho->old_addrs) || ho->hisaddr != wo->hisaddr)) {
+	error("Peer refused to agree to his IP address");
+	ipcp_close(f->unit, "Refused his IP address");
+	return;
+    }
     if (!ho->neg_addr && !ho->old_addrs)
 	ho->hisaddr = wo->hisaddr;
 
