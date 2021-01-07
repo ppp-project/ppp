@@ -678,8 +678,9 @@ ipcp_resetci(fsm *f)
     ipcp_options *go = &ipcp_gotoptions[f->unit];
     ipcp_options *ao = &ipcp_allowoptions[f->unit];
 
-    wo->req_addr = (wo->neg_addr || wo->old_addrs) &&
-	(ao->neg_addr || ao->old_addrs);
+    wo->req_addr = ((wo->neg_addr || wo->old_addrs) &&
+	(ao->neg_addr || ao->old_addrs)) ||
+	(wo->hisaddr && !wo->accept_remote);
     if (wo->ouraddr == 0)
 	wo->accept_local = 1;
     if (wo->hisaddr == 0)
@@ -1647,7 +1648,8 @@ endswitch:
      * option safely.
      */
     if (rc != CONFREJ && !ho->neg_addr && !ho->old_addrs &&
-	wo->req_addr && !reject_if_disagree && !noremoteip) {
+	wo->req_addr && !reject_if_disagree &&
+	((wo->hisaddr && !wo->accept_remote) || !noremoteip)) {
 	if (rc == CONFACK) {
 	    rc = CONFNAK;
 	    ucp = inp;			/* reset pointer */
