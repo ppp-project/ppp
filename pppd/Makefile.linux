@@ -80,7 +80,8 @@ PLUGIN=y
 #USE_SRP=y
 
 # Use libutil; test if logwtmp is declared in <utmp.h> to detect
-ifeq ($(shell echo '\#include <utmp.h>' | $(CC) -E - 2>/dev/null | grep -q logwtmp && echo yes),yes)
+UTMPHEADER = "\#include <utmp.h>"
+ifeq ($(shell echo $(UTMPHEADER) | $(CC) -E - 2>/dev/null | grep -q logwtmp && echo yes),yes)
 USE_LIBUTIL=y
 endif
 
@@ -143,7 +144,8 @@ CFLAGS   += -DHAS_SHADOW
 #LIBS     += -lshadow $(LIBS)
 endif
 
-ifeq ($(shell echo '\#include <crypt.h>' | $(CC) -E - >/dev/null 2>&1 && echo yes),yes)
+CRYPTHEADER = "\#include <utmp.h>"
+ifeq ($(shell echo $(CRYPTHEADER) | $(CC) -E - >/dev/null 2>&1 && echo yes),yes)
 CFLAGS  += -DHAVE_CRYPT_H=1
 LIBS	+= -lcrypt
 endif
