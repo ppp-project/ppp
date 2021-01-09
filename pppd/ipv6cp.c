@@ -1176,7 +1176,6 @@ ipv6_demand_conf(int u)
 	if (sif6defaultroute(u, wo->ourid, wo->hisid))
 	    default_route_set[u] = 1;
 
-    notice("ipv6_demand_conf");
     notice("local  LL address %s", llv6_ntoa(wo->ourid));
     notice("remote LL address %s", llv6_ntoa(wo->hisid));
 
