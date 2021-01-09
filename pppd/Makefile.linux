@@ -144,7 +144,7 @@ CFLAGS   += -DHAS_SHADOW
 #LIBS     += -lshadow $(LIBS)
 endif
 
-CRYPTHEADER = "\#include <utmp.h>"
+CRYPTHEADER = "\#include <crypt.h>"
 ifeq ($(shell echo $(CRYPTHEADER) | $(CC) -E - >/dev/null 2>&1 && echo yes),yes)
 CFLAGS  += -DHAVE_CRYPT_H=1
 LIBS	+= -lcrypt
