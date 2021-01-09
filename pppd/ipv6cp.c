@@ -1243,7 +1243,7 @@ ipv6cp_up(fsm *f)
 	    if (! eui64_equals(ho->hisid, wo->hisid))
 		warn("Remote LL address changed to %s", 
 		     llv6_ntoa(ho->hisid));
-	    ipv6cp_clear_addrs(f->unit, go->ourid, ho->hisid);
+	    ipv6cp_clear_addrs(f->unit, wo->ourid, wo->hisid);
 
 	    /* Set the interface to the new addresses */
 	    if (!sif6addr(f->unit, go->ourid, ho->hisid)) {
