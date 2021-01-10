@@ -2885,7 +2885,7 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     ifa = NLMSG_DATA(nlmsg);
     ifa->ifa_family = AF_INET6;
     ifa->ifa_prefixlen = 128;
-    ifa->ifa_flags = IFA_F_PERMANENT;
+    ifa->ifa_flags = IFA_F_NODAD | IFA_F_PERMANENT;
     ifa->ifa_scope = RT_SCOPE_LINK;
     ifa->ifa_index = iface;
 
