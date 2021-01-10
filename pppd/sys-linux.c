@@ -172,9 +172,9 @@ struct in6_ifreq {
 #endif
 
 #define IN6_LLADDR_FROM_EUI64(sin6, eui64) do {			\
-	memset(&sin6.s6_addr, 0, sizeof(struct in6_addr));	\
-	sin6.s6_addr16[0] = htons(0xfe80);			\
-	eui64_copy(eui64, sin6.s6_addr32[2]);			\
+	memset(&(sin6).s6_addr, 0, sizeof(struct in6_addr));	\
+	(sin6).s6_addr16[0] = htons(0xfe80);			\
+	eui64_copy(eui64, (sin6).s6_addr32[2]);			\
 	} while (0)
 
 static const eui64_t nulleui64;
@@ -2832,7 +2832,11 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 }
 
 #ifdef INET6
-static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_addr, struct in6_addr *remote_addr)
+/********************************************************************
+ *
+ * sif6addr_rtnetlink - Config the interface with both IPv6 link-local addresses via rtnetlink
+ */
+static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his_eui64)
 {
     struct msghdr msg;
     struct sockaddr_nl sa;
@@ -2841,15 +2845,17 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     struct ifaddrmsg *ifa;
     struct rtattr *local_rta;
     struct rtattr *remote_rta;
-    char buf[NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)))];
+    char buf[NLMSG_LENGTH(sizeof(*ifa) + 2*RTA_LENGTH(sizeof(struct in6_addr)))];
     ssize_t nlmsg_len;
     struct nlmsgerr *errmsg;
     int one;
     int fd;
 
     fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-    if (fd < 0)
+    if (fd < 0) {
+        error("sif6addr_rtnetlink: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
         return 0;
+    }
 
     /*
      * Tell kernel to not send to us payload of acknowledgment error message.
@@ -2869,6 +2875,7 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     sa.nl_groups = 0;
 
     if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        error("sif6addr_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
         close(fd);
         return 0;
     }
@@ -2876,9 +2883,9 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     memset(buf, 0, sizeof(buf));
 
     nlmsg = (struct nlmsghdr *)buf;
-    nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)));
+    nlmsg->nlmsg_len = sizeof(buf);
     nlmsg->nlmsg_type = RTM_NEWADDR;
-    nlmsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_REPLACE;
+    nlmsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
     nlmsg->nlmsg_seq = 1;
     nlmsg->nlmsg_pid = 0;
 
@@ -2890,14 +2897,14 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     ifa->ifa_index = iface;
 
     local_rta = IFA_RTA(ifa);
-    local_rta->rta_len = RTA_LENGTH(sizeof(*local_addr));
+    local_rta->rta_len = RTA_LENGTH(sizeof(struct in6_addr));
     local_rta->rta_type = IFA_LOCAL;
-    memcpy(RTA_DATA(local_rta), local_addr, sizeof(*local_addr));
+    IN6_LLADDR_FROM_EUI64(*(struct in6_addr *)RTA_DATA(local_rta), our_eui64);
 
     remote_rta = (struct rtattr *)((char *)local_rta + local_rta->rta_len);
-    remote_rta->rta_len = RTA_LENGTH(sizeof(*remote_addr));
+    remote_rta->rta_len = RTA_LENGTH(sizeof(struct in6_addr));
     remote_rta->rta_type = IFA_ADDRESS;
-    memcpy(RTA_DATA(remote_rta), remote_addr, sizeof(*remote_addr));
+    IN6_LLADDR_FROM_EUI64(*(struct in6_addr *)RTA_DATA(remote_rta), his_eui64);
 
     memset(&sa, 0, sizeof(sa));
     sa.nl_family = AF_NETLINK;
@@ -2918,6 +2925,7 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     msg.msg_flags = 0;
 
     if (sendmsg(fd, &msg, 0) < 0) {
+        error("sif6addr_rtnetlink: sendmsg(RTM_NEWADDR/NLM_F_CREATE): %m (line %d)", __LINE__);
         close(fd);
         return 0;
     }
@@ -2936,13 +2944,17 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     msg.msg_flags = 0;
 
     nlmsg_len = recvmsg(fd, &msg, 0);
+
+    if (nlmsg_len < 0) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
+        close(fd);
+        return 0;
+    }
+
     close(fd);
 
-    if (nlmsg_len < 0)
-        return 0;
-
     if ((size_t)nlmsg_len < sizeof(*nlmsg)) {
-        errno = EINVAL;
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Packet too short (line %d)", __LINE__);
         return 0;
     }
 
@@ -2950,23 +2962,24 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
 
     /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
     if (nlmsg->nlmsg_type != NLMSG_ERROR) {
-        errno = EINVAL;
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment packet (line %d)", __LINE__);
         return 0;
     }
 
     if ((size_t)nlmsg_len < NLMSG_LENGTH(sizeof(*errmsg))) {
-        errno = EINVAL;
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Packet too short (line %d)", __LINE__);
         return 0;
     }
 
     errmsg = NLMSG_DATA(nlmsg);
 
-    /* error == 0 indicates success */
-    if (errmsg->error == 0)
-        return 1;
+    /* error == 0 indicates success, negative value is errno code */
+    if (errmsg->error != 0) {
+        error("sif6addr_rtnetlink: %s (line %d)", strerror(-errmsg->error), __LINE__);
+        return 0;
+    }
 
-    errno = -errmsg->error;
-    return 0;
+    return 1;
 }
 
 /********************************************************************
@@ -2978,7 +2991,6 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct in6_ifreq ifr6;
     struct ifreq ifr;
     struct in6_rtmsg rt6;
-    struct in6_addr remote_addr;
 
     if (sock6_fd < 0) {
 	errno = -sock6_fd;
@@ -2992,27 +3004,26 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 	return 0;
     }
 
-    /* Local interface */
-    memset(&ifr6, 0, sizeof(ifr6));
-    IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
-    ifr6.ifr6_ifindex = ifr.ifr_ifindex;
-    ifr6.ifr6_prefixlen = 128;
-
-    if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
-	error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
-	return 0;
-    }
-
     if (kernel_version >= KVERSION(2,1,16)) {
-        /* Set remote peer address (and route for it) */
-        IN6_LLADDR_FROM_EUI64(remote_addr, his_eui64);
-        if (!append_peer_ipv6_address(ifr.ifr_ifindex, &ifr6.ifr6_addr, &remote_addr)) {
-            error("sif6addr: setting remote peer address failed: %m");
+        /* Set both local address and remote peer address (with route for it) via rtnetlink */
+        return sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
+    } else {
+        /* Local interface */
+        memset(&ifr6, 0, sizeof(ifr6));
+        IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
+        ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+        ifr6.ifr6_prefixlen = 128;
+
+        if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
+            error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
             return 0;
         }
-    }
 
-    if (kernel_version < KVERSION(2,1,16)) {
+        /*
+         * Linux kernel does not provide AF_INET6 ioctl SIOCSIFDSTADDR for
+         * setting remote peer host address, so set only route to remote host.
+         */
+
         /* Route to remote host */
         memset(&rt6, 0, sizeof(rt6));
         IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
