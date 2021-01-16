@@ -2838,16 +2838,22 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
  */
 static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his_eui64)
 {
-    struct msghdr msg;
-    struct sockaddr_nl sa;
+    struct {
+        struct nlmsghdr nlh;
+        struct ifaddrmsg ifa;
+        struct {
+            struct rtattr rta;
+            struct in6_addr addr;
+        } addrs[2];
+    } nlreq;
+    struct {
+        struct nlmsghdr nlh;
+        struct nlmsgerr nlerr;
+    } nlresp;
+    struct sockaddr_nl nladdr;
     struct iovec iov;
-    struct nlmsghdr *nlmsg;
-    struct ifaddrmsg *ifa;
-    struct rtattr *local_rta;
-    struct rtattr *remote_rta;
-    char buf[NLMSG_LENGTH(sizeof(*ifa) + 2*RTA_LENGTH(sizeof(struct in6_addr)))];
-    ssize_t nlmsg_len;
-    struct nlmsgerr *errmsg;
+    struct msghdr msg;
+    ssize_t nlresplen;
     int one;
     int fd;
 
@@ -2869,60 +2875,43 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
     one = 1;
     setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
 
-    memset(&sa, 0, sizeof(sa));
-    sa.nl_family = AF_NETLINK;
-    sa.nl_pid = 0;
-    sa.nl_groups = 0;
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
 
-    if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
         error("sif6addr_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
         close(fd);
         return 0;
     }
 
-    memset(buf, 0, sizeof(buf));
+    memset(&nlreq, 0, sizeof(nlreq));
+    nlreq.nlh.nlmsg_len = sizeof(nlreq);
+    nlreq.nlh.nlmsg_type = RTM_NEWADDR;
+    nlreq.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
+    nlreq.ifa.ifa_family = AF_INET6;
+    nlreq.ifa.ifa_prefixlen = 128;
+    nlreq.ifa.ifa_flags = IFA_F_NODAD | IFA_F_PERMANENT;
+    nlreq.ifa.ifa_scope = RT_SCOPE_LINK;
+    nlreq.ifa.ifa_index = iface;
+    nlreq.addrs[0].rta.rta_len = sizeof(nlreq.addrs[0]);
+    nlreq.addrs[0].rta.rta_type = IFA_LOCAL;
+    IN6_LLADDR_FROM_EUI64(nlreq.addrs[0].addr, our_eui64);
+    nlreq.addrs[1].rta.rta_len = sizeof(nlreq.addrs[1]);
+    nlreq.addrs[1].rta.rta_type = IFA_ADDRESS;
+    IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, his_eui64);
 
-    nlmsg = (struct nlmsghdr *)buf;
-    nlmsg->nlmsg_len = sizeof(buf);
-    nlmsg->nlmsg_type = RTM_NEWADDR;
-    nlmsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
-    nlmsg->nlmsg_seq = 1;
-    nlmsg->nlmsg_pid = 0;
-
-    ifa = NLMSG_DATA(nlmsg);
-    ifa->ifa_family = AF_INET6;
-    ifa->ifa_prefixlen = 128;
-    ifa->ifa_flags = IFA_F_NODAD | IFA_F_PERMANENT;
-    ifa->ifa_scope = RT_SCOPE_LINK;
-    ifa->ifa_index = iface;
-
-    local_rta = IFA_RTA(ifa);
-    local_rta->rta_len = RTA_LENGTH(sizeof(struct in6_addr));
-    local_rta->rta_type = IFA_LOCAL;
-    IN6_LLADDR_FROM_EUI64(*(struct in6_addr *)RTA_DATA(local_rta), our_eui64);
-
-    remote_rta = (struct rtattr *)((char *)local_rta + local_rta->rta_len);
-    remote_rta->rta_len = RTA_LENGTH(sizeof(struct in6_addr));
-    remote_rta->rta_type = IFA_ADDRESS;
-    IN6_LLADDR_FROM_EUI64(*(struct in6_addr *)RTA_DATA(remote_rta), his_eui64);
-
-    memset(&sa, 0, sizeof(sa));
-    sa.nl_family = AF_NETLINK;
-    sa.nl_pid = 0;
-    sa.nl_groups = 0;
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
 
     memset(&iov, 0, sizeof(iov));
-    iov.iov_base = nlmsg;
-    iov.iov_len = nlmsg->nlmsg_len;
+    iov.iov_base = &nlreq;
+    iov.iov_len = sizeof(nlreq);
 
     memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &sa;
-    msg.msg_namelen = sizeof(sa);
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
 
     if (sendmsg(fd, &msg, 0) < 0) {
         error("sif6addr_rtnetlink: sendmsg(RTM_NEWADDR/NLM_F_CREATE): %m (line %d)", __LINE__);
@@ -2931,21 +2920,18 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
     }
 
     memset(&iov, 0, sizeof(iov));
-    iov.iov_base = buf;
-    iov.iov_len = sizeof(buf);
+    iov.iov_base = &nlresp;
+    iov.iov_len = sizeof(nlresp);
 
     memset(&msg, 0, sizeof(msg));
-    msg.msg_name = NULL;
-    msg.msg_namelen = 0;
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
 
-    nlmsg_len = recvmsg(fd, &msg, 0);
+    nlresplen = recvmsg(fd, &msg, 0);
 
-    if (nlmsg_len < 0) {
+    if (nlresplen < 0) {
         error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
         close(fd);
         return 0;
@@ -2953,29 +2939,25 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
 
     close(fd);
 
-    if ((size_t)nlmsg_len < sizeof(*nlmsg)) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Packet too short (line %d)", __LINE__);
+    if (nladdr.nl_family != AF_NETLINK) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not a netlink packet (line %d)", __LINE__);
         return 0;
     }
 
-    nlmsg = (struct nlmsghdr *)buf;
+    if ((size_t)nlresplen != sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Acknowledgment netlink packet too short (line %d)", __LINE__);
+        return 0;
+    }
 
     /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
-    if (nlmsg->nlmsg_type != NLMSG_ERROR) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment packet (line %d)", __LINE__);
+    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment netlink packet (line %d)", __LINE__);
         return 0;
     }
-
-    if ((size_t)nlmsg_len < NLMSG_LENGTH(sizeof(*errmsg))) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Packet too short (line %d)", __LINE__);
-        return 0;
-    }
-
-    errmsg = NLMSG_DATA(nlmsg);
 
     /* error == 0 indicates success, negative value is errno code */
-    if (errmsg->error != 0) {
-        error("sif6addr_rtnetlink: %s (line %d)", strerror(-errmsg->error), __LINE__);
+    if (nlresp.nlerr.error != 0) {
+        error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
         return 0;
     }
 
