@@ -1106,7 +1106,7 @@ ipv6_check_options(void)
      * Persistent link-local id is only used when user has not explicitly
      * configure/hard-code the id
      */
-    if ((wo->use_persistent) && (!wo->opt_local) && (!wo->opt_remote)) {
+    if ((wo->use_persistent) && (!wo->opt_local)) {
 
 	/* 
 	 * On systems where there are no Ethernet interfaces used, there
