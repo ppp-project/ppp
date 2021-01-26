@@ -1823,9 +1823,10 @@ ipcp_up(fsm *f)
 		wo->ouraddr = go->ouraddr;
 	    } else
 		script_unsetenv("OLDIPLOCAL");
-	    if (ho->hisaddr != wo->hisaddr && wo->hisaddr != 0) {
+	    if (ho->hisaddr != wo->hisaddr) {
 		warn("Remote IP address changed to %I", ho->hisaddr);
-		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
+		if (wo->hisaddr != 0)
+		    script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
 		wo->hisaddr = ho->hisaddr;
 	    } else
 		script_unsetenv("OLDIPREMOTE");
