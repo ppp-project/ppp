@@ -493,6 +493,18 @@ to send configure-Rejects instead to \fIn\fR (default 10).
 Set the maximum number of IPCP terminate-request transmissions to
 \fIn\fR (default 3).
 .TP
+.B ipcp\-no\-address
+Disable negotiation of addresses via IP-Address IPCP option.
+.TP
+.B ipcp\-no\-addresses
+Disable negotiation of addresses via old-style deprecated IP-Addresses
+IPCP option. pppd by default try to use new-style IP-Address IPCP option.
+If new-style is not supported by peer or is disabled by \fBipcp\-no\-address\fR
+option then pppd fallbacks to old-style deprecated IP-Addresses IPCP option.
+When both new-style and old-style are disabled by both \fBipcp\-no\-address\fR
+and \fBipcp\-no\-addresses\fR options then negotiation of IP addresses
+is completely disabled.
+.TP
 .B ipcp\-restart \fIn
 Set the IPCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
@@ -923,6 +935,9 @@ not set the destination address of the ppp interface.  In this
 situation, the ppp interface can be used for routing by creating
 device routes, but the peer itself cannot be addressed directly for IP
 traffic.
+.TP
+.B nosendip
+Don't send our local IP address to peer during IP address negotiation.
 .TP
 .B notty
 Normally, pppd requires a terminal device.  With this option, pppd
