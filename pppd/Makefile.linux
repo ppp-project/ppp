@@ -157,7 +157,6 @@ endif
 
 ifdef NEEDDES
 ifndef USE_CRYPT
-CFLAGS   += -I$(shell $(CC) --print-sysroot)/usr/include/openssl
 NEEDCRYPTOLIB = y
 else
 CFLAGS   += -DUSE_CRYPT=1
