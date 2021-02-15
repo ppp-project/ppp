@@ -125,6 +125,14 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_addr.h>
+/* glibc versions prior to 2.24 do not define SOL_NETLINK */
+#ifndef SOL_NETLINK
+#define SOL_NETLINK 270
+#endif
+/* linux kernel versions prior to 4.3 do not define/support NETLINK_CAP_ACK */
+#ifndef NETLINK_CAP_ACK
+#define NETLINK_CAP_ACK 10
+#endif
 #endif
 
 #include "pppd.h"
@@ -2843,7 +2851,15 @@ static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_a
     if (fd < 0)
         return 0;
 
-    /* do not ask for error message content */
+    /*
+     * Tell kernel to not send to us payload of acknowledgment error message.
+     * NETLINK_CAP_ACK option is supported since Linux kernel version 4.3 and
+     * older kernel versions always send full payload in acknowledgment netlink
+     * message. We ignore payload of this message as we need only error code,
+     * to check if our set remote peer address request succeeded or failed.
+     * So ignore return value from the following setsockopt() call as setting
+     * option NETLINK_CAP_ACK means for us just a kernel hint / optimization.
+     */
     one = 1;
     setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
 
