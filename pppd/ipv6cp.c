@@ -1129,9 +1129,8 @@ ipv6_check_options(void)
 	    if (!eui64_iszero(wo->ourid))
 		wo->opt_local = 1;
 	}
-	
-	while (eui64_iszero(wo->ourid))
-	    eui64_magic(wo->ourid);
+
+	eui64_magic_nz(wo->ourid);
     }
 
     if (!wo->opt_remote) {
