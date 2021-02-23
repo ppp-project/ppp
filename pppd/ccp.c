@@ -1427,8 +1427,8 @@ ccp_up(fsm *f)
 	notice("%s transmit compression enabled", method_name(ho, NULL));
 #ifdef MPPE
     if (go->mppe) {
-	BZERO(mppe_recv_key, MPPE_MAX_KEY_LEN);
-	BZERO(mppe_send_key, MPPE_MAX_KEY_LEN);
+	BZERO(mppe_recv_key, sizeof(mppe_recv_key));
+	BZERO(mppe_send_key, sizeof(mppe_send_key));
 	continue_networks(f->unit);		/* Bring up IP et al */
     }
 #endif
