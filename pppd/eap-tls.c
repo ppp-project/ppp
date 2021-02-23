@@ -49,6 +49,7 @@
 #include "fsm.h"
 #include "lcp.h"
 #include "pathnames.h"
+#include "chap_ms.h"
 
 typedef struct pw_cb_data
 {

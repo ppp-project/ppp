@@ -85,11 +85,6 @@ int get_eaptls_secret(int unit, char *client, char *server,
               char *capath, char *pkfile, int am_server);
 
 #ifdef MPPE
-#include "mppe.h"   /* MPPE_MAX_KEY_LEN */
-extern u_char mppe_send_key[MPPE_MAX_KEY_LEN];
-extern u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
-extern int mppe_keys_set;
-
 void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client);
 #endif
 

@@ -93,6 +93,7 @@
 #include "sha1.h"
 #include "pppcrypt.h"
 #include "magic.h"
+#include "mppe.h"
 
 
 
@@ -120,8 +121,8 @@ bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 #endif
 
 #ifdef MPPE
-u_char mppe_send_key[MPPE_MAX_KEY_LEN];
-u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
+u_char mppe_send_key[MAX_MPPE_MATERIAL_LEN];
+u_char mppe_recv_key[MAX_MPPE_MATERIAL_LEN];
 int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
 
 #ifdef DEBUGMPPEKEY
@@ -736,8 +737,8 @@ mppe_set_keys(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
     SHA1_Final(Digest, &sha1Context);
 
     /* Same key in both directions. */
-    BCOPY(Digest, mppe_send_key, sizeof(mppe_send_key));
-    BCOPY(Digest, mppe_recv_key, sizeof(mppe_recv_key));
+    BCOPY(Digest, mppe_send_key, MIN(sizeof(Digest), sizeof(mppe_send_key)));
+    BCOPY(Digest, mppe_recv_key, MIN(sizeof(Digest), sizeof(mppe_recv_key)));
 
     mppe_keys_set = 1;
 }
@@ -836,7 +837,7 @@ mppe_set_keys2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
     SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
     SHA1_Final(Digest, &sha1Context);
 
-    BCOPY(Digest, mppe_send_key, sizeof(mppe_send_key));
+    BCOPY(Digest, mppe_send_key, MIN(sizeof(Digest), sizeof(mppe_send_key)));
 
     /*
      * generate recv key
@@ -852,7 +853,7 @@ mppe_set_keys2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
     SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
     SHA1_Final(Digest, &sha1Context);
 
-    BCOPY(Digest, mppe_recv_key, sizeof(mppe_recv_key));
+    BCOPY(Digest, mppe_recv_key, MIN(sizeof(Digest), sizeof(mppe_recv_key)));
 
     mppe_keys_set = 1;
 }

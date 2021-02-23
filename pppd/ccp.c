@@ -36,6 +36,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ccp.h"
+#include "mppe.h"
 #include <net/ppp-comp.h>
 
 #ifdef MPPE
