@@ -127,12 +127,6 @@ is no other default route with the same metric.  With the default
 value of -1, the route is only added if there is no default route at
 all.
 .TP
-.B defaultroute6
-Add a default IPv6 route to the system routing tables, using the peer as
-the gateway, when IPv6CP negotiation is successfully completed.
-This entry is removed when the PPP connection is broken.  This option
-is privileged if the \fInodefaultroute6\fR option has been specified.
-.TP
 .B replacedefaultroute
 This option is a flag to the defaultroute option. If defaultroute is
 set and this flag is also set, pppd replaces an existing default route
@@ -353,6 +347,17 @@ escaped for both the transmit and the receive direction.
 Disable MRU [Maximum Receive Unit] negotiation.  With this option,
 pppd will use the default MRU value of 1500 bytes for both the
 transmit and receive direction.
+.TP
+.B defaultroute6
+Add a default IPv6 route to the system routing tables, using the peer as
+the gateway, when IPv6CP negotiation is successfully completed.
+This entry is removed when the PPP connection is broken.  This option
+is privileged if the \fInodefaultroute6\fR option has been specified.
+\fBWARNING: Do not enable this option by default\fR.  IPv6 routing tables
+are managed by kernel (as apposite to IPv4) and IPv6 default route is
+configured by kernel automatically too based on ICMPv6 Router Advertisement
+packets.  This option may conflict with kernel IPv6 route setup and should
+be used only for broken IPv6 networks.
 .TP
 .B deflate \fInr,nt
 Request that the peer compress packets that it sends, using the
