@@ -179,6 +179,7 @@ int no_ifaceid_neg = 0;
 /* local vars */
 static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
+static bool ipv6cp_noremote;
 
 /* Hook for a plugin to know when IPv6 protocol has come up */
 void (*ipv6_up_hook)(void) = NULL;
@@ -262,6 +263,11 @@ static option_t ipv6cp_option_list[] = {
 
     { "ipv6cp-use-persistent", o_bool, &ipv6cp_wantoptions[0].use_persistent,
       "Use uniquely-available persistent value for link local address", 1 },
+
+#ifdef __linux__
+    { "ipv6cp-noremote", o_bool, &ipv6cp_noremote,
+      "Allow peer to have no interface identifier", 1 },
+#endif
 
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
       "Set timeout for IPv6CP", OPT_PRIO },
@@ -1170,7 +1176,7 @@ ipv6_demand_conf(int u)
 {
     ipv6cp_options *wo = &ipv6cp_wantoptions[u];
 
-    if (eui64_iszero(wo->hisid)) {
+    if (eui64_iszero(wo->hisid) && !ipv6cp_noremote) {
 	/* make up an arbitrary identifier for the peer */
 	eui64_magic_nz(wo->hisid);
     }
@@ -1194,7 +1200,8 @@ ipv6_demand_conf(int u)
 	    default_route_set[u] = 1;
 
     notice("local  LL address %s", llv6_ntoa(wo->ourid));
-    notice("remote LL address %s", llv6_ntoa(wo->hisid));
+    if (!eui64_iszero(wo->hisid))
+       notice("remote LL address %s", llv6_ntoa(wo->hisid));
 
     return 1;
 }
@@ -1227,7 +1234,7 @@ ipv6cp_up(fsm *f)
 	ho->hisid = wo->hisid;
 
     if(!no_ifaceid_neg) {
-	if (eui64_iszero(ho->hisid)) {
+	if (eui64_iszero(ho->hisid) && !ipv6cp_noremote) {
 	    error("Could not determine remote LL address");
 	    ipv6cp_close(f->unit, "Could not determine remote LL address");
 	    return;
@@ -1244,7 +1251,8 @@ ipv6cp_up(fsm *f)
 	}
     }
     script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
-    script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
+    if (!eui64_iszero(ho->hisid))
+        script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
 
 #ifdef IPV6CP_COMP
     /* set tcp compression */
@@ -1306,7 +1314,8 @@ ipv6cp_up(fsm *f)
 		default_route_set[f->unit] = 1;
 
 	notice("local  LL address %s", llv6_ntoa(go->ourid));
-	notice("remote LL address %s", llv6_ntoa(ho->hisid));
+	if (!eui64_iszero(ho->hisid))
+	    notice("remote LL address %s", llv6_ntoa(ho->hisid));
     }
 
     np_up(f->unit, PPP_IPV6);

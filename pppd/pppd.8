@@ -536,6 +536,19 @@ With this option, pppd will accept the peer's idea of its (remote)
 IPv6 interface identifier, even if the remote IPv6 interface
 identifier was specified in an option.
 .TP
+.B ipv6cp\-noremote
+Allow pppd to operate without having an IPv6 link local address for the peer.
+This option is only available under Linux.  Normally, pppd will request the
+peer's IPv6 interface identifier (used for composing IPv6 link local address),
+and if the peer does not supply it, pppd will generate one for the peer.
+With this option, if the peer does not supply its IPv6 interface identifier,
+pppd will not ask the peer for it, and will not set the destination IPv6
+link local address of the ppp interface.  In this situation, the ppp interface
+can be used for routing by creating device routes, but the peer itself cannot
+be addressed directly for IPv6 traffic until the peer starts announcing ICMPv6
+Router Advertisement or ICMPv6 Neighbor Advertisement packets.  Note that IPv6
+router must announce ICMPv6 Router Advertisement packets.
+.TP
 .B ipv6cp\-max\-configure \fIn
 Set the maximum number of IPv6CP configure-request transmissions to
 \fIn\fR (default 10).

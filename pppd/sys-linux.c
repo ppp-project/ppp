@@ -2941,7 +2941,19 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
     IN6_LLADDR_FROM_EUI64(nlreq.addrs[0].addr, our_eui64);
     nlreq.addrs[1].rta.rta_len = sizeof(nlreq.addrs[1]);
     nlreq.addrs[1].rta.rta_type = IFA_ADDRESS;
-    IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, his_eui64);
+
+    /*
+     * To set only local address, older kernel expects that local address is
+     * in IFA_ADDRESS field (not IFA_LOCAL). New kernels with support for peer
+     * address, ignore IFA_ADDRESS if is same as IFA_LOCAL. So for backward
+     * compatibility when setting only local address, set it via both IFA_LOCAL
+     * and IFA_ADDRESS fields. Same logic is implemented in 'ip address' command
+     * from iproute2 project.
+     */
+    if (!eui64_iszero(his_eui64))
+        IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, his_eui64);
+    else
+        IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, our_eui64);
 
     memset(&nladdr, 0, sizeof(nladdr));
     nladdr.nl_family = AF_NETLINK;
@@ -3059,7 +3071,9 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
             error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
             return 0;
         }
+    }
 
+    if (!ret && !eui64_iszero(his_eui64)) {
         /*
          * Linux kernel does not provide AF_INET6 ioctl SIOCSIFDSTADDR for
          * setting remote peer host address, so set only route to remote host.
