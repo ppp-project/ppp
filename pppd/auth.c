@@ -258,6 +258,8 @@ char *privkey_file = NULL;	/* client private key file (pem format) */
 char *crl_dir      = NULL;	/* directory containing CRL files */
 char *crl_file     = NULL;	/* Certificate Revocation List (CRL) file (pem format) */
 char *max_tls_version = NULL;	/* Maximum TLS protocol version (default=1.2) */
+char *tls_verify_method = NULL;
+bool tls_verify_key_usage = 0;
 bool need_peer_eap = 0;			/* Require peer to authenticate us */
 #endif
 
@@ -445,6 +447,10 @@ option_t auth_options[] = {
     { "crl", o_string, &crl_file,     "Use specific CRL file" },
     { "max-tls-version", o_string, &max_tls_version,
       "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)" },
+    { "tls-verify-key-usage", o_bool, &tls_verify_key_usage,
+      "Verify certificate type and extended key usage" },
+    { "tls-verify-method", o_string, &tls_verify_method,
+      "Verify peer by method (none|subject|name|suffix)" },
     { "need-peer-eap", o_bool, &need_peer_eap,
       "Require the peer to authenticate us", 1 },
 #endif /* USE_EAPTLS */

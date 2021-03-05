@@ -126,7 +126,7 @@ EAP-TLS authentication support for PPP
 
       ca <ca-file>
         Use the CA public certificate found in <ca-file> in PEM format
-      ca-path <directory>
+      capath <directory>
         Use the directory <directory> as the CA public certificate directory
       cert <cert-file>
         Use the client public certificate found in <cert-file> in PEM format
@@ -147,6 +147,9 @@ EAP-TLS authentication support for PPP
       max-tls-version <1.0|1.1|1.2 (default)|1.3>
         Specify the maximum TLS protocol version to negotiate with peers. Defaults
         to TLSv1.2 as the TLSv1.3 code is experimental.
+      verify-tls-peer <none|subject|name|suffix>
+        Compare the remotename against the subject, certificate name, or
+        match by suffix. Default is 'name'.
 
     Note: 
       password-encrypted certificates can be used as of v0.94 of this 

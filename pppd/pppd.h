@@ -336,9 +336,17 @@ extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
 #ifdef USE_EAPTLS
+
+#define TLS_VERIFY_NONE     "none"
+#define TLS_VERIFY_NAME     "name"
+#define TLS_VERIFY_SUBJECT  "subject"
+#define TLS_VERIFY_SUFFIX   "suffix"
+
 extern char	*crl_dir;
 extern char	*crl_file;
 extern char *max_tls_version;
+extern bool tls_verify_key_usage;
+extern char *tls_verify_method;
 #endif /* USE_EAPTLS */
 
 #ifdef MAXOCTETS

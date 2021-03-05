@@ -65,6 +65,7 @@ struct eaptls_session
     char rtx[EAP_TLS_MAX_LEN];  /* retransmission buffer */
     int rtx_len;
     int mtu;                    /* unit mtu */
+    bool client;
 };
 
 
