@@ -1192,11 +1192,13 @@ int ssl_verify_callback(int ok, X509_STORE_CTX * ctx)
                 return 0;
             }
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000L
             int flags = ets->client ? XKU_SSL_SERVER : XKU_SSL_CLIENT;
             if (!(X509_get_extended_key_usage(peer_cert) & flags)) {
                 error("Certificate verification error: invalid extended key usage");
                 return 0;
             }
+#endif
             info("Certificate key usage: OK");
         }
 
