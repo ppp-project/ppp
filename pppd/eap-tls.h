@@ -70,7 +70,7 @@ struct eaptls_session
 
 
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *peer_certfile, char *privkeyfile);
+            char *certfile, char *peer_certfile, char *privkeyfile, char *pkcs12);
 int eaptls_init_ssl_server(eap_state * esp);
 int eaptls_init_ssl_client(eap_state * esp);
 void eaptls_free_session(struct eaptls_session *ets);
@@ -83,7 +83,7 @@ void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp);
 
 int get_eaptls_secret(int unit, char *client, char *server,
               char *clicertfile, char *servcertfile, char *cacertfile,
-              char *capath, char *pkfile, int am_server);
+              char *capath, char *pkfile, char *pkcs12, int am_server);
 
 #ifdef MPPE
 void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client);

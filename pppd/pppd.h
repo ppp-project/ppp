@@ -344,6 +344,7 @@ extern int	child_wait;	/* # seconds to wait for children at end */
 
 extern char	*crl_dir;
 extern char	*crl_file;
+extern char *pkcs12_file;
 extern char *max_tls_version;
 extern bool tls_verify_key_usage;
 extern char *tls_verify_method;
