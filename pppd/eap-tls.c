@@ -64,7 +64,7 @@ static ENGINE *pkey_engine = NULL;
 /* TLSv1.3 do we have a session ticket ? */
 static int have_session_ticket = 0;
 
-int ssl_verify_callback(int, X509_STORE_CTX *); 
+int ssl_verify_callback(int, X509_STORE_CTX *);
 void ssl_msg_callback(int write_p, int version, int ct, const void *buf,
               size_t len, SSL * ssl, void *arg);
 int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
@@ -733,6 +733,7 @@ int eaptls_init_ssl_server(eap_state * esp)
     if (!esp->es_server.ea_session)
         fatal("Allocation error");
     ets = esp->es_server.ea_session;
+    ets->client = 0;
 
     if (!esp->es_server.ea_peer) {
         error("EAP-TLS: Error: client name not set (BUG)");
@@ -824,6 +825,7 @@ int eaptls_init_ssl_client(eap_state * esp)
     if (!esp->es_client.ea_session)
         fatal("Allocation error");
     ets = esp->es_client.ea_session;
+    ets->client = 1;
 
     /*
      * If available, copy server name in ets; it will be used in cert
@@ -1146,6 +1148,7 @@ int ssl_verify_callback(int ok, X509_STORE_CTX * ctx)
     int err, depth;
     SSL *ssl;
     struct eaptls_session *ets;
+    char *ptr1 = NULL, *ptr2 = NULL;
 
     peer_cert = X509_STORE_CTX_get_current_cert(ctx);
     err = X509_STORE_CTX_get_error(ctx);
@@ -1181,34 +1184,68 @@ int ssl_verify_callback(int ok, X509_STORE_CTX * ctx)
 
     if (!depth) 
     {
-        /* This is the peer certificate */
+        /* Verify certificate based on certificate type and extended key usage */
+        if (tls_verify_key_usage) {
+            int purpose = ets->client ? X509_PURPOSE_SSL_SERVER : X509_PURPOSE_SSL_CLIENT ;
+            if (X509_check_purpose(peer_cert, purpose, 0) == 0) {
+                error("Certificate verification error: nsCertType mismatch");
+                return 0;
+            }
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+            int flags = ets->client ? XKU_SSL_SERVER : XKU_SSL_CLIENT;
+            if (!(X509_get_extended_key_usage(peer_cert) & flags)) {
+                error("Certificate verification error: invalid extended key usage");
+                return 0;
+            }
+#endif
+            info("Certificate key usage: OK");
+        }
+
+        /*
+         * If acting as client and the name of the server wasn't specified
+         * explicitely, we can't verify the server authenticity 
+         */
+        if (!ets->peer[0] || !strcmp(tls_verify_method, TLS_VERIFY_NONE)) {
+            warn("Certificate verication disabled or no peer name was specified");
+            return ok;
+        }
+
+        /* This is the peer certificate */
         X509_NAME_oneline(X509_get_subject_name(peer_cert),
                   subject, 256);
 
         X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert),
                       NID_commonName, cn_str, 256);
 
-        /*
-         * If acting as client and the name of the server wasn't specified
-         * explicitely, we can't verify the server authenticity 
-         */
-        if (!ets->peer[0]) {
-            warn("Peer name not specified: no check");
-            return ok;
+        /* Verify based on subject name */
+        ptr1 = ets->peer;
+        if (!strcmp(TLS_VERIFY_SUBJECT, tls_verify_method)) {
+            ptr2 = subject;
         }
 
-        /*
-         * Check the CN 
-         */
-        if (strcmp(cn_str, ets->peer)) {
-            error
-                ("Certificate verification error: CN (%s) != peer_name (%s)",
-                 cn_str, ets->peer);
+        /* Verify based on common name (default) */
+        if (strlen(tls_verify_method) == 0 ||
+            !strcmp(TLS_VERIFY_NAME, tls_verify_method)) {
+            ptr2 = cn_str;
+        }
+
+        /* Match the suffix of common name */
+        if (!strcmp(TLS_VERIFY_SUFFIX, tls_verify_method)) {
+            int len = strlen(ptr1);
+            int off = strlen(cn_str) - len;
+            ptr2 = cn_str;
+            if (off > 0) {
+                ptr2 = cn_str + off;
+            }
+        }
+
+        if (strcmp(ptr1, ptr2)) {
+            error("Certificate verification error: CN (%s) != %s", ptr1, ptr2);
             return 0;
         }
 
-        warn("Certificate CN: %s , peer name %s", cn_str, ets->peer);
+        info("Certificate CN: %s, peer name %s", cn_str, ets->peer);
 
         /*
          * If a peer certificate file was specified, here we check it 
