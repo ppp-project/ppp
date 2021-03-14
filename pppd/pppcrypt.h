@@ -38,7 +38,7 @@
 #endif
 
 #ifndef USE_CRYPT
-#include <des.h>
+#include <openssl/des.h>
 #endif
 
 extern bool	DesSetkey(u_char *);
