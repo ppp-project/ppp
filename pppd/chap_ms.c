@@ -953,7 +953,7 @@ void
 set_mppe_enc_types(int policy, int types)
 {
     /* Early exit for unknown policies. */
-    if (policy != MPPE_ENC_POL_ENC_ALLOWED ||
+    if (policy != MPPE_ENC_POL_ENC_ALLOWED &&
 	policy != MPPE_ENC_POL_ENC_REQUIRED)
 	return;
 
