@@ -31,6 +31,7 @@ static char const RCSID[] =
 #ifdef CHAPMS
 #include "chap_ms.h"
 #ifdef MPPE
+#include "mppe.h"
 #include "md5.h"
 #endif
 #endif
@@ -743,11 +744,12 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
      * Note that if the policy value was '0' we don't set the key!
      */
     if (mppe_enc_policy && mppe_enc_keys) {
-	mppe_keys_set = 1;
 	/* Set/modify allowed encryption types. */
 	if (mppe_enc_types)
-	    set_mppe_enc_types(mppe_enc_policy, mppe_enc_types);
+	    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
+	return 0;
     }
+    mppe_clear_keys();
 #endif
 
     return 0;
@@ -803,7 +805,7 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
      * the NAS (us) doesn't need; we only need the start key.  So we have
      * to generate the start key, sigh.  NB: We do not support the LM-Key.
      */
-    mppe_set_keys(challenge, &plain[8]);
+    mppe_set_chapv1(challenge, &plain[8]);
 
     return 0;    
 }
@@ -855,7 +857,7 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
     for (i = 0; i < 16; i++)
 	plain[i] ^= buf[i];
 
-    if (plain[0] != sizeof(mppe_send_key) /* 16 */) {
+    if (plain[0] != 16) {
 	error("RADIUS: Incorrect key length (%d) for MS-MPPE-%s-Key attribute",
 	      (int) plain[0], type);
 	return -1;
@@ -869,9 +871,9 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
     plain[16] ^= buf[0]; /* only need the first byte */
 
     if (vp->attribute == PW_MS_MPPE_SEND_KEY)
-	memcpy(mppe_send_key, plain + 1, 16);
+	mppe_set_keys(plain + 1, NULL, 16);
     else
-	memcpy(mppe_recv_key, plain + 1, 16);
+	mppe_set_keys(NULL, plain + 1, 16);
 
     return 0;
 }

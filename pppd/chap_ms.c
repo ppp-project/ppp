@@ -93,8 +93,7 @@
 #include "sha1.h"
 #include "pppcrypt.h"
 #include "magic.h"
-
-
+#include "mppe.h"
 
 static void	ascii2unicode (char[], int, u_char[]);
 static void	NTPasswordHash (u_char *, int, u_char[MD4_SIGNATURE_SIZE]);
@@ -109,21 +108,12 @@ static void	GenerateAuthenticatorResponsePlain
 static void	ChapMS_LANMan (u_char *, char *, int, u_char *);
 #endif
 
-#ifdef MPPE
-static void	Set_Start_Key (u_char *, char *, int);
-static void	SetMasterKeys (char *, int, u_char[24], int);
-#endif
-
 #ifdef MSLANMAN
 bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 			  	/* Has meaning only with MS-CHAP challenges */
 #endif
 
 #ifdef MPPE
-u_char mppe_send_key[MPPE_MAX_KEY_LEN];
-u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
-int mppe_keys_set = 0;		/* Have the MPPE keys been set? */
-
 #ifdef DEBUGMPPEKEY
 /* For MPPE debug */
 /* Use "[]|}{?/><,`!2&&(" (sans quotes) for RFC 3079 MS-CHAPv2 test value */
@@ -719,28 +709,6 @@ GenerateAuthenticatorResponsePlain
 
 
 #ifdef MPPE
-/*
- * Set mppe_xxxx_key from the NTPasswordHashHash.
- * RFC 2548 (RADIUS support) requires us to export this function (ugh).
- */
-void
-mppe_set_keys(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
-{
-    SHA1_CTX	sha1Context;
-    u_char	Digest[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
-
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, rchallenge, 8);
-    SHA1_Final(Digest, &sha1Context);
-
-    /* Same key in both directions. */
-    BCOPY(Digest, mppe_send_key, sizeof(mppe_send_key));
-    BCOPY(Digest, mppe_recv_key, sizeof(mppe_recv_key));
-
-    mppe_keys_set = 1;
-}
 
 /*
  * Set mppe_xxxx_key from MS-CHAP credentials. (see RFC 3079)
@@ -757,104 +725,7 @@ Set_Start_Key(u_char *rchallenge, char *secret, int secret_len)
     NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
     NTPasswordHash(PasswordHash, sizeof(PasswordHash), PasswordHashHash);
 
-    mppe_set_keys(rchallenge, PasswordHashHash);
-}
-
-/*
- * Set mppe_xxxx_key from MS-CHAPv2 credentials. (see RFC 3079)
- *
- * This helper function used in the Winbind module, which gets the
- * NTHashHash from the server.
- */
-void
-mppe_set_keys2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-	       u_char NTResponse[24], int IsServer)
-{
-    SHA1_CTX	sha1Context;
-    u_char	MasterKey[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
-    u_char	Digest[SHA1_SIGNATURE_SIZE];	/* >= MPPE_MAX_KEY_LEN */
-
-    u_char SHApad1[40] =
-	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-    u_char SHApad2[40] =
-	{ 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2,
-	  0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2,
-	  0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2,
-	  0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2, 0xf2 };
-
-    /* "This is the MPPE Master Key" */
-    u_char Magic1[27] =
-	{ 0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x74,
-	  0x68, 0x65, 0x20, 0x4d, 0x50, 0x50, 0x45, 0x20, 0x4d,
-	  0x61, 0x73, 0x74, 0x65, 0x72, 0x20, 0x4b, 0x65, 0x79 };
-    /* "On the client side, this is the send key; "
-       "on the server side, it is the receive key." */
-    u_char Magic2[84] =
-	{ 0x4f, 0x6e, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6c, 0x69,
-	  0x65, 0x6e, 0x74, 0x20, 0x73, 0x69, 0x64, 0x65, 0x2c, 0x20,
-	  0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x74, 0x68,
-	  0x65, 0x20, 0x73, 0x65, 0x6e, 0x64, 0x20, 0x6b, 0x65, 0x79,
-	  0x3b, 0x20, 0x6f, 0x6e, 0x20, 0x74, 0x68, 0x65, 0x20, 0x73,
-	  0x65, 0x72, 0x76, 0x65, 0x72, 0x20, 0x73, 0x69, 0x64, 0x65,
-	  0x2c, 0x20, 0x69, 0x74, 0x20, 0x69, 0x73, 0x20, 0x74, 0x68,
-	  0x65, 0x20, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x20,
-	  0x6b, 0x65, 0x79, 0x2e };
-    /* "On the client side, this is the receive key; "
-       "on the server side, it is the send key." */
-    u_char Magic3[84] =
-	{ 0x4f, 0x6e, 0x20, 0x74, 0x68, 0x65, 0x20, 0x63, 0x6c, 0x69,
-	  0x65, 0x6e, 0x74, 0x20, 0x73, 0x69, 0x64, 0x65, 0x2c, 0x20,
-	  0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x74, 0x68,
-	  0x65, 0x20, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x20,
-	  0x6b, 0x65, 0x79, 0x3b, 0x20, 0x6f, 0x6e, 0x20, 0x74, 0x68,
-	  0x65, 0x20, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x20, 0x73,
-	  0x69, 0x64, 0x65, 0x2c, 0x20, 0x69, 0x74, 0x20, 0x69, 0x73,
-	  0x20, 0x74, 0x68, 0x65, 0x20, 0x73, 0x65, 0x6e, 0x64, 0x20,
-	  0x6b, 0x65, 0x79, 0x2e };
-    u_char *s;
-
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, NTResponse, 24);
-    SHA1_Update(&sha1Context, Magic1, sizeof(Magic1));
-    SHA1_Final(MasterKey, &sha1Context);
-
-    /*
-     * generate send key
-     */
-    if (IsServer)
-	s = Magic3;
-    else
-	s = Magic2;
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, MasterKey, 16);
-    SHA1_Update(&sha1Context, SHApad1, sizeof(SHApad1));
-    SHA1_Update(&sha1Context, s, 84);
-    SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
-    SHA1_Final(Digest, &sha1Context);
-
-    BCOPY(Digest, mppe_send_key, sizeof(mppe_send_key));
-
-    /*
-     * generate recv key
-     */
-    if (IsServer)
-	s = Magic2;
-    else
-	s = Magic3;
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, MasterKey, 16);
-    SHA1_Update(&sha1Context, SHApad1, sizeof(SHApad1));
-    SHA1_Update(&sha1Context, s, 84);
-    SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
-    SHA1_Final(Digest, &sha1Context);
-
-    BCOPY(Digest, mppe_recv_key, sizeof(mppe_recv_key));
-
-    mppe_keys_set = 1;
+    mppe_set_chapv1(rchallenge, PasswordHashHash);
 }
 
 /*
@@ -870,7 +741,7 @@ SetMasterKeys(char *secret, int secret_len, u_char NTResponse[24], int IsServer)
     ascii2unicode(secret, secret_len, unicodePassword);
     NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
     NTPasswordHash(PasswordHash, sizeof(PasswordHash), PasswordHashHash);
-    mppe_set_keys2(PasswordHashHash, NTResponse, IsServer);
+    mppe_set_chapv2(PasswordHashHash, NTResponse, IsServer);
 }
 
 #endif /* MPPE */
@@ -945,38 +816,6 @@ ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
 #endif
 }
 
-#ifdef MPPE
-/*
- * Set MPPE options from plugins.
- */
-void
-set_mppe_enc_types(int policy, int types)
-{
-    /* Early exit for unknown policies. */
-    if (policy != MPPE_ENC_POL_ENC_ALLOWED &&
-	policy != MPPE_ENC_POL_ENC_REQUIRED)
-	return;
-
-    /* Don't modify MPPE if it's optional and wasn't already configured. */
-    if (policy == MPPE_ENC_POL_ENC_ALLOWED && !ccp_wantoptions[0].mppe)
-	return;
-
-    /*
-     * Disable undesirable encryption types.  Note that we don't ENABLE
-     * any encryption types, to avoid overriding manual configuration.
-     */
-    switch(types) {
-	case MPPE_ENC_TYPES_RC4_40:
-	    ccp_wantoptions[0].mppe &= ~MPPE_OPT_128;	/* disable 128-bit */
-	    break;
-	case MPPE_ENC_TYPES_RC4_128:
-	    ccp_wantoptions[0].mppe &= ~MPPE_OPT_40;	/* disable 40-bit */
-	    break;
-	default:
-	    break;
-    }
-}
-#endif /* MPPE */
 
 static struct chap_digest_type chapms_digest = {
 	CHAP_MICROSOFT,		/* code */
