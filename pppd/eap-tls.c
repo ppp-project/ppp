@@ -1206,7 +1206,10 @@ int ssl_verify_callback(int ok, X509_STORE_CTX * ctx)
          * If acting as client and the name of the server wasn't specified
          * explicitely, we can't verify the server authenticity 
          */
-        if (!ets->peer[0] || !strcmp(tls_verify_method, TLS_VERIFY_NONE)) {
+        if (!tls_verify_method)
+            tls_verify_method = TLS_VERIFY_NONE;
+
+        if (!ets->peer[0] || !strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
             warn("Certificate verication disabled or no peer name was specified");
             return ok;
         }
