@@ -3,5 +3,6 @@
 *.o
 *.so
 *.a
+*.pc
 *.cat8
 Makefile

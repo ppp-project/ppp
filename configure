@@ -4,6 +4,10 @@
 # Where to install stuff by default
 DESTDIR=/usr/local
 SYSCONF=/etc
+LIBDIR='${PREFIX}'/lib
+INCDIR='${PREFIX}'/include
+
+VERSION=$(awk -F '"' '/VERSION/ { print $2; }' pppd/patchlevel.h)
 
 # Compile defaults
 CROSS_COMPILE=
@@ -99,7 +103,7 @@ while [ $# -gt 0 ]; do
 	    val=`expr "x$arg" : 'x[^=]*=\(.*\)'`
 	    arg=`expr "x$arg" : 'x\([^=]*\)=.*'`
 	    ;;
-	--prefix|--sysconf)
+	--prefix|--sysconf|--libdir|--includedir)
 	    if [ $# -eq 0 ]; then
 		echo "error: the $arg argument requires a value" 1>&2
 		exit 1
@@ -111,6 +115,8 @@ while [ $# -gt 0 ]; do
     case $arg in
 	--prefix)	 DESTDIR=$val ;;
 	--sysconfdir)	 SYSCONF=$val ;;
+	--libdir)        LIBDIR=$val ; HAVE_LIBDIR_PARAM=1 ;;
+	--includedir)    INCDIR=$val ; HAVE_INCDIR_PARAM=1 ;;
 	--cross_compile) CROSS_COMPILE=$val ;;
 	--cc)            CC=$val ;;
 	--cflags)        CFLAGS=$val ;;
@@ -121,9 +127,14 @@ mkmkf() {
     rm -f $2
     if [ -f $1 ]; then
 	echo "  $2 <= $1"
-	sed -e "s,@DESTDIR@,$DESTDIR,g" -e "s,@SYSCONF@,$SYSCONF,g" \
-	    -e "s,@CROSS_COMPILE@,$CROSS_COMPILE,g" -e "s,@CC@,$CC,g" \
-	    -e "s|@CFLAGS@|$CFLAGS|g" $1 >$2
+	sed -e "s,@DESTDIR@,$DESTDIR,g" \
+	    -e "s,@SYSCONF@,$SYSCONF,g" \
+	    -e "s,@LIBDIR@,$LIBDIR,g" \
+	    -e "s,@INCDIR@,$INCDIR,g" \
+	    -e "s,@CROSS_COMPILE@,$CROSS_COMPILE,g" \
+	    -e "s,@CC@,$CC,g" \
+	    -e "s|@CFLAGS@|$CFLAGS|g" \
+	    -e "s,@VERSION@,$VERSION,g" $1 >$2
     fi
 }
 
@@ -138,6 +149,16 @@ if [ -d "$ksrc" ]; then
     done
     if [ -f $ksrc/Makefile.$makext$archvariant ]; then
 	mkmkf $ksrc/Makefile.$makext$archvariant $ksrc/Makefile
+    fi
+    if [ -f "$ksrc/pppd.pc.in" ] ; then
+	echo "Creating pkg-config file"
+	if [ ${HAVE_LIBDIR_PARAM:-0} -ne 1 ] ; then
+	    LIBDIR='${prefix}'/lib
+	fi
+	if [ ${HAVE_INCDIR_PARAM:-0} -ne 1 ] ; then
+	    INCDIR='${prefix}'/include
+	fi
+	mkmkf $ksrc/pppd.pc.in pppd/pppd.pc
     fi
 else
   echo "Unable to locate kernel source $ksrc"
