@@ -147,7 +147,9 @@ EAP-TLS authentication support for PPP
       max-tls-version <1.0|1.1|1.2 (default)|1.3>
         Specify the maximum TLS protocol version to negotiate with peers. Defaults
         to TLSv1.2 as the TLSv1.3 code is experimental.
-      verify-tls-peer <none|subject|name|suffix>
+      tls-verify-key-usage
+        Validate certificate purpose and extended key usage
+      tls-verify-method <none|subject|name|suffix>
         Compare the remotename against the subject, certificate name, or
         match by suffix. Default is 'name'.
 
