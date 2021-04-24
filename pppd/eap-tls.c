@@ -48,6 +48,8 @@
 #include "eap-tls.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "chap_ms.h"
+#include "mppe.h"
 #include "pathnames.h"
 
 typedef struct pw_cb_data
@@ -73,10 +75,6 @@ int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
 
 X509 *get_X509_from_file(char *filename);
 int ssl_cmp_certs(char *filename, X509 * a); 
-
-#ifdef MPPE
-
-#define EAPTLS_MPPE_KEY_LEN     32
 
 /*
  *  OpenSSL 1.1+ introduced a generic TLS_method()
@@ -119,6 +117,8 @@ static inline int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, long tls_ver_max)
 
 #endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 
+#ifdef MPPE
+#define EAPTLS_MPPE_KEY_LEN     32
 
 /*
  *  Generate keys according to RFC 2716 and add to reply
@@ -161,23 +161,16 @@ void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
      */
     if (client)
     {
-        p = out;
-        BCOPY( p, mppe_send_key, sizeof(mppe_send_key) );
-        p += EAPTLS_MPPE_KEY_LEN;
-        BCOPY( p, mppe_recv_key, sizeof(mppe_recv_key) );
+        mppe_set_keys(out, out + EAPTLS_MPPE_KEY_LEN, EAPTLS_MPPE_KEY_LEN);
     }
     else
     {
-        p = out;
-        BCOPY( p, mppe_recv_key, sizeof(mppe_recv_key) );
-        p += EAPTLS_MPPE_KEY_LEN;
-        BCOPY( p, mppe_send_key, sizeof(mppe_send_key) );
+        mppe_set_keys(out + EAPTLS_MPPE_KEY_LEN, out, EAPTLS_MPPE_KEY_LEN);
     }
-
-    mppe_keys_set = 1;
 }
 
 #endif /* MPPE */
+
 
 void log_ssl_errors( void )
 {

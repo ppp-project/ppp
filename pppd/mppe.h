@@ -32,9 +32,12 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef __MPPE_H__
+#define __MPPE_H__
 
 #define MPPE_PAD		4	/* MPPE growth per frame */
-#define MPPE_MAX_KEY_LEN	16	/* largest key length (128-bit) */
+#define MPPE_MAX_KEY_SIZE	32	/* Largest key length */
+#define MPPE_MAX_KEY_LEN       16      /* Largest key size accepted by the kernel */
 
 /* option bits for ccp_options.mppe */
 #define MPPE_OPT_40		0x01	/* 40 bit */
@@ -119,3 +122,68 @@
 	if (ptr[3] & ~MPPE_ALL_BITS)		\
 	    opts |= MPPE_OPT_UNKNOWN;		\
     } while (/* CONSTCOND */ 0)
+
+
+#if MPPE
+
+/*
+ * NOTE:
+ *   Access to these variables directly is discuraged. Please
+ *   change your code to use below accessor functions.
+ */
+
+/* The key material generated which is used for MPPE send key */
+extern u_char mppe_send_key[MPPE_MAX_KEY_SIZE];
+/* The key material generated which is used for MPPE recv key */
+extern u_char mppe_recv_key[MPPE_MAX_KEY_SIZE];
+/* Keys are set if value is non-zero */
+extern int mppe_keys_set;
+
+/* These values are the RADIUS attribute values--see RFC 2548. */
+#define MPPE_ENC_POL_ENC_ALLOWED 1
+#define MPPE_ENC_POL_ENC_REQUIRED 2
+#define MPPE_ENC_TYPES_RC4_40 2
+#define MPPE_ENC_TYPES_RC4_128 4
+
+/* used by plugins (using above values) */
+void mppe_set_enc_types (int policy, int types);
+
+/*
+ * Set the MPPE send and recv keys. NULL values for keys are ignored
+ *   and input values are cleared to avoid leaving them on the stack
+ */
+void mppe_set_keys(u_char *send_key, u_char *recv_key, int keylen);
+
+/*
+ * Get the MPPE recv key
+ */
+int mppe_get_recv_key(u_char *recv_key, int length);
+
+/*
+ * Get the MPPE send key
+ */
+int mppe_get_send_key(u_char *send_key, int length);
+
+/*
+ * Clear the MPPE keys
+ */
+void mppe_clear_keys(void);
+
+/*
+ * Check if the MPPE keys are set
+ */
+bool mppe_keys_isset(void);
+
+/*
+ * Set mppe_xxxx_key from NT Password Hash Hash (MSCHAPv1), see RFC3079
+ */
+void mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE]);
+
+/*
+ * Set the mppe_xxxx_key from MS-CHAP-v2 credentials, see RFC3079
+ */
+void mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
+		    u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer);
+
+#endif  // #ifdef MPPE
+#endif  // #ifdef __MPPE_H__

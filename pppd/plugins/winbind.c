@@ -37,11 +37,9 @@
 #include "pppd.h"
 #include "chap-new.h"
 #include "chap_ms.h"
-#ifdef MPPE
-#include "md5.h"
-#endif
 #include "fsm.h"
 #include "ipcp.h"
+#include "mppe.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -583,7 +581,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				  nt_response, nt_response_size,
 				  session_key,
 				  &error_string) == AUTHENTICATED) {
-			mppe_set_keys(challenge, session_key);
+			mppe_set_chapv1(challenge, session_key);
 			slprintf(message, message_space, "Access granted");
 			return AUTHENTICATED;
 			
@@ -628,7 +626,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				&response[MS_CHAP2_NTRESP],
 				&response[MS_CHAP2_PEER_CHALLENGE],
 				challenge, user, saresponse);
-			mppe_set_keys2(session_key, &response[MS_CHAP2_NTRESP],
+			mppe_set_chapv2(session_key, &response[MS_CHAP2_NTRESP],
 				       MS_CHAP2_AUTHENTICATOR);
 			if (response[MS_CHAP2_FLAGS]) {
 				slprintf(message, message_space, "S=%s", saresponse);
