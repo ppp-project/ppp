@@ -2,10 +2,14 @@ CROSS_COMPILE=@CROSS_COMPILE@
 CC=$(CROSS_COMPILE)@CC@
 COPTS=@CFLAGS@
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+PREFIX = @DESTDIR@
+DESTDIR = $(INSTROOT)$(PREFIX)
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
+LIBDIR = $(INSTROOT)@LIBDIR@
+INCDIR = $(INSTROOT)@INCDIR@
+VERSION = @VERSION@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
 CFLAGS	= $(COPTS) -I.. -I../../include -fPIC
 LDFLAGS_SHARED	= -shared
@@ -37,11 +41,9 @@ all:	$(PLUGINS)
 %.so: %.c
 	$(CC) -o $@ $(LDFLAGS) $(LDFLAGS_SHARED) $(CFLAGS) $^
 
-VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../patchlevel.h)
-
 install: $(PLUGINS)
-	$(INSTALL) -d $(LIBDIR)
-	$(INSTALL) $? $(LIBDIR)
+	$(INSTALL) -d $(PLUGINDIR)
+	$(INSTALL) $? $(PLUGINDIR)
 	for d in $(SUBDIRS); do $(MAKE) $(MFLAGS) -C $$d install || exit $$?; done
 
 clean:

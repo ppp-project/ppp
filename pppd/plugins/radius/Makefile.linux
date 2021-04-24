@@ -7,11 +7,12 @@ CROSS_COMPILE=@CROSS_COMPILE@
 CC=$(CROSS_COMPILE)@CC@
 COPTS=@CFLAGS@
 
-DESTDIR = $(INSTROOT)@DESTDIR@
+PREFIX = @DESTDIR@
+DESTDIR = $(INSTROOT)$(PREFIX)
 MANDIR = $(DESTDIR)/share/man/man8
-LIBDIR = $(DESTDIR)/lib/pppd/$(VERSION)
-
-VERSION = $(shell awk -F '"' '/VERSION/ { print $$2; }' ../../patchlevel.h)
+LIBDIR = $(INSTROOT)@LIBDIR@
+VERSION = @VERSION@
+PLUGINDIR = $(LIBDIR)/pppd/$(VERSION)
 
 INSTALL	= install
 
@@ -39,10 +40,10 @@ endif
 all: $(PLUGIN)
 
 install: all
-	$(INSTALL) -d -m 755 $(LIBDIR)
-	$(INSTALL) -c -m 755 radius.so $(LIBDIR)
-	$(INSTALL) -c -m 755 radattr.so $(LIBDIR)
-	$(INSTALL) -c -m 755 radrealms.so $(LIBDIR)
+	$(INSTALL) -d -m 755 $(PLUGINDIR)
+	$(INSTALL) -c -m 755 radius.so $(PLUGINDIR)
+	$(INSTALL) -c -m 755 radattr.so $(PLUGINDIR)
+	$(INSTALL) -c -m 755 radrealms.so $(PLUGINDIR)
 	$(INSTALL) -c -m 444 pppd-radius.8 $(MANDIR)
 	$(INSTALL) -c -m 444 pppd-radattr.8 $(MANDIR)
 

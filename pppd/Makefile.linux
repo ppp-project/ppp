@@ -8,10 +8,13 @@ CC=$(CROSS_COMPILE)@CC@
 COPTS=@CFLAGS@
 
 # Default installation locations
-DESTDIR = $(INSTROOT)@DESTDIR@
+PREFIX = @DESTDIR@
+DESTDIR = $(INSTROOT)$(PREFIX)
 BINDIR = $(DESTDIR)/sbin
 MANDIR = $(DESTDIR)/share/man/man8
-INCDIR = $(DESTDIR)/include
+INCDIR = $(INSTROOT)@INCDIR@
+LIBDIR = $(INSTROOT)@LIBDIR@
+PKGCONFDIR = $(LIBDIR)/pkgconfig
 
 TARGETS = pppd
 
@@ -238,11 +241,14 @@ INSTALL= install
 all: $(TARGETS)
 
 install: pppd
-	mkdir -p $(BINDIR) $(MANDIR)
+	$(INSTALL) -d $(BINDIR)
+	$(INSTALL) -d $(MANDIR)
+	$(INSTALL) -d $(PKGCONFDIR)
 	$(EXTRAINSTALL)
 	$(INSTALL) -c -m 755 pppd $(BINDIR)/pppd
 	if chgrp pppusers $(BINDIR)/pppd 2>/dev/null; then \
 	  chmod o-rx,u+s $(BINDIR)/pppd; fi
+	$(INSTALL) -c -m 644 pppd.pc $(PKGCONFDIR)
 	$(INSTALL) -c -m 644 pppd.8 $(MANDIR)
 
 pppd: $(PPPDOBJS)
