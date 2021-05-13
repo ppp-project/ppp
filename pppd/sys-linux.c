@@ -158,6 +158,11 @@
 #include <sys/locks.h>
 #endif
 
+#ifdef USE_CAP
+#include <sys/types.h>
+#include <sys/capability.h>
+#endif /* USE_CAP */
+
 #ifdef INET6
 #ifndef _LINUX_IN6_H
 /*
@@ -2341,6 +2346,42 @@ ppp_registered(void)
     close(local_fd);
     close(mfd);
     return ret;
+}
+
+/***********************************************************
+ *
+ * net_capable - check for any access to the net management
+ */
+
+int net_capable(void)
+{
+	int ok = 0;
+#ifdef USE_CAP
+	/*
+	 * Check that we are capable to admin the network.
+	 */
+	cap_t cap;
+	cap_flag_value_t cap_flag_value;
+	cap = cap_get_pid(getpid());
+	if (cap != 0) {
+		if (cap_get_flag(cap, CAP_NET_RAW, CAP_EFFECTIVE, &cap_flag_value) == 0) {
+			if (cap_flag_value == CAP_SET)
+			ok = 1;
+		}
+		if (cap_get_flag(cap, CAP_NET_RAW, CAP_PERMITTED, &cap_flag_value) == 0) {
+			if (cap_flag_value == CAP_SET)
+			ok = 1;
+		}
+	}
+#else /* USE_CAP */
+	/*
+	 * Check that we are running as root.
+	 */
+	if (geteuid() == 0) {
+		ok = 1;
+	}
+#endif /* USE_CAP */
+	return ok;
 }
 
 /********************************************************************

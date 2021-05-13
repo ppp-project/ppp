@@ -852,6 +852,20 @@ daemon(int nochdir, int noclose)
 }
 #endif
 
+/***********************************************************
+ *
+ * net_capable - check for any access to the net management
+ */
+
+int net_capable(void)
+{
+    int ok = 0;
+    if (geteuid() == 0) {
+        ok = 1;
+    }
+    return ok;
+}
+
 /*
  * ppp_available - check whether the system has any ppp interfaces
  */

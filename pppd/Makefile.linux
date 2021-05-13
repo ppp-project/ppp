@@ -82,6 +82,9 @@ PLUGIN=y
 # Enable EAP SRP-SHA1 authentication (requires libsrp)
 #USE_SRP=y
 
+# Use libcap (requires libcap)
+#USE_LIBCAP=y
+
 # Use libutil; test if logwtmp is declared in <utmp.h> to detect
 UTMPHEADER = "\#include <utmp.h>"
 ifeq ($(shell echo $(UTMPHEADER) | $(CC) -E - 2>/dev/null | grep -q logwtmp && echo yes),yes)
@@ -153,6 +156,11 @@ CRYPTHEADER = "\#include <crypt.h>"
 ifeq ($(shell echo $(CRYPTHEADER) | $(CC) -E - >/dev/null 2>&1 && echo yes),yes)
 CFLAGS  += -DHAVE_CRYPT_H=1
 LIBS	+= -lcrypt
+endif
+
+ifdef USE_LIBCAP
+CFLAGS  += -DUSE_CAP
+LIBS    += -lcap
 endif
 
 ifdef USE_LIBUTIL

@@ -630,6 +630,7 @@ void sys_init(void);	/* Do system-dependent initialization */
 void sys_cleanup(void);	/* Restore system state before exiting */
 int  sys_check_options(void); /* Check options specified */
 void sys_close(void);	/* Clean up in a child before execing */
+int  net_capable(void);	/* Test for any access to the net management */
 int  ppp_available(void);	/* Test whether ppp kernel support exists */
 int  get_pty(int *, int *, char *, int);	/* Get pty master/slave */
 int  open_ppp_loopback(void); /* Open loopback for demand-dialling */

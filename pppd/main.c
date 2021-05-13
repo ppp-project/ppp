@@ -360,11 +360,14 @@ main(int argc, char *argv[])
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
     /*
-     * Check that we are running as root.
+     * Check that we are capable to admin the network.
      */
-    if (geteuid() != 0) {
-	option_error("must be root to run %s, since it is not setuid-root",
-		     argv[0]);
+    if (!net_capable()) {
+    #ifdef USE_CAP
+    option_error("must have CAP_NET_RAW or root privilege to run %s", argv[0]);
+    #else
+    option_error("must be root to run %s, since it is not setuid-root", argv[0]);
+    #endif /* USE_CAP */
 	exit(EXIT_NOT_ROOT);
     }
 
