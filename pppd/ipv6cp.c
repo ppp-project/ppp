@@ -268,6 +268,8 @@ static option_t ipv6cp_option_list[] = {
     { "ipv6cp-noremote", o_bool, &ipv6cp_noremote,
       "Allow peer to have no interface identifier", 1 },
 #endif
+    { "ipv6cp-nosend", o_bool, &ipv6cp_wantoptions[0].neg_ifaceid,
+      "Don't send local interface identifier to peer", OPT_A2CLR },
 
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
       "Set timeout for IPv6CP", OPT_PRIO },
@@ -684,6 +686,7 @@ bad:
 static int
 ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 {
+    ipv6cp_options *wo = &ipv6cp_wantoptions[f->unit];
     ipv6cp_options *go = &ipv6cp_gotoptions[f->unit];
     u_char citype, cilen, *next;
     u_short cishort;
@@ -732,7 +735,7 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 		     try.neg_ifaceid = 0;
 		 } else if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
 		     try.ourid = ifaceid;
-		 } else if (eui64_iszero(ifaceid) && !go->opt_local) {
+		 } else if (eui64_iszero(ifaceid) && !go->opt_local && wo->neg_ifaceid) {
 		     while (eui64_iszero(ifaceid) || 
 			    eui64_equals(ifaceid, go->hisid)) /* bad luck */
 			 eui64_magic(ifaceid);
@@ -786,7 +789,7 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 	    eui64_get(ifaceid, p);
 	    if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
 		try.ourid = ifaceid;
-	    } else if (eui64_iszero(ifaceid) && !go->opt_local) {
+	    } else if (eui64_iszero(ifaceid) && !go->opt_local && wo->neg_ifaceid) {
 		while (eui64_iszero(ifaceid) || 
 		       eui64_equals(ifaceid, go->hisid)) /* bad luck */
 		    eui64_magic(ifaceid);
