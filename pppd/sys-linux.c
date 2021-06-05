@@ -104,6 +104,7 @@
 
 #if !defined(__GLIBC__) || __GLIBC__ >= 2
 #include <asm/types.h>		/* glibc 2 conflicts with linux/types.h */
+#include <asm/ioctls.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
@@ -157,6 +158,20 @@
 #ifdef LOCKLIB
 #include <sys/locks.h>
 #endif
+
+#ifndef BOTHER
+#define BOTHER 0010000
+#endif
+struct termios2 {
+	unsigned int c_iflag;
+	unsigned int c_oflag;
+	unsigned int c_cflag;
+	unsigned int c_lflag;
+	unsigned char c_line;
+	unsigned char c_cc[19];
+	unsigned int c_ispeed;
+	unsigned int c_ospeed;
+};
 
 #ifdef INET6
 #ifndef _LINUX_IN6_H
@@ -898,6 +913,12 @@ struct speed {
 #ifdef B460800
     { 460800, B460800 },
 #endif
+#ifdef B500000
+    { 500000, B500000 },
+#endif
+#ifdef B576000
+    { 576000, B576000 },
+#endif
 #ifdef B921600
     { 921600, B921600 },
 #endif
@@ -942,7 +963,6 @@ static int translate_speed (int bps)
 	    if (bps == speedp->speed_int)
 		return speedp->speed_val;
 	}
-	warn("speed %d not supported", bps);
     }
     return 0;
 }
@@ -1021,26 +1041,57 @@ void set_up_tty(int tty_fd, int local)
     if (stop_bits >= 2)
 	tios.c_cflag |= CSTOPB;
 
-    speed = translate_speed(inspeed);
-    if (speed) {
-	cfsetospeed (&tios, speed);
-	cfsetispeed (&tios, speed);
+    if (inspeed) {
+	speed = translate_speed(inspeed);
+	if (speed) {
+	    cfsetospeed (&tios, speed);
+	    cfsetispeed (&tios, speed);
+	    speed = cfgetospeed(&tios);
+	}
+	baud_rate = baud_rate_of(speed);
     }
-/*
- * We can't proceed if the serial port speed is B0,
- * since that implies that the serial port is disabled.
- */
     else {
 	speed = cfgetospeed(&tios);
-	if (speed == B0)
-	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
+	baud_rate = baud_rate_of(speed);
     }
 
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
 	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
 
-    baud_rate    = baud_rate_of(speed);
+/* Most Linux architectures and drivers support arbitrary baud rate values via BOTHER */
+#ifdef TCGETS2
+    if (!baud_rate) {
+	struct termios2 tios2;
+	if (ioctl(tty_fd, TCGETS2, &tios2) == 0) {
+	    if (inspeed) {
+		tios2.c_cflag &= ~CBAUD;
+		tios2.c_cflag |= BOTHER;
+		tios2.c_ispeed = inspeed;
+		tios2.c_ospeed = inspeed;
+#ifdef TCSETS2
+		if (ioctl(tty_fd, TCSETS2, &tios2) == 0)
+		    baud_rate = inspeed;
+#endif
+	    } else {
+		if ((tios2.c_cflag & CBAUD) == BOTHER && tios2.c_ospeed)
+		    baud_rate = tios2.c_ospeed;
+	    }
+	}
+    }
+#endif
+
+/*
+ * We can't proceed if the serial port baud rate is unknown,
+ * since that implies that the serial port is disabled.
+ */
+    if (!baud_rate) {
+	if (inspeed)
+	    fatal("speed %d not supported", inspeed);
+	else
+	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
+    }
+
     restore_term = 1;
 }
 
