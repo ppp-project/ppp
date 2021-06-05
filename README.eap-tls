@@ -134,6 +134,9 @@ EAP-TLS authentication support for PPP
       key <key-file>
         Use the client private key found in <key-file> in PEM format
         or in engine:engine_id format
+      pkcs12 <pkcs12-file>
+        Use a pkcs12 envelope as a substitute for cert and key. A password may be
+        required to use this file. 
       crl <crl-file>
         Use the Certificate Revocation List (CRL) file <crl-file> in PEM format.
       crl-dir <dir>

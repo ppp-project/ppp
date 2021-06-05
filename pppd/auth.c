@@ -255,6 +255,7 @@ char *cacert_file  = NULL;	/* CA certificate file (pem format) */
 char *ca_path      = NULL;	/* directory with CA certificates */
 char *cert_file    = NULL;	/* client certificate file (pem format) */
 char *privkey_file = NULL;	/* client private key file (pem format) */
+char *pkcs12_file  = NULL;	/* client private key envelope file (pkcs12 format) */
 char *crl_dir      = NULL;	/* directory containing CRL files */
 char *crl_file     = NULL;	/* Certificate Revocation List (CRL) file (pem format) */
 char *max_tls_version = NULL;	/* Maximum TLS protocol version (default=1.2) */
@@ -445,6 +446,7 @@ option_t auth_options[] = {
     { "key", o_string, &privkey_file, "EAP-TLS client private key in PEM format" },
     { "crl-dir", o_string, &crl_dir,  "Use CRLs in directory" },
     { "crl", o_string, &crl_file,     "Use specific CRL file" },
+    { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
     { "max-tls-version", o_string, &max_tls_version,
       "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)" },
     { "tls-verify-key-usage", o_bool, &tls_verify_key_usage,
@@ -2464,6 +2466,8 @@ have_eaptls_secret_client(char *client, char *server)
 
 	if ((cacert_file || ca_path) && cert_file && privkey_file)
 		return 1;
+	if (pkcs12_file)
+		return 1;
 
     filename = _PATH_EAPTLSCLIFILE;
     f = fopen(filename, "r");
@@ -2647,7 +2651,7 @@ scan_authfile_eaptls(FILE *f, char *client, char *server,
 int
 get_eaptls_secret(int unit, char *client, char *server,
 		  char *clicertfile, char *servcertfile, char *cacertfile,
-		  char *capath, char *pkfile, int am_server)
+		  char *capath, char *pkfile, char *pkcs12, int am_server)
 {
     FILE *fp;
     int ret;
@@ -2661,6 +2665,7 @@ get_eaptls_secret(int unit, char *client, char *server,
 	bzero(cacertfile, MAXWORDLEN);
 	bzero(capath, MAXWORDLEN);
 	bzero(pkfile, MAXWORDLEN);
+	bzero(pkcs12, MAXWORDLEN);
 
 	/* the ca+cert+privkey can also be specified as options */
 	if (!am_server && (cacert_file || ca_path) && cert_file && privkey_file )
@@ -2671,6 +2676,14 @@ get_eaptls_secret(int unit, char *client, char *server,
 		if (ca_path)
 			strlcpy( capath, ca_path, MAXWORDLEN );
 		strlcpy( pkfile, privkey_file, MAXWORDLEN );
+	}
+    else if (!am_server && pkcs12_file)
+	{
+		strlcpy( pkcs12, pkcs12_file, MAXWORDLEN );
+		if (cacert_file)
+			strlcpy( cacertfile, cacert_file, MAXWORDLEN );
+		if (ca_path)
+			strlcpy( capath, ca_path, MAXWORDLEN );
 	}
 	else
 	{

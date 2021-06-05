@@ -42,6 +42,7 @@
 #include <openssl/err.h>
 #include <openssl/ui.h>
 #include <openssl/x509v3.h>
+#include <openssl/pkcs12.h>
 
 #include "pppd.h"
 #include "eap.h"
@@ -283,7 +284,7 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
  * for client or server use can be loaded.
  */
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *peer_certfile, char *privkeyfile)
+            char *certfile, char *peer_certfile, char *privkeyfile, char *pkcs12)
 {
 #ifndef OPENSSL_NO_ENGINE
     char        *cert_engine_name = NULL;
@@ -296,7 +297,13 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     X509_STORE  *certstore;
     X509_LOOKUP *lookup;
     X509        *tmp;
+    X509        *cert = NULL;
+    PKCS12      *p12 = NULL;
+    EVP_PKEY    *pkey = NULL;
+    STACK_OF(X509) *chain = NULL;
+    BIO         *input;
     int          ret;
+    int          reason;
 #if defined(TLS1_2_VERSION)
     long         tls_version = TLS1_2_VERSION; 
 #elif defined(TLS1_1_VERSION)
@@ -308,22 +315,25 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     /*
      * Without these can't continue 
      */
-    if (!(cacertfile[0] || capath[0]))
+    if (!pkcs12[0]) 
     {
-        error("EAP-TLS: CA certificate file or path missing");
-        return NULL;
-    }
+        if (!(cacertfile[0] || capath[0]))
+        {
+            error("EAP-TLS: CA certificate file or path missing");
+            return NULL;
+        }
 
-    if (!certfile[0])
-    {
-        error("EAP-TLS: Certificate missing");
-        return NULL;
-    }
+        if (!certfile[0])
+        {
+            error("EAP-TLS: Certificate missing");
+            return NULL;
+        }
 
-    if (!privkeyfile[0])
-    {
-        error("EAP-TLS: Private key missing");
-        return NULL;
+        if (!privkeyfile[0])
+        {
+            error("EAP-TLS: Private key missing");
+            return NULL;
+        }
     }
 
     SSL_library_init();
@@ -458,13 +468,9 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 
         if (cert_info.cert)
         {
-            dbglog( "Got the certificate, adding it to SSL context" );
+            dbglog( "Got the certificate" );
             dbglog( "subject = %s", X509_NAME_oneline( X509_get_subject_name( cert_info.cert ), NULL, 0 ) );
-            if (SSL_CTX_use_certificate(ctx, cert_info.cert) <= 0)
-            {
-                error("EAP-TLS: Cannot use PKCS11 certificate %s", cert_identifier);
-                goto fail;
-            }
+            cert = cert_info.cert;
         }
         else
         {
@@ -475,13 +481,63 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     else
 #endif
     {
-        if (!SSL_CTX_use_certificate_chain_file(ctx, certfile))
+        if (pkcs12[0])
         {
-            error( "EAP-TLS: Cannot use public certificate %s", certfile );
-            goto fail;
+            input = BIO_new_file(pkcs12, "r");
+            if (input == NULL)
+            {
+                error("EAP-TLS: Cannot open `%s' PKCS12 for input", pkcs12);
+                goto fail;
+            }
+
+            p12 = d2i_PKCS12_bio(input, NULL);
+            BIO_free(input);
+            if (!p12)
+            {
+                error("EAP-TLS: Cannot load PKCS12 certificate");
+                goto fail;
+            }
+
+            if (PKCS12_parse(p12, passwd, &pkey, &cert, &chain) != 1)
+            {
+                error("EAP-TLS: Cannot parse PKCS12 certificate, invalid password");
+                PKCS12_free(p12);
+                goto fail;
+            }
+
+            PKCS12_free(p12);
+        }
+        else 
+        {
+            if (!SSL_CTX_use_certificate_chain_file(ctx, certfile))
+            {
+                error( "EAP-TLS: Cannot load certificate %s", certfile );
+                goto fail;
+            }
         }
     }
 
+    if (cert)
+    {
+        if (!SSL_CTX_use_certificate(ctx, cert))
+        {
+            error("EAP-TLS: Cannot use load certificate");
+            goto fail;
+        }
+
+        if (chain)
+        {
+            int i;
+            for (i = 0; i < sk_X509_num(chain); i++)
+            {
+                if (!SSL_CTX_add_extra_chain_cert(ctx, sk_X509_value(chain, i)))
+                {
+                    error("EAP-TLS: Cannot add extra chain certificate");
+                    goto fail;
+                }
+            }
+        }
+    }
 
     /*
      *  Check the Before and After dates of the certificate
@@ -513,7 +569,6 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 #ifndef OPENSSL_NO_ENGINE
     if (pkey_engine)
     {
-        EVP_PKEY   *pkey = NULL;
         PW_CB_DATA  cb_data;
 
         cb_data.password = passwd;
@@ -547,33 +602,38 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
             dbglog( "Loading private key '%s' from engine", pkey_identifier );
             pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, NULL, NULL);
         }
-        if (pkey)
+    }
+    else 
+#endif
+    {
+        if (!pkey)
         {
-            dbglog( "Got the private key, adding it to SSL context" );
-            if (SSL_CTX_use_PrivateKey(ctx, pkey) <= 0)
+            input = BIO_new_file(privkeyfile, "r");
+            if (!input)
             {
-                error("EAP-TLS: Cannot use PKCS11 key %s", pkey_identifier);
+                error("EAP-TLS: Could not open private key, %s", privkeyfile);
+                goto fail;
+            }
+
+            pkey = PEM_read_bio_PrivateKey(input, NULL, password_callback, NULL);
+            BIO_free(input);
+            if (!pkey)
+            {
+                error("EAP-TLS: Cannot load private key, %s", privkeyfile);
                 goto fail;
             }
         }
-        else
-        {
-            warn("EAP-TLS: Cannot load PKCS11 key %s", pkey_identifier);
-            log_ssl_errors();
-        }
-    }
-    else
-#endif
-    {
-        if (!SSL_CTX_use_PrivateKey_file(ctx, privkeyfile, SSL_FILETYPE_PEM))
-        { 
-            error("EAP-TLS: Cannot use private key %s", privkeyfile);
-            goto fail;
-        }
     }
 
-    if (SSL_CTX_check_private_key(ctx) != 1) {
-        error("EAP-TLS: Private key %s fails security check", privkeyfile);
+    if (SSL_CTX_use_PrivateKey(ctx, pkey) != 1)
+    {
+        error("EAP-TLS: Cannot use private key");
+        goto fail;
+    }
+
+    if (SSL_CTX_check_private_key(ctx) != 1)
+    {
+        error("EAP-TLS: Private key fails security check");
         goto fail;
     }
 
@@ -696,6 +756,16 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     return ctx;
 
 fail:
+
+    if (cert)
+        X509_free(cert);
+
+    if (pkey)
+        EVP_PKEY_free(pkey);
+
+    if (chain)
+        sk_X509_pop_free(chain, X509_free);
+
     log_ssl_errors();
     SSL_CTX_free(ctx);
     return NULL;
@@ -734,6 +804,8 @@ int eaptls_init_ssl_server(eap_state * esp)
     char cacertfile[MAXWORDLEN];
     char capath[MAXWORDLEN];
     char pkfile[MAXWORDLEN];
+    char pkcs12[MAXWORDLEN];
+
     /*
      * Allocate new eaptls session 
      */
@@ -753,7 +825,7 @@ int eaptls_init_ssl_server(eap_state * esp)
     dbglog( "getting eaptls secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_server.ea_peer,
                    esp->es_server.ea_name, clicertfile,
-                   servcertfile, cacertfile, capath, pkfile, 1)) {
+                   servcertfile, cacertfile, capath, pkfile, pkcs12, 1)) {
         error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
                 esp->es_server.ea_peer, esp->es_server.ea_name );
         return 0;
@@ -761,7 +833,7 @@ int eaptls_init_ssl_server(eap_state * esp)
 
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, clicertfile, pkfile);
+    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, clicertfile, pkfile, pkcs12);
     if (!ets->ctx)
         goto fail;
 
@@ -825,6 +897,7 @@ int eaptls_init_ssl_client(eap_state * esp)
     char cacertfile[MAXWORDLEN];
     char capath[MAXWORDLEN];
     char pkfile[MAXWORDLEN];
+    char pkcs12[MAXWORDLEN];
 
     /*
      * Allocate new eaptls session 
@@ -849,14 +922,14 @@ int eaptls_init_ssl_client(eap_state * esp)
     dbglog( "calling get_eaptls_secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
                    ets->peer, clicertfile,
-                   servcertfile, cacertfile, capath, pkfile, 0)) {
+                   servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
         error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
                 esp->es_client.ea_name, ets->peer );
         return 0;
     }
 
     dbglog( "calling eaptls_init_ssl" );
-    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, servcertfile, pkfile);
+    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, servcertfile, pkfile, pkcs12);
     if (!ets->ctx)
         goto fail;
 
