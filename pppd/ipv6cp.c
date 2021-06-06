@@ -943,8 +943,7 @@ ipv6cp_reqci(fsm *f, u_char *inp, int *len, int reject_if_disagree)
 		break;
 	    }
 	    if (!eui64_iszero(wo->hisid) && !wo->accept_remote &&
-		!eui64_equals(ifaceid, wo->hisid) && 
-		eui64_iszero(go->hisid)) {
+		!eui64_equals(ifaceid, wo->hisid)) {
 		    
 		orc = CONFNAK;
 		ifaceid = wo->hisid;
@@ -1200,6 +1199,12 @@ ipv6cp_up(fsm *f)
     /*
      * We must have a non-zero LL address for both ends of the link.
      */
+
+    if (!eui64_iszero(wo->hisid) && !wo->accept_remote && (!ho->neg_ifaceid || !eui64_equals(ho->hisid, wo->hisid))) {
+	error("Peer refused to agree to his interface identifier");
+	ipv6cp_close(f->unit, "Refused his interface identifier");
+	return;
+    }
     if (!ho->neg_ifaceid)
 	ho->hisid = wo->hisid;
 
