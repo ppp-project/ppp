@@ -1058,6 +1058,7 @@ void set_up_tty(int tty_fd, int local)
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
 	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
+    restore_term = 1;
 
 /* Most Linux architectures and drivers support arbitrary baud rate values via BOTHER */
 #ifdef TCGETS2
@@ -1091,8 +1092,6 @@ void set_up_tty(int tty_fd, int local)
 	else
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
-
-    restore_term = 1;
 }
 
 /********************************************************************
