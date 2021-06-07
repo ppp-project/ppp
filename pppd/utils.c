@@ -137,6 +137,7 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
     int c, i, n;
     int width, prec, fillch;
     int base, len, neg, quoted;
+    long lval = 0;
     unsigned long val = 0;
     char *str, *f, *buf0;
     unsigned char *p;
@@ -202,11 +203,12 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
 	    c = *fmt++;
 	    switch (c) {
 	    case 'd':
-		val = va_arg(args, long);
-		if (val < 0) {
+		lval = va_arg(args, long);
+		if (lval < 0) {
 		    neg = 1;
-		    val = -val;
-		}
+		    val = -lval;
+	        } else
+		    val = lval;
 		base = 10;
 		break;
 	    case 'u':
