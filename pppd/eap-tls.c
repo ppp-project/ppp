@@ -288,9 +288,8 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 {
 #ifndef OPENSSL_NO_ENGINE
     char        *cert_engine_name = NULL;
-    char        *cert_identifier = NULL;
     char        *pkey_engine_name = NULL;
-    char        *pkey_identifier = NULL;
+    char        *idx;
 #endif
     SSL_CTX     *ctx;
     SSL         *ssl;
@@ -361,19 +360,13 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
        If the certificate filename starts with a / or . then we
        ALWAYS assume it is a file and not an engine/pkcs11 identifier
      */
-    if ( index( certfile, '/' ) == NULL && index( certfile, '.') == NULL )
+    if ( (idx = index( certfile, ':' )) != NULL )
     {
-        cert_identifier = index( certfile, ':' );
+        cert_engine_name = strdup( certfile );
+        cert_engine_name[idx - certfile] = 0;
 
-        if (cert_identifier)
-        {
-            cert_engine_name = certfile;
-            *cert_identifier = '\0';
-            cert_identifier++;
-
-            dbglog( "Found certificate engine '%s'", cert_engine_name );
-            dbglog( "Found certificate identifier '%s'", cert_identifier );
-        }
+        dbglog( "Using engine '%s' for certificate, URI: '%s'",
+                cert_engine_name, certfile );
     }
 
     /* if the privatekey filename is of the form engine:id. e.g.
@@ -382,39 +375,33 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
        If the privatekey filename starts with a / or . then we
        ALWAYS assume it is a file and not an engine/pkcs11 identifier
      */
-    if ( index( privkeyfile, '/' ) == NULL && index( privkeyfile, '.') == NULL )
+    if ( (idx = index( privkeyfile, ':' )) != NULL )
     {
-        pkey_identifier = index( privkeyfile, ':' );
+        pkey_engine_name = strdup( privkeyfile );
+        pkey_engine_name[idx - privkeyfile] = 0;
 
-        if (pkey_identifier)
-        {
-            pkey_engine_name = privkeyfile;
-            *pkey_identifier = '\0';
-            pkey_identifier++;
-
-            dbglog( "Found privatekey engine '%s'", pkey_engine_name );
-            dbglog( "Found privatekey identifier '%s'", pkey_identifier );
-        }
+        dbglog( "Using engine '%s' for private key, URI: '%s'",
+                pkey_engine_name, privkeyfile );
     }
 
-    if (cert_identifier && pkey_identifier)
+    if (cert_engine_name && pkey_engine_name)
     {
-        if (strlen( cert_identifier ) == 0)
+        if (strlen( certfile ) - strlen( cert_engine_name ) == 1)
         {
-            if (strlen( pkey_identifier ) == 0)
+            if (strlen( privkeyfile ) - strlen( pkey_engine_name ) == 1)
                 error( "EAP-TLS: both the certificate and privatekey identifiers are missing!" );
             else
             {
                 dbglog( "Substituting privatekey identifier for certificate identifier" );
-                cert_identifier = pkey_identifier;
+                certfile = privkeyfile;
             }
         }
         else
         {
-            if (strlen( pkey_identifier ) == 0)
+            if (strlen( privkeyfile ) - strlen( pkey_engine_name ) == 1)
             {
                 dbglog( "Substituting certificate identifier for privatekey identifier" );
-                pkey_identifier = cert_identifier;
+                privkeyfile = certfile;
             }
         }
     }
@@ -430,6 +417,13 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         else
             pkey_engine = eaptls_ssl_load_engine( pkey_engine_name );
     }
+
+    if (cert_engine_name)
+        free(cert_engine_name);
+
+    if (pkey_engine_name)
+        free(pkey_engine_name);
+
 #endif
 
     SSL_CTX_set_default_passwd_cb (ctx, password_callback);
@@ -457,12 +451,12 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
             X509 *cert;
         } cert_info;
 
-        cert_info.s_slot_cert_id = cert_identifier;
+        cert_info.s_slot_cert_id = certfile;
         cert_info.cert = NULL;
         
         if (!ENGINE_ctrl_cmd( cert_engine, "LOAD_CERT_CTRL", 0, &cert_info, NULL, 0 ) )
         {
-            error( "EAP-TLS: Error loading certificate with id '%s' from engine", cert_identifier );
+            error( "EAP-TLS: Error loading certificate with URI '%s' from engine", certfile );
             goto fail;
         }
 
@@ -474,7 +468,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         }
         else
         {
-            warn("EAP-TLS: Cannot load PKCS11 key %s", cert_identifier);
+            warn("EAP-TLS: Cannot load key with URI: '%s'", certfile );
             log_ssl_errors();
         }
     }
@@ -572,7 +566,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         PW_CB_DATA  cb_data;
 
         cb_data.password = passwd;
-        cb_data.prompt_info = pkey_identifier;
+        cb_data.prompt_info = privkeyfile;
 
         if (passwd[0] != 0)
         {
@@ -593,14 +587,14 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
             UI_method_set_flusher(transfer_pin, stub);
             UI_method_set_reader(transfer_pin,  stub_reader);
 
-            dbglog( "Using our private key '%s' in engine", pkey_identifier );
-            pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, transfer_pin, &cb_data);
+            dbglog( "Using our private key URI: '%s' in engine", privkeyfile );
+            pkey = ENGINE_load_private_key(pkey_engine, privkeyfile, transfer_pin, &cb_data);
 
             if (transfer_pin) UI_destroy_method(transfer_pin);
         }
         else {
-            dbglog( "Loading private key '%s' from engine", pkey_identifier );
-            pkey = ENGINE_load_private_key(pkey_engine, pkey_identifier, NULL, NULL);
+            dbglog( "Loading private key URI: '%s' from engine", privkeyfile );
+            pkey = ENGINE_load_private_key(pkey_engine, privkeyfile, NULL, NULL);
         }
     }
     else 
