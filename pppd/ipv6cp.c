@@ -720,7 +720,9 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
     NAKCIIFACEID(CI_IFACEID, neg_ifaceid,
 		 if (treat_as_reject) {
 		     try.neg_ifaceid = 0;
-		 } else if (go->accept_local) {
+		 } else if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
+		     try.ourid = ifaceid;
+		 } else if (eui64_iszero(ifaceid) && !go->opt_local) {
 		     while (eui64_iszero(ifaceid) || 
 			    eui64_equals(ifaceid, go->hisid)) /* bad luck */
 			 eui64_magic(ifaceid);
@@ -772,11 +774,15 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 		goto bad;
 	    try.neg_ifaceid = 1;
 	    eui64_get(ifaceid, p);
-	    if (go->accept_local) {
+	    if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
+		try.ourid = ifaceid;
+	    } else if (eui64_iszero(ifaceid) && !go->opt_local) {
 		while (eui64_iszero(ifaceid) || 
 		       eui64_equals(ifaceid, go->hisid)) /* bad luck */
 		    eui64_magic(ifaceid);
 		try.ourid = ifaceid;
+	    } else {
+		try.neg_ifaceid = 0;
 	    }
 	    no.neg_ifaceid = 1;
 	    break;
@@ -955,9 +961,17 @@ ipv6cp_reqci(fsm *f, u_char *inp, int *len, int reject_if_disagree)
 		orc = CONFNAK;
 		if (eui64_iszero(go->hisid))	/* first time, try option */
 		    ifaceid = wo->hisid;
-		while (eui64_iszero(ifaceid) || 
-		       eui64_equals(ifaceid, go->ourid)) /* bad luck */
-		    eui64_magic(ifaceid);
+		if (eui64_equals(ifaceid, go->ourid)) /* bad luck */
+		    eui64_zero(ifaceid);
+		if (eui64_iszero(ifaceid)) {
+		    if (wo->opt_remote)
+			ifaceid = wo->hisid;
+		    else {
+			while (eui64_iszero(ifaceid) ||
+			       eui64_equals(ifaceid, go->ourid)) /* bad luck */
+			    eui64_magic(ifaceid);
+		    }
+		}
 		go->hisid = ifaceid;
 		DECPTR(sizeof(ifaceid), p);
 		eui64_put(ifaceid, p);
