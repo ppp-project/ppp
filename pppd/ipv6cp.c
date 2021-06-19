@@ -239,9 +239,9 @@ static option_t ipv6cp_option_list[] = {
     { "-ipv6", o_bool, &ipv6cp_protent.enabled_flag,
       "Disable IPv6 and IPv6CP", OPT_PRIOSUB | OPT_ALIAS },
 
-    { "ipv6cp-accept-local", o_bool, &ipv6cp_allowoptions[0].accept_local,
+    { "ipv6cp-accept-local", o_bool, &ipv6cp_wantoptions[0].accept_local,
       "Accept peer's interface identifier for us", 1 },
-    { "ipv6cp-accept-remote", o_bool, &ipv6cp_allowoptions[0].accept_remote,
+    { "ipv6cp-accept-remote", o_bool, &ipv6cp_wantoptions[0].accept_remote,
       "Accept peer's interface identifier for itself", 1 },
 
     { "defaultroute6", o_bool, &ipv6cp_wantoptions[0].default_route,
