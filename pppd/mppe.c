@@ -220,6 +220,8 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
     mppe_set_keys(SendKey, RecvKey, SHA1_SIGNATURE_SIZE);
 }
 
+#ifndef UNIT_TEST
+
 /*
  * Set MPPE options from plugins.
  */
@@ -251,3 +253,4 @@ mppe_set_enc_types(int policy, int types)
     }
 }
 
+#endif

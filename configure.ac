@@ -189,7 +189,15 @@ AC_ARG_ENABLE([eaptls],
     AS_HELP_STRING([--disable-eaptls], [Disable EAP-TLS authentication support]))
 AS_IF([test "x$enable_eaptls" != "xno"],
     AC_DEFINE([USE_EAPTLS], 1, ["Have EAP-TLS authentication support"]))
-AM_CONDITIONAL(WITH_EAPTLS, test "${enable_eaptls}" != "no")
+AM_CONDITIONAL(WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
+
+#
+# Disable PEAP support
+AC_ARG_ENABLE([peap],
+    AS_HELP_STRING([--disable-peap], [Disable PEAP authentication support]))
+AS_IF([test "x${enable_peap}" != "xno"],
+    AC_DEFINE([USE_PEAP], 1, ["Have PEAP authentication support"]))
+AM_CONDITIONAL([WITH_PEAP], test "x${enable_peap}" != "xno")
 
 #
 # Disable OpenSSL engine support
@@ -232,14 +240,14 @@ AM_CONDITIONAL(WITH_OPENSSL, test "${with_openssl}" != "no")
 
 #
 # Check if OpenSSL has compiled in support for various ciphers
-AS_IF([test "${with_openssl}" != "no" ], [
+AS_IF([test "x${with_openssl}" != "xno" ], [
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_MD4], [md4])
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_MD5], [md5])
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_DES], [des])
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_SHA], [sha])
 ], [
-    AS_IF([test "x$enable_eaptls" != "xno"],
-        [AC_MSG_ERROR([OpenSSL not found, and if this is your intention then run configure --disable-eaptls])])
+    AS_IF([test "x${enable_eaptls}" != "xno" || test "x${enable_peap}" != "xno"],
+        [AC_MSG_ERROR([OpenSSL not found, and if this is your intention then run configure --disable-eaptls and --disable-peap])])
 ])
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" = "xyes")
@@ -414,4 +422,5 @@ Features enabled
     CBCP.................: ${enable_cbcp:-no}
     IPXCP................: ${enable_ipxcp:-no}
     EAP-TLS..............: ${enable_eaptls:-yes}
+    PEAP.................: ${enable_peap:-yes}
 "
