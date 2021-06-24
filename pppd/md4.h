@@ -7,6 +7,16 @@
 ** (C) 1990 RSA Data Security, Inc.                                  **
 ** ********************************************************************
 */
+#include "pppdconf.h"
+
+#ifndef __MD4_INCLUDE__
+#define __MD4_INCLUDE__
+#ifndef USE_MD4
+#include <openssl/md4.h>
+#define MD4Init MD4_Init
+#define MD4Update MD4_Update
+#define MD4Final MD4_Final
+#else
 
 /* MDstruct is the data structure for a message digest computation.
 */
@@ -53,3 +63,5 @@ extern void MD4Final(unsigned char *, MD4_CTX *);
 /*
 ** End of md4.h
 ****************************(cut)***********************************/
+#endif  /* USE_MD4 */
+#endif  /* __MD4_INCLUDE__ */

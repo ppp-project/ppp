@@ -26,6 +26,10 @@
 static char const RCSID[] =
 "$Id: radius.c,v 1.32 2008/05/26 09:18:08 paulus Exp $";
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "pppd.h"
 #include "chap-new.h"
 #ifdef CHAPMS

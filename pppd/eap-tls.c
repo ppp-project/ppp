@@ -29,6 +29,10 @@
  *
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
@@ -37,7 +41,9 @@
 #include <fcntl.h>
 
 #include <openssl/conf.h>
+#ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
+#endif
 #include <openssl/hmac.h>
 #include <openssl/err.h>
 #include <openssl/ui.h>

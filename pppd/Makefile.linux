@@ -145,7 +145,7 @@ PPPDOBJS += eap-tls.o
 endif
 
 ifdef HAS_SHADOW
-CFLAGS   += -DHAS_SHADOW
+CFLAGS   += -DHAVE_SHADOW_H
 #LIBS     += -lshadow $(LIBS)
 endif
 
@@ -156,7 +156,7 @@ LIBS	+= -lcrypt
 endif
 
 ifdef USE_LIBUTIL
-CFLAGS	+= -DHAVE_LOGWTMP=1
+CFLAGS	+= -DHAVE_UTMP_H=1
 LIBS	+= -lutil
 endif
 

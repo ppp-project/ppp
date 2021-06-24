@@ -158,7 +158,7 @@ if [ -d "$ksrc" ]; then
 	if [ ${HAVE_INCDIR_PARAM:-0} -ne 1 ] ; then
 	    INCDIR='${prefix}'/include
 	fi
-	mkmkf $ksrc/pppd.pc.in pppd/pppd.pc
+	mkmkf pppd/pppd.pc.in pppd/pppd.pc
     fi
 else
   echo "Unable to locate kernel source $ksrc"
