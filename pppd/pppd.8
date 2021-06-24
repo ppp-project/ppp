@@ -1178,10 +1178,12 @@ Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
 connections.  If the unit is already in use a dynamically allocated number will
 be used.
 .TP
-.B ifname \fIstring
-Set the ppp interface name for outbound connections.  If the interface name is
-already in use, or if the name cannot be used for any other reason, pppd will
-terminate.
+.B ifname \fIstring%d
+Set the ppp interface name for outbound or inbound connections. If you add
+%d in the end of the string pppd will add ppp unit and will create a new
+interface named like pppoe0, l2tp1, ptpp3. This is valid only for LINUX.
+If is used without %d and the interface name is already in use, or if the 
+name cannot be used for any other reason, pppd will terminate.
 .TP
 .B unset \fIname
 Remove a variable from the environment variable for scripts that are
