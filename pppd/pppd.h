@@ -336,19 +336,25 @@ extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
-#ifdef USE_EAPTLS
+#if defined(USE_EAPTLS) || defined(USE_PEAP)
 
 #define TLS_VERIFY_NONE     "none"
 #define TLS_VERIFY_NAME     "name"
 #define TLS_VERIFY_SUBJECT  "subject"
 #define TLS_VERIFY_SUFFIX   "suffix"
 
-extern char	*crl_dir;
-extern char	*crl_file;
-extern char *pkcs12_file;
+extern char *crl_dir;
+extern char *crl_file;
+extern char *ca_path;
+extern char *cacert_file;
+
 extern char *max_tls_version;
 extern bool tls_verify_key_usage;
 extern char *tls_verify_method;
+#endif /* USE_EAPTLS || USE_PEAP */
+
+#ifdef USE_EAPTLS
+extern char *pkcs12_file;
 #endif /* USE_EAPTLS */
 
 #ifdef MAXOCTETS

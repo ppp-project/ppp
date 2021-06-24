@@ -1,13 +1,14 @@
 sbin_PROGRAMS = pppd
 dist_man8_MANS = pppd.8
-check_PROGRAMS = \
-    utest_chap
+check_PROGRAMS =
 
 utest_chap_SOURCES = chap_ms.c pppcrypt.c utils.c
 utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
-TESTS = $(check_PROGRAMS)
+utest_peap_SOURCES = peap.c utils.c mppe.c
+utest_peap_CPPFLAGS = -DUNIT_TEST -I${top_srcdir}/include
+utest_peap_LDFLAGS =
 
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
@@ -37,14 +38,16 @@ pppd_include_HEADERS = \
     md4.h \
     md5.h \
     mppe.h \
-    pppdconf.h \
     patchlevel.h \
     pathnames.h \
+    peap.h \
     pppcrypt.h \
     pppd.h \
+    pppdconf.h \
     session.h \
     sha1.h \
     spinlock.h \
+    tls.h \
     tdb.h \
     upap.h 
 
@@ -84,6 +87,7 @@ endif
 if WITH_CHAPMS
 pppd_SOURCES += chap_ms.c
 pppd_SOURCES += pppcrypt.c
+check_PROGRAMS += utest_chap
 else
 if WITH_SRP
 pppd_SOURCES += pppcrypt.c
@@ -133,34 +137,41 @@ pppd_LIBS += -lpam -ldl
 endif
 
 if WITH_EAPTLS
-pppd_SOURCES += eap-tls.c
+pppd_SOURCES += eap-tls.c tls.c
+else
+if WITH_PEAP
+pppd_SOURCES += tls.c
 endif
+endif
+
+if WITH_PEAP
+pppd_SOURCES += peap.c
+check_PROGRAMS += utest_peap
+endif
+
+noinst_LTLIBRARIES = libppp_crypt.la
+libppp_crypt_la_SOURCES=
 
 if !WITH_OPENSSL
-pppd_SOURCES += md5.c md4.c sha1.c
-utest_chap_SOURCES += md5.c md4.c sha1.c
+libppp_crypt_la_SOURCES += md4.c md5.c sha1.c
 else
-pppd_CPPFLAGS += $(OPENSSL_INCLUDES)
-pppd_LDFLAGS += $(OPENSSL_LDFLAGS)
-
-utest_chap_CPPFLAGS += $(OPENSSL_INCLUDES)
-utest_chap_LDFLAGS += $(OPENSSL_LDFLAGS)
-utest_chap_LDADD = $(OPENSSL_LIBS)
-
-pppd_LIBS += $(OPENSSL_LIBS)
+libppp_crypt_la_CPPFLAGS=$(OPENSSL_INCLUDES)
+libppp_crypt_la_LDFLAGS=$(OPENSSL_LDFLAGS)
+libppp_crypt_la_LIBADD=$(OPENSSL_LIBS)
 if !OPENSSL_HAVE_SHA
-pppd_SOURCES += sha1.c
-utest_chap_SOURCES += sha1.c
-endif
-if !OPENSSL_HAVE_MD4
-pppd_SOURCES += md4.c
-utest_chap_SOURCES += md4.c
+libppp_crypt_la_SOURCES += sha1.c
 endif
 if !OPENSSL_HAVE_MD5
-pppd_SOURCES += md5.c
-utest_chap_SOURCES += md5.c
+libppp_crypt_la_SOURCES += md5.c
+endif
+if !OPENSSL_HAVE_MD4
+libppp_crypt_la_SOURCES += md4.c
 endif
 endif
+
+utest_peap_LDADD = libppp_crypt.la
+utest_chap_LDADD = libppp_crypt.la
+pppd_LIBS += libppp_crypt.la
 
 if WITH_SYSTEMD
 pppd_LIBS += -lsystemd
@@ -181,3 +192,6 @@ pppd_LDADD = $(pppd_LIBS)
 
 EXTRA_DIST = \
     ppp.pam
+
+TESTS = $(check_PROGRAMS)
+
