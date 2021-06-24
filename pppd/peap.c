@@ -36,6 +36,7 @@
 #include "eap.h"
 #include "chap-new.h"
 #include "chap_ms.h"
+#include "mppe.h"
 #include "peap.h"
 
 struct peap_state {
@@ -141,8 +142,10 @@ static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_ou
 	BCOPY(nonce, (data_tlv + PEAP_TLV_HEADERLEN), PEAP_TLV_NONCE_LEN);
 	data_tlv[60] = EAPT_PEAP;
 
-	BCOPY(mppe_send_key, isk, MPPE_MAX_KEY_LEN);
-	BCOPY(mppe_recv_key, isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+#ifdef MPPE
+    mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
+    mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+#endif
 
 	BCOPY(label, ipmkseed, strlen(label));
 	BCOPY(isk, ipmkseed + strlen(label), PEAP_TLV_ISK_LEN);
@@ -169,7 +172,10 @@ static void verify_compound_mac(u_char *in_buf)
 			fatal("server's CMK does not match client's CMK, potential MiTM");
 }
 
-static void generate_mppe_keys(void)
+#ifdef MPPE
+#define PEAP_MPPE_KEY_LEN 32
+
+static void generate_mppe_keys(int client)
 {
 	const char *label = PEAP_TLV_CSK_SEED_LABEL;
 	u_char csk[PEAP_TLV_CSK_LEN] = {0};
@@ -190,9 +196,14 @@ static void generate_mppe_keys(void)
 	 * | MS-MPPE-Send-Key      | MS-MPPE-Recv-Key       |
 	 * +-----------------------+------------------------+
 	 */
-	BCOPY(csk, mppe_send_key, MPPE_MAX_KEY_LEN);
-	BCOPY(csk + 32, mppe_recv_key, MPPE_MAX_KEY_LEN);
+	if (client) {
+		mppe_set_keys(csk, csk + PEAP_MPPE_KEY_LEN, PEAP_MPPE_KEY_LEN);
+	} else {
+		mppe_set_keys(csk + PEAP_MPPE_KEY_LEN, csk, PEAP_MPPE_KEY_LEN);
+	}
 }
+
+#endif
 
 static void dump(u_char *buf, int len)
 {
@@ -333,8 +344,10 @@ void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		outp = outp + PEAP_TLV_RESULT_LEN;
 		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
 		generate_cmk(psm->tk, psm->nonce, outp, 1);
+#ifdef MPPE
 		/* set mppe keys */
-		generate_mppe_keys();
+		generate_mppe_keys(1);
+#endif
 		used = PEAP_TLV_LEN;
 	} else {
 		/* send compressed EAP NAK for any unknown packet */
