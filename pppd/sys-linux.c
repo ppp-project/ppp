@@ -3007,7 +3007,14 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
 
     /* error == 0 indicates success, negative value is errno code */
     if (nlresp.nlerr.error != 0) {
-        error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
+        /*
+         * Linux kernel versions prior 3.11 do not support setting IPv6 peer
+         * addresses and error response is expected. On older kernel versions
+         * do not show this error message. On error pppd tries to fallback to
+         * the old IOCTL method.
+         */
+        if (kernel_version >= KVERSION(3,11,0))
+            error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
         return 0;
     }
 
@@ -3023,6 +3030,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct in6_ifreq ifr6;
     struct ifreq ifr;
     struct in6_rtmsg rt6;
+    int ret;
 
     if (sock6_fd < 0) {
 	errno = -sock6_fd;
@@ -3038,8 +3046,16 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 
     if (kernel_version >= KVERSION(2,1,16)) {
         /* Set both local address and remote peer address (with route for it) via rtnetlink */
-        return sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
+        ret = sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
     } else {
+        ret = 0;
+    }
+
+    /*
+     * Linux kernel versions prior 3.11 do not support setting IPv6 peer address
+     * via rtnetlink. So if sif6addr_rtnetlink() fails then try old IOCTL method.
+     */
+    if (!ret) {
         /* Local interface */
         memset(&ifr6, 0, sizeof(ifr6));
         IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
