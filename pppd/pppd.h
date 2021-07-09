@@ -57,7 +57,18 @@
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
+
+/*
+ * linux kernel does not have net/ppp_defs.h by default.
+ * this fix is for musl as it does not create net/ppp_defs.h
+ * like glibc.
+*/
+
+#ifdef __linux__
+#include <linux/ppp_defs.h>
+#else
 #include <net/ppp_defs.h>
+#endif
 #include "patchlevel.h"
 
 #ifdef INET6
