@@ -483,7 +483,7 @@ setupapfile(char **argv)
         free(fname);
 	return 0;
     }
-    ufile = fopen(fname, "r");
+    ufile = fopen(fname, "re");
     if (seteuid(euid) == -1)
 	fatal("unable to regain privileges: %m");
     if (ufile == NULL) {
@@ -1488,7 +1488,7 @@ check_passwd(int unit,
     filename = _PATH_UPAPFILE;
     addrs = opts = NULL;
     ret = UPAP_AUTHNAK;
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     if (f == NULL) {
 	error("Can't open PAP password file %s: %m", filename);
 
@@ -1586,7 +1586,7 @@ null_login(int unit)
     if (ret <= 0) {
 	filename = _PATH_UPAPFILE;
 	addrs = NULL;
-	f = fopen(filename, "r");
+	f = fopen(filename, "re");
 	if (f == NULL)
 	    return 0;
 	check_access(f, filename);
@@ -1632,7 +1632,7 @@ get_pap_passwd(char *passwd)
     }
 
     filename = _PATH_UPAPFILE;
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     if (f == NULL)
 	return 0;
     check_access(f, filename);
@@ -1669,7 +1669,7 @@ have_pap_secret(int *lacks_ipp)
     }
 
     filename = _PATH_UPAPFILE;
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     if (f == NULL)
 	return 0;
 
@@ -1711,7 +1711,7 @@ have_chap_secret(char *client, char *server,
     }
 
     filename = _PATH_CHAPFILE;
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     if (f == NULL)
 	return 0;
 
@@ -1749,7 +1749,7 @@ have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
     struct wordlist *addrs;
 
     filename = _PATH_SRPFILE;
-    f = fopen(filename, "r");
+    f = fopen(filename, "re");
     if (f == NULL)
 	return 0;
 
@@ -1800,7 +1800,7 @@ get_secret(int unit, char *client, char *server,
 	addrs = NULL;
 	secbuf[0] = 0;
 
-	f = fopen(filename, "r");
+	f = fopen(filename, "re");
 	if (f == NULL) {
 	    error("Can't open chap secret file %s: %m", filename);
 	    return 0;
@@ -1853,7 +1853,7 @@ get_srp_secret(int unit, char *client, char *server,
 	filename = _PATH_SRPFILE;
 	addrs = NULL;
 
-	fp = fopen(filename, "r");
+	fp = fopen(filename, "re");
 	if (fp == NULL) {
 	    error("Can't open srp secret file %s: %m", filename);
 	    return 0;
@@ -2244,7 +2244,7 @@ scan_authfile(FILE *f, char *client, char *server,
 	     */
 	    if (word[0] == '@' && word[1] == '/') {
 		strlcpy(atfile, word+1, sizeof(atfile));
-		if ((sf = fopen(atfile, "r")) == NULL) {
+		if ((sf = fopen(atfile, "re")) == NULL) {
 		    warn("can't open indirect secret file %s", atfile);
 		    continue;
 		}
