@@ -75,7 +75,7 @@ rc_mksid (void)
 {
   static char buf[32];
   static unsigned short int cnt = 0;
-  slprintf(buf, sizeof(buf), "%08lX%04X%02hX",
+  snprintf(buf, sizeof(buf), "%08lX%04X%02hX",
 	   (unsigned long int) time (NULL),
 	   (unsigned int) getpid (),
 	   cnt & 0xFF);
