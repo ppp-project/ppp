@@ -63,6 +63,9 @@
 #include "pathnames.h"
 #include "md5.h"
 #include "eap.h"
+#ifdef USE_PEAP
+#include "peap.h"
+#endif /* USE_PEAP */
 
 #ifdef USE_SRP
 #include <t_pwd.h>
@@ -2209,6 +2212,11 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 	    break;
 #endif /* CHAPMS */
+#ifdef USE_PEAP
+	case EAPT_PEAP:
+		peap_process(esp, id, inp, len, rhostname);
+		break;
+#endif /* USE_PEAP */
 
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
