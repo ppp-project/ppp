@@ -1529,9 +1529,9 @@ setlogfile(char **argv)
 	option_error("unable to drop permissions to open %s: %m", *argv);
 	return 0;
     }
-    fd = open(*argv, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0644);
+    fd = open(*argv, O_WRONLY | O_APPEND | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
     if (fd < 0 && errno == EEXIST)
-	fd = open(*argv, O_WRONLY | O_APPEND);
+	fd = open(*argv, O_WRONLY | O_APPEND | O_CLOEXEC);
     err = errno;
     if (!privileged_option && seteuid(euid) == -1)
 	fatal("unable to regain privileges: %m");

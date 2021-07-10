@@ -210,7 +210,7 @@ static void send_config_pppol2tp(int mtu,
 		struct ifreq ifr;
 		int fd;
 
-		fd = socket(AF_INET, SOCK_DGRAM, 0);
+		fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
 		if (fd >= 0) {
 			memset (&ifr, '\0', sizeof (ifr));
 			strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
