@@ -200,7 +200,7 @@ The \fBSAY\fR directive allows the script to send strings to the user
 at the terminal via standard error.  If \fBchat\fR is being run by
 pppd, and pppd is running as a daemon (detached from its controlling
 terminal), standard error will normally be redirected to the file
-/etc/ppp/connect\-errors.
+/var/log/ppp/connect\-errors.
 .LP
 \fBSAY\fR strings must be enclosed in single or double quotes. If
 carriage return and line feed are needed in the string to be output,

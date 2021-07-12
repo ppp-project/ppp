@@ -5,6 +5,8 @@ BINDIR = $(DESTDIR)/sbin
 INCDIR = $(DESTDIR)/include
 MANDIR = $(DESTDIR)/share/man
 ETCDIR = $(INSTROOT)@SYSCONF@/ppp
+RUNDIR = $(DESTDIR)/var/run/ppp
+LOGDIR = $(DESTDIR)/var/log/ppp
 
 # uid 0 = root
 INSTALL= install
@@ -16,7 +18,7 @@ all:
 	cd pppstats; $(MAKE) $(MFLAGS) all
 	cd pppdump; $(MAKE) $(MFLAGS) all
 
-install: $(BINDIR) $(MANDIR)/man8 install-progs install-devel
+install: $(BINDIR) $(RUNDIR) $(LOGDIR) $(MANDIR)/man8 install-progs install-devel
 
 install-progs:
 	cd chat; $(MAKE) $(MFLAGS) install
@@ -47,6 +49,10 @@ $(BINDIR):
 $(MANDIR)/man8:
 	$(INSTALL) -d -m 755 $@
 $(ETCDIR):
+	$(INSTALL) -d -m 755 $@
+$(RUNDIR):
+	$(INSTALL) -d -m 755 $@
+$(LOGDIR):
 	$(INSTALL) -d -m 755 $@
 
 clean:

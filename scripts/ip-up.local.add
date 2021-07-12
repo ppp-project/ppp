@@ -10,15 +10,15 @@
 # Nick Walker (nickwalker@email.com)
 #
 
-if [ -n "$USEPEERDNS" -a -f /etc/ppp/resolv.conf ]; then
-	rm -f /etc/ppp/resolv.prev
+if [ -n "$USEPEERDNS" -a -f /var/run/ppp/resolv.conf ]; then
+	rm -f /var/run/ppp/resolv.prev
 	if [ -f /etc/resolv.conf ]; then
-		cp /etc/resolv.conf /etc/ppp/resolv.prev
-		grep domain /etc/ppp/resolv.prev > /etc/resolv.conf
-		grep search /etc/ppp/resolv.prev >> /etc/resolv.conf
-		cat /etc/ppp/resolv.conf >> /etc/resolv.conf
+		cp /etc/resolv.conf /var/run/ppp/resolv.prev
+		grep domain /var/run/ppp/resolv.prev > /etc/resolv.conf
+		grep search /var/run/ppp/resolv.prev >> /etc/resolv.conf
+		cat /var/run/ppp/resolv.conf >> /etc/resolv.conf
 	else
-		cp /etc/ppp/resolv.conf /etc
+		cp /var/run/ppp/resolv.conf /etc
 	fi
 fi
 
