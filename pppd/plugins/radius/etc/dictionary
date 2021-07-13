@@ -82,6 +82,8 @@ ATTRIBUTE	Acct-Session-Time	46	integer
 ATTRIBUTE	Acct-Input-Packets	47	integer
 ATTRIBUTE	Acct-Output-Packets	48	integer
 ATTRIBUTE	Acct-Terminate-Cause	49	integer
+ATTRIBUTE	Acct-Input-Gigawords	52	integer
+ATTRIBUTE	Acct-Output-Gigawords	53	integer
 ATTRIBUTE       Chap-Challenge          60      string
 ATTRIBUTE	NAS-Port-Type		61	integer
 ATTRIBUTE	Port-Limit		62	integer

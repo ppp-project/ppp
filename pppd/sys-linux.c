@@ -97,6 +97,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <limits.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -1450,11 +1451,17 @@ get_idle_time(int u, struct ppp_idle *ip)
 
 /********************************************************************
  *
- * get_ppp_stats - return statistics for the link.
+ * get_ppp_stats_iocl - return statistics for the link, using the ioctl() method,
+ * this only supports 32-bit counters, so need to count the wraps.
  */
-int
-get_ppp_stats(int u, struct pppd_stats *stats)
+static int
+get_ppp_stats_ioctl(int u, struct pppd_stats *stats)
 {
+    static u_int32_t previbytes = 0;
+    static u_int32_t prevobytes = 0;
+    static u_int32_t iwraps = 0;
+    static u_int32_t owraps = 0;
+
     struct ifpppstatsreq req;
 
     memset (&req, 0, sizeof (req));
@@ -1469,7 +1476,129 @@ get_ppp_stats(int u, struct pppd_stats *stats)
     stats->bytes_out = req.stats.p.ppp_obytes;
     stats->pkts_in = req.stats.p.ppp_ipackets;
     stats->pkts_out = req.stats.p.ppp_opackets;
+
+    if (stats->bytes_in < previbytes)
+	++iwraps;
+    if (stats->bytes_out < prevobytes)
+	++owraps;
+
+    previbytes = stats->bytes_in;
+    prevobytes = stats->bytes_out;
+
+    stats->bytes_in += (u_int64_t)iwraps << 32;
+    stats->bytes_out += (u_int64_t)owraps << 32;
+
     return 1;
+}
+
+/********************************************************************
+ * get_ppp_stats_sysfs - return statistics for the link, using the files in sysfs,
+ * this provides native 64-bit counters.
+ */
+static int
+get_ppp_stats_sysfs(int u, struct pppd_stats *stats)
+{
+    char fname[PATH_MAX+1];
+    char buf[21], *err; /* 2^64 < 10^20 */
+    int blen, fd, rlen;
+    unsigned long long val;
+
+    struct {
+	const char* fname;
+	void* ptr;
+	unsigned size;
+    } slist[] = {
+#define statfield(fn, field)	{ .fname = #fn, .ptr = &stats->field, .size = sizeof(stats->field) }
+	statfield(rx_bytes, bytes_in),
+	statfield(tx_bytes, bytes_out),
+	statfield(rx_packets, pkts_in),
+	statfield(tx_packets, pkts_out),
+#undef statfield
+    };
+
+    blen = snprintf(fname, sizeof(fname), "/sys/class/net/%s/statistics/", ifname);
+    if (blen >= sizeof(fname))
+	return 0; /* ifname max 15, so this should be impossible */
+
+    for (int i = 0; i < sizeof(slist) / sizeof(*slist); ++i) {
+	if (snprintf(fname + blen, sizeof(fname) - blen, "%s", slist[i].fname) >= sizeof(fname) - blen) {
+	    fname[blen] = 0;
+	    error("sysfs stats: filename %s/%s overflowed PATH_MAX", fname, slist[i].fname);
+	    return 0;
+	}
+
+	fd = open(fname, O_RDONLY);
+	if (fd < 0) {
+	    error("%s: %m", fname);
+	    return 0;
+	}
+
+	rlen = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (rlen < 0) {
+	    error("%s: %m", fname);
+	    return 0;
+	}
+	/* trim trailing \n if present */
+	while (rlen > 0 && buf[rlen-1] == '\n')
+	    rlen--;
+	buf[rlen] = 0;
+
+	val = strtoull(buf, &err, 10);
+	if (err && *err) {
+	    error("string to number conversion error converting %s (from %s) for remaining string %s", buf, fname, err);
+	    return 0;
+	}
+	switch (slist[i].size) {
+#define stattype(type)	case sizeof(type): *(type*)slist[i].ptr = (type)val; break
+	    stattype(u_int64_t);
+	    stattype(u_int32_t);
+	    stattype(u_int16_t);
+	    stattype(u_int8_t);
+#undef stattype
+	default:
+	    error("Don't know how to store stats for %s of size %u", slist[i].fname, slist[i].size);
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
+/********************************************************************
+ * Periodic timer function to be used to keep stats up to date in case of ioctl
+ * polling.
+ *
+ * Given the 25s interval this should be fine up to data rates of 1.37Gbps.
+ * If you do change the timer, remember to also bring the get_ppp_stats (which
+ * sets up the initial trigger) as well.
+ */
+static void
+ppp_stats_poller(void* u)
+{
+    struct pppd_stats dummy;
+    get_ppp_stats_ioctl((long)u, &dummy);
+    TIMEOUT(ppp_stats_poller, u, 25);
+}
+
+/********************************************************************
+ * get_ppp_stats - return statistics for the link.
+ */
+int get_ppp_stats(int u, struct pppd_stats *stats)\
+{
+    static int (*func)(int, struct pppd_stats*) = NULL;
+
+    if (!func) {
+	if (get_ppp_stats_sysfs(u, stats)) {
+	    func = get_ppp_stats_sysfs;
+	    return 1;
+	}
+	warn("statistics falling back to ioctl which only supports 32-bit counters");
+	func = get_ppp_stats_ioctl;
+	TIMEOUT(ppp_stats_poller, (void*)(long)u, 25);
+    }
+
+    return func(u, stats);
 }
 
 /********************************************************************

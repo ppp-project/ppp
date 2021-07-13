@@ -174,8 +174,8 @@ struct permitted_ip {
  * pppd needs.
  */
 struct pppd_stats {
-    unsigned int	bytes_in;
-    unsigned int	bytes_out;
+    u_int64_t		bytes_in;
+    u_int64_t		bytes_out;
     unsigned int	pkts_in;
     unsigned int	pkts_out;
 };
