@@ -150,7 +150,7 @@ int rc_read_dictionary (char *filename)
 			{
 				type = PW_TYPE_INTEGER;
 			}
-			else if (strcmp (typestr, "ipaddr") == 0)
+			else if (strcmp (typestr, "ipaddr") == 0 || strcmp (typestr, "ipv4addr") == 0)
 			{
 				type = PW_TYPE_IPADDR;
 			}
