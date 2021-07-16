@@ -83,6 +83,7 @@
 #include <stdlib.h>
 #include <syslog.h>
 #include <string.h>
+#include <regex.h>
 #include <time.h>
 #include <memory.h>
 #include <utmp.h>
@@ -667,6 +668,19 @@ static int make_ppp_unit(void)
 {
 	int x, flags;
 
+	// Variable to create regex
+	regex_t *regex;
+
+	regex = malloc(sizeof(regex_t));
+
+	size_t     nmatch = 2;
+	regmatch_t pmatch[2];
+
+	// We need at least one character in the front of the ifunit
+	char *pattern = ".+(%d)";
+
+	int rc = 0;
+
 	if (ppp_dev_fd >= 0) {
 		dbglog("in make_ppp_unit, already had /dev/ppp open?");
 		close(ppp_dev_fd);
@@ -690,17 +704,62 @@ static int make_ppp_unit(void)
 		error("Couldn't create new ppp unit: %m");
 
 	if (x == 0 && req_ifname[0] != '\0') {
+		/* We can't use ifname as global variable because is not defined yet by set_ifunit function.
+		  This function will be called later in the ppp code.
+		  We have to rewrite almost the same code as in set_ifunit in main.c
+		*/
 		struct ifreq ifr;
-		char t[MAXIFNAMELEN];
+		char old_ifname[MAXIFNAMELEN];
+		char new_ifname[MAXIFNAMELEN];
+		char ifnameBase[IFNAMSIZ];
+
 		memset(&ifr, 0, sizeof(struct ifreq));
-		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
-		strlcpy(ifr.ifr_name, t, IF_NAMESIZE);
-		strlcpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
-		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
-		if (x < 0)
-		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
-		else
-		    info("Renamed interface %s to %s", t, req_ifname);
+		slprintf(old_ifname, sizeof(old_ifname), "%s%d", PPP_DRV_NAME, ifunit);
+
+		// Compile and create the regex
+		rc = regcomp(regex, pattern, REG_EXTENDED);
+
+		if (rc != 0) {
+		    warn("Warning: couldn't compile the regex \"%s\". Fallback to %s%d format", pattern, PPP_DRV_NAME, ifunit);
+		    slprintf(new_ifname, sizeof(new_ifname), "%s%d", PPP_DRV_NAME, ifunit);
+		    goto set_ifunit_regex_done;
+		} 
+		
+		// If the regex compliation is successful we will continue to try to extract the interface base name.
+		if ((rc = regexec(regex, req_ifname, nmatch, pmatch, 0)) != 0) {
+		    // If we can't find our regex, means that we are using a fixed name.
+		    info("Using static interface naming %s format", new_ifname);
+		    slprintf(new_ifname, sizeof(new_ifname), "%s", req_ifname);
+		    goto set_ifunit_regex_done;
+		}
+		
+		/* Matching the dynamic name. We need to have no more than IFNAMSIZ - 4 bytes for the base name to have enough room to build ifname + digits.
+		   Linux have a maximum of 16 chars allocated for the interfece names, but only 15 are permited.
+		   So we will have maximum 12 chars for name and 3 chars for digits.
+		*/
+		if (pmatch[1].rm_so >= (IFNAMSIZ-4)) {
+		    warn("Warning: interface base name is too long! Please use up to 12 characters for the name to be able to use at least 3 digits! Fallback to %s%d format", PPP_DRV_NAME, ifunit);
+		    slprintf(new_ifname, sizeof(new_ifname), "%s%d", PPP_DRV_NAME, ifunit);
+		    goto set_ifunit_regex_done;
+		}
+		
+		strlcpy(ifnameBase, req_ifname, pmatch[1].rm_so + 1);
+		slprintf(new_ifname, sizeof(new_ifname), "%s%d", ifnameBase, ifunit);
+
+set_ifunit_regex_done:
+		// Free regex
+		regfree(regex);
+
+		if ( strncmp(new_ifname, old_ifname, (strlen(new_ifname) > strlen(new_ifname) ? strlen(new_ifname) : strlen(old_ifname))) ) {
+		    info("Try to rename interface from %s to %s", old_ifname, new_ifname);
+		    strlcpy(ifr.ifr_name, old_ifname, IF_NAMESIZE);
+		    strlcpy(ifr.ifr_newname, new_ifname, IF_NAMESIZE);
+		    x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
+		    if (x < 0)
+			error("Couldn't rename interface %s to %s: %m", old_ifname, new_ifname);
+		    else
+			info("Renamed interface %s to %s", old_ifname, new_ifname);
+		}
 	}
 
 	return x;

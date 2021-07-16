@@ -70,6 +70,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
@@ -87,6 +88,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -728,10 +730,73 @@ set_ifunit(int iskey)
 {
     char ifkey[32];
 
+    char ifnameBase[IFNAMSIZ];
+
+    memset(ifnameBase, '\0', sizeof(ifnameBase));
+    memset(ifname, '\0', sizeof(ifname));
+
+    // Variable to create regex
+    regex_t *regex;
+
+    regex = malloc(sizeof(regex_t));
+
+    size_t     nmatch = 2;
+    regmatch_t pmatch[2];
+
+    // We need at least one character in the front of the ifunit
+    char *pattern = ".+(%d)";
+
+    int rc = 0;
+
+    // If we are requesting a specific name via "ifname" parameter, we have to check if is static or we have to include the ifunit in the name.
     if (req_ifname[0] != '\0')
-	slprintf(ifname, sizeof(ifname), "%s", req_ifname);
+    {
+
+#ifdef __linux__
+	// Compile and create the regex
+	rc = regcomp(regex, pattern, REG_EXTENDED);
+
+	if (rc != 0) {
+	    slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
+	    warn("Warning: couldn't compile the regex \"%s\". Fallback to %s format.", pattern, ifname);
+	    goto set_ifunit_regex_done;
+	}
+	
+	// If the regex compliation is successful we will continue to try to extract the interface base name.
+	if ((rc = regexec(regex, req_ifname, nmatch, pmatch, 0)) != 0) {
+	    // If we can't find our regex, means that is using a fixed name.
+	    slprintf(ifname, sizeof(ifname), "%s", req_ifname);
+	    info("Using static interface naming %s", ifname);
+	    goto set_ifunit_regex_done;
+	}
+	
+	/* Matching the dynamic name. We need to have no more than IFNAMSIZ - 4 bytes in the name, to have enough room to build the name.
+	   Linux have a maximum of 16 chars allocated for the interfece names, but only 15 are permited.
+	   So we will have 12 chars for name and 3 chars for digits.
+	*/
+	if (pmatch[1].rm_so >= (IFNAMSIZ-4)) {
+	    slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
+	    warn("Warning: interface base name is too long! Please use up to 12 characters for the name to be able to use at least 3 digits! Fallback to default notation %s", ifname);
+	    goto set_ifunit_regex_done;
+	}
+	else {
+	    // We need to do a small correction in strlcpy when we are mentioning the length of the string: +1
+	    strlcpy(ifnameBase, req_ifname, pmatch[1].rm_so+1);
+	    slprintf(ifname, sizeof(ifname), "%s%d", ifnameBase, ifunit);
+	    info("Found dynamic custom interface naming: %s", ifname);
+	}
+
+set_ifunit_regex_done:
+	// Free regex
+	regfree(regex);
+#else
+	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
+	info("The option ifname requires Linux. Fallback to %s", ifname);
+#endif
+    }
     else
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
+
     info("Using interface %s", ifname);
     script_setenv("IFNAME", ifname, iskey);
     slprintf(ifkey, sizeof(ifkey), "%d", ifunit);

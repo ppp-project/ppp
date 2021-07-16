@@ -40,10 +40,12 @@ static char const RCSID[] =
 #include "ipcp.h"
 #include <syslog.h>
 #include <sys/types.h>
+#include <regex.h>
 #include <sys/time.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <net/if.h>
 
 #define BUF_LEN 1024
 
@@ -1319,9 +1321,88 @@ static int
 get_client_port(char *ifname)
 {
     int port;
-    if (sscanf(ifname, "ppp%d", &port) == 1) {
+    char ifnameBase[IFNAMSIZ]; // in case we have a custom interface naming, we extract the basename here and use in regex
+    char cport[IFNAMSIZ]; // here we have to copy from regex the id of the unit
+
+    regex_t *regex;
+    size_t     nmatch = 2;
+    regmatch_t pmatch[2]; /* Array of matches */
+
+    char pattern[64];
+
+    int rc = 0;
+
+    memset(ifnameBase, '\0', sizeof(ifnameBase));
+    memset(cport, '\0', sizeof(cport));
+    memset(pattern, '\0', sizeof(pattern));
+
+    regex = malloc(sizeof(regex_t));
+
+    /*
+     Let extract the ifnameBase name from the req_ifname.
+     This code will use regex for extracting the ppp unit and it will not be affected by the naming of the interface.
+     We are intereseted to get the number in the end of the interface name.
+     Only one case is special when we are using fix name for the interface, without %d in the end.
+    */
+    if (req_ifname[0] != '\0')
+    {
+
+	strcpy(pattern, ".+(%d)");
+
+	// Compile and create the regex
+	rc = regcomp(regex, pattern, REG_EXTENDED);
+
+	if (rc != 0) {
+	    slprintf(ifnameBase, sizeof(ifnameBase), "%s", PPP_DRV_NAME);
+	    warn("Warning: couldn't compile the regex \"%s\". Fallback to %s%%d format.", pattern, ifnameBase);
+	    goto get_client_port_regcomp_done;
+	}
+
+	// If the regex compliation is successful we will try to extract the interface base name.
+	if ((rc = regexec(regex, req_ifname, nmatch, pmatch, 0)) != 0) {
+	    // If we can't find our regex, means that is using a fixed name.
+	    slprintf(ifnameBase, sizeof(ifnameBase), "%s", ifname);
+	    info("Using static interface naming %s", ifnameBase);
+	    goto get_client_port_regcomp_done;
+	}
+
+	// We need to do a small correction in strlcpy when we are setting the length of the string: +1
+	strlcpy(ifnameBase, req_ifname, pmatch[1].rm_so+1);
+	info("Found dynamic custom interface naming %s", ifnameBase);
+    }
+    else {
+	slprintf(ifnameBase, sizeof(ifnameBase), "%s", PPP_DRV_NAME);
+	info("Using standard format %s", ifnameBase);
+    }
+
+get_client_port_regcomp_done:
+
+    // Build the new pattern using ifnameBase as part for search
+    strlcpy(pattern, ifnameBase, IFNAMSIZ);
+    strcat(pattern, "([0-9]+)");
+
+    /* Compile regular expression */
+    rc = regcomp(regex, pattern, REG_EXTENDED);
+    if (rc != 0) {
+	warn("Warning: couldn't compile the regex \"%s\". Fallback to rc_map2id", pattern);
+	goto get_client_port_regex_done;
+    }
+
+    /* Execute regular expression */
+    // If the regex compliation is successful we will continue to try to extract the interface base name.
+    if ((rc = regexec(regex, ifname, nmatch, pmatch, 0)) != 0) {
+	// If we can't find our regex, means that is using a fixed name.
+	info("ifname %s doesn't match the req_ifname %s. Fallback to rc_map2id", ifname, req_ifname);
+	goto get_client_port_regex_done;
+    }
+    else {
+	slprintf(cport, sizeof(cport), "%.*s", pmatch[1].rm_eo - pmatch[1].rm_so, ifname + pmatch[1].rm_so);
+	port = atoi(cport);
+
 	return port;
     }
+
+get_client_port_regex_done:
     return rc_map2id(ifname);
 }
 

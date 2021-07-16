@@ -292,9 +292,8 @@ option_t general_options[] = {
     { "unit", o_int, &req_unit,
       "PPP interface unit number to use if possible",
       OPT_PRIO | OPT_LLIMIT, 0, 0 },
-
     { "ifname", o_string, req_ifname,
-      "Set PPP interface name",
+      "Set PPP interface name. If format is like ppp%%d / pppoe%%d / l2tp%%d, where %%d will be replaced by unit number. Linux Only.",
       OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, MAXIFNAMELEN },
 
     { "dump", o_bool, &dump_options,
