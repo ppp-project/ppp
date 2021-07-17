@@ -1,5 +1,5 @@
 sbin_PROGRAMS = pppd
-man8_MANS = pppd.8 srp-entry.8
+dist_man8_MANS = pppd.8 srp-entry.8
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
 endif
@@ -57,13 +57,13 @@ pppd_SOURCES = \
     upap.c \
     utils.c
 
-pppd_CFLAGS = -I${top_srcdir}/include -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
+pppd_CPPFLAGS = -I${top_srcdir}/include -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
 pppd_LDFLAGS =
 pppd_LIBS =
 
 if LINUX
 pppd_SOURCES += sys-linux.c
-pppd_LIBS += @CRYPT_LIBS@ @UTIL_LIBS@
+pppd_LIBS += $(CRYPT_LIBS) $(UTIL_LIBS)
 endif
 
 if SUNOS
@@ -93,13 +93,13 @@ pppd_SOURCES += mppe.c
 endif
 
 if WITH_PCAP
-pppd_CFLAGS += @PCAP_CFLAGS@
-pppd_LDFLAGS += @PCAP_LDFLAGS@
-pppd_LIBS += @PCAP_LIBS@
+pppd_CPPFLAGS += $(PCAP_CFLAGS)
+pppd_LDFLAGS += $(PCAP_LDFLAGS)
+pppd_LIBS += $(PCAP_LIBS)
 endif
 
 if WITH_PLUGINS
-pppd_CFLAGS += -DPPPD_PLUGIN_DIR='"@PPPD_PLUGIN_DIR@"'
+pppd_CPPFLAGS += -DPPPD_PLUGIN_DIR='"@PPPD_PLUGIN_DIR@"'
 pppd_LIBS += -ldl
 if LINUX
 pppd_LDFLAGS += -Wl,-E
@@ -129,9 +129,9 @@ endif
 if !WITH_OPENSSL
 pppd_SOURCES += md5.c md4.c sha1.c
 else
-pppd_CFLAGS += @OPENSSL_INCLUDES@
-pppd_LDFLAGS += @OPENSSL_LDFLAGS@
-pppd_LIBS += @OPENSSL_LIBS@
+pppd_CPPFLAGS += $(OPENSSL_INCLUDES)
+pppd_LDFLAGS += $(OPENSSL_LDFLAGS)
+pppd_LIBS += $(OPENSSL_LIBS)
 if !OPENSSL_HAVE_SHA
 pppd_SOURCES += sha1.c
 endif
@@ -149,17 +149,16 @@ endif
 
 if WITH_SRP
 srp_entry_SOURCES = srp-entry.c
-srp_entry_CFLAGS = @OPENSSL_INCLUDES@ @SRP_CFLAGS@
-srp_entry_LDADD = @SRP_LIBS@ @OPENSSL_LIBS@ 
-srp_entry_LDFLAGS = @OPENSSL_LDFLAGS@ @SRP_LDFLAGS@
+srp_entry_CPPFLAGS = $(OPENSSL_INCLUDES) $(SRP_CFLAGS)
+srp_entry_LDADD = $(SRP_LIBS) $(OPENSSL_LIBS)
+srp_entry_LDFLAGS = $(OPENSSL_LDFLAGS) $(SRP_LDFLAGS)
 
-pppd_CFLAGS += @SRP_CFLAGS@
-pppd_LDFLAGS += @SRP_LDFLAGS@
-pppd_LIBS += @SRP_LIBS@
+pppd_CPPFLAGS += $(SRP_CFLAGS)
+pppd_LDFLAGS += $(SRP_LDFLAGS)
+pppd_LIBS += $(SRP_LIBS)
 endif
 
 pppd_LDADD = $(pppd_LIBS)
 
 EXTRA_DIST = \
-    $(man8_MANS) \
     ppp.pam

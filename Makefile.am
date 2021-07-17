@@ -13,16 +13,16 @@ DIST_SUBDIRS = $(SUBDIRS) common include modules scripts
 #   This is to work around the kernel module for PPP on Sun Solaris
 if SUNOS
 all-am:
-	(cd solaris ; make -f Makefile)
+	(cd solaris ; $(MAKE) -f Makefile)
 
 clean-generic:
-	(cd solaris ; make -f Makefile clean)
+	(cd solaris ; $(MAKE) -f Makefile clean)
 
 install-am:
-	(cd solaris ; make -f Makefile install)
+	(cd solaris ; $(MAKE) -f Makefile install)
 endif
 
-sampledir = $(sysconfdir)/@PACKAGE@
+sampledir = $(sysconfdir)/$(PACKAGE)
 
 sample_DATA = \
     etc.ppp/options \
