@@ -235,7 +235,7 @@ strioctl(int fd, int cmd, char *ptr, int ilen, int olen)
 static void
 get_ppp_stats(struct ppp_stats *curp)
 {
-    if (strioctl(s, PPPIO_GETSTAT, curp, 0, sizeof(*curp)) < 0) {
+    if (strioctl(s, PPPIO_GETSTAT, (char*) curp, 0, sizeof(*curp)) < 0) {
 	fprintf(stderr, "%s: ", progname);
 	if (errno == EINVAL)
 	    fprintf(stderr, "kernel support missing\n");
@@ -248,7 +248,7 @@ get_ppp_stats(struct ppp_stats *curp)
 static void
 get_ppp_cstats(struct ppp_comp_stats *csp)
 {
-    if (strioctl(s, PPPIO_GETCSTAT, csp, 0, sizeof(*csp)) < 0) {
+    if (strioctl(s, PPPIO_GETCSTAT, (char*) csp, 0, sizeof(*csp)) < 0) {
 	fprintf(stderr, "%s: ", progname);
 	if (errno == ENOTTY) {
 	    fprintf(stderr, "no kernel compression support\n");
@@ -539,7 +539,7 @@ main(int argc, char *argv[])
 	perror(dev);
 	exit(1);
     }
-    if (strioctl(s, PPPIO_ATTACH, &unit, sizeof(int), 0) < 0) {
+    if (strioctl(s, PPPIO_ATTACH, (char*) &unit, sizeof(int), 0) < 0) {
 	fprintf(stderr, "%s: ppp%d is not available\n", progname, unit);
 	exit(1);
     }

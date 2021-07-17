@@ -13,8 +13,6 @@
 *
 ***********************************************************************/
 
-#include "config.h"
-
 #include <stdio.h>		/* For FILE */
 #include <sys/types.h>		/* For pid_t */
 #include <ctype.h>

@@ -30,6 +30,10 @@
 
 #define RCSID	"$Id: chap-md5.c,v 1.4 2004/11/09 22:39:25 paulus Exp $"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include "pppd.h"

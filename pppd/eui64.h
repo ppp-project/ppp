@@ -34,6 +34,8 @@
  *
  */
 
+#include "pppdconf.h"
+
 #ifndef __EUI64_H__
 #define __EUI64_H__
 

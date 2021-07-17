@@ -42,6 +42,8 @@
  * $Id: fsm.h,v 1.10 2004/11/13 02:28:15 paulus Exp $
  */
 
+#include "pppdconf.h"
+
 /*
  * Packet header = Code, id, length.
  */

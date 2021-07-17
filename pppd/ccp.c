@@ -28,6 +28,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #define RCSID	"$Id: ccp.c,v 1.50 2005/06/26 19:34:41 carlsonj Exp $"
 
 #include <stdlib.h>

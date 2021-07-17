@@ -12,6 +12,6 @@ jobs:
       with:
         run: |
           pkg update
-          pkg install gcc
-          ./configure
+          pkg install gcc automake autoconf libtool
+          ./autogen.sh CFLAGS="-Wno-deprecated-declarations"
           make

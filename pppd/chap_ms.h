@@ -30,6 +30,8 @@
  * $Id: chap_ms.h,v 1.13 2004/11/15 22:13:26 paulus Exp $
  */
 
+#include "pppdconf.h"
+
 #ifndef __CHAPMS_INCLUDE__
 
 #define MD4_SIGNATURE_SIZE	16	/* 16 bytes in a MD4 message digest */

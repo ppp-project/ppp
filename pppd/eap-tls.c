@@ -29,6 +29,10 @@
  *
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
@@ -37,7 +41,9 @@
 #include <fcntl.h>
 
 #include <openssl/conf.h>
+#ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
+#endif
 #include <openssl/hmac.h>
 #include <openssl/err.h>
 #include <openssl/ui.h>
@@ -278,6 +284,23 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
 }
 #endif
 
+
+#ifndef OPENSSL_NO_ENGINE
+static int eaptls_UI_writer(UI *ui, UI_STRING *uis)
+{
+    PW_CB_DATA* cb_data = (PW_CB_DATA*)UI_get0_user_data(ui);
+    UI_set_result(ui, uis, cb_data->password);
+    return 1;
+}
+
+static int eaptls_UI_stub(UI* ui) {
+    return 1;
+}
+
+static int eaptls_UI_reader(UI *ui, UI_STRING *uis) {
+    return 1;
+}
+#endif
 
 /*
  * Initialize the SSL stacks and tests if certificates, key and crl
@@ -572,20 +595,11 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         {
             UI_METHOD* transfer_pin = UI_create_method("transfer_pin");
 
-            int writer (UI *ui, UI_STRING *uis)
-            {
-                PW_CB_DATA* cb_data = (PW_CB_DATA*)UI_get0_user_data(ui);
-                UI_set_result(ui, uis, cb_data->password);
-                return 1;
-            };
-            int stub (UI* ui) {return 1;};
-            int stub_reader (UI *ui, UI_STRING *uis) {return 1;};
-
-            UI_method_set_writer(transfer_pin,  writer);
-            UI_method_set_opener(transfer_pin,  stub);
-            UI_method_set_closer(transfer_pin,  stub);
-            UI_method_set_flusher(transfer_pin, stub);
-            UI_method_set_reader(transfer_pin,  stub_reader);
+            UI_method_set_writer(transfer_pin,  eaptls_UI_writer);
+            UI_method_set_opener(transfer_pin,  eaptls_UI_stub);
+            UI_method_set_closer(transfer_pin,  eaptls_UI_stub);
+            UI_method_set_flusher(transfer_pin, eaptls_UI_stub);
+            UI_method_set_reader(transfer_pin,  eaptls_UI_reader);
 
             dbglog( "Using our private key URI: '%s' in engine", privkeyfile );
             pkey = ENGINE_load_private_key(pkey_engine, privkeyfile, transfer_pin, &cb_data);

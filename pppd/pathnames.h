@@ -1,16 +1,35 @@
 /*
  * define path names
  */
+#include "pppdconf.h"
 
 #ifdef HAVE_PATHS_H
 #include <paths.h>
-
-#else /* HAVE_PATHS_H */
-#ifndef _PATH_VARRUN
-#define _PATH_VARRUN 	"/etc/ppp/"
-#endif
-#define _PATH_DEVNULL	"/dev/null"
 #endif /* HAVE_PATHS_H */
+
+#ifndef _PATH_DEVNULL
+#define _PATH_DEVNULL	"/dev/null"
+#endif
+
+#ifdef PPPD_RUNTIME_DIR
+#undef  _PATH_VARRUN
+#define _PATH_VARRUN 	PPPD_RUNTIME_DIR "/"
+#endif
+
+#ifdef PPPD_LOGFILE_DIR
+#undef  _PATH_VARLOG
+#define _PATH_VARLOG    PPPD_LOGFILE_DIR
+#endif
+
+#ifdef PPPD_PLUGIN_DIR
+#define _PATH_PLUGIN    PPPD_PLUGIN_DIR
+#else
+#ifdef __STDC__
+#define _PATH_PLUGIN	DESTDIR "/lib/pppd/" VERSION
+#else  /* __STDC__ */
+#define _PATH_PLUGIN	"/usr/lib/pppd"
+#endif /* __STDC__ */
+#endif /* PPPD_PLUGIN_DIR */
 
 #ifndef _ROOT_PATH
 #define _ROOT_PATH
@@ -33,7 +52,7 @@
 #define _PATH_AUTHUP	 _ROOT_PATH "/etc/ppp/auth-up"
 #define _PATH_AUTHDOWN	 _ROOT_PATH "/etc/ppp/auth-down"
 #define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options."
-#define _PATH_CONNERRS	 _ROOT_PATH "/etc/ppp/connect-errors"
+#define _PATH_CONNERRS	 _ROOT_PATH _PATH_VARLOG "/connect-errors"
 #define _PATH_PEERFILES	 _ROOT_PATH "/etc/ppp/peers/"
 #define _PATH_RESOLV	 _ROOT_PATH "/etc/ppp/resolv.conf"
 
@@ -53,18 +72,6 @@
 #ifdef __STDC__
 #define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd2.tdb"
 #else /* __STDC__ */
-#ifdef HAVE_PATHS_H
-#define _PATH_PPPDB	"/var/run/pppd2.tdb"
-#else
-#define _PATH_PPPDB	"/etc/ppp/pppd2.tdb"
-#endif
+#define _PATH_PPPDB	_PPP_VARRUN "pppd2.tdb"
 #endif /* __STDC__ */
 
-#ifdef PLUGIN
-#ifdef __STDC__
-#define _PATH_PLUGIN	DESTDIR "/lib/pppd/" VERSION
-#else /* __STDC__ */
-#define _PATH_PLUGIN	"/usr/lib/pppd"
-#endif /* __STDC__ */
-
-#endif /* PLUGIN */

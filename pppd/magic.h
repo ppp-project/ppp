@@ -39,6 +39,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include "pppdconf.h"
 
 void magic_init (void);	/* Initialize the magic number generator */
 u_int32_t magic (void);	/* Returns the next magic number */

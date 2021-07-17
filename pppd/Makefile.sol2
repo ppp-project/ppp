@@ -13,7 +13,7 @@ OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o eap.o md5.o \
 	chap-md5.o session.o
 
 # Solaris uses shadow passwords
-CFLAGS	+= -DHAS_SHADOW
+CFLAGS	+= -DHAVE_SHADOW_H
 
 #
 # Comment the following out to disable plugins

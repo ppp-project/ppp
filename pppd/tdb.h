@@ -1,3 +1,5 @@
+#include "pppdconf.h"
+
 #ifndef __TDB_H__
 #define __TDB_H__
 

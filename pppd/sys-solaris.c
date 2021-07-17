@@ -85,6 +85,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -125,6 +129,10 @@
 #include <inet/common.h>
 #include <inet/mib2.h>
 #include <sys/ethernet.h>
+#endif
+
+#ifdef PPP_FILTER
+#include <pcap.h>
 #endif
 
 #include "pppd.h"
@@ -1636,7 +1644,7 @@ get_ppp_stats(int u, struct pppd_stats *stats)
     return 1;
 }
 
-#if 0
+#ifdef PPP_FILTER
 /*
  * set_filters - transfer the pass and active filters to the kernel.
  */

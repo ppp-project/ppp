@@ -36,8 +36,13 @@
  ** documentation and/or software.                                    **
  ***********************************************************************
  */
+#include "pppdconf.h"
 
 #ifndef __MD5_INCLUDE__
+#define __MD5_INCLUDE__
+#ifndef USE_MD5
+#include <openssl/md5.h>
+#else
 
 /* typedef a 32-bit type */
 #ifdef _LP64
@@ -61,5 +66,5 @@ void MD5_Init (MD5_CTX *mdContext);
 void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen);
 void MD5_Final (unsigned char hash[], MD5_CTX *mdContext);
 
-#define __MD5_INCLUDE__
+#endif /* USE_MD5 */
 #endif /* __MD5_INCLUDE__ */
