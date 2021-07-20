@@ -1644,33 +1644,6 @@ get_ppp_stats(int u, struct pppd_stats *stats)
     return 1;
 }
 
-#ifdef PPP_FILTER
-/*
- * set_filters - transfer the pass and active filters to the kernel.
- */
-int
-set_filters(struct bpf_program *pass, struct bpf_program *active)
-{
-    int ret = 1;
-
-    if (pass->bf_len > 0) {
-	if (strioctl(pppfd, PPPIO_PASSFILT, pass,
-		     sizeof(struct bpf_program), 0) < 0) {
-	    error("Couldn't set pass-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    if (active->bf_len > 0) {
-	if (strioctl(pppfd, PPPIO_ACTIVEFILT, active,
-		     sizeof(struct bpf_program), 0) < 0) {
-	    error("Couldn't set active-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    return ret;
-}
-#endif
-
 /*
  * ccp_fatal_error - returns 1 if decompression was disabled as a
  * result of an error detected after decompression of a packet,
