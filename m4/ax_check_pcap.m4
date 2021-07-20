@@ -41,7 +41,7 @@ AC_DEFUN([AX_CHECK_PCAP], [
             esac
         ])
     
-    if [ test "${with_pcap}" != "no" ] ; then
+    if [ test "x${with_pcap}" != "xno" ] ; then
         PCAP_LIBS="-lpcap"
         for pcapdir in $pcapdirs; do
             AC_MSG_CHECKING([for pcap.h in $pcapdir])

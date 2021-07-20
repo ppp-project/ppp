@@ -282,10 +282,18 @@ AM_CONDITIONAL(WITH_PAM, test "x${with_pam}" = "xyes")
 
 #
 # With libpcap support, activate pppd on network activity
-AX_CHECK_PCAP(
-    [AC_DEFINE([PPP_FILTER], 1, ["Have packet activity filter support"])])
-# AS_IF([test "x${build_sunos}" = "xyes" && test "x${with_pcap}" != "xno"],
-#    [AC_MSG_ERROR([Filter is not supported on SunOS])])
+AX_CHECK_PCAP
+
+#
+# SunOS provides a version of libpcap that would work, but SunOS has no support for activity filter
+AM_CONDITIONAL([WITH_FILTER], [ test "x${with_pcap}" = "xyes" && test "x${build_sunos}" != "xyes" ])
+AM_COND_IF([WITH_FILTER], [
+    AC_DEFINE([PPP_FILTER], 1, ["Have packet activity filter support"])], [
+    AS_IF([test "x${build_sunos}" = "xyes"], [
+        AC_MSG_WARN([Packet activity filter not supported on SunOS])
+        with_pcap="no"
+        ])
+    ])
 
 #
 # Some contributions require GTK/GLIB
@@ -320,7 +328,8 @@ AC_OUTPUT
 
 
 AS_IF([test "x${build_sunos}" = "xyes" ], [[
-    echo "Setting up SunOS kernel module(s)"
+    echo "
+Setting up SunOS kernel module(s)"
     mkmkf() {
         rm -f $2
         if [ -f $1 ]; then
