@@ -1,5 +1,5 @@
 noinst_PROGRAMS = pppgetpass.vt
-dist_man8_MANS = pppgetpass.8
+noinst_man8_MANS = pppgetpass.8
 
 pppgetpass_vt_SOURCES = pppgetpass.vt.c
 pppgetpass_vt_CPPFLAGS = -Wno-unused-result

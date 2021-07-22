@@ -22,8 +22,11 @@ install-am:
 	(cd solaris ; $(MAKE) -f Makefile install)
 endif
 
-sampledir = $(sysconfdir)/$(PACKAGE)
+install-data-hook:
+	(cd $(DESTDIR)/$(sysconfdir)/$(PACKAGE) ; \
+	 chmod 600 chap-secrets pap-secrets eaptls-server eaptls-client)
 
+sampledir = $(sysconfdir)/$(PACKAGE)
 sample_DATA = \
     etc.ppp/options \
     etc.ppp/chap-secrets \

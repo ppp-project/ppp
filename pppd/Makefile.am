@@ -1,7 +1,8 @@
 sbin_PROGRAMS = pppd
-dist_man8_MANS = pppd.8 srp-entry.8
+dist_man8_MANS = pppd.8
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
+dist_man8_MANS += srp-entry.8
 endif
 
 pkgconfigdir   = $(libdir)/pkgconfig
