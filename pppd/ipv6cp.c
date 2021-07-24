@@ -146,6 +146,10 @@
  *   since SVR4 && (SNI || __USLC__) didn't work properly)
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

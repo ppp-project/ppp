@@ -1020,14 +1020,13 @@ void chat_send (register char *s)
 	
 	s1 = clean(s, 0);
 	
-	if (strlen(s1) > strlen(s)
-	    || strlen(s1) + 1 > sizeof(fail_buffer))
+	if (strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long ABORT string ('%v')", s);
 
 	abort_string[n_aborts++] = s1;
 
 	if (verbose)
-	    msgf("abort on (%v)", s);
+	    msgf("abort on (%v)", s1);
 	return;
     }
 
@@ -1041,8 +1040,7 @@ void chat_send (register char *s)
 	
 	s1 = clean(s, 0);
 	
-	if (strlen(s1) > strlen(s)
-	    || strlen(s1) + 1 > sizeof(fail_buffer))
+	if (strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long CLR_ABORT string ('%v')", s);
 
         old_max = n_aborts;
@@ -1053,7 +1051,7 @@ void chat_send (register char *s)
 		pack++;
 		n_aborts--;
 		if (verbose)
-		    msgf("clear abort on (%v)", s);
+		    msgf("clear abort on (%v)", s1);
 	    }
 	}
         free(s1);
@@ -1070,14 +1068,13 @@ void chat_send (register char *s)
 	    fatal(2, "Too many REPORT strings");
 	
 	s1 = clean(s, 0);
-	if (strlen(s1) > strlen(s)
-	    || strlen(s1) + 1 > sizeof(fail_buffer))
+	if (strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long REPORT string ('%v')", s);
 	
 	report_string[n_reports++] = s1;
 	
 	if (verbose)
-	    msgf("report (%v)", s);
+	    msgf("report (%v)", s1);
 	return;
     }
 
@@ -1091,8 +1088,7 @@ void chat_send (register char *s)
 	
 	s1 = clean(s, 0);
 	
-	if (strlen(s1) > strlen(s)
-	    || strlen(s1) + 1 > sizeof(fail_buffer))
+	if (strlen(s1) + 1 > sizeof(fail_buffer))
 	    fatal(1, "Illegal or too-long REPORT string ('%v')", s);
 
 	old_max = n_reports;
@@ -1103,7 +1099,7 @@ void chat_send (register char *s)
 		pack++;
 		n_reports--;
 		if (verbose)
-		    msgf("clear report (%v)", s);
+		    msgf("clear report (%v)", s1);
 	    }
 	}
         free(s1);

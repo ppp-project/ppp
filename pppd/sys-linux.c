@@ -69,6 +69,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -85,7 +89,9 @@
 #include <string.h>
 #include <time.h>
 #include <memory.h>
+#ifdef HAVE_UTMP_H
 #include <utmp.h>
+#endif
 #include <mntent.h>
 #include <signal.h>
 #include <fcntl.h>
