@@ -64,7 +64,7 @@
  * like glibc.
 */
 
-#ifdef __linux__
+#if !defined(__GLIBC__) || __UCLIBC__
 #include <linux/ppp_defs.h>
 #else
 #include <net/ppp_defs.h>
