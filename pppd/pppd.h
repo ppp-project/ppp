@@ -66,12 +66,16 @@
  * like glibc.
 */
 
+#ifdef __linux__
 #if !defined(__GLIBC__) || __UCLIBC__
 #include <linux/ppp_defs.h>
 #else
 /* we are going to overwrite the default net/ppp_defs.h provided by glibc/uclibc */
 #include <bits/types/time_t.h>
 #include <asm/types.h>
+#include <net/ppp_defs.h>
+#endif
+#elif
 #include <net/ppp_defs.h>
 #endif
 #include "patchlevel.h"
