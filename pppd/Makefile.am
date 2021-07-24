@@ -28,11 +28,12 @@ pppd_include_HEADERS = \
     md4.h \
     md5.h \
     mppe.h \
-    pppdconf.h \
     patchlevel.h \
     pathnames.h \
+    peap.h \
     pppcrypt.h \
     pppd.h \
+    pppdconf.h \
     session.h \
     sha1.h \
     spinlock.h \
@@ -125,6 +126,10 @@ endif
 
 if WITH_EAPTLS
 pppd_SOURCES += eap-tls.c
+endif
+
+if WITH_PEAP
+pppd_SOURCES += peap.c
 endif
 
 if !WITH_OPENSSL
