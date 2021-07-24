@@ -85,6 +85,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -125,6 +129,10 @@
 #include <inet/common.h>
 #include <inet/mib2.h>
 #include <sys/ethernet.h>
+#endif
+
+#ifdef PPP_FILTER
+#include <pcap.h>
 #endif
 
 #include "pppd.h"
@@ -1635,33 +1643,6 @@ get_ppp_stats(int u, struct pppd_stats *stats)
     stats->pkts_out = s.p.ppp_opackets;
     return 1;
 }
-
-#if 0
-/*
- * set_filters - transfer the pass and active filters to the kernel.
- */
-int
-set_filters(struct bpf_program *pass, struct bpf_program *active)
-{
-    int ret = 1;
-
-    if (pass->bf_len > 0) {
-	if (strioctl(pppfd, PPPIO_PASSFILT, pass,
-		     sizeof(struct bpf_program), 0) < 0) {
-	    error("Couldn't set pass-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    if (active->bf_len > 0) {
-	if (strioctl(pppfd, PPPIO_ACTIVEFILT, active,
-		     sizeof(struct bpf_program), 0) < 0) {
-	    error("Couldn't set active-filter in kernel: %m");
-	    ret = 0;
-	}
-    }
-    return ret;
-}
-#endif
 
 /*
  * ccp_fatal_error - returns 1 if decompression was disabled as a

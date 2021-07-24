@@ -30,6 +30,7 @@
  *
  * $Id: ecp.h,v 1.2 2003/01/10 07:12:36 fcusack Exp $
  */
+#include "pppdconf.h"
 
 typedef struct ecp_options {
     bool required;		/* Is ECP required? */

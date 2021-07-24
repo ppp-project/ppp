@@ -76,6 +76,10 @@
 
 #define RCSID	"$Id: chap_ms.c,v 1.38 2007/12/01 20:10:51 carlsonj Exp $"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #ifdef CHAPMS
 
 #include <stdio.h>

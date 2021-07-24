@@ -33,6 +33,7 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+#include "pppdconf.h"
 
 /*  Original version, based on RFC2023 :
 

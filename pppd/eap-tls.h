@@ -30,6 +30,8 @@
  *
  */
 
+#include "pppdconf.h"
+
 #ifndef __EAP_TLS_H__
 #define __EAP_TLS_H__
 

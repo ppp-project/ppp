@@ -30,6 +30,10 @@
 
 #define RCSID	"$Id: demand.c,v 1.20 2005/08/25 12:14:18 paulus Exp $"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
