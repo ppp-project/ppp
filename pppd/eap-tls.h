@@ -46,6 +46,8 @@
 
 #define EAP_TLS_MAX_LEN         65536  /* max eap tls packet size */
 
+struct tls_info;
+
 struct eaptls_session
 {
     u_char *data;               /* buffered data */
@@ -58,7 +60,6 @@ struct eaptls_session
     SSL *ssl;                   /* ssl connection */
     BIO *from_ssl;
     BIO *into_ssl;
-    char peer[MAXWORDLEN];      /* peer name */
     char peercertfile[MAXWORDLEN];
     bool alert_sent;
     u_char alert_sent_desc;
@@ -67,12 +68,12 @@ struct eaptls_session
     char rtx[EAP_TLS_MAX_LEN];  /* retransmission buffer */
     int rtx_len;
     int mtu;                    /* unit mtu */
-    bool client;
+    struct tls_info *info;
 };
 
 
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *peer_certfile, char *privkeyfile, char *pkcs12);
+            char *certfile, char *privkeyfile, char *pkcs12);
 int eaptls_init_ssl_server(eap_state * esp);
 int eaptls_init_ssl_client(eap_state * esp);
 void eaptls_free_session(struct eaptls_session *ets);

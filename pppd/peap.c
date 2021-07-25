@@ -34,6 +34,7 @@
 #include <openssl/err.h>
 #include "pppd.h"
 #include "eap.h"
+#include "tls.h"
 #include "chap-new.h"
 #include "chap_ms.h"
 #include "mppe.h"
@@ -52,11 +53,11 @@ struct peap_state {
 	u_char ipmk[PEAP_TLV_IPMK_LEN];
 	u_char tk[PEAP_TLV_TK_LEN];
 	u_char nonce[PEAP_TLV_NONCE_LEN];
+	struct tls_info *info;
 };
 
 static struct peap_state *psm;
 static int peap_phase;
-extern bool tls_verify_cert;
 static bool init;
 
 static void ssl_init()
@@ -360,7 +361,7 @@ void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 	*out_len = used;
 }
 
-void allocate_buffers(void)
+void allocate_buffers(char *rhostname)
 {
 	const SSL_METHOD *method;
 
@@ -373,20 +374,27 @@ void allocate_buffers(void)
 	psm->out_buf = malloc(TLS_RECORD_MAX_SIZE);
 	if (!psm->out_buf)
 		novm("peap tls buffer");
-	method = TLS_method();
+	method = tls_method();
 	if (!method)
 		novm("TLS_method() failed");
 	psm->ctx = SSL_CTX_new(method);
 	if (!psm->ctx)
 		novm("SSL_CTX_new() failed");
 
-	if (!tls_verify_cert)
-		SSL_CTX_set_verify(psm->ctx, SSL_VERIFY_NONE, NULL);
-	else
-		SSL_CTX_set_verify(psm->ctx, SSL_VERIFY_PEER, NULL);
-	info("PEAP: SSL certificate validation is %s", tls_verify_cert ? "enabled" : "disabled");
+	/* Configure the default options */
+	tls_set_opts(psm->ctx);
 
-	SSL_CTX_set_options(psm->ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION);
+	/* Configure CA locations */
+	tls_set_ca(psm->ctx, ca_path, cacert_file);
+
+	/* Configure CRL check (if any) */
+	tls_set_crl(psm->ctx, crl_dir, crl_file);
+
+	/* Configure the max TLS version */
+	tls_set_version(psm->ctx, max_tls_version);
+
+	/* Configure the peer certificate callback */
+	tls_set_verify(psm->ctx, 5);
 
 	psm->out_bio = BIO_new(BIO_s_mem());
 	psm->in_bio = BIO_new(BIO_s_mem());
@@ -396,6 +404,7 @@ void allocate_buffers(void)
 	SSL_set_bio(psm->ssl, psm->in_bio, psm->out_bio);
 	SSL_set_connect_state(psm->ssl);
 	peap_phase = PEAP_PHASE_1;
+	tls_set_verify_info(psm->ssl, explicit_remote ? rhostname : NULL, NULL, 1, &psm->info);
 }
 
 void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostname)
@@ -413,7 +422,7 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 
 	switch (*inp) {
 	case PEAP_S_FLAG_SET:
-		allocate_buffers();
+		allocate_buffers(rhostname);
 		if (debug)
 			info("PEAP: S bit is set, starting PEAP phase 1");
 		ret = SSL_do_handshake(psm->ssl);

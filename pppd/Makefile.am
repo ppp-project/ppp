@@ -37,6 +37,7 @@ pppd_include_HEADERS = \
     session.h \
     sha1.h \
     spinlock.h \
+    tls.h \
     tdb.h \
     upap.h 
 
@@ -125,7 +126,11 @@ pppd_LIBS += -lpam -ldl
 endif
 
 if WITH_EAPTLS
-pppd_SOURCES += eap-tls.c
+pppd_SOURCES += eap-tls.c tls.c
+else
+if WITH_PEAP
+pppd_SOURCES += tls.c
+endif
 endif
 
 if WITH_PEAP

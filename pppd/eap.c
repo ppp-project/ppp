@@ -2221,6 +2221,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 #endif /* CHAPMS */
 #ifdef USE_PEAP
 	case EAPT_PEAP:
+
+		/* In case the remote doesn't give us his name. */
+		rhostname[0] = '\0';
+		if (explicit_remote || (remote_name[0] != '\0')) {
+			strlcpy(rhostname, remote_name, sizeof (rhostname));
+		}
+
 		peap_process(esp, id, inp, len, rhostname);
 		break;
 #endif /* USE_PEAP */

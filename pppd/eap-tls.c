@@ -44,6 +44,7 @@
 #ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
 #endif
+#include <openssl/ssl.h>
 #include <openssl/hmac.h>
 #include <openssl/err.h>
 #include <openssl/ui.h>
@@ -51,6 +52,7 @@
 #include <openssl/pkcs12.h>
 
 #include "pppd.h"
+#include "tls.h"
 #include "eap.h"
 #include "eap-tls.h"
 #include "fsm.h"
@@ -58,6 +60,10 @@
 #include "chap_ms.h"
 #include "mppe.h"
 #include "pathnames.h"
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define SSL3_RT_HEADER  0x100
+#endif
 
 typedef struct pw_cb_data
 {
@@ -75,54 +81,9 @@ static ENGINE *pkey_engine = NULL;
 /* TLSv1.3 do we have a session ticket ? */
 static int have_session_ticket = 0;
 
-int ssl_verify_callback(int, X509_STORE_CTX *);
 void ssl_msg_callback(int write_p, int version, int ct, const void *buf,
               size_t len, SSL * ssl, void *arg);
 int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
-
-X509 *get_X509_from_file(char *filename);
-int ssl_cmp_certs(char *filename, X509 * a); 
-
-/*
- *  OpenSSL 1.1+ introduced a generic TLS_method()
- *  For older releases we substitute the appropriate method
- */
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-
-#define TLS_method SSLv23_method
-
-#define SSL3_RT_HEADER  0x100
-
-#ifndef SSL_CTX_set_max_proto_version
-/** Mimics SSL_CTX_set_max_proto_version for OpenSSL < 1.1 */
-static inline int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, long tls_ver_max)
-{
-    long sslopt = 0;
-
-    if (tls_ver_max < TLS1_VERSION)
-    {
-        sslopt |= SSL_OP_NO_TLSv1;
-    }
-#ifdef SSL_OP_NO_TLSv1_1
-    if (tls_ver_max < TLS1_1_VERSION)
-    {
-        sslopt |= SSL_OP_NO_TLSv1_1;
-    }
-#endif
-#ifdef SSL_OP_NO_TLSv1_2
-    if (tls_ver_max < TLS1_2_VERSION)
-    {
-        sslopt |= SSL_OP_NO_TLSv1_2;
-    }
-#endif
-    SSL_CTX_set_options(ctx, sslopt);
-
-    return 1;
-}
-#endif /* SSL_CTX_set_max_proto_version */
-
-#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 
 #ifdef MPPE
 #define EAPTLS_MPPE_KEY_LEN     32
@@ -178,20 +139,6 @@ void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
 
 #endif /* MPPE */
 
-
-void log_ssl_errors( void )
-{
-    unsigned long ssl_err = ERR_get_error();
-
-    if (ssl_err != 0)
-        dbglog("EAP-TLS SSL error stack:");
-    while (ssl_err != 0) {
-        dbglog( ERR_error_string( ssl_err, NULL ) );
-        ssl_err = ERR_get_error();
-    }
-}
-
-
 int password_callback (char *buf, int size, int rwflag, void *u)
 {
     if (buf)
@@ -230,7 +177,7 @@ CONF *eaptls_ssl_load_config( void )
     if (CONF_modules_load( config, NULL, 0 ) <= 0 )
     {
         warn( "EAP-TLS: Error loading OpenSSL modules" );
-        log_ssl_errors();
+        tls_log_sslerr();
         config = NULL;
     }
 
@@ -257,7 +204,7 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
              || !ENGINE_ctrl_cmd_string(e, "LOAD", NULL, 0))
             {
                 warn( "EAP-TLS: Error loading dynamic engine '%s'", engine_name );
-                log_ssl_errors();
+                tls_log_sslerr();
                 ENGINE_free(e);
                 e = NULL;
             }
@@ -274,7 +221,7 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
         if(!ENGINE_set_default(e, ENGINE_METHOD_ALL))
         {
             warn( "EAP-TLS: Cannot use that engine" );
-            log_ssl_errors();
+            tls_log_sslerr();
             ENGINE_free(e);
             e = NULL;
         }
@@ -307,7 +254,7 @@ static int eaptls_UI_reader(UI *ui, UI_STRING *uis) {
  * for client or server use can be loaded.
  */
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *peer_certfile, char *privkeyfile, char *pkcs12)
+            char *certfile, char *privkeyfile, char *pkcs12)
 {
 #ifndef OPENSSL_NO_ENGINE
     char        *cert_engine_name = NULL;
@@ -316,8 +263,6 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 #endif
     SSL_CTX     *ctx;
     SSL         *ssl;
-    X509_STORE  *certstore;
-    X509_LOOKUP *lookup;
     X509        *tmp;
     X509        *cert = NULL;
     PKCS12      *p12 = NULL;
@@ -326,13 +271,6 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     BIO         *input;
     int          ret;
     int          reason;
-#if defined(TLS1_2_VERSION)
-    long         tls_version = TLS1_2_VERSION; 
-#elif defined(TLS1_1_VERSION)
-    long         tls_version = TLS1_1_VERSION; 
-#else
-    long         tls_version = TLS1_VERSION; 
-#endif
 
     /*
      * Without these can't continue 
@@ -369,8 +307,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         ssl_config = eaptls_ssl_load_config();
 #endif
 
-    ctx = SSL_CTX_new(TLS_method());
-
+    ctx = SSL_CTX_new(tls_method());
     if (!ctx) {
         error("EAP-TLS: Cannot initialize SSL CTX context");
         goto fail;
@@ -451,14 +388,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 
     SSL_CTX_set_default_passwd_cb (ctx, password_callback);
 
-    if (strlen(cacertfile) == 0) cacertfile = NULL;
-    if (strlen(capath) == 0)     capath = NULL;
-
-    if (!SSL_CTX_load_verify_locations(ctx, cacertfile, capath))
-    {
-        error("EAP-TLS: Cannot load verify locations");
-        if (cacertfile) dbglog("CA certificate file = [%s]", cacertfile);
-        if (capath) dbglog("CA certificate path = [%s]", capath);
+    if (tls_set_ca(ctx, capath, cacertfile) != 0) {
         goto fail;
     }
 
@@ -492,7 +422,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         else
         {
             warn("EAP-TLS: Cannot load key with URI: '%s'", certfile );
-            log_ssl_errors();
+            tls_log_sslerr();
         }
     }
     else
@@ -645,21 +575,8 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         goto fail;
     }
 
-    /* Explicitly set the NO_TICKETS flag to support Win7/Win8 clients */
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3
-#ifdef SSL_OP_NO_TICKET
-    | SSL_OP_NO_TICKET
-#endif
-    );
-
-    /* OpenSSL 1.1.1+ does not include RC4 ciphers by default.
-     * This causes totally obsolete WinXP clients to fail. If you really
-     * need ppp+EAP-TLS+openssl 1.1.1+WinXP then enable RC4 cipers and
-     * make sure that you use an OpenSSL that supports them
-
-    SSL_CTX_set_cipher_list(ctx, "RC4");
-     */
-
+    /* Configure the default options */
+    tls_set_opts(ctx);
 
     /* Set up a SSL Session cache with a callback. This is needed for TLSv1.3+.
      * During the initial handshake the server signals to the client early on
@@ -671,94 +588,17 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
     SSL_CTX_sess_set_new_cb(ctx, ssl_new_session_cb);
 
-    /* As EAP-TLS+TLSv1.3 is highly experimental we offer the user a chance to override */
-    if (max_tls_version)
-    {
-        if (strncmp(max_tls_version, "1.0", 3) == 0)
-            tls_version = TLS1_VERSION;
-        else if (strncmp(max_tls_version, "1.1", 3) == 0)
-            tls_version = TLS1_1_VERSION;
-        else if (strncmp(max_tls_version, "1.2", 3) == 0)
-#ifdef TLS1_2_VERSION
-            tls_version = TLS1_2_VERSION;
-#else
-        {
-            warn("TLSv1.2 not available. Defaulting to TLSv1.1");
-            tls_version = TLS_1_1_VERSION;
-        }
-#endif
-        else if (strncmp(max_tls_version, "1.3", 3) == 0)
-#ifdef TLS1_3_VERSION
-            tls_version = TLS1_3_VERSION;
-#else
-            warn("TLSv1.3 not available.");
-#endif
+    /* Configure the maximum SSL version */
+    tls_set_version(ctx, max_tls_version);
+
+    /* Configure the callback */
+    if (tls_set_verify(ctx, 5)) {
+        goto fail;
     }
 
-    dbglog("EAP-TLS: Setting max protocol version to 0x%X", tls_version);
-    SSL_CTX_set_max_proto_version(ctx, tls_version);
-
-    SSL_CTX_set_verify_depth(ctx, 5);
-    SSL_CTX_set_verify(ctx,
-               SSL_VERIFY_PEER |
-               SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-               &ssl_verify_callback);
-
-    if (crl_dir) {
-        if (!(certstore = SSL_CTX_get_cert_store(ctx))) {
-            error("EAP-TLS: Failed to get certificate store");
-            goto fail;
-        }
-
-        if (!(lookup =
-             X509_STORE_add_lookup(certstore, X509_LOOKUP_hash_dir()))) {
-            error("EAP-TLS: Store lookup for CRL failed");
-
-            goto fail;
-        }
-
-        X509_LOOKUP_add_dir(lookup, crl_dir, X509_FILETYPE_PEM);
-        X509_STORE_set_flags(certstore, X509_V_FLAG_CRL_CHECK);
-    }
-
-    if (crl_file) {
-        FILE     *fp  = NULL;
-        X509_CRL *crl = NULL;
-
-        fp = fopen(crl_file, "r");
-        if (!fp) {
-            error("EAP-TLS: Cannot open CRL file '%s'", crl_file);
-            goto fail;
-        }
-
-        crl = PEM_read_X509_CRL(fp, NULL, NULL, NULL);
-        if (!crl) {
-            error("EAP-TLS: Cannot read CRL file '%s'", crl_file);
-            goto fail;
-        }
-
-        if (!(certstore = SSL_CTX_get_cert_store(ctx))) {
-            error("EAP-TLS: Failed to get certificate store");
-            goto fail;
-        }
-        if (!X509_STORE_add_crl(certstore, crl)) {
-            error("EAP-TLS: Cannot add CRL to certificate store");
-            goto fail;
-        }
-        X509_STORE_set_flags(certstore, X509_V_FLAG_CRL_CHECK);
-
-    }
-
-    /*
-     * If a peer certificate file was specified, it must be valid, else fail 
-     */
-    if (peer_certfile[0]) {
-        if (!(tmp = get_X509_from_file(peer_certfile))) {
-            error("EAP-TLS: Error loading client certificate from file %s",
-                 peer_certfile);
-            goto fail;
-        }
-        X509_free(tmp);
+    /* Configure CRL check (if any) */
+    if (tls_set_crl(ctx, crl_dir, crl_file)) {
+        goto fail;
     }
 
     return ctx;
@@ -774,7 +614,7 @@ fail:
     if (chain)
         sk_X509_pop_free(chain, X509_free);
 
-    log_ssl_errors();
+    tls_log_sslerr();
     SSL_CTX_free(ctx);
     return NULL;
 }
@@ -821,14 +661,11 @@ int eaptls_init_ssl_server(eap_state * esp)
     if (!esp->es_server.ea_session)
         fatal("Allocation error");
     ets = esp->es_server.ea_session;
-    ets->client = 0;
 
     if (!esp->es_server.ea_peer) {
         error("EAP-TLS: Error: client name not set (BUG)");
         return 0;
     }
-
-    strlcpy(ets->peer, esp->es_server.ea_peer, MAXWORDLEN-1);
 
     dbglog( "getting eaptls secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_server.ea_peer,
@@ -841,11 +678,15 @@ int eaptls_init_ssl_server(eap_state * esp)
 
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, clicertfile, pkfile, pkcs12);
+    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, pkfile, pkcs12);
     if (!ets->ctx)
         goto fail;
 
     if (!(ets->ssl = SSL_new(ets->ctx)))
+        goto fail;
+
+    if (tls_set_verify_info(ets->ssl, esp->es_server.ea_peer,
+            clicertfile, 0, &ets->info))
         goto fail;
 
     /*
@@ -863,12 +704,6 @@ int eaptls_init_ssl_server(eap_state * esp)
     SSL_set_msg_callback(ets->ssl, ssl_msg_callback);
     SSL_set_msg_callback_arg(ets->ssl, ets);
 
-    /*
-     * Attach the session struct to the connection, so we can later
-     * retrieve it when doing certificate verification
-     */
-    SSL_set_ex_data(ets->ssl, 0, ets);
-
     SSL_set_accept_state(ets->ssl);
 
     ets->tls_v13 = 0;
@@ -877,16 +712,6 @@ int eaptls_init_ssl_server(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
-
-    /*
-     * If we specified the client certificate file, store it in ets->peercertfile,
-     * so we can check it later in ssl_verify_callback()
-     */
-    if (clicertfile[0])
-        strlcpy(&ets->peercertfile[0], clicertfile, MAXWORDLEN);
-    else
-        ets->peercertfile[0] = 0;
-
     return 1;
 
 fail:
@@ -914,36 +739,28 @@ int eaptls_init_ssl_client(eap_state * esp)
     if (!esp->es_client.ea_session)
         fatal("Allocation error");
     ets = esp->es_client.ea_session;
-    ets->client = 1;
-
-    /*
-     * If available, copy server name in ets; it will be used in cert
-     * verify 
-     */
-    if (esp->es_client.ea_peer)
-        strlcpy(ets->peer, esp->es_client.ea_peer, MAXWORDLEN-1);
-    else
-        ets->peer[0] = 0;
-    
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
     dbglog( "calling get_eaptls_secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
-                   ets->peer, clicertfile,
+                   esp->es_client.ea_peer, clicertfile,
                    servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
         error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
-                esp->es_client.ea_name, ets->peer );
+                esp->es_client.ea_name, esp->es_client.ea_peer);
         return 0;
     }
 
     dbglog( "calling eaptls_init_ssl" );
-    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, servcertfile, pkfile, pkcs12);
+    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12);
     if (!ets->ctx)
         goto fail;
 
     ets->ssl = SSL_new(ets->ctx);
-
     if (!ets->ssl)
+        goto fail;
+
+    if (tls_set_verify_info(ets->ssl, esp->es_client.ea_peer,
+            servcertfile, 0, &ets->info))
         goto fail;
 
     /*
@@ -956,13 +773,6 @@ int eaptls_init_ssl_client(eap_state * esp)
 
     SSL_set_msg_callback(ets->ssl, ssl_msg_callback);
     SSL_set_msg_callback_arg(ets->ssl, ets);
-
-    /*
-     * Attach the session struct to the connection, so we can later
-     * retrieve it when doing certificate verification
-     */
-    SSL_set_ex_data(ets->ssl, 0, ets);
-
     SSL_set_connect_state(ets->ssl);
 
     ets->tls_v13 = 0;
@@ -971,17 +781,6 @@ int eaptls_init_ssl_client(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
-
-    /*
-     * If we specified the server certificate file, store it in
-     * ets->peercertfile, so we can check it later in
-     * ssl_verify_callback() 
-     */
-    if (servcertfile[0])
-        strlcpy(ets->peercertfile, servcertfile, MAXWORDLEN);
-    else
-        ets->peercertfile[0] = 0;
-
     return 1;
 
 fail:
@@ -998,6 +797,9 @@ void eaptls_free_session(struct eaptls_session *ets)
 
     if (ets->ctx)
         SSL_CTX_free(ets->ctx);
+
+    if (ets->info)
+        tls_free_verify_info(&ets->info);
 
     free(ets);
 }
@@ -1108,7 +910,7 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         }
 
         if (BIO_write(ets->into_ssl, ets->data, ets->datalen) == -1)
-            log_ssl_errors();
+            tls_log_sslerr();
 
         SSL_read(ets->ssl, dummy, 65536);
 
@@ -1221,171 +1023,6 @@ void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp)
 {
     BCOPY(ets->rtx, *outp, ets->rtx_len);
     INCPTR(ets->rtx_len, *outp);
-}
-
-/*
- * Verify a certificate.
- * Most of the work (signatures and issuer attributes checking)
- * is done by ssl; we check the CN in the peer certificate 
- * against the peer name.
- */
-int ssl_verify_callback(int ok, X509_STORE_CTX * ctx)
-{
-    char subject[256];
-    char cn_str[256];
-    X509 *peer_cert;
-    int err, depth;
-    SSL *ssl;
-    struct eaptls_session *ets;
-    char *ptr1 = NULL, *ptr2 = NULL;
-
-    peer_cert = X509_STORE_CTX_get_current_cert(ctx);
-    err = X509_STORE_CTX_get_error(ctx);
-    depth = X509_STORE_CTX_get_error_depth(ctx);
-
-    dbglog("certificate verify depth: %d", depth);
-
-    if (auth_required && !ok) {
-        X509_NAME_oneline(X509_get_subject_name(peer_cert),
-                  subject, 256);
-
-        X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert),
-                      NID_commonName, cn_str, 256);
-
-        dbglog("Certificate verification error:\n depth: %d CN: %s"
-               "\n err: %d (%s)\n", depth, cn_str, err,
-               X509_verify_cert_error_string(err));
-
-        return 0;
-    }
-
-    ssl = X509_STORE_CTX_get_ex_data(ctx,
-                       SSL_get_ex_data_X509_STORE_CTX_idx());
-
-    ets = (struct eaptls_session *)SSL_get_ex_data(ssl, 0);
-
-    if (ets == NULL) {
-        error("Error: SSL_get_ex_data returned NULL");
-        return 0;
-    }
-
-    log_ssl_errors();
-
-    if (!depth) 
-    {
-        /* Verify certificate based on certificate type and extended key usage */
-        if (tls_verify_key_usage) {
-            int purpose = ets->client ? X509_PURPOSE_SSL_SERVER : X509_PURPOSE_SSL_CLIENT ;
-            if (X509_check_purpose(peer_cert, purpose, 0) == 0) {
-                error("Certificate verification error: nsCertType mismatch");
-                return 0;
-            }
-
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-            int flags = ets->client ? XKU_SSL_SERVER : XKU_SSL_CLIENT;
-            if (!(X509_get_extended_key_usage(peer_cert) & flags)) {
-                error("Certificate verification error: invalid extended key usage");
-                return 0;
-            }
-#endif
-            info("Certificate key usage: OK");
-        }
-
-        /*
-         * If acting as client and the name of the server wasn't specified
-         * explicitely, we can't verify the server authenticity 
-         */
-        if (!tls_verify_method)
-            tls_verify_method = TLS_VERIFY_NONE;
-
-        if (!ets->peer[0] || !strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
-            warn("Certificate verication disabled or no peer name was specified");
-            return ok;
-        }
-
-        /* This is the peer certificate */
-        X509_NAME_oneline(X509_get_subject_name(peer_cert),
-                  subject, 256);
-
-        X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert),
-                      NID_commonName, cn_str, 256);
-
-        /* Verify based on subject name */
-        ptr1 = ets->peer;
-        if (!strcmp(TLS_VERIFY_SUBJECT, tls_verify_method)) {
-            ptr2 = subject;
-        }
-
-        /* Verify based on common name (default) */
-        if (strlen(tls_verify_method) == 0 ||
-            !strcmp(TLS_VERIFY_NAME, tls_verify_method)) {
-            ptr2 = cn_str;
-        }
-
-        /* Match the suffix of common name */
-        if (!strcmp(TLS_VERIFY_SUFFIX, tls_verify_method)) {
-            int len = strlen(ptr1);
-            int off = strlen(cn_str) - len;
-            ptr2 = cn_str;
-            if (off > 0) {
-                ptr2 = cn_str + off;
-            }
-        }
-
-        if (strcmp(ptr1, ptr2)) {
-            error("Certificate verification error: CN (%s) != %s", ptr1, ptr2);
-            return 0;
-        }
-
-        info("Certificate CN: %s, peer name %s", cn_str, ets->peer);
-
-        /*
-         * If a peer certificate file was specified, here we check it 
-         */
-        if (ets->peercertfile[0]) {
-            if (ssl_cmp_certs(&ets->peercertfile[0], peer_cert)
-                != 0) {
-                error
-                    ("Peer certificate doesn't match stored certificate");
-                return 0;
-            }
-        }
-    }
-
-    return ok;
-}
-
-/*
- * Compare a certificate with the one stored in a file
- */
-int ssl_cmp_certs(char *filename, X509 * a)
-{
-    X509 *b;
-    int ret;
-
-    if (!(b = get_X509_from_file(filename)))
-        return 1;
-
-    ret = X509_cmp(a, b);
-    X509_free(b);
-
-    return ret;
-
-}
-
-X509 *get_X509_from_file(char *filename)
-{
-    FILE *fp;
-    X509 *ret;
-
-    if (!(fp = fopen(filename, "r")))
-        return NULL;
-
-    ret = PEM_read_X509(fp, NULL, NULL, NULL);
-
-    fclose(fp);
-
-    return ret;
 }
 
 /*
