@@ -99,6 +99,10 @@
 #include "magic.h"
 #include "mppe.h"
 
+#ifdef UNIT_TEST
+#undef MPPE
+#endif
+
 static void	ascii2unicode (char[], int, u_char[]);
 static void	NTPasswordHash (u_char *, int, u_char[MD4_SIGNATURE_SIZE]);
 static void	ChallengeResponse (u_char *, u_char *, u_char[24]);
@@ -841,6 +845,7 @@ static struct chap_digest_type chapms2_digest = {
 	chapms_handle_failure,
 };
 
+#ifndef UNIT_TEST
 void
 chapms_init(void)
 {
@@ -848,5 +853,96 @@ chapms_init(void)
 	chap_register_digest(&chapms2_digest);
 	add_options(chapms_option_list);
 }
+#else
+
+#include <time.h>
+
+int debug = 1;
+int error_count = 0;
+int unsuccess = 0;
+
+void random_bytes(unsigned char *bytes, int len)
+{
+    int i = 0;
+    srand(time(NULL));
+    while (i < len) {
+        bytes[i++] = (unsigned char) rand();
+    }
+}
+
+
+int test_chap_v1(void) {
+    char *secret = "TestPassword";
+
+    unsigned char challenge[8] = {
+        0x6c, 0x8d, 0x4b, 0xa1, 0x2b, 0x5c, 0x13, 0xc3
+    };
+    unsigned char response[MS_CHAP_RESPONSE_LEN] = {
+    };
+    unsigned char result[MS_CHAP_RESPONSE_LEN] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+        0x91, 0x09, 0x61, 0x5a, 0x0c, 0xac, 0xac, 0x55,
+        0x1f, 0x60, 0xe2, 0x9c, 0x00, 0xac, 0x24, 0xda,
+        0x6e, 0xa5, 0x7b, 0xdb, 0x1d, 0x6a, 0x17, 0xc5,
+        0x01
+    };
+
+    ChapMS(challenge, secret, strlen(secret), response);
+    return memcmp(response, result, MS_CHAP_RESPONSE_LEN);
+}
+
+int test_chap_v2(void) {
+    char *secret = "clientPass";
+    char *name = "User";
+
+    char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
+    char *saresult = "407A5589115FD0D6209F510FE9C04566932CDA56";
+
+    unsigned char authenticator[16] = {
+        0x5B, 0x5D, 0x7C, 0x7D, 0x7B, 0x3F, 0x2F, 0x3E,
+        0x3C, 0x2C, 0x60, 0x21, 0x32, 0x26, 0x26, 0x28
+    };
+    unsigned char peerchallenge[16] = {
+        0x21, 0x40, 0x23, 0x24, 0x25, 0x5E, 0x26, 0x2A,
+        0x28, 0x29, 0x5F, 0x2B, 0x3A, 0x33, 0x7C, 0x7E
+    };
+    unsigned char result[MS_CHAP_NTRESP_LEN] = {
+        0x82, 0x30, 0x9E, 0xCD, 0x8D, 0x70, 0x8B, 0x5E,
+        0xA0, 0x8F, 0xAA, 0x39, 0x81, 0xCD, 0x83, 0x54,
+        0x42, 0x33, 0x11, 0x4A, 0x3D, 0x85, 0xD6, 0xDF
+    };
+
+    unsigned char response[MS_CHAP2_RESPONSE_LEN] = {
+    };
+
+	ChapMS2(authenticator, peerchallenge, name,
+		secret, strlen(secret), response,
+		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR);
+
+    return memcmp(&response[MS_CHAP2_NTRESP], result, MS_CHAP2_NTRESP_LEN) ||
+        strncmp(saresponse, saresult, MS_AUTH_RESPONSE_LENGTH);
+}
+
+int main(int argc, char *argv[]) {
+
+    if (test_chap_v1()) {
+        printf("CHAPv1 failed\n");
+        return -1;
+    }
+
+    if (test_chap_v2()) {
+        printf("CHAPv2 failed\n");
+        return -1;
+    }
+
+    printf("Success\n");
+    return 0;
+}
+
+#endif  /* UNIT_TEST */
+
 
 #endif /* CHAPMS */
