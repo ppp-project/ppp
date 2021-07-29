@@ -371,17 +371,21 @@ void allocate_buffers(char *rhostname)
 	/* Configure the default options */
 	tls_set_opts(psm->ctx);
 
-	/* Configure CA locations */
-	tls_set_ca(psm->ctx, ca_path, cacert_file);
-
-	/* Configure CRL check (if any) */
-	tls_set_crl(psm->ctx, crl_dir, crl_file);
-
 	/* Configure the max TLS version */
 	tls_set_version(psm->ctx, max_tls_version);
 
 	/* Configure the peer certificate callback */
 	tls_set_verify(psm->ctx, 5);
+
+	/* Configure CA locations */
+	if (tls_set_ca(psm->ctx, ca_path, cacert_file)) {
+		fatal("Could not set CA verify locations")
+	}
+
+	/* Configure CRL check (if any) */
+	if (tls_set_crl(psm->ctx, crl_dir, crl_file)) {
+		fatal("Could not set CRL verify locations");
+	}
 
 	psm->out_bio = BIO_new(BIO_s_mem());
 	psm->in_bio = BIO_new(BIO_s_mem());
