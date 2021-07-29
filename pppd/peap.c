@@ -131,8 +131,7 @@ static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_ou
 	u_char compound_mac[PEAP_TLV_COMP_MAC_LEN] = {0};
 	u_int len;
 
-	if (debug)
-		info("PEAP CB: generate compound mac");
+	dbglog("PEAP CB: generate compound mac");
 	/* format outgoing CB TLV response packet */
 	data_tlv[1] = PEAP_TLV_TYPE;
 	data_tlv[3] = PEAP_TLV_LENGTH_FIELD;
@@ -144,8 +143,8 @@ static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_ou
 	data_tlv[60] = EAPT_PEAP;
 
 #ifdef MPPE
-    mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
-    mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+	mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
+	mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
 #endif
 
 	BCOPY(label, ipmkseed, strlen(label));
@@ -182,8 +181,7 @@ static void generate_mppe_keys(int client)
 	u_char csk[PEAP_TLV_CSK_LEN] = {0};
 	size_t len;
 
-	if (debug)
-		info("PEAP CB: generate mppe keys");
+	dbglog("PEAP CB: generate mppe keys");
 	len = strlen(label);
 	len++; /* CSK requires NULL byte in seed */
 	peap_prfplus((u_char *)label, len, psm->ipmk, PEAP_TLV_IPMK_LEN, csk, PEAP_TLV_CSK_LEN);
@@ -205,16 +203,6 @@ static void generate_mppe_keys(int client)
 }
 
 #endif
-
-static void dump(u_char *buf, int len)
-{
-	int i = 0;
-
-	dbglog("len: %d bytes", len);
-	for (i = 0; i < len; i++)
-		printf("%02x ", buf[i]);
-	printf("\n");
-}
 
 static void peap_ack(eap_state *esp, u_char id)
 {
@@ -263,13 +251,13 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		char *rhostname, u_char *out_buf, int *out_len)
 {
-	if (debug)
-		dump(in_buf, in_len);
 	int used;
 	u_char *outp;
 
 	used = 0;
 	outp = out_buf;
+
+	dbglog("PEAP: EAP (in): %.*B", in_len, in_buf);
 
 	if (*in_buf == EAPT_IDENTITY && in_len == 1) {
 		PUTCHAR(EAPT_IDENTITY, outp);
@@ -356,8 +344,7 @@ void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		++used;
 	}
 
-	if (debug)
-		dump(psm->out_buf, used);
+	dbglog("PEAP: EAP (out): %.*B", used, psm->out_buf);
 	*out_len = used;
 }
 
@@ -423,8 +410,7 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 	switch (*inp) {
 	case PEAP_S_FLAG_SET:
 		allocate_buffers(rhostname);
-		if (debug)
-			info("PEAP: S bit is set, starting PEAP phase 1");
+		dbglog("PEAP: S bit is set, starting PEAP phase 1");
 		ret = SSL_do_handshake(psm->ssl);
 		if (ret != 1) {
 			ret = SSL_get_error(psm->ssl, ret);
@@ -437,16 +423,14 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 		break;
 
 	case PEAP_LM_FLAG_SET:
-		if (debug)
-			info("PEAP TLS: LM bits are set, need to get more TLS fragments");
+		dbglog("PEAP TLS: LM bits are set, need to get more TLS fragments");
 		inp = inp + PEAP_FRAGMENT_LENGTH_FIELD + PEAP_FLAGS_FIELD;
 		psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FRAGMENT_LENGTH_FIELD - PEAP_FLAGS_FIELD);
 		peap_ack(esp, id);
 		break;
 
 	case PEAP_M_FLAG_SET:
-		if (debug)
-			info("PEAP TLS: M bit is set, need to get more TLS fragments");
+		dbglog("PEAP TLS: M bit is set, need to get more TLS fragments");
 		inp = inp + PEAP_FLAGS_FIELD;
 		psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FLAGS_FIELD);
 		peap_ack(esp, id);
@@ -455,20 +439,17 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 	case PEAP_L_FLAG_SET:
 	case PEAP_NO_FLAGS:
 		if (*inp == PEAP_L_FLAG_SET) {
-			if (debug)
-				info("PEAP TLS: L bit is set");
+			dbglog("PEAP TLS: L bit is set");
 			inp = inp + PEAP_FRAGMENT_LENGTH_FIELD + PEAP_FLAGS_FIELD;
 			psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FRAGMENT_LENGTH_FIELD - PEAP_FLAGS_FIELD);
 		} else {
-			if (debug)
-				info("PEAP TLS: all bits are off");
+			dbglog("PEAP TLS: all bits are off");
 			inp = inp + PEAP_FLAGS_FIELD;
 			psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FLAGS_FIELD);
 		}
 
 		if (peap_phase == PEAP_PHASE_1) {
-			if (debug)
-				info("PEAP TLS: continue handshake");
+			dbglog("PEAP TLS: continue handshake");
 			ret = SSL_do_handshake(psm->ssl);
 			if (ret != 1) {
 				ret = SSL_get_error(psm->ssl, ret);
