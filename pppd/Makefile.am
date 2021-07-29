@@ -1,5 +1,14 @@
 sbin_PROGRAMS = pppd
 dist_man8_MANS = pppd.8
+check_PROGRAMS = \
+    utest_chap
+
+utest_chap_SOURCES = chap_ms.c pppcrypt.c utils.c
+utest_chap_CPPFLAGS = -DUNIT_TEST
+utest_chap_LDFLAGS =
+
+TESTS = $(check_PROGRAMS)
+
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
 dist_man8_MANS += srp-entry.8
@@ -139,18 +148,27 @@ endif
 
 if !WITH_OPENSSL
 pppd_SOURCES += md5.c md4.c sha1.c
+utest_chap_SOURCES += md5.c md4.c sha1.c
 else
 pppd_CPPFLAGS += $(OPENSSL_INCLUDES)
 pppd_LDFLAGS += $(OPENSSL_LDFLAGS)
+
+utest_chap_CPPFLAGS += $(OPENSSL_INCLUDES)
+utest_chap_LDFLAGS += $(OPENSSL_LDFLAGS)
+utest_chap_LDADD = $(OPENSSL_LIBS)
+
 pppd_LIBS += $(OPENSSL_LIBS)
 if !OPENSSL_HAVE_SHA
 pppd_SOURCES += sha1.c
+utest_chap_SOURCES += sha1.c
 endif
 if !OPENSSL_HAVE_MD4
 pppd_SOURCES += md4.c
+utest_chap_SOURCES += md4.c
 endif
 if !OPENSSL_HAVE_MD5
 pppd_SOURCES += md5.c
+utest_chap_SOURCES += md5.c
 endif
 endif
 
