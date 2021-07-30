@@ -27,6 +27,7 @@ autom4te.cache
 /configure.scan
 /depcomp
 /install-sh
+/test-driver
 /missing
 /INSTALL
 /pppd/stamp-h1
@@ -49,6 +50,10 @@ m4/lt~obsolete.m4
 # Generated Makefile
 Makefile
 Makefile.in
+
+# Test related stuff
+utest_*
+test-suite.log
 
 # Distfiles
 /ppp-*.tar.gz
