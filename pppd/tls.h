@@ -1,12 +1,15 @@
 #ifndef TLS_H
 #define TLS_H
 
-struct tls_info 
-{
-    char *peer_name;
-    X509 *peer_cert;
-    bool client;
-};
+/**
+ * Structure used in verifying the peer certificate
+ */
+struct tls_info;
+
+/**
+ * Initialize the SSL library
+ */
+int tls_init();
 
 /**
  * Get the SSL_METHOD

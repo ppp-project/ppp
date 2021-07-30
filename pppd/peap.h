@@ -9,8 +9,6 @@
 #ifndef PPP_PEAP_H
 #define	PPP_PEAP_H
 
-#define	EAPT_MSCHAPV2			26
-
 #define	PEAP_PHASE_1			1
 #define	PEAP_PHASE_2			2
 
@@ -21,8 +19,6 @@
 
 #define PEAP_CAPABILITIES_TYPE		254
 #define PEAP_CAPABILITIES_LEN		12
-
-#define	SHA_HASH_LEN			20
 
 #define PEAP_TLV_TYPE			12
 #define PEAP_TLV_LENGTH_FIELD		56
@@ -60,7 +56,21 @@
 #define	EAP_TLS_KEY_LEN			0x40
 #define	TLS_RECORD_MAX_SIZE		0x4000
 
-void peap_process(eap_state *esp, u_char id, u_char *inp,
-		int len, char *rhostname);
+struct peap_state;
+
+/**
+ * Initialize the PEAP structure
+ */
+int peap_init(struct peap_state** psm, const char *remote_name);
+
+/**
+ * Process a PEAP packet
+ */
+int peap_process(eap_state *esp, u_char id, u_char *inp, int len);
+
+/**
+ * Clean up the PEAP structure
+ */
+void peap_finish(struct peap_state **psm);
 
 #endif /* PPP_PEAP_H */

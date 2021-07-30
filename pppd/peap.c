@@ -46,6 +46,7 @@ struct peap_state {
 	BIO *in_bio;
 	BIO *out_bio;
 
+	int phase;
 	int written, read;
 	u_char *in_buf;
 	u_char *out_buf;
@@ -54,20 +55,10 @@ struct peap_state {
 	u_char tk[PEAP_TLV_TK_LEN];
 	u_char nonce[PEAP_TLV_NONCE_LEN];
 	struct tls_info *info;
-};
-
-static struct peap_state *psm;
-static int peap_phase;
-static bool init;
-
-static void ssl_init()
-{
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	SSL_library_init();
-	SSL_load_error_strings();
+#ifdef CHAPMS
+	struct chap_digest_type *chap;
 #endif
-	init = 1;
-}
+};
 
 /*
  * K = Key, S = Seed, LEN = output length
@@ -87,11 +78,11 @@ static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_
 	size_t max_iter, i, j, k;
 	u_int len;
 
-	max_iter = (pfr_len + SHA_HASH_LEN - 1) / SHA_HASH_LEN;
-	buf = malloc(seed_len + max_iter * SHA_HASH_LEN);
+	max_iter = (pfr_len + SHA_DIGEST_LENGTH - 1) / SHA_DIGEST_LENGTH;
+	buf = malloc(seed_len + max_iter * SHA_DIGEST_LENGTH);
 	if (!buf)
 		novm("pfr buffer");
-	hash = malloc(pfr_len + SHA_HASH_LEN);
+	hash = malloc(pfr_len + SHA_DIGEST_LENGTH);
 	if (!hash)
 		novm("hash buffer");
 
@@ -100,7 +91,7 @@ static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_
 		k = 0;
 
 		if (i > 0)
-			j = SHA_HASH_LEN;
+			j = SHA_DIGEST_LENGTH;
 		for (k = 0; k < seed_len; k++)
 			buf[j + k] = seed[k];
 		pos = j + k;
@@ -110,17 +101,17 @@ static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_
 		pos++;
 		buf[pos] = 0x00;
 		pos++;
-		if (!HMAC(EVP_sha1(), key, key_len, buf, pos, (hash + i * SHA_HASH_LEN), &len))
+		if (!HMAC(EVP_sha1(), key, key_len, buf, pos, (hash + i * SHA_DIGEST_LENGTH), &len))
 			fatal("HMAC() failed");
-		for (j = 0; j < SHA_HASH_LEN; j++)
-			buf[j] = hash[i * SHA_HASH_LEN + j];
+		for (j = 0; j < SHA_DIGEST_LENGTH; j++)
+			buf[j] = hash[i * SHA_DIGEST_LENGTH + j];
 	}
 	BCOPY(hash, out_buf, pfr_len);
 	free(hash);
 	free(buf);
 }
 
-static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_out, int client)
+static void generate_cmk(struct peap_state *psm, u_char *tempkey, u_char *nonce, u_char *tlv_response_out, int client)
 {
 	const char *label = PEAP_TLV_IPMK_SEED_LABEL;
 	u_char data_tlv[PEAP_TLV_DATA_LEN] = {0};
@@ -131,7 +122,6 @@ static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_ou
 	u_char compound_mac[PEAP_TLV_COMP_MAC_LEN] = {0};
 	u_int len;
 
-	dbglog("PEAP CB: generate compound mac");
 	/* format outgoing CB TLV response packet */
 	data_tlv[1] = PEAP_TLV_TYPE;
 	data_tlv[3] = PEAP_TLV_LENGTH_FIELD;
@@ -161,13 +151,13 @@ static void generate_cmk(u_char *tempkey, u_char *nonce, u_char *tlv_response_ou
 	BCOPY(data_tlv, tlv_response_out, PEAP_TLV_DATA_LEN - 1);
 }
 
-static void verify_compound_mac(u_char *in_buf)
+static void verify_compound_mac(struct peap_state *psm, u_char *in_buf)
 {
 	u_char nonce[PEAP_TLV_NONCE_LEN] = {0};
 	u_char out_buf[PEAP_TLV_LEN] = {0};
 
 	BCOPY(in_buf, nonce, PEAP_TLV_NONCE_LEN);
-	generate_cmk(psm->tk, nonce, out_buf, 0);
+	generate_cmk(psm, psm->tk, nonce, out_buf, 0);
 	if (memcmp((in_buf + PEAP_TLV_NONCE_LEN), (out_buf + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN), PEAP_TLV_CMK_LEN))
 			fatal("server's CMK does not match client's CMK, potential MiTM");
 }
@@ -175,7 +165,7 @@ static void verify_compound_mac(u_char *in_buf)
 #ifdef MPPE
 #define PEAP_MPPE_KEY_LEN 32
 
-static void generate_mppe_keys(int client)
+static void generate_mppe_keys(struct peap_state *psm, int client)
 {
 	const char *label = PEAP_TLV_CSK_SEED_LABEL;
 	u_char csk[PEAP_TLV_CSK_LEN] = {0};
@@ -221,6 +211,7 @@ static void peap_ack(eap_state *esp, u_char id)
 
 static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 {
+	struct peap_state *psm = esp->ea_peap;
 	u_char *outp;
 	int peap_len;
 
@@ -230,7 +221,7 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 	PUTCHAR(id, outp);
 	esp->es_client.ea_id = id;
 
-	if (peap_phase == PEAP_PHASE_1)
+	if (psm->phase == PEAP_PHASE_1)
 		peap_len = PEAP_HEADERLEN + PEAP_FRAGMENT_LENGTH_FIELD + len;
 	else
 		peap_len = PEAP_HEADERLEN + len;
@@ -238,7 +229,7 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 	PUTSHORT(peap_len, outp);
 	PUTCHAR(EAPT_PEAP, outp);
 
-	if (peap_phase == PEAP_PHASE_1) {
+	if (psm->phase == PEAP_PHASE_1) {
 		PUTCHAR(PEAP_L_FLAG_SET, outp);
 		PUTLONG(len, outp);
 	} else
@@ -248,24 +239,20 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + peap_len);
 }
 
-void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
-		char *rhostname, u_char *out_buf, int *out_len)
+void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
+		u_char *out_buf, int *out_len)
 {
-	int used;
-	u_char *outp;
-
-	used = 0;
-	outp = out_buf;
+	struct peap_state *psm = esp->ea_peap;
+	int used = 0;
+	int typenum;
+	int secret_len;
+	char secret[MAXSECRETLEN + 1];
+	char rhostname[MAXWORDLEN];
+	u_char *outp = out_buf;
 
 	dbglog("PEAP: EAP (in): %.*B", in_len, in_buf);
 
-	if (*in_buf == EAPT_IDENTITY && in_len == 1) {
-		PUTCHAR(EAPT_IDENTITY, outp);
-		used++;
-		BCOPY(esp->es_client.ea_name, outp,
-				esp->es_client.ea_namelen);
-		used += esp->es_client.ea_namelen;
-	} else if (*(in_buf + EAP_HEADERLEN) == PEAP_CAPABILITIES_TYPE &&
+	if (*(in_buf + EAP_HEADERLEN) == PEAP_CAPABILITIES_TYPE &&
 			in_len  == (EAP_HEADERLEN + PEAP_CAPABILITIES_LEN)) {
 		/* use original packet as template for response */
 		BCOPY(in_buf, outp, EAP_HEADERLEN + PEAP_CAPABILITIES_LEN);
@@ -274,57 +261,15 @@ void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		/* change last byte to 0 to disable fragmentation */
 		*(outp + PEAP_CAPABILITIES_LEN + 1) = 0x00;
 		used = EAP_HEADERLEN + PEAP_CAPABILITIES_LEN;
-	} else if (*in_buf == EAPT_TLS && in_len  == 2) {
-		/* send NAK to EAP_TLS request */
-		PUTCHAR(EAPT_NAK, outp);
-		used++;
-		PUTCHAR(EAPT_MSCHAPV2, outp);
-		used++;
-	} else if (*in_buf == EAPT_MSCHAPV2 && *(in_buf + 1) == CHAP_CHALLENGE) {
-		/* MSCHAPV2 auth */
-		int secret_len;
-		char secret[MAXSECRETLEN + 1];
-		char *user;
-		u_char user_len;
-		u_char response[MS_CHAP2_RESPONSE_LEN];
-		u_char auth_response[MS_AUTH_RESPONSE_LENGTH + 1];
-		u_char chap_id;
-		u_char rchallenge[MS_CHAP2_PEER_CHAL_LEN];
-
-		user = esp->es_client.ea_name;
-		user_len = esp->es_client.ea_namelen;
-		chap_id = *(in_buf + 2);
-		BCOPY((in_buf + 6), rchallenge, MS_CHAP2_PEER_CHAL_LEN);
-		if (!get_secret(esp->es_unit, esp->es_client.ea_name,
-					rhostname, secret, &secret_len, 0))
-			fatal("Can't read password file");
-		/* MSCHAPV2 response */
-		ChapMS2(rchallenge, NULL, esp->es_client.ea_name,
-				secret, secret_len, response, auth_response, MS_CHAP2_AUTHENTICATEE);
-		PUTCHAR(EAPT_MSCHAPV2, outp);
-		PUTCHAR(CHAP_RESPONSE, outp);
-		PUTCHAR(chap_id, outp);
-		PUTCHAR(0, outp);
-		PUTCHAR(5 + user_len + MS_CHAP2_RESPONSE_LEN, outp);
-		PUTCHAR(MS_CHAP2_RESPONSE_LEN, outp)
-		BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN);
-		outp = outp + MS_CHAP2_RESPONSE_LEN;
-		BCOPY(user, outp, user_len);
-		used = 5 + user_len + MS_CHAP2_RESPONSE_LEN + 1;
-	} else if (*in_buf == EAPT_MSCHAPV2 && *(in_buf + 1) == CHAP_SUCCESS) {
-		PUTCHAR(EAPT_MSCHAPV2, outp);
-		used++;
-		PUTCHAR(CHAP_SUCCESS, outp);
-		used++;
-		auth_peer_success(esp->es_unit, PPP_CHAP, CHAP_MICROSOFT_V2,
-				esp->es_server.ea_peer, esp->es_server.ea_peerlen);
-	} else if (*(in_buf + EAP_HEADERLEN + PEAP_TLV_HEADERLEN) == PEAP_TLV_TYPE &&
+		goto done;
+	}
+	if (*(in_buf + EAP_HEADERLEN + PEAP_TLV_HEADERLEN) == PEAP_TLV_TYPE &&
 			in_len == PEAP_TLV_LEN) {
 		/* PEAP TLV message, do cryptobinding */
 		SSL_export_keying_material(psm->ssl, psm->tk, PEAP_TLV_TK_LEN,
 				PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL), NULL, 0, 0);
 		/* verify server's CMK */
-		verify_compound_mac(in_buf + EAP_HEADERLEN + PEAP_TLV_RESULT_LEN + PEAP_TLV_HEADERLEN);
+		verify_compound_mac(psm, in_buf + EAP_HEADERLEN + PEAP_TLV_RESULT_LEN + PEAP_TLV_HEADERLEN);
 		/* generate client's CMK with new nonce */
 		PUTCHAR(EAP_RESPONSE, outp);
 		PUTCHAR(id, outp);
@@ -332,27 +277,169 @@ void do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		BCOPY(in_buf + EAP_HEADERLEN, outp, PEAP_TLV_RESULT_LEN);
 		outp = outp + PEAP_TLV_RESULT_LEN;
 		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
-		generate_cmk(psm->tk, psm->nonce, outp, 1);
+		generate_cmk(psm, psm->tk, psm->nonce, outp, 1);
 #ifdef MPPE
 		/* set mppe keys */
-		generate_mppe_keys(1);
+		generate_mppe_keys(psm, 1);
 #endif
 		used = PEAP_TLV_LEN;
-	} else {
+		goto done;
+	}
+
+	GETCHAR(typenum, in_buf);
+	in_len--;
+
+	switch (typenum) {
+	case EAPT_IDENTITY:
+		/* Respond with our identity to the peer */
+		PUTCHAR(EAPT_IDENTITY, outp);
+		BCOPY(esp->es_client.ea_name, outp,
+				esp->es_client.ea_namelen);
+		used += (esp->es_client.ea_namelen + 1);
+		break;
+
+	case EAPT_TLS:
+		/* Send NAK to EAP_TLS request */
+		PUTCHAR(EAPT_NAK, outp);
+		PUTCHAR(EAPT_MSCHAPV2, outp);
+		used += 2;
+		break;
+
+#if CHAPMS
+	case EAPT_MSCHAPV2: {
+
+		// Must have at least 4 more bytes to process CHAP header
+		if (in_len < 4) {
+			error("PEAP: received invalid MSCHAPv2 packet, too short");
+			break;
+		}
+
+		u_char opcode;
+		GETCHAR(opcode, in_buf);
+
+		u_char chap_id;
+		GETCHAR(chap_id, in_buf);
+
+		short mssize;
+		GETSHORT(mssize, in_buf);
+
+		// Validate the CHAP packet (including header)
+		if (in_len != mssize) {
+			error("PEAP: received invalid MSCHAPv2 packet, invalid length");
+			break;
+		}
+		in_len -= 4;
+
+		switch (opcode) {
+		case CHAP_CHALLENGE: {
+
+			u_char *challenge = in_buf;	// VLEN + VALUE
+			u_char vsize;
+
+			GETCHAR(vsize, in_buf);
+			in_len -= 1;
+
+			if (vsize != MS_CHAP2_PEER_CHAL_LEN || in_len < MS_CHAP2_PEER_CHAL_LEN) {
+				error("PEAP: received invalid MSCHAPv2 packet, invalid value-length: %d", vsize);
+				goto done;
+			}
+
+			INCPTR(MS_CHAP2_PEER_CHAL_LEN, in_buf);
+			in_len -= MS_CHAP2_PEER_CHAL_LEN;
+
+			// Copy the provided remote host name
+			rhostname[0] = '\0';
+			if (in_len > 0) {
+				if (in_len >= sizeof(rhostname)) {
+					dbglog("PEAP: trimming really long peer name down");
+					in_len = sizeof(rhostname) - 1;
+				}
+				BCOPY(in_buf, rhostname, in_len);
+				rhostname[in_len] = '\0';
+			}
+
+			// In case the remote doesn't give us his name, or user explictly specified remotename is config
+			if (explicit_remote || (remote_name[0] != '\0' && in_len == 0))
+				strlcpy(rhostname, remote_name, sizeof(rhostname));
+
+			// Get the scrert for authenticating ourselves with the specified host
+			if (get_secret(esp->es_unit, esp->es_client.ea_name,
+						rhostname, secret, &secret_len, 0)) {
+
+				u_char response[MS_CHAP2_RESPONSE_LEN+1];
+				u_char *user = esp->es_client.ea_name;
+				u_char user_len = esp->es_client.ea_namelen;
+
+				psm->chap->make_response(response, chap_id, user,
+						challenge, secret, secret_len, NULL);
+
+				PUTCHAR(EAPT_MSCHAPV2, outp);
+				PUTCHAR(CHAP_RESPONSE, outp);
+				PUTCHAR(chap_id, outp);
+				PUTCHAR(0, outp);
+				PUTCHAR(5 + user_len + MS_CHAP2_RESPONSE_LEN, outp);
+				BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN+1);	// VLEN + VALUE
+				INCPTR(MS_CHAP2_RESPONSE_LEN+1, outp);
+				BCOPY(user, outp, user_len);
+				used = 5 + user_len + MS_CHAP2_RESPONSE_LEN + 1;
+
+			} else {
+				dbglog("PEAP: no CHAP secret for auth to %q", rhostname);
+				PUTCHAR(EAPT_NAK, outp);
+				++used;
+			}
+			break;
+		}
+		case CHAP_SUCCESS: {
+
+			u_char status = CHAP_FAILURE;
+			if (psm->chap->check_success(chap_id, in_buf, in_len)) {
+				info("Chap authentication succeeded! %.*v", in_len, in_buf);
+				status = CHAP_SUCCESS;
+			}
+
+			PUTCHAR(EAPT_MSCHAPV2, outp);
+			PUTCHAR(status, outp);
+			used += 2;
+			break;
+		}
+		case CHAP_FAILURE: {
+
+			psm->chap->handle_failure(in_buf, in_len);
+			PUTCHAR(EAPT_MSCHAPV2, outp);
+			PUTCHAR(status, outp);
+			used += 2;
+			break;
+		}
+		default:
+			break;
+		}
+		break;
+	}	// EAPT_MSCHAPv2
+#endif
+	default:
+
 		/* send compressed EAP NAK for any unknown packet */
 		PUTCHAR(EAPT_NAK, outp);
 		++used;
 	}
 
+done:
+
 	dbglog("PEAP: EAP (out): %.*B", used, psm->out_buf);
 	*out_len = used;
 }
 
-void allocate_buffers(char *rhostname)
+int peap_init(struct peap_state **ctx, const char *rhostname)
 {
 	const SSL_METHOD *method;
 
-	psm = malloc(sizeof(*psm));
+	if (!ctx)
+		return -1;
+
+	tls_init();
+
+	struct peap_state *psm = malloc(sizeof(*psm));
 	if (!psm)
 		novm("peap psm struct");
 	psm->in_buf = malloc(TLS_RECORD_MAX_SIZE);
@@ -379,7 +466,7 @@ void allocate_buffers(char *rhostname)
 
 	/* Configure CA locations */
 	if (tls_set_ca(psm->ctx, ca_path, cacert_file)) {
-		fatal("Could not set CA verify locations")
+		fatal("Could not set CA verify locations");
 	}
 
 	/* Configure CRL check (if any) */
@@ -394,26 +481,48 @@ void allocate_buffers(char *rhostname)
 	psm->ssl = SSL_new(psm->ctx);
 	SSL_set_bio(psm->ssl, psm->in_bio, psm->out_bio);
 	SSL_set_connect_state(psm->ssl);
-	peap_phase = PEAP_PHASE_1;
+	psm->phase = PEAP_PHASE_1;
 	tls_set_verify_info(psm->ssl, explicit_remote ? rhostname : NULL, NULL, 1, &psm->info);
+	psm->chap = chap_find_digest(CHAP_MICROSOFT_V2);
+	*ctx = psm;
+	return 0;
 }
 
-void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostname)
+void peap_finish(struct peap_state **psm) {
+
+	if (psm && *psm) {
+		struct peap_state *tmp = *psm;
+
+		if (tmp->ssl)
+			SSL_free(tmp->ssl);
+
+		if (tmp->ctx)
+			SSL_CTX_free(tmp->ctx);
+
+		if (tmp->info)
+			tls_free_verify_info(&tmp->info);
+
+		// NOTE: BIO and memory is freed as a part of SSL_free()
+
+		free(*psm);
+		*psm = NULL;
+	}
+}
+
+int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 {
 	int ret;
 	int out_len;
 
-	if (!init)
-		ssl_init();
+	struct peap_state *psm = esp->ea_peap;
 
 	if (esp->es_client.ea_id == id) {
 		info("PEAP: retransmits are not supported..");
-		return;
+		return -1;
 	}
 
 	switch (*inp) {
 	case PEAP_S_FLAG_SET:
-		allocate_buffers(rhostname);
 		dbglog("PEAP: S bit is set, starting PEAP phase 1");
 		ret = SSL_do_handshake(psm->ssl);
 		if (ret != 1) {
@@ -452,7 +561,7 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 			psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FLAGS_FIELD);
 		}
 
-		if (peap_phase == PEAP_PHASE_1) {
+		if (psm->phase == PEAP_PHASE_1) {
 			dbglog("PEAP TLS: continue handshake");
 			ret = SSL_do_handshake(psm->ssl);
 			if (ret != 1) {
@@ -461,7 +570,7 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 					fatal("SSL_do_handshake(): %s", ERR_error_string(ret, NULL));
 			}
 			if (SSL_is_init_finished(psm->ssl))
-				peap_phase = PEAP_PHASE_2;
+				psm->phase = PEAP_PHASE_2;
 			if (BIO_ctrl_pending(psm->out_bio) == 0) {
 				peap_ack(esp, id);
 				break;
@@ -475,12 +584,15 @@ void peap_process(eap_state *esp, u_char id, u_char *inp, int len, char *rhostna
 		psm->read = SSL_read(psm->ssl, psm->in_buf,
 				TLS_RECORD_MAX_SIZE);
 		out_len = TLS_RECORD_MAX_SIZE;
-		do_inner_eap(psm->in_buf, psm->read, esp, id, rhostname,
+		peap_do_inner_eap(psm->in_buf, psm->read, esp, id,
 				psm->out_buf, &out_len);
-		psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
-		psm->read = BIO_read(psm->out_bio, psm->out_buf,
+		if (out_len > 0) {
+			psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
+			psm->read = BIO_read(psm->out_bio, psm->out_buf,
 				TLS_RECORD_MAX_SIZE);
-		peap_response(esp, id, psm->out_buf, psm->read);
+			peap_response(esp, id, psm->out_buf, psm->read);
+		}
 		break;
 	}
+	return 0;
 }

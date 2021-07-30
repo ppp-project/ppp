@@ -296,8 +296,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         }
     }
 
-    SSL_library_init();
-    SSL_load_error_strings();
+    tls_init();
 
 #ifndef OPENSSL_NO_ENGINE
     /* load the openssl config file only once and load it before triggering

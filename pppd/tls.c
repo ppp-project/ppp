@@ -6,6 +6,17 @@
 #include "pppd.h"
 #include "tls.h"
 
+/**
+ * Structure used in verifying the peer certificate
+ */
+struct tls_info
+{
+    char *peer_name;
+    X509 *peer_cert;
+    bool client;
+};
+
+
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 /*
@@ -167,6 +178,15 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
     }
 
     return ok;
+}
+
+int tls_init()
+{
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    SSL_library_init();
+    SSL_load_error_strings();
+#endif
+    return 0;
 }
 
 int tls_set_verify(SSL_CTX *ctx, int depth) 
