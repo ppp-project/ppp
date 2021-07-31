@@ -697,7 +697,7 @@ static int make_ppp_unit(void)
 
 	if (x == 0 && req_ifname[0] != '\0') {
 		struct ifreq ifr;
-		char t[MAXIFNAMELEN];
+		char t[IFNAMSIZ];
 		memset(&ifr, 0, sizeof(struct ifreq));
 		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
 		strlcpy(ifr.ifr_name, t, IF_NAMESIZE);
