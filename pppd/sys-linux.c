@@ -298,6 +298,112 @@ extern int dfl_route_metric;
     memset ((char *) &(addr), '\0', sizeof(addr));	\
     addr.sa_family = (family);
 
+
+/*
+ * send_rtnetlink_msg - send rtnetlink message and return received error code:
+ * 0              - success
+ * positive value - error during sending / receiving message
+ * negative value - rtnetlink responce error code
+ */
+static int send_rtnetlink_msg(const char *desc, void *nlreq, size_t nlreq_len)
+{
+    struct {
+        struct nlmsghdr nlh;
+        struct nlmsgerr nlerr;
+    } nlresp;
+    struct sockaddr_nl nladdr;
+    struct iovec iov;
+    struct msghdr msg;
+    ssize_t nlresp_len;
+    int one;
+    int fd;
+
+    fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (fd < 0) {
+        error("send_rtnetlink_msg: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
+        return 1;
+    }
+
+    /*
+     * Tell kernel to not send to us payload of acknowledgment error message.
+     * NETLINK_CAP_ACK option is supported since Linux kernel version 4.3 and
+     * older kernel versions always send full payload in acknowledgment netlink
+     * message. We ignore payload of this message as we need only error code,
+     * to check if our set remote peer address request succeeded or failed.
+     * So ignore return value from the following setsockopt() call as setting
+     * option NETLINK_CAP_ACK means for us just a kernel hint / optimization.
+     */
+    one = 1;
+    setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
+
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
+
+    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
+        error("send_rtnetlink_msg: bind(AF_NETLINK): %m (line %d)", __LINE__);
+        close(fd);
+        return 1;
+    }
+
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = nlreq;
+    iov.iov_len = nlreq_len;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    if (sendmsg(fd, &msg, 0) < 0) {
+        error("send_rtnetlink_msg: sendmsg(%s): %m (line %d)", desc, __LINE__);
+        close(fd);
+        return 1;
+    }
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = &nlresp;
+    iov.iov_len = sizeof(nlresp);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    nlresp_len = recvmsg(fd, &msg, 0);
+
+    if (nlresp_len < 0) {
+        error("send_rtnetlink_msg: recvmsg(%s): %m (line %d)", desc, __LINE__);
+        close(fd);
+        return 1;
+    }
+
+    close(fd);
+
+    if (nladdr.nl_family != AF_NETLINK) {
+        error("send_rtnetlink_msg: recvmsg(%s): Not a netlink packet (line %d)", desc, __LINE__);
+        return 1;
+    }
+
+    if ((size_t)nlresp_len < sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
+        error("send_rtnetlink_msg: recvmsg(%s): Acknowledgment netlink packet too short (line %d)", desc, __LINE__);
+        return 1;
+    }
+
+    /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
+    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
+        error("send_rtnetlink_msg: recvmsg(%s): Not an acknowledgment netlink packet (line %d)", desc, __LINE__);
+        return 1;
+    }
+
+    /* error == 0 indicates success, negative value is errno code */
+    return nlresp.nlerr.error;
+}
+
 /*
  * Determine if the PPP connection should still be present.
  */
@@ -701,35 +807,7 @@ static int make_ppp_unit_rtnetlink(void)
             } ifid;
         } ifli;
     } nlreq;
-    struct {
-        struct nlmsghdr nlh;
-        struct nlmsgerr nlerr;
-    } nlresp;
-    struct sockaddr_nl nladdr;
-    struct iovec iov;
-    struct msghdr msg;
-    ssize_t nlresplen;
-    int one;
-    int fd;
-
-    fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-    if (fd < 0) {
-        error("make_ppp_unit_rtnetlink: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
-        return 0;
-    }
-
-    /* Tell kernel to not send to us payload of acknowledgment error message. */
-    one = 1;
-    setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
-
-    memset(&nladdr, 0, sizeof(nladdr));
-    nladdr.nl_family = AF_NETLINK;
-
-    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
-        error("make_ppp_unit_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
+    int resp;
 
     memset(&nlreq, 0, sizeof(nlreq));
     nlreq.nlh.nlmsg_len = sizeof(nlreq);
@@ -751,63 +829,8 @@ static int make_ppp_unit_rtnetlink(void)
     nlreq.ifli.ifid.ifdata[0].rta.rta_type = IFLA_PPP_DEV_FD;
     nlreq.ifli.ifid.ifdata[0].ppp.ppp_dev_fd = ppp_dev_fd;
 
-    memset(&nladdr, 0, sizeof(nladdr));
-    nladdr.nl_family = AF_NETLINK;
-
-    memset(&iov, 0, sizeof(iov));
-    iov.iov_base = &nlreq;
-    iov.iov_len = sizeof(nlreq);
-
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &nladdr;
-    msg.msg_namelen = sizeof(nladdr);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-
-    if (sendmsg(fd, &msg, 0) < 0) {
-        error("make_ppp_unit_rtnetlink: sendmsg(RTM_NEWLINK/NLM_F_CREATE): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
-
-    memset(&iov, 0, sizeof(iov));
-    iov.iov_base = &nlresp;
-    iov.iov_len = sizeof(nlresp);
-
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &nladdr;
-    msg.msg_namelen = sizeof(nladdr);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-
-    nlresplen = recvmsg(fd, &msg, 0);
-
-    if (nlresplen < 0) {
-        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
-
-    close(fd);
-
-    if (nladdr.nl_family != AF_NETLINK) {
-        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Not a netlink packet (line %d)", __LINE__);
-        return 0;
-    }
-
-    if ((size_t)nlresplen < sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
-        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Acknowledgment netlink packet too short (line %d)", __LINE__);
-        return 0;
-    }
-
-    /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
-    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
-        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment netlink packet (line %d)", __LINE__);
-        return 0;
-    }
-
-    /* error == 0 indicates success, negative value is errno code */
-    if (nlresp.nlerr.error != 0) {
+    resp = send_rtnetlink_msg("RTM_NEWLINK/NLM_F_CREATE", &nlreq, sizeof(nlreq));
+    if (resp) {
         /*
          * Linux kernel versions prior to 4.7 do not support creating ppp
          * interfaces via rtnetlink API and therefore error response is
@@ -815,7 +838,7 @@ static int make_ppp_unit_rtnetlink(void)
          * When error is different than EEXIST then pppd tries to fallback to
          * the old ioctl method.
          */
-        errno = (nlresp.nlerr.error < 0) ? -nlresp.nlerr.error : EINVAL;
+        errno = (resp < 0) ? -resp : EINVAL;
         if (kernel_version >= KVERSION(4,7,0))
             error("Couldn't create ppp interface %s: %m", req_ifname);
         return 0;
@@ -3358,43 +3381,7 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
             struct in6_addr addr;
         } addrs[2];
     } nlreq;
-    struct {
-        struct nlmsghdr nlh;
-        struct nlmsgerr nlerr;
-    } nlresp;
-    struct sockaddr_nl nladdr;
-    struct iovec iov;
-    struct msghdr msg;
-    ssize_t nlresplen;
-    int one;
-    int fd;
-
-    fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-    if (fd < 0) {
-        error("sif6addr_rtnetlink: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
-        return 0;
-    }
-
-    /*
-     * Tell kernel to not send to us payload of acknowledgment error message.
-     * NETLINK_CAP_ACK option is supported since Linux kernel version 4.3 and
-     * older kernel versions always send full payload in acknowledgment netlink
-     * message. We ignore payload of this message as we need only error code,
-     * to check if our set remote peer address request succeeded or failed.
-     * So ignore return value from the following setsockopt() call as setting
-     * option NETLINK_CAP_ACK means for us just a kernel hint / optimization.
-     */
-    one = 1;
-    setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
-
-    memset(&nladdr, 0, sizeof(nladdr));
-    nladdr.nl_family = AF_NETLINK;
-
-    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
-        error("sif6addr_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
+    int resp;
 
     memset(&nlreq, 0, sizeof(nlreq));
     nlreq.nlh.nlmsg_len = sizeof(nlreq);
@@ -3424,71 +3411,17 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
     else
         IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, our_eui64);
 
-    memset(&nladdr, 0, sizeof(nladdr));
-    nladdr.nl_family = AF_NETLINK;
-
-    memset(&iov, 0, sizeof(iov));
-    iov.iov_base = &nlreq;
-    iov.iov_len = sizeof(nlreq);
-
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &nladdr;
-    msg.msg_namelen = sizeof(nladdr);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-
-    if (sendmsg(fd, &msg, 0) < 0) {
-        error("sif6addr_rtnetlink: sendmsg(RTM_NEWADDR/NLM_F_CREATE): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
-
-    memset(&iov, 0, sizeof(iov));
-    iov.iov_base = &nlresp;
-    iov.iov_len = sizeof(nlresp);
-
-    memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &nladdr;
-    msg.msg_namelen = sizeof(nladdr);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-
-    nlresplen = recvmsg(fd, &msg, 0);
-
-    if (nlresplen < 0) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
-        close(fd);
-        return 0;
-    }
-
-    close(fd);
-
-    if (nladdr.nl_family != AF_NETLINK) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not a netlink packet (line %d)", __LINE__);
-        return 0;
-    }
-
-    if ((size_t)nlresplen != sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Acknowledgment netlink packet too short (line %d)", __LINE__);
-        return 0;
-    }
-
-    /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
-    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
-        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment netlink packet (line %d)", __LINE__);
-        return 0;
-    }
-
-    /* error == 0 indicates success, negative value is errno code */
-    if (nlresp.nlerr.error != 0) {
+    resp = send_rtnetlink_msg("RTM_NEWADDR/NLM_F_CREATE", &nlreq, sizeof(nlreq));
+    if (resp) {
         /*
          * Linux kernel versions prior 3.11 do not support setting IPv6 peer
          * addresses and error response is expected. On older kernel versions
          * do not show this error message. On error pppd tries to fallback to
          * the old IOCTL method.
          */
+        errno = (resp < 0) ? -resp : EINVAL;
         if (kernel_version >= KVERSION(3,11,0))
-            error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
+            error("sif6addr_rtnetlink: %m (line %d)", __LINE__);
         return 0;
     }
 
