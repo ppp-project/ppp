@@ -897,6 +897,9 @@ struct speed {
 #ifdef B115200
     { 115200, B115200 },
 #endif
+#ifdef B153600
+    { 153600, B153600 },
+#endif
 #ifdef EXTA
     { 19200, EXTA },
 #endif
@@ -906,6 +909,9 @@ struct speed {
 #ifdef B230400
     { 230400, B230400 },
 #endif
+#ifdef B307200
+    { 307200, B307200 },
+#endif
 #ifdef B460800
     { 460800, B460800 },
 #endif
@@ -914,6 +920,9 @@ struct speed {
 #endif
 #ifdef B576000
     { 576000, B576000 },
+#endif
+#ifdef B614400
+    { 614400, B614400 },
 #endif
 #ifdef B921600
     { 921600, B921600 },
