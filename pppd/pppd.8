@@ -212,11 +212,14 @@ Set the local and/or remote 64-bit interface identifier. Either one may be
 omitted. The identifier must be specified in standard ASCII notation of
 IPv6 addresses (e.g. ::dead:beef). If the
 \fIipv6cp\-use\-ipaddr\fR
-option is given, the local identifier is the local IPv4 address (see above).
+option is given, the local identifier is the local IPv4 address and the
+remote identifier is the remote IPv4 address (see above).
+If the \fIipv6cp-use-remotenumber\fR option is given, the remote identifier
+is set to the value from \fIremotenumber\fR option.
 On systems which supports a unique persistent id, such as EUI\-48 derived
 from the Ethernet MAC address, \fIipv6cp\-use\-persistent\fR option can be
-used to replace the \fIipv6 <local>,<remote>\fR option. Otherwise the 
-identifier is randomized.
+used to set local identifier.  Otherwise both local and remote identifiers
+are randomized.
 .TP
 .B active\-filter \fIfilter\-expression
 Specifies a packet filter to be applied to data packets to determine

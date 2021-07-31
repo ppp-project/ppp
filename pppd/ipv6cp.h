@@ -156,6 +156,7 @@ typedef struct ipv6cp_options {
     int opt_remote;		/* histoken set by option */
     int use_ip;			/* use IP as interface identifier */
     int use_persistent;		/* use uniquely persistent value for address */
+    int use_remotenumber;	/* use remote number value for address */
     int neg_vj;			/* Van Jacobson Compression? */
     u_short vj_protocol;	/* protocol value to use in VJ option */
     eui64_t ourid, hisid;	/* Interface identifiers */
