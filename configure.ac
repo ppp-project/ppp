@@ -200,7 +200,7 @@ AS_IF([test "x$enable_openssl_engine" != "xno"], [],
 
 #
 # Specify runtime directory
-AC_ARG_ENABLE([plugin-dir],
+AC_ARG_WITH([plugin-dir],
 	AC_HELP_STRING([--with-plugin-dir=DIR], [Specify the plugin directory for pppd]))
 AS_IF([test -n "$with_plugin_dir"],
 	[PPPD_PLUGIN_DIR="$with_plugin_dir"],
@@ -209,7 +209,7 @@ AC_SUBST(PPPD_PLUGIN_DIR, "$PPPD_PLUGIN_DIR", [The pppd plugin directory])
 
 #
 # Specify runtime directory
-AC_ARG_ENABLE([runtime-dir],
+AC_ARG_WITH([runtime-dir],
 	AC_HELP_STRING([--with-runtime-dir=DIR], [Specify the runtime directory for pppd]))
 AS_IF([test -n "$with_runtime_dir"],
 	[PPPD_RUNTIME_DIR="$with_runtime_dir"],
@@ -218,7 +218,7 @@ AC_SUBST(PPPD_RUNTIME_DIR)
 
 #
 # Specify runtime directory
-AC_ARG_ENABLE([logfile-dir],
+AC_ARG_WITH([logfile-dir],
 	AC_HELP_STRING([--with-logfile-dir=DIR], [Specify the log directory for pppd]))
 AS_IF([test -n "$with_logfile_dir"],
 	[PPPD_LOGFILE_DIR="$with_logfile_dir"],
@@ -242,19 +242,19 @@ AS_IF([test "${with_openssl}" != "no" ], [
         [AC_MSG_ERROR([OpenSSL not found, and if this is your intention then run configure --disable-eaptls])])
 ])
 
-AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" != "xno")
+AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD4],,
     AC_DEFINE([USE_MD4], 1, [Use included md4 included with pppd]))
 
-AM_CONDITIONAL([OPENSSL_HAVE_MD5], test "x${ac_cv_openssl_md5}" != "xno")
+AM_CONDITIONAL([OPENSSL_HAVE_MD5], test "x${ac_cv_openssl_md5}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD5],,
     AC_DEFINE([USE_MD5], 1, [Use included md5 included with pppd]))
 
-AM_CONDITIONAL([OPENSSL_HAVE_SHA], test "x${ac_cv_openssl_sha}" != "xno")
+AM_CONDITIONAL([OPENSSL_HAVE_SHA], test "x${ac_cv_openssl_sha}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_SHA],,
     AC_DEFINE([USE_SHA], 1, [Use included sha included with pppd]))
 
-AM_CONDITIONAL([OPENSSL_HAVE_DES], test "x${ac_cv_openssl_des}" != "xno")
+AM_CONDITIONAL([OPENSSL_HAVE_DES], test "x${ac_cv_openssl_des}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_DES],,
     AC_DEFINE([USE_CRYPT], 1, [Use included des included with pppd]))
 
