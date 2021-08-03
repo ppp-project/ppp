@@ -206,7 +206,7 @@ add_avp(char **argv)
 *  1 -- we are ALWAYS willing to supply a secret. :-)
 * %DESCRIPTION:
 * Tells pppd that we will try to authenticate the peer, and not to
-* worry about looking in /etc/ppp/*-secrets
+* worry about looking in *-secrets file(s)
 ***********************************************************************/
 static int
 radius_secret_check(void)
@@ -597,11 +597,11 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		break;
            case PW_FILTER_ID:
                /* packet filter, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FILTER_ID", vp->strvalue, 1);
+               script_setenv("RADIUS_FILTER_ID", (char*) vp->strvalue, 1);
                break;
            case PW_FRAMED_ROUTE:
                /* route, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FRAMED_ROUTE", vp->strvalue, 1);
+               script_setenv("RADIUS_FRAMED_ROUTE", (char*) vp->strvalue, 1);
                break;
            case PW_IDLE_TIMEOUT:
                /* idle parameter */
@@ -665,12 +665,12 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 #ifdef CHAPMS
 	    switch (vp->attribute) {
 	    case PW_MS_CHAP2_SUCCESS:
-		if ((vp->lvalue != 43) || strncmp(vp->strvalue + 1, "S=", 2)) {
+		if ((vp->lvalue != 43) || strncmp((char*) vp->strvalue + 1, "S=", 2)) {
 		    slprintf(msg,BUF_LEN,"RADIUS: bad MS-CHAP2-Success packet");
 		    return -1;
 		}
 		if (message != NULL)
-		    strlcpy(message, vp->strvalue + 1, message_space);
+		    strlcpy(message, (char*) vp->strvalue + 1, message_space);
 		ms_chap2_success = 1;
 		break;
 
