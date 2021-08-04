@@ -228,7 +228,7 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 	{
 		if (rc_find_server (server_name, &auth_ipaddr, secret) != 0)
 		{
-            memset (secret, '\0', sizeof (secret));
+			memset (secret, '\0', sizeof (secret));
 			return (ERROR_RC);
 		}
 	}

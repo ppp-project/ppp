@@ -299,12 +299,16 @@ unsigned int run_ntlm_auth(const char *username,
 	if (forkret == 0) {
 		/* child process */
 		uid_t uid;
+		gid_t gid;
 
 		close(child_out[0]);
 		close(child_in[1]);
 
 		/* run winbind as the user that invoked pppd */
-		setgid(getgid());
+
+		gid = getgid();
+		if (setgid(gid) == -1 || getgid() != gid)
+			fatal("ppp/winbind: could not setgid to %d, %m", gid);
 		uid = getuid();
 		if (setuid(uid) == -1 || getuid() != uid)
 			fatal("pppd/winbind: could not setuid to %d: %m", uid);

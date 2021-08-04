@@ -753,6 +753,7 @@ void
 detach(void)
 {
     int pid;
+    int ret;
     char numbuf[16];
     int pipefd[2];
 
@@ -774,7 +775,10 @@ detach(void)
 	exit(0);		/* parent dies */
     }
     setsid();
-    chdir("/");
+    ret = chdir("/");
+    if (ret != 0)
+	fatal("Could not change directory to '/'");
+
     dup2(fd_devnull, 0);
     dup2(fd_devnull, 1);
     dup2(fd_devnull, 2);
@@ -1414,7 +1418,7 @@ hup(int sig)
 	kill_my_pg(sig);
     notify(sigreceived, sig);
     if (waiting)
-	write(sigpipe[1], &sig, sizeof(sig));
+	(void) (write(sigpipe[1], &sig, sizeof(sig)) + 1);
 }
 
 
@@ -1434,7 +1438,7 @@ term(int sig)
 	kill_my_pg(sig);
     notify(sigreceived, sig);
     if (waiting)
-	write(sigpipe[1], &sig, sizeof(sig));
+	(void) (write(sigpipe[1], &sig, sizeof(sig)) + 1);
 }
 
 
@@ -1447,7 +1451,7 @@ chld(int sig)
 {
     got_sigchld = 1;
     if (waiting)
-	write(sigpipe[1], &sig, sizeof(sig));
+	(void) (write(sigpipe[1], &sig, sizeof(sig)) + 1);
 }
 
 
@@ -1480,7 +1484,7 @@ open_ccp(int sig)
 {
     got_sigusr2 = 1;
     if (waiting)
-	write(sigpipe[1], &sig, sizeof(sig));
+	(void) (write(sigpipe[1], &sig, sizeof(sig)) + 1);
 }
 
 
@@ -1642,6 +1646,7 @@ device_script(char *program, int in, int out, int dont_wait)
     int pid;
     int status = -1;
     int errfd;
+    int ret;
 
     if (log_to_fd >= 0)
 	errfd = log_to_fd;
@@ -1676,11 +1681,16 @@ device_script(char *program, int in, int out, int dont_wait)
     }
 
     /* here we are executing in the child */
-
-    setgid(getgid());
-    setuid(uid);
-    if (getuid() != uid) {
-	fprintf(stderr, "pppd: setuid failed\n");
+    ret = setgid(getgid());
+    if (ret != 0) {
+	fprintf(stderr, "pppd: setgid failed, %s (%d)\n",
+		strerror(errno), errno);
+	exit(1);
+    }
+    ret = setuid(uid);
+    if (ret != 0 || getuid() != uid) {
+	fprintf(stderr, "pppd: setuid failed, %s (%d)\n",
+		strerror(errno), errno);
 	exit(1);
     }
     update_system_environment();
@@ -1742,7 +1752,7 @@ update_script_environment(void)
 pid_t
 run_program(char *prog, char **args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
-    int pid, status;
+    int pid, status, ret;
     struct stat sbuf;
 
     /*
@@ -1782,9 +1792,18 @@ run_program(char *prog, char **args, int must_exist, void (*done)(void *), void 
     /* Leave the current location */
     (void) setsid();	/* No controlling tty. */
     (void) umask (S_IRWXG|S_IRWXO);
-    (void) chdir ("/");	/* no current directory. */
-    setuid(0);		/* set real UID = root */
-    setgid(getegid());
+    ret = chdir ("/");	/* no current directory. */
+    if (ret != 0) {
+	fatal("Failed to change directory to '/'");
+    }
+    ret = setuid(0);		/* set real UID = root */
+    if (ret != 0) {
+	fatal("Failed to set uid");
+    }
+    ret = setgid(getegid());
+    if (ret != 0) {
+	fatal("Failed to set gid");
+    }
 
 #ifdef BSD
     /* Force the priority back to zero if pppd is running higher. */

@@ -201,7 +201,7 @@ SIGTYPE sighup (int signo);
 void unalarm (void);
 void init (void);
 void set_tty_parameters (void);
-void echo_stderr (int);
+int  echo_stderr (int);
 void break_sequence (void);
 void terminate (int status);
 void do_file (char *chat_file);
@@ -210,7 +210,7 @@ int  put_string (register char *s);
 int  write_char (int c);
 int  put_char (int c);
 int  get_char (void);
-void chat_send (register char *s);
+int  chat_send (register char *s);
 char *character (int c);
 void chat_expect (register char *s);
 char *clean (register char *s, int sending);
@@ -983,16 +983,18 @@ char *character(int c)
 /*
  *  process the reply string
  */
-void chat_send (register char *s)
+int chat_send (register char *s)
 {
     char file_data[STR_LEN];
+    int ret = 0;
 
     if (say_next) {
 	say_next = 0;
 	s = clean(s, 1);
-	write(2, s, strlen(s));
+	ret = strlen(s);
+	ret = write(2, s, ret) != ret;
         free(s);
-	return;
+	return ret;
     }
 
     if (hup_next) {
@@ -1001,13 +1003,13 @@ void chat_send (register char *s)
            signal(SIGHUP, SIG_IGN);
         else
            signal(SIGHUP, sighup);
-        return;
+        return ret;
     }
 
     if (echo_next) {
 	echo_next = 0;
 	echo = (strcmp(s, "ON") == 0);
-	return;
+	return ret;
     }
 
     if (abort_next) {
@@ -1027,7 +1029,7 @@ void chat_send (register char *s)
 
 	if (verbose)
 	    msgf("abort on (%v)", s1);
-	return;
+	return ret;
     }
 
     if (clear_abort_next) {
@@ -1057,7 +1059,7 @@ void chat_send (register char *s)
         free(s1);
 	if (pack)
 	    pack_array(abort_string,old_max);
-	return;
+	return ret;
     }
 
     if (report_next) {
@@ -1075,7 +1077,7 @@ void chat_send (register char *s)
 	
 	if (verbose)
 	    msgf("report (%v)", s1);
-	return;
+	return ret;
     }
 
     if (clear_report_next) {
@@ -1106,7 +1108,7 @@ void chat_send (register char *s)
         if (pack)
 	    pack_array(report_string,old_max);
 	
-	return;
+	return ret;
     }
 
     if (timeout_next) {
@@ -1120,7 +1122,7 @@ void chat_send (register char *s)
 	if (verbose)
 	    msgf("timeout set to %d seconds", timeout);
 
-	return;
+	return ret;
     }
 
     /*
@@ -1167,6 +1169,7 @@ void chat_send (register char *s)
 
     if (!put_string(s))
 	fatal(1, "Failed");
+    return ret;
 }
 
 int get_char(void)
@@ -1292,9 +1295,10 @@ int put_string(register char *s)
  *	When called with -1, a '\n' character is generated when
  *	the cursor is not at the beginning of a line.
  */
-void echo_stderr(int n)
+int echo_stderr(int n)
 {
     static int need_lf;
+    int ret = 0;
     char *s;
 
     switch (n) {
@@ -1305,15 +1309,17 @@ void echo_stderr(int n)
 	    break;
 	/* fall through */
     case '\n':
-	write(2, "\n", 1);
+	ret = write(2, "\n", 1) != 1;
 	need_lf = 0;
 	break;
     default:
 	s = character(n);
-	write(2, s, strlen(s));
+	ret = strlen(s);
+	ret = write(2, s, ret) != ret;
 	need_lf = 1;
 	break;
     }
+    return ret;
 }
 
 /*

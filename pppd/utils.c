@@ -907,10 +907,13 @@ lock(char *dev)
     pid = getpid();
 #ifndef LOCK_BINARY
     slprintf(lock_buffer, sizeof(lock_buffer), "%10d\n", pid);
-    write (fd, lock_buffer, 11);
+    n = write (fd, lock_buffer, 11);
+    if (n != 11)
 #else
-    write(fd, &pid, sizeof (pid));
+    n = write(fd, &pid, sizeof (pid));
+    if (n != sizeof (pid))
 #endif
+	error("Could not write pid to lock file when locking");
     close(fd);
     return 0;
 
@@ -934,7 +937,7 @@ relock(int pid)
     return -1;
 #else /* LOCKLIB */
 
-    int fd;
+    int fd, n;
     char lock_buffer[12];
 
     if (lock_file[0] == 0)
@@ -948,10 +951,13 @@ relock(int pid)
 
 #ifndef LOCK_BINARY
     slprintf(lock_buffer, sizeof(lock_buffer), "%10d\n", pid);
-    write (fd, lock_buffer, 11);
+    n = write (fd, lock_buffer, 11);
+    if (n != 11)
 #else
-    write(fd, &pid, sizeof(pid));
+    n = write(fd, &pid, sizeof(pid));
+    if (n != sizeof(pid))
 #endif /* LOCK_BINARY */
+	error("Could not write pid to lock file when re-locking");
     close(fd);
     return 0;
 
