@@ -190,7 +190,7 @@ static int	fdmuxid = -1;
 static int	ipfd;
 static int	ipmuxid = -1;
 
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
 static int	ip6fd;		/* IP file descriptor */
 static int	ip6muxid = -1;	/* Multiplexer file descriptor */
 static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
@@ -224,11 +224,11 @@ static int	if6_is_up = 0;	/* IPv6 interface has been marked up */
 #define IN6A_LLADDR_FROM_EUI64(s, eui64)  \
     _IN6A_LLX_FROM_EUI64(s, eui64, 0xfe800000)
 
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
-#if !defined(INET6) || !defined(SOL2)
+#if !defined(PPP_WITH_IPV6CP) || !defined(SOL2)
 #define MAXIFS		256			/* Max # of interfaces */
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
 static int	restore_term;
 static struct termios inittermios;
@@ -297,7 +297,7 @@ sifppa(fd, ppa)
 }
 #endif /* SOL2 */
 
-#if defined(SOL2) && defined(INET6)
+#if defined(SOL2) && defined(PPP_WITH_IPV6CP)
 /*
  * get_first_ether_hwaddr - get the hardware address for the first
  * ethernet-style interface on this system.
@@ -477,7 +477,7 @@ get_first_ether_hwaddr(u_char *addr)
     else
 	return -1;
 }
-#endif /* defined(SOL2) && defined(INET6) */
+#endif /* defined(SOL2) && defined(PPP_WITH_IPV6CP) */
 
 #if defined(SOL2)
 /*
@@ -506,7 +506,7 @@ get_if_hwaddr(u_char *addr, char *if_name)
 }
 #endif /* SOL2 */
 
-#if defined(SOL2) && defined(INET6)
+#if defined(SOL2) && defined(PPP_WITH_IPV6CP)
 /*
  * slifname - Sets interface ppa and flags
  *
@@ -536,7 +536,7 @@ slifname_done:
 
 
 }
-#endif /* defined(SOL2) && defined(INET6) */
+#endif /* defined(SOL2) && defined(PPP_WITH_IPV6CP) */
 
 /*
  * sys_init - System-dependent initialization.
@@ -546,10 +546,10 @@ sys_init(void)
 {
     int ifd, x;
     struct ifreq ifr;
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     int i6fd;
     struct lifreq lifr;
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 #if !defined(SOL2)
     struct {
 	union DL_primitives prim;
@@ -561,11 +561,11 @@ sys_init(void)
     if (ipfd < 0)
 	fatal("Couldn't open IP device: %m");
 
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     ip6fd = open(UDP6_DEV_NAME, O_RDWR, 0);
     if (ip6fd < 0)
 	fatal("Couldn't open IP device (2): %m");
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
     if (default_device && !notty)
 	tty_sid = getsid((pid_t)0);
@@ -604,7 +604,7 @@ sys_init(void)
 	strioctl(ifd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
 
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     i6fd = open(PPP_DEV_NAME, O_RDWR, 0);
     if (i6fd < 0) {
 	close(ifd);
@@ -614,14 +614,14 @@ sys_init(void)
 	x = PPPDBG_LOG + PPPDBG_DRIVER;
 	strioctl(i6fd, PPPIO_DEBUG, &x, sizeof(int), 0);
     }
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
 #if defined(SOL2)
     if (ioctl(ifd, I_PUSH, IP_MOD_NAME) < 0) {
 	close(ifd);
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
 	close(i6fd);
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 	fatal("Can't push IP module: %m");
     }
 
@@ -631,13 +631,13 @@ sys_init(void)
      */
     if (sifppa(ifd, ifunit) < 0) {
         close (ifd);
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
 	close(i6fd);
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
         fatal("Can't set ppa for unit %d: %m", ifunit);
     }
 
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
     /*
      * An IPv6 interface is created anyway, even when the user does not 
      * explicitly enable it. Note that the interface will be marked
@@ -659,14 +659,14 @@ sys_init(void)
 	close(i6fd);
 	fatal("Can't set ifname for unit %d: %m", ifunit);
     }
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 
     ipmuxid = ioctl(ipfd, I_PLINK, ifd);
     close(ifd);
     if (ipmuxid < 0) {
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
 	close(i6fd);
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 	fatal("Can't I_PLINK PPP device to IP: %m");
     }
 
@@ -683,9 +683,9 @@ sys_init(void)
      */
     if (ioctl(ipfd, SIOCSIFMUXID, &ifr) < 0) {
 	ioctl(ipfd, I_PUNLINK, ipmuxid);
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
 	close(i6fd);
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 	fatal("SIOCSIFMUXID: %m");
     }
 
@@ -703,7 +703,7 @@ sys_init(void)
 	fatal("Can't link PPP device to IP: %m");
 #endif /* defined(SOL2) */
 
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     ip6muxid = ioctl(ip6fd, I_PLINK, i6fd);
     close(i6fd);
     if (ip6muxid < 0) {
@@ -723,7 +723,7 @@ sys_init(void)
 	ioctl(ip6fd, I_PUNLINK, ip6muxid);
 	fatal("Can't link PPP device to IP (2): %m");
     }
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
 #if !defined(SOL2)
     /* Set the interface name for the link. */
@@ -746,15 +746,15 @@ sys_cleanup(void)
 {
 #if defined(SOL2)
     struct ifreq ifr;
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
     struct lifreq lifr;
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 #endif /* defined(SOL2) */
 
-#if defined(SOL2) && defined(INET6)
+#if defined(SOL2) && defined(PPP_WITH_IPV6CP)
     if (if6_is_up)
 	sif6down(0);
-#endif /* defined(SOL2) && defined(INET6) */
+#endif /* defined(SOL2) && defined(PPP_WITH_IPV6CP) */
     if (if_is_up)
 	sifdown(0);
     if (default_route_gateway)
@@ -786,7 +786,7 @@ sys_cleanup(void)
 	error("Can't I_PUNLINK PPP from IP: %m");
 	return;
     }
-#if defined(INET6)
+#if defined(PPP_WITH_IPV6CP)
     /*
      * Make sure we ask ip what the muxid, because 'ifconfig modlist' will
      * unlink and re-link the modules, causing the muxid to change.
@@ -808,7 +808,7 @@ sys_cleanup(void)
     if (ioctl(ip6fd, I_PUNLINK, ip6muxid) < 0) {
 	error("Can't I_PUNLINK PPP from IP (2): %m");
     }
-#endif /* defined(INET6) */
+#endif /* defined(PPP_WITH_IPV6CP) */
 #endif /* defined(SOL2) */
 }
 
@@ -819,9 +819,9 @@ void
 sys_close(void)
 {
     close(ipfd);
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     close(ip6fd);
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
     if (pppfd >= 0)
 	close(pppfd);
 }
@@ -1462,10 +1462,10 @@ void
 netif_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
-#if defined(INET6) && defined(SOL2)
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     struct lifreq lifr;
     int	fd;
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 
     memset(&ifr, 0, sizeof(ifr));
     strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
@@ -1474,7 +1474,7 @@ netif_set_mtu(int unit, int mtu)
 	error("Couldn't set IP MTU (%s): %m", ifr.ifr_name);
     }
 
-#if defined(INET6) && defined(SOL2) 
+#if defined(PPP_WITH_IPV6CP) && defined(SOL2)
     fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (fd < 0)
 	error("Couldn't open IPv6 socket: %m");
@@ -1487,7 +1487,7 @@ netif_set_mtu(int unit, int mtu)
 	error("Couldn't set IPv6 MTU (%s): %m", ifr.ifr_name);
     }
     close(fd);
-#endif /* defined(INET6) && defined(SOL2) */
+#endif /* defined(PPP_WITH_IPV6CP) && defined(SOL2) */
 }
 
 
@@ -1754,7 +1754,7 @@ sifnpmode(int u, int proto, enum NPmode mode)
     return 1;
 }
 
-#if defined(SOL2) && defined(INET6)
+#if defined(SOL2) && defined(PPP_WITH_IPV6CP)
 /*
  * sif6up - Config the IPv6 interface up and enable IPv6 packets to pass.
  */
@@ -1938,7 +1938,7 @@ cif6defaultroute(int u, eui64_t l, eui64_t g)
     return 1;
 }
 
-#endif /* defined(SOL2) && defined(INET6) */
+#endif /* defined(SOL2) && defined(PPP_WITH_IPV6CP) */
 
 
 #define INET_ADDR(x)	(((struct sockaddr_in *) &(x))->sin_addr.s_addr)

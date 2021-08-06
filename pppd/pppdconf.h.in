@@ -28,7 +28,7 @@
 #undef USE_TDB
 
 /* "Have IPv6 support" */
-#undef INET6
+#undef PPP_WITH_IPV6CP
 
 /* "Support for Pluggable Authentication Modules" */
 #undef USE_PAM

@@ -131,7 +131,7 @@ int	child_wait = 5;		/* # seconds to wait for children at exit */
 struct userenv *userenv_list;	/* user environment variables */
 int	dfl_route_metric = -1;	/* metric of the default route to set over the PPP link */
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 char	path_ipv6up[MAXPATHLEN];   /* pathname of ipv6-up script */
 char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 #endif
@@ -335,7 +335,7 @@ option_t general_options[] = {
       "Set pathname of ip-down script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     { "ipv6-up-script", o_string, path_ipv6up,
       "Set pathname of ipv6-up script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },

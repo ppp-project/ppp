@@ -143,11 +143,11 @@ AS_IF([test "x${enable_mslanman}" = "xyes" && test "x${enable_microsoft_extensio
 
 #
 # Disable IPv6 support
-AC_ARG_ENABLE([ipv6-support],
-    AS_HELP_STRING([--disable-ipv6-support], [Disable IPv6 support]))
-AM_CONDITIONAL(WITH_INET6, test "x${enable_ipv6_support}" != "xno")
-AM_COND_IF([WITH_INET6],
-    AC_DEFINE(INET6, 1, ["Have IPv6 support"]))
+AC_ARG_ENABLE([ipv6cp],
+    AS_HELP_STRING([--disable-ipv6cp], [Disable IPv6 Control Protocol]))
+AM_CONDITIONAL(PPP_WITH_IPV6CP, test "x${enable_ipv6cp}" != "xno")
+AM_COND_IF([PPP_WITH_IPV6CP],
+    AC_DEFINE(PPP_WITH_IPV6CP, 1, ["Have IPv6 Control Protocol"]))
 
 #
 # Disable Multilink support
@@ -410,6 +410,7 @@ Features enabled
     Multilink............: ${enable_multilink:-no}
     Plugins..............: ${enable_plugins:-yes}
     CBCP.................: ${enable_cbcp:-no}
+    IPV6CP...............: ${enable_ipv6cp:-yes}
     EAP-TLS..............: ${enable_eaptls:-yes}
     PEAP.................: ${enable_peap:-yes}
 "

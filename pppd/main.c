@@ -91,6 +91,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <limits.h>
 #include <inttypes.h>
 
 #include "pppd.h"
@@ -98,7 +99,7 @@
 #include "fsm.h"
 #include "lcp.h"
 #include "ipcp.h"
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #include "ipv6cp.h"
 #endif
 #include "upap.h"
@@ -271,7 +272,7 @@ struct protent *protocols[] = {
     &cbcp_protent,
 #endif
     &ipcp_protent,
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     &ipv6cp_protent,
 #endif
     &ccp_protent,
@@ -295,9 +296,9 @@ main(int argc, char *argv[])
     strlcpy(path_ipup, _PATH_IPUP, sizeof(path_ipup));
     strlcpy(path_ipdown, _PATH_IPDOWN, sizeof(path_ipdown));
 
-#ifdef INET6
-    strlcpy(path_ipv6up, _PATH_IPV6UP, sizeof(path_ipv6up));
-    strlcpy(path_ipv6down, _PATH_IPV6DOWN, sizeof(path_ipv6down));
+#ifdef PPP_WITH_IPV6CP
+    strlcpy(path_ipv6up, _PATH_IPV6UP, MAXPATHLEN);
+    strlcpy(path_ipv6down, _PATH_IPV6DOWN, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);

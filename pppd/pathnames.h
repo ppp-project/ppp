@@ -59,7 +59,7 @@
 #define _PATH_USEROPT	 ".ppprc"
 #define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #define _PATH_IPV6UP     _ROOT_PATH "/etc/ppp/ipv6-up"
 #define _PATH_IPV6DOWN   _ROOT_PATH "/etc/ppp/ipv6-down"
 #endif

@@ -56,15 +56,13 @@
 #include <unistd.h>		/* for setkey */
 #include <stdarg.h>
 #include <stdint.h>
-#include <limits.h>		/* for NGROUPS_MAX */
-#include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
 #include <net/if.h>
 #include "patchlevel.h"
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #include "eui64.h"
 #endif
 
@@ -337,9 +335,9 @@ extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
-#ifdef INET6
-extern char	path_ipv6up[MAXPATHLEN]; /* pathname of ipv6-up script */
-extern char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
+#ifdef PPP_WITH_IPV6CP
+extern char	path_ipv6up[]; /* pathname of ipv6-up script */
+extern char	path_ipv6down[]; /* pathname of ipv6-down script */
 #endif
 
 #if defined(USE_EAPTLS) || defined(USE_PEAP)
@@ -693,7 +691,7 @@ int  sifaddr(int, u_int32_t, u_int32_t, u_int32_t);
 				/* Configure IPv4 addresses for i/f */
 int  cifaddr(int, u_int32_t, u_int32_t);
 				/* Reset i/f IP addresses */
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 int  sif6up(int);		/* Configure i/f up for IPv6 */
 int  sif6down(int);	/* Configure i/f down for IPv6 */
 int  sif6addr(int, eui64_t, eui64_t);
@@ -705,7 +703,7 @@ int  sifdefaultroute(int, u_int32_t, u_int32_t, bool replace_default_rt);
 				/* Create default route through i/f */
 int  cifdefaultroute(int, u_int32_t, u_int32_t);
 				/* Delete default route through i/f */
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 int  sif6defaultroute(int, eui64_t, eui64_t);
 				/* Create default IPv6 route through i/f */
 int  cif6defaultroute(int, eui64_t, eui64_t);

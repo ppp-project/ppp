@@ -123,7 +123,7 @@ if WITH_TDB
 pppd_SOURCES += tdb.c spinlock.c
 endif
 
-if WITH_INET6
+if PPP_WITH_IPV6CP
 pppd_SOURCES += ipv6cp.c eui64.c
 endif
 

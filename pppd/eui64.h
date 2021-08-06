@@ -39,9 +39,9 @@
 #ifndef __EUI64_H__
 #define __EUI64_H__
 
-#if !defined(INET6)
-#error	"this file should only be included when INET6 is defined"
-#endif /* not defined(INET6) */
+#if !defined(PPP_WITH_IPV6CP)
+#error	"this file should only be included when PPP_WITH_IPV6CP is defined"
+#endif /* not defined(PPP_WITH_IPV6CP) */
 
 #if defined(SOL2)
 #include <netinet/in.h>
