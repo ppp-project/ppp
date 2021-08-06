@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS="-Im4"
 
 SUBDIRS = chat contrib pppd pppstats pppdump
 
-if WITH_PLUGINS
+if PPP_WITH_PLUGINS
 SUBDIRS += pppd/plugins
 endif
 

@@ -19,7 +19,7 @@
 #undef PPP_FILTER
 
 /* "Have support for loadable plugins" */
-#undef PLUGIN
+#undef PPP_WITH_PLUGINS
 
 /* "Limit sessions by maximum number of octets" */
 #undef MAXOCTETS

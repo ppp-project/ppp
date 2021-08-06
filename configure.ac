@@ -170,8 +170,8 @@ AM_COND_IF([PPP_WITH_TDB],
 AC_ARG_ENABLE([plugins],
     AS_HELP_STRING([--disable-plugins], [Disable support for loadable plugins]))
 AS_IF([test "x$enable_plugins" != "xno"],
-    AC_DEFINE([PLUGIN], 1, ["Have support for loadable plugins"]))
-AM_CONDITIONAL(WITH_PLUGINS, test "${enable_plugins}" != "no")
+    AC_DEFINE([PPP_WITH_PLUGINS], 1, ["Have support for loadable plugins"]))
+AM_CONDITIONAL(PPP_WITH_PLUGINS, test "${enable_plugins}" != "no")
 
 #
 # Disable EAP-TLS support
