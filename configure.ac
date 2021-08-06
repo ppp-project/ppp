@@ -110,9 +110,9 @@ AM_COND_IF([WITH_SYSTEMD],
 # Enable Callback Protocol Support, disabled by default
 AC_ARG_ENABLE([cbcp],
     AS_HELP_STRING([--enable-cbcp], [Enable Callback Protocol]))
-AM_CONDITIONAL(WITH_CBCP, test "x${enable_cbcp}" = "xyes")
-AM_COND_IF([WITH_CBCP],
-    AC_DEFINE([CBCP_SUPPORT], 1, [Have Callback Protocol support]))
+AM_CONDITIONAL(PPP_WITH_CBCP, test "x${enable_cbcp}" = "xyes")
+AM_COND_IF([PPP_WITH_CBCP],
+    AC_DEFINE([PPP_WITH_CBCP], 1, [Have Callback Protocol support]))
 
 #
 # Disable support for limiting session duration by maximum octets
@@ -155,7 +155,7 @@ AC_ARG_ENABLE([multilink],
     AS_HELP_STRING([--enable-multilink], [Enable multilink support]))
 AM_CONDITIONAL(PPP_WITH_MULTILINK, test "x${enable_multilink}" = "xyes")
 AM_COND_IF([PPP_WITH_MULTILINK],
-    AC_DEFINE([PPP_WITH__MULTILINK], 1, ["Have multilink support"]))
+    AC_DEFINE([PPP_WITH_MULTILINK], 1, ["Have multilink support"]))
 AS_IF([test "x${build_sunos}" = "xyes" && test "x${enable_multilink}" = "xyes"],
     [AC_MSG_ERROR([Multilink is not supported on SunOS])])
 

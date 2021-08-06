@@ -125,7 +125,7 @@
 #ifdef USE_EAPTLS
 #include "eap-tls.h"
 #endif
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
 #include "cbcp.h"
 #endif
 #include "pathnames.h"
@@ -906,7 +906,7 @@ network_phase(int unit)
 	}
     }
 
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
     /*
      * If we negotiated callback, do it now.
      */

@@ -93,7 +93,7 @@ pppd_SOURCES += pppcrypt.c
 endif
 endif
 
-if WITH_CBCP
+if PPP_WITH_CBCP
 pppd_SOURCES += cbcp.c
 endif
 

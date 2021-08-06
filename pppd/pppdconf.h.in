@@ -25,7 +25,7 @@
 #undef MAXOCTETS
 
 /* Have Microsoft Callback Protocol support */
-#undef CBCP_SUPPORT
+#undef PPP_WITH_CBCP
 
 /* "Include Trivial Database support" */
 #undef PPP_WITH_TDB
