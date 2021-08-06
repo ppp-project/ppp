@@ -384,7 +384,7 @@ main(int argc, char *argv[])
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     mp_check_options();
 #endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)

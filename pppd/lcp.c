@@ -76,10 +76,10 @@ bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 
 static int noopt(char **);
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 static int setendpoint(char **);
 static void printendpoint(option_t *, void (*)(void *, char *, ...), void *);
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
 static option_t lcp_option_list[] = {
     /* LCP options */
@@ -162,7 +162,7 @@ static option_t lcp_option_list[] = {
     { "receive-all", o_bool, &lax_recv,
       "Accept all received control characters", 1 },
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     { "mrru", o_int, &lcp_wantoptions[0].mrru,
       "Maximum received packet size for multilink bundle",
       OPT_PRIO, &lcp_wantoptions[0].neg_mrru },
@@ -177,7 +177,7 @@ static option_t lcp_option_list[] = {
     { "endpoint", o_special, (void *) setendpoint,
       "Endpoint discriminator for multilink",
       OPT_PRIO | OPT_A2PRINTER, (void *) printendpoint },
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
     { "noendpoint", o_bool, &noendpoint,
       "Don't send or accept multilink endpoint discriminator", 1 },
@@ -303,7 +303,7 @@ noopt(char **argv)
     return (1);
 }
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 static int
 setendpoint(char **argv)
 {
@@ -320,7 +320,7 @@ printendpoint(option_t *opt, void (*printer)(void *, char *, ...), void *arg)
 {
 	printer(arg, "%s", epdisc_to_str(&lcp_wantoptions[0].endpoint));
 }
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
 /*
  * lcp_init - Initialize LCP.
@@ -1868,9 +1868,9 @@ lcp_up(fsm *f)
      */
     mtu = ho->neg_mru? ho->mru: PPP_MRU;
     mru = go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU;
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     if (!(multilink && go->neg_mrru && ho->neg_mrru))
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 	netif_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
     ppp_send_config(f->unit, mtu,
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
@@ -2092,7 +2092,7 @@ lcp_printpkt(u_char *p, int plen, void (*printer)(void *, char *, ...), void *ar
 		}
 		break;
 	    case CI_EPDISC:
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 		if (olen >= CILEN_CHAR) {
 		    struct epdisc epd;
 		    p += 2;

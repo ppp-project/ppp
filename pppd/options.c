@@ -344,7 +344,7 @@ option_t general_options[] = {
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 #endif
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     { "multilink", o_bool, &multilink,
       "Enable multilink operation", OPT_PRIO | 1 },
     { "mp", o_bool, &multilink,
@@ -356,7 +356,7 @@ option_t general_options[] = {
 
     { "bundle", o_string, &bundle_name,
       "Bundle name for multilink", OPT_PRIO },
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
 #ifdef PLUGIN
     { "plugin", o_special, (void *)loadplugin,

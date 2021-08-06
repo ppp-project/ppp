@@ -623,7 +623,7 @@ int  loop_chars(unsigned char *, int); /* process chars from loopback */
 int  loop_frame(unsigned char *, int); /* should we bring link up? */
 
 /* Procedures exported from multilink.c */
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 void mp_check_options(void); /* Check multilink-related options */
 int  mp_join_bundle(void);  /* join our link to an appropriate bundle */
 void mp_exit_bundle(void);  /* have disconnected our link from bundle */

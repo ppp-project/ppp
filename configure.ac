@@ -153,9 +153,9 @@ AM_COND_IF([PPP_WITH_IPV6CP],
 # Disable Multilink support
 AC_ARG_ENABLE([multilink],
     AS_HELP_STRING([--enable-multilink], [Enable multilink support]))
-AM_CONDITIONAL(WITH_MULTILINK, test "x${enable_multilink}" = "xyes")
-AM_COND_IF([WITH_MULTILINK],
-    AC_DEFINE([HAVE_MULTILINK], 1, ["Have multilink support"]))
+AM_CONDITIONAL(PPP_WITH_MULTILINK, test "x${enable_multilink}" = "xyes")
+AM_COND_IF([PPP_WITH_MULTILINK],
+    AC_DEFINE([PPP_WITH__MULTILINK], 1, ["Have multilink support"]))
 AS_IF([test "x${build_sunos}" = "xyes" && test "x${enable_multilink}" = "xyes"],
     [AC_MSG_ERROR([Multilink is not supported on SunOS])])
 

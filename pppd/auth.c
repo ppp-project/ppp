@@ -210,7 +210,7 @@ int (*null_auth_hook)(struct wordlist **paddrs,
 
 int (*allowed_address_hook)(u_int32_t addr) = NULL;
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 /* Hook for plugin to hear when an interface joins a multilink bundle */
 void (*multilink_join_hook)(void) = NULL;
 #endif
@@ -937,7 +937,7 @@ start_networks(int unit)
 
     new_phase(PHASE_NETWORK);
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     if (multilink) {
 	if (mp_join_bundle()) {
 	    if (multilink_join_hook)
@@ -947,7 +947,7 @@ start_networks(int unit)
 	    return;
 	}
     }
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
 #ifdef PPP_FILTER
     if (!demand)
