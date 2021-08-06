@@ -67,7 +67,7 @@ static char deflate_value[8];
 /*
  * Option variables.
  */
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
 #endif
 
@@ -110,7 +110,7 @@ static option_t ccp_option_list[] = {
       "don't allow Predictor-1", OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLR,
       &ccp_allowoptions[0].predictor_1 },
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     /* MPPE options are symmetrical ... we only set wantoptions here */
     { "require-mppe", o_bool, &ccp_wantoptions[0].mppe,
       "require MPPE encryption",
@@ -445,7 +445,7 @@ ccp_input(int unit, u_char *p, int len)
     fsm_input(f, p, len);
     if (oldstate == OPENED && p[0] == TERMREQ && f->state != OPENED) {
 	notice("Compression disabled by peer.");
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	if (ccp_gotoptions[unit].mppe) {
 	    error("MPPE disabled, closing LCP");
 	    lcp_close(unit, "MPPE disabled by peer");
@@ -500,7 +500,7 @@ ccp_protrej(int unit)
     ccp_flags_set(unit, 0, 0);
     fsm_lowerdown(&ccp_fsm[unit]);
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (ccp_gotoptions[unit].mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(unit, "MPPE required but peer negotiation failed");
@@ -521,7 +521,7 @@ ccp_resetci(fsm *f)
     *go = ccp_wantoptions[f->unit];
     all_rejected[f->unit] = 0;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe) {
 	ccp_options *ao = &ccp_allowoptions[f->unit];
 	int auth_mschap_bits = auth_done[f->unit];
@@ -610,13 +610,11 @@ ccp_resetci(fsm *f)
 	ao->predictor_2  = go->predictor_2  = 0;
 	ao->deflate      = go->deflate      = 0;
     }
-#endif /* MPPE */
 
     /*
      * Check whether the kernel knows about the various
      * compression methods we might request.
      */
-#ifdef MPPE
     if (go->mppe) {
 	opt_buf[0] = CI_MPPE;
 	opt_buf[1] = CILEN_MPPE;
@@ -627,7 +625,7 @@ ccp_resetci(fsm *f)
 	    lcp_close(f->unit, "MPPE required but not available");
 	}
     }
-#endif
+#endif /* PPP_WITH_MPPE */
     if (go->bsd_compress) {
 	opt_buf[0] = CI_BSD_COMPRESS;
 	opt_buf[1] = CILEN_BSD_COMPRESS;
@@ -700,7 +698,7 @@ static void
      * preference order.  Get the kernel to allocate the first one
      * in case it gets Acked.
      */
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe) {
 	u_char opt_buf[CILEN_MPPE + MPPE_MAX_KEY_LEN];
 
@@ -810,7 +808,7 @@ static int
     ccp_options *go = &ccp_gotoptions[f->unit];
     u_char *p0 = p;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe) {
 	u_char opt_buf[CILEN_MPPE];
 
@@ -900,7 +898,7 @@ static int
     memset(&no, 0, sizeof(no));
     try = *go;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe && len >= CILEN_MPPE
 	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
 	no.mppe = 1;
@@ -922,7 +920,7 @@ static int
 	    lcp_close(f->unit, "MPPE required but peer negotiation failed");
 	}
     }
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
     if (go->deflate && len >= CILEN_DEFLATE
 	&& p[0] == (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
 	&& p[1] == CILEN_DEFLATE) {
@@ -991,7 +989,7 @@ ccp_rejci(fsm *f, u_char *p, int len)
     if (len == 0 && all_rejected[f->unit])
 	return -1;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe && len >= CILEN_MPPE
 	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
 	error("MPPE required but peer refused");
@@ -1063,7 +1061,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
     int len, clen, type, nb;
     ccp_options *ho = &ccp_hisoptions[f->unit];
     ccp_options *ao = &ccp_allowoptions[f->unit];
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     bool rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
 				/* CI_MPPE, or due to other options?       */
 #endif
@@ -1087,7 +1085,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	    clen = p[1];
 
 	    switch (type) {
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	    case CI_MPPE:
 		if (!ao->mppe || clen != CILEN_MPPE) {
 		    newret = CONFREJ;
@@ -1187,7 +1185,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 		 */
 		rej_for_ci_mppe = 0;
 		break;
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
 	    case CI_DEFLATE:
 	    case CI_DEFLATE_DRAFT:
 		if (!ao->deflate || clen != CILEN_DEFLATE
@@ -1329,7 +1327,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	else
 	    *lenp = retp - p0;
     }
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (ret == CONFREJ && ao->mppe && rej_for_ci_mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
@@ -1349,7 +1347,7 @@ method_name(ccp_options *opt, ccp_options *opt2)
     if (!ANY_COMPRESS(*opt))
 	return "(none)";
     switch (opt->method) {
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     case CI_MPPE:
     {
 	char *p = result;
@@ -1426,7 +1424,7 @@ ccp_up(fsm *f)
 	    notice("%s receive compression enabled", method_name(go, NULL));
     } else if (ANY_COMPRESS(*ho))
 	notice("%s transmit compression enabled", method_name(ho, NULL));
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (go->mppe) {
 	mppe_clear_keys();
 	continue_networks(f->unit);		/* Bring up IP et al */
@@ -1444,7 +1442,7 @@ ccp_down(fsm *f)
 	UNTIMEOUT(ccp_rack_timeout, f);
     ccp_localstate[f->unit] = 0;
     ccp_flags_set(f->unit, 1, 0);
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     if (ccp_gotoptions[f->unit].mppe) {
 	ccp_gotoptions[f->unit].mppe = 0;
 	if (lcp_fsm[f->unit].state == OPENED) {
@@ -1507,7 +1505,7 @@ ccp_printpkt(u_char *p, int plen,
 	    len -= optlen;
 	    optend = p + optlen;
 	    switch (code) {
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	    case CI_MPPE:
 		if (optlen >= CILEN_MPPE) {
 		    u_char mppe_opts;
@@ -1609,7 +1607,7 @@ ccp_datainput(int unit, u_char *pkt, int len)
 	     */
 	    error("Lost compression sync: disabling compression");
 	    ccp_close(unit, "Lost compression sync");
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	    /*
 	     * If we were doing MPPE, we must also take the link down.
 	     */

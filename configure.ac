@@ -126,20 +126,20 @@ AS_IF([test "x$enable_maxoctets" != "xno"],
 AC_ARG_ENABLE([microsoft-extensions],
     AS_HELP_STRING([--disable-microsoft-extensions], [Disable Microsoft CHAP / MPPE extensions]))
 
-AM_CONDITIONAL(WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
-AM_COND_IF([WITH_CHAPMS],
-    AC_DEFINE([CHAPMS], 1, ["Have Microsoft CHAP support"]))
+AM_CONDITIONAL(PPP_WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
+AM_COND_IF([PPP_WITH_CHAPMS],
+    AC_DEFINE([PPP_WITH_CHAPMS], 1, ["Have Microsoft CHAP support"]))
 
-AM_CONDITIONAL(WITH_MPPE, test "x${enable_microsoft_extensions}" != "xno")
-AM_COND_IF([WITH_MPPE],
-    AC_DEFINE([MPPE], 1, ["Have Microsoft MPPE support"]))
+AM_CONDITIONAL(PPP_WITH_MPPE, test "x${enable_microsoft_extensions}" != "xno")
+AM_COND_IF([PPP_WITH_MPPE],
+    AC_DEFINE([PPP_WITH_MPPE], 1, ["Have Microsoft MPPE support"]))
 
 #
 # Enable Microsoft LAN Manager support, depends on Microsoft Extensions
 AC_ARG_ENABLE([mslanman],
     AS_HELP_STRING([--enable-mslanman], [Enable Microsoft LAN Manager support]))
 AS_IF([test "x${enable_mslanman}" = "xyes" && test "x${enable_microsoft_extensions}" != "xno"],
-    AC_DEFINE([MSLANMAN], 1, ["Have Microsoft LAN Manager support"]))
+    AC_DEFINE([PPP_WITH_MSLANMAN], 1, ["Have Microsoft LAN Manager support"]))
 
 #
 # Disable IPv6 support

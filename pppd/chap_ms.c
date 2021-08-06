@@ -80,8 +80,6 @@
 #include "config.h"
 #endif
 
-#ifdef CHAPMS
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,7 +98,7 @@
 #include "mppe.h"
 
 #ifdef UNIT_TEST
-#undef MPPE
+#undef PPP_WITH_MPPE
 #endif
 
 static void	ascii2unicode (char[], int, u_char[]);
@@ -112,16 +110,16 @@ static void	ChapMS2_NT (u_char *, u_char[16], char *, char *, int,
 static void	GenerateAuthenticatorResponsePlain
 			(char*, int, u_char[24], u_char[16], u_char *,
 			 char *, u_char[41]);
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 static void	ChapMS_LANMan (u_char *, char *, int, u_char *);
 #endif
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 bool	ms_lanman = 0;    	/* Use LanMan password instead of NT */
 			  	/* Has meaning only with MS-CHAP challenges */
 #endif
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 #ifdef DEBUGMPPEKEY
 /* For MPPE debug */
 /* Use "[]|}{?/><,`!2&&(" (sans quotes) for RFC 3079 MS-CHAPv2 test value */
@@ -139,7 +137,7 @@ static char *mschap2_peer_challenge = NULL;
  * Command-line options.
  */
 static option_t chapms_option_list[] = {
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 	{ "ms-lanman", o_bool, &ms_lanman,
 	  "Use LanMan passwd when using MS-CHAP", 1 },
 #endif
@@ -197,7 +195,7 @@ chapms_verify_response(int id, char *name,
 	if (response_len != MS_CHAP_RESPONSE_LEN)
 		goto bad;
 
-#ifndef MSLANMAN
+#ifndef PPP_WITH_MSLANMAN
 	if (!response[MS_CHAP_USENT]) {
 		/* Should really propagate this into the error packet. */
 		notice("Peer request for LANMAN auth not supported");
@@ -208,7 +206,7 @@ chapms_verify_response(int id, char *name,
 	/* Generate the expected response. */
 	ChapMS(challenge, (char *)secret, secret_len, md);
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 	/* Determine which part of response to verify against */
 	if (!response[MS_CHAP_USENT])
 		diff = memcmp(&response[MS_CHAP_LANMANRESP],
@@ -626,7 +624,7 @@ ChapMS2_NT(u_char *rchallenge, u_char PeerChallenge[16], char *username,
     ChallengeResponse(Challenge, PasswordHash, NTResponse);
 }
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 static u_char *StdText = (u_char *)"KGS!@#$%"; /* key from rasapi32.dll */
 
 static void
@@ -718,7 +716,7 @@ GenerateAuthenticatorResponsePlain
 }
 
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 
 /*
  * Set mppe_xxxx_key from MS-CHAP credentials. (see RFC 3079)
@@ -754,7 +752,7 @@ SetMasterKeys(char *secret, int secret_len, u_char NTResponse[24], int IsServer)
     mppe_set_chapv2(PasswordHashHash, NTResponse, IsServer);
 }
 
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
 
 
 void
@@ -765,7 +763,7 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
 
     ChapMS_NT(rchallenge, secret, secret_len, &response[MS_CHAP_NTRESP]);
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
     ChapMS_LANMan(rchallenge, secret, secret_len,
 		  &response[MS_CHAP_LANMANRESP]);
 
@@ -775,7 +773,7 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
     response[MS_CHAP_USENT] = 1;
 #endif
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     Set_Start_Key(rchallenge, secret, secret_len);
 #endif
 }
@@ -820,7 +818,7 @@ ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
 				       &response[MS_CHAP2_PEER_CHALLENGE],
 				       rchallenge, user, authResponse);
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     SetMasterKeys(secret, secret_len,
 		  &response[MS_CHAP2_NTRESP], authenticator);
 #endif
@@ -944,5 +942,3 @@ int main(int argc, char *argv[]) {
 
 #endif  /* UNIT_TEST */
 
-
-#endif /* CHAPMS */

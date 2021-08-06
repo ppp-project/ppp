@@ -149,7 +149,7 @@ struct eap_auth {
 #ifdef USE_EAPTLS
 	enum eap_state_code ea_prev_state;
 #endif
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
         struct chap_digest_type *digest;
 #endif
 	u_char ea_id;		/* Current id */

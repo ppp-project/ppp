@@ -32,9 +32,9 @@ static char const RCSID[] =
 
 #include "pppd.h"
 #include "chap-new.h"
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 #include "chap_ms.h"
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 #include "mppe.h"
 #include "md5.h"
 #endif
@@ -97,7 +97,7 @@ static int radius_init(char *msg);
 static int get_client_port(char *ifname);
 static int radius_allowed_address(u_int32_t addr);
 static void radius_acct_interim(void *);
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 static int radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
 			      unsigned char *);
 static int radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info);
@@ -346,7 +346,7 @@ radius_chap_verify(char *user, char *ourname, int id,
     int result;
     int challenge_len, response_len;
     u_char cpassword[MAX_RESPONSE_LEN + 1];
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     /* Need the RADIUS secret and Request Authenticator to decode MPPE */
     REQUEST_INFO request_info, *req_info = &request_info;
 #else
@@ -365,7 +365,7 @@ radius_chap_verify(char *user, char *ourname, int id,
 
     /* return error for types we can't handle */
     if ((digest->code != CHAP_MD5)
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	&& (digest->code != CHAP_MICROSOFT)
 	&& (digest->code != CHAP_MICROSOFT_V2)
 #endif
@@ -412,7 +412,7 @@ radius_chap_verify(char *user, char *ourname, int id,
 		      cpassword, MD5_HASH_SIZE + 1, VENDOR_NONE);
 	break;
 
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
     case CHAP_MICROSOFT:
     {
 	/* MS-CHAP-Challenge and MS-CHAP-Response */
@@ -544,7 +544,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 {
     u_int32_t remote;
     int ms_chap2_success = 0;
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     int mppe_enc_keys = 0;	/* whether or not these were received */
     int mppe_enc_policy = 0;
     int mppe_enc_types = 0;
@@ -662,7 +662,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 
 
 	} else if (vp->vendorcode == VENDOR_MICROSOFT) {
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	    switch (vp->attribute) {
 	    case PW_MS_CHAP2_SUCCESS:
 		if ((vp->lvalue != 43) || strncmp((char*) vp->strvalue + 1, "S=", 2)) {
@@ -674,7 +674,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		ms_chap2_success = 1;
 		break;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	    case PW_MS_CHAP_MPPE_KEYS:
 		if (radius_setmppekeys(vp, req_info, challenge) < 0) {
 		    slprintf(msg, BUF_LEN,
@@ -704,7 +704,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		mppe_enc_types = vp->lvalue;	/* save for later */
 		break;
 
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
 #ifdef MSDNS
 	    case PW_MS_PRIMARY_DNS_SERVER:
 		ao->dnsaddr[0] = htonl(vp->lvalue);
@@ -732,7 +732,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		break;
 #endif /* MSDNS */
 	    }
-#endif /* CHAPMS */
+#endif /* PPP_WITH_CHAPMS */
 	}
 	vp = vp->next;
     }
@@ -741,7 +741,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
     if (digest && (digest->code == CHAP_MICROSOFT_V2) && !ms_chap2_success)
 	return -1;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
     /*
      * Require both policy and key attributes to indicate a valid key.
      * Note that if the policy value was '0' we don't set the key!
@@ -758,7 +758,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
     return 0;
 }
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 /**********************************************************************
 * %FUNCTION: radius_setmppekeys
 * %ARGUMENTS:
@@ -880,7 +880,7 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 
     return 0;
 }
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
 
 /**********************************************************************
 * %FUNCTION: radius_acct_start

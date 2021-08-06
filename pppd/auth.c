@@ -244,7 +244,7 @@ bool cryptpap = 0;		/* Passwords in pap-secrets are encrypted */
 bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
 bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
 bool refuse_eap = 0;		/* Don't wanna auth. ourselves with EAP */
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 bool refuse_mschap = 0;		/* Don't wanna auth. ourselves with MS-CHAP */
 bool refuse_mschap_v2 = 0;	/* Don't wanna auth. ourselves with MS-CHAPv2 */
 #else
@@ -345,7 +345,7 @@ option_t auth_options[] = {
       "Require CHAP authentication from peer",
       OPT_ALIAS | OPT_PRIOSUB | OPT_A2OR | MDTYPE_MD5,
       &lcp_wantoptions[0].chap_mdtype },
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
     { "require-mschap", o_bool, &auth_required,
       "Require MS-CHAP authentication from peer",
       OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT,
@@ -376,7 +376,7 @@ option_t auth_options[] = {
       "Don't allow CHAP authentication with peer",
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MD5,
       &lcp_allowoptions[0].chap_mdtype },
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
     { "refuse-mschap", o_bool, &refuse_mschap,
       "Don't agree to auth to peer with MS-CHAP",
       OPT_A2CLRB | MDTYPE_MICROSOFT,
@@ -1019,7 +1019,7 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_PEER;
 	    break;
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	case CHAP_MICROSOFT:
 	    bit |= CHAP_MS_PEER;
 	    break;
@@ -1095,7 +1095,7 @@ auth_withpeer_success(int unit, int protocol, int prot_flavor)
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_WITHPEER;
 	    break;
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	case CHAP_MICROSOFT:
 	    bit |= CHAP_MS_WITHPEER;
 	    break;

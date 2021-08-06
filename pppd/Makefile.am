@@ -83,7 +83,7 @@ pppd_SOURCES += sys-solaris.c
 pppd_LIBS += -lsocket -lnsl
 endif
 
-if WITH_CHAPMS
+if PPP_WITH_CHAPMS
 pppd_SOURCES += chap_ms.c
 pppd_SOURCES += pppcrypt.c
 check_PROGRAMS += utest_chap
@@ -97,7 +97,7 @@ if WITH_CBCP
 pppd_SOURCES += cbcp.c
 endif
 
-if WITH_MPPE
+if PPP_WITH_MPPE
 pppd_SOURCES += mppe.c
 endif
 

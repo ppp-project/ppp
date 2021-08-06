@@ -88,7 +88,7 @@ int get_eaptls_secret(int unit, char *client, char *server,
               char *clicertfile, char *servcertfile, char *cacertfile,
               char *capath, char *pkfile, char *pkcs12, int am_server);
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client);
 #endif
 

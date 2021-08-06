@@ -4,10 +4,13 @@
  */
 
 /* "Have Microsoft CHAP support" */
-#undef CHAPMS
+#undef PPP_WITH_CHAPMS
+
+/* "Have Microsoft LAN Manager support" */
+#undef PPP_WITH_MSLANMAN
 
 /* "Have Microsoft MPPE support" */
-#undef MPPE
+#undef PPP_WITH_MPPE
 
 /* "Have multilink support" */
 #undef HAVE_MULTILINK

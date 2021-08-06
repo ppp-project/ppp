@@ -382,7 +382,7 @@ extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #endif
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
 #endif

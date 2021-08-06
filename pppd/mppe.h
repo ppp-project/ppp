@@ -126,7 +126,7 @@
     } while (/* CONSTCOND */ 0)
 
 
-#if MPPE
+#if PPP_WITH_MPPE
 
 /*
  * NOTE:
@@ -187,5 +187,5 @@ void mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_S
 void mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 		    u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer);
 
-#endif  // #ifdef MPPE
+#endif  // #ifdef PPP_WITH_MPPE
 #endif  // #ifdef __MPPE_H__
