@@ -377,7 +377,7 @@ extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
 #define PPP_OCTETS_DIRECTION_MAXSESSION 4
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #endif
@@ -721,7 +721,7 @@ void logwtmp(const char *, const char *, const char *);
 				/* Write entry to wtmp file */
 int  get_host_seed(void);	/* Get host-dependent random number seed */
 int  have_route_to(u_int32_t); /* Check if route to addr exists */
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 int  set_filters(struct bpf_program *pass, struct bpf_program *active);
 				/* Set filter programs in kernel */
 #endif

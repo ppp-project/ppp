@@ -101,7 +101,7 @@ if PPP_WITH_MPPE
 pppd_SOURCES += mppe.c
 endif
 
-if WITH_FILTER
+if PPP_WITH_FILTER
 pppd_CPPFLAGS += $(PCAP_CFLAGS)
 pppd_LDFLAGS += $(PCAP_LDFLAGS)
 pppd_LIBS += $(PCAP_LIBS)

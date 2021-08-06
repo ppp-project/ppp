@@ -131,7 +131,7 @@
 #include <sys/ethernet.h>
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #include <pcap.h>
 #endif
 

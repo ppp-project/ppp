@@ -15,8 +15,8 @@
 /* "Have multilink support" */
 #undef PPP_WITH_MULTILINK
 
-/* "Have packet activity filter support" */
-#undef PPP_FILTER
+/* Have packet activity filter support */
+#undef PPP_WITH_FILTER
 
 /* "Have support for loadable plugins" */
 #undef PPP_WITH_PLUGINS

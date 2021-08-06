@@ -129,10 +129,10 @@ struct ifpppcstatsreq {
 #define PPPIOCGNPMODE	_IOWR('t', 76, struct npioctl) /* get NP mode */
 #define PPPIOCSNPMODE	_IOW('t', 75, struct npioctl)  /* set NP mode */
 #define PPPIOCGIDLE	_IOR('t', 74, struct ppp_idle) /* get idle time */
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #define PPPIOCSPASS	_IOW('t', 71, struct bpf_program) /* set pass filter */
 #define PPPIOCSACTIVE	_IOW('t', 70, struct bpf_program) /* set active filt */
-#endif /* PPP_FILTER */
+#endif /* PPP_WITH_FILTER */
 
 /* PPPIOC[GS]MTU are alternatives to SIOC[GS]IFMTU, used under Ultrix */
 #define PPPIOCGMTU	_IOR('t', 73, int)	/* get interface MTU */

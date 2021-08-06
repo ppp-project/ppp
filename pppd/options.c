@@ -58,7 +58,7 @@
 #include <dlfcn.h>
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #include <pcap.h>
 /*
  * There have been 3 or 4 different names for this in libpcap CVS, but
@@ -73,7 +73,7 @@
 #define DLT_PPP_PPPD	DLT_PPP
 #endif
 #endif
-#endif /* PPP_FILTER */
+#endif /* PPP_WITH_FILTER */
 
 #include "pppd.h"
 #include "pathnames.h"
@@ -146,7 +146,7 @@ int maxoctets_timeout = 1;   /* default 1 second */
 extern option_t auth_options[];
 extern struct stat devstat;
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 struct	bpf_program pass_filter;/* Filter program for packets to pass */
 struct	bpf_program active_filter; /* Filter program for link-active pkts */
 #endif
@@ -177,7 +177,7 @@ static int setlogfile(char **);
 static int loadplugin(char **);
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 static int setpassfilter(char **);
 static int setactivefilter(char **);
 #endif
@@ -363,7 +363,7 @@ option_t general_options[] = {
       "Load a plug-in module into pppd", OPT_PRIV | OPT_A2LIST },
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     { "pass-filter", o_special, setpassfilter,
       "set filter for packets to pass", OPT_PRIO },
 
@@ -1482,7 +1482,7 @@ callfile(char **argv)
     return ok;
 }
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 /*
  * setpassfilter - Set the pass filter for packets
  */

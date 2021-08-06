@@ -949,7 +949,7 @@ start_networks(int unit)
     }
 #endif /* PPP_WITH_MULTILINK */
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
 #endif
