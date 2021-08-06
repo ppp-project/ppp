@@ -161,9 +161,9 @@ AS_IF([test "x${build_sunos}" = "xyes" && test "x${enable_multilink}" = "xyes"],
 
 #
 # Multilink require Trivial Database Support
-AM_CONDITIONAL(WITH_TDB, test "x${enable_multilink}" = "xyes")
-AM_COND_IF([WITH_TDB],
-    AC_DEFINE([USE_TDB], 1, ["Include TDB support"]))
+AM_CONDITIONAL(PPP_WITH_TDB, test "x${enable_multilink}" = "xyes")
+AM_COND_IF([PPP_WITH_TDB],
+    AC_DEFINE([PPP_WITH_TDB], 1, ["Include TDB support"]))
 
 #
 # Enable support for loadable plugins

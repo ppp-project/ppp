@@ -28,7 +28,7 @@
 #undef CBCP_SUPPORT
 
 /* "Include Trivial Database support" */
-#undef USE_TDB
+#undef PPP_WITH_TDB
 
 /* "Have IPv6 support" */
 #undef PPP_WITH_IPV6CP

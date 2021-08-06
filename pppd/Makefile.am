@@ -119,7 +119,7 @@ if PPP_WITH_MULTILINK
 pppd_SOURCES += multilink.c
 endif
 
-if WITH_TDB
+if PPP_WITH_TDB
 pppd_SOURCES += tdb.c spinlock.c
 endif
 
