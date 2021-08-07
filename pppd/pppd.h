@@ -60,7 +60,6 @@
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
 #include <net/if.h>
-#include "patchlevel.h"
 
 #ifdef PPP_WITH_IPV6CP
 #include "eui64.h"

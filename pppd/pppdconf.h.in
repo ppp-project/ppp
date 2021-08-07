@@ -3,34 +3,34 @@
  *   in pppd when configured.
  */
 
-/* "Have Microsoft CHAP support" */
+/* Have Microsoft CHAP support */
 #undef PPP_WITH_CHAPMS
 
-/* "Have Microsoft LAN Manager support" */
+/* Have Microsoft LAN Manager support */
 #undef PPP_WITH_MSLANMAN
 
-/* "Have Microsoft MPPE support" */
+/* Have Microsoft MPPE support */
 #undef PPP_WITH_MPPE
 
-/* "Have multilink support" */
+/* Have multilink support */
 #undef PPP_WITH_MULTILINK
 
 /* Have packet activity filter support */
 #undef PPP_WITH_FILTER
 
-/* "Have support for loadable plugins" */
+/* Have support for loadable plugins */
 #undef PPP_WITH_PLUGINS
 
 /* Limit sessions by maximum number of octets */
 #undef PPP_WITH_MAXOCTETS
 
-/* Have Microsoft Callback Protocol support */
+/* Have Callback Protocol support */
 #undef PPP_WITH_CBCP
 
-/* "Include Trivial Database support" */
+/* Include TDB support */
 #undef PPP_WITH_TDB
 
-/* "Have IPv6 support" */
+/* Have IPv6 Control Protocol */
 #undef PPP_WITH_IPV6CP
 
 /* Support for Pluggable Authentication Modules */

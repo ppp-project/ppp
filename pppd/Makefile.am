@@ -37,7 +37,7 @@ pppd_include_HEADERS = \
     md4.h \
     md5.h \
     mppe.h \
-    patchlevel.h \
+    pppdconf.h \
     pathnames.h \
     peap.h \
     pppcrypt.h \
