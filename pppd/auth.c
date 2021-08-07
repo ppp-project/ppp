@@ -122,7 +122,7 @@
 #include "upap.h"
 #include "chap-new.h"
 #include "eap.h"
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 #include "eap-tls.h"
 #endif
 #ifdef PPP_WITH_CBCP
@@ -198,7 +198,7 @@ int (*chap_check_hook)(void) = NULL;
 /* Hook for a plugin to get the CHAP password for authenticating us */
 int (*chap_passwd_hook)(char *user, char *passwd) = NULL;
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 /* Hook for a plugin to get the EAP-TLS password for authenticating us */
 int (*eaptls_passwd_hook)(char *user, char *passwd) = NULL;
 #endif
@@ -259,7 +259,7 @@ bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
 char *cacert_file  = NULL;  /* CA certificate file (pem format) */
 char *ca_path      = NULL;  /* Directory with CA certificates */
 char *crl_dir      = NULL;  /* Directory containing CRL files */
@@ -269,7 +269,7 @@ char *tls_verify_method = NULL; /* Verify certificate method */
 bool  tls_verify_key_usage = 0; /* Verify peer certificate key usage */
 #endif
 
-#if defined(USE_EAPTLS)
+#if defined(PPP_WITH_EAPTLS)
 char *cert_file    = NULL;  /* Client certificate file (pem format) */
 char *privkey_file = NULL;  /* Client private key file (pem format) */
 char *pkcs12_file  = NULL;  /* Client private key envelope file (pkcs12 format) */
@@ -290,7 +290,7 @@ static int  have_chap_secret (char *, char *, int, int *);
 static int  have_srp_secret(char *client, char *server, int need_ip,
     int *lacks_ipp);
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 static int  have_eaptls_secret_server
 (char *client, char *server, int need_ip, int *lacks_ipp);
 static int  have_eaptls_secret_client (char *client, char *server);
@@ -449,7 +449,7 @@ option_t auth_options[] = {
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
     { "ca", o_string, &cacert_file,     "CA certificate in PEM format" },
     { "capath", o_string, &ca_path,     "TLS CA certificate directory" },
     { "crl-dir", o_string, &crl_dir,    "Use CRLs in directory" },
@@ -462,13 +462,13 @@ option_t auth_options[] = {
       "Verify peer by method (none|subject|name|suffix)" },
 #endif
 
-#if defined(USE_EAPTLS)
+#if defined(PPP_WITH_EAPTLS)
     { "cert", o_string, &cert_file,     "client certificate in PEM format" },
     { "key", o_string, &privkey_file,   "client private key in PEM format" },
     { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
     { "need-peer-eap", o_bool, &need_peer_eap,
       "Require the peer to authenticate us", 1 },
-#endif
+#endif /* PPP_WITH_EAPTLS */
     { NULL }
 };
 
@@ -793,7 +793,7 @@ link_established(int unit)
     lcp_options *wo = &lcp_wantoptions[unit];
     lcp_options *go = &lcp_gotoptions[unit];
     lcp_options *ho = &lcp_hisoptions[unit];
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     lcp_options *ao = &lcp_allowoptions[unit];
 #endif
     int i;
@@ -830,7 +830,7 @@ link_established(int unit)
 	}
     }
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     if (need_peer_eap && !ao->neg_eap) {
 	warn("eap required to authenticate us but no suitable secrets");
 	lcp_close(unit, "couldn't negotiate eap");
@@ -1352,7 +1352,7 @@ auth_check_options(void)
 				    our_name, 1, &lacks_ip);
     }
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     if (!can_auth && wo->neg_eap) {
 	can_auth =
 	    have_eaptls_secret_server((explicit_remote ? remote_name :
@@ -1415,7 +1415,7 @@ auth_reset(int unit)
 	(hadchap == 1 || (hadchap == -1 && have_chap_secret(user,
 	    (explicit_remote? remote_name: NULL), 0, NULL))) ||
 	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL)
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 		|| have_eaptls_secret_client(user, (explicit_remote? remote_name: NULL))
 #endif
 	);
@@ -1434,7 +1434,7 @@ auth_reset(int unit)
 		1, NULL))) &&
 	!have_srp_secret((explicit_remote? remote_name: NULL), our_name, 1,
 	    NULL)
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 	 && !have_eaptls_secret_server((explicit_remote? remote_name: NULL),
 				   our_name, 1, NULL)
 #endif
@@ -2414,7 +2414,7 @@ auth_script(char *script)
 }
 
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 static int
 have_eaptls_secret_server(char *client, char *server,
 			  int need_ip, int *lacks_ipp)

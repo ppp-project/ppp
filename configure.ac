@@ -178,8 +178,8 @@ AM_CONDITIONAL(PPP_WITH_PLUGINS, test "${enable_plugins}" != "no")
 AC_ARG_ENABLE([eaptls],
     AS_HELP_STRING([--disable-eaptls], [Disable EAP-TLS authentication support]))
 AS_IF([test "x$enable_eaptls" != "xno"],
-    AC_DEFINE([USE_EAPTLS], 1, ["Have EAP-TLS authentication support"]))
-AM_CONDITIONAL(WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
+    AC_DEFINE([PPP_WITH_EAPTLS], 1, [Have EAP-TLS authentication support]))
+AM_CONDITIONAL(PPP_WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
 
 #
 # Disable PEAP support

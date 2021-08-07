@@ -84,7 +84,7 @@ void plugin_init (void)
     chap_check_hook = pwfd_check;
     chap_passwd_hook = pwfd_passwd;
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     eaptls_passwd_hook = pwfd_passwd;
 #endif
 }

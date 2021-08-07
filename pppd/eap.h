@@ -124,13 +124,13 @@ enum eap_state_code {
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
 	"SRP1", "SRP2", "SRP3", "MD5Chall", "MSCHAPv2Chall", "Open", "SRP4", "BadAuth"
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 #define	eap_client_active(esp)	((esp)->es_client.ea_state != eapInitial &&\
 				 (esp)->es_client.ea_state != eapPending &&\
 				 (esp)->es_client.ea_state != eapClosed)
 #else
 #define eap_client_active(esp)	((esp)->es_client.ea_state == eapListen)
-#endif /* USE_EAPTLS */
+#endif /* PPP_WITH_EAPTLS */
 
 #define	eap_server_active(esp)	\
 	((esp)->es_server.ea_state >= eapIdentify && \
@@ -146,7 +146,7 @@ struct eap_auth {
 	u_short ea_namelen;	/* Length of our name */
 	u_short ea_peerlen;	/* Length of peer's name */
 	enum eap_state_code ea_state;
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 	enum eap_state_code ea_prev_state;
 #endif
 #ifdef PPP_WITH_CHAPMS
@@ -157,7 +157,7 @@ struct eap_auth {
 	u_char ea_responses;	/* Number of Responses */
 	u_char ea_type;		/* One of EAPT_* */
 	u_int32_t ea_keyflags;	/* SRP shared key usage flags */
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 	bool ea_using_eaptls;
 #endif
 };
@@ -185,12 +185,12 @@ typedef struct eap_state {
  * Timeouts.
  */
 #define	EAP_DEFTIMEOUT		3	/* Timeout (seconds) for rexmit */
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 #define	EAP_DEFTRANSMITS	30	/* max # times to transmit */
 					/* certificates can be long ... */
 #else
 #define	EAP_DEFTRANSMITS	10	/* max # times to transmit */
-#endif /* USE_EAPTLS */
+#endif /* PPP_WITH_EAPTLS */
 #define	EAP_DEFREQTIME		20	/* Time to wait for peer request */
 #define	EAP_DEFALLOWREQ		20	/* max # times to accept requests */
 

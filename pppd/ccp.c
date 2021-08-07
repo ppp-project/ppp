@@ -525,7 +525,7 @@ ccp_resetci(fsm *f)
     if (go->mppe) {
 	ccp_options *ao = &ccp_allowoptions[f->unit];
 	int auth_mschap_bits = auth_done[f->unit];
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 	int auth_eap_bits = auth_done[f->unit];
 #endif
 	int numbits;
@@ -556,7 +556,7 @@ ccp_resetci(fsm *f)
 	    return;
 	}
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     /*
      * MPPE is also possible in combination with EAP-TLS.
      * It is not possible to detect if we're doing EAP or EAP-TLS

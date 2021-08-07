@@ -131,7 +131,7 @@ if WITH_PAM
 pppd_LIBS += -lpam -ldl
 endif
 
-if WITH_EAPTLS
+if PPP_WITH_EAPTLS
 pppd_SOURCES += eap-tls.c tls.c
 else
 if WITH_PEAP

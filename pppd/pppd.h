@@ -340,8 +340,7 @@ extern char	path_ipv6up[]; /* pathname of ipv6-up script */
 extern char	path_ipv6down[]; /* pathname of ipv6-down script */
 #endif
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
-
+#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
 #define TLS_VERIFY_NONE     "none"
 #define TLS_VERIFY_NAME     "name"
 #define TLS_VERIFY_SUBJECT  "subject"
@@ -355,11 +354,11 @@ extern char *cacert_file;
 extern char *max_tls_version;
 extern bool tls_verify_key_usage;
 extern char *tls_verify_method;
-#endif /* USE_EAPTLS || USE_PEAP */
+#endif /* PPP_WITH_EAPTLS || USE_PEAP */
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 extern char *pkcs12_file;
-#endif /* USE_EAPTLS */
+#endif /* PPP_WITH_EAPTLS */
 
 #ifdef MAXOCTETS
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
@@ -779,7 +778,7 @@ extern int (*chap_check_hook)(void);
 extern int (*chap_passwd_hook)(char *user, char *passwd);
 extern void (*multilink_join_hook)(void);
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 extern int (*eaptls_passwd_hook)(char *user, char *passwd);
 #endif
 
