@@ -127,8 +127,10 @@ if PPP_WITH_IPV6CP
 pppd_SOURCES += ipv6cp.c eui64.c
 endif
 
-if WITH_PAM
-pppd_LIBS += -lpam -ldl
+if PPP_WITH_PAM
+pppd_CPPFLAGS += $(PAM_CFLAGS)
+pppd_LIBS += $(PAM_LIBS) -ldl
+pppd_LDFLAGS += $(PAM_LDFLAGS)
 endif
 
 if PPP_WITH_EAPTLS

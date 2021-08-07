@@ -33,10 +33,10 @@
 /* "Have IPv6 support" */
 #undef PPP_WITH_IPV6CP
 
-/* "Support for Pluggable Authentication Modules" */
-#undef USE_PAM
+/* Support for Pluggable Authentication Modules */
+#undef PPP_WITH_PAM
 
-/* "Have EAP-SRP authentication support" */
+/* Have EAP-SRP authentication support */
 #undef USE_SRP
 
 /* Have EAP-TLS authentication support */

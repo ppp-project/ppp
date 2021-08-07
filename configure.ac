@@ -275,8 +275,8 @@ AX_CHECK_ATM
 
 #
 # With libpam support
-AX_CHECK_PAM(AC_DEFINE([USE_PAM], 1, ["Support for Pluggable Authentication Modules"]))
-AM_CONDITIONAL(WITH_PAM, test "x${with_pam}" = "xyes")
+AX_CHECK_PAM(AC_DEFINE([PPP_WITH_PAM], 1, [Support for Pluggable Authentication Modules]))
+AM_CONDITIONAL(PPP_WITH_PAM, test "x${with_pam}" = "xyes")
 
 #
 # With libpcap support, activate pppd on network activity
