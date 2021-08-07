@@ -21,8 +21,8 @@
 /* "Have support for loadable plugins" */
 #undef PPP_WITH_PLUGINS
 
-/* "Limit sessions by maximum number of octets" */
-#undef MAXOCTETS
+/* Limit sessions by maximum number of octets */
+#undef PPP_WITH_MAXOCTETS
 
 /* Have Microsoft Callback Protocol support */
 #undef PPP_WITH_CBCP

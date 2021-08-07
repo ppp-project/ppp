@@ -119,7 +119,7 @@ AM_COND_IF([PPP_WITH_CBCP],
 AC_ARG_ENABLE([maxoctets],
     AS_HELP_STRING([--disable-maxoctets], [Disable support for limiting session by maximum octets]))
 AS_IF([test "x$enable_maxoctets" != "xno"],
-    AC_DEFINE([MAXOCTETS], 1, ["Limit sessions by maximum number of octets"]))
+    AC_DEFINE([PPP_WITH_MAXOCTETS], 1, [Limit sessions by maximum number of octets]))
 
 #
 # Disable Microsoft extensions will remove CHAP and MPPE support

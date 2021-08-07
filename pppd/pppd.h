@@ -360,7 +360,7 @@ extern char *tls_verify_method;
 extern char *pkcs12_file;
 #endif /* PPP_WITH_EAPTLS */
 
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
 extern int       maxoctets_dir;      /* Direction :
 				      0 - in+out (default)
@@ -869,7 +869,7 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define EXIT_LOOPBACK		17
 #define EXIT_INIT_FAILED	18
 #define EXIT_AUTH_TOPEER_FAILED	19
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 #define EXIT_TRAFFIC_LIMIT	20
 #endif
 #define EXIT_CNID_AUTH_FAILED	21

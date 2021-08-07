@@ -318,7 +318,7 @@ static int  set_permitted_number (char **);
 static void check_access (FILE *, char *);
 static int  wordlist_count (struct wordlist *);
 
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 static void check_maxoctets (void *);
 #endif
 
@@ -1164,7 +1164,7 @@ np_up(int unit, int proto)
 	if (maxconnect > 0)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
 
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
 #endif
@@ -1194,7 +1194,7 @@ np_down(int unit, int proto)
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
 	UNTIMEOUT(connect_time_expired, NULL);
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 	UNTIMEOUT(check_maxoctets, NULL);
 #endif	
 	new_phase(PHASE_NETWORK);
@@ -1213,7 +1213,7 @@ np_finished(int unit, int proto)
     }
 }
 
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 static void
 check_maxoctets(void *arg)
 {

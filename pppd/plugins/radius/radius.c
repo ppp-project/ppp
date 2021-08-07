@@ -607,7 +607,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
                /* idle parameter */
                idle_time_limit = vp->lvalue;
                break;
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 	    case PW_SESSION_OCTETS_LIMIT:
 		/* Session traffic limit */
 		maxoctets = vp->lvalue;
@@ -1090,7 +1090,7 @@ radius_acct_stop(void)
 	    av_type = PW_ACCT_SESSION_TIMEOUT;
 	    break;
 	    
-#ifdef MAXOCTETS
+#ifdef PPP_WITH_MAXOCTETS
 	case EXIT_TRAFFIC_LIMIT:
 	    av_type = PW_NAS_REQUEST;
 	    break;
