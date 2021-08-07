@@ -121,7 +121,7 @@ int	connect_delay = 1000;	/* wait this many ms after connect script */
 int	req_unit = -1;		/* requested interface unit */
 char	path_ipup[MAXPATHLEN];	/* pathname of ip-up script */
 char	path_ipdown[MAXPATHLEN];/* pathname of ip-down script */
-char	req_ifname[MAXIFNAMELEN];	/* requested interface name */
+char	req_ifname[IFNAMSIZ];	/* requested interface name */
 bool	multilink = 0;		/* Enable multilink operation */
 char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
@@ -299,7 +299,7 @@ option_t general_options[] = {
 
     { "ifname", o_string, req_ifname,
       "Set PPP interface name",
-      OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, MAXIFNAMELEN },
+      OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, IFNAMSIZ },
 
     { "dump", o_bool, &dump_options,
       "Print out option values after parsing all options", 1 },
