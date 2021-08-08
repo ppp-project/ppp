@@ -418,4 +418,5 @@ Features enabled
     IPV6CP...............: ${enable_ipv6cp:-yes}
     EAP-TLS..............: ${enable_eaptls:-yes}
     PEAP.................: ${enable_peap:-yes}
+    systemd notifications: ${enable_systemd:-no}
 "
