@@ -242,19 +242,19 @@ AS_IF([test "x${with_openssl}" != "xno" ], [
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD4],,
-    AC_DEFINE([USE_MD4], 1, [Use included md4 included with pppd]))
+    AC_DEFINE([USE_MD4], 1, [Use MD4 included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD5], test "x${ac_cv_openssl_md5}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD5],,
-    AC_DEFINE([USE_MD5], 1, [Use included md5 included with pppd]))
+    AC_DEFINE([USE_MD5], 1, [Use MD5 included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_SHA], test "x${ac_cv_openssl_sha}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_SHA],,
-    AC_DEFINE([USE_SHA], 1, [Use included sha included with pppd]))
+    AC_DEFINE([USE_SHA], 1, [Use SHA included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_DES], test "x${ac_cv_openssl_des}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_DES],,
-    AC_DEFINE([USE_CRYPT], 1, [Use included des included with pppd]))
+    AC_DEFINE([USE_CRYPT], 1, [Use DES included with pppd]))
 
 #
 # If OpenSSL doesn't support DES, then use the one from libcrypt (glibc dropped support for this in 2.27).
