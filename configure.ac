@@ -38,8 +38,8 @@ case "${host_os}" in
 	;;
 esac
 
-AM_CONDITIONAL([LINUX], [test "${build_linux}" = "yes" ])
-AM_CONDITIONAL([SUNOS], [test "${build_sunos}" = "yes" ])
+AM_CONDITIONAL([LINUX], [test "x${build_linux}" = "xyes" ])
+AM_CONDITIONAL([SUNOS], [test "x${build_sunos}" = "xyes" ])
 AM_COND_IF([SUNOS],
       CFLAGS="$CFLAGS -DSOL2 -DSRV4")
 
@@ -181,7 +181,7 @@ AC_ARG_ENABLE([plugins],
     AS_HELP_STRING([--disable-plugins], [Disable support for loadable plugins]))
 AS_IF([test "x$enable_plugins" != "xno"],
     AC_DEFINE([PLUGIN], 1, ["Have support for loadable plugins"]))
-AM_CONDITIONAL(WITH_PLUGINS, test "${enable_plugins}" != "no")
+AM_CONDITIONAL(WITH_PLUGINS, test "x${enable_plugins}" != "xno")
 
 #
 # Disable EAP-TLS support
@@ -189,7 +189,7 @@ AC_ARG_ENABLE([eaptls],
     AS_HELP_STRING([--disable-eaptls], [Disable EAP-TLS authentication support]))
 AS_IF([test "x$enable_eaptls" != "xno"],
     AC_DEFINE([USE_EAPTLS], 1, ["Have EAP-TLS authentication support"]))
-AM_CONDITIONAL(WITH_EAPTLS, test "${enable_eaptls}" != "no")
+AM_CONDITIONAL(WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
 
 #
 # Disable OpenSSL engine support
@@ -228,11 +228,11 @@ AC_SUBST(PPPD_LOGFILE_DIR)
 #
 # Check for OpenSSL
 AX_CHECK_OPENSSL
-AM_CONDITIONAL(WITH_OPENSSL, test "${with_openssl}" != "no")
+AM_CONDITIONAL(WITH_OPENSSL, test "x${with_openssl}" != "xno")
 
 #
 # Check if OpenSSL has compiled in support for various ciphers
-AS_IF([test "${with_openssl}" != "no" ], [
+AS_IF([test "x${with_openssl}" != "xno" ], [
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_MD4], [md4])
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_MD5], [md5])
     AX_CHECK_OPENSSL_DEFINE([OPENSSL_NO_DES], [des])
@@ -260,7 +260,7 @@ AM_COND_IF([OPENSSL_HAVE_DES],,
 
 #
 # If OpenSSL doesn't support DES, then use the one from libcrypt (glibc dropped support for this in 2.27).
-AS_IF([test "${ac_cv_openssl_des}" = "no" ], [
+AS_IF([test "x${ac_cv_openssl_des}" = "xno" ], [
     AC_CHECK_LIB([crypt], [encrypt],
         [LIBS="$LIBS -lcrypt"],
         [AC_MSG_ERROR([OpenSSL not found or does not support DES, and libcrypt also doesn't support encrypt])]
