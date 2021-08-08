@@ -171,7 +171,8 @@ utest_chap_LDADD = libppp_crypt.la
 pppd_LIBS += libppp_crypt.la
 
 if WITH_SYSTEMD
-pppd_LIBS += -lsystemd
+pppd_CPPFLAGS += $(SYSTEMD_CFLAGS)
+pppd_LIBS += $(SYSTEMD_LIBS)
 endif
 
 if WITH_SRP

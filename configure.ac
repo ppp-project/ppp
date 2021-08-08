@@ -106,6 +106,10 @@ AM_CONDITIONAL(WITH_SYSTEMD, test "x${enable_systemd}" = "xyes")
 AM_COND_IF([WITH_SYSTEMD],
     AC_DEFINE([SYSTEMD], 1, [Enable support for systemd notifications]))
 
+if test "x${enable_systemd}" = "xyes"; then
+	PKG_CHECK_MODULES([systemd], [systemd])
+fi
+
 #
 # Enable Callback Protocol Support, disabled by default
 AC_ARG_ENABLE([cbcp],
