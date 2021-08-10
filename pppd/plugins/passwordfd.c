@@ -7,18 +7,14 @@
  *  with pap- and chap-secrets files.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "pppd.h"
+#include <pppd/pppd.h>
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 static int passwdfd = -1;
 static char save_passwd[MAXSECRETLEN];

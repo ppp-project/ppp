@@ -13,17 +13,10 @@
  *  as published by the Free Software Foundation; either version
  *  2 of the License, or (at your option) any later version.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
-#include "pppd.h"
-#include "pathnames.h"
-#include "fsm.h" /* Needed for lcp.h to include cleanly */
-#include "lcp.h"
 #include <atm.h>
 #include <linux/atmdev.h>
 #include <linux/atmppp.h>
@@ -31,7 +24,13 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 
-const char pppd_version[] = VERSION;
+#include <pppd/pppd.h>
+#include <pppd/pathnames.h>
+#include <pppd/fsm.h> /* Needed for lcp.h to include cleanly */
+#include <pppd/lcp.h>
+
+
+const char pppd_version[] = PPPD_VERSION;
 
 static struct sockaddr_atmpvc pvcaddr;
 static char *qosstr = NULL;

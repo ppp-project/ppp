@@ -12,14 +12,14 @@ static char const RCSID[] =
 "$Id: discovery.c,v 1.6 2008/06/15 04:35:50 paulus Exp $";
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
-#include "pppd/pppd.h"
-#include "pppd/fsm.h"
-#include "pppd/lcp.h"
+#include <pppd/pppd.h>
+#include <pppd/fsm.h>
+#include <pppd/lcp.h>
 
 #include <string.h>
 #include <stdlib.h>

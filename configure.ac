@@ -11,7 +11,7 @@ AM_MAINTAINER_MODE([enable])
 
 AC_LANG(C)
 AC_CONFIG_SRCDIR([pppd/main.c])
-AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h])
+AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h pppd/plugins/pppoe/config.h])
 
 # Checks for programs.
 AC_PROG_CC
@@ -305,6 +305,7 @@ if test "x${with_gtk}" = "xyes"; then
 fi
 AM_CONDITIONAL([WITH_GTK], test "x${with_gtk}" = "xyes")
 
+AC_DEFINE_UNQUOTED(PPPD_VERSION, "$VERSION", [Version of pppd])
 
 AC_CONFIG_FILES([
     Makefile

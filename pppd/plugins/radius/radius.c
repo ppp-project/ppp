@@ -26,28 +26,26 @@
 static char const RCSID[] =
 "$Id: radius.c,v 1.32 2008/05/26 09:18:08 paulus Exp $";
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "pppd.h"
-#include "chap-new.h"
-#ifdef PPP_WITH_CHAPMS
-#include "chap_ms.h"
-#ifdef PPP_WITH_MPPE
-#include "mppe.h"
-#include "md5.h"
-#endif
-#endif
-#include "radiusclient.h"
-#include "fsm.h"
-#include "ipcp.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>
+
+#include <pppd/pppd.h>
+#include <pppd/chap-new.h>
+#ifdef PPP_WITH_CHAPMS
+#include <pppd/chap_ms.h>
+#ifdef PPP_WITH_MPPE
+#include <pppd/mppe.h>
+#include <pppd/md5.h>
+#endif
+#endif
+#include <pppd/fsm.h>
+#include <pppd/ipcp.h>
+
+#include "radiusclient.h"
 
 #define BUF_LEN 1024
 
@@ -140,7 +138,7 @@ void (*radius_pre_auth_hook)(char const *user,
 
 static struct radius_state rstate;
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 /**********************************************************************
 * %FUNCTION: plugin_init

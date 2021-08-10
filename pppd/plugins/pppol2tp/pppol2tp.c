@@ -20,20 +20,10 @@
  *  as published by the Free Software Foundation; either version
  *  2 of the License, or (at your option) any later version.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "pppd.h"
-#include "pathnames.h"
-#include "fsm.h"
-#include "lcp.h"
-#include "ccp.h"
-#include "ipcp.h"
 #include <sys/stat.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -42,10 +32,12 @@
 #include <signal.h>
 #include <linux/version.h>
 #include <linux/sockios.h>
+
 #ifndef aligned_u64
 /* should be defined in sys/types.h */
 #define aligned_u64 unsigned long long __attribute__((aligned(8)))
 #endif
+
 #include <linux/types.h>
 #include <linux/if_ether.h>
 #include <linux/ppp_defs.h>
@@ -53,12 +45,20 @@
 #include <linux/if_pppox.h>
 #include <linux/if_pppol2tp.h>
 
+#include <pppd/pppd.h>
+#include <pppd/pathnames.h>
+#include <pppd/fsm.h>
+#include <pppd/lcp.h>
+#include <pppd/ccp.h>
+#include <pppd/ipcp.h>
+
+
 /* should be added to system's socket.h... */
 #ifndef SOL_PPPOL2TP
 #define SOL_PPPOL2TP	273
 #endif
 
-const char pppd_version[] = VERSION;
+const char pppd_version[] = PPPD_VERSION;
 
 static int setdevname_pppol2tp(char **argv);
 

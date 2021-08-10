@@ -57,5 +57,5 @@
 /* Use included sha included with pppd */
 #undef USE_SHA
 
-/* Version number of package */
-#undef VERSION
+/* The pppd version */
+#undef PPPD_VERSION

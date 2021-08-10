@@ -18,7 +18,7 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "pppd/pppd.h"		/* For error */
+#include <pppd/pppd.h>		/* For error */
 
 /* How do we access raw Ethernet devices? */
 #undef USE_LINUX_PACKET

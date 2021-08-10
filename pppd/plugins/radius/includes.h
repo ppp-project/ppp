@@ -47,7 +47,7 @@
 
 #include <time.h>
 
-#include "magic.h"
+#include <pppd/magic.h>
 
 /* rlib/lock.c */
 int do_lock_exclusive(int);

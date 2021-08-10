@@ -32,15 +32,12 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <stddef.h>
 #include <time.h>
-#include "pppd.h"
+#include <pppd/pppd.h>
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 static int minconnect = 0;
 

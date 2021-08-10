@@ -34,16 +34,6 @@
 *
 ***********************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "pppd.h"
-#include "chap-new.h"
-#include "chap_ms.h"
-#include "fsm.h"
-#include "ipcp.h"
-#include "mppe.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,6 +45,13 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+
+#include <pppd/pppd.h>
+#include <pppd/chap-new.h>
+#include <pppd/chap_ms.h>
+#include <pppd/fsm.h>
+#include <pppd/ipcp.h>
+#include <pppd/mppe.h>
 
 #define BUF_LEN 1024
 
@@ -104,7 +101,7 @@ static int winbind_chap_verify(char *user, char *ourname, int id,
 			       char *message, int message_space);
 static int winbind_allowed_address(u_int32_t addr); 
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 /**********************************************************************
 * %FUNCTION: plugin_init

@@ -9,17 +9,13 @@
  *  2 of the License, or (at your option) any later version.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <syslog.h>
-#include "pppd.h"
+#include <pppd/pppd.h>
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 static char promptprog[PATH_MAX+1];
 static int promptprog_refused = 0;
