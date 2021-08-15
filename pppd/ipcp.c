@@ -1240,13 +1240,20 @@ ipcp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 	    no.req_dns2 = 1;
 	    break;
 	case CI_MS_WINS1:
-	case CI_MS_WINS2:
-	    if (cilen != CILEN_ADDR)
+	    if (go->req_wins1 || no.req_wins1 || cilen != CILEN_ADDR)
 		goto bad;
 	    GETLONG(l, p);
-	    ciaddr1 = htonl(l);
-	    if (ciaddr1)
-		try.winsaddr[citype == CI_MS_WINS2] = ciaddr1;
+	    try.winsaddr[0] = htonl(l);
+	    try.req_wins1 = 1;
+	    no.req_wins1 = 1;
+	    break;
+	case CI_MS_WINS2:
+	    if (go->req_wins2 || no.req_wins2 || cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    try.winsaddr[1] = htonl(l);
+	    try.req_wins2 = 1;
+	    no.req_wins2 = 1;
 	    break;
 	}
 	p = next;
