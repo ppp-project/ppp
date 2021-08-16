@@ -715,18 +715,6 @@ static int make_ppp_unit(void)
 		  We have to rewrite almost the same code as in set_ifunit in main.c
 		*/
 		struct ifreq ifr;
-
-		char t[IFNAMSIZ];
-		memset(&ifr, 0, sizeof(struct ifreq));
-		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
-		strlcpy(ifr.ifr_name, t, IFNAMSIZ);
-		strlcpy(ifr.ifr_newname, req_ifname, IFNAMSIZ);
-		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
-		if (x < 0)
-		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
-		else
-		    info("Renamed interface %s to %s", t, req_ifname);
-
 		char old_ifname[IFNAMSIZ];
 		char new_ifname[IFNAMSIZ];
 		char ifnameBase[IFNAMSIZ];
@@ -778,7 +766,10 @@ set_ifunit_regex_done:
 		    else
 			info("Renamed interface %s to %s", old_ifname, new_ifname);
 		}
+<<<<<<< HEAD
 >>>>>>> 86936b6 (PPP enhanced ifname)
+=======
+>>>>>>> 13d53b4 (Fix conficts)
 	}
 
 	return x;
