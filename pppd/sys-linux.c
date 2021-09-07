@@ -96,7 +96,6 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <ctype.h>
-#include <termios.h>
 #include <unistd.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
@@ -110,7 +109,6 @@
 
 #if !defined(__GLIBC__) || __GLIBC__ >= 2
 #include <asm/types.h>		/* glibc 2 conflicts with linux/types.h */
-#include <asm/ioctls.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
@@ -165,19 +163,11 @@
 #include <sys/locks.h>
 #endif
 
-#ifndef BOTHER
-#define BOTHER 0010000
-#endif
-struct termios2 {
-	unsigned int c_iflag;
-	unsigned int c_oflag;
-	unsigned int c_cflag;
-	unsigned int c_lflag;
-	unsigned char c_line;
-	unsigned char c_cc[19];
-	unsigned int c_ispeed;
-	unsigned int c_ospeed;
-};
+/*
+ * Instead of system header file <termios.h> use local "termios_linux.h" header
+ * file as it provides additional support for arbitrary baud rates via BOTHER.
+ */
+#include "termios_linux.h"
 
 #ifdef INET6
 #ifndef _LINUX_IN6_H
@@ -1053,40 +1043,32 @@ void set_up_tty(int tty_fd, int local)
 	    cfsetospeed (&tios, speed);
 	    cfsetispeed (&tios, speed);
 	    speed = cfgetospeed(&tios);
+	    baud_rate = baud_rate_of(speed);
+	} else {
+#ifdef BOTHER
+	    tios.c_cflag &= ~CBAUD;
+	    tios.c_cflag |= BOTHER;
+	    tios.c_ospeed = inspeed;
+#ifdef IBSHIFT
+	    /* B0 sets input baudrate to the output baudrate */
+	    tios.c_cflag &= ~(CBAUD << IBSHIFT);
+	    tios.c_cflag |= B0 << IBSHIFT;
+	    tios.c_ispeed = inspeed;
+#endif
+	    baud_rate = inspeed;
+#else
+	    baud_rate = 0;
+#endif
 	}
-	baud_rate = baud_rate_of(speed);
     }
     else {
 	speed = cfgetospeed(&tios);
 	baud_rate = baud_rate_of(speed);
-    }
-
-    while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
-	if (errno != EINTR)
-	    fatal("tcsetattr: %m (line %d)", __LINE__);
-    restore_term = 1;
-
-/* Most Linux architectures and drivers support arbitrary baud rate values via BOTHER */
-#ifdef TCGETS2
-    if (!baud_rate) {
-	struct termios2 tios2;
-	if (ioctl(tty_fd, TCGETS2, &tios2) == 0) {
-	    if (inspeed) {
-		tios2.c_cflag &= ~CBAUD;
-		tios2.c_cflag |= BOTHER;
-		tios2.c_ispeed = inspeed;
-		tios2.c_ospeed = inspeed;
-#ifdef TCSETS2
-		if (ioctl(tty_fd, TCSETS2, &tios2) == 0)
-		    baud_rate = inspeed;
+#ifdef BOTHER
+	if (!baud_rate)
+	    baud_rate = tios.c_ospeed;
 #endif
-	    } else {
-		if ((tios2.c_cflag & CBAUD) == BOTHER && tios2.c_ospeed)
-		    baud_rate = tios2.c_ospeed;
-	    }
-	}
     }
-#endif
 
 /*
  * We can't proceed if the serial port baud rate is unknown,
@@ -1098,6 +1080,11 @@ void set_up_tty(int tty_fd, int local)
 	else
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
+
+    while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
+	if (errno != EINTR)
+	    fatal("tcsetattr: %m (line %d)", __LINE__);
+    restore_term = 1;
 }
 
 /********************************************************************
