@@ -319,7 +319,7 @@ setdevname(char *cp, char **argv, int doit)
 	}
 
 	if (doit) {
-		strlcpy(devnam, cp, sizeof(devnam));
+		strlcpy(devnam, cp, MAXPATHLEN);
 		devstat = statbuf;
 		default_device = 0;
 	}
@@ -414,7 +414,7 @@ void tty_process_extra_options(void)
 			option_error("no device specified and stdin is not a tty");
 			exit(EXIT_OPTION_ERROR);
 		}
-		strlcpy(devnam, p, sizeof(devnam));
+		strlcpy(devnam, p, MAXPATHLEN);
 		if (stat(devnam, &devstat) < 0)
 			fatal("Couldn't stat default device %s: %m", devnam);
 	}
@@ -518,7 +518,7 @@ int connect_tty(void)
 	 * Get a pty master/slave pair if the pty, notty, socket,
 	 * or record options were specified.
 	 */
-	strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
+	strlcpy(ppp_devnam, devnam, MAXPATHLEN);
 	pty_master = -1;
 	pty_slave = -1;
 	real_ttyfd = -1;

@@ -81,6 +81,7 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/sysmacros.h>
+#include <sys/param.h>
 
 #include <errno.h>
 #include <stddef.h>

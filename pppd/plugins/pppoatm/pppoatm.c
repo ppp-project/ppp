@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 
 #include <pppd/pppd.h>
 #include <pppd/pathnames.h>
@@ -88,7 +89,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit)
 		return 1;
 
 	memcpy(&pvcaddr, &addr, sizeof pvcaddr);
-	strlcpy(devnam, cp, sizeof devnam);
+	strlcpy(devnam, cp, MAXPATHLEN);
 	devstat.st_mode = S_IFSOCK;
 	if (the_channel != &pppoa_channel) {
 		the_channel = &pppoa_channel;
@@ -162,7 +163,7 @@ static int connect_pppoatm(void)
 	pppoatm_max_mtu = lcp_allowoptions[0].mru;
 	pppoatm_max_mru = lcp_wantoptions[0].mru;
 	set_line_discipline_pppoatm(fd);
-	strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
+	strlcpy(ppp_devnam, devnam, MAXPATHLEN);
 	pppoa_fd = fd;
 	return fd;
 }

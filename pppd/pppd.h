@@ -57,9 +57,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <sys/types.h>		/* for u_int32_t, if defined */
-#include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
-#include <net/if.h>
 
 #ifdef PPP_WITH_IPV6CP
 #include "eui64.h"
@@ -216,7 +214,7 @@ struct notifier {
 extern int	got_sigterm;	/* SIGINT or SIGTERM was received */
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
-extern char	ifname[];	/* Interface name */
+extern char	ifname[];	/* Interface name (IFNAMSIZ) */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	devfd;		/* fd of underlying device */
@@ -231,7 +229,7 @@ extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
-extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
+extern GIDSET_TYPE groups[];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
@@ -246,7 +244,7 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern int	error_count;	/* # of times error() has been called */
-extern char	ppp_devnam[MAXPATHLEN];
+extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
 extern char     remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
 extern int      ppp_session_number; /* Session number (eg PPPoE session) */
 extern int	fd_devnull;	/* fd open to /dev/null */
@@ -280,7 +278,7 @@ extern struct notifier *fork_notifier;	/* we are a new child process */
 extern int	debug;		/* Debug flag */
 extern int	kdebugflag;	/* Tell kernel to print debug messages */
 extern int	default_device;	/* Using /dev/tty or equivalent */
-extern char	devnam[MAXPATHLEN];	/* Device name */
+extern char	devnam[];	/* Device name */
 extern int	crtscts;	/* Use hardware flow control */
 extern int	stop_bits;	/* Number of serial port stop bits */
 extern bool	modem;		/* Use modem control lines */
@@ -319,14 +317,14 @@ extern char	*pty_socket;	/* Socket to connect to pty */
 extern char	*record_file;	/* File to record chars sent/received */
 extern bool	sync_serial;	/* Device is synchronous serial device */
 extern int	maxfail;	/* Max # of unsuccessful connection attempts */
-extern char	linkname[MAXPATHLEN]; /* logical name for link */
+extern char	linkname[];	/* logical name for link */
 extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
-extern char	path_ipup[MAXPATHLEN]; /* pathname of ip-up script */
-extern char	path_ipdown[MAXPATHLEN]; /* pathname of ip-down script */
-extern char	req_ifname[IFNAMSIZ]; /* interface name to use */
+extern char	path_ipup[]; 	/* pathname of ip-up script */
+extern char	path_ipdown[];	/* pathname of ip-down script */
+extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
 extern bool	multilink;	/* enable multilink operation */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */

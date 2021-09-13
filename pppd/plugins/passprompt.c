@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/param.h>
 #include <syslog.h>
 #include <pppd/pppd.h>
 

@@ -54,6 +54,8 @@
 #include <syslog.h>
 #include <string.h>
 #include <pwd.h>
+#include <sys/param.h>
+#include <net/if.h>
 #ifdef PPP_WITH_PLUGINS
 #include <dlfcn.h>
 #endif

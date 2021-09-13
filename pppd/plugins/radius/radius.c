@@ -29,6 +29,7 @@ static char const RCSID[] =
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/param.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>

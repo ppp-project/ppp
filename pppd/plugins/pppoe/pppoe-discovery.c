@@ -21,6 +21,7 @@
 #include <string.h>
 #include <time.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include "pppoe.h"
 

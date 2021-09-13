@@ -93,6 +93,7 @@
 #include <arpa/inet.h>
 #include <limits.h>
 #include <inttypes.h>
+#include <net/if.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -293,8 +294,8 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
-    strlcpy(path_ipup, _PATH_IPUP, sizeof(path_ipup));
-    strlcpy(path_ipdown, _PATH_IPDOWN, sizeof(path_ipdown));
+    strlcpy(path_ipup, _PATH_IPUP, MAXPATHLEN);
+    strlcpy(path_ipdown, _PATH_IPDOWN, MAXPATHLEN);
 
 #ifdef PPP_WITH_IPV6CP
     strlcpy(path_ipv6up, _PATH_IPV6UP, MAXPATHLEN);

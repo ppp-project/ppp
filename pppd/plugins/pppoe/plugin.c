@@ -37,6 +37,7 @@ static char const RCSID[] =
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -200,7 +201,7 @@ PPPOEConnectDevice(void)
 
     conn->acName = acName;
     conn->serviceName = pppd_pppoe_service;
-    strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
+    strlcpy(ppp_devnam, devnam, MAXPATHLEN);
     if (existingSession) {
 	unsigned int mac[ETH_ALEN];
 	int i, ses;
@@ -395,7 +396,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     /* Close socket */
     close(fd);
     if (r && doit) {
-	strlcpy(devnam, cmd, sizeof(devnam));
+	strlcpy(devnam, cmd, MAXPATHLEN);
 	if (the_channel != &pppoe_channel) {
 
 	    the_channel = &pppoe_channel;
