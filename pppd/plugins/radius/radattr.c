@@ -24,6 +24,8 @@ static char const RCSID[] =
 #include "pppd.h"
 #include "radiusclient.h"
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern void (*radius_attributes_hook)(VALUE_PAIR *);
 static void print_attributes(VALUE_PAIR *);
@@ -75,9 +77,12 @@ print_attributes(VALUE_PAIR *vp)
     char name[2048];
     char value[2048];
     int cnt = 0;
+    mode_t old_umask;
 
     slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ifname);
+    old_umask = umask(077);
     fp = fopen(fname, "w");
+    umask(old_umask);
     if (!fp) {
 	warn("radattr plugin: Could not open %s for writing: %m", fname);
 	return;
