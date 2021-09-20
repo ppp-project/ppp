@@ -125,10 +125,10 @@ static int setdevname_pppol2tp(char **argv)
 		char buffer[128];
 		struct sockaddr pppol2tp;
 	} s;
-	int len = sizeof(s);
+	socklen_t len = sizeof(s);
 	char **a;
 	int tmp;
-	int tmp_len = sizeof(tmp);
+	socklen_t tmp_len = sizeof(tmp);
 
 	if (device_got_set)
 		return 0;
