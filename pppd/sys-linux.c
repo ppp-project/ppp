@@ -3143,7 +3143,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 int
 get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 {
-    int i, mfd, sfd = -1;
+    int i, mfd, ret, sfd = -1;
     char pty_name[16];
     struct termios tios;
 
@@ -3181,8 +3181,14 @@ get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 		pty_name[5] = 't';
 		sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
 		if (sfd >= 0) {
-		    fchown(sfd, uid, -1);
-		    fchmod(sfd, S_IRUSR | S_IWUSR);
+		    ret = fchown(sfd, uid, -1);
+		    if (ret != 0) {
+			warn("Couldn't change ownership of %s, %m", pty_name);
+		    }
+		    ret = fchmod(sfd, S_IRUSR | S_IWUSR);
+		    if (ret != 0) {
+			warn("Couldn't change permissions of %s, %m", pty_name);
+		    }
 		    break;
 		}
 		close(mfd);
