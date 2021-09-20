@@ -909,7 +909,7 @@ open_socket(char *dest)
 static int
 start_charshunt(int ifd, int ofd)
 {
-    int cpid;
+    int cpid, ret;
 
     cpid = safe_fork(ifd, ofd, (log_to_fd >= 0? log_to_fd: 2));
     if (cpid == -1) {
@@ -923,10 +923,14 @@ start_charshunt(int ifd, int ofd)
 	    log_to_fd = -1;
 	else if (log_to_fd >= 0)
 	    log_to_fd = 2;
-	setgid(getgid());
-	setuid(uid);
-	if (getuid() != uid)
-	    fatal("setuid failed");
+	ret = setgid(getgid());
+	if (ret != 0) {
+		fatal("setgid failed, %m");
+	}
+	ret = setuid(uid);
+	if (ret != 0 || getuid() != uid) {
+		fatal("setuid failed, %m");
+	}
 	charshunt(0, 1, record_file);
 	exit(0);
     }
