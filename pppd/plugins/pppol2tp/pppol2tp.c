@@ -514,15 +514,15 @@ void plugin_init(void)
 }
 
 struct channel pppol2tp_channel = {
-    options: pppol2tp_options,
-    process_extra_options: NULL,
-    check_options: &pppol2tp_check_options,
-    connect: &connect_pppol2tp,
-    disconnect: &disconnect_pppol2tp,
-    establish_ppp: &generic_establish_ppp,
-    disestablish_ppp: &generic_disestablish_ppp,
-    send_config: &send_config_pppol2tp,
-    recv_config: &recv_config_pppol2tp,
-    close: NULL,
-    cleanup: NULL
+    .options = pppol2tp_options,
+    .process_extra_options = NULL,
+    .check_options = &pppol2tp_check_options,
+    .connect = &connect_pppol2tp,
+    .disconnect = &disconnect_pppol2tp,
+    .establish_ppp = &generic_establish_ppp,
+    .disestablish_ppp = &generic_disestablish_ppp,
+    .send_config = &send_config_pppol2tp,
+    .recv_config = &recv_config_pppol2tp,
+    .close = NULL,
+    .cleanup = NULL
 };
