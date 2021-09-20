@@ -187,15 +187,15 @@ void plugin_init(void)
 }
 
 struct channel pppoa_channel = {
-    options: pppoa_options,
-    process_extra_options: NULL,
-    check_options: NULL,
-    connect: &connect_pppoatm,
-    disconnect: &disconnect_pppoatm,
-    establish_ppp: &generic_establish_ppp,
-    disestablish_ppp: &generic_disestablish_ppp,
-    send_config: NULL,
-    recv_config: NULL,
-    close: NULL,
-    cleanup: NULL
+    .options = pppoa_options,
+    .process_extra_options = NULL,
+    .check_options = NULL,
+    .connect = &connect_pppoatm,
+    .disconnect = &disconnect_pppoatm,
+    .establish_ppp = &generic_establish_ppp,
+    .disestablish_ppp = &generic_disestablish_ppp,
+    .send_config = NULL,
+    .recv_config = NULL,
+    .close = NULL,
+    .cleanup = NULL
 };
