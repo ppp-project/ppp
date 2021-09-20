@@ -241,10 +241,10 @@ static void send_config_pppol2tp(int mtu,
 		sprintf(&reorderto[0], "%d ", pppol2tp_reorder_timeout);
 	tid[0] = '\0';
 	if (pppol2tp_tunnel_id > 0)
-		sprintf(&tid[0], "%hu ", pppol2tp_tunnel_id);
+		sprintf(&tid[0], "%u ", pppol2tp_tunnel_id);
 	sid[0] = '\0';
 	if (pppol2tp_session_id > 0)
-		sprintf(&sid[0], "%hu ", pppol2tp_session_id);
+		sprintf(&sid[0], "%u ", pppol2tp_session_id);
 
 	dbglog("PPPoL2TP options: %s%s%s%s%s%s%s%s%sdebugmask %d",
 	       pppol2tp_recv_seq ? "recvseq " : "",
