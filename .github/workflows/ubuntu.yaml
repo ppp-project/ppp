@@ -17,8 +17,5 @@ jobs:
     - name: build
       run: make V=1 CFLAGS="-O2 -g -Wno-unused-result"
 
-    - name: check
-      run: make check
-
     - name: distcheck
       run: make distcheck DISTCHECK_CONFIGURE_FLAGS="--enable-multilink --enable-ipxcp"
