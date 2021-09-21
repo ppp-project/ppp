@@ -4,6 +4,8 @@ on: [push, pull_request]
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    env:
+      configure_flags: --enable-ipxcp --enable-multilink
 
     steps:
     - uses: actions/checkout@v2
@@ -12,10 +14,10 @@ jobs:
       run: sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install build-essential autoconf automake pkg-config libtool m4 autoconf-archive libssl-dev libatm1-dev libpcap-dev
 
     - name: configure
-      run: ./autogen.sh --enable-multilink --enable-ipxcp
+      run: ./autogen.sh ${{ env.configure_flags }}
 
     - name: build
       run: make V=1 CFLAGS="-O2 -g -Wno-unused-result"
 
     - name: distcheck
-      run: make distcheck DISTCHECK_CONFIGURE_FLAGS="--enable-multilink --enable-ipxcp"
+      run: make distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
