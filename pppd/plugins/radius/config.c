@@ -525,7 +525,6 @@ int rc_find_server (char *server_name, UINT4 *ip_addr, char *secret)
 	if (result == 0)
 	{
 		memset (buffer, '\0', sizeof (buffer));
-		memset (secret, '\0', sizeof (secret));
 		error("rc_find_server: couldn't find RADIUS server %s in %s",
 		      server_name, rc_conf_str("servers"));
 		return (-1);
