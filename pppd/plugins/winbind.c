@@ -167,7 +167,7 @@ plugin_init(void)
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-size_t strhex_to_str(char *p, size_t len, const char *strhex)
+size_t strhex_to_str(unsigned char *p, size_t len, const char *strhex)
 {
 	size_t i;
 	size_t num_chars = 0;
@@ -527,7 +527,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	char *domain;
 	char *username;
 	char *p;
-	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
+	unsigned char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
 
 	/* The first byte of each of these strings contains their length */
 	challenge_len = *challenge++;
