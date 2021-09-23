@@ -136,7 +136,7 @@ sendPADT(PPPoEConnection *conn, char const *msg)
 	size_t elen = strlen(msg);
 	err.type = htons(TAG_GENERIC_ERROR);
 	err.length = htons(elen);
-	strcpy(err.payload, msg);
+	strcpy((char*) err.payload, msg);
 	memcpy(cursor, &err, elen + TAG_HDR_SIZE);
 	cursor += elen + TAG_HDR_SIZE;
 	plen += elen + TAG_HDR_SIZE;
