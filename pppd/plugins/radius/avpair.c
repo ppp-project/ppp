@@ -76,7 +76,7 @@ int rc_avpair_assign (VALUE_PAIR *vp, void *pval, int len)
 				vp->strvalue[len] = '\0';
 				vp->lvalue = len;
 			} else {
-			strncpy (vp->strvalue, (char *) pval, AUTH_STRING_LEN);
+			strncpy ((char*) vp->strvalue, (char *) pval, AUTH_STRING_LEN);
 			vp->lvalue = strlen((char *) pval);
 			}
 
@@ -161,7 +161,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 	DICT_ATTR      *attr;
 	VALUE_PAIR     *vp;
 	VALUE_PAIR     *pair;
-	unsigned char   hex[3];		/* For hex string conversion. */
+	char            hex[3];		/* For hex string conversion. */
 	char            buffer[512];
 
 	/*
@@ -600,7 +600,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 			{
 
 			    case PW_TYPE_STRING:
-				strcpy (pair->strvalue, valstr);
+				strcpy ((char*) pair->strvalue, valstr);
 				pair->lvalue = strlen(valstr);
 				break;
 
@@ -725,7 +725,7 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 			}
 			else
 			{
-				strncat(value, ptr, 1);
+				strncat(value, (char*) ptr, 1);
 				lv--;
 				if (lv < 0) break;
 			}
