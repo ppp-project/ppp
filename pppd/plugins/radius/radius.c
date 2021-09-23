@@ -208,7 +208,7 @@ add_avp(char **argv)
 *  1 -- we are ALWAYS willing to supply a secret. :-)
 * %DESCRIPTION:
 * Tells pppd that we will try to authenticate the peer, and not to
-* worry about looking in /etc/ppp/*-secrets
+* worry about looking in *-secrets file(s)
 ***********************************************************************/
 static int
 radius_secret_check(void)
