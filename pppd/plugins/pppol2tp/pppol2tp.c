@@ -207,8 +207,8 @@ static void send_config_pppol2tp(int mtu,
 	int on = 1;
 	int fd;
 	char reorderto[16];
-	char tid[8];
-	char sid[8];
+	char tid[12];
+	char sid[12];
 
 	if (pppol2tp_ifname[0]) {
 		struct ifreq ifr;
