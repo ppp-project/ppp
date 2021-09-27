@@ -125,10 +125,10 @@ static int setdevname_pppol2tp(char **argv)
 		char buffer[128];
 		struct sockaddr pppol2tp;
 	} s;
-	int len = sizeof(s);
+	socklen_t len = sizeof(s);
 	char **a;
 	int tmp;
-	int tmp_len = sizeof(tmp);
+	socklen_t tmp_len = sizeof(tmp);
 
 	if (device_got_set)
 		return 0;
@@ -207,8 +207,8 @@ static void send_config_pppol2tp(int mtu,
 	int on = 1;
 	int fd;
 	char reorderto[16];
-	char tid[8];
-	char sid[8];
+	char tid[12];
+	char sid[12];
 
 	if (pppol2tp_ifname[0]) {
 		struct ifreq ifr;
@@ -241,10 +241,10 @@ static void send_config_pppol2tp(int mtu,
 		sprintf(&reorderto[0], "%d ", pppol2tp_reorder_timeout);
 	tid[0] = '\0';
 	if (pppol2tp_tunnel_id > 0)
-		sprintf(&tid[0], "%hu ", pppol2tp_tunnel_id);
+		sprintf(&tid[0], "%u ", pppol2tp_tunnel_id);
 	sid[0] = '\0';
 	if (pppol2tp_session_id > 0)
-		sprintf(&sid[0], "%hu ", pppol2tp_session_id);
+		sprintf(&sid[0], "%u ", pppol2tp_session_id);
 
 	dbglog("PPPoL2TP options: %s%s%s%s%s%s%s%s%sdebugmask %d",
 	       pppol2tp_recv_seq ? "recvseq " : "",
@@ -514,15 +514,15 @@ void plugin_init(void)
 }
 
 struct channel pppol2tp_channel = {
-    options: pppol2tp_options,
-    process_extra_options: NULL,
-    check_options: &pppol2tp_check_options,
-    connect: &connect_pppol2tp,
-    disconnect: &disconnect_pppol2tp,
-    establish_ppp: &generic_establish_ppp,
-    disestablish_ppp: &generic_disestablish_ppp,
-    send_config: &send_config_pppol2tp,
-    recv_config: &recv_config_pppol2tp,
-    close: NULL,
-    cleanup: NULL
+    .options = pppol2tp_options,
+    .process_extra_options = NULL,
+    .check_options = &pppol2tp_check_options,
+    .connect = &connect_pppol2tp,
+    .disconnect = &disconnect_pppol2tp,
+    .establish_ppp = &generic_establish_ppp,
+    .disestablish_ppp = &generic_disestablish_ppp,
+    .send_config = &send_config_pppol2tp,
+    .recv_config = &recv_config_pppol2tp,
+    .close = NULL,
+    .cleanup = NULL
 };

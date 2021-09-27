@@ -94,7 +94,7 @@ unsigned char rc_get_seqnbr(void)
 {
 	FILE *sf;
 	int tries = 1;
-	int seq_nbr, pos;
+	int seq_nbr, pos, ret;
 	char *seqfile = rc_conf_str("seqfile");
 
 	if ((sf = fopen(seqfile, "a+")) == NULL)
@@ -135,7 +135,10 @@ unsigned char rc_get_seqnbr(void)
 	}
 
 	rewind(sf);
-	ftruncate(fileno(sf),0);
+	ret = ftruncate(fileno(sf),0);
+	if (ret != 0) {
+		error("rc_get_seqnbr: couldn't truncate sequence file, %m");
+	}
 	fprintf(sf,"%d\n", (seq_nbr+1) & UCHAR_MAX);
 
 	fflush(sf); /* fflush because a process may read it between the do_unlock and fclose */

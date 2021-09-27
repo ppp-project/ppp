@@ -78,7 +78,7 @@ rc_mksid (void)
   snprintf(buf, sizeof(buf), "%08lX%04X%02hX",
 	   (unsigned long int) time (NULL),
 	   (unsigned int) getpid (),
-	   cnt & 0xFF);
+	   (unsigned short) (cnt & 0xFF));
   cnt++;
   return buf;
 }
