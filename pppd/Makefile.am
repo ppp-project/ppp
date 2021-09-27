@@ -72,7 +72,7 @@ pppd_LDFLAGS =
 pppd_LIBS =
 
 if LINUX
-pppd_SOURCES += sys-linux.c
+pppd_SOURCES += sys-linux.c termios_linux.h
 pppd_LIBS += $(CRYPT_LIBS) $(UTIL_LIBS)
 endif
 
