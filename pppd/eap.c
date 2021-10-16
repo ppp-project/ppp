@@ -67,9 +67,9 @@
 #include "pathnames.h"
 #include "md5.h"
 #include "eap.h"
-#ifdef USE_PEAP
+#ifdef PPP_WITH_PEAP
 #include "peap.h"
-#endif /* USE_PEAP */
+#endif /* PPP_WITH_PEAP */
 
 #ifdef USE_SRP
 #ifdef HAVE_TIME_H
@@ -2220,7 +2220,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 	    break;
 #endif /* PPP_WITH_CHAPMS */
-#ifdef USE_PEAP
+#ifdef PPP_WITH_PEAP
 	case EAPT_PEAP:
 
 		/* Initialize the PEAP context (if not already initialized) */
@@ -2241,7 +2241,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		}
 
 		break;
-#endif // USE_PEAP
+#endif // PPP_WITH_PEAP
 
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
@@ -2795,7 +2795,7 @@ eap_success(eap_state *esp, u_char *inp, int id, int len)
 		PRINTMSG(inp, len);
 	}
 
-#ifdef USE_PEAP
+#ifdef PPP_WITH_PEAP
 	peap_finish(&esp->ea_peap);
 #endif
 
@@ -2834,7 +2834,7 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 
 	error("EAP: peer reports authentication failure");
 
-#ifdef USE_PEAP
+#ifdef PPP_WITH_PEAP
 	peap_finish(&esp->ea_peap);
 #endif
 

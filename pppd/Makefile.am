@@ -134,12 +134,12 @@ endif
 if PPP_WITH_EAPTLS
 pppd_SOURCES += eap-tls.c tls.c
 else
-if WITH_PEAP
+if PPP_WITH_PEAP
 pppd_SOURCES += tls.c
 endif
 endif
 
-if WITH_PEAP
+if PPP_WITH_PEAP
 pppd_SOURCES += peap.c
 check_PROGRAMS += utest_peap
 endif

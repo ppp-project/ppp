@@ -259,7 +259,7 @@ bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 
-#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 char *cacert_file  = NULL;  /* CA certificate file (pem format) */
 char *ca_path      = NULL;  /* Directory with CA certificates */
 char *crl_dir      = NULL;  /* Directory containing CRL files */
@@ -449,7 +449,7 @@ option_t auth_options[] = {
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
 
-#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
     { "ca", o_string, &cacert_file,     "CA certificate in PEM format" },
     { "capath", o_string, &ca_path,     "TLS CA certificate directory" },
     { "crl-dir", o_string, &crl_dir,    "Use CRLs in directory" },

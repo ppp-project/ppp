@@ -169,7 +169,7 @@ typedef struct eap_state {
 	int es_unit;			/* Interface unit number */
 	struct eap_auth es_client;	/* Client (authenticatee) data */
 	struct eap_auth es_server;	/* Server (authenticator) data */
-#ifdef USE_PEAP
+#ifdef PPP_WITH_PEAP
 	struct peap_state *ea_peap;	/* Client PEAP (authenticator) data */
 #endif
 	int es_savedtime;		/* Saved timeout */

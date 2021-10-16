@@ -340,7 +340,7 @@ extern char	path_ipv6up[]; /* pathname of ipv6-up script */
 extern char	path_ipv6down[]; /* pathname of ipv6-down script */
 #endif
 
-#if defined(PPP_WITH_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 #define TLS_VERIFY_NONE     "none"
 #define TLS_VERIFY_NAME     "name"
 #define TLS_VERIFY_SUBJECT  "subject"
@@ -354,7 +354,7 @@ extern char *cacert_file;
 extern char *max_tls_version;
 extern bool tls_verify_key_usage;
 extern char *tls_verify_method;
-#endif /* PPP_WITH_EAPTLS || USE_PEAP */
+#endif /* PPP_WITH_EAPTLS || PPP_WITH_PEAP */
 
 #ifdef PPP_WITH_EAPTLS
 extern char *pkcs12_file;

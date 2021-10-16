@@ -186,8 +186,8 @@ AM_CONDITIONAL(PPP_WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
 AC_ARG_ENABLE([peap],
     AS_HELP_STRING([--disable-peap], [Disable PEAP authentication support]))
 AS_IF([test "x${enable_peap}" != "xno"],
-    AC_DEFINE([USE_PEAP], 1, ["Have PEAP authentication support"]))
-AM_CONDITIONAL([WITH_PEAP], test "x${enable_peap}" != "xno")
+    AC_DEFINE([PPP_WITH_PEAP], 1, [Have PEAP authentication support]))
+AM_CONDITIONAL([PPP_WITH_PEAP], test "x${enable_peap}" != "xno")
 
 #
 # Disable OpenSSL engine support
