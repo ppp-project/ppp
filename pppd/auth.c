@@ -258,18 +258,22 @@ bool explicit_remote = 0;	/* User specified explicit remote name */
 bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
-#ifdef USE_EAPTLS
-char *cacert_file  = NULL;	/* CA certificate file (pem format) */
-char *ca_path      = NULL;	/* directory with CA certificates */
-char *cert_file    = NULL;	/* client certificate file (pem format) */
-char *privkey_file = NULL;	/* client private key file (pem format) */
-char *pkcs12_file  = NULL;	/* client private key envelope file (pkcs12 format) */
-char *crl_dir      = NULL;	/* directory containing CRL files */
-char *crl_file     = NULL;	/* Certificate Revocation List (CRL) file (pem format) */
-char *max_tls_version = NULL;	/* Maximum TLS protocol version (default=1.2) */
-char *tls_verify_method = NULL;
-bool tls_verify_key_usage = 0;
-bool need_peer_eap = 0;			/* Require peer to authenticate us */
+
+#if defined(USE_EAPTLS) || defined(USE_PEAP)
+char *cacert_file  = NULL;  /* CA certificate file (pem format) */
+char *ca_path      = NULL;  /* Directory with CA certificates */
+char *crl_dir      = NULL;  /* Directory containing CRL files */
+char *crl_file     = NULL;  /* Certificate Revocation List (CRL) file (pem format) */
+char *max_tls_version = NULL;   /* Maximum TLS protocol version (default=1.2) */
+char *tls_verify_method = NULL; /* Verify certificate method */
+bool  tls_verify_key_usage = 0; /* Verify peer certificate key usage */
+#endif
+
+#if defined(USE_EAPTLS)
+char *cert_file    = NULL;  /* Client certificate file (pem format) */
+char *privkey_file = NULL;  /* Client private key file (pem format) */
+char *pkcs12_file  = NULL;  /* Client private key envelope file (pkcs12 format) */
+bool need_peer_eap = 0;	    /* Require peer to authenticate us */
 #endif
 
 static char *uafname;		/* name of most recent +ua file */
@@ -445,23 +449,26 @@ option_t auth_options[] = {
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
 
-#ifdef USE_EAPTLS
-    { "ca", o_string, &cacert_file,   "EAP-TLS CA certificate in PEM format" },
-    { "capath", o_string, &ca_path,   "EAP-TLS CA certificate directory" },
-    { "cert", o_string, &cert_file,   "EAP-TLS client certificate in PEM format" },
-    { "key", o_string, &privkey_file, "EAP-TLS client private key in PEM format" },
-    { "crl-dir", o_string, &crl_dir,  "Use CRLs in directory" },
-    { "crl", o_string, &crl_file,     "Use specific CRL file" },
-    { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
+#if defined(USE_EAPTLS) || defined(USE_PEAP)
+    { "ca", o_string, &cacert_file,     "CA certificate in PEM format" },
+    { "capath", o_string, &ca_path,     "TLS CA certificate directory" },
+    { "crl-dir", o_string, &crl_dir,    "Use CRLs in directory" },
+    { "crl", o_string, &crl_file,       "Use specific CRL file" },
     { "max-tls-version", o_string, &max_tls_version,
       "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)" },
     { "tls-verify-key-usage", o_bool, &tls_verify_key_usage,
       "Verify certificate type and extended key usage" },
     { "tls-verify-method", o_string, &tls_verify_method,
       "Verify peer by method (none|subject|name|suffix)" },
+#endif
+
+#if defined(USE_EAPTLS)
+    { "cert", o_string, &cert_file,     "client certificate in PEM format" },
+    { "key", o_string, &privkey_file,   "client private key in PEM format" },
+    { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
     { "need-peer-eap", o_bool, &need_peer_eap,
       "Require the peer to authenticate us", 1 },
-#endif /* USE_EAPTLS */
+#endif
     { NULL }
 };
 
