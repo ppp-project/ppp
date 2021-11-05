@@ -115,16 +115,6 @@ AM_COND_IF([WITH_CBCP],
     AC_DEFINE([CBCP_SUPPORT], 1, [Have Callback Protocol support]))
 
 #
-# Disable support for IPX control protocol
-AC_ARG_ENABLE([ipxcp],
-    AS_HELP_STRING([--enable-ipxcp], [Enable IPX Control Protocol support]))
-AM_CONDITIONAL(WITH_IPXCP, test "x${enable_ipxcp}" = "xyes")
-AM_COND_IF(WITH_IPXCP,
-    AC_DEFINE([IPX_CHANGE], 1, ["Have IPX Control Protocol"]))
-AS_IF([test "x${build_sunos}" = "xyes" && test "x${enable_ipxcp}" = "xyes"],
-    [AC_MSG_ERROR([IPXCP is not supported on SunOS, disable using --disable-ipxcp])])
-
-#
 # Disable support for limiting session duration by maximum octets
 AC_ARG_ENABLE([maxoctets],
     AS_HELP_STRING([--disable-maxoctets], [Disable support for limiting session by maximum octets]))
@@ -420,7 +410,6 @@ Features enabled
     Multilink............: ${enable_multilink:-no}
     Plugins..............: ${enable_plugins:-yes}
     CBCP.................: ${enable_cbcp:-no}
-    IPXCP................: ${enable_ipxcp:-no}
     EAP-TLS..............: ${enable_eaptls:-yes}
     PEAP.................: ${enable_peap:-yes}
 "

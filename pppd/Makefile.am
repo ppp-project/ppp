@@ -32,7 +32,6 @@ pppd_include_HEADERS = \
     fsm.h \
     ipcp.h \
     ipv6cp.h \
-    ipxcp.h \
     lcp.h \
     magic.h \
     md4.h \
@@ -96,10 +95,6 @@ endif
 
 if WITH_CBCP
 pppd_SOURCES += cbcp.c
-endif
-
-if WITH_IPXCP
-pppd_SOURCES += ipxcp.c
 endif
 
 if WITH_MPPE
