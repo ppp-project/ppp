@@ -1,3 +1,10 @@
+What's new since ppp-2.4.9 (unreleased)
+***************************************
+
+* New pppd options:
+  - ipv6-up-script
+  - ipv6-down-script
+
 What's new in ppp-2.4.9.
 ************************
 
