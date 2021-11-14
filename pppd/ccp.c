@@ -28,6 +28,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #define RCSID	"$Id: ccp.c,v 1.50 2005/06/26 19:34:41 carlsonj Exp $"
 
 #include <stdlib.h>
@@ -38,10 +42,9 @@
 #include "ccp.h"
 #include <net/ppp-comp.h>
 
-#ifdef MPPE
-#include "chap_ms.h"	/* mppe_xxxx_key, mppe_keys_set */
+#include "chap_ms.h"
+#include "mppe.h"
 #include "lcp.h"	/* lcp_close(), lcp_fsm */
-#endif
 
 
 /*
@@ -574,7 +577,7 @@ ccp_resetci(fsm *f)
 	}
 
 	/* A plugin (eg radius) may not have obtained key material. */
-	if (!mppe_keys_set) {
+	if (!mppe_keys_isset()) {
 	    error("MPPE required, but keys are not available.  "
 		  "Possible plugin problem?");
 	    lcp_close(f->unit, "MPPE required but not available");
@@ -705,7 +708,7 @@ static void
 	p[1] = opt_buf[1] = CILEN_MPPE;
 	MPPE_OPTS_TO_CI(go->mppe, &p[2]);
 	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
-	BCOPY(mppe_recv_key, &opt_buf[CILEN_MPPE], MPPE_MAX_KEY_LEN);
+	mppe_get_recv_key(&opt_buf[CILEN_MPPE], MPPE_MAX_KEY_LEN);
 	res = ccp_test(f->unit, opt_buf, CILEN_MPPE + MPPE_MAX_KEY_LEN, 0);
 	if (res > 0)
 	    p += CILEN_MPPE;
@@ -1156,8 +1159,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 		    int mtu;
 
 		    BCOPY(p, opt_buf, CILEN_MPPE);
-		    BCOPY(mppe_send_key, &opt_buf[CILEN_MPPE],
-			  MPPE_MAX_KEY_LEN);
+		    mppe_get_send_key(&opt_buf[CILEN_MPPE], MPPE_MAX_KEY_LEN);
 		    if (ccp_test(f->unit, opt_buf,
 				 CILEN_MPPE + MPPE_MAX_KEY_LEN, 1) <= 0) {
 			/* This shouldn't happen, we've already tested it! */
@@ -1426,8 +1428,7 @@ ccp_up(fsm *f)
 	notice("%s transmit compression enabled", method_name(ho, NULL));
 #ifdef MPPE
     if (go->mppe) {
-	BZERO(mppe_recv_key, MPPE_MAX_KEY_LEN);
-	BZERO(mppe_send_key, MPPE_MAX_KEY_LEN);
+	mppe_clear_keys();
 	continue_networks(f->unit);		/* Bring up IP et al */
     }
 #endif

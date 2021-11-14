@@ -8,6 +8,11 @@
  *  as published by the Free Software Foundation; either version
  *  2 of the License, or (at your option) any later version.
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -30,7 +35,7 @@ static int promptpass(char *user, char *passwd)
 {
     int p[2];
     pid_t kid;
-    int readgood, wstat;
+    int readgood, wstat, ret;
     ssize_t red;
 
     if (promptprog_refused || promptprog[0] == 0 || access(promptprog, X_OK) < 0)
@@ -55,8 +60,14 @@ static int promptpass(char *user, char *passwd)
 	sys_close();
 	closelog();
 	close(p[0]);
-	seteuid(getuid());
-	setegid(getgid());
+	ret = seteuid(getuid());
+	if (ret != 0) {
+		warn("Couldn't set effective user id");
+	}
+	ret = setegid(getgid());
+	if (ret != 0) {
+		warn("Couldn't set effective user id");
+	}
 	argv[0] = promptprog;
 	argv[1] = user;
 	argv[2] = remote_name;

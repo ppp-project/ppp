@@ -69,6 +69,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -85,12 +89,13 @@
 #include <string.h>
 #include <time.h>
 #include <memory.h>
+#ifdef HAVE_UTMP_H
 #include <utmp.h>
+#endif
 #include <mntent.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <ctype.h>
-#include <termios.h>
 #include <unistd.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
@@ -125,6 +130,14 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_addr.h>
+/* glibc versions prior to 2.24 do not define SOL_NETLINK */
+#ifndef SOL_NETLINK
+#define SOL_NETLINK 270
+#endif
+/* linux kernel versions prior to 4.3 do not define/support NETLINK_CAP_ACK */
+#ifndef NETLINK_CAP_ACK
+#define NETLINK_CAP_ACK 10
+#endif
 #endif
 
 #include "pppd.h"
@@ -150,6 +163,12 @@
 #include <sys/locks.h>
 #endif
 
+/*
+ * Instead of system header file <termios.h> use local "termios_linux.h" header
+ * file as it provides additional support for arbitrary baud rates via BOTHER.
+ */
+#include "termios_linux.h"
+
 #ifdef INET6
 #ifndef _LINUX_IN6_H
 /*
@@ -164,9 +183,9 @@ struct in6_ifreq {
 #endif
 
 #define IN6_LLADDR_FROM_EUI64(sin6, eui64) do {			\
-	memset(&sin6.s6_addr, 0, sizeof(struct in6_addr));	\
-	sin6.s6_addr16[0] = htons(0xfe80);			\
-	eui64_copy(eui64, sin6.s6_addr32[2]);			\
+	memset(&(sin6).s6_addr, 0, sizeof(struct in6_addr));	\
+	(sin6).s6_addr16[0] = htons(0xfe80);			\
+	eui64_copy(eui64, (sin6).s6_addr32[2]);			\
 	} while (0)
 
 static const eui64_t nulleui64;
@@ -668,11 +687,11 @@ static int make_ppp_unit(void)
 
 	if (x == 0 && req_ifname[0] != '\0') {
 		struct ifreq ifr;
-		char t[MAXIFNAMELEN];
+		char t[IFNAMSIZ];
 		memset(&ifr, 0, sizeof(struct ifreq));
 		slprintf(t, sizeof(t), "%s%d", PPP_DRV_NAME, ifunit);
-		strlcpy(ifr.ifr_name, t, IF_NAMESIZE);
-		strlcpy(ifr.ifr_newname, req_ifname, IF_NAMESIZE);
+		strlcpy(ifr.ifr_name, t, IFNAMSIZ);
+		strlcpy(ifr.ifr_newname, req_ifname, IFNAMSIZ);
 		x = ioctl(sock_fd, SIOCSIFNAME, &ifr);
 		if (x < 0)
 		    error("Couldn't rename interface %s to %s: %m", t, req_ifname);
@@ -890,6 +909,12 @@ struct speed {
 #ifdef B460800
     { 460800, B460800 },
 #endif
+#ifdef B500000
+    { 500000, B500000 },
+#endif
+#ifdef B576000
+    { 576000, B576000 },
+#endif
 #ifdef B921600
     { 921600, B921600 },
 #endif
@@ -934,7 +959,6 @@ static int translate_speed (int bps)
 	    if (bps == speedp->speed_int)
 		return speedp->speed_val;
 	}
-	warn("speed %d not supported", bps);
     }
     return 0;
 }
@@ -1013,26 +1037,53 @@ void set_up_tty(int tty_fd, int local)
     if (stop_bits >= 2)
 	tios.c_cflag |= CSTOPB;
 
-    speed = translate_speed(inspeed);
-    if (speed) {
-	cfsetospeed (&tios, speed);
-	cfsetispeed (&tios, speed);
+    if (inspeed) {
+	speed = translate_speed(inspeed);
+	if (speed) {
+	    cfsetospeed (&tios, speed);
+	    cfsetispeed (&tios, speed);
+	    speed = cfgetospeed(&tios);
+	    baud_rate = baud_rate_of(speed);
+	} else {
+#ifdef BOTHER
+	    tios.c_cflag &= ~CBAUD;
+	    tios.c_cflag |= BOTHER;
+	    tios.c_ospeed = inspeed;
+#ifdef IBSHIFT
+	    /* B0 sets input baudrate to the output baudrate */
+	    tios.c_cflag &= ~(CBAUD << IBSHIFT);
+	    tios.c_cflag |= B0 << IBSHIFT;
+	    tios.c_ispeed = inspeed;
+#endif
+	    baud_rate = inspeed;
+#else
+	    baud_rate = 0;
+#endif
+	}
     }
-/*
- * We can't proceed if the serial port speed is B0,
- * since that implies that the serial port is disabled.
- */
     else {
 	speed = cfgetospeed(&tios);
-	if (speed == B0)
+	baud_rate = baud_rate_of(speed);
+#ifdef BOTHER
+	if (!baud_rate)
+	    baud_rate = tios.c_ospeed;
+#endif
+    }
+
+/*
+ * We can't proceed if the serial port baud rate is unknown,
+ * since that implies that the serial port is disabled.
+ */
+    if (!baud_rate) {
+	if (inspeed)
+	    fatal("speed %d not supported", inspeed);
+	else
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
 	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
-
-    baud_rate    = baud_rate_of(speed);
     restore_term = 1;
 }
 
@@ -2824,133 +2875,143 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
 }
 
 #ifdef INET6
-static int append_peer_ipv6_address(unsigned int iface, struct in6_addr *local_addr, struct in6_addr *remote_addr)
+/********************************************************************
+ *
+ * sif6addr_rtnetlink - Config the interface with both IPv6 link-local addresses via rtnetlink
+ */
+static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his_eui64)
 {
-    struct msghdr msg;
-    struct sockaddr_nl sa;
+    struct {
+        struct nlmsghdr nlh;
+        struct ifaddrmsg ifa;
+        struct {
+            struct rtattr rta;
+            struct in6_addr addr;
+        } addrs[2];
+    } nlreq;
+    struct {
+        struct nlmsghdr nlh;
+        struct nlmsgerr nlerr;
+    } nlresp;
+    struct sockaddr_nl nladdr;
     struct iovec iov;
-    struct nlmsghdr *nlmsg;
-    struct ifaddrmsg *ifa;
-    struct rtattr *local_rta;
-    struct rtattr *remote_rta;
-    char buf[NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)))];
-    ssize_t nlmsg_len;
-    struct nlmsgerr *errmsg;
+    struct msghdr msg;
+    ssize_t nlresplen;
     int one;
     int fd;
 
     fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-    if (fd < 0)
+    if (fd < 0) {
+        error("sif6addr_rtnetlink: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
         return 0;
+    }
 
-    /* do not ask for error message content */
+    /*
+     * Tell kernel to not send to us payload of acknowledgment error message.
+     * NETLINK_CAP_ACK option is supported since Linux kernel version 4.3 and
+     * older kernel versions always send full payload in acknowledgment netlink
+     * message. We ignore payload of this message as we need only error code,
+     * to check if our set remote peer address request succeeded or failed.
+     * So ignore return value from the following setsockopt() call as setting
+     * option NETLINK_CAP_ACK means for us just a kernel hint / optimization.
+     */
     one = 1;
     setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
 
-    memset(&sa, 0, sizeof(sa));
-    sa.nl_family = AF_NETLINK;
-    sa.nl_pid = 0;
-    sa.nl_groups = 0;
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
 
-    if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
+        error("sif6addr_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
         close(fd);
         return 0;
     }
 
-    memset(buf, 0, sizeof(buf));
+    memset(&nlreq, 0, sizeof(nlreq));
+    nlreq.nlh.nlmsg_len = sizeof(nlreq);
+    nlreq.nlh.nlmsg_type = RTM_NEWADDR;
+    nlreq.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
+    nlreq.ifa.ifa_family = AF_INET6;
+    nlreq.ifa.ifa_prefixlen = 128;
+    nlreq.ifa.ifa_flags = IFA_F_NODAD | IFA_F_PERMANENT;
+    nlreq.ifa.ifa_scope = RT_SCOPE_LINK;
+    nlreq.ifa.ifa_index = iface;
+    nlreq.addrs[0].rta.rta_len = sizeof(nlreq.addrs[0]);
+    nlreq.addrs[0].rta.rta_type = IFA_LOCAL;
+    IN6_LLADDR_FROM_EUI64(nlreq.addrs[0].addr, our_eui64);
+    nlreq.addrs[1].rta.rta_len = sizeof(nlreq.addrs[1]);
+    nlreq.addrs[1].rta.rta_type = IFA_ADDRESS;
+    IN6_LLADDR_FROM_EUI64(nlreq.addrs[1].addr, his_eui64);
 
-    nlmsg = (struct nlmsghdr *)buf;
-    nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(*ifa) + RTA_LENGTH(sizeof(*local_addr)) + RTA_LENGTH(sizeof(*remote_addr)));
-    nlmsg->nlmsg_type = RTM_NEWADDR;
-    nlmsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_REPLACE;
-    nlmsg->nlmsg_seq = 1;
-    nlmsg->nlmsg_pid = 0;
-
-    ifa = NLMSG_DATA(nlmsg);
-    ifa->ifa_family = AF_INET6;
-    ifa->ifa_prefixlen = 128;
-    ifa->ifa_flags = 0;
-    ifa->ifa_scope = RT_SCOPE_UNIVERSE;
-    ifa->ifa_index = iface;
-
-    local_rta = IFA_RTA(ifa);
-    local_rta->rta_len = RTA_LENGTH(sizeof(*local_addr));
-    local_rta->rta_type = IFA_LOCAL;
-    memcpy(RTA_DATA(local_rta), local_addr, sizeof(*local_addr));
-
-    remote_rta = (struct rtattr *)((char *)local_rta + local_rta->rta_len);
-    remote_rta->rta_len = RTA_LENGTH(sizeof(*remote_addr));
-    remote_rta->rta_type = IFA_ADDRESS;
-    memcpy(RTA_DATA(remote_rta), remote_addr, sizeof(*remote_addr));
-
-    memset(&sa, 0, sizeof(sa));
-    sa.nl_family = AF_NETLINK;
-    sa.nl_pid = 0;
-    sa.nl_groups = 0;
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
 
     memset(&iov, 0, sizeof(iov));
-    iov.iov_base = nlmsg;
-    iov.iov_len = nlmsg->nlmsg_len;
+    iov.iov_base = &nlreq;
+    iov.iov_len = sizeof(nlreq);
 
     memset(&msg, 0, sizeof(msg));
-    msg.msg_name = &sa;
-    msg.msg_namelen = sizeof(sa);
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
 
     if (sendmsg(fd, &msg, 0) < 0) {
+        error("sif6addr_rtnetlink: sendmsg(RTM_NEWADDR/NLM_F_CREATE): %m (line %d)", __LINE__);
         close(fd);
         return 0;
     }
 
     memset(&iov, 0, sizeof(iov));
-    iov.iov_base = buf;
-    iov.iov_len = sizeof(buf);
+    iov.iov_base = &nlresp;
+    iov.iov_len = sizeof(nlresp);
 
     memset(&msg, 0, sizeof(msg));
-    msg.msg_name = NULL;
-    msg.msg_namelen = 0;
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
 
-    nlmsg_len = recvmsg(fd, &msg, 0);
+    nlresplen = recvmsg(fd, &msg, 0);
+
+    if (nlresplen < 0) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
+        close(fd);
+        return 0;
+    }
+
     close(fd);
 
-    if (nlmsg_len < 0)
-        return 0;
-
-    if ((size_t)nlmsg_len < sizeof(*nlmsg)) {
-        errno = EINVAL;
+    if (nladdr.nl_family != AF_NETLINK) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not a netlink packet (line %d)", __LINE__);
         return 0;
     }
 
-    nlmsg = (struct nlmsghdr *)buf;
+    if ((size_t)nlresplen != sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Acknowledgment netlink packet too short (line %d)", __LINE__);
+        return 0;
+    }
 
     /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
-    if (nlmsg->nlmsg_type != NLMSG_ERROR) {
-        errno = EINVAL;
+    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
+        error("sif6addr_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment netlink packet (line %d)", __LINE__);
         return 0;
     }
 
-    if ((size_t)nlmsg_len < NLMSG_LENGTH(sizeof(*errmsg))) {
-        errno = EINVAL;
+    /* error == 0 indicates success, negative value is errno code */
+    if (nlresp.nlerr.error != 0) {
+        /*
+         * Linux kernel versions prior 3.11 do not support setting IPv6 peer
+         * addresses and error response is expected. On older kernel versions
+         * do not show this error message. On error pppd tries to fallback to
+         * the old IOCTL method.
+         */
+        if (kernel_version >= KVERSION(3,11,0))
+            error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
         return 0;
     }
 
-    errmsg = NLMSG_DATA(nlmsg);
-
-    /* error == 0 indicates success */
-    if (errmsg->error == 0)
-        return 1;
-
-    errno = -errmsg->error;
-    return 0;
+    return 1;
 }
 
 /********************************************************************
@@ -2962,7 +3023,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct in6_ifreq ifr6;
     struct ifreq ifr;
     struct in6_rtmsg rt6;
-    struct in6_addr remote_addr;
+    int ret;
 
     if (sock6_fd < 0) {
 	errno = -sock6_fd;
@@ -2976,27 +3037,34 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 	return 0;
     }
 
-    /* Local interface */
-    memset(&ifr6, 0, sizeof(ifr6));
-    IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
-    ifr6.ifr6_ifindex = ifr.ifr_ifindex;
-    ifr6.ifr6_prefixlen = 128;
-
-    if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
-	error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
-	return 0;
+    if (kernel_version >= KVERSION(2,1,16)) {
+        /* Set both local address and remote peer address (with route for it) via rtnetlink */
+        ret = sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
+    } else {
+        ret = 0;
     }
 
-    if (kernel_version >= KVERSION(2,1,16)) {
-        /* Set remote peer address (and route for it) */
-        IN6_LLADDR_FROM_EUI64(remote_addr, his_eui64);
-        if (!append_peer_ipv6_address(ifr.ifr_ifindex, &ifr6.ifr6_addr, &remote_addr)) {
-            error("sif6addr: setting remote peer address failed: %m");
+    /*
+     * Linux kernel versions prior 3.11 do not support setting IPv6 peer address
+     * via rtnetlink. So if sif6addr_rtnetlink() fails then try old IOCTL method.
+     */
+    if (!ret) {
+        /* Local interface */
+        memset(&ifr6, 0, sizeof(ifr6));
+        IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
+        ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+        ifr6.ifr6_prefixlen = 128;
+
+        if (ioctl(sock6_fd, SIOCSIFADDR, &ifr6) < 0) {
+            error("sif6addr: ioctl(SIOCSIFADDR): %m (line %d)", __LINE__);
             return 0;
         }
-    }
 
-    if (kernel_version < KVERSION(2,1,16)) {
+        /*
+         * Linux kernel does not provide AF_INET6 ioctl SIOCSIFDSTADDR for
+         * setting remote peer host address, so set only route to remote host.
+         */
+
         /* Route to remote host */
         memset(&rt6, 0, sizeof(rt6));
         IN6_LLADDR_FROM_EUI64(rt6.rtmsg_dst, his_eui64);
@@ -3062,7 +3130,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 int
 get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 {
-    int i, mfd, sfd = -1;
+    int i, mfd, ret, sfd = -1;
     char pty_name[16];
     struct termios tios;
 
@@ -3100,8 +3168,14 @@ get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
 		pty_name[5] = 't';
 		sfd = open(pty_name, O_RDWR | O_NOCTTY, 0);
 		if (sfd >= 0) {
-		    fchown(sfd, uid, -1);
-		    fchmod(sfd, S_IRUSR | S_IWUSR);
+		    ret = fchown(sfd, uid, -1);
+		    if (ret != 0) {
+			warn("Couldn't change ownership of %s, %m", pty_name);
+		    }
+		    ret = fchmod(sfd, S_IRUSR | S_IWUSR);
+		    if (ret != 0) {
+			warn("Couldn't change permissions of %s, %m", pty_name);
+		    }
 		    break;
 		}
 		close(mfd);

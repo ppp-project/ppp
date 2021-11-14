@@ -29,6 +29,7 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include "pppdconf.h"
 
 #ifndef PPPCRYPT_H
 #define	PPPCRYPT_H
@@ -38,7 +39,7 @@
 #endif
 
 #ifndef USE_CRYPT
-#include <des.h>
+#include <openssl/des.h>
 #endif
 
 extern bool	DesSetkey(u_char *);

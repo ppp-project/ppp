@@ -60,7 +60,7 @@ to connect to their ISP who is providing PPPoE based services.
 
 5.  Add the necessary authentication options to your pppd
     configuration (i.e. PAP/CHAP information).  If you wish to
-    maintain seperate configurations for different devices you may
+    maintain separate configurations for different devices you may
     place configuration options in device-specific configuration
     files: /etc/ppp/options.devname (devname=ttyS0, ttyS1, eth0, eth1
     or any other valid device name).

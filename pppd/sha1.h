@@ -1,12 +1,17 @@
 /* sha1.h */
 
-/* If OpenSSL is in use, then use that version of SHA-1 */
-#ifdef OPENSSL
-#include <t_sha.h>
-#define __SHA1_INCLUDE_
-#endif
+#include "pppdconf.h"
 
 #ifndef __SHA1_INCLUDE_
+#define __SHA1_INCLUDE_
+
+#ifndef USE_SHA
+#include <openssl/sha.h>
+
+#define SHA1_CTX SHA_CTX
+#define SHA1_SIGNATURE_SIZE SHA_DIGEST_LENGTH
+
+#else
 
 #ifndef SHA1_SIGNATURE_SIZE
 #ifdef SHA_DIGESTSIZE
@@ -26,6 +31,5 @@ extern void SHA1_Init(SHA1_CTX *);
 extern void SHA1_Update(SHA1_CTX *, const unsigned char *, unsigned int);
 extern void SHA1_Final(unsigned char[SHA1_SIGNATURE_SIZE], SHA1_CTX *);
 
-#define __SHA1_INCLUDE_
+#endif /* USE_SHA */
 #endif /* __SHA1_INCLUDE_ */
-

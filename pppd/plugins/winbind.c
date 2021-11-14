@@ -34,14 +34,16 @@
 *
 ***********************************************************************/
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "pppd.h"
 #include "chap-new.h"
 #include "chap_ms.h"
-#ifdef MPPE
-#include "md5.h"
-#endif
 #include "fsm.h"
 #include "ipcp.h"
+#include "mppe.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -165,7 +167,7 @@ plugin_init(void)
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-size_t strhex_to_str(char *p, size_t len, const char *strhex)
+size_t strhex_to_str(unsigned char *p, size_t len, const char *strhex)
 {
 	size_t i;
 	size_t num_chars = 0;
@@ -297,15 +299,20 @@ unsigned int run_ntlm_auth(const char *username,
 	if (forkret == 0) {
 		/* child process */
 		uid_t uid;
+		gid_t gid;
 
 		close(child_out[0]);
 		close(child_in[1]);
 
 		/* run winbind as the user that invoked pppd */
-		setgid(getgid());
+		gid = getgid();
+		if (setgid(gid) == -1 || getgid() != gid) {
+			fatal("pppd/winbind: could not setgid to %d: %m", gid);
+		}
 		uid = getuid();
-		if (setuid(uid) == -1 || getuid() != uid)
+		if (setuid(uid) == -1 || getuid() != uid) {
 			fatal("pppd/winbind: could not setuid to %d: %m", uid);
+		}
 		execl("/bin/sh", "sh", "-c", ntlm_auth, NULL);  
 		fatal("pppd/winbind: could not exec /bin/sh: %m");
 	}
@@ -520,7 +527,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	char *domain;
 	char *username;
 	char *p;
-	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
+	unsigned char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
 
 	/* The first byte of each of these strings contains their length */
 	challenge_len = *challenge++;
@@ -583,7 +590,9 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				  nt_response, nt_response_size,
 				  session_key,
 				  &error_string) == AUTHENTICATED) {
-			mppe_set_keys(challenge, session_key);
+#ifdef MPPE
+			mppe_set_chapv1(challenge, session_key);
+#endif
 			slprintf(message, message_space, "Access granted");
 			return AUTHENTICATED;
 			
@@ -628,8 +637,10 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				&response[MS_CHAP2_NTRESP],
 				&response[MS_CHAP2_PEER_CHALLENGE],
 				challenge, user, saresponse);
-			mppe_set_keys2(session_key, &response[MS_CHAP2_NTRESP],
+#ifdef MPPE
+			mppe_set_chapv2(session_key, &response[MS_CHAP2_NTRESP],
 				       MS_CHAP2_AUTHENTICATOR);
+#endif
 			if (response[MS_CHAP2_FLAGS]) {
 				slprintf(message, message_space, "S=%s", saresponse);
 			} else {

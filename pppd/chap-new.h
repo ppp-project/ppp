@@ -28,6 +28,8 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "pppdconf.h"
+
 /*
  * CHAP packets begin with a standard header with code, id, len (2 bytes).
  */

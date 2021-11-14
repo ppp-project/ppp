@@ -30,6 +30,10 @@
 
 #define RCSID	"$Id: chap-new.c,v 1.9 2007/06/19 02:08:35 carlsonj Exp $"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include "pppd.h"
@@ -171,11 +175,11 @@ chap_register_digest(struct chap_digest_type *dp)
  */
 struct chap_digest_type *
 chap_find_digest(int digest_code) {
-    struct chap_digest_type *dp = NULL;
+	struct chap_digest_type *dp = NULL;
 	for (dp = chap_digests; dp != NULL; dp = dp->next)
 		if (dp->code == digest_code)
 			break;
-    return dp;
+	return dp;
 }
 
 /*
@@ -222,9 +226,8 @@ chap_auth_peer(int unit, char *our_name, int digest_code)
 		error("CHAP: peer authentication already started!");
 		return;
 	}
-	for (dp = chap_digests; dp != NULL; dp = dp->next)
-		if (dp->code == digest_code)
-			break;
+
+	dp = chap_find_digest(digest_code);
 	if (dp == NULL)
 		fatal("CHAP digest 0x%x requested but not available",
 		      digest_code);

@@ -26,11 +26,16 @@
 static char const RCSID[] =
 "$Id: radius.c,v 1.32 2008/05/26 09:18:08 paulus Exp $";
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "pppd.h"
 #include "chap-new.h"
 #ifdef CHAPMS
 #include "chap_ms.h"
 #ifdef MPPE
+#include "mppe.h"
 #include "md5.h"
 #endif
 #endif
@@ -107,7 +112,6 @@ static int radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info);
 #endif
 
 struct radius_state {
-    int accounting_started;
     int initialized;
     int client_port;
     int choose_ip;
@@ -202,7 +206,7 @@ add_avp(char **argv)
 *  1 -- we are ALWAYS willing to supply a secret. :-)
 * %DESCRIPTION:
 * Tells pppd that we will try to authenticate the peer, and not to
-* worry about looking in /etc/ppp/*-secrets
+* worry about looking in *-secrets file(s)
 ***********************************************************************/
 static int
 radius_secret_check(void)
@@ -593,11 +597,11 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		break;
            case PW_FILTER_ID:
                /* packet filter, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FILTER_ID", vp->strvalue, 1);
+               script_setenv("RADIUS_FILTER_ID", (char*) vp->strvalue, 1);
                break;
            case PW_FRAMED_ROUTE:
                /* route, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FRAMED_ROUTE", vp->strvalue, 1);
+               script_setenv("RADIUS_FRAMED_ROUTE", (char*) vp->strvalue, 1);
                break;
            case PW_IDLE_TIMEOUT:
                /* idle parameter */
@@ -661,12 +665,12 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 #ifdef CHAPMS
 	    switch (vp->attribute) {
 	    case PW_MS_CHAP2_SUCCESS:
-		if ((vp->lvalue != 43) || strncmp(vp->strvalue + 1, "S=", 2)) {
+		if ((vp->lvalue != 43) || strncmp((char*) vp->strvalue + 1, "S=", 2)) {
 		    slprintf(msg,BUF_LEN,"RADIUS: bad MS-CHAP2-Success packet");
 		    return -1;
 		}
 		if (message != NULL)
-		    strlcpy(message, vp->strvalue + 1, message_space);
+		    strlcpy(message, (char*) vp->strvalue + 1, message_space);
 		ms_chap2_success = 1;
 		break;
 
@@ -743,11 +747,12 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
      * Note that if the policy value was '0' we don't set the key!
      */
     if (mppe_enc_policy && mppe_enc_keys) {
-	mppe_keys_set = 1;
 	/* Set/modify allowed encryption types. */
 	if (mppe_enc_types)
-	    set_mppe_enc_types(mppe_enc_policy, mppe_enc_types);
+	    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
+	return 0;
     }
+    mppe_clear_keys();
 #endif
 
     return 0;
@@ -803,7 +808,7 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
      * the NAS (us) doesn't need; we only need the start key.  So we have
      * to generate the start key, sigh.  NB: We do not support the LM-Key.
      */
-    mppe_set_keys(challenge, &plain[8]);
+    mppe_set_chapv1(challenge, &plain[8]);
 
     return 0;    
 }
@@ -855,7 +860,7 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
     for (i = 0; i < 16; i++)
 	plain[i] ^= buf[i];
 
-    if (plain[0] != sizeof(mppe_send_key) /* 16 */) {
+    if (plain[0] != 16) {
 	error("RADIUS: Incorrect key length (%d) for MS-MPPE-%s-Key attribute",
 	      (int) plain[0], type);
 	return -1;
@@ -869,9 +874,9 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
     plain[16] ^= buf[0]; /* only need the first byte */
 
     if (vp->attribute == PW_MS_MPPE_SEND_KEY)
-	memcpy(mppe_send_key, plain + 1, 16);
+	mppe_set_keys(plain + 1, NULL, 16);
     else
-	memcpy(mppe_recv_key, plain + 1, 16);
+	mppe_set_keys(NULL, plain + 1, 16);
 
     return 0;
 }
@@ -955,12 +960,11 @@ radius_acct_start(void)
 	/* RADIUS server could be down so make this a warning */
 	syslog(LOG_WARNING,
 		"Accounting START failed for %s", rstate.user);
-    } else {
-	rstate.accounting_started = 1;
-	/* Kick off periodic accounting reports */
-	if (rstate.acct_interim_interval) {
-	    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
-	}
+    }
+
+    /* Kick off periodic accounting reports */
+    if (rstate.acct_interim_interval) {
+	TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
     }
 }
 
@@ -986,14 +990,9 @@ radius_acct_stop(void)
 	return;
     }
 
-    if (!rstate.accounting_started) {
-	return;
-    }
-
     if (rstate.acct_interim_interval)
 	UNTIMEOUT(radius_acct_interim, NULL);
 
-    rstate.accounting_started = 0;
     rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
 		   0, VENDOR_NONE);
 
@@ -1135,10 +1134,6 @@ radius_acct_interim(void *ignored)
     int result;
 
     if (!rstate.initialized) {
-	return;
-    }
-
-    if (!rstate.accounting_started) {
 	return;
     }
 

@@ -29,6 +29,7 @@
  *
  * $Id: ccp.h,v 1.12 2004/11/04 10:02:26 paulus Exp $
  */
+#include "pppdconf.h"
 
 typedef struct ccp_options {
     bool bsd_compress;		/* do BSD Compress? */

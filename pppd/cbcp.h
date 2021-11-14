@@ -1,6 +1,8 @@
 #ifndef CBCP_H
 #define CBCP_H
 
+#include "pppdconf.h"
+
 typedef struct cbcp_state {
     int    us_unit;	/* Interface unit number */
     u_char us_id;		/* Current id */

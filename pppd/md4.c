@@ -30,6 +30,9 @@
 /* Implementation notes:
 ** This implementation assumes that ints are 32-bit quantities.
 */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #define TRUE  1
 #define FALSE 0

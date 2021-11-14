@@ -3,5 +3,57 @@
 *.o
 *.so
 *.a
+*.pc
 *.cat8
+*.lo
+*.la
+*.swp
+.deps
+.libs
+
+
+# http://www.gnu.org/software/autoconf
+autom4te.cache
+/autoscan.log
+/autoscan-*.log
+/aclocal.m4
+/compile
+/config.cache
+/config.guess
+/config.log
+/config.status
+/config.sub
+/configure
+/configure.scan
+/depcomp
+/install-sh
+/test-driver
+/missing
+/INSTALL
+/pppd/stamp-h1
+/pppd/stamp-h2
+/pppd/config.h
+/pppd/config.h.in
+/pppd/pppdconf.h
+
+# https://www.gnu.org/software/libtool/
+/libtool
+/ltmain.sh
+
+# http://www.gnu.org/software/m4/
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+
+# Generated Makefile
 Makefile
+Makefile.in
+
+# Test related stuff
+utest_*
+test-suite.log
+
+# Distfiles
+/ppp-*.tar.gz

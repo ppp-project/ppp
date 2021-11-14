@@ -20,6 +20,8 @@
  * $Id: eap.h,v 1.2 2003/06/11 23:56:26 paulus Exp $
  */
 
+#include "pppdconf.h"
+
 #ifndef PPP_EAP_H
 #define	PPP_EAP_H
 
@@ -167,6 +169,9 @@ typedef struct eap_state {
 	int es_unit;			/* Interface unit number */
 	struct eap_auth es_client;	/* Client (authenticatee) data */
 	struct eap_auth es_server;	/* Server (authenticator) data */
+#ifdef USE_PEAP
+	struct peap_state *ea_peap;	/* Client PEAP (authenticator) data */
+#endif
 	int es_savedtime;		/* Saved timeout */
 	int es_rechallenge;		/* EAP rechallenge interval */
 	int es_lwrechallenge;		/* SRP lightweight rechallenge inter */

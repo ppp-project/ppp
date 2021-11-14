@@ -42,6 +42,8 @@
  * $Id: pppd.h,v 1.96 2008/06/23 11:47:18 paulus Exp $
  */
 
+#include "pppdconf.h"
+
 /*
  * TODO:
  */
@@ -58,6 +60,7 @@
 #include <sys/types.h>		/* for u_int32_t, if defined */
 #include <sys/time.h>		/* for struct timeval */
 #include <net/ppp_defs.h>
+#include <net/if.h>
 #include "patchlevel.h"
 
 #ifdef INET6
@@ -73,8 +76,6 @@
 #define MAXARGS		1	/* max # args to a command */
 #define MAXNAMELEN	256	/* max length of hostname or name for auth */
 #define MAXSECRETLEN	256	/* max length of password or secret */
-#define MAXIFNAMELEN	32	/* max length of interface name; or use IFNAMSIZ, can we
-				   always include net/if.h? */
 
 /*
  * If PPP_DRV_NAME is not defined, use the default "ppp" as the device name.
@@ -327,7 +328,7 @@ extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
 extern char	path_ipup[MAXPATHLEN]; /* pathname of ip-up script */
 extern char	path_ipdown[MAXPATHLEN]; /* pathname of ip-down script */
-extern char	req_ifname[MAXIFNAMELEN]; /* interface name to use */
+extern char	req_ifname[IFNAMSIZ]; /* interface name to use */
 extern bool	multilink;	/* enable multilink operation */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */
@@ -340,10 +341,25 @@ extern char	path_ipv6up[MAXPATHLEN]; /* pathname of ipv6-up script */
 extern char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 #endif
 
-#ifdef USE_EAPTLS
-extern char	*crl_dir;
-extern char	*crl_file;
+#if defined(USE_EAPTLS) || defined(USE_PEAP)
+
+#define TLS_VERIFY_NONE     "none"
+#define TLS_VERIFY_NAME     "name"
+#define TLS_VERIFY_SUBJECT  "subject"
+#define TLS_VERIFY_SUFFIX   "suffix"
+
+extern char *crl_dir;
+extern char *crl_file;
+extern char *ca_path;
+extern char *cacert_file;
+
 extern char *max_tls_version;
+extern bool tls_verify_key_usage;
+extern char *tls_verify_method;
+#endif /* USE_EAPTLS || USE_PEAP */
+
+#ifdef USE_EAPTLS
+extern char *pkcs12_file;
 #endif /* USE_EAPTLS */
 
 #ifdef MAXOCTETS
