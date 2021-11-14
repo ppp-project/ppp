@@ -335,6 +335,11 @@ extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
+#ifdef INET6
+extern char	path_ipv6up[MAXPATHLEN]; /* pathname of ipv6-up script */
+extern char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
+#endif
+
 #ifdef USE_EAPTLS
 extern char	*crl_dir;
 extern char	*crl_file;
