@@ -1322,7 +1322,7 @@ ipv6cp_up(fsm *f)
      */
     if (ipv6cp_script_state == s_down && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_up;
-	ipv6cp_script(_PATH_IPV6UP);
+	ipv6cp_script(path_ipv6up);
     }
 }
 
@@ -1373,7 +1373,7 @@ ipv6cp_down(fsm *f)
     /* Execute the ipv6-down script */
     if (ipv6cp_script_state == s_up && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_down;
-	ipv6cp_script(_PATH_IPV6DOWN);
+	ipv6cp_script(path_ipv6down);
     }
 }
 
@@ -1411,13 +1411,13 @@ ipv6cp_script_done(void *arg)
     case s_up:
 	if (ipv6cp_fsm[0].state != OPENED) {
 	    ipv6cp_script_state = s_down;
-	    ipv6cp_script(_PATH_IPV6DOWN);
+	    ipv6cp_script(path_ipv6down);
 	}
 	break;
     case s_down:
 	if (ipv6cp_fsm[0].state == OPENED) {
 	    ipv6cp_script_state = s_up;
-	    ipv6cp_script(_PATH_IPV6UP);
+	    ipv6cp_script(path_ipv6up);
 	}
 	break;
     }
