@@ -164,6 +164,42 @@ sendPADT(PPPoEConnection *conn, char const *msg)
     info("Sent PADT");
 }
 
+static void
+pppoe_printpkt_hex(void (*printer)(void *, char *, ...), void *arg, unsigned char const *buf, int len)
+{
+    int i;
+    int base;
+
+    /* do NOT dump PAP packets */
+    if (len >= 2 && buf[0] == 0xC0 && buf[1] == 0x23) {
+	printer(arg, "(PAP Authentication Frame -- Contents not dumped)\n");
+	return;
+    }
+
+    for (base=0; base<len; base += 16) {
+	for (i=base; i<base+16; i++) {
+	    if (i < len) {
+		printer(arg, "%02x ", (unsigned) buf[i]);
+	    } else {
+		printer(arg, "   ");
+	    }
+	}
+	printer(arg, "  ");
+	for (i=base; i<base+16; i++) {
+	    if (i < len) {
+		if (isprint(buf[i])) {
+		    printer(arg, "%c", buf[i]);
+		} else {
+		    printer(arg, ".");
+		}
+	    } else {
+		break;
+	    }
+	}
+	printer(arg, "\n");
+    }
+}
+
 #define EH(x)	(x)[0], (x)[1], (x)[2], (x)[3], (x)[4], (x)[5]
 
 /* Print out a PPPOE packet for debugging */
@@ -171,7 +207,7 @@ void pppoe_printpkt(PPPoEPacket *packet,
 		    void (*printer)(void *, char *, ...), void *arg)
 {
     int len = ntohs(packet->length);
-    int i, tag, tlen, text;
+    int i, j, tag, tlen, text;
 
     switch (ntohs(packet->ethHdr.h_proto)) {
     case ETH_PPPOE_DISCOVERY:
@@ -211,6 +247,8 @@ void pppoe_printpkt(PPPoEPacket *packet,
 
     printer(arg, " dst %02x:%02x:%02x:%02x:%02x:%02x ", EH(packet->ethHdr.h_dest));
     printer(arg, " src %02x:%02x:%02x:%02x:%02x:%02x\n", EH(packet->ethHdr.h_source));
+    if (pppoe_verbose >= 2)
+	pppoe_printpkt_hex(printer, arg, packet->payload, ntohs(packet->length));
     if (ntohs(packet->ethHdr.h_proto) != ETH_PPPOE_DISCOVERY)
 	return;
 
@@ -266,12 +304,13 @@ void pppoe_printpkt(PPPoEPacket *packet,
 	}
 	if (tlen) {
 	    if (text)
-		printer(arg, " %.*v", tlen, &packet->payload[i]);
-	    else if (tlen <= 32)
-		printer(arg, " %.*B", tlen, &packet->payload[i]);
-	    else
-		printer(arg, " %.32B... (length %d)",
-			&packet->payload[i], tlen);
+		printer(arg, " %.*s", tlen, &packet->payload[i]);
+	    else {
+		for (j = 0; j < tlen && j < 32; j++)
+		    printer(arg, " %02x", (unsigned) *(&packet->payload[i]+j));
+		if (j < tlen)
+		    printer(arg, "... (length %d)", tlen);
+	    }
 	}
 	printer(arg, "]");
     }

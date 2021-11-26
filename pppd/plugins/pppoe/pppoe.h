@@ -231,18 +231,17 @@ typedef struct PPPoEConnectionStruct {
     char *acName;		/* Desired AC name, if any */
     int synchronous;		/* Use synchronous PPP */
     PPPoETag hostUniq;		/* Use Host-Uniq tag */
-    int printACNames;		/* Just print AC names */
-    FILE *debugFile;		/* Debug file for dumping packets */
     int numPADOs;		/* Number of PADO packets received */
     PPPoETag cookie;		/* We have to send this if we get it */
     PPPoETag relayId;		/* Ditto */
     int error;			/* Error packet received */
-    int debug;			/* Set to log packets sent and received */
     int discoveryTimeout;       /* Timeout for discovery packets */
     int discoveryAttempts;      /* Number of discovery attempts */
     int seenMaxPayload;
-    int mtu;			/* Stored MTU */
-    int mru;			/* Stored MRU */
+    int storedmtu;		/* Stored MTU */
+    int storedmru;		/* Stored MRU */
+    int mtu;
+    int mru;
 } PPPoEConnection;
 
 /* Structure used to determine acceptable PADO or PADS packet */
@@ -259,9 +258,6 @@ UINT16_t etherType(PPPoEPacket *packet);
 int openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr);
 int sendPacket(PPPoEConnection *conn, int sock, PPPoEPacket *pkt, int size);
 int receivePacket(int sock, PPPoEPacket *pkt, int *size);
-void fatalSys(char const *str);
-void dumpPacket(FILE *fp, PPPoEPacket *packet, char const *dir);
-void dumpHex(FILE *fp, unsigned char const *buf, int len);
 int parsePacket(PPPoEPacket *packet, ParseFunc *func, void *extra);
 void parseLogErrs(UINT16_t typ, UINT16_t len, unsigned char *data, void *xtra);
 void syncReadFromPPP(PPPoEConnection *conn, PPPoEPacket *packet);
@@ -276,10 +272,12 @@ void initPPP(void);
 void clampMSS(PPPoEPacket *packet, char const *dir, int clampMss);
 UINT16_t computeTCPChecksum(unsigned char *ipHdr, unsigned char *tcpHdr);
 UINT16_t pppFCS16(UINT16_t fcs, unsigned char *cp, int len);
-void discovery(PPPoEConnection *conn);
+void discovery1(PPPoEConnection *conn);
+void discovery2(PPPoEConnection *conn);
 unsigned char *findTag(PPPoEPacket *packet, UINT16_t tagType,
 		       PPPoETag *tag);
 
+extern int pppoe_verbose;
 void pppoe_printpkt(PPPoEPacket *packet,
 		    void (*printer)(void *, char *, ...), void *arg);
 void pppoe_log_packet(const char *prefix, PPPoEPacket *packet);

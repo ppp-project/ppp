@@ -11,4 +11,4 @@ pppoe_la_LDFLAGS = -module -avoid-version
 pppoe_la_SOURCES = plugin.c discovery.c if.c common.c
 
 pppoe_discovery_CPPFLAGS = -I${top_srcdir} -I${top_srcdir}/include
-pppoe_discovery_SOURCES = pppoe-discovery.c debug.c
+pppoe_discovery_SOURCES = pppoe-discovery.c discovery.c if.c common.c
