@@ -83,6 +83,7 @@
 #include <sys/sysmacros.h>
 
 #include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
@@ -127,9 +128,19 @@
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
 
-#ifdef INET6
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <linux/if_link.h>
+/* Attempt at retaining compile-support with older than 4.7 kernels, or kernels
+ * where RTM_NEWSTATS isn't defined for whatever reason.
+ */
+#ifndef RTM_NEWSTATS
+#define RTM_NEWSTATS 92
+#define RTM_GETSTATS 94
+#define IFLA_STATS_LINK_64 1
+#endif
+
+#ifdef INET6
 #include <linux/if_addr.h>
 /* glibc versions prior to 2.24 do not define SOL_NETLINK */
 #ifndef SOL_NETLINK
@@ -1485,10 +1496,137 @@ get_ppp_stats_ioctl(int u, struct pppd_stats *stats)
     previbytes = stats->bytes_in;
     prevobytes = stats->bytes_out;
 
-    stats->bytes_in += (u_int64_t)iwraps << 32;
-    stats->bytes_out += (u_int64_t)owraps << 32;
+    stats->bytes_in += (uint64_t)iwraps << 32;
+    stats->bytes_out += (uint64_t)owraps << 32;
 
     return 1;
+}
+
+/********************************************************************
+ * get_ppp_stats_rtnetlink - return statistics for the link, using rtnetlink
+ * This provides native 64-bit counters.
+ */
+static int
+get_ppp_stats_rtnetlink(int u, struct pppd_stats *stats)
+{
+    static int rtnl_fd = -1;
+
+    struct sockaddr_nl nladdr;
+    struct {
+        struct nlmsghdr nlh;
+        struct if_stats_msg ifsm;
+    } nlreq;
+    struct nlresp {
+        struct nlmsghdr nlh;
+	union {
+	    struct {
+		struct nlmsgerr nlerr;
+		char __end_err[0];
+	    };
+	    struct {
+		struct rtmsg rth;
+		struct  {
+		    /* We only case about these first fields from rtnl_link_stats64 */
+		    uint64_t rx_packets;
+		    uint64_t tx_packets;
+		    uint64_t rx_bytes;
+		    uint64_t tx_bytes;
+		} stats;
+		char __end_stats[0];
+	    };
+	};
+    } nlresp;
+    ssize_t nlresplen;
+    struct iovec iov;
+    struct msghdr msg;
+
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
+
+    if (rtnl_fd < 0) {
+	rtnl_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	if (rtnl_fd < 0) {
+	    error("get_ppp_stats_rtnetlink: error creating NETLINK socket: %m (line %d)", __LINE__);
+	    return 0;
+	}
+
+	if (bind(rtnl_fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
+	    error("get_ppp_stats_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
+	    goto err;
+	}
+    }
+
+    memset(&nlreq, 0, sizeof(nlreq));
+    nlreq.nlh.nlmsg_len = sizeof(nlreq);
+    nlreq.nlh.nlmsg_type = RTM_GETSTATS;
+    nlreq.nlh.nlmsg_flags = NLM_F_REQUEST;
+
+    nlreq.ifsm.ifindex = if_nametoindex(ifname);
+    nlreq.ifsm.filter_mask = IFLA_STATS_LINK_64;
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = &nlreq;
+    iov.iov_len = sizeof(nlreq);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    if (sendmsg(rtnl_fd, &msg, 0) < 0) {
+        error("get_ppp_stats_rtnetlink: sendmsg(RTM_GETSTATS): %m (line %d)", __LINE__);
+	goto err;
+    }
+
+    /* We just need to repoint to IOV ... everything else stays the same */
+    iov.iov_base = &nlresp;
+    iov.iov_len = sizeof(nlresp);
+
+    nlresplen = recvmsg(rtnl_fd, &msg, 0);
+
+    if (nlresplen < 0) {
+        error("get_ppp_stats_rtnetlink: recvmsg(RTM_GETSTATS): %m (line %d)", __LINE__);
+	goto err;
+    }
+
+    if (nlresplen < sizeof(nlresp.nlh)) {
+	error("get_ppp_stats_rtnetlink: Netlink response message was incomplete (line %d)", __LINE__);
+	goto err;
+    }
+
+    if (nlresp.nlh.nlmsg_type == NLMSG_ERROR) {
+	if (nlresplen < offsetof(struct nlresp, __end_err)) {
+	    if (kernel_version >= KVERSION(4,7,0))
+		error("get_ppp_stats_rtnetlink: Netlink responded with error: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
+	} else {
+	    error("get_ppp_stats_rtnetlink: Netlink responded with an error message, but the nlmsgerr structure is incomplete (line %d).",
+		    __LINE__);
+	}
+	goto err;
+    }
+
+    if (nlresp.nlh.nlmsg_type != RTM_NEWSTATS) {
+	error("get_ppp_stats_rtnetlink: Expected RTM_NEWSTATS response, found something else (mlmsg_type %d, line %d)",
+		nlresp.nlh.nlmsg_type, __LINE__);
+	goto err;
+    }
+
+    if (nlresplen < offsetof(struct nlresp, __end_stats)) {
+	error("get_ppp_stats_rtnetlink: Obtained an insufficiently sized rtnl_link_stats64 struct from the kernel (line %d).", __LINE__);
+	goto err;
+    }
+
+    stats->bytes_in  = nlresp.stats.rx_bytes;
+    stats->bytes_out = nlresp.stats.tx_bytes;
+    stats->pkts_in   = nlresp.stats.rx_packets;
+    stats->pkts_out  = nlresp.stats.tx_packets;
+
+    return 1;
+err:
+    close(rtnl_fd);
+    rtnl_fd = -1;
+    return 0;
 }
 
 /********************************************************************
@@ -1544,17 +1682,19 @@ get_ppp_stats_sysfs(int u, struct pppd_stats *stats)
 	    rlen--;
 	buf[rlen] = 0;
 
+	errno = 0;
 	val = strtoull(buf, &err, 10);
-	if (err && *err) {
-	    error("string to number conversion error converting %s (from %s) for remaining string %s", buf, fname, err);
+	if (*buf < '0' || *buf > '9' || errno != 0 || *err) {
+	    error("string to number conversion error converting %s (from %s) for remaining string %s%s%s",
+		    buf, fname, err, errno ? ": " : "", errno ? strerror(errno) : "");
 	    return 0;
 	}
 	switch (slist[i].size) {
 #define stattype(type)	case sizeof(type): *(type*)slist[i].ptr = (type)val; break
-	    stattype(u_int64_t);
-	    stattype(u_int32_t);
-	    stattype(u_int16_t);
-	    stattype(u_int8_t);
+	    stattype(uint64_t);
+	    stattype(uint32_t);
+	    stattype(uint16_t);
+	    stattype(uint8_t);
 #undef stattype
 	default:
 	    error("Don't know how to store stats for %s of size %u", slist[i].fname, slist[i].size);
@@ -1584,11 +1724,15 @@ ppp_stats_poller(void* u)
 /********************************************************************
  * get_ppp_stats - return statistics for the link.
  */
-int get_ppp_stats(int u, struct pppd_stats *stats)\
+int get_ppp_stats(int u, struct pppd_stats *stats)
 {
     static int (*func)(int, struct pppd_stats*) = NULL;
 
     if (!func) {
+	if (get_ppp_stats_rtnetlink(u, stats)) {
+	    func = get_ppp_stats_rtnetlink;
+	    return 1;
+	}
 	if (get_ppp_stats_sysfs(u, stats)) {
 	    func = get_ppp_stats_sysfs;
 	    return 1;

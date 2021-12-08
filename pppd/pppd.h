@@ -55,6 +55,7 @@
 #include <stdlib.h>		/* for encrypt */
 #include <unistd.h>		/* for setkey */
 #include <stdarg.h>
+#include <stdint.h>
 #include <limits.h>		/* for NGROUPS_MAX */
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
@@ -174,8 +175,8 @@ struct permitted_ip {
  * pppd needs.
  */
 struct pppd_stats {
-    u_int64_t		bytes_in;
-    u_int64_t		bytes_out;
+    uint64_t		bytes_in;
+    uint64_t		bytes_out;
     unsigned int	pkts_in;
     unsigned int	pkts_out;
 };
@@ -366,7 +367,7 @@ extern char *pkcs12_file;
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
 extern int       maxoctets_dir;      /* Direction :
 				      0 - in+out (default)
-				      1 - in 
+				      1 - in
 				      2 - out
 				      3 - max(in,out) */
 extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
@@ -375,7 +376,7 @@ extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
 #define PPP_OCTETS_DIRECTION_OUT        2
 #define PPP_OCTETS_DIRECTION_MAXOVERAL  3
 /* same as previos, but little different on RADIUS side */
-#define PPP_OCTETS_DIRECTION_MAXSESSION 4	
+#define PPP_OCTETS_DIRECTION_MAXSESSION 4
 #endif
 
 #ifdef PPP_FILTER
