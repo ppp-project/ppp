@@ -28,6 +28,7 @@ static char const RCSID[] =
 #include <errno.h>
 #include <stdlib.h>
 #include <syslog.h>	/* for LOG_DEBUG */
+#include <ctype.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -303,6 +304,15 @@ void pppoe_printpkt(PPPoEPacket *packet,
 	    printer(arg, "unknown tag 0x%x", tag);
 	}
 	if (tlen) {
+	    /* If it is supposed to be text, make sure it's all printing chars */
+	    if (text) {
+		for (j = 0; j < tlen; ++j) {
+		    if (!isprint(packet->payload[i+j])) {
+			text = 0;
+			break;
+		    }
+		}
+	    }
 	    if (text)
 		printer(arg, " %.*s", tlen, &packet->payload[i]);
 	    else {
