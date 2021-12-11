@@ -3,12 +3,12 @@ on: [push, pull_request]
 
 jobs:
   solaris:
-    runs-on: macos-latest
+    runs-on: macos-10.15
     steps:
     - name: Checkout PPP sources
       uses: actions/checkout@v2
     - name: Build
-      uses: vmactions/solaris-vm@v0.0.1
+      uses: vmactions/solaris-vm@v0.0.4
       with:
         run: |
           pkg update
