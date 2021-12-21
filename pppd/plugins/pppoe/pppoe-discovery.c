@@ -251,9 +251,10 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* default interface name */
-    if (!conn->ifName)
-	conn->ifName = xstrdup("eth0");
+    if (!conn->ifName) {
+	fprintf(stderr, "Interface was not specified\n");
+	exit(EXIT_FAILURE);
+    }
 
     conn->sessionSocket = -1;
 
@@ -276,7 +277,7 @@ usage(void)
 {
     fprintf(stderr, "Usage: pppoe-discovery [options]\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -I if_name     -- Specify interface (default eth0)\n");
+    fprintf(stderr, "   -I if_name     -- Specify interface (mandatory option)\n");
     fprintf(stderr, "   -D filename    -- Log debugging information in filename.\n");
     fprintf(stderr,
 	    "   -t timeout     -- Initial timeout for discovery packets in seconds\n"
