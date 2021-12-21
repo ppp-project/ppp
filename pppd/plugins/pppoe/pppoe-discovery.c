@@ -251,6 +251,12 @@ int main(int argc, char *argv[])
 	}
     }
 
+    if (optind != argc) {
+	fprintf(stderr, "%s: extra argument '%s'\n", argv[0], argv[optind]);
+	usage();
+	exit(EXIT_FAILURE);
+    }
+
     if (!conn->ifName) {
 	fprintf(stderr, "Interface was not specified\n");
 	exit(EXIT_FAILURE);
