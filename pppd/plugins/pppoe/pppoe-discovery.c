@@ -24,32 +24,6 @@
 
 #include "pppoe.h"
 
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-
-#ifdef HAVE_NETPACKET_PACKET_H
-#include <netpacket/packet.h>
-#elif defined(HAVE_LINUX_IF_PACKET_H)
-#include <linux/if_packet.h>
-#endif
-
-#ifdef HAVE_ASM_TYPES_H
-#include <asm/types.h>
-#endif
-
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef HAVE_NET_IF_ARP_H
-#include <net/if_arp.h>
-#endif
-
 int debug;
 int got_sigterm;
 int pppoe_verbose;
