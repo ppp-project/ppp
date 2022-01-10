@@ -24,32 +24,6 @@
 
 #include "pppoe.h"
 
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-
-#ifdef HAVE_NETPACKET_PACKET_H
-#include <netpacket/packet.h>
-#elif defined(HAVE_LINUX_IF_PACKET_H)
-#include <linux/if_packet.h>
-#endif
-
-#ifdef HAVE_ASM_TYPES_H
-#include <asm/types.h>
-#endif
-
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef HAVE_NET_IF_ARP_H
-#include <net/if_arp.h>
-#endif
-
 int debug;
 int got_sigterm;
 int pppoe_verbose;
@@ -251,9 +225,16 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* default interface name */
-    if (!conn->ifName)
-	conn->ifName = xstrdup("eth0");
+    if (optind != argc) {
+	fprintf(stderr, "%s: extra argument '%s'\n", argv[0], argv[optind]);
+	usage();
+	exit(EXIT_FAILURE);
+    }
+
+    if (!conn->ifName) {
+	fprintf(stderr, "Interface was not specified\n");
+	exit(EXIT_FAILURE);
+    }
 
     conn->sessionSocket = -1;
 
@@ -276,7 +257,7 @@ usage(void)
 {
     fprintf(stderr, "Usage: pppoe-discovery [options]\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -I if_name     -- Specify interface (default eth0)\n");
+    fprintf(stderr, "   -I if_name     -- Specify interface (mandatory option)\n");
     fprintf(stderr, "   -D filename    -- Log debugging information in filename.\n");
     fprintf(stderr,
 	    "   -t timeout     -- Initial timeout for discovery packets in seconds\n"
