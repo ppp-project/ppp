@@ -153,6 +153,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/param.h>
@@ -179,6 +180,7 @@ int no_ifaceid_neg = 0;
 /* local vars */
 static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
+static bool ipv6cp_noremote;
 
 /* Hook for a plugin to know when IPv6 protocol has come up */
 void (*ipv6_up_hook)(void) = NULL;
@@ -258,10 +260,18 @@ static option_t ipv6cp_option_list[] = {
       &ipv6cp_wantoptions[0].default_route },
 
     { "ipv6cp-use-ipaddr", o_bool, &ipv6cp_allowoptions[0].use_ip,
-      "Use (default) IPv4 address as interface identifier", 1 },
-
+      "Use (default) IPv4 addresses for both local and remote interface identifiers", 1 },
     { "ipv6cp-use-persistent", o_bool, &ipv6cp_wantoptions[0].use_persistent,
-      "Use uniquely-available persistent value for link local address", 1 },
+      "Use uniquely-available persistent value for local interface identifier", 1 },
+    { "ipv6cp-use-remotenumber", o_bool, &ipv6cp_wantoptions[0].use_remotenumber,
+      "Use remotenumber value for remote interface identifier", 1 },
+
+#ifdef __linux__
+    { "ipv6cp-noremote", o_bool, &ipv6cp_noremote,
+      "Allow peer to have no interface identifier", 1 },
+#endif
+    { "ipv6cp-nosend", o_bool, &ipv6cp_wantoptions[0].neg_ifaceid,
+      "Don't send local interface identifier to peer", OPT_A2CLR },
 
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
       "Set timeout for IPv6CP", OPT_PRIO },
@@ -678,6 +688,7 @@ bad:
 static int
 ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 {
+    ipv6cp_options *wo = &ipv6cp_wantoptions[f->unit];
     ipv6cp_options *go = &ipv6cp_gotoptions[f->unit];
     u_char citype, cilen, *next;
     u_short cishort;
@@ -726,7 +737,7 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 		     try.neg_ifaceid = 0;
 		 } else if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
 		     try.ourid = ifaceid;
-		 } else if (eui64_iszero(ifaceid) && !go->opt_local) {
+		 } else if (eui64_iszero(ifaceid) && !go->opt_local && wo->neg_ifaceid) {
 		     while (eui64_iszero(ifaceid) || 
 			    eui64_equals(ifaceid, go->hisid)) /* bad luck */
 			 eui64_magic(ifaceid);
@@ -780,7 +791,7 @@ ipv6cp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 	    eui64_get(ifaceid, p);
 	    if (go->accept_local && !eui64_iszero(ifaceid) && !eui64_equals(ifaceid, go->hisid)) {
 		try.ourid = ifaceid;
-	    } else if (eui64_iszero(ifaceid) && !go->opt_local) {
+	    } else if (eui64_iszero(ifaceid) && !go->opt_local && wo->neg_ifaceid) {
 		while (eui64_iszero(ifaceid) || 
 		       eui64_equals(ifaceid, go->hisid)) /* bad luck */
 		    eui64_magic(ifaceid);
@@ -1074,6 +1085,23 @@ endswitch:
 
 
 /*
+ * eui48_to_eui64 - Convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
+ */
+static void
+eui48_to_eui64(eui64_t *p_eui64, const u_char addr[6])
+{
+    p_eui64->e8[0] = addr[0] | 0x02;
+    p_eui64->e8[1] = addr[1];
+    p_eui64->e8[2] = addr[2];
+    p_eui64->e8[3] = 0xFF;
+    p_eui64->e8[4] = 0xFE;
+    p_eui64->e8[5] = addr[3];
+    p_eui64->e8[6] = addr[4];
+    p_eui64->e8[7] = addr[5];
+}
+
+
+/*
  * ether_to_eui64 - Convert 48-bit Ethernet address into 64-bit EUI
  *
  * walks the list of valid ethernet interfaces, starting with devnam
@@ -1092,18 +1120,7 @@ ether_to_eui64(eui64_t *p_eui64)
         return 0;
     }
 
-    /*
-     * And convert the EUI-48 into EUI-64, per RFC 2472 [sec 4.1]
-     */
-    p_eui64->e8[0] = addr[0] | 0x02;
-    p_eui64->e8[1] = addr[1];
-    p_eui64->e8[2] = addr[2];
-    p_eui64->e8[3] = 0xFF;
-    p_eui64->e8[4] = 0xFE;
-    p_eui64->e8[5] = addr[3];
-    p_eui64->e8[6] = addr[4];
-    p_eui64->e8[7] = addr[5];
-
+    eui48_to_eui64(p_eui64, addr);
     return 1;
 }
 
@@ -1140,6 +1157,46 @@ ipv6_check_options(void)
 	}
     }
 
+    if (!wo->opt_remote && wo->use_remotenumber && *remote_number) {
+	/* remote number can be either MAC address, IPv4 address, IPv6 address or telephone number */
+	struct in_addr addr;
+	struct in6_addr addr6;
+	unsigned long long tel;
+	unsigned char mac[6];
+	const char *str;
+	char *endptr;
+	if (sscanf(remote_number, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		   &mac[0], &mac[1], &mac[2],
+		   &mac[3], &mac[4], &mac[5]) == 6) {
+	    eui48_to_eui64(&wo->hisid, mac);
+	} else if (inet_pton(AF_INET, remote_number, &addr) == 1) {
+	    eui64_setlo32(wo->hisid, ntohl(addr.s_addr));
+	} else if (inet_pton(AF_INET6, remote_number, &addr6) == 1) {
+	    /* use low 64 bits of IPv6 address for interface identifier */
+	    wo->hisid.e8[0] = addr6.s6_addr[8];
+	    wo->hisid.e8[1] = addr6.s6_addr[9];
+	    wo->hisid.e8[2] = addr6.s6_addr[10];
+	    wo->hisid.e8[3] = addr6.s6_addr[11];
+	    wo->hisid.e8[4] = addr6.s6_addr[12];
+	    wo->hisid.e8[5] = addr6.s6_addr[13];
+	    wo->hisid.e8[6] = addr6.s6_addr[14];
+	    wo->hisid.e8[7] = addr6.s6_addr[15];
+	} else {
+	    str = remote_number;
+	    /* telephone number may start with leading '+' sign, so skip it */
+	    if (str[0] == '+')
+		str++;
+	    errno = 0;
+	    tel = strtoull(str, &endptr, 10);
+	    if (!errno && *str && !*endptr && tel) {
+		wo->hisid.e32[0] = htonl(tel >> 32);
+		wo->hisid.e32[1] = htonl(tel & 0xFFFFFFFF);
+	    }
+	}
+	if (!eui64_iszero(wo->hisid))
+	    wo->opt_remote = 1;
+    }
+
     if (!wo->opt_local) {	/* init interface identifier */
 	if (wo->use_ip && eui64_iszero(wo->ourid)) {
 	    eui64_setlo32(wo->ourid, ntohl(ipcp_wantoptions[0].ouraddr));
@@ -1170,7 +1227,7 @@ ipv6_demand_conf(int u)
 {
     ipv6cp_options *wo = &ipv6cp_wantoptions[u];
 
-    if (eui64_iszero(wo->hisid)) {
+    if (eui64_iszero(wo->hisid) && !ipv6cp_noremote) {
 	/* make up an arbitrary identifier for the peer */
 	eui64_magic_nz(wo->hisid);
     }
@@ -1194,7 +1251,8 @@ ipv6_demand_conf(int u)
 	    default_route_set[u] = 1;
 
     notice("local  LL address %s", llv6_ntoa(wo->ourid));
-    notice("remote LL address %s", llv6_ntoa(wo->hisid));
+    if (!eui64_iszero(wo->hisid))
+       notice("remote LL address %s", llv6_ntoa(wo->hisid));
 
     return 1;
 }
@@ -1227,7 +1285,7 @@ ipv6cp_up(fsm *f)
 	ho->hisid = wo->hisid;
 
     if(!no_ifaceid_neg) {
-	if (eui64_iszero(ho->hisid)) {
+	if (eui64_iszero(ho->hisid) && !ipv6cp_noremote) {
 	    error("Could not determine remote LL address");
 	    ipv6cp_close(f->unit, "Could not determine remote LL address");
 	    return;
@@ -1244,7 +1302,8 @@ ipv6cp_up(fsm *f)
 	}
     }
     script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
-    script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
+    if (!eui64_iszero(ho->hisid))
+        script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
 
 #ifdef IPV6CP_COMP
     /* set tcp compression */
@@ -1306,7 +1365,8 @@ ipv6cp_up(fsm *f)
 		default_route_set[f->unit] = 1;
 
 	notice("local  LL address %s", llv6_ntoa(go->ourid));
-	notice("remote LL address %s", llv6_ntoa(ho->hisid));
+	if (!eui64_iszero(ho->hisid))
+	    notice("remote LL address %s", llv6_ntoa(ho->hisid));
     }
 
     np_up(f->unit, PPP_IPV6);

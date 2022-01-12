@@ -212,11 +212,14 @@ Set the local and/or remote 64-bit interface identifier. Either one may be
 omitted. The identifier must be specified in standard ASCII notation of
 IPv6 addresses (e.g. ::dead:beef). If the
 \fIipv6cp\-use\-ipaddr\fR
-option is given, the local identifier is the local IPv4 address (see above).
+option is given, the local identifier is the local IPv4 address and the
+remote identifier is the remote IPv4 address (see above).
+If the \fIipv6cp-use-remotenumber\fR option is given, the remote identifier
+is set to the value from \fIremotenumber\fR option.
 On systems which supports a unique persistent id, such as EUI\-48 derived
 from the Ethernet MAC address, \fIipv6cp\-use\-persistent\fR option can be
-used to replace the \fIipv6 <local>,<remote>\fR option. Otherwise the 
-identifier is randomized.
+used to set local identifier.  Otherwise both local and remote identifiers
+are randomized.
 .TP
 .B active\-filter \fIfilter\-expression
 Specifies a packet filter to be applied to data packets to determine
@@ -535,6 +538,23 @@ was specified in an option.
 With this option, pppd will accept the peer's idea of its (remote)
 IPv6 interface identifier, even if the remote IPv6 interface
 identifier was specified in an option.
+.TP
+.B ipv6cp\-noremote
+Allow pppd to operate without having an IPv6 link local address for the peer.
+This option is only available under Linux.  Normally, pppd will request the
+peer's IPv6 interface identifier (used for composing IPv6 link local address),
+and if the peer does not supply it, pppd will generate one for the peer.
+With this option, if the peer does not supply its IPv6 interface identifier,
+pppd will not ask the peer for it, and will not set the destination IPv6
+link local address of the ppp interface.  In this situation, the ppp interface
+can be used for routing by creating device routes, but the peer itself cannot
+be addressed directly for IPv6 traffic until the peer starts announcing ICMPv6
+Router Advertisement or ICMPv6 Neighbor Advertisement packets.  Note that IPv6
+router must announce ICMPv6 Router Advertisement packets.
+.TP
+.B ipv6cp\-nosendip
+Don't send our local IPv6 interface identifier to peer during IPv6 interface
+identifier negotiation.
 .TP
 .B ipv6cp\-max\-configure \fIn
 Set the maximum number of IPv6CP configure-request transmissions to
