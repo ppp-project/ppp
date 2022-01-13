@@ -727,10 +727,6 @@ int  have_route_to(u_int32_t); /* Check if route to addr exists */
 int  set_filters(struct bpf_program *pass, struct bpf_program *active);
 				/* Set filter programs in kernel */
 #endif
-#ifdef IPX_CHANGE
-int  sipxfaddr(int, unsigned long, unsigned char *);
-int  cipxfaddr(int);
-#endif
 int  get_if_hwaddr(u_char *addr, char *name);
 int  get_first_ether_hwaddr(u_char *addr);
 int get_time(struct timeval *);
@@ -951,12 +947,6 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define CHAPDEBUG(x)	if (debug) dbglog x
 #else
 #define CHAPDEBUG(x)
-#endif
-
-#ifdef DEBUGIPXCP
-#define IPXCPDEBUG(x)	if (debug) dbglog x
-#else
-#define IPXCPDEBUG(x)
 #endif
 
 #ifndef SIGTYPE

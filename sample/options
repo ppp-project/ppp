@@ -153,7 +153,4 @@ lcp-echo-failure 4
 # Specifies that pppd should disconnect if the link is idle for n seconds.
 idle 600
 
-# Disable the IPXCP and IPX protocols.
-noipx
-
 # ---<End of File>---

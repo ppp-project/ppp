@@ -12,9 +12,6 @@
 /* "Have multilink support" */
 #undef HAVE_MULTILINK
 
-/* "Have IPX Control Protocol" */
-#undef IPX_CHANGE
-
 /* "Have packet activity filter support" */
 #undef PPP_FILTER
 
