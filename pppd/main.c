@@ -91,6 +91,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <inttypes.h>
 
 #include "pppd.h"
 #include "magic.h"
@@ -1240,9 +1241,9 @@ update_link_stats(int u)
 
     slprintf(numbuf, sizeof(numbuf), "%u", link_connect_time);
     script_setenv("CONNECT_TIME", numbuf, 0);
-    slprintf(numbuf, sizeof(numbuf), "%u", link_stats.bytes_out);
+    snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_out);
     script_setenv("BYTES_SENT", numbuf, 0);
-    slprintf(numbuf, sizeof(numbuf), "%u", link_stats.bytes_in);
+    snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_in);
     script_setenv("BYTES_RCVD", numbuf, 0);
 }
 

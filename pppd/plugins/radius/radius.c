@@ -1019,11 +1019,21 @@ radius_acct_stop(void)
 	av_type = link_connect_time;
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out;
+	av_type = link_stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_in;
+	if (link_stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = link_stats.bytes_out >> 32;
+	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
+	}
+
+	av_type = link_stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
+
+	if (link_stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = link_stats.bytes_in >> 32;
+	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
+	}
 
 	av_type = link_stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
@@ -1167,11 +1177,21 @@ radius_acct_interim(void *ignored)
 	av_type = link_connect_time;
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out;
+	av_type = link_stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_in;
+	if (link_stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = link_stats.bytes_out >> 32;
+	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
+	}
+
+	av_type = link_stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
+
+	if (link_stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = link_stats.bytes_in >> 32;
+	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
+	}
 
 	av_type = link_stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
