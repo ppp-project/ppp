@@ -2182,6 +2182,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		    eap_send_nak(esp, id, EAPT_SRP);
 		    break;
 		}
+		esp->es_client.ea_namelen = strlen(esp->es_client.ea_name);
 
 		/* Create the MSCHAPv2 response (and add to cache) */
 		unsigned char response[MS_CHAP2_RESPONSE_LEN+1]; // VLEN + VALUE
