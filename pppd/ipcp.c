@@ -2162,7 +2162,7 @@ create_resolv(u_int32_t peerdns1, u_int32_t peerdns2)
     if (peerdns1)
 	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns1));
 
-    if (peerdns2)
+    if (peerdns2 && peerdns2 != peerdns1)
 	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns2));
 
     if (ferror(f))
