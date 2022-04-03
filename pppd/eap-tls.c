@@ -61,7 +61,7 @@
 #include "mppe.h"
 #include "pathnames.h"
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 #define SSL3_RT_HEADER  0x100
 #endif
 
