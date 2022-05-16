@@ -292,6 +292,9 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
+    strlcpy(path_lcpup, _PATH_LCPUP, sizeof(path_lcpup));
+    strlcpy(path_lcpdown, _PATH_LCPDOWN, sizeof(path_lcpdown));
+
     strlcpy(path_ipup, _PATH_IPUP, sizeof(path_ipup));
     strlcpy(path_ipdown, _PATH_IPDOWN, sizeof(path_ipdown));
 

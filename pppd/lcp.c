@@ -1839,6 +1839,25 @@ endswitch:
     return (rc);			/* Return final code */
 }
 
+/*
+ * lcp_script - execute a script with arguments.
+ */
+static void
+lcp_script(char *script)
+{
+    char strspeed[32];
+    char *argv[6];
+
+    slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
+
+    argv[0] = script;
+    argv[1] = ifname;
+    argv[2] = devnam;
+    argv[3] = strspeed;
+    argv[4] = ipparam;
+    argv[5] = NULL;
+    run_program(script, argv, 0, NULL, NULL, 1);
+}
 
 /*
  * lcp_up - LCP has come UP.
@@ -1885,6 +1904,8 @@ lcp_up(fsm *f)
     lcp_echo_lowerup(f->unit);  /* Enable echo messages */
 
     link_established(f->unit);
+
+    lcp_script(path_lcpup);
 }
 
 
@@ -1907,6 +1928,8 @@ lcp_down(fsm *f)
 		    (go->neg_asyncmap? go->asyncmap: 0xffffffff),
 		    go->neg_pcompression, go->neg_accompression);
     peer_mru[f->unit] = PPP_MRU;
+
+    lcp_script(path_lcpdown);
 }
 
 

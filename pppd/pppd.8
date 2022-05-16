@@ -1831,6 +1831,15 @@ A program or script which is executed when the link goes down, if
 /etc/ppp/auth\-up was previously executed.  It is executed in the same
 manner with the same parameters as /etc/ppp/auth\-up.
 .TP
+.B /etc/ppp/lcp\-up
+Executed once LCP has established, but before any other protocols (IPIP, IPV6CP
+etc) is initiated.  By this time authentication has completed and the interface
+exist.
+.TP
+.B /etc/ppp/lcp\-down
+Executed when LCP termination is initiated.  Other protocols should alread be
+down.
+.TP
 .B /etc/ppp/ip\-pre\-up
 A program or script which is executed just before the ppp network
 interface is brought up.  It is executed with the same parameters as

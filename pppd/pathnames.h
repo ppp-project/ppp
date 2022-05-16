@@ -46,6 +46,8 @@
 #endif /* USE_EAPTLS */
 
 #define _PATH_SYSOPTIONS _ROOT_PATH "/etc/ppp/options"
+#define _PATH_LCPUP	 _ROOT_PATH "/etc/ppp/lcp-up"
+#define _PATH_LCPDOWN	 _ROOT_PATH "/etc/ppp/lcp-down"
 #define _PATH_IPUP	 _ROOT_PATH "/etc/ppp/ip-up"
 #define _PATH_IPDOWN	 _ROOT_PATH "/etc/ppp/ip-down"
 #define _PATH_IPPREUP	 _ROOT_PATH "/etc/ppp/ip-pre-up"
