@@ -60,6 +60,7 @@
 #define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
 
 #ifdef INET6
+#define _PATH_IPV6PREUP	 _ROOT_PATH "/etc/ppp/ipv6-pre-up"
 #define _PATH_IPV6UP     _ROOT_PATH "/etc/ppp/ipv6-up"
 #define _PATH_IPV6DOWN   _ROOT_PATH "/etc/ppp/ipv6-down"
 #endif

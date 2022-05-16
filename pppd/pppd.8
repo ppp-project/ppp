@@ -1839,6 +1839,11 @@ IP addresses assigned but is still down.  This can be used to
 add firewall rules before any IP traffic can pass through the
 interface.  Pppd will wait for this script to finish before bringing
 the interface up, so this script should run quickly.
+
+It has to be noted that if IPv6 is also in use, it's possible that IPv6CP will
+complete prior to IPCP and will result in the interface already being UP when
+this script is executed.  Only one of ip\-pre\-up and ipv6\-pre\-up will be
+executed with the interface still down.
 .TP
 .B /etc/ppp/ip\-up
 A program or script which is executed when the link is available for
@@ -1855,6 +1860,20 @@ used for undoing the effects of the /etc/ppp/ip\-up and
 /etc/ppp/ip\-pre\-up scripts.  It is
 invoked in the same manner and with the same parameters as the ip\-up
 script.
+.TP
+.B /etc/ppp/ipv6\-pre\-up
+A program or script which is executed just before the ppp network
+interface is brought up for IPv6.  It is executed with the same parameters as
+the ipv6\-up script (below).  At this point the interface exists and has
+IP addresses assigned but is still down.  This can be used to
+add firewall rules before any IP traffic can pass through the
+interface.  Pppd will wait for this script to finish before bringing
+the interface up, so this script should run quickly.
+
+It has to be noted that if IPv4 is also in use, it's possible that IPCP will
+complete prior to IPv6CP and will result in the interface already being UP when
+this script is executed.  Only one of ip\-pre\-up and ipv6\-pre\-up will be
+executed with the interface still down.
 .TP
 .B /etc/ppp/ipv6\-up
 Like /etc/ppp/ip\-up, except that it is executed when the link is available 

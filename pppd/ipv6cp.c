@@ -323,7 +323,7 @@ struct protent ipv6cp_protent = {
 };
 
 static void ipv6cp_clear_addrs (int, eui64_t, eui64_t);
-static void ipv6cp_script (char *);
+static void ipv6cp_script (char *, int wait);
 static void ipv6cp_script_done (void *);
 
 /*
@@ -1236,6 +1236,8 @@ ipv6_demand_conf(int u)
 	eui64_magic_nz(wo->ourid);
     }
 
+    ipv6cp_script(_PATH_IPV6PREUP, 1);
+
     if (!sif6up(u))
 	return 0;
     if (!sif6addr(u, wo->ourid, wo->hisid))
@@ -1343,6 +1345,9 @@ ipv6cp_up(fsm *f)
 	sifnpmode(f->unit, PPP_IPV6, NPMODE_PASS);
 
     } else {
+	/* run the pre-up script, if any, and wait for it to finish */
+	ipv6cp_script(_PATH_IPV6PREUP, 1);
+
 	/* bring the interface up for IPv6 */
 	if (!sif6up(f->unit)) {
 	    if (debug)
@@ -1382,7 +1387,7 @@ ipv6cp_up(fsm *f)
      */
     if (ipv6cp_script_state == s_down && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_up;
-	ipv6cp_script(path_ipv6up);
+	ipv6cp_script(path_ipv6up, 0);
     }
 }
 
@@ -1433,7 +1438,7 @@ ipv6cp_down(fsm *f)
     /* Execute the ipv6-down script */
     if (ipv6cp_script_state == s_up && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_down;
-	ipv6cp_script(path_ipv6down);
+	ipv6cp_script(path_ipv6down, 0);
     }
 }
 
@@ -1471,13 +1476,13 @@ ipv6cp_script_done(void *arg)
     case s_up:
 	if (ipv6cp_fsm[0].state != OPENED) {
 	    ipv6cp_script_state = s_down;
-	    ipv6cp_script(path_ipv6down);
+	    ipv6cp_script(path_ipv6down, 0);
 	}
 	break;
     case s_down:
 	if (ipv6cp_fsm[0].state == OPENED) {
 	    ipv6cp_script_state = s_up;
-	    ipv6cp_script(path_ipv6up);
+	    ipv6cp_script(path_ipv6up, 0);
 	}
 	break;
     }
@@ -1489,7 +1494,7 @@ ipv6cp_script_done(void *arg)
  * interface-name tty-name speed local-LL remote-LL.
  */
 static void
-ipv6cp_script(char *script)
+ipv6cp_script(char *script, int wait)
 {
     char strspeed[32], strlocal[32], strremote[32];
     char *argv[8];
@@ -1507,8 +1512,11 @@ ipv6cp_script(char *script)
     argv[6] = ipparam;
     argv[7] = NULL;
 
-    ipv6cp_script_pid = run_program(script, argv, 0, ipv6cp_script_done,
-				    NULL, 0);
+    if (wait)
+	run_program(script, argv, 0, NULL, NULL, 1);
+    else
+	ipv6cp_script_pid = run_program(script, argv, 0, ipv6cp_script_done,
+		NULL, 0);
 }
 
 /*
