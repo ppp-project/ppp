@@ -524,7 +524,8 @@ Set the IPCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
 .B ipparam \fIstring
-Provides an extra parameter to the ip\-up, ip\-pre\-up and ip\-down
+Provides an extra parameter most of the notification scripts, most notably
+ip\-up, ip\-pre\-up, ip\-down, ipv6\-up, ipv6\-down, auth\-up and auth\-down
 scripts.  If this
 option is given, the \fIstring\fR supplied is given as the 6th
 parameter to those scripts.
@@ -1821,7 +1822,7 @@ if they don't exist.
 A program or script which is executed after the remote system
 successfully authenticates itself.  It is executed with the parameters
 .IP
-\fIinterface\-name peer\-name user\-name tty\-device speed\fR
+\fIinterface\-name peer\-name user\-name tty\-device speed ipparam\fR
 .IP
 Note that this script is not executed if the peer doesn't authenticate
 itself, for example when the \fInoauth\fR option is used.
