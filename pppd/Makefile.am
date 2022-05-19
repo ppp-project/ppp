@@ -149,6 +149,7 @@ libppp_crypt_la_SOURCES=
 
 if !WITH_OPENSSL
 libppp_crypt_la_SOURCES += md4.c md5.c sha1.c
+libppp_crypt_la_CPPFLAGS = -I${top_srcdir}/include
 else
 libppp_crypt_la_CPPFLAGS=$(OPENSSL_INCLUDES)
 libppp_crypt_la_LDFLAGS=$(OPENSSL_LDFLAGS)
