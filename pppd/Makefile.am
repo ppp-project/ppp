@@ -10,8 +10,10 @@ utest_peap_SOURCES = peap.c utils.c mppe.c
 utest_peap_CPPFLAGS = -DUNIT_TEST -I${top_srcdir}/include
 utest_peap_LDFLAGS =
 
+EXTRA_PROGRAMS =
+
 if WITH_SRP
-sbin_PROGRAMS += srp-entry
+EXTRA_PROGRAMS += srp-entry
 dist_man8_MANS += srp-entry.8
 endif
 
