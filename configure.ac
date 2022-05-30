@@ -267,7 +267,8 @@ AS_IF([test "${ac_cv_openssl_des}" = "no" ], [
 
 #
 # With libsrp support
-AX_CHECK_SRP
+AX_CHECK_SRP([
+    AC_DEFINE([PPP_WITH_SRP], 1, [Support for libsrp authentication module])])
 
 #
 # With libatm support

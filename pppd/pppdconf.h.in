@@ -37,7 +37,7 @@
 #undef PPP_WITH_PAM
 
 /* Have EAP-SRP authentication support */
-#undef USE_SRP
+#undef PPP_WITH_SRP
 
 /* Have EAP-TLS authentication support */
 #undef PPP_WITH_EAPTLS
