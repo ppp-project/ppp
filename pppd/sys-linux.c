@@ -126,8 +126,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <linux/ppp_defs.h>
-#include <linux/if_ppp.h>
+#include <linux/ppp-ioctl.h>
+
 
 #ifdef PPP_WITH_IPV6CP
 #include <linux/netlink.h>
@@ -1476,20 +1476,21 @@ get_ppp_stats_ioctl(int u, struct pppd_stats *stats)
     static u_int32_t iwraps = 0;
     static u_int32_t owraps = 0;
 
-    struct ifpppstatsreq req;
+    struct ifreq req;
+    struct ppp_stats data;
 
     memset (&req, 0, sizeof (req));
 
-    req.stats_ptr = (caddr_t) &req.stats;
-    strlcpy(req.ifr__name, ifname, sizeof(req.ifr__name));
+    req.ifr_data = (caddr_t) &data;
+    strlcpy(req.ifr_name, ifname, sizeof(req.ifr_name));
     if (ioctl(sock_fd, SIOCGPPPSTATS, &req) < 0) {
 	error("Couldn't get PPP statistics: %m");
 	return 0;
     }
-    stats->bytes_in = req.stats.p.ppp_ibytes;
-    stats->bytes_out = req.stats.p.ppp_obytes;
-    stats->pkts_in = req.stats.p.ppp_ipackets;
-    stats->pkts_out = req.stats.p.ppp_opackets;
+    stats->bytes_in = data.p.ppp_ibytes;
+    stats->bytes_out = data.p.ppp_obytes;
+    stats->pkts_in = data.p.ppp_ipackets;
+    stats->pkts_out = data.p.ppp_opackets;
 
     if (stats->bytes_in < previbytes)
 	++iwraps;

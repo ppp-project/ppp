@@ -51,6 +51,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "eap.h"
 #include "chap-new.h"
 #include "magic.h"
 

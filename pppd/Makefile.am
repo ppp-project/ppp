@@ -7,7 +7,7 @@ utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
 utest_peap_SOURCES = peap.c utils.c mppe.c
-utest_peap_CPPFLAGS = -DUNIT_TEST -I${top_srcdir}/include
+utest_peap_CPPFLAGS = -DUNIT_TEST
 utest_peap_LDFLAGS =
 
 if WITH_SRP
@@ -68,7 +68,7 @@ pppd_SOURCES = \
     upap.c \
     utils.c
 
-pppd_CPPFLAGS = -I${top_srcdir}/include -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
+pppd_CPPFLAGS = -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
 pppd_LDFLAGS =
 pppd_LIBS =
 

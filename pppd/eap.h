@@ -29,6 +29,12 @@
 extern "C" {
 #endif
 
+
+#ifndef PPP_EAP
+#define PPP_EAP 0xc227
+#endif
+
+
 /*
  * Packet header = Code, id, length.
  */

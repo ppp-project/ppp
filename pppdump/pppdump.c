@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/types.h>
-#include "ppp_defs.h"
+#include <net/ppp_defs.h>
 #include "ppp-comp.h"
 
 int hexmode;
@@ -233,6 +233,7 @@ static u_short fcstab[256] = {
 	0xf78f,	0xe606,	0xd49d,	0xc514,	0xb1ab,	0xa022,	0x92b9,	0x8330,
 	0x7bc7,	0x6a4e,	0x58d5,	0x495c,	0x3de3,	0x2c6a,	0x1ef1,	0x0f78
 };
+#define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
 
 struct pkt {
     int	cnt;

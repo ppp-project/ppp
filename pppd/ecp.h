@@ -32,6 +32,14 @@
  */
 #include "pppdconf.h"
 
+#ifndef PPP_ECP_H
+#define PPP_ECP_H
+
+#ifndef PPP_ECP
+#define PPP_ECP 0x8053
+#endif
+
+
 typedef struct ecp_options {
     bool required;		/* Is ECP required? */
     unsigned enctype;		/* Encryption type */
@@ -44,3 +52,5 @@ extern ecp_options ecp_allowoptions[];
 extern ecp_options ecp_hisoptions[];
 
 extern struct protent ecp_protent;
+
+#endif
