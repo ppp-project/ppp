@@ -1,6 +1,9 @@
 /*
  * define path names
  */
+#ifndef PPP_PATHNAMES_H
+#define PPP_PATHNAMES_H
+
 #include "pppdconf.h"
 
 #ifdef HAVE_PATHS_H
@@ -70,3 +73,4 @@
 #define _PATH_PPPDB	_PPP_VARRUN "pppd2.tdb"
 #endif /* __STDC__ */
 
+#endif /* PPP_PATHNAMES_H */

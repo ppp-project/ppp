@@ -164,6 +164,7 @@
 
 #include "pppd.h"
 #include "fsm.h"
+#include "eui64.h"
 #include "ipcp.h"
 #include "ipv6cp.h"
 #include "magic.h"

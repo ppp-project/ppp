@@ -30,10 +30,10 @@
  *
  * $Id: ecp.h,v 1.2 2003/01/10 07:12:36 fcusack Exp $
  */
-#include "pppdconf.h"
-
 #ifndef PPP_ECP_H
 #define PPP_ECP_H
+
+#include "pppdconf.h"
 
 #ifndef PPP_ECP
 #define PPP_ECP 0x8053

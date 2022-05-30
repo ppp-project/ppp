@@ -29,6 +29,9 @@
  *
  * $Id: ccp.h,v 1.12 2004/11/04 10:02:26 paulus Exp $
  */
+#ifndef PPP_CCP_H
+#define PPP_CCP_H
+
 #include "pppdconf.h"
 
 typedef struct ccp_options {
@@ -51,3 +54,5 @@ extern ccp_options ccp_allowoptions[];
 extern ccp_options ccp_hisoptions[];
 
 extern struct protent ccp_protent;
+
+#endif

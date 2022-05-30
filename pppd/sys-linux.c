@@ -157,6 +157,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
+#include "eui64.h"
 
 #ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>

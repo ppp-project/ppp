@@ -42,14 +42,10 @@
  * $Id: pppd.h,v 1.96 2008/06/23 11:47:18 paulus Exp $
  */
 
+#ifndef PPP_PPPD_H
+#define PPP_PPPD_H
+
 #include "pppdconf.h"
-
-/*
- * TODO:
- */
-
-#ifndef __PPPD_H__
-#define __PPPD_H__
 
 #include <stdio.h>		/* for FILE */
 #include <stdlib.h>		/* for encrypt */
@@ -60,7 +56,36 @@
 #include <net/ppp_defs.h>
 
 #ifdef PPP_WITH_IPV6CP
-#include "eui64.h"
+#if defined(SOL2)
+#include <netinet/in.h>
+
+typedef union {
+    uint8_t	e8[8];		/* lower 64-bit IPv6 address */
+    uint32_t	e32[2];		/* lower 64-bit IPv6 address */
+} eui64_t;
+
+/*
+ * Declare the two below, since in.h only defines them when _KERNEL
+ * is declared - which shouldn't be true when dealing with user-land programs
+ */
+#define	s6_addr8	_S6_un._S6_u8
+#define	s6_addr32	_S6_un._S6_u32
+
+#else /* else if not defined(SOL2) */
+
+/*
+ * TODO:
+ *
+ * Maybe this should be done by processing struct in6_addr directly...
+ */
+typedef union
+{
+    u_int8_t e8[8];
+    u_int16_t e16[4];
+    u_int32_t e32[2];
+} eui64_t;
+
+#endif /* defined(SOL2) */
 #endif
 
 /*
@@ -962,4 +987,4 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define offsetof(type, member) ((size_t) &((type *)0)->member)
 #endif
 
-#endif /* __PPP_H__ */
+#endif /* PPP_PPPD_H */

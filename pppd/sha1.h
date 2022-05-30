@@ -1,9 +1,9 @@
 /* sha1.h */
 
-#include "pppdconf.h"
+#ifndef PPP_SHA1_H
+#define PPP_SHA1_H
 
-#ifndef __SHA1_INCLUDE_
-#define __SHA1_INCLUDE_
+#include "pppdconf.h"
 
 #ifndef USE_SHA
 #include <openssl/sha.h>
@@ -32,4 +32,4 @@ extern void SHA1_Update(SHA1_CTX *, const unsigned char *, unsigned int);
 extern void SHA1_Final(unsigned char[SHA1_SIGNATURE_SIZE], SHA1_CTX *);
 
 #endif /* USE_SHA */
-#endif /* __SHA1_INCLUDE_ */
+#endif /* PPP_SHA1_H */

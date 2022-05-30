@@ -39,6 +39,9 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef PPP_LCP_H
+#define PPP_LCP_H
+
 #include "pppdconf.h"
 
 /*
@@ -132,3 +135,5 @@ extern struct protent lcp_protent;
 /* Default number of times we receive our magic number from the peer
    before deciding the link is looped-back. */
 #define DEFLOOPBACKFAIL	10
+
+#endif

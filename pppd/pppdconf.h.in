@@ -3,6 +3,9 @@
  *   in pppd when configured.
  */
 
+#ifndef PPP_PPPDCONF_H
+#define PPP_PPPDCONF_H
+
 /* Have Microsoft CHAP support */
 #undef PPP_WITH_CHAPMS
 
@@ -59,3 +62,5 @@
 
 /* The pppd version */
 #undef PPPD_VERSION
+
+#endif

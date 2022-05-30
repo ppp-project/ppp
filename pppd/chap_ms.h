@@ -30,9 +30,10 @@
  * $Id: chap_ms.h,v 1.13 2004/11/15 22:13:26 paulus Exp $
  */
 
-#include "pppdconf.h"
+#ifndef PPP_CHAPMS_H
+#define PPP_CHAPMS_H
 
-#ifndef __CHAPMS_INCLUDE__
+#include "pppdconf.h"
 
 #define MD4_SIGNATURE_SIZE	16	/* 16 bytes in a MD4 message digest */
 #define MAX_NT_PASSWORD		256	/* Max (Unicode) chars in an NT pass */
@@ -87,5 +88,4 @@ void GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
 void chapms_init(void);
 
-#define __CHAPMS_INCLUDE__
-#endif /* __CHAPMS_INCLUDE__ */
+#endif /* PPP_CHAPMS_H */

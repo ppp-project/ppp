@@ -1,7 +1,7 @@
-#include "pppdconf.h"
+#ifndef PPP_TDB_H
+#define PPP_TDB_H
 
-#ifndef __TDB_H__
-#define __TDB_H__
+#include "pppdconf.h"
 
 /* 
    Unix SMB/CIFS implementation.
@@ -163,4 +163,4 @@ extern TDB_DATA tdb_null;
 }
 #endif
 
-#endif /* tdb.h */
+#endif /* PPP_TBD_H */
