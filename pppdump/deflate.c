@@ -41,7 +41,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <net/ppp_defs.h>
 
 #include "ppp-comp.h"
 #include "zlib.h"

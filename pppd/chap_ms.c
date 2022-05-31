@@ -87,6 +87,11 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
+#if defined(SOL2)
+#include <net/ppp-comp.h>
+#else
+#include <linux/ppp-comp.h>
+#endif
 
 #include "pppd.h"
 #include "chap-new.h"
@@ -130,7 +135,6 @@ static char *mschap2_peer_challenge = NULL;
 
 #include "fsm.h"		/* Need to poke MPPE options */
 #include "ccp.h"
-#include <net/ppp-comp.h>
 #endif
 
 /*

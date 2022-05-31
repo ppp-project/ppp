@@ -36,11 +36,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+#if defined(SOL2)
+#include <net/ppp-comp.h>
+#else
+#include <linux/ppp-comp.h>
+#endif
 
 #include "pppd.h"
 #include "fsm.h"
 #include "ccp.h"
-#include <net/ppp-comp.h>
 
 #include "chap_ms.h"
 #include "mppe.h"

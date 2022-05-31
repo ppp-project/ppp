@@ -53,7 +53,11 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <sys/types.h>		/* for u_int32_t, if defined */
+#if defined(SOL2)
 #include <net/ppp_defs.h>
+#else
+#include <linux/ppp_defs.h>
+#endif
 
 #ifdef PPP_WITH_IPV6CP
 #if defined(SOL2)

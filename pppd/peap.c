@@ -56,7 +56,6 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#include <net/ppp_defs.h>
 
 #include "pppd.h"
 #include "eap.h"

@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/types.h>
-#include <net/ppp_defs.h>
+
 #include "ppp-comp.h"
 
 int hexmode;
