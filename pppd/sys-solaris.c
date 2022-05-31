@@ -141,6 +141,10 @@
 #include "ipcp.h"
 #include "ccp.h"
 
+#ifdef PPP_WITH_IPV6CP
+#include "eui64.h"
+#endif
+
 #if !defined(PPP_DRV_NAME)
 #define PPP_DRV_NAME	"ppp"
 #endif /* !defined(PPP_DRV_NAME) */

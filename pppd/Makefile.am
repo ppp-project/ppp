@@ -79,6 +79,7 @@ endif
 
 if SUNOS
 pppd_SOURCES += sys-solaris.c
+pppd_CPPFLAGS += -I${top_srcdir}/include
 pppd_LIBS += -lsocket -lnsl
 endif
 
