@@ -161,6 +161,8 @@ bool devnam_fixed;		/* can no longer change device name */
 static int logfile_fd = -1;	/* fd opened for log file */
 static char logfile_name[MAXPATHLEN];	/* name of log file */
 
+static bool noipx_opt;		/* dummy for noipx option */
+
 /*
  * Prototypes
  */
@@ -381,6 +383,9 @@ option_t general_options[] = {
     { "mo-timeout", o_int, &maxoctets_timeout,
       "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
 #endif
+
+    /* Dummy option, does nothing */
+    { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
 
     { NULL }
 };
