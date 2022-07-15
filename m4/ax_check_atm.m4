@@ -77,7 +77,7 @@ AC_DEFUN([AX_CHECK_ATM], [
                 $1
             ], [
                 AC_MSG_RESULT([no])
-                with_atm=""
+                with_atm="no"
                 $2
             ])
         CPPFLAGS="$save_CPPFLAGS"
@@ -88,6 +88,6 @@ AC_DEFUN([AX_CHECK_ATM], [
         AC_SUBST([ATM_LIBS])
         AC_SUBST([ATM_LDFLAGS])
     fi
-    AM_CONDITIONAL(WITH_LIBATM, test -n "${with_atm}")
+    AM_CONDITIONAL(WITH_LIBATM, test "x${with_atm}" != "xno")
 ])
 

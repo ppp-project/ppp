@@ -76,7 +76,7 @@ AC_DEFUN([AX_CHECK_PCAP], [
                 $1
             ], [
                 AC_MSG_RESULT([no])
-                with_pcap=""
+                with_pcap="no"
                 $2
             ])
         CPPFLAGS="$save_CPPFLAGS"
@@ -88,6 +88,6 @@ AC_DEFUN([AX_CHECK_PCAP], [
         AC_SUBST([PCAP_LDFLAGS])
     fi
 
-    AM_CONDITIONAL(WITH_PCAP, test -n "${with_pcap}")
+    AM_CONDITIONAL(WITH_PCAP, test "x${with_pcap}" != "xno")
 ])
 

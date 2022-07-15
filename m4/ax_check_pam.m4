@@ -77,7 +77,7 @@ AC_DEFUN([AX_CHECK_PAM], [
                 $1
             ], [
                 AC_MSG_RESULT([no])
-                with_pam=""
+                with_pam="no"
                 $2
             ])
         CPPFLAGS="$save_CPPFLAGS"
@@ -88,6 +88,6 @@ AC_DEFUN([AX_CHECK_PAM], [
         AC_SUBST([PAM_LIBS])
         AC_SUBST([PAM_LDFLAGS])
     fi
-    AM_CONDITIONAL(WITH_LIBPAM, test -n "${with_pam}")
+    AM_CONDITIONAL(WITH_LIBPAM, test "x${with_pam}" != "xno")
 ])
 
