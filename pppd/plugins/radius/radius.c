@@ -606,7 +606,6 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
                /* idle parameter */
                idle_time_limit = vp->lvalue;
                break;
-#ifdef PPP_WITH_MAXOCTETS
 	    case PW_SESSION_OCTETS_LIMIT:
 		/* Session traffic limit */
 		maxoctets = vp->lvalue;
@@ -615,7 +614,6 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		/* Session traffic limit direction check */
 		maxoctets_dir = ( vp->lvalue > 4 ) ? 0 : vp->lvalue ;
 		break;
-#endif
 	    case PW_ACCT_INTERIM_INTERVAL:
 		/* Send accounting updates every few seconds */
 		rstate.acct_interim_interval = vp->lvalue;
@@ -1089,11 +1087,9 @@ radius_acct_stop(void)
 	    av_type = PW_ACCT_SESSION_TIMEOUT;
 	    break;
 	    
-#ifdef PPP_WITH_MAXOCTETS
 	case EXIT_TRAFFIC_LIMIT:
 	    av_type = PW_NAS_REQUEST;
 	    break;
-#endif
 
 	default:
 	    av_type = PW_NAS_ERROR;

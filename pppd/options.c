@@ -138,11 +138,9 @@ char	path_ipv6up[MAXPATHLEN];   /* pathname of ipv6-up script */
 char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 #endif
 
-#ifdef PPP_WITH_MAXOCTETS
 unsigned int  maxoctets = 0;    /* default - no limit */
 int maxoctets_dir = 0;       /* default - sum of traffic */
 int maxoctets_timeout = 1;   /* default 1 second */ 
-#endif
 
 
 extern option_t auth_options[];
@@ -184,9 +182,7 @@ static int setpassfilter(char **);
 static int setactivefilter(char **);
 #endif
 
-#ifdef PPP_WITH_MAXOCTETS
 static int setmodir(char **);
-#endif
 
 static int user_setenv(char **);
 static void user_setprint(option_t *, printer_func, void *);
@@ -373,7 +369,6 @@ option_t general_options[] = {
       "set filter for active pkts", OPT_PRIO },
 #endif
 
-#ifdef PPP_WITH_MAXOCTETS
     { "maxoctets", o_int, &maxoctets,
       "Set connection traffic limit",
       OPT_PRIO | OPT_LLIMIT | OPT_NOINCR | OPT_ZEROINF },
@@ -384,7 +379,6 @@ option_t general_options[] = {
       "Set direction for limit traffic (sum,in,out,max)" },
     { "mo-timeout", o_int, &maxoctets_timeout,
       "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
-#endif
 
     /* Dummy option, does nothing */
     { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
@@ -1574,7 +1568,6 @@ setlogfile(char **argv)
     return 1;
 }
 
-#ifdef PPP_WITH_MAXOCTETS
 static int
 setmodir(char **argv)
 {
@@ -1591,7 +1584,6 @@ setmodir(char **argv)
     }
     return 1;
 }
-#endif
 
 #ifdef PPP_WITH_PLUGINS
 static int

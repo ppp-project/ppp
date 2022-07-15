@@ -317,10 +317,7 @@ static int  set_noauth_addr (char **);
 static int  set_permitted_number (char **);
 static void check_access (FILE *, char *);
 static int  wordlist_count (struct wordlist *);
-
-#ifdef PPP_WITH_MAXOCTETS
 static void check_maxoctets (void *);
-#endif
 
 /*
  * Authentication-related options.
@@ -1164,10 +1161,8 @@ np_up(int unit, int proto)
 	if (maxconnect > 0)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
 
-#ifdef PPP_WITH_MAXOCTETS
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
-#endif
 
 	/*
 	 * Detach now, if the updetach option was given.
@@ -1194,9 +1189,7 @@ np_down(int unit, int proto)
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
 	UNTIMEOUT(connect_time_expired, NULL);
-#ifdef PPP_WITH_MAXOCTETS
 	UNTIMEOUT(check_maxoctets, NULL);
-#endif	
 	new_phase(PHASE_NETWORK);
     }
 }
@@ -1213,7 +1206,6 @@ np_finished(int unit, int proto)
     }
 }
 
-#ifdef PPP_WITH_MAXOCTETS
 static void
 check_maxoctets(void *arg)
 {
@@ -1246,7 +1238,6 @@ check_maxoctets(void *arg)
         TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
     }
 }
-#endif
 
 /*
  * check_idle - check whether the link has been idle for long
