@@ -1,7 +1,7 @@
-#include "pppdconf.h"
+#ifndef PPP_SPINLOCK_H
+#define PPP_SPINLOCK_H
 
-#ifndef __SPINLOCK_H__
-#define __SPINLOCK_H__
+#include "pppdconf.h"
 
 #include "tdb.h"
 
@@ -54,4 +54,4 @@ int tdb_clear_spinlocks(TDB_CONTEXT *tdb);
 
 #endif
 
-#endif
+#endif // PPP_SPINLOCK_H

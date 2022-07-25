@@ -7,7 +7,7 @@ utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
 utest_peap_SOURCES = peap.c utils.c mppe.c
-utest_peap_CPPFLAGS = -DUNIT_TEST -I${top_srcdir}/include
+utest_peap_CPPFLAGS = -DUNIT_TEST
 utest_peap_LDFLAGS =
 
 if WITH_SRP
@@ -37,7 +37,6 @@ pppd_include_HEADERS = \
     md4.h \
     md5.h \
     mppe.h \
-    patchlevel.h \
     pathnames.h \
     peap.h \
     pppcrypt.h \
@@ -69,7 +68,7 @@ pppd_SOURCES = \
     upap.c \
     utils.c
 
-pppd_CPPFLAGS = -I${top_srcdir}/include -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
+pppd_CPPFLAGS = -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
 pppd_LDFLAGS =
 pppd_LIBS =
 
@@ -80,10 +79,11 @@ endif
 
 if SUNOS
 pppd_SOURCES += sys-solaris.c
+pppd_CPPFLAGS += -I${top_srcdir}/include
 pppd_LIBS += -lsocket -lnsl
 endif
 
-if WITH_CHAPMS
+if PPP_WITH_CHAPMS
 pppd_SOURCES += chap_ms.c
 pppd_SOURCES += pppcrypt.c
 check_PROGRAMS += utest_chap
@@ -93,21 +93,21 @@ pppd_SOURCES += pppcrypt.c
 endif
 endif
 
-if WITH_CBCP
+if PPP_WITH_CBCP
 pppd_SOURCES += cbcp.c
 endif
 
-if WITH_MPPE
+if PPP_WITH_MPPE
 pppd_SOURCES += mppe.c
 endif
 
-if WITH_FILTER
+if PPP_WITH_FILTER
 pppd_CPPFLAGS += $(PCAP_CFLAGS)
 pppd_LDFLAGS += $(PCAP_LDFLAGS)
 pppd_LIBS += $(PCAP_LIBS)
 endif
 
-if WITH_PLUGINS
+if PPP_WITH_PLUGINS
 pppd_CPPFLAGS += -DPPPD_PLUGIN_DIR='"@PPPD_PLUGIN_DIR@"'
 pppd_LIBS += -ldl
 if LINUX
@@ -115,31 +115,33 @@ pppd_LDFLAGS += -Wl,-E
 endif
 endif
 
-if WITH_MULTILINK
+if PPP_WITH_MULTILINK
 pppd_SOURCES += multilink.c
 endif
 
-if WITH_TDB
+if PPP_WITH_TDB
 pppd_SOURCES += tdb.c spinlock.c
 endif
 
-if WITH_INET6
+if PPP_WITH_IPV6CP
 pppd_SOURCES += ipv6cp.c eui64.c
 endif
 
-if WITH_PAM
-pppd_LIBS += -lpam -ldl
+if PPP_WITH_PAM
+pppd_CPPFLAGS += $(PAM_CFLAGS)
+pppd_LIBS += $(PAM_LIBS) -ldl
+pppd_LDFLAGS += $(PAM_LDFLAGS)
 endif
 
-if WITH_EAPTLS
+if PPP_WITH_EAPTLS
 pppd_SOURCES += eap-tls.c tls.c
 else
-if WITH_PEAP
+if PPP_WITH_PEAP
 pppd_SOURCES += tls.c
 endif
 endif
 
-if WITH_PEAP
+if PPP_WITH_PEAP
 pppd_SOURCES += peap.c
 check_PROGRAMS += utest_peap
 endif
@@ -169,7 +171,8 @@ utest_chap_LDADD = libppp_crypt.la
 pppd_LIBS += libppp_crypt.la
 
 if WITH_SYSTEMD
-pppd_LIBS += -lsystemd
+pppd_CPPFLAGS += $(SYSTEMD_CFLAGS)
+pppd_LIBS += $(SYSTEMD_LIBS)
 endif
 
 if WITH_SRP

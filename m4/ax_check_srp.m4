@@ -77,7 +77,7 @@ AC_DEFUN([AX_CHECK_SRP], [
                 $1
             ], [
                 AC_MSG_RESULT([no])
-                with_srp=""
+                with_srp="no"
                 $2
             ])
         CPPFLAGS="$save_CPPFLAGS"
@@ -89,6 +89,6 @@ AC_DEFUN([AX_CHECK_SRP], [
         AC_SUBST([SRP_LDFLAGS])
     fi
 
-    AM_CONDITIONAL(WITH_SRP, test -n "${with_srp}")
+    AM_CONDITIONAL(WITH_SRP, test "x${with_srp}" != "xno")
 ])
 

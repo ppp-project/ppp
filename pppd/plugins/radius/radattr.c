@@ -17,21 +17,17 @@
 static char const RCSID[] =
 "$Id: radattr.c,v 1.2 2004/10/28 00:24:40 paulus Exp $";
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "pppd.h"
-#include "radiusclient.h"
 #include <stdio.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <pppd/pppd.h>
+
+#include "radiusclient.h"
 
 extern void (*radius_attributes_hook)(VALUE_PAIR *);
 static void print_attributes(VALUE_PAIR *);
 static void cleanup(void *opaque, int arg);
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 /**********************************************************************
 * %FUNCTION: plugin_init

@@ -29,10 +29,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include "pppdconf.h"
+#ifndef PPP_PPPCRYPT_H
+#define	PPP_PPPCRYPT_H
 
-#ifndef PPPCRYPT_H
-#define	PPPCRYPT_H
+#include "pppdconf.h"
 
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
@@ -46,4 +46,4 @@ extern bool	DesSetkey(u_char *);
 extern bool	DesEncrypt(u_char *, u_char *);
 extern bool	DesDecrypt(u_char *, u_char *);
 
-#endif /* PPPCRYPT_H */
+#endif /* PPP_PPPCRYPT_H */

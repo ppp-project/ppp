@@ -11,7 +11,7 @@ AM_MAINTAINER_MODE([enable])
 
 AC_LANG(C)
 AC_CONFIG_SRCDIR([pppd/main.c])
-AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h])
+AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h pppd/plugins/pppoe/config.h])
 
 # Checks for programs.
 AC_PROG_CC
@@ -38,8 +38,8 @@ case "${host_os}" in
 	;;
 esac
 
-AM_CONDITIONAL([LINUX], [test "${build_linux}" = "yes" ])
-AM_CONDITIONAL([SUNOS], [test "${build_sunos}" = "yes" ])
+AM_CONDITIONAL([LINUX], [test "x${build_linux}" = "xyes" ])
+AM_CONDITIONAL([SUNOS], [test "x${build_sunos}" = "xyes" ])
 AM_COND_IF([SUNOS],
       CFLAGS="$CFLAGS -DSOL2 -DSRV4")
 
@@ -88,7 +88,7 @@ AC_CHECK_FUNCS([    \
 # If libc doesn't provide logwtmp, check if libutil provides logwtmp(), and if so link to it.
 AS_IF([test "x${ac_cv_func_logwtmp}" != "xyes"], [
     AC_CHECK_LIB([util], [logwtmp], [
-        AC_DEFINE(HAVE_LOGWTMP, 1, ["System provides the logwtmp() function"])
+        AC_DEFINE(HAVE_LOGWTMP, 1, [System provides the logwtmp() function])
         AC_SUBST([UTIL_LIBS], ["-lutil"])
     ])
 ])
@@ -105,96 +105,91 @@ AC_ARG_ENABLE([systemd],
 AM_CONDITIONAL(WITH_SYSTEMD, test "x${enable_systemd}" = "xyes")
 AM_COND_IF([WITH_SYSTEMD],
     AC_DEFINE([SYSTEMD], 1, [Enable support for systemd notifications]))
+AS_IF([test "x${enable_systemd}" = "xyes"], [
+	PKG_CHECK_MODULES([systemd], [systemd])])
 
 #
 # Enable Callback Protocol Support, disabled by default
 AC_ARG_ENABLE([cbcp],
     AS_HELP_STRING([--enable-cbcp], [Enable Callback Protocol]))
-AM_CONDITIONAL(WITH_CBCP, test "x${enable_cbcp}" = "xyes")
-AM_COND_IF([WITH_CBCP],
-    AC_DEFINE([CBCP_SUPPORT], 1, [Have Callback Protocol support]))
-
-#
-# Disable support for limiting session duration by maximum octets
-AC_ARG_ENABLE([maxoctets],
-    AS_HELP_STRING([--disable-maxoctets], [Disable support for limiting session by maximum octets]))
-AS_IF([test "x$enable_maxoctets" != "xno"],
-    AC_DEFINE([MAXOCTETS], 1, ["Limit sessions by maximum number of octets"]))
+AM_CONDITIONAL(PPP_WITH_CBCP, test "x${enable_cbcp}" = "xyes")
+AM_COND_IF([PPP_WITH_CBCP],
+    AC_DEFINE([PPP_WITH_CBCP], 1, [Have Callback Protocol support]))
 
 #
 # Disable Microsoft extensions will remove CHAP and MPPE support
 AC_ARG_ENABLE([microsoft-extensions],
     AS_HELP_STRING([--disable-microsoft-extensions], [Disable Microsoft CHAP / MPPE extensions]))
 
-AM_CONDITIONAL(WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
-AM_COND_IF([WITH_CHAPMS],
-    AC_DEFINE([CHAPMS], 1, ["Have Microsoft CHAP support"]))
+AM_CONDITIONAL(PPP_WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
+AM_COND_IF([PPP_WITH_CHAPMS],
+    AC_DEFINE([PPP_WITH_CHAPMS], 1, [Have Microsoft CHAP support]))
 
-AM_CONDITIONAL(WITH_MPPE, test "x${enable_microsoft_extensions}" != "xno")
-AM_COND_IF([WITH_MPPE],
-    AC_DEFINE([MPPE], 1, ["Have Microsoft MPPE support"]))
+AM_CONDITIONAL(PPP_WITH_MPPE, test "x${enable_microsoft_extensions}" != "xno")
+AM_COND_IF([PPP_WITH_MPPE],
+    AC_DEFINE([PPP_WITH_MPPE], 1, [Have Microsoft MPPE support]))
 
 #
 # Enable Microsoft LAN Manager support, depends on Microsoft Extensions
 AC_ARG_ENABLE([mslanman],
     AS_HELP_STRING([--enable-mslanman], [Enable Microsoft LAN Manager support]))
 AS_IF([test "x${enable_mslanman}" = "xyes" && test "x${enable_microsoft_extensions}" != "xno"],
-    AC_DEFINE([MSLANMAN], 1, ["Have Microsoft LAN Manager support"]))
+    AC_DEFINE([PPP_WITH_MSLANMAN], 1, [Have Microsoft LAN Manager support]))
 
 #
 # Disable IPv6 support
-AC_ARG_ENABLE([ipv6-support],
-    AS_HELP_STRING([--disable-ipv6-support], [Disable IPv6 support]))
-AM_CONDITIONAL(WITH_INET6, test "x${enable_ipv6_support}" != "xno")
-AM_COND_IF([WITH_INET6],
-    AC_DEFINE(INET6, 1, ["Have IPv6 support"]))
+AC_ARG_ENABLE([ipv6cp],
+    AS_HELP_STRING([--disable-ipv6cp], [Disable IPv6 Control Protocol]))
+AM_CONDITIONAL(PPP_WITH_IPV6CP, test "x${enable_ipv6cp}" != "xno")
+AM_COND_IF([PPP_WITH_IPV6CP],
+    AC_DEFINE(PPP_WITH_IPV6CP, 1, [Have IPv6 Control Protocol]))
 
 #
 # Disable Multilink support
 AC_ARG_ENABLE([multilink],
     AS_HELP_STRING([--enable-multilink], [Enable multilink support]))
-AM_CONDITIONAL(WITH_MULTILINK, test "x${enable_multilink}" = "xyes")
-AM_COND_IF([WITH_MULTILINK],
-    AC_DEFINE([HAVE_MULTILINK], 1, ["Have multilink support"]))
+AM_CONDITIONAL(PPP_WITH_MULTILINK, test "x${enable_multilink}" = "xyes")
+AM_COND_IF([PPP_WITH_MULTILINK],
+    AC_DEFINE([PPP_WITH_MULTILINK], 1, [Have multilink support]))
 AS_IF([test "x${build_sunos}" = "xyes" && test "x${enable_multilink}" = "xyes"],
     [AC_MSG_ERROR([Multilink is not supported on SunOS])])
 
 #
 # Multilink require Trivial Database Support
-AM_CONDITIONAL(WITH_TDB, test "x${enable_multilink}" = "xyes")
-AM_COND_IF([WITH_TDB],
-    AC_DEFINE([USE_TDB], 1, ["Include TDB support"]))
+AM_CONDITIONAL(PPP_WITH_TDB, test "x${enable_multilink}" = "xyes")
+AM_COND_IF([PPP_WITH_TDB],
+    AC_DEFINE([PPP_WITH_TDB], 1, [Include TDB support]))
 
 #
 # Enable support for loadable plugins
 AC_ARG_ENABLE([plugins],
     AS_HELP_STRING([--disable-plugins], [Disable support for loadable plugins]))
 AS_IF([test "x$enable_plugins" != "xno"],
-    AC_DEFINE([PLUGIN], 1, ["Have support for loadable plugins"]))
-AM_CONDITIONAL(WITH_PLUGINS, test "${enable_plugins}" != "no")
+    AC_DEFINE([PPP_WITH_PLUGINS], 1, [Have support for loadable plugins]))
+AM_CONDITIONAL(PPP_WITH_PLUGINS, test "x${enable_plugins}" != "xno")
 
 #
 # Disable EAP-TLS support
 AC_ARG_ENABLE([eaptls],
     AS_HELP_STRING([--disable-eaptls], [Disable EAP-TLS authentication support]))
 AS_IF([test "x$enable_eaptls" != "xno"],
-    AC_DEFINE([USE_EAPTLS], 1, ["Have EAP-TLS authentication support"]))
-AM_CONDITIONAL(WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
+    AC_DEFINE([PPP_WITH_EAPTLS], 1, [Have EAP-TLS authentication support]))
+AM_CONDITIONAL(PPP_WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
 
 #
 # Disable PEAP support
 AC_ARG_ENABLE([peap],
     AS_HELP_STRING([--disable-peap], [Disable PEAP authentication support]))
 AS_IF([test "x${enable_peap}" != "xno"],
-    AC_DEFINE([USE_PEAP], 1, ["Have PEAP authentication support"]))
-AM_CONDITIONAL([WITH_PEAP], test "x${enable_peap}" != "xno")
+    AC_DEFINE([PPP_WITH_PEAP], 1, [Have PEAP authentication support]))
+AM_CONDITIONAL([PPP_WITH_PEAP], test "x${enable_peap}" != "xno")
 
 #
 # Disable OpenSSL engine support
 AC_ARG_ENABLE([openssl-engine],
     AS_HELP_STRING([--disable-openssl-engine], [Disable OpenSSL engine support]))
 AS_IF([test "x$enable_openssl_engine" != "xno"], [],
-    AC_DEFINE([OPENSSL_NO_ENGINE], 1, ["OpenSSL engine support"]))
+    AC_DEFINE([OPENSSL_NO_ENGINE], 1, [OpenSSL engine support]))
 
 #
 # Specify runtime directory
@@ -226,7 +221,7 @@ AC_SUBST(PPPD_LOGFILE_DIR)
 #
 # Check for OpenSSL
 AX_CHECK_OPENSSL
-AM_CONDITIONAL(WITH_OPENSSL, test "${with_openssl}" != "no")
+AM_CONDITIONAL(WITH_OPENSSL, test "x${with_openssl}" != "xno")
 
 #
 # Check if OpenSSL has compiled in support for various ciphers
@@ -242,23 +237,23 @@ AS_IF([test "x${with_openssl}" != "xno" ], [
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD4],,
-    AC_DEFINE([USE_MD4], 1, [Use included md4 included with pppd]))
+    AC_DEFINE([USE_MD4], 1, [Use MD4 included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD5], test "x${ac_cv_openssl_md5}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_MD5],,
-    AC_DEFINE([USE_MD5], 1, [Use included md5 included with pppd]))
+    AC_DEFINE([USE_MD5], 1, [Use MD5 included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_SHA], test "x${ac_cv_openssl_sha}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_SHA],,
-    AC_DEFINE([USE_SHA], 1, [Use included sha included with pppd]))
+    AC_DEFINE([USE_SHA], 1, [Use SHA included with pppd]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_DES], test "x${ac_cv_openssl_des}" = "xyes")
 AM_COND_IF([OPENSSL_HAVE_DES],,
-    AC_DEFINE([USE_CRYPT], 1, [Use included des included with pppd]))
+    AC_DEFINE([USE_CRYPT], 1, [Use DES included with pppd]))
 
 #
 # If OpenSSL doesn't support DES, then use the one from libcrypt (glibc dropped support for this in 2.27).
-AS_IF([test "${ac_cv_openssl_des}" = "no" ], [
+AS_IF([test "x${ac_cv_openssl_des}" = "xno" ], [
     AC_CHECK_LIB([crypt], [encrypt],
         [LIBS="$LIBS -lcrypt"],
         [AC_MSG_ERROR([OpenSSL not found or does not support DES, and libcrypt also doesn't support encrypt])]
@@ -267,7 +262,8 @@ AS_IF([test "${ac_cv_openssl_des}" = "no" ], [
 
 #
 # With libsrp support
-AX_CHECK_SRP
+AX_CHECK_SRP([
+    AC_DEFINE([PPP_WITH_SRP], 1, [Support for libsrp authentication module])])
 
 #
 # With libatm support
@@ -275,8 +271,8 @@ AX_CHECK_ATM
 
 #
 # With libpam support
-AX_CHECK_PAM(AC_DEFINE([USE_PAM], 1, ["Support for Pluggable Authentication Modules"]))
-AM_CONDITIONAL(WITH_PAM, test "x${with_pam}" = "xyes")
+AX_CHECK_PAM(AC_DEFINE([PPP_WITH_PAM], 1, [Support for Pluggable Authentication Modules]))
+AM_CONDITIONAL(PPP_WITH_PAM, test "x${with_pam}" = "xyes")
 
 #
 # With libpcap support, activate pppd on network activity
@@ -284,9 +280,9 @@ AX_CHECK_PCAP
 
 #
 # SunOS provides a version of libpcap that would work, but SunOS has no support for activity filter
-AM_CONDITIONAL([WITH_FILTER], [ test "x${with_pcap}" = "xyes" && test "x${build_sunos}" != "xyes" ])
-AM_COND_IF([WITH_FILTER], [
-    AC_DEFINE([PPP_FILTER], 1, ["Have packet activity filter support"])], [
+AM_CONDITIONAL([PPP_WITH_FILTER], [ test "x${with_pcap}" = "xyes" && test "x${build_sunos}" != "xyes" ])
+AM_COND_IF([PPP_WITH_FILTER], [
+    AC_DEFINE([PPP_WITH_FILTER], 1, [Have packet activity filter support])], [
     AS_IF([test "x${build_sunos}" = "xyes"], [
         AC_MSG_WARN([Packet activity filter not supported on SunOS])
         with_pcap="no"
@@ -302,6 +298,7 @@ if test "x${with_gtk}" = "xyes"; then
 fi
 AM_CONDITIONAL([WITH_GTK], test "x${with_gtk}" = "xyes")
 
+AC_DEFINE_UNQUOTED(PPPD_VERSION, "$VERSION", [Version of pppd])
 
 AC_CONFIG_FILES([
     Makefile
@@ -410,6 +407,8 @@ Features enabled
     Multilink............: ${enable_multilink:-no}
     Plugins..............: ${enable_plugins:-yes}
     CBCP.................: ${enable_cbcp:-no}
+    IPV6CP...............: ${enable_ipv6cp:-yes}
     EAP-TLS..............: ${enable_eaptls:-yes}
     PEAP.................: ${enable_peap:-yes}
+    systemd notifications: ${enable_systemd:-no}
 "

@@ -6,8 +6,10 @@
  * Copyright (c) 2021 Marek Behún <kabel@kernel.org>
  */
 
-#ifndef _TERMIOS_LINUX_H_
-#define _TERMIOS_LINUX_H_
+#ifndef PPP_TERMIOS_LINUX_H
+#define PPP_TERMIOS_LINUX_H
+
+#include "pppdconf.h"
 
 /*
  * We need to use raw TCGETS2/TCSETS2 or TCGETS/TCSETS ioctls with the BOTHER
@@ -191,4 +193,4 @@ static void cfmakeraw(struct termios *t)
 	t->c_cflag |= CS8;
 }
 
-#endif /* _TERMIOS_LINUX_H_ */
+#endif /* PPP_TERMIOS_LINUX_H */

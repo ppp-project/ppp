@@ -91,14 +91,16 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <limits.h>
 #include <inttypes.h>
+#include <net/if.h>
 
 #include "pppd.h"
 #include "magic.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "ipcp.h"
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #include "ipv6cp.h"
 #endif
 #include "upap.h"
@@ -108,11 +110,11 @@
 #include "ecp.h"
 #include "pathnames.h"
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 #include "tdb.h"
 #endif
 
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
 #include "cbcp.h"
 #endif
 
@@ -151,7 +153,7 @@ int ppp_session_number;		/* Session number, for channels with such a
 				   concept (eg PPPoE) */
 int childwait_done;		/* have timed out waiting for children */
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 TDB_CONTEXT *pppdb;		/* database for storing status etc. */
 #endif
 
@@ -245,7 +247,7 @@ static void forget_child(int pid, int status);
 static int reap_kids(void);
 static void childwait_end(void *);
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 static void update_db_entry(void);
 static void add_db_key(const char *);
 static void delete_db_key(const char *);
@@ -267,11 +269,11 @@ struct protent *protocols[] = {
     &lcp_protent,
     &pap_protent,
     &chap_protent,
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
     &cbcp_protent,
 #endif
     &ipcp_protent,
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     &ipv6cp_protent,
 #endif
     &ccp_protent,
@@ -292,12 +294,12 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
-    strlcpy(path_ipup, _PATH_IPUP, sizeof(path_ipup));
-    strlcpy(path_ipdown, _PATH_IPDOWN, sizeof(path_ipdown));
+    strlcpy(path_ipup, _PATH_IPUP, MAXPATHLEN);
+    strlcpy(path_ipdown, _PATH_IPDOWN, MAXPATHLEN);
 
-#ifdef INET6
-    strlcpy(path_ipv6up, _PATH_IPV6UP, sizeof(path_ipv6up));
-    strlcpy(path_ipv6down, _PATH_IPV6DOWN, sizeof(path_ipv6down));
+#ifdef PPP_WITH_IPV6CP
+    strlcpy(path_ipv6up, _PATH_IPV6UP, MAXPATHLEN);
+    strlcpy(path_ipv6down, _PATH_IPV6DOWN, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
@@ -383,7 +385,7 @@ main(int argc, char *argv[])
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     mp_check_options();
 #endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
@@ -418,7 +420,7 @@ main(int argc, char *argv[])
      */
     sys_init();
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
     pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
 	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
@@ -1180,7 +1182,7 @@ cleanup(void)
 	(*the_channel->cleanup)();
     remove_pidfiles();
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
     if (pppdb != NULL)
 	cleanup_db();
 #endif
@@ -1561,7 +1563,7 @@ safe_fork(int infd, int outfd, int errfd)
 
 	/* Executing in the child */
 	sys_close();
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 	if (pppdb != NULL)
 		tdb_close(pppdb);
 #endif
@@ -2011,13 +2013,13 @@ script_setenv(char *var, char *value, int iskey)
     if (script_env != 0) {
 	for (i = 0; (p = script_env[i]) != 0; ++i) {
 	    if (strncmp(p, var, varl) == 0 && p[varl] == '=') {
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 		if (p[-1] && pppdb != NULL)
 		    delete_db_key(p);
 #endif
 		free(p-1);
 		script_env[i] = newstring;
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 		if (pppdb != NULL) {
 		    if (iskey)
 			add_db_key(newstring);
@@ -2041,7 +2043,7 @@ script_setenv(char *var, char *value, int iskey)
     if (!add_script_env(i, newstring))
 	return;
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
     if (pppdb != NULL) {
 	if (iskey)
 	    add_db_key(newstring);
@@ -2065,7 +2067,7 @@ script_unsetenv(char *var)
 	return;
     for (i = 0; (p = script_env[i]) != 0; ++i) {
 	if (strncmp(p, var, vl) == 0 && p[vl] == '=') {
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 	    if (p[-1] && pppdb != NULL)
 		delete_db_key(p);
 #endif
@@ -2073,7 +2075,7 @@ script_unsetenv(char *var)
 	    break;
 	}
     }
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
     if (pppdb != NULL)
 	update_db_entry();
 #endif
@@ -2091,7 +2093,7 @@ script_unsetenv(char *var)
  */
 void lock_db(void)
 {
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 	TDB_DATA key;
 
 	key.dptr = PPPD_LOCK_KEY;
@@ -2105,7 +2107,7 @@ void lock_db(void)
  */
 void unlock_db(void)
 {
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 	TDB_DATA key;
 
 	key.dptr = PPPD_LOCK_KEY;
@@ -2114,7 +2116,7 @@ void unlock_db(void)
 #endif
 }
 
-#ifdef USE_TDB
+#ifdef PPP_WITH_TDB
 /*
  * update_db_entry - update our entry in the database.
  */
@@ -2195,4 +2197,4 @@ cleanup_db(void)
 	if (p[-1])
 	    delete_db_key(p);
 }
-#endif /* USE_TDB */
+#endif /* PPP_WITH_TDB */

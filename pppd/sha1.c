@@ -23,7 +23,6 @@
 #include <string.h>
 #include <time.h>
 #include <netinet/in.h>	/* htonl() */
-#include <net/ppp_defs.h>
 #include "sha1.h"
 
 static void

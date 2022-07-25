@@ -42,30 +42,54 @@
  * $Id: pppd.h,v 1.96 2008/06/23 11:47:18 paulus Exp $
  */
 
+#ifndef PPP_PPPD_H
+#define PPP_PPPD_H
+
 #include "pppdconf.h"
-
-/*
- * TODO:
- */
-
-#ifndef __PPPD_H__
-#define __PPPD_H__
 
 #include <stdio.h>		/* for FILE */
 #include <stdlib.h>		/* for encrypt */
 #include <unistd.h>		/* for setkey */
 #include <stdarg.h>
 #include <stdint.h>
-#include <limits.h>		/* for NGROUPS_MAX */
-#include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
-#include <sys/time.h>		/* for struct timeval */
+#if defined(SOL2)
 #include <net/ppp_defs.h>
-#include <net/if.h>
-#include "patchlevel.h"
+#else
+#include <linux/ppp_defs.h>
+#endif
 
-#ifdef INET6
-#include "eui64.h"
+#ifdef PPP_WITH_IPV6CP
+#if defined(SOL2)
+#include <netinet/in.h>
+
+typedef union {
+    uint8_t	e8[8];		/* lower 64-bit IPv6 address */
+    uint32_t	e32[2];		/* lower 64-bit IPv6 address */
+} eui64_t;
+
+/*
+ * Declare the two below, since in.h only defines them when _KERNEL
+ * is declared - which shouldn't be true when dealing with user-land programs
+ */
+#define	s6_addr8	_S6_un._S6_u8
+#define	s6_addr32	_S6_un._S6_u32
+
+#else /* else if not defined(SOL2) */
+
+/*
+ * TODO:
+ *
+ * Maybe this should be done by processing struct in6_addr directly...
+ */
+typedef union
+{
+    u_int8_t e8[8];
+    u_int16_t e16[4];
+    u_int32_t e32[2];
+} eui64_t;
+
+#endif /* defined(SOL2) */
 #endif
 
 /*
@@ -219,7 +243,7 @@ struct notifier {
 extern int	got_sigterm;	/* SIGINT or SIGTERM was received */
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
-extern char	ifname[];	/* Interface name */
+extern char	ifname[];	/* Interface name (IFNAMSIZ) */
 extern char	hostname[];	/* Our hostname */
 extern u_char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	devfd;		/* fd of underlying device */
@@ -234,7 +258,7 @@ extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
 extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
-extern GIDSET_TYPE groups[NGROUPS_MAX];	/* groups the user is in */
+extern GIDSET_TYPE groups[];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 extern int	link_stats_valid; /* set if link_stats is valid */
@@ -249,7 +273,7 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern int	error_count;	/* # of times error() has been called */
-extern char	ppp_devnam[MAXPATHLEN];
+extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
 extern char     remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
 extern int      ppp_session_number; /* Session number (eg PPPoE session) */
 extern int	fd_devnull;	/* fd open to /dev/null */
@@ -283,7 +307,7 @@ extern struct notifier *fork_notifier;	/* we are a new child process */
 extern int	debug;		/* Debug flag */
 extern int	kdebugflag;	/* Tell kernel to print debug messages */
 extern int	default_device;	/* Using /dev/tty or equivalent */
-extern char	devnam[MAXPATHLEN];	/* Device name */
+extern char	devnam[];	/* Device name */
 extern int	crtscts;	/* Use hardware flow control */
 extern int	stop_bits;	/* Number of serial port stop bits */
 extern bool	modem;		/* Use modem control lines */
@@ -322,14 +346,14 @@ extern char	*pty_socket;	/* Socket to connect to pty */
 extern char	*record_file;	/* File to record chars sent/received */
 extern bool	sync_serial;	/* Device is synchronous serial device */
 extern int	maxfail;	/* Max # of unsuccessful connection attempts */
-extern char	linkname[MAXPATHLEN]; /* logical name for link */
+extern char	linkname[];	/* logical name for link */
 extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
-extern char	path_ipup[MAXPATHLEN]; /* pathname of ip-up script */
-extern char	path_ipdown[MAXPATHLEN]; /* pathname of ip-down script */
-extern char	req_ifname[IFNAMSIZ]; /* interface name to use */
+extern char	path_ipup[]; 	/* pathname of ip-up script */
+extern char	path_ipdown[];	/* pathname of ip-down script */
+extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
 extern bool	multilink;	/* enable multilink operation */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */
@@ -337,13 +361,12 @@ extern bool	dump_options;	/* print out option values */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
-#ifdef INET6
-extern char	path_ipv6up[MAXPATHLEN]; /* pathname of ipv6-up script */
-extern char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
+#ifdef PPP_WITH_IPV6CP
+extern char	path_ipv6up[]; /* pathname of ipv6-up script */
+extern char	path_ipv6down[]; /* pathname of ipv6-down script */
 #endif
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
-
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 #define TLS_VERIFY_NONE     "none"
 #define TLS_VERIFY_NAME     "name"
 #define TLS_VERIFY_SUBJECT  "subject"
@@ -357,13 +380,12 @@ extern char *cacert_file;
 extern char *max_tls_version;
 extern bool tls_verify_key_usage;
 extern char *tls_verify_method;
-#endif /* USE_EAPTLS || USE_PEAP */
+#endif /* PPP_WITH_EAPTLS || PPP_WITH_PEAP */
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 extern char *pkcs12_file;
-#endif /* USE_EAPTLS */
+#endif /* PPP_WITH_EAPTLS */
 
-#ifdef MAXOCTETS
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
 extern int       maxoctets_dir;      /* Direction :
 				      0 - in+out (default)
@@ -377,14 +399,13 @@ extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
 #define PPP_OCTETS_DIRECTION_MAXOVERAL  3
 /* same as previos, but little different on RADIUS side */
 #define PPP_OCTETS_DIRECTION_MAXSESSION 4
-#endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */
 extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 #endif
 
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
 #endif
@@ -625,7 +646,7 @@ int  loop_chars(unsigned char *, int); /* process chars from loopback */
 int  loop_frame(unsigned char *, int); /* should we bring link up? */
 
 /* Procedures exported from multilink.c */
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 void mp_check_options(void); /* Check multilink-related options */
 int  mp_join_bundle(void);  /* join our link to an appropriate bundle */
 void mp_exit_bundle(void);  /* have disconnected our link from bundle */
@@ -693,7 +714,7 @@ int  sifaddr(int, u_int32_t, u_int32_t, u_int32_t);
 				/* Configure IPv4 addresses for i/f */
 int  cifaddr(int, u_int32_t, u_int32_t);
 				/* Reset i/f IP addresses */
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 int  sif6up(int);		/* Configure i/f up for IPv6 */
 int  sif6down(int);	/* Configure i/f down for IPv6 */
 int  sif6addr(int, eui64_t, eui64_t);
@@ -705,7 +726,7 @@ int  sifdefaultroute(int, u_int32_t, u_int32_t, bool replace_default_rt);
 				/* Create default route through i/f */
 int  cifdefaultroute(int, u_int32_t, u_int32_t);
 				/* Delete default route through i/f */
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 int  sif6defaultroute(int, eui64_t, eui64_t);
 				/* Create default IPv6 route through i/f */
 int  cif6defaultroute(int, eui64_t, eui64_t);
@@ -723,7 +744,7 @@ void logwtmp(const char *, const char *, const char *);
 				/* Write entry to wtmp file */
 int  get_host_seed(void);	/* Get host-dependent random number seed */
 int  have_route_to(u_int32_t); /* Check if route to addr exists */
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 int  set_filters(struct bpf_program *pass, struct bpf_program *active);
 				/* Set filter programs in kernel */
 #endif
@@ -781,7 +802,7 @@ extern int (*chap_check_hook)(void);
 extern int (*chap_passwd_hook)(char *user, char *passwd);
 extern void (*multilink_join_hook)(void);
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 extern int (*eaptls_passwd_hook)(char *user, char *passwd);
 #endif
 
@@ -872,9 +893,7 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define EXIT_LOOPBACK		17
 #define EXIT_INIT_FAILED	18
 #define EXIT_AUTH_TOPEER_FAILED	19
-#ifdef MAXOCTETS
 #define EXIT_TRAFFIC_LIMIT	20
-#endif
 #define EXIT_CNID_AUTH_FAILED	21
 
 /*
@@ -968,4 +987,4 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define offsetof(type, member) ((size_t) &((type *)0)->member)
 #endif
 
-#endif /* __PPP_H__ */
+#endif /* PPP_PPPD_H */

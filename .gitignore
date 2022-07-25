@@ -35,6 +35,8 @@ autom4te.cache
 /pppd/config.h
 /pppd/config.h.in
 /pppd/pppdconf.h
+/pppd/plugins/pppoe/config.h
+/pppd/plugins/pppoe/stamp-h3
 
 # https://www.gnu.org/software/libtool/
 /libtool

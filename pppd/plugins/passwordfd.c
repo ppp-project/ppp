@@ -7,18 +7,14 @@
  *  with pap- and chap-secrets files.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "pppd.h"
+#include <pppd/pppd.h>
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 static int passwdfd = -1;
 static char save_passwd[MAXSECRETLEN];
@@ -84,7 +80,7 @@ void plugin_init (void)
     chap_check_hook = pwfd_check;
     chap_passwd_hook = pwfd_passwd;
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     eaptls_passwd_hook = pwfd_passwd;
 #endif
 }

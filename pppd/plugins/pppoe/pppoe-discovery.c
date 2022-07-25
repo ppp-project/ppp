@@ -10,7 +10,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdarg.h>
@@ -21,6 +21,7 @@
 #include <string.h>
 #include <time.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include "pppoe.h"
 
@@ -207,7 +208,7 @@ int main(int argc, char *argv[])
 			optarg, strerror(errno));
 		exit(1);
 	    }
-	    fprintf(debugFile, "pppoe-discovery from pppd %s\n", VERSION);
+	    fprintf(debugFile, "pppoe-discovery from pppd %s\n", PPPD_VERSION);
 	    break;
 	case 'I':
 	    conn->ifName = xstrdup(optarg);
@@ -269,5 +270,5 @@ usage(void)
 	    "   -U             -- Use Host-Unique to allow multiple PPPoE sessions.\n"
 	    "   -W hexvalue    -- Set the Host-Unique to the supplied hex string.\n"
 	    "   -h             -- Print usage information.\n");
-    fprintf(stderr, "\npppoe-discovery from pppd " VERSION "\n");
+    fprintf(stderr, "\npppoe-discovery from pppd " PPPD_VERSION "\n");
 }

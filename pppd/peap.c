@@ -56,7 +56,6 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
-#include <net/ppp_defs.h>
 
 #include "pppd.h"
 #include "eap.h"
@@ -85,7 +84,7 @@ struct peap_state {
 	u_char tk[PEAP_TLV_TK_LEN];
 	u_char nonce[PEAP_TLV_NONCE_LEN];
 	struct tls_info *info;
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	struct chap_digest_type *chap;
 #endif
 };
@@ -162,7 +161,7 @@ static void generate_cmk(u_char *ipmk, u_char *tempkey, u_char *nonce, u_char *t
 	BCOPY(nonce, (data_tlv + PEAP_TLV_HEADERLEN), PEAP_TLV_NONCE_LEN);
 	data_tlv[60] = EAPT_PEAP;
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 	mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
 	mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
 #endif
@@ -192,7 +191,7 @@ static void verify_compound_mac(struct peap_state *psm, u_char *in_buf)
 			fatal("server's CMK does not match client's CMK, potential MiTM");
 }
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 #define PEAP_MPPE_KEY_LEN 32
 
 static void generate_mppe_keys(u_char *ipmk, int client)
@@ -310,7 +309,7 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		outp = outp + PEAP_TLV_RESULT_LEN;
 		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
 		generate_cmk(psm->ipmk, psm->tk, psm->nonce, outp, 1);
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 		/* set mppe keys */
 		generate_mppe_keys(psm->ipmk, 1);
 #endif
@@ -337,7 +336,7 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		used += 2;
 		break;
 
-#if CHAPMS
+#if PPP_WITH_CHAPMS
 	case EAPT_MSCHAPV2: {
 
 		// Must have at least 4 more bytes to process CHAP header

@@ -32,10 +32,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include "pppdconf.h"
+#ifndef PPP_MPPE_H
+#define PPP_MPPE_H
 
-#ifndef __MPPE_H__
-#define __MPPE_H__
+#include "pppdconf.h"
 
 #define MPPE_PAD		4	/* MPPE growth per frame */
 #define MPPE_MAX_KEY_SIZE	32	/* Largest key length */
@@ -126,7 +126,7 @@
     } while (/* CONSTCOND */ 0)
 
 
-#if MPPE
+#if PPP_WITH_MPPE
 
 /*
  * NOTE:
@@ -187,5 +187,5 @@ void mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_S
 void mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 		    u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer);
 
-#endif  // #ifdef MPPE
-#endif  // #ifdef __MPPE_H__
+#endif  // #ifdef PPP_WITH_MPPE
+#endif  // #ifdef PPP_MPPE_H

@@ -33,6 +33,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  */
+
+#ifndef PPP_IPV6CP_H
+#define PPP_IPV6CP_H
+
 #include "pppdconf.h"
 
 /*  Original version, based on RFC2023 :
@@ -169,3 +173,5 @@ extern ipv6cp_options ipv6cp_allowoptions[];
 extern ipv6cp_options ipv6cp_hisoptions[];
 
 extern struct protent ipv6cp_protent;
+
+#endif

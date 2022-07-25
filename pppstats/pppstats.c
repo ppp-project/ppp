@@ -62,7 +62,6 @@ static const char rcsid[] = "$Id: pppstats.c,v 1.29 2002/10/27 12:56:26 fcusack 
 #ifndef __linux__
 #include <net/if.h>
 #include <net/ppp_defs.h>
-#include <net/if_ppp.h>
 #else
 /* Linux */
 #if __GLIBC__ >= 2
@@ -74,6 +73,7 @@ static const char rcsid[] = "$Id: pppstats.c,v 1.29 2002/10/27 12:56:26 fcusack 
 #endif
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
+
 #endif /* __linux__ */
 
 #else	/* STREAMS */
@@ -137,15 +137,11 @@ catchalarm(int arg)
 static void
 get_ppp_stats(struct ppp_stats *curp)
 {
-    struct ifpppstatsreq req;
+    struct ifreq req;
 
     memset (&req, 0, sizeof (req));
 
-#ifdef __linux__
-    req.stats_ptr = (caddr_t) &req.stats;
-#undef ifr_name
-#define ifr_name ifr__name
-#endif
+    req.ifr_data = (caddr_t) curp;
 
     strncpy(req.ifr_name, interface, IFNAMSIZ);
     req.ifr_name[IFNAMSIZ - 1] = 0;
@@ -157,25 +153,21 @@ get_ppp_stats(struct ppp_stats *curp)
 	    perror("couldn't get PPP statistics");
 	exit(1);
     }
-    *curp = req.stats;
 }
 
 static void
 get_ppp_cstats(struct ppp_comp_stats *csp)
 {
-    struct ifpppcstatsreq creq;
+    struct ifreq req;
+    struct ppp_comp_stats stats;
 
-    memset (&creq, 0, sizeof (creq));
+    memset (&req, 0, sizeof (req));
 
-#ifdef __linux__
-    creq.stats_ptr = (caddr_t) &creq.stats;
-#undef  ifr_name
-#define ifr_name ifr__name
-#endif
+    req.ifr_data = (caddr_t) &stats;
 
-    strncpy(creq.ifr_name, interface, IFNAMSIZ);
-    creq.ifr_name[IFNAMSIZ - 1] = 0;
-    if (ioctl(s, SIOCGPPPCSTATS, &creq) < 0) {
+    strncpy(req.ifr_name, interface, IFNAMSIZ);
+    req.ifr_name[IFNAMSIZ - 1] = 0;
+    if (ioctl(s, SIOCGPPPCSTATS, &req) < 0) {
 	fprintf(stderr, "%s: ", progname);
 	if (errno == ENOTTY) {
 	    fprintf(stderr, "no kernel compression support\n");
@@ -189,28 +181,26 @@ get_ppp_cstats(struct ppp_comp_stats *csp)
     }
 
 #ifdef __linux__
-    if (creq.stats.c.bytes_out == 0) {
-	creq.stats.c.bytes_out = creq.stats.c.comp_bytes + creq.stats.c.inc_bytes;
-	creq.stats.c.in_count = creq.stats.c.unc_bytes;
+    if (stats.c.bytes_out == 0) {
+	stats.c.bytes_out = stats.c.comp_bytes + stats.c.inc_bytes;
+	stats.c.in_count = stats.c.unc_bytes;
     }
-    if (creq.stats.c.bytes_out == 0)
-	creq.stats.c.ratio = 0.0;
+    if (stats.c.bytes_out == 0)
+	stats.c.ratio = 0.0;
     else
-	creq.stats.c.ratio = 256.0 * creq.stats.c.in_count /
-			     creq.stats.c.bytes_out;
+	stats.c.ratio = 256.0 * stats.c.in_count / stats.c.bytes_out;
 
-    if (creq.stats.d.bytes_out == 0) {
-	creq.stats.d.bytes_out = creq.stats.d.comp_bytes + creq.stats.d.inc_bytes;
-	creq.stats.d.in_count = creq.stats.d.unc_bytes;
+    if (stats.d.bytes_out == 0) {
+	stats.d.bytes_out = stats.d.comp_bytes + stats.d.inc_bytes;
+	stats.d.in_count = stats.d.unc_bytes;
     }
-    if (creq.stats.d.bytes_out == 0)
-	creq.stats.d.ratio = 0.0;
+    if (stats.d.bytes_out == 0)
+	stats.d.ratio = 0.0;
     else
-	creq.stats.d.ratio = 256.0 * creq.stats.d.in_count /
-			     creq.stats.d.bytes_out;
+	stats.d.ratio = 256.0 * stats.d.in_count / stats.d.bytes_out;
 #endif
 
-    *csp = creq.stats;
+    *csp = stats;
 }
 
 #else	/* STREAMS */

@@ -41,6 +41,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef PPP_UPAP_H
+#define PPP_UPAP_H
+
+#include "pppdconf.h"
 
 /*
  * Packet header = Code, id, length.
@@ -108,3 +112,5 @@ void upap_authwithpeer(int, char *, char *);
 void upap_authpeer(int);
 
 extern struct protent pap_protent;
+
+#endif // PPP_UPAP_H

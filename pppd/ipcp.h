@@ -39,6 +39,9 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef PPP_IPCP_H
+#define PPP_IPCP_H
+
 #include "pppdconf.h"
 
 /*
@@ -96,3 +99,5 @@ extern ipcp_options ipcp_hisoptions[];
 char *ip_ntoa(u_int32_t);
 
 extern struct protent ipcp_protent;
+
+#endif /* PPP_IPCP_H */

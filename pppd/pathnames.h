@@ -1,6 +1,9 @@
 /*
  * define path names
  */
+#ifndef PPP_PATHNAMES_H
+#define PPP_PATHNAMES_H
+
 #include "pppdconf.h"
 
 #ifdef HAVE_PATHS_H
@@ -39,11 +42,11 @@
 #define _PATH_CHAPFILE 	 _ROOT_PATH "/etc/ppp/chap-secrets"
 #define _PATH_SRPFILE 	 _ROOT_PATH "/etc/ppp/srp-secrets"
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 #define _PATH_EAPTLSCLIFILE	_ROOT_PATH "/etc/ppp/eaptls-client"
 #define _PATH_EAPTLSSERVFILE	_ROOT_PATH "/etc/ppp/eaptls-server"
 #define _PATH_OPENSSLCONFFILE	_ROOT_PATH "/etc/ppp/openssl.cnf"
-#endif /* USE_EAPTLS */
+#endif /* PPP_WITH_EAPTLS */
 
 #define _PATH_SYSOPTIONS _ROOT_PATH "/etc/ppp/options"
 #define _PATH_IPUP	 _ROOT_PATH "/etc/ppp/ip-up"
@@ -59,7 +62,7 @@
 #define _PATH_USEROPT	 ".ppprc"
 #define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #define _PATH_IPV6UP     _ROOT_PATH "/etc/ppp/ipv6-up"
 #define _PATH_IPV6DOWN   _ROOT_PATH "/etc/ppp/ipv6-down"
 #endif
@@ -70,3 +73,4 @@
 #define _PATH_PPPDB	_PPP_VARRUN "pppd2.tdb"
 #endif /* __STDC__ */
 
+#endif /* PPP_PATHNAMES_H */

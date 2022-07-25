@@ -51,6 +51,12 @@
 #define DO_PREDICTOR_1	0
 #define DO_PREDICTOR_2	0
 
+#if defined(SOL2)
+#include <net/ppp_defs.h>
+#else
+#include <linux/ppp_defs.h>
+#endif
+
 /*
  * Structure giving methods for compression/decompression.
  */

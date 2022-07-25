@@ -13,25 +13,25 @@
  *  as published by the Free Software Foundation; either version
  *  2 of the License, or (at your option) any later version.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
-#include "pppd.h"
-#include "pathnames.h"
-#include "fsm.h" /* Needed for lcp.h to include cleanly */
-#include "lcp.h"
 #include <atm.h>
 #include <linux/atmdev.h>
 #include <linux/atmppp.h>
 #include <sys/stat.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 
-const char pppd_version[] = VERSION;
+#include <pppd/pppd.h>
+#include <pppd/pathnames.h>
+#include <pppd/fsm.h> /* Needed for lcp.h to include cleanly */
+#include <pppd/lcp.h>
+
+
+const char pppd_version[] = PPPD_VERSION;
 
 static struct sockaddr_atmpvc pvcaddr;
 static char *qosstr = NULL;
@@ -89,7 +89,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit)
 		return 1;
 
 	memcpy(&pvcaddr, &addr, sizeof pvcaddr);
-	strlcpy(devnam, cp, sizeof devnam);
+	strlcpy(devnam, cp, MAXPATHLEN);
 	devstat.st_mode = S_IFSOCK;
 	if (the_channel != &pppoa_channel) {
 		the_channel = &pppoa_channel;
@@ -163,7 +163,7 @@ static int connect_pppoatm(void)
 	pppoatm_max_mtu = lcp_allowoptions[0].mru;
 	pppoatm_max_mru = lcp_wantoptions[0].mru;
 	set_line_discipline_pppoatm(fd);
-	strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
+	strlcpy(ppp_devnam, devnam, MAXPATHLEN);
 	pppoa_fd = fd;
 	return fd;
 }

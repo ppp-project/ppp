@@ -54,11 +54,13 @@
 #include <syslog.h>
 #include <string.h>
 #include <pwd.h>
-#ifdef PLUGIN
+#include <sys/param.h>
+#include <net/if.h>
+#ifdef PPP_WITH_PLUGINS
 #include <dlfcn.h>
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #include <pcap.h>
 /*
  * There have been 3 or 4 different names for this in libpcap CVS, but
@@ -73,7 +75,7 @@
 #define DLT_PPP_PPPD	DLT_PPP
 #endif
 #endif
-#endif /* PPP_FILTER */
+#endif /* PPP_WITH_FILTER */
 
 #include "pppd.h"
 #include "pathnames.h"
@@ -131,22 +133,20 @@ int	child_wait = 5;		/* # seconds to wait for children at exit */
 struct userenv *userenv_list;	/* user environment variables */
 int	dfl_route_metric = -1;	/* metric of the default route to set over the PPP link */
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 char	path_ipv6up[MAXPATHLEN];   /* pathname of ipv6-up script */
 char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 #endif
 
-#ifdef MAXOCTETS
 unsigned int  maxoctets = 0;    /* default - no limit */
 int maxoctets_dir = 0;       /* default - sum of traffic */
 int maxoctets_timeout = 1;   /* default 1 second */ 
-#endif
 
 
 extern option_t auth_options[];
 extern struct stat devstat;
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 struct	bpf_program pass_filter;/* Filter program for packets to pass */
 struct	bpf_program active_filter; /* Filter program for link-active pkts */
 #endif
@@ -173,18 +173,16 @@ static int showversion(char **);
 static int showhelp(char **);
 static void usage(void);
 static int setlogfile(char **);
-#ifdef PLUGIN
+#ifdef PPP_WITH_PLUGINS
 static int loadplugin(char **);
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 static int setpassfilter(char **);
 static int setactivefilter(char **);
 #endif
 
-#ifdef MAXOCTETS
 static int setmodir(char **);
-#endif
 
 static int user_setenv(char **);
 static void user_setprint(option_t *, printer_func, void *);
@@ -335,7 +333,7 @@ option_t general_options[] = {
       "Set pathname of ip-down script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     { "ipv6-up-script", o_string, path_ipv6up,
       "Set pathname of ipv6-up script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
@@ -344,7 +342,7 @@ option_t general_options[] = {
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 #endif
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     { "multilink", o_bool, &multilink,
       "Enable multilink operation", OPT_PRIO | 1 },
     { "mp", o_bool, &multilink,
@@ -356,14 +354,14 @@ option_t general_options[] = {
 
     { "bundle", o_string, &bundle_name,
       "Bundle name for multilink", OPT_PRIO },
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
-#ifdef PLUGIN
+#ifdef PPP_WITH_PLUGINS
     { "plugin", o_special, (void *)loadplugin,
       "Load a plug-in module into pppd", OPT_PRIV | OPT_A2LIST },
 #endif
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     { "pass-filter", o_special, setpassfilter,
       "set filter for packets to pass", OPT_PRIO },
 
@@ -371,7 +369,6 @@ option_t general_options[] = {
       "set filter for active pkts", OPT_PRIO },
 #endif
 
-#ifdef MAXOCTETS
     { "maxoctets", o_int, &maxoctets,
       "Set connection traffic limit",
       OPT_PRIO | OPT_LLIMIT | OPT_NOINCR | OPT_ZEROINF },
@@ -382,7 +379,6 @@ option_t general_options[] = {
       "Set direction for limit traffic (sum,in,out,max)" },
     { "mo-timeout", o_int, &maxoctets_timeout,
       "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
-#endif
 
     /* Dummy option, does nothing */
     { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
@@ -1482,7 +1478,7 @@ callfile(char **argv)
     return ok;
 }
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 /*
  * setpassfilter - Set the pass filter for packets
  */
@@ -1572,7 +1568,6 @@ setlogfile(char **argv)
     return 1;
 }
 
-#ifdef MAXOCTETS
 static int
 setmodir(char **argv)
 {
@@ -1589,9 +1584,8 @@ setmodir(char **argv)
     }
     return 1;
 }
-#endif
 
-#ifdef PLUGIN
+#ifdef PPP_WITH_PLUGINS
 static int
 loadplugin(char **argv)
 {
@@ -1644,7 +1638,7 @@ loadplugin(char **argv)
 	free(path);
     return 0;
 }
-#endif /* PLUGIN */
+#endif /* PPP_WITH_PLUGINS */
 
 /*
  * Set an environment variable specified by the user.

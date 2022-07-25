@@ -1,7 +1,7 @@
 /*
  * $Id: md5.c,v 1.1 2004/11/14 07:26:26 paulus Exp $
  */
-#include "md5.h"
+#include <pppd/md5.h>
 
 void rc_md5_calc (unsigned char *output, unsigned char *input, unsigned int inlen)
 {

@@ -28,6 +28,9 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef PPP_CHAP_NEW_H
+#define PPP_CHAP_NEW_H
+
 #include "pppdconf.h"
 
 /*
@@ -133,3 +136,5 @@ extern void chap_auth_with_peer(int unit, char *our_name, int digest_code);
 
 /* Represents the CHAP protocol to the main pppd code */
 extern struct protent chap_protent;
+
+#endif

@@ -1,7 +1,7 @@
 pppd_plugin_LTLIBRARIES = minconn.la passprompt.la passwordfd.la winbind.la
 pppd_plugindir = $(PPPD_PLUGIN_DIR)
 
-PLUGIN_CPPFLAGS = -I${top_srcdir}/include -I${top_srcdir}/pppd
+PLUGIN_CPPFLAGS = -I${top_srcdir}
 PLUGIN_LDFLAGS = -module -avoid-version
 
 minconn_la_CPPFLAGS = $(PLUGIN_CPPFLAGS)

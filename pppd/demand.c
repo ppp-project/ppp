@@ -47,7 +47,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>
 #endif
 
@@ -102,7 +102,7 @@ demand_conf(void)
 	|| ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0) < 0)
 	    fatal("Couldn't set up demand-dialled PPP interface: %m");
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     set_filters(&pass_filter, &active_filter);
 #endif
 
@@ -210,6 +210,7 @@ static u_short fcstab[256] = {
 	0xf78f,	0xe606,	0xd49d,	0xc514,	0xb1ab,	0xa022,	0x92b9,	0x8330,
 	0x7bc7,	0x6a4e,	0x58d5,	0x495c,	0x3de3,	0x2c6a,	0x1ef1,	0x0f78
 };
+#define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
 
 /*
  * loop_chars - process characters received from the loopback.
@@ -336,7 +337,7 @@ active_packet(unsigned char *p, int len)
     if (len < PPP_HDRLEN)
 	return 0;
     proto = PPP_PROTOCOL(p);
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     p[0] = 1;		/* outbound packet indicator */
     if ((pass_filter.bf_len != 0
 	 && bpf_filter(pass_filter.bf_insns, p, len, len) == 0)

@@ -26,24 +26,18 @@ static char const RCSID[] =
 "$Id: plugin.c,v 1.17 2008/06/15 04:35:50 paulus Exp $";
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #define _GNU_SOURCE 1
 #include "pppoe.h"
-
-#include "pppd/pppd.h"
-#include "pppd/fsm.h"
-#include "pppd/lcp.h"
-#include "pppd/ipcp.h"
-#include "pppd/ccp.h"
-/* #include "pppd/pathnames.h" */
 
 #include <linux/types.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -54,13 +48,20 @@ static char const RCSID[] =
 #include <linux/ppp_defs.h>
 #include <linux/if_pppox.h>
 
+#include <pppd/pppd.h>
+#include <pppd/fsm.h>
+#include <pppd/lcp.h>
+#include <pppd/ipcp.h>
+#include <pppd/ccp.h>
+/* #include <pppd/pathnames.h> ?, see below ... */
+
 #ifndef _ROOT_PATH
 #define _ROOT_PATH ""
 #endif
 
 #define _PATH_ETHOPT         _ROOT_PATH "/etc/ppp/options."
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 /* From sys-linux.c in pppd -- MUST FIX THIS! */
 extern int new_style_driver;
@@ -200,7 +201,7 @@ PPPOEConnectDevice(void)
 
     conn->acName = acName;
     conn->serviceName = pppd_pppoe_service;
-    strlcpy(ppp_devnam, devnam, sizeof(ppp_devnam));
+    strlcpy(ppp_devnam, devnam, MAXPATHLEN);
     if (existingSession) {
 	unsigned int mac[ETH_ALEN];
 	int i, ses;
@@ -395,7 +396,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     /* Close socket */
     close(fd);
     if (r && doit) {
-	strlcpy(devnam, cmd, sizeof(devnam));
+	strlcpy(devnam, cmd, MAXPATHLEN);
 	if (the_channel != &pppoe_channel) {
 
 	    the_channel = &pppoe_channel;
@@ -427,7 +428,7 @@ plugin_init(void)
 
     add_options(Options);
 
-    info("PPPoE plugin from pppd %s", VERSION);
+    info("PPPoE plugin from pppd %s", PPPD_VERSION);
 }
 
 void pppoe_check_options(void)

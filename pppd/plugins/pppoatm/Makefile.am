@@ -6,7 +6,7 @@ noinst_HEADERS = \
     atmres.h \
     atmsap.h
 
-pppoatm_la_CPPFLAGS = -I${top_srcdir}/include -I${top_srcdir}/pppd
+pppoatm_la_CPPFLAGS = -I${top_srcdir}
 pppoatm_la_LDFLAGS = -module -avoid-version
 pppoatm_la_SOURCES = pppoatm.c
 

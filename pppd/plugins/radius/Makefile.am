@@ -25,7 +25,7 @@ EXTRA_ETC = \
     etc/realms \
     etc/servers
 
-RADIUS_CPPFLAGS = -I${top_srcdir}/include -I${top_srcdir}/pppd -DRC_LOG_FACILITY=LOG_DAEMON
+RADIUS_CPPFLAGS = -I${top_srcdir} -DRC_LOG_FACILITY=LOG_DAEMON
 RADIUS_LDFLAGS = -module -avoid-version $(LDFLAGS)
 
 radius_la_CPPFLAGS = $(RADIUS_CPPFLAGS)

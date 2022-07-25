@@ -81,6 +81,7 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/sysmacros.h>
+#include <sys/param.h>
 
 #include <errno.h>
 #include <stddef.h>
@@ -125,9 +126,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <linux/ppp_defs.h>
-#include <linux/if_ppp.h>
+#include <linux/ppp-ioctl.h>
 
+
+#ifdef PPP_WITH_IPV6CP
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_link.h>
@@ -138,14 +140,14 @@
 #define RTM_NEWSTATS 92
 #define RTM_GETSTATS 94
 #define IFLA_STATS_LINK_64 1
-#endif
+#endif /* PPP_WITH_IPV6CP */
 
-#ifdef INET6
 #include <linux/if_addr.h>
 /* glibc versions prior to 2.24 do not define SOL_NETLINK */
 #ifndef SOL_NETLINK
 #define SOL_NETLINK 270
 #endif
+
 /* linux kernel versions prior to 4.3 do not define/support NETLINK_CAP_ACK */
 #ifndef NETLINK_CAP_ACK
 #define NETLINK_CAP_ACK 10
@@ -155,11 +157,12 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
+#include "eui64.h"
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>
 #include <linux/filter.h>
-#endif /* PPP_FILTER */
+#endif /* PPP_WITH_FILTER */
 
 #ifdef LOCKLIB
 #include <sys/locks.h>
@@ -171,7 +174,7 @@
  */
 #include "termios_linux.h"
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 #ifndef _LINUX_IN6_H
 /*
  *    This is in linux/include/net/ipv6.h.
@@ -191,7 +194,7 @@ struct in6_ifreq {
 	} while (0)
 
 static const eui64_t nulleui64;
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
 /* We can get an EIO error on an ioctl if the modem has hung up */
 #define ok_error(num) ((num)==EIO)
@@ -203,9 +206,9 @@ static int ppp_fd = -1;		/* fd which is set to PPP discipline */
 static int sock_fd = -1;	/* socket for doing interface ioctls */
 static int slave_fd = -1;	/* pty for old-style demand mode, slave */
 static int master_fd = -1;	/* pty for old-style demand mode, master */
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 static int sock6_fd = -1;
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
 /*
  * For the old-style kernel driver, this is the same as ppp_fd.
@@ -348,7 +351,7 @@ void sys_init(void)
     if (sock_fd < 0)
 	fatal("Couldn't create IP socket: %m(%d)", errno);
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     sock6_fd = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock6_fd < 0)
 	sock6_fd = -errno;	/* save errno for later */
@@ -374,15 +377,17 @@ void sys_cleanup(void)
 	if_is_up = 0;
 	sifdown(0);
     }
+#ifdef PPP_WITH_IPV6CP
     if (if6_is_up)
 	sif6down(0);
+#endif
 
 /*
  * Delete any routes through the device.
  */
     if (have_default_route)
 	cifdefaultroute(0, 0, 0);
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     if (have_default_route6)
 	cif6defaultroute(0, nulleui64, nulleui64);
 #endif
@@ -402,7 +407,7 @@ sys_close(void)
 	close(ppp_dev_fd);
     if (sock_fd >= 0)
 	close(sock_fd);
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     if (sock6_fd >= 0)
 	close(sock6_fd);
 #endif
@@ -1422,7 +1427,7 @@ void ccp_flags_set (int unit, int isopen, int isup)
 		modify_flags(ppp_dev_fd, SC_CCP_OPEN|SC_CCP_UP, x);
 }
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
 /*
  * set_filters - set the active and pass filters in the kernel driver.
  */
@@ -1447,7 +1452,7 @@ int set_filters(struct bpf_program *pass, struct bpf_program *active)
 	}
 	return 1;
 }
-#endif /* PPP_FILTER */
+#endif /* PPP_WITH_FILTER */
 
 /********************************************************************
  *
@@ -1472,20 +1477,21 @@ get_ppp_stats_ioctl(int u, struct pppd_stats *stats)
     static u_int32_t iwraps = 0;
     static u_int32_t owraps = 0;
 
-    struct ifpppstatsreq req;
+    struct ifreq req;
+    struct ppp_stats data;
 
     memset (&req, 0, sizeof (req));
 
-    req.stats_ptr = (caddr_t) &req.stats;
-    strlcpy(req.ifr__name, ifname, sizeof(req.ifr__name));
+    req.ifr_data = (caddr_t) &data;
+    strlcpy(req.ifr_name, ifname, sizeof(req.ifr_name));
     if (ioctl(sock_fd, SIOCGPPPSTATS, &req) < 0) {
 	error("Couldn't get PPP statistics: %m");
 	return 0;
     }
-    stats->bytes_in = req.stats.p.ppp_ibytes;
-    stats->bytes_out = req.stats.p.ppp_obytes;
-    stats->pkts_in = req.stats.p.ppp_ipackets;
-    stats->pkts_out = req.stats.p.ppp_opackets;
+    stats->bytes_in = data.p.ppp_ibytes;
+    stats->bytes_out = data.p.ppp_obytes;
+    stats->pkts_in = data.p.ppp_ipackets;
+    stats->pkts_out = data.p.ppp_opackets;
 
     if (stats->bytes_in < previbytes)
 	++iwraps;
@@ -2103,7 +2109,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     return 1;
 }
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 /*
  * /proc/net/ipv6_route parsing stuff.
  */
@@ -2293,7 +2299,7 @@ int cif6defaultroute (int unit, eui64_t ouraddr, eui64_t gateway)
 
     return 1;
 }
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
 /********************************************************************
  *
@@ -2919,15 +2925,15 @@ int sifdown (int u)
     if (if_is_up && --if_is_up > 0)
 	return 1;
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
     if (if6_is_up)
 	return 1;
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
     return setifstate(u, 0);
 }
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 /********************************************************************
  *
  * sif6up - Config the interface up for IPv6
@@ -2958,7 +2964,7 @@ int sif6down (int u)
 
     return setifstate(u, 0);
 }
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
 /********************************************************************
  *
@@ -3146,7 +3152,7 @@ int cifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr)
     return 1;
 }
 
-#ifdef INET6
+#ifdef PPP_WITH_IPV6CP
 /********************************************************************
  *
  * sif6addr_rtnetlink - Config the interface with both IPv6 link-local addresses via rtnetlink
@@ -3407,7 +3413,7 @@ int cif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     }
     return 1;
 }
-#endif /* INET6 */
+#endif /* PPP_WITH_IPV6CP */
 
 /*
  * get_pty - get a pty master/slave pair and chown the slave side

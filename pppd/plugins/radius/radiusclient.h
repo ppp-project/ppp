@@ -17,10 +17,10 @@
 #ifndef RADIUSCLIENT_H
 #define RADIUSCLIENT_H
 
-#include	<sys/types.h>
-#include	<stdio.h>
-#include	<time.h>
-#include "pppd.h"
+#include <sys/types.h>
+#include <stdio.h>
+#include <time.h>
+#include <pppd/pppd.h>
 
 #ifndef _UINT4_T
 /* This works for all machines that Linux runs on... */

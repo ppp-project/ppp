@@ -85,7 +85,7 @@ void ssl_msg_callback(int write_p, int version, int ct, const void *buf,
               size_t len, SSL * ssl, void *arg);
 int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
 
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 #define EAPTLS_MPPE_KEY_LEN     32
 
 /*
@@ -137,7 +137,7 @@ void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
     }
 }
 
-#endif /* MPPE */
+#endif /* PPP_WITH_MPPE */
 
 int password_callback (char *buf, int size, int rwflag, void *u)
 {

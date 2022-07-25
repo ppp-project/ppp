@@ -19,20 +19,11 @@
 
 /* pppd plugin for interfacing to openl2tpd */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "pppd.h"
-#include "pathnames.h"
-#include "fsm.h"
-#include "lcp.h"
-#include "ccp.h"
-#include "ipcp.h"
+
 #include <sys/stat.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -42,6 +33,14 @@
 #include <signal.h>
 #include <linux/version.h>
 #include <linux/sockios.h>
+
+#include <pppd/pppd.h>
+#include <pppd/pathnames.h>
+#include <pppd/fsm.h>
+#include <pppd/lcp.h>
+#include <pppd/ccp.h>
+#include <pppd/ipcp.h>
+
 
 #ifndef aligned_u64
 /* should be defined in sys/types.h */
@@ -63,7 +62,7 @@ extern void (*pppol2tp_send_accm_hook)(int tunnel_id, int session_id,
 				       uint32_t send_accm, uint32_t recv_accm);
 extern void (*pppol2tp_ip_updown_hook)(int tunnel_id, int session_id, int up);
 
-const char pppd_version[] = VERSION;
+const char pppd_version[] = PPPD_VERSION;
 
 static int openl2tp_fd = -1;
 

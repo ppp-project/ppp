@@ -27,6 +27,12 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#ifndef PPP_CHAP_MD5_H
+#define PPP_CHAP_MD5_H
+
 #include "pppdconf.h"
 
 extern void chap_md5_init(void);
+
+#endif

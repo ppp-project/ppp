@@ -41,7 +41,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ppp_defs.h"
+
 #include "ppp-comp.h"
 #include "zlib.h"
 
@@ -115,12 +115,13 @@ z_comp_stats(void *arg, struct compstat *stats)
     *stats = state->stats;
     stats->ratio = stats->unc_bytes;
     out = stats->comp_bytes + stats->unc_bytes;
-    if (stats->ratio <= 0x7ffffff)
-	stats->ratio <<= 8;
+    u_int ratio = stats->ratio;
+    if (ratio <= 0x7ffffff)
+	ratio <<= 8;
     else
 	out >>= 8;
     if (out != 0)
-	stats->ratio /= out;
+	stats->ratio = ratio / out;
 }
 
 /*

@@ -41,6 +41,8 @@
  *
  * $Id: fsm.h,v 1.10 2004/11/13 02:28:15 paulus Exp $
  */
+#ifndef PPP_FSM_H
+#define PPP_FSM_H
 
 #include "pppdconf.h"
 
@@ -160,3 +162,5 @@ void fsm_sdata (fsm *, int, int, u_char *, int);
  * Variables
  */
 extern int peer_mru[];		/* currently negotiated peer MRU (per unit) */
+
+#endif

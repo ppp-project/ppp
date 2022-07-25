@@ -3,44 +3,47 @@
  *   in pppd when configured.
  */
 
-/* "Have Microsoft CHAP support" */
-#undef CHAPMS
+#ifndef PPP_PPPDCONF_H
+#define PPP_PPPDCONF_H
 
-/* "Have Microsoft MPPE support" */
-#undef MPPE
+/* Have Microsoft CHAP support */
+#undef PPP_WITH_CHAPMS
 
-/* "Have multilink support" */
-#undef HAVE_MULTILINK
+/* Have Microsoft LAN Manager support */
+#undef PPP_WITH_MSLANMAN
 
-/* "Have packet activity filter support" */
-#undef PPP_FILTER
+/* Have Microsoft MPPE support */
+#undef PPP_WITH_MPPE
 
-/* "Have support for loadable plugins" */
-#undef PLUGIN
+/* Have multilink support */
+#undef PPP_WITH_MULTILINK
 
-/* "Limit sessions by maximum number of octets" */
-#undef MAXOCTETS
+/* Have packet activity filter support */
+#undef PPP_WITH_FILTER
 
-/* Have Microsoft Callback Protocol support */
-#undef CBCP_SUPPORT
+/* Have support for loadable plugins */
+#undef PPP_WITH_PLUGINS
 
-/* "Include Trivial Database support" */
-#undef USE_TDB
+/* Have Callback Protocol support */
+#undef PPP_WITH_CBCP
 
-/* "Have IPv6 support" */
-#undef INET6
+/* Include TDB support */
+#undef PPP_WITH_TDB
 
-/* "Support for Pluggable Authentication Modules" */
-#undef USE_PAM
+/* Have IPv6 Control Protocol */
+#undef PPP_WITH_IPV6CP
 
-/* "Have EAP-SRP authentication support" */
-#undef USE_SRP
+/* Support for Pluggable Authentication Modules */
+#undef PPP_WITH_PAM
 
-/* "Have EAP-TLS authentication support" */
-#undef USE_EAPTLS
+/* Have EAP-SRP authentication support */
+#undef PPP_WITH_SRP
 
-/* "Have PEAP authentication support" */
-#undef USE_PEAP
+/* Have EAP-TLS authentication support */
+#undef PPP_WITH_EAPTLS
+
+/* Have PEAP authentication support */
+#undef PPP_WITH_PEAP
 
 /* Use included des included with pppd */
 #undef USE_CRYPT
@@ -54,5 +57,7 @@
 /* Use included sha included with pppd */
 #undef USE_SHA
 
-/* Version number of package */
-#undef VERSION
+/* The pppd version */
+#undef PPPD_VERSION
+
+#endif

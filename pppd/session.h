@@ -27,10 +27,10 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include "pppdconf.h"
+#ifndef PPP_SESSION_H
+#define PPP_SESSION_H
 
-#ifndef __SESSION_H
-#define __SESSION_H
+#include "pppdconf.h"
 
 #define SESS_AUTH  1	/* Check User Authentication */
 #define SESS_ACCT  2	/* Check Account Validity */
@@ -89,4 +89,4 @@ session_start(const int flags, const char* user, const char* passwd, const char*
 void
 session_end(const char* tty);
 
-#endif
+#endif // PPP_SESSION_H

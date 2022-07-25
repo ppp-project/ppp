@@ -26,8 +26,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef TLS_H
-#define TLS_H
+#ifndef PPP_TLS_H
+#define PPP_TLS_H
+
+#include "pppdconf.h"
 
 /**
  * Structure used in verifying the peer certificate
@@ -85,4 +87,4 @@ int tls_set_ca(SSL_CTX *ctx, const char *ca_dir, const char *ca_file);
  */
 void tls_log_sslerr( void );
 
-#endif	/* TLS_H */
+#endif	/* PPP_TLS_H */

@@ -17,17 +17,15 @@
 static char const RCSID[] =
     "$Id: radrealms.c,v 1.2 2004/11/14 07:26:26 paulus Exp $";
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "pppd.h"
-#include "radiusclient.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/param.h>
+#include <pppd/pppd.h>
 
-char pppd_version[] = VERSION;
+#include "radiusclient.h"
+
+char pppd_version[] = PPPD_VERSION;
 
 char radrealms_config[MAXPATHLEN] = "/etc/radiusclient/realms";
 

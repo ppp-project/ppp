@@ -34,16 +34,6 @@
 *
 ***********************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "pppd.h"
-#include "chap-new.h"
-#include "chap_ms.h"
-#include "fsm.h"
-#include "ipcp.h"
-#include "mppe.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,6 +45,13 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+
+#include <pppd/pppd.h>
+#include <pppd/chap-new.h>
+#include <pppd/chap_ms.h>
+#include <pppd/fsm.h>
+#include <pppd/ipcp.h>
+#include <pppd/mppe.h>
 
 #define BUF_LEN 1024
 
@@ -104,7 +101,7 @@ static int winbind_chap_verify(char *user, char *ourname, int id,
 			       char *message, int message_space);
 static int winbind_allowed_address(u_int32_t addr); 
 
-char pppd_version[] = VERSION;
+char pppd_version[] = PPPD_VERSION;
 
 /**********************************************************************
 * %FUNCTION: plugin_init
@@ -569,14 +566,14 @@ winbind_chap_verify(char *user, char *ourname, int id,
 			nt_response = &response[MS_CHAP_NTRESP];
 			nt_response_size = MS_CHAP_NTRESP_LEN;
 		} else {
-#ifdef MSLANMAN
+#ifdef PPP_WITH_MSLANMAN
 			lm_response = &response[MS_CHAP_LANMANRESP];
 			lm_response_size = MS_CHAP_LANMANRESP_LEN;
 #else
 			/* Should really propagate this into the error packet. */
 			notice("Peer request for LANMAN auth not supported");
 			return NOT_AUTHENTICATED;
-#endif /* MSLANMAN */
+#endif /* PPP_WITH_MSLANMAN */
 		}
 		
 		/* ship off to winbind, and check */
@@ -590,7 +587,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				  nt_response, nt_response_size,
 				  session_key,
 				  &error_string) == AUTHENTICATED) {
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 			mppe_set_chapv1(challenge, session_key);
 #endif
 			slprintf(message, message_space, "Access granted");
@@ -637,7 +634,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 				&response[MS_CHAP2_NTRESP],
 				&response[MS_CHAP2_PEER_CHALLENGE],
 				challenge, user, saresponse);
-#ifdef MPPE
+#ifdef PPP_WITH_MPPE
 			mppe_set_chapv2(session_key, &response[MS_CHAP2_NTRESP],
 				       MS_CHAP2_AUTHENTICATOR);
 #endif

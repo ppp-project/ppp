@@ -46,7 +46,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ppp_defs.h"
+
 #include "ppp-comp.h"
 
 #if DO_BSD_COMPRESS
@@ -250,14 +250,15 @@ bsd_comp_stats(void *state, struct compstat *stats)
     stats->comp_packets = db->comp_count;
     stats->inc_bytes = db->incomp_bytes;
     stats->inc_packets = db->incomp_count;
-    stats->ratio = db->in_count;
+
+    u_int ratio = db->in_count;
     out = db->bytes_out;
-    if (stats->ratio <= 0x7fffff)
-	stats->ratio <<= 8;
+    if (ratio <= 0x7fffff)
+	ratio <<= 8;
     else
 	out >>= 8;
     if (out != 0)
-	stats->ratio /= out;
+	stats->ratio = ratio / out;
 }
 
 /*

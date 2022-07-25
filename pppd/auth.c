@@ -122,10 +122,10 @@
 #include "upap.h"
 #include "chap-new.h"
 #include "eap.h"
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 #include "eap-tls.h"
 #endif
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
 #include "cbcp.h"
 #endif
 #include "pathnames.h"
@@ -198,7 +198,7 @@ int (*chap_check_hook)(void) = NULL;
 /* Hook for a plugin to get the CHAP password for authenticating us */
 int (*chap_passwd_hook)(char *user, char *passwd) = NULL;
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 /* Hook for a plugin to get the EAP-TLS password for authenticating us */
 int (*eaptls_passwd_hook)(char *user, char *passwd) = NULL;
 #endif
@@ -210,7 +210,7 @@ int (*null_auth_hook)(struct wordlist **paddrs,
 
 int (*allowed_address_hook)(u_int32_t addr) = NULL;
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
 /* Hook for plugin to hear when an interface joins a multilink bundle */
 void (*multilink_join_hook)(void) = NULL;
 #endif
@@ -244,7 +244,7 @@ bool cryptpap = 0;		/* Passwords in pap-secrets are encrypted */
 bool refuse_pap = 0;		/* Don't wanna auth. ourselves with PAP */
 bool refuse_chap = 0;		/* Don't wanna auth. ourselves with CHAP */
 bool refuse_eap = 0;		/* Don't wanna auth. ourselves with EAP */
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 bool refuse_mschap = 0;		/* Don't wanna auth. ourselves with MS-CHAP */
 bool refuse_mschap_v2 = 0;	/* Don't wanna auth. ourselves with MS-CHAPv2 */
 #else
@@ -259,7 +259,7 @@ bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 char *cacert_file  = NULL;  /* CA certificate file (pem format) */
 char *ca_path      = NULL;  /* Directory with CA certificates */
 char *crl_dir      = NULL;  /* Directory containing CRL files */
@@ -269,7 +269,7 @@ char *tls_verify_method = NULL; /* Verify certificate method */
 bool  tls_verify_key_usage = 0; /* Verify peer certificate key usage */
 #endif
 
-#if defined(USE_EAPTLS)
+#if defined(PPP_WITH_EAPTLS)
 char *cert_file    = NULL;  /* Client certificate file (pem format) */
 char *privkey_file = NULL;  /* Client private key file (pem format) */
 char *pkcs12_file  = NULL;  /* Client private key envelope file (pkcs12 format) */
@@ -290,7 +290,7 @@ static int  have_chap_secret (char *, char *, int, int *);
 static int  have_srp_secret(char *client, char *server, int need_ip,
     int *lacks_ipp);
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 static int  have_eaptls_secret_server
 (char *client, char *server, int need_ip, int *lacks_ipp);
 static int  have_eaptls_secret_client (char *client, char *server);
@@ -317,10 +317,7 @@ static int  set_noauth_addr (char **);
 static int  set_permitted_number (char **);
 static void check_access (FILE *, char *);
 static int  wordlist_count (struct wordlist *);
-
-#ifdef MAXOCTETS
 static void check_maxoctets (void *);
-#endif
 
 /*
  * Authentication-related options.
@@ -345,7 +342,7 @@ option_t auth_options[] = {
       "Require CHAP authentication from peer",
       OPT_ALIAS | OPT_PRIOSUB | OPT_A2OR | MDTYPE_MD5,
       &lcp_wantoptions[0].chap_mdtype },
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
     { "require-mschap", o_bool, &auth_required,
       "Require MS-CHAP authentication from peer",
       OPT_PRIOSUB | OPT_A2OR | MDTYPE_MICROSOFT,
@@ -376,7 +373,7 @@ option_t auth_options[] = {
       "Don't allow CHAP authentication with peer",
       OPT_ALIAS | OPT_A2CLRB | MDTYPE_MD5,
       &lcp_allowoptions[0].chap_mdtype },
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
     { "refuse-mschap", o_bool, &refuse_mschap,
       "Don't agree to auth to peer with MS-CHAP",
       OPT_A2CLRB | MDTYPE_MICROSOFT,
@@ -449,7 +446,7 @@ option_t auth_options[] = {
       "Set telephone number(s) which are allowed to connect",
       OPT_PRIV | OPT_A2LIST },
 
-#if defined(USE_EAPTLS) || defined(USE_PEAP)
+#if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
     { "ca", o_string, &cacert_file,     "CA certificate in PEM format" },
     { "capath", o_string, &ca_path,     "TLS CA certificate directory" },
     { "crl-dir", o_string, &crl_dir,    "Use CRLs in directory" },
@@ -462,13 +459,13 @@ option_t auth_options[] = {
       "Verify peer by method (none|subject|name|suffix)" },
 #endif
 
-#if defined(USE_EAPTLS)
+#if defined(PPP_WITH_EAPTLS)
     { "cert", o_string, &cert_file,     "client certificate in PEM format" },
     { "key", o_string, &privkey_file,   "client private key in PEM format" },
     { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
     { "need-peer-eap", o_bool, &need_peer_eap,
       "Require the peer to authenticate us", 1 },
-#endif
+#endif /* PPP_WITH_EAPTLS */
     { NULL }
 };
 
@@ -793,7 +790,7 @@ link_established(int unit)
     lcp_options *wo = &lcp_wantoptions[unit];
     lcp_options *go = &lcp_gotoptions[unit];
     lcp_options *ho = &lcp_hisoptions[unit];
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     lcp_options *ao = &lcp_allowoptions[unit];
 #endif
     int i;
@@ -830,7 +827,7 @@ link_established(int unit)
 	}
     }
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     if (need_peer_eap && !ao->neg_eap) {
 	warn("eap required to authenticate us but no suitable secrets");
 	lcp_close(unit, "couldn't negotiate eap");
@@ -906,7 +903,7 @@ network_phase(int unit)
 	}
     }
 
-#ifdef CBCP_SUPPORT
+#ifdef PPP_WITH_CBCP
     /*
      * If we negotiated callback, do it now.
      */
@@ -937,7 +934,7 @@ start_networks(int unit)
 
     new_phase(PHASE_NETWORK);
 
-#ifdef HAVE_MULTILINK
+#ifdef PPP_WITH_MULTILINK
     if (multilink) {
 	if (mp_join_bundle()) {
 	    if (multilink_join_hook)
@@ -947,9 +944,9 @@ start_networks(int unit)
 	    return;
 	}
     }
-#endif /* HAVE_MULTILINK */
+#endif /* PPP_WITH_MULTILINK */
 
-#ifdef PPP_FILTER
+#ifdef PPP_WITH_FILTER
     if (!demand)
 	set_filters(&pass_filter, &active_filter);
 #endif
@@ -1019,7 +1016,7 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_PEER;
 	    break;
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	case CHAP_MICROSOFT:
 	    bit |= CHAP_MS_PEER;
 	    break;
@@ -1095,7 +1092,7 @@ auth_withpeer_success(int unit, int protocol, int prot_flavor)
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_WITHPEER;
 	    break;
-#ifdef CHAPMS
+#ifdef PPP_WITH_CHAPMS
 	case CHAP_MICROSOFT:
 	    bit |= CHAP_MS_WITHPEER;
 	    break;
@@ -1164,10 +1161,8 @@ np_up(int unit, int proto)
 	if (maxconnect > 0)
 	    TIMEOUT(connect_time_expired, 0, maxconnect);
 
-#ifdef MAXOCTETS
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
-#endif
 
 	/*
 	 * Detach now, if the updetach option was given.
@@ -1194,9 +1189,7 @@ np_down(int unit, int proto)
     if (--num_np_up == 0) {
 	UNTIMEOUT(check_idle, NULL);
 	UNTIMEOUT(connect_time_expired, NULL);
-#ifdef MAXOCTETS
 	UNTIMEOUT(check_maxoctets, NULL);
-#endif	
 	new_phase(PHASE_NETWORK);
     }
 }
@@ -1213,7 +1206,6 @@ np_finished(int unit, int proto)
     }
 }
 
-#ifdef MAXOCTETS
 static void
 check_maxoctets(void *arg)
 {
@@ -1246,7 +1238,6 @@ check_maxoctets(void *arg)
         TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
     }
 }
-#endif
 
 /*
  * check_idle - check whether the link has been idle for long
@@ -1352,7 +1343,7 @@ auth_check_options(void)
 				    our_name, 1, &lacks_ip);
     }
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
     if (!can_auth && wo->neg_eap) {
 	can_auth =
 	    have_eaptls_secret_server((explicit_remote ? remote_name :
@@ -1415,7 +1406,7 @@ auth_reset(int unit)
 	(hadchap == 1 || (hadchap == -1 && have_chap_secret(user,
 	    (explicit_remote? remote_name: NULL), 0, NULL))) ||
 	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL)
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 		|| have_eaptls_secret_client(user, (explicit_remote? remote_name: NULL))
 #endif
 	);
@@ -1434,7 +1425,7 @@ auth_reset(int unit)
 		1, NULL))) &&
 	!have_srp_secret((explicit_remote? remote_name: NULL), our_name, 1,
 	    NULL)
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 	 && !have_eaptls_secret_server((explicit_remote? remote_name: NULL),
 				   our_name, 1, NULL)
 #endif
@@ -2414,7 +2405,7 @@ auth_script(char *script)
 }
 
 
-#ifdef USE_EAPTLS
+#ifdef PPP_WITH_EAPTLS
 static int
 have_eaptls_secret_server(char *client, char *server,
 			  int need_ip, int *lacks_ipp)
