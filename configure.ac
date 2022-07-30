@@ -17,8 +17,8 @@ AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h pppd/plugins/pppoe/config.h])
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_INSTALL
-AC_PROG_LIBTOOL
 AC_PROG_LN_S
+LT_INIT
 
 PKG_PROG_PKG_CONFIG
 
