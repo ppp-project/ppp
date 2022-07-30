@@ -53,13 +53,8 @@ static char const RCSID[] =
 #include <pppd/lcp.h>
 #include <pppd/ipcp.h>
 #include <pppd/ccp.h>
-/* #include <pppd/pathnames.h> ?, see below ... */
 
-#ifndef _ROOT_PATH
-#define _ROOT_PATH ""
-#endif
-
-#define _PATH_ETHOPT         _ROOT_PATH "/etc/ppp/options."
+#define PPP_PATH_ETHOPT         SYSCONFDIR "/ppp/options."
 
 char pppd_version[] = PPPD_VERSION;
 
@@ -332,7 +327,7 @@ PPPOEDeviceOptions(void)
 {
     char buf[MAXPATHLEN];
 
-    strlcpy(buf, _PATH_ETHOPT, MAXPATHLEN);
+    strlcpy(buf, PPP_PATH_ETHOPT, MAXPATHLEN);
     strlcat(buf, devnam, MAXPATHLEN);
     if (!options_from_file(buf, 0, 0, 1))
 	exit(EXIT_OPTION_ERROR);

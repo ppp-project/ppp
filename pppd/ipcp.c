@@ -1767,7 +1767,7 @@ ip_demand_conf(int u)
     }
     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
 	return 0;
-    ipcp_script(_PATH_IPPREUP, 1);
+    ipcp_script(PPP_PATH_IPPREUP, 1);
     if (!sifup(u))
 	return 0;
     if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
@@ -1933,7 +1933,7 @@ ipcp_up(fsm *f)
 	ifindex = if_nametoindex(ifname);
 
 	/* run the pre-up script, if any, and wait for it to finish */
-	ipcp_script(_PATH_IPPREUP, 1);
+	ipcp_script(PPP_PATH_IPPREUP, 1);
 
 	/* check if preup script renamed the interface */
 	if (!if_indextoname(ifindex, ifname)) {
@@ -2153,9 +2153,9 @@ create_resolv(u_int32_t peerdns1, u_int32_t peerdns2)
 {
     FILE *f;
 
-    f = fopen(_PATH_RESOLV, "w");
+    f = fopen(PPP_PATH_RESOLV, "w");
     if (f == NULL) {
-	error("Failed to create %s: %m", _PATH_RESOLV);
+	error("Failed to create %s: %m", PPP_PATH_RESOLV);
 	return;
     }
 
@@ -2166,7 +2166,7 @@ create_resolv(u_int32_t peerdns1, u_int32_t peerdns2)
 	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns2));
 
     if (ferror(f))
-	error("Write failed to %s: %m", _PATH_RESOLV);
+	error("Write failed to %s: %m", PPP_PATH_RESOLV);
 
     fclose(f);
 }

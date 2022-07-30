@@ -491,7 +491,7 @@ static void rc_random_vector (unsigned char *vector)
    we use /dev/urandom here, as /dev/random might block and we don't
    need that much randomness. BTW, great idea, Ted!     -lf, 03/18/95	*/
 
-	if ((fd = open(_PATH_DEV_URANDOM, O_RDONLY)) >= 0)
+	if ((fd = open(PPP_PATH_DEV_URANDOM, O_RDONLY)) >= 0)
 	{
 		unsigned char *pos;
 		int readcount;

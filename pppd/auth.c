@@ -750,7 +750,7 @@ link_down(int unit)
 	if (auth_script_state == s_up && auth_script_pid == 0) {
 	    update_link_stats(unit);
 	    auth_script_state = s_down;
-	    auth_script(_PATH_AUTHDOWN);
+	    auth_script(PPP_PATH_AUTHDOWN);
 	}
     }
     if (!doing_multilink) {
@@ -899,7 +899,7 @@ network_phase(int unit)
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
-	    auth_script(_PATH_AUTHUP);
+	    auth_script(PPP_PATH_AUTHUP);
 	}
     }
 
@@ -1489,7 +1489,7 @@ check_passwd(int unit,
      * Open the file of pap secrets and scan for a suitable secret
      * for authenticating this user.
      */
-    filename = _PATH_UPAPFILE;
+    filename = PPP_PATH_UPAPFILE;
     addrs = opts = NULL;
     ret = UPAP_AUTHNAK;
     f = fopen(filename, "r");
@@ -1590,7 +1590,7 @@ null_login(int unit)
      * Open the file of pap secrets and scan for a suitable secret.
      */
     if (ret <= 0) {
-	filename = _PATH_UPAPFILE;
+	filename = PPP_PATH_UPAPFILE;
 	addrs = NULL;
 	f = fopen(filename, "r");
 	if (f == NULL)
@@ -1637,7 +1637,7 @@ get_pap_passwd(char *passwd)
 	    return ret;
     }
 
-    filename = _PATH_UPAPFILE;
+    filename = PPP_PATH_UPAPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1674,7 +1674,7 @@ have_pap_secret(int *lacks_ipp)
 	    return ret;
     }
 
-    filename = _PATH_UPAPFILE;
+    filename = PPP_PATH_UPAPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1716,7 +1716,7 @@ have_chap_secret(char *client, char *server,
 	}
     }
 
-    filename = _PATH_CHAPFILE;
+    filename = PPP_PATH_CHAPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1754,7 +1754,7 @@ have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
     char *filename;
     struct wordlist *addrs;
 
-    filename = _PATH_SRPFILE;
+    filename = PPP_PATH_SRPFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1802,7 +1802,7 @@ get_secret(int unit, char *client, char *server,
 	    return 0;
 	}
     } else {
-	filename = _PATH_CHAPFILE;
+	filename = PPP_PATH_CHAPFILE;
 	addrs = NULL;
 	secbuf[0] = 0;
 
@@ -1856,7 +1856,7 @@ get_srp_secret(int unit, char *client, char *server,
     if (!am_server && passwd[0] != '\0') {
 	strlcpy(secret, passwd, MAXWORDLEN);
     } else {
-	filename = _PATH_SRPFILE;
+	filename = PPP_PATH_SRPFILE;
 	addrs = NULL;
 
 	fp = fopen(filename, "r");
@@ -2359,13 +2359,13 @@ auth_script_done(void *arg)
     case s_up:
 	if (auth_state == s_down) {
 	    auth_script_state = s_down;
-	    auth_script(_PATH_AUTHDOWN);
+	    auth_script(PPP_PATH_AUTHDOWN);
 	}
 	break;
     case s_down:
 	if (auth_state == s_up) {
 	    auth_script_state = s_up;
-	    auth_script(_PATH_AUTHUP);
+	    auth_script(PPP_PATH_AUTHUP);
 	}
 	break;
     }
@@ -2419,7 +2419,7 @@ have_eaptls_secret_server(char *client, char *server,
     char cacertfile[MAXWORDLEN];
     char pkfile[MAXWORDLEN];
 
-    filename = _PATH_EAPTLSSERVFILE;
+    filename = PPP_PATH_EAPTLSSERVFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 		return 0;
@@ -2476,7 +2476,7 @@ have_eaptls_secret_client(char *client, char *server)
 	if (pkcs12_file)
 		return 1;
 
-    filename = _PATH_EAPTLSCLIFILE;
+    filename = PPP_PATH_EAPTLSCLIFILE;
     f = fopen(filename, "r");
     if (f == NULL)
 		return 0;
@@ -2694,7 +2694,7 @@ get_eaptls_secret(int unit, char *client, char *server,
 	}
 	else
 	{
-		filename = (am_server ? _PATH_EAPTLSSERVFILE : _PATH_EAPTLSCLIFILE);
+		filename = (am_server ? PPP_PATH_EAPTLSSERVFILE : PPP_PATH_EAPTLSCLIFILE);
 		addrs = NULL;
 
 		fp = fopen(filename, "r");

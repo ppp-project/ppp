@@ -531,7 +531,7 @@ options_from_user(void)
     pw = getpwuid(getuid());
     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
 	return 1;
-    file = _PATH_USEROPT;
+    file = PPP_PATH_USEROPT;
     pl = strlen(user) + strlen(file) + 2;
     path = malloc(pl);
     if (path == NULL)
@@ -563,13 +563,13 @@ options_for_tty(void)
 	dev = p + 5;
     if (dev[0] == 0 || strcmp(dev, "tty") == 0)
 	return 1;		/* don't look for /etc/ppp/options.tty */
-    pl = strlen(_PATH_TTYOPT) + strlen(dev) + 1;
+    pl = strlen(PPP_PATH_TTYOPT) + strlen(dev) + 1;
     path = malloc(pl);
     if (path == NULL)
 	novm("tty init file name");
-    slprintf(path, pl, "%s%s", _PATH_TTYOPT, dev);
+    slprintf(path, pl, "%s%s", PPP_PATH_TTYOPT, dev);
     /* Turn slashes into dots, for Solaris case (e.g. /dev/term/a) */
-    for (p = path + strlen(_PATH_TTYOPT); *p != 0; ++p)
+    for (p = path + strlen(PPP_PATH_TTYOPT); *p != 0; ++p)
 	if (*p == '/')
 	    *p = '.';
     option_priority = OPRIO_CFGFILE;
@@ -1466,10 +1466,10 @@ callfile(char **argv)
 	return 0;
     }
 
-    l = strlen(arg) + strlen(_PATH_PEERFILES) + 1;
+    l = strlen(arg) + strlen(PPP_PATH_PEERFILES) + 1;
     if ((fname = (char *) malloc(l)) == NULL)
 	novm("call file name");
-    slprintf(fname, l, "%s%s", _PATH_PEERFILES, arg);
+    slprintf(fname, l, "%s%s", PPP_PATH_PEERFILES, arg);
     script_setenv("CALL_FILE", arg, 0);
 
     ok = options_from_file(fname, 1, 1, 1);
@@ -1597,7 +1597,7 @@ loadplugin(char **argv)
     const char *vers;
 
     if (strchr(arg, '/') == 0) {
-	const char *base = _PATH_PLUGIN;
+	const char *base = PPP_PATH_PLUGIN;
 	int l = strlen(base) + strlen(arg) + 2;
 	path = malloc(l);
 	if (path == 0)

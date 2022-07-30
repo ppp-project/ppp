@@ -47,7 +47,7 @@ radrealms_la_SOURCES = radrealms.c
 libradiusclient_la_SOURCES = \
     avpair.c buildreq.c config.c dict.c ip_util.c \
 	clientid.c sendserver.c lock.c util.c
-libradiusclient_la_CPPFLAGS = $(RADIUS_CPPFLAGS)
+libradiusclient_la_CPPFLAGS = $(RADIUS_CPPFLAGS) -DSYSCONFDIR=\"${sysconfdir}\"
 
 if !WITH_OPENSSL
 libradiusclient_la_SOURCES += md5.c
