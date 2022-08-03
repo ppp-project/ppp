@@ -2,13 +2,19 @@ sbin_PROGRAMS = pppd
 dist_man8_MANS = pppd.8
 check_PROGRAMS =
 
-utest_chap_SOURCES = chap_ms.c pppcrypt.c utils.c
+utest_chap_SOURCES = chap_ms.c utils.c
 utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
 utest_peap_SOURCES = peap.c utils.c mppe.c
 utest_peap_CPPFLAGS = -DUNIT_TEST
 utest_peap_LDFLAGS =
+
+utest_crypto_SOURCES = ppp-crypto.c
+utest_crypto_CPPFLAGS = -DUNIT_TEST
+utest_crypto_LDFLAGS =
+
+check_PROGRAMS += utest_crypto
 
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
@@ -34,16 +40,14 @@ pppd_include_HEADERS = \
     ipv6cp.h \
     lcp.h \
     magic.h \
-    md4.h \
-    md5.h \
     mppe.h \
     pathnames.h \
     peap.h \
-    pppcrypt.h \
     pppd.h \
     pppdconf.h \
+    ppp-crypto.h \
+    ppp-crypto-priv.h \
     session.h \
-    sha1.h \
     spinlock.h \
     tls.h \
     tdb.h \
@@ -85,12 +89,7 @@ endif
 
 if PPP_WITH_CHAPMS
 pppd_SOURCES += chap_ms.c
-pppd_SOURCES += pppcrypt.c
 check_PROGRAMS += utest_chap
-else
-if WITH_SRP
-pppd_SOURCES += pppcrypt.c
-endif
 endif
 
 if PPP_WITH_CBCP
@@ -147,27 +146,18 @@ check_PROGRAMS += utest_peap
 endif
 
 noinst_LTLIBRARIES = libppp_crypt.la
-libppp_crypt_la_SOURCES=
+libppp_crypt_la_SOURCES=ppp-crypto.c ppp-md5.c ppp-md4.c ppp-sha1.c ppp-des.c
 
-if !WITH_OPENSSL
-libppp_crypt_la_SOURCES += md4.c md5.c sha1.c
-else
+if PPP_WITH_OPENSSL
 libppp_crypt_la_CPPFLAGS=$(OPENSSL_INCLUDES)
 libppp_crypt_la_LDFLAGS=$(OPENSSL_LDFLAGS)
 libppp_crypt_la_LIBADD=$(OPENSSL_LIBS)
-if !OPENSSL_HAVE_SHA
-libppp_crypt_la_SOURCES += sha1.c
-endif
-if !OPENSSL_HAVE_MD5
-libppp_crypt_la_SOURCES += md5.c
-endif
-if !OPENSSL_HAVE_MD4
-libppp_crypt_la_SOURCES += md4.c
-endif
 endif
 
 utest_peap_LDADD = libppp_crypt.la
 utest_chap_LDADD = libppp_crypt.la
+utest_crypto_LDADD = libppp_crypt.la
+
 pppd_LIBS += libppp_crypt.la
 
 if WITH_SYSTEMD

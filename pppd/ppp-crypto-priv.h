@@ -1,9 +1,6 @@
-/*
- * pppcrypt.c - PPP/DES linkage for MS-CHAP and EAP SRP-SHA1
+/* ppp-crypo-priv.h - Crypto private data structures
  *
- * Extracted from chap_ms.c by James Carlson.
- *
- * Copyright (c) 1995 Eric Rosenquist.  All rights reserved.
+ * Copyright (c) 2022 Eivind Næss. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,21 +26,46 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifndef PPP_PPPCRYPT_H
-#define	PPP_PPPCRYPT_H
+#ifndef PPP_CRYPTO_PRIV_H
+#define PPP_CRYPTO_PRIV_H
 
-#include "pppdconf.h"
+#include "ppp-crypto.h"
 
-#ifdef HAVE_CRYPT_H
-#include <crypt.h>
+#define MAX_KEY_SIZE 32
+#define MAX_IV_SIZE 32
+
+struct _PPP_MD
+{
+    int  (*init_fn)(PPP_MD_CTX *ctx);
+    int  (*update_fn)(PPP_MD_CTX *ctx, const void *data, size_t cnt);
+    int  (*final_fn)(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *outlen);
+    void (*clean_fn)(PPP_MD_CTX *ctx);
+};
+
+struct _PPP_MD_CTX
+{
+    PPP_MD md;
+    void *priv;
+};
+
+struct _PPP_CIPHER
+{
+    int  (*init_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigned char *iv);
+    void (*set_key_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *key);
+    void (*set_iv_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *iv);
+    int  (*update_fn)(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl, const unsigned char *in, int inl);
+    int  (*final_fn)(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
+    void (*clean_fn)(PPP_CIPHER_CTX *ctx);
+};
+
+struct _PPP_CIPHER_CTX
+{
+    PPP_CIPHER cipher;
+    unsigned char key[MAX_KEY_SIZE];
+    unsigned char iv[MAX_IV_SIZE];
+    int is_encr;
+    void *priv;
+};
+
+
 #endif
-
-#ifndef USE_CRYPT
-#include <openssl/des.h>
-#endif
-
-extern bool	DesSetkey(u_char *);
-extern bool	DesEncrypt(u_char *, u_char *);
-extern bool	DesDecrypt(u_char *, u_char *);
-
-#endif /* PPP_PPPCRYPT_H */

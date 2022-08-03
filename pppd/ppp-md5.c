@@ -1,4 +1,91 @@
+/* ppp-md5.c - MD5 Digest implementation
+ *
+ * Copyright (c) 2022 Eivind Næss. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. The name(s) of the authors of this software must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission.
+ *
+ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
+ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 
+ * Sections of this code holds different copyright information.
+ */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "ppp-crypto-priv.h"
+
+#ifdef OPENSSL_HAVE_MD5
+#include <openssl/evp.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#endif
+
+static int md5_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        EVP_MD_CTX *mctx = EVP_MD_CTX_new();
+        if (mctx) {
+            if (EVP_DigestInit((EVP_MD_CTX*) mctx, EVP_md5())) {
+                ctx->priv = mctx;
+                return 1;
+            }
+            EVP_MD_CTX_free(mctx);
+        }
+    }
+    return 0;
+}
+
+static int md5_update(PPP_MD_CTX *ctx, const void *data, size_t len)
+{
+    if (EVP_DigestUpdate((EVP_MD_CTX*) ctx->priv, data, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static int md5_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    if (EVP_DigestFinal((EVP_MD_CTX*) ctx->priv, out, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static void md5_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        EVP_MD_CTX_free((EVP_MD_CTX*) ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+#else // !OPENSSL_HAVE_MD5
 
 /*
  ***********************************************************************
@@ -33,12 +120,25 @@
  ***********************************************************************
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
-#include <string.h>
-#include "md5.h"
+/* typedef a 32-bit type */
+#ifdef _LP64
+typedef unsigned int UINT4;
+typedef int          INT4;
+#else
+typedef unsigned long UINT4;
+typedef long          INT4;
+#endif
+#define _UINT4_T
+
+/* Data structure for MD5 (Message-Digest) computation */
+typedef struct {
+  UINT4 i[2];                   /* number of _bits_ handled mod 2^64 */
+  UINT4 buf[4];                                    /* scratch buffer */
+  unsigned char in[64];                              /* input buffer */
+  unsigned char digest[16];     /* actual digest after MD5Final call */
+} MD5_CTX;
+
 
 /*
  ***********************************************************************
@@ -106,7 +206,7 @@ static unsigned char PADDING[64] = {
 /* The routine MD5_Init initializes the message-digest context
    mdContext. All fields are set to zero.
  */
-void MD5_Init (MD5_CTX *mdContext)
+static void MD5_Init (MD5_CTX *mdContext)
 {
   mdContext->i[0] = mdContext->i[1] = (UINT4)0;
 
@@ -122,7 +222,7 @@ void MD5_Init (MD5_CTX *mdContext)
    account for the presence of each of the characters inBuf[0..inLen-1]
    in the message whose digest is being computed.
  */
-void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen)
+static void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen)
 {
   UINT4 in[16];
   int mdi;
@@ -157,7 +257,7 @@ void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen)
 /* The routine MD5Final terminates the message-digest computation and
    ends with the desired message digest in mdContext->digest[0...15].
  */
-void MD5_Final (unsigned char hash[], MD5_CTX *mdContext)
+static void MD5_Final (unsigned char hash[], MD5_CTX *mdContext)
 {
   UINT4 in[16];
   int mdi;
@@ -301,3 +401,51 @@ static void Transform (UINT4 *buf, UINT4 *in)
  ** End of md5.c                                                      **
  ******************************** (cut) ********************************
  */
+
+static int md5_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        MD5_CTX *md5 = calloc(1, sizeof(MD5_CTX));
+        if (md5 != NULL) {
+            MD5_Init(md5);
+            ctx->priv = md5;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int md5_update(PPP_MD_CTX *ctx, const void *data, size_t len)
+{
+    MD5_Update((MD5_CTX*) ctx->priv, (void*) data, len);
+    return 1;
+}
+
+static int md5_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    MD5_Final(out, (MD5_CTX*) ctx->priv);
+    return 1;
+}
+
+static void md5_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        free(ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+#endif
+
+static PPP_MD ppp_md5 = {
+    .init_fn = md5_init,
+    .update_fn = md5_update,
+    .final_fn = md5_final,
+    .clean_fn  = md5_clean,
+};
+
+const PPP_MD *PPP_md5(void)
+{
+    return &ppp_md5;
+}
+

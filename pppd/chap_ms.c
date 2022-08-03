@@ -96,11 +96,9 @@
 #include "pppd.h"
 #include "chap-new.h"
 #include "chap_ms.h"
-#include "md4.h"
-#include "sha1.h"
-#include "pppcrypt.h"
 #include "magic.h"
 #include "mppe.h"
+#include "ppp-crypto.h"
 
 #ifdef UNIT_TEST
 #undef PPP_WITH_MPPE
@@ -108,7 +106,7 @@
 
 static void	ascii2unicode (char[], int, u_char[]);
 static void	NTPasswordHash (u_char *, int, u_char[MD4_SIGNATURE_SIZE]);
-static void	ChallengeResponse (u_char *, u_char *, u_char[24]);
+static int	ChallengeResponse (u_char *, u_char *, u_char[24]);
 static void	ChapMS_NT (u_char *, char *, int, u_char[24]);
 static void	ChapMS2_NT (u_char *, u_char[16], char *, char *, int,
 				u_char[24]);
@@ -504,12 +502,19 @@ print_msg:
 	free(msg);
 }
 
-static void
+// TODO: Move this definition somewhere
+#define NT_RESPONSE_LEN 24
+
+static int
 ChallengeResponse(u_char *challenge,
 		  u_char PasswordHash[MD4_SIGNATURE_SIZE],
-		  u_char response[24])
+		  u_char response[NT_RESPONSE_LEN])
 {
-    u_char    ZPasswordHash[21];
+    u_char ZPasswordHash[21];
+    PPP_CIPHER_CTX *ctx;
+    int outlen = NT_RESPONSE_LEN;
+    int offset = 0;
+    int retval = 0;
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
     BCOPY(PasswordHash, ZPasswordHash, MD4_SIGNATURE_SIZE);
@@ -519,16 +524,38 @@ ChallengeResponse(u_char *challenge,
 	   sizeof(ZPasswordHash), ZPasswordHash);
 #endif
 
-    (void) DesSetkey(ZPasswordHash + 0);
-    DesEncrypt(challenge, response + 0);
-    (void) DesSetkey(ZPasswordHash + 7);
-    DesEncrypt(challenge, response + 8);
-    (void) DesSetkey(ZPasswordHash + 14);
-    DesEncrypt(challenge, response + 16);
+    ctx = PPP_CIPHER_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_CipherInit(ctx, PPP_des_ecb(), ZPasswordHash + 0, NULL, 1)) {
+
+            if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
+                offset += outlen;
+
+                PPP_CIPHER_CTX_set_cipher_data(ctx, ZPasswordHash + 7);
+                if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
+                    offset += outlen;
+
+                    PPP_CIPHER_CTX_set_cipher_data(ctx, ZPasswordHash + 14);
+                    if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
+                        offset += outlen;
+
+                        if (PPP_CipherFinal(ctx, response + offset, &outlen)) {
+
+                            retval = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        PPP_CIPHER_CTX_free(ctx);
+    }
 
 #if 0
     dbglog("ChallengeResponse - response %.24B", response);
 #endif
+    return retval;
 }
 
 void
@@ -536,8 +563,9 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 	      char *username, u_char Challenge[8])
     
 {
-    SHA1_CTX	sha1Context;
-    u_char	sha1Hash[SHA1_SIGNATURE_SIZE];
+    PPP_MD_CTX* ctx;
+    u_char	hash[SHA1_SIGNATURE_SIZE];
+    int     hash_len;
     char	*user;
 
     /* remove domain from "domain\username" */
@@ -545,14 +573,30 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 	++user;
     else
 	user = username;
+    
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
 
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PeerChallenge, 16);
-    SHA1_Update(&sha1Context, rchallenge, 16);
-    SHA1_Update(&sha1Context, (unsigned char *)user, strlen(user));
-    SHA1_Final(sha1Hash, &sha1Context);
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
 
-    BCOPY(sha1Hash, Challenge, 8);
+            if (PPP_DigestUpdate(ctx, PeerChallenge, 16)) {
+
+                if (PPP_DigestUpdate(ctx, rchallenge, 16)) {
+
+                    if (PPP_DigestUpdate(ctx, user, strlen(user))) {
+                        
+                        hash_len = SHA1_SIGNATURE_SIZE;
+                        if (PPP_DigestFinal(ctx, hash, &hash_len)) {
+
+                            BCOPY(hash, Challenge, 8);
+                        }
+                    }
+                }
+            }
+        }
+
+        PPP_MD_CTX_free(ctx);
+    }
 }
 
 /*
@@ -575,26 +619,20 @@ ascii2unicode(char ascii[], int ascii_len, u_char unicode[])
 static void
 NTPasswordHash(u_char *secret, int secret_len, u_char hash[MD4_SIGNATURE_SIZE])
 {
-#if defined(__NetBSD__) || !defined(USE_MD4)
-    /* NetBSD uses the libc md4 routines which take bytes instead of bits */
-    int			mdlen = secret_len;
-#else
-    int			mdlen = secret_len * 8;
-#endif
-    MD4_CTX		md4Context;
+    PPP_MD_CTX* ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
 
-    MD4Init(&md4Context);
-#if !defined(USE_MD4)
-    /* Internal MD4Update can take at most 64 bytes at a time */
-    while (mdlen > 512) {
-	MD4Update(&md4Context, secret, 512);
-	secret += 64;
-	mdlen -= 512;
+        if (PPP_DigestInit(ctx, PPP_md4())) {
+
+            if (PPP_DigestUpdate(ctx, secret, secret_len)) {
+
+                int hash_len = MD4_SIGNATURE_SIZE;
+                PPP_DigestFinal(ctx, hash, &hash_len);
+            }
+        }
+        
+        PPP_MD_CTX_free(ctx);
     }
-#endif
-    MD4Update(&md4Context, secret, mdlen);
-    MD4Final(hash, &md4Context);
-
 }
 
 static void
@@ -674,27 +712,58 @@ GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	  0x6E };
 
     int		i;
-    SHA1_CTX	sha1Context;
+    PPP_MD_CTX *ctx;
     u_char	Digest[SHA1_SIGNATURE_SIZE];
+    int     hash_len;
     u_char	Challenge[8];
 
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, NTResponse, 24);
-    SHA1_Update(&sha1Context, Magic1, sizeof(Magic1));
-    SHA1_Final(Digest, &sha1Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
 
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_SIGNATURE_SIZE)) {
+
+                if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
+
+                    if (PPP_DigestUpdate(ctx, Magic1, sizeof(Magic1))) {
+                        
+                        hash_len = sizeof(Digest);
+                        PPP_DigestFinal(ctx, Digest, &hash_len);
+                    }
+                }
+            }
+        }
+        PPP_MD_CTX_free(ctx);
+    }
+    
     ChallengeHash(PeerChallenge, rchallenge, username, Challenge);
 
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, Digest, sizeof(Digest));
-    SHA1_Update(&sha1Context, Challenge, sizeof(Challenge));
-    SHA1_Update(&sha1Context, Magic2, sizeof(Magic2));
-    SHA1_Final(Digest, &sha1Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, Digest, sizeof(Digest))) {
+
+                if (PPP_DigestUpdate(ctx, Challenge, sizeof(Challenge))) {
+
+                    if (PPP_DigestUpdate(ctx, Magic2, sizeof(Magic2))) {
+                        
+                        hash_len = sizeof(Digest);
+                        PPP_DigestFinal(ctx, Digest, &hash_len);
+                    }
+                }
+            }
+        }
+
+        PPP_MD_CTX_free(ctx);
+    }
 
     /* Convert to ASCII hex string. */
-    for (i = 0; i < MAX((MS_AUTH_RESPONSE_LENGTH / 2), sizeof(Digest)); i++)
-	sprintf((char *)&authResponse[i * 2], "%02X", Digest[i]);
+    for (i = 0; i < MAX((MS_AUTH_RESPONSE_LENGTH / 2), sizeof(Digest)); i++) {
+        sprintf((char *)&authResponse[i * 2], "%02X", Digest[i]);
+    }
 }
 
 
@@ -874,10 +943,10 @@ void random_bytes(unsigned char *bytes, int len)
 
 
 int test_chap_v1(void) {
-    char *secret = "TestPassword";
+    char *secret = "MyPw";
 
     unsigned char challenge[8] = {
-        0x6c, 0x8d, 0x4b, 0xa1, 0x2b, 0x5c, 0x13, 0xc3
+        0x10, 0x2D, 0xB5, 0xDF, 0x08, 0x5D, 0x30, 0x41
     };
     unsigned char response[MS_CHAP_RESPONSE_LEN] = {
     };
@@ -886,9 +955,10 @@ int test_chap_v1(void) {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
-        0x91, 0x09, 0x61, 0x5a, 0x0c, 0xac, 0xac, 0x55,
-        0x1f, 0x60, 0xe2, 0x9c, 0x00, 0xac, 0x24, 0xda,
-        0x6e, 0xa5, 0x7b, 0xdb, 0x1d, 0x6a, 0x17, 0xc5,
+        0x4E, 0x9D, 0x3C, 0x8F, 0x9C, 0xFD, 0x38, 0x5D,
+        0x5B, 0xF4, 0xD3, 0x24, 0x67, 0x91, 0x95, 0x6C,
+        0xA4, 0xC3, 0x51, 0xAB, 0x40, 0x9A, 0x3D, 0x61,
+
         0x01
     };
 
@@ -929,6 +999,8 @@ int test_chap_v2(void) {
 }
 
 int main(int argc, char *argv[]) {
+    
+    PPP_crypto_init();
 
     if (test_chap_v1()) {
         printf("CHAPv1 failed\n");
@@ -939,6 +1011,8 @@ int main(int argc, char *argv[]) {
         printf("CHAPv2 failed\n");
         return -1;
     }
+
+    PPP_crypto_deinit();
 
     printf("Success\n");
     return 0;
