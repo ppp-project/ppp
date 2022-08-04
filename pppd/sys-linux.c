@@ -128,8 +128,6 @@
 
 #include <linux/ppp-ioctl.h>
 
-
-#ifdef PPP_WITH_IPV6CP
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_link.h>
@@ -140,7 +138,6 @@
 #define RTM_NEWSTATS 92
 #define RTM_GETSTATS 94
 #define IFLA_STATS_LINK_64 1
-#endif /* PPP_WITH_IPV6CP */
 
 #include <linux/if_addr.h>
 /* glibc versions prior to 2.24 do not define SOL_NETLINK */
@@ -157,7 +154,10 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "ipcp.h"
+
+#ifdef PPP_WITH_IPV6CP
 #include "eui64.h"
+#endif /* PPP_WITH_IPV6CP */
 
 #ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>
