@@ -297,6 +297,10 @@ dumpppp(f)
 			    printf("%s aborted packet:\n     ", dir);
 			    q = "    ";
 			}
+			if (pkt->cnt >= sizeof(pkt->buf)) {
+			    printf("%s over-long packet truncated:\n     ", dir);
+			    q = "    ";
+			}
 			nb = pkt->cnt;
 			p = pkt->buf;
 			pkt->cnt = 0;
@@ -400,7 +404,8 @@ dumpppp(f)
 			c ^= 0x20;
 			pkt->esc = 0;
 		    }
-		    pkt->buf[pkt->cnt++] = c;
+		    if (pkt->cnt < sizeof(pkt->buf))
+			pkt->buf[pkt->cnt++] = c;
 		    break;
 		}
 	    }
