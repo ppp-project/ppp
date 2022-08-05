@@ -131,6 +131,7 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_link.h>
+
 /* Attempt at retaining compile-support with older than 4.7 kernels, or kernels
  * where RTM_NEWSTATS isn't defined for whatever reason.
  */
@@ -138,8 +139,10 @@
 #define RTM_NEWSTATS 92
 #define RTM_GETSTATS 94
 #define IFLA_STATS_LINK_64 1
+#endif
 
 #include <linux/if_addr.h>
+
 /* glibc versions prior to 2.24 do not define SOL_NETLINK */
 #ifndef SOL_NETLINK
 #define SOL_NETLINK 270
@@ -149,6 +152,11 @@
 #ifndef NETLINK_CAP_ACK
 #define NETLINK_CAP_ACK 10
 #endif
+
+/* linux kernel versions prior to 4.7 do not define/support IFLA_PPP_DEV_FD */
+#ifndef IFLA_PPP_MAX
+/* IFLA_PPP_DEV_FD is declared as enum when IFLA_PPP_MAX is defined */
+#define IFLA_PPP_DEV_FD 1
 #endif
 
 #include "pppd.h"
@@ -663,6 +671,160 @@ void generic_disestablish_ppp(int dev_fd)
 }
 
 /*
+ * make_ppp_unit_rtnetlink - register a new ppp network interface for ppp_dev_fd
+ * with specified req_ifname via rtnetlink. Interface name req_ifname must not
+ * be empty. Custom ppp unit id req_unit is ignored and kernel choose some free.
+ */
+static int make_ppp_unit_rtnetlink(void)
+{
+    struct {
+        struct nlmsghdr nlh;
+        struct ifinfomsg ifm;
+        struct {
+            struct rtattr rta;
+            char ifname[IFNAMSIZ];
+        } ifn;
+        struct {
+            struct rtattr rta;
+            struct {
+                struct rtattr rta;
+                char ifkind[sizeof("ppp")];
+            } ifik;
+            struct {
+                struct rtattr rta;
+                struct {
+                    struct rtattr rta;
+                    union {
+                        int ppp_dev_fd;
+                    } ppp;
+                } ifdata[1];
+            } ifid;
+        } ifli;
+    } nlreq;
+    struct {
+        struct nlmsghdr nlh;
+        struct nlmsgerr nlerr;
+    } nlresp;
+    struct sockaddr_nl nladdr;
+    struct iovec iov;
+    struct msghdr msg;
+    ssize_t nlresplen;
+    int one;
+    int fd;
+
+    fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (fd < 0) {
+        error("make_ppp_unit_rtnetlink: socket(NETLINK_ROUTE): %m (line %d)", __LINE__);
+        return 0;
+    }
+
+    /* Tell kernel to not send to us payload of acknowledgment error message. */
+    one = 1;
+    setsockopt(fd, SOL_NETLINK, NETLINK_CAP_ACK, &one, sizeof(one));
+
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
+
+    if (bind(fd, (struct sockaddr *)&nladdr, sizeof(nladdr)) < 0) {
+        error("make_ppp_unit_rtnetlink: bind(AF_NETLINK): %m (line %d)", __LINE__);
+        close(fd);
+        return 0;
+    }
+
+    memset(&nlreq, 0, sizeof(nlreq));
+    nlreq.nlh.nlmsg_len = sizeof(nlreq);
+    nlreq.nlh.nlmsg_type = RTM_NEWLINK;
+    nlreq.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
+    nlreq.ifm.ifi_family = AF_UNSPEC;
+    nlreq.ifm.ifi_type = ARPHRD_NETROM;
+    nlreq.ifn.rta.rta_len = sizeof(nlreq.ifn);
+    nlreq.ifn.rta.rta_type = IFLA_IFNAME;
+    strlcpy(nlreq.ifn.ifname, req_ifname, sizeof(nlreq.ifn.ifname));
+    nlreq.ifli.rta.rta_len = sizeof(nlreq.ifli);
+    nlreq.ifli.rta.rta_type = IFLA_LINKINFO;
+    nlreq.ifli.ifik.rta.rta_len = sizeof(nlreq.ifli.ifik);
+    nlreq.ifli.ifik.rta.rta_type = IFLA_INFO_KIND;
+    strcpy(nlreq.ifli.ifik.ifkind, "ppp");
+    nlreq.ifli.ifid.rta.rta_len = sizeof(nlreq.ifli.ifid);
+    nlreq.ifli.ifid.rta.rta_type = IFLA_INFO_DATA;
+    nlreq.ifli.ifid.ifdata[0].rta.rta_len = sizeof(nlreq.ifli.ifid.ifdata[0]);
+    nlreq.ifli.ifid.ifdata[0].rta.rta_type = IFLA_PPP_DEV_FD;
+    nlreq.ifli.ifid.ifdata[0].ppp.ppp_dev_fd = ppp_dev_fd;
+
+    memset(&nladdr, 0, sizeof(nladdr));
+    nladdr.nl_family = AF_NETLINK;
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = &nlreq;
+    iov.iov_len = sizeof(nlreq);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    if (sendmsg(fd, &msg, 0) < 0) {
+        error("make_ppp_unit_rtnetlink: sendmsg(RTM_NEWLINK/NLM_F_CREATE): %m (line %d)", __LINE__);
+        close(fd);
+        return 0;
+    }
+
+    memset(&iov, 0, sizeof(iov));
+    iov.iov_base = &nlresp;
+    iov.iov_len = sizeof(nlresp);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &nladdr;
+    msg.msg_namelen = sizeof(nladdr);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    nlresplen = recvmsg(fd, &msg, 0);
+
+    if (nlresplen < 0) {
+        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): %m (line %d)", __LINE__);
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+
+    if (nladdr.nl_family != AF_NETLINK) {
+        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Not a netlink packet (line %d)", __LINE__);
+        return 0;
+    }
+
+    if ((size_t)nlresplen < sizeof(nlresp) || nlresp.nlh.nlmsg_len < sizeof(nlresp)) {
+        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Acknowledgment netlink packet too short (line %d)", __LINE__);
+        return 0;
+    }
+
+    /* acknowledgment packet for NLM_F_ACK is NLMSG_ERROR */
+    if (nlresp.nlh.nlmsg_type != NLMSG_ERROR) {
+        error("make_ppp_unit_rtnetlink: recvmsg(NLM_F_ACK): Not an acknowledgment netlink packet (line %d)", __LINE__);
+        return 0;
+    }
+
+    /* error == 0 indicates success, negative value is errno code */
+    if (nlresp.nlerr.error != 0) {
+        /*
+         * Linux kernel versions prior to 4.7 do not support creating ppp
+         * interfaces via rtnetlink API and therefore error response is
+         * expected. On older kernel versions do not show this error message.
+         * When error is different than EEXIST then pppd tries to fallback to
+         * the old ioctl method.
+         */
+        errno = (nlresp.nlerr.error < 0) ? -nlresp.nlerr.error : EINVAL;
+        if (kernel_version >= KVERSION(4,7,0))
+            error("Couldn't create ppp interface %s: %m", req_ifname);
+        return 0;
+    }
+
+    return 1;
+}
+
+/*
  * make_ppp_unit - make a new ppp unit for ppp_dev_fd.
  * Assumes new_style_driver.
  */
@@ -681,6 +843,33 @@ static int make_ppp_unit(void)
 	if (flags == -1
 	    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
 		warn("Couldn't set /dev/ppp to nonblock: %m");
+
+	/*
+	 * Via rtnetlink it is possible to create ppp network interface with
+	 * custom ifname atomically. But it is not possible to specify custom
+	 * ppp unit id.
+	 *
+	 * Tools like systemd, udev or NetworkManager are trying to query
+	 * interface attributes based on interface name immediately when new
+	 * network interface is created. And therefore immediate interface
+	 * renaming is causing issues.
+	 *
+	 * So use rtnetlink API only when user requested custom ifname. It will
+	 * avoid system issues with interface renaming.
+	 */
+	if (req_unit == -1 && req_ifname[0] != '\0' && kernel_version >= KVERSION(2,1,16)) {
+	    if (make_ppp_unit_rtnetlink()) {
+		if (ioctl(ppp_dev_fd, PPPIOCGUNIT, &ifunit))
+		    fatal("Couldn't retrieve PPP unit id: %m");
+		return 0;
+	    }
+	    /*
+	     * If interface with requested name already exist return error
+	     * otherwise fallback to old ioctl method.
+	     */
+	    if (errno == EEXIST)
+		return -1;
+	}
 
 	ifunit = req_unit;
 	x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
