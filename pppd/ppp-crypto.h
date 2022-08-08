@@ -30,15 +30,17 @@
 #ifndef PPP_CRYPTO_H
 #define PPP_CRYPTO_H
 
-
-#ifndef SHA1_SIGNATURE_SIZE
-#ifdef SHA_DIGESTSIZE
-#define SHA1_SIGNATURE_SIZE SHA_DIGESTSIZE
-#else
-#define SHA1_SIGNATURE_SIZE 20
-#endif
+#ifndef MD5_DIGEST_LENGTH
+#define MD5_DIGEST_LENGTH 16
 #endif
 
+#ifndef MD4_DIGEST_LENGTH
+#define MD4_DIGEST_LENGTH 16
+#endif
+
+#ifndef SHA_DIGEST_LENGTH
+#define SHA_DIGEST_LENGTH 20
+#endif
 
 struct _PPP_MD_CTX;
 struct _PPP_MD;

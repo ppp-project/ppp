@@ -105,8 +105,8 @@
 #endif
 
 static void	ascii2unicode (char[], int, u_char[]);
-static void	NTPasswordHash (u_char *, int, u_char[MD4_SIGNATURE_SIZE]);
-static int	ChallengeResponse (u_char *, u_char *, u_char[24]);
+static void	NTPasswordHash (u_char *, int, unsigned char *);
+static int	ChallengeResponse (u_char *, u_char *, u_char*);
 static void	ChapMS_NT (u_char *, char *, int, u_char[24]);
 static void	ChapMS2_NT (u_char *, u_char[16], char *, char *, int,
 				u_char[24]);
@@ -502,22 +502,19 @@ print_msg:
 	free(msg);
 }
 
-// TODO: Move this definition somewhere
-#define NT_RESPONSE_LEN 24
-
 static int
 ChallengeResponse(u_char *challenge,
-		  u_char PasswordHash[MD4_SIGNATURE_SIZE],
-		  u_char response[NT_RESPONSE_LEN])
+		  u_char *PasswordHash,
+		  u_char *response)
 {
     u_char ZPasswordHash[21];
     PPP_CIPHER_CTX *ctx;
-    int outlen = NT_RESPONSE_LEN;
+    int outlen = 0;
     int offset = 0;
     int retval = 0;
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
-    BCOPY(PasswordHash, ZPasswordHash, MD4_SIGNATURE_SIZE);
+    BCOPY(PasswordHash, ZPasswordHash, MD4_DIGEST_LENGTH);
 
 #if 0
     dbglog("ChallengeResponse - ZPasswordHash %.*B",
@@ -564,7 +561,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
     
 {
     PPP_MD_CTX* ctx;
-    u_char	hash[SHA1_SIGNATURE_SIZE];
+    u_char	hash[SHA_DIGEST_LENGTH];
     int     hash_len;
     char	*user;
 
@@ -585,7 +582,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 
                     if (PPP_DigestUpdate(ctx, user, strlen(user))) {
                         
-                        hash_len = SHA1_SIGNATURE_SIZE;
+                        hash_len = SHA_DIGEST_LENGTH;
                         if (PPP_DigestFinal(ctx, hash, &hash_len)) {
 
                             BCOPY(hash, Challenge, 8);
@@ -617,7 +614,7 @@ ascii2unicode(char ascii[], int ascii_len, u_char unicode[])
 }
 
 static void
-NTPasswordHash(u_char *secret, int secret_len, u_char hash[MD4_SIGNATURE_SIZE])
+NTPasswordHash(u_char *secret, int secret_len, unsigned char* hash)
 {
     PPP_MD_CTX* ctx = PPP_MD_CTX_new();
     if (ctx != NULL) {
@@ -626,7 +623,7 @@ NTPasswordHash(u_char *secret, int secret_len, u_char hash[MD4_SIGNATURE_SIZE])
 
             if (PPP_DigestUpdate(ctx, secret, secret_len)) {
 
-                int hash_len = MD4_SIGNATURE_SIZE;
+                int hash_len = MD4_DIGEST_LENGTH;
                 PPP_DigestFinal(ctx, hash, &hash_len);
             }
         }
@@ -640,7 +637,7 @@ ChapMS_NT(u_char *rchallenge, char *secret, int secret_len,
 	  u_char NTResponse[24])
 {
     u_char	unicodePassword[MAX_NT_PASSWORD * 2];
-    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHash[MD4_DIGEST_LENGTH];
 
     /* Hash the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
@@ -654,7 +651,7 @@ ChapMS2_NT(u_char *rchallenge, u_char PeerChallenge[16], char *username,
 	   char *secret, int secret_len, u_char NTResponse[24])
 {
     u_char	unicodePassword[MAX_NT_PASSWORD * 2];
-    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHash[MD4_DIGEST_LENGTH];
     u_char	Challenge[8];
 
     ChallengeHash(PeerChallenge, rchallenge, username, Challenge);
@@ -675,7 +672,7 @@ ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
 {
     int			i;
     u_char		UcasePassword[MAX_NT_PASSWORD]; /* max is actually 14 */
-    u_char		PasswordHash[MD4_SIGNATURE_SIZE];
+    u_char		PasswordHash[MD4_DIGEST_LENGTH];
 
     /* LANMan password is case insensitive */
     BZERO(UcasePassword, sizeof(UcasePassword));
@@ -691,10 +688,10 @@ ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
 
 
 void
-GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-			      u_char NTResponse[24], u_char PeerChallenge[16],
-			      u_char *rchallenge, char *username,
-			      u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1])
+GenerateAuthenticatorResponse(unsigned char* PasswordHashHash,
+			      unsigned char *NTResponse, unsigned char *PeerChallenge,
+			      unsigned char *rchallenge, char *username,
+			      unsigned char *authResponse)
 {
     /*
      * "Magic" constants used in response generation, from RFC 2759.
@@ -713,7 +710,7 @@ GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
     int		i;
     PPP_MD_CTX *ctx;
-    u_char	Digest[SHA1_SIGNATURE_SIZE];
+    u_char	Digest[SHA_DIGEST_LENGTH];
     int     hash_len;
     u_char	Challenge[8];
 
@@ -722,7 +719,7 @@ GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
         if (PPP_DigestInit(ctx, PPP_sha1())) {
 
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_SIGNATURE_SIZE)) {
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
 
                 if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
 
@@ -775,8 +772,8 @@ GenerateAuthenticatorResponsePlain
 		 u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1])
 {
     u_char	unicodePassword[MAX_NT_PASSWORD * 2];
-    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
-    u_char	PasswordHashHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHash[MD4_DIGEST_LENGTH];
+    u_char	PasswordHashHash[MD4_DIGEST_LENGTH];
 
     /* Hash (x2) the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
@@ -798,8 +795,8 @@ static void
 Set_Start_Key(u_char *rchallenge, char *secret, int secret_len)
 {
     u_char	unicodePassword[MAX_NT_PASSWORD * 2];
-    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
-    u_char	PasswordHashHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHash[MD4_DIGEST_LENGTH];
+    u_char	PasswordHashHash[MD4_DIGEST_LENGTH];
 
     /* Hash (x2) the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
@@ -816,8 +813,8 @@ static void
 SetMasterKeys(char *secret, int secret_len, u_char NTResponse[24], int IsServer)
 {
     u_char	unicodePassword[MAX_NT_PASSWORD * 2];
-    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
-    u_char	PasswordHashHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHash[MD4_DIGEST_LENGTH];
+    u_char	PasswordHashHash[MD4_DIGEST_LENGTH];
     /* Hash (x2) the Unicode version of the secret (== password). */
     ascii2unicode(secret, secret_len, unicodePassword);
     NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);

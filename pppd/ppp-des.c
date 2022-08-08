@@ -142,8 +142,11 @@ static int des_init(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigne
                 MakeKey(key, ctx->key);
             }
             if (EVP_CipherInit(cc, EVP_des_ecb(), ctx->key, ctx->iv, ctx->is_encr)) {
-                ctx->priv = cc;
-                return 1;
+
+                if (EVP_CIPHER_CTX_set_padding(cc, 0)) {
+                    ctx->priv = cc;
+                    return 1;
+                }
             }
             EVP_CIPHER_CTX_free(cc);
         }

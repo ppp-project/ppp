@@ -490,12 +490,10 @@ int main(int argc, char *argv[]) {
         failure++;
     }
 
-    /* Bug in DES EVP decryption, TODO: file an issue
     if (!test_des_decrypt()) {
         printf("DES decryption test failed\n");
         failure++;
     }
-    */
 
     if (!PPP_crypto_deinit()) {
         printf("Couldn't deinitialize crypto test\n");

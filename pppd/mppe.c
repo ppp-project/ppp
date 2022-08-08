@@ -109,10 +109,10 @@ mppe_clear_keys(void)
  * RFC 2548 (RADIUS support) requires us to export this function (ugh).
  */
 void
-mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
+mppe_set_chapv1(unsigned char *rchallenge, unsigned char *PasswordHashHash)
 {
     PPP_MD_CTX *ctx;
-    u_char Digest[SHA1_SIGNATURE_SIZE];
+    u_char Digest[SHA_DIGEST_LENGTH];
     int DigestLen;
 
     ctx = PPP_MD_CTX_new();
@@ -120,13 +120,13 @@ mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
 
         if (PPP_DigestInit(ctx, PPP_sha1())) {
 
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_SIGNATURE_SIZE)) {
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
 
-                if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_SIGNATURE_SIZE)) {
+                if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
 
                     if (PPP_DigestUpdate(ctx, rchallenge, 8)) {
                         
-                        DigestLen = SHA1_SIGNATURE_SIZE;
+                        DigestLen = SHA_DIGEST_LENGTH;
                         PPP_DigestFinal(ctx, Digest, &DigestLen);
                     }
                 }
@@ -148,14 +148,14 @@ mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
  * NTHashHash from the server.
  */
 void
-mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-	       u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer)
+mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
+        int IsServer)
 {
     PPP_MD_CTX *ctx;
     
-    u_char	MasterKey[SHA1_SIGNATURE_SIZE];
-    u_char	SendKey[SHA1_SIGNATURE_SIZE];
-    u_char	RecvKey[SHA1_SIGNATURE_SIZE];
+    u_char	MasterKey[SHA_DIGEST_LENGTH];
+    u_char	SendKey[SHA_DIGEST_LENGTH];
+    u_char	RecvKey[SHA_DIGEST_LENGTH];
     int KeyLen;
 
     u_char SHApad1[40] =
@@ -205,13 +205,13 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
         if (PPP_DigestInit(ctx, PPP_sha1())) {
 
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_SIGNATURE_SIZE)) {
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
 
                 if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
 
                     if (PPP_DigestUpdate(ctx, Magic1, sizeof(Magic1))) {
                         
-                        KeyLen = SHA1_SIGNATURE_SIZE;
+                        KeyLen = SHA_DIGEST_LENGTH;
                         PPP_DigestFinal(ctx, MasterKey, &KeyLen);
                     }
                 }
@@ -242,7 +242,7 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
                         if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
                         
-                            KeyLen = SHA1_SIGNATURE_SIZE;
+                            KeyLen = SHA_DIGEST_LENGTH;
                             PPP_DigestFinal(ctx, SendKey, &KeyLen);
                         }
                     }
@@ -275,7 +275,7 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 
                         if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
                         
-                            KeyLen = SHA1_SIGNATURE_SIZE;
+                            KeyLen = SHA_DIGEST_LENGTH;
                             PPP_DigestFinal(ctx, RecvKey, &KeyLen);
                         }
                     }
@@ -286,7 +286,7 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
         PPP_MD_CTX_free(ctx);
     }
 
-    mppe_set_keys(SendKey, RecvKey, SHA1_SIGNATURE_SIZE);
+    mppe_set_keys(SendKey, RecvKey, SHA_DIGEST_LENGTH);
 }
 
 #ifndef UNIT_TEST

@@ -52,6 +52,7 @@
 #include <pppd/fsm.h>
 #include <pppd/ipcp.h>
 #include <pppd/mppe.h>
+#include <pppd/ppp-crypto.h>
 
 #define BUF_LEN 1024
 
@@ -556,7 +557,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 		u_char *lm_response = NULL;
 		int nt_response_size = 0;
 		int lm_response_size = 0;
-		u_char session_key[16];
+		u_char session_key[MD4_DIGEST_LENGTH];
 		
 		if (response_len != MS_CHAP_RESPONSE_LEN)
 			break;			/* not even the right length */
@@ -608,7 +609,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	case CHAP_MICROSOFT_V2:
 	{
 		u_char Challenge[8];
-		u_char session_key[MD4_SIGNATURE_SIZE];
+		u_char session_key[MD4_DIGEST_LENGTH];
 		char *error_string = NULL;
 		
 		if (response_len != MS_CHAP2_RESPONSE_LEN)
