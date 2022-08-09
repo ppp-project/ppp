@@ -294,12 +294,12 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
-    strlcpy(path_ipup, _PATH_IPUP, MAXPATHLEN);
-    strlcpy(path_ipdown, _PATH_IPDOWN, MAXPATHLEN);
+    strlcpy(path_ipup, PPP_PATH_IPUP, MAXPATHLEN);
+    strlcpy(path_ipdown, PPP_PATH_IPDOWN, MAXPATHLEN);
 
 #ifdef PPP_WITH_IPV6CP
-    strlcpy(path_ipv6up, _PATH_IPV6UP, MAXPATHLEN);
-    strlcpy(path_ipv6down, _PATH_IPV6DOWN, MAXPATHLEN);
+    strlcpy(path_ipv6up, PPP_PATH_IPV6UP, MAXPATHLEN);
+    strlcpy(path_ipv6down, PPP_PATH_IPV6DOWN, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
     new_phase(PHASE_INITIALIZE);
@@ -348,7 +348,7 @@ main(int argc, char *argv[])
      * Parse, in order, the system options file, the user's options file,
      * and the command line arguments.
      */
-    if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
+    if (!options_from_file(PPP_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user()
 	|| !parse_args(argc-1, argv+1))
 	exit(EXIT_OPTION_ERROR);
@@ -405,9 +405,9 @@ main(int argc, char *argv[])
 	die(0);
 
     /* Make sure fds 0, 1, 2 are open to somewhere. */
-    fd_devnull = open(_PATH_DEVNULL, O_RDWR);
+    fd_devnull = open(PPP_DEVNULL, O_RDWR);
     if (fd_devnull < 0)
-	fatal("Couldn't open %s: %m", _PATH_DEVNULL);
+	fatal("Couldn't open %s: %m", PPP_DEVNULL);
     while (fd_devnull <= 2) {
 	i = dup(fd_devnull);
 	if (i < 0)
@@ -421,12 +421,12 @@ main(int argc, char *argv[])
     sys_init();
 
 #ifdef PPP_WITH_TDB
-    pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
+    pppdb = tdb_open(PPP_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
     if (pppdb != NULL) {
 	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
 	update_db_entry();
     } else {
-	warn("Warning: couldn't open ppp database %s", _PATH_PPPDB);
+	warn("Warning: couldn't open ppp database %s", PPP_PATH_PPPDB);
 	if (multilink) {
 	    warn("Warning: disabling multilink");
 	    multilink = 0;
@@ -814,7 +814,7 @@ create_pidfile(int pid)
     FILE *pidfile;
 
     slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
-	     _PATH_VARRUN, ifname);
+	     PPP_PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", pid);
 	(void) fclose(pidfile);
@@ -833,7 +833,7 @@ create_linkpidfile(int pid)
 	return;
     script_setenv("LINKNAME", linkname, 1);
     slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
-	     _PATH_VARRUN, linkname);
+	     PPP_PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", pid);
 	if (ifname[0])
@@ -1655,7 +1655,7 @@ update_system_environment(void)
 /*
  * device_script - run a program to talk to the specified fds
  * (e.g. to run the connector or disconnector script).
- * stderr gets connected to the log fd or to the _PATH_CONNERRS file.
+ * stderr gets connected to the log fd or to the PPP_PATH_CONNERRS file.
  */
 int
 device_script(char *program, int in, int out, int dont_wait)
@@ -1668,7 +1668,7 @@ device_script(char *program, int in, int out, int dont_wait)
     if (log_to_fd >= 0)
 	errfd = log_to_fd;
     else
-	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	errfd = open(PPP_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
 
     ++conn_running;
     pid = safe_fork(in, out, errfd);

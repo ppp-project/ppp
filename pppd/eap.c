@@ -1503,7 +1503,7 @@ name_of_pn_file(void)
 		errno = EINVAL;
 		return (NULL);
 	}
-	file = _PATH_PSEUDONYM;
+	file = PPP_PATH_PSEUDONYM;
 	pl = strlen(user) + strlen(file) + 2;
 	path = malloc(pl);
 	if (path == NULL)

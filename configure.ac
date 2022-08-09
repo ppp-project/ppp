@@ -17,8 +17,8 @@ AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h pppd/plugins/pppoe/config.h])
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_INSTALL
-AC_PROG_LIBTOOL
 AC_PROG_LN_S
+LT_INIT
 
 PKG_PROG_PKG_CONFIG
 
@@ -194,7 +194,7 @@ AS_IF([test "x$enable_openssl_engine" != "xno"], [],
 #
 # Specify runtime directory
 AC_ARG_WITH([plugin-dir],
-	AC_HELP_STRING([--with-plugin-dir=DIR], [Specify the plugin directory for pppd]))
+	AS_HELP_STRING([--with-plugin-dir=DIR],[Specify the plugin directory for pppd]))
 AS_IF([test -n "$with_plugin_dir"],
 	[PPPD_PLUGIN_DIR="$with_plugin_dir"],
 	[PPPD_PLUGIN_DIR="${libdir}/pppd/$VERSION"])
@@ -203,19 +203,19 @@ AC_SUBST(PPPD_PLUGIN_DIR, "$PPPD_PLUGIN_DIR", [The pppd plugin directory])
 #
 # Specify runtime directory
 AC_ARG_WITH([runtime-dir],
-	AC_HELP_STRING([--with-runtime-dir=DIR], [Specify the runtime directory for pppd]))
+	AS_HELP_STRING([--with-runtime-dir=DIR],[Specify the runtime directory for pppd]))
 AS_IF([test -n "$with_runtime_dir"],
 	[PPPD_RUNTIME_DIR="$with_runtime_dir"],
-	[PPPD_RUNTIME_DIR="${localstatedir}/run/pppd"])
+	[PPPD_RUNTIME_DIR="${runstatedir}/pppd"])
 AC_SUBST(PPPD_RUNTIME_DIR)
 
 #
 # Specify runtime directory
 AC_ARG_WITH([logfile-dir],
-	AC_HELP_STRING([--with-logfile-dir=DIR], [Specify the log directory for pppd]))
+	AS_HELP_STRING([--with-logfile-dir=DIR],[Specify the log directory for pppd]))
 AS_IF([test -n "$with_logfile_dir"],
 	[PPPD_LOGFILE_DIR="$with_logfile_dir"],
-	[PPPD_LOGFILE_DIR="${localstatedir}/log/pppd"])
+	[PPPD_LOGFILE_DIR="${localstatedir}/log/ppp"])
 AC_SUBST(PPPD_LOGFILE_DIR)
 
 #

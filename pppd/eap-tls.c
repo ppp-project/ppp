@@ -158,10 +158,10 @@ CONF *eaptls_ssl_load_config( void )
 
     config = NCONF_new( NULL );
     dbglog( "Loading OpenSSL config file" );
-    ret_code = NCONF_load( config, _PATH_OPENSSLCONFFILE, &error_line );
+    ret_code = NCONF_load( config, PPP_PATH_OPENSSLCONFFILE, &error_line );
     if (ret_code == 0)
     {
-        warn( "EAP-TLS: Error in OpenSSL config file %s at line %d", _PATH_OPENSSLCONFFILE, error_line );
+        warn( "EAP-TLS: Error in OpenSSL config file %s at line %d", PPP_PATH_OPENSSLCONFFILE, error_line );
         NCONF_free( config );
         config = NULL;
         ERR_clear_error();

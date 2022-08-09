@@ -61,6 +61,7 @@
 #include "pppd.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "pathnames.h"
 
 
 #if defined(SUNOS4)
@@ -781,18 +782,6 @@ complete_read(int fd, void *buf, size_t count)
 #endif
 
 /* Procedures for locking the serial device using a lock file. */
-#ifndef LOCK_DIR
-#ifdef __linux__
-#define LOCK_DIR	"/var/lock"
-#else
-#ifdef SVR4
-#define LOCK_DIR	"/var/spool/locks"
-#else
-#define LOCK_DIR	"/var/spool/lock"
-#endif
-#endif
-#endif /* LOCK_DIR */
-
 static char lock_file[MAXPATHLEN];
 
 /*
@@ -833,7 +822,7 @@ lock(char *dev)
 	return -1;
     }
     slprintf(lock_file, sizeof(lock_file), "%s/LK.%03d.%03d.%03d",
-	     LOCK_DIR, major(sbuf.st_dev),
+	     PPP_PATH_LOCKDIR, major(sbuf.st_dev),
 	     major(sbuf.st_rdev), minor(sbuf.st_rdev));
 #else
     char *p;
@@ -851,7 +840,7 @@ lock(char *dev)
 	if ((p = strrchr(dev, '/')) != NULL)
 	    dev = p + 1;
 
-    slprintf(lock_file, sizeof(lock_file), "%s/LCK..%s", LOCK_DIR, dev);
+    slprintf(lock_file, sizeof(lock_file), "%s/LCK..%s", PPP_PATH_LOCKDIR, dev);
 #endif
 
     while ((fd = open(lock_file, O_EXCL | O_CREAT | O_RDWR, 0644)) < 0) {
