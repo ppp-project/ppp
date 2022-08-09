@@ -878,6 +878,11 @@ static int make_ppp_unit(void)
 		ifunit = -1;
 		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
 	}
+	if (x < 0 && errno == EEXIST) {
+		srand(time(NULL) * getpid());
+		ifunit = rand() % 10000;
+		x = ioctl(ppp_dev_fd, PPPIOCNEWUNIT, &ifunit);
+	}
 	if (x < 0)
 		error("Couldn't create new ppp unit: %m");
 
