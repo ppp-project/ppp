@@ -1795,13 +1795,10 @@ get_ppp_stats_rtnetlink(int u, struct pppd_stats *stats)
     }
 
     if (nlresp.nlh.nlmsg_type == NLMSG_ERROR) {
-	if (nlresplen < offsetof(struct nlresp, __end_err)) {
-	    if (kernel_version >= KVERSION(4,7,0))
-		error("get_ppp_stats_rtnetlink: Netlink responded with error: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
-	} else {
-	    error("get_ppp_stats_rtnetlink: Netlink responded with an error message, but the nlmsgerr structure is incomplete (line %d).",
-		    __LINE__);
-	}
+	if (nlresplen < offsetof(struct nlresp, __end_err))
+	    error("get_ppp_stats_rtnetlink: Netlink responded with an error message, but the nlmsgerr structure is incomplete (line %d).", __LINE__);
+	else if (kernel_version >= KVERSION(4,7,0))
+	    error("get_ppp_stats_rtnetlink: Netlink responded with error: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
 	goto err;
     }
 
