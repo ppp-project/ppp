@@ -83,7 +83,8 @@ void PPP_CIPHER_CTX_set_cipher_data(PPP_CIPHER_CTX *ctx,
 
 int PPP_CipherInit(PPP_CIPHER_CTX *ctx,
         const PPP_CIPHER *cipher,
-        const unsigned char *key, const unsigned char *iv,
+        const unsigned char *key,
+        const unsigned char *iv,
         int encr);
 
 int PPP_CipherUpdate(PPP_CIPHER_CTX *ctx,

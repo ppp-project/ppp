@@ -332,34 +332,33 @@ eap_send_success(eap_state *esp)
  * date.
  */
 static bool
-pncrypt_setkey(int timeoffs)
+pncrypt_getkey(int timeoffs, unsigned char *key, int keylen)
 {
 	struct tm *tp;
 	char tbuf[9];
-    PPP_MD_CTX *ctxt;
-	u_char dig[SHA_DIGESTSIZE];
-    int diglen = sizeof(dig);
+	PPP_MD_CTX *ctxt;
 	time_t reftime;
 
 	if (pn_secret == NULL)
 		return (0);
 	reftime = time(NULL) + timeoffs;
 	tp = localtime(&reftime);
-    ctxt = PPP_MD_CTX_new();
-    if (ctxt) {
+
+	ctxt = PPP_MD_CTX_new();
+	if (ctxt) {
 
 	    strftime(tbuf, sizeof (tbuf), "%Y%m%d", tp);
 
-        PPP_DigestInit(ctxt, PPP_sha1());
-        PPP_DigestUpdate(ctxt, pn_secret, strlen(pn_secret));
-        PPP_DigestUpdate(ctxt, tbuf, strlen(tbuf));
-        PPP_DigestFinal(ctxt, dig, &diglen);
+	    PPP_DigestInit(ctxt, PPP_sha1());
+	    PPP_DigestUpdate(ctxt, pn_secret, strlen(pn_secret));
+	    PPP_DigestUpdate(ctxt, tbuf, strlen(tbuf));
+	    PPP_DigestFinal(ctxt, key, &keylen);
 
-        PPP_MD_CTX_free(ctxt);
-	    return (DesSetkey(dig));
-   }
+	    PPP_MD_CTX_free(ctxt);
+	    return 1;
+	}
 
-   return (0);
+	return (0);
 }
 
 static char base64[] =
@@ -444,14 +443,15 @@ static void
 eap_figure_next_state(eap_state *esp, int status)
 {
 #ifdef PPP_WITH_SRP
-	unsigned char secbuf[MAXWORDLEN], clear[8], *sp, *dp;
+	unsigned char secbuf[MAXWORDLEN], clear[8], *sp, *dp, key[SHA_DIGEST_LENGTH];
 	struct t_pw tpw;
 	struct t_confent *tce, mytce;
 	char *cp, *cp2;
 	struct t_server *ts;
-	int id, i, plen, toffs;
+	int id, i, plen, clen, toffs, keylen;
 	u_char vals[2];
 	struct b64state bs;
+	PPP_CIPHER_CTX *cctx;
 #endif /* PPP_WITH_SRP */
 #ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
@@ -494,12 +494,29 @@ eap_figure_next_state(eap_state *esp, int status)
 			    esp->es_server.ea_peerlen - SRP_PSEUDO_LEN,
 			    secbuf);
 			toffs = 0;
+
+			cctx = PPP_CIPHER_CTX_new();
+			if (!cctx) {
+				dbglog("no DES here; cannot decode "
+					"pseudonym");
+				break;
+			}
+
+			if (!PPP_CipherInit(cctx, PPP_des_ecb(), NULL, NULL, 0)) {
+				dbglog("no DES here; cannot decode "
+					"pseudonym");
+				break;
+			}
+
 			for (i = 0; i < 5; i++) {
-				pncrypt_setkey(toffs);
+				pncrypt_getkey(toffs, key, keylen);
 				toffs -= 86400;
-				if (!DesDecrypt(secbuf, clear)) {
+
+				PPP_CIPHER_CTX_set_cipher_data(cctx, key);
+
+				if (!PPP_CipherUpdate(cctx, clear, &clen, secbuf, 8)) {
 					dbglog("no DES here; cannot decode "
-					    "pseudonym");
+						"pseudonym");
 					return;
 				}
 				id = *(unsigned char *)clear;
@@ -521,11 +538,12 @@ eap_figure_next_state(eap_state *esp, int status)
 				dp += i;
 				sp = secbuf + 8;
 				while (plen > 0) {
-					(void) DesDecrypt(sp, dp);
+					PPP_CipherUpdate(cctx, dp, &clen, sp, 8);
 					sp += 8;
 					dp += 8;
 					plen -= 8;
 				}
+				PPP_CIPHER_CTX_free(cctx);
 				esp->es_server.ea_peer[
 					esp->es_server.ea_peerlen] = '\0';
 				dbglog("decoded pseudonym to \"%.*q\"",
@@ -821,10 +839,11 @@ eap_send_request(eap_state *esp)
 	char *str;
 #ifdef PPP_WITH_SRP
 	struct t_server *ts;
-	u_char clear[8], cipher[8], dig[SHA_DIGESTSIZE], *optr, *cp;
-	int i, j, diglen;
+	u_char clear[8], cipher[8], dig[SHA_DIGESTSIZE], *optr, *cp, key[SHA_DIGEST_LENGTH];
+	int i, j, diglen, clen, keylen = sizeof(key);
 	struct b64state b64;
 	PPP_MD_CTX *ctxt;
+    PPP_CIPHER_CTX *cctx;
 #endif /* PPP_WITH_SRP */
 
 	/* Handle both initial auth and restart */
@@ -984,10 +1003,10 @@ eap_send_request(eap_state *esp)
 		PUTLONG(SRPVAL_EBIT, outp);
 		ts = (struct t_server *)esp->es_server.ea_session;
 		assert(ts != NULL);
-		BCOPY(t_serverresponse(ts), outp, SHA_DIGESTSIZE);
-		INCPTR(SHA_DIGESTSIZE, outp);
+		BCOPY(t_serverresponse(ts), outp, SHA_DIGEST_LENGTH);
+		INCPTR(SHA_DIGEST_LENGTH, outp);
 
-		if (pncrypt_setkey(0)) {
+		if (pncrypt_getkey(0, key, keylen)) {
 			/* Generate pseudonym */
 			optr = outp;
 			cp = (unsigned char *)esp->es_server.ea_peer;
@@ -997,15 +1016,21 @@ eap_send_request(eap_state *esp)
 			BCOPY(cp, clear + 1, j);
 			i -= j;
 			cp += j;
-			if (!DesEncrypt(clear, cipher)) {
+
+			cctx = PPP_CIPHER_CTX_new();
+			if (!cctx) {
 				dbglog("no DES here; not generating pseudonym");
 				break;
 			}
+			PPP_CipherInit(cctx, PPP_des_ecb(), key, NULL, 1);
+
+			PPP_CipherUpdate(cctx, cipher, &clen, clear, sizeof(clear));
+
 			BZERO(&b64, sizeof (b64));
 			outp++;		/* space for pseudonym length */
 			outp += b64enc(&b64, cipher, 8, outp);
 			while (i >= 8) {
-				(void) DesEncrypt(cp, cipher);
+				PPP_CipherUpdate(cctx, cipher, &clen, cp, 8);
 				outp += b64enc(&b64, cipher, 8, outp);
 				cp += 8;
 				i -= 8;
@@ -1017,17 +1042,20 @@ eap_send_request(eap_state *esp)
 					*cp++ = drand48() * 0x100;
 					i++;
 				}
-				(void) DesEncrypt(clear, cipher);
+
+				PPP_CipherUpdate(cctx, cipher, &clen, clear, 8);
 				outp += b64enc(&b64, cipher, 8, outp);
 			}
 			outp += b64flush(&b64, outp);
 
+			PPP_CIPHER_CTX_free(cctx);
+
 			/* Set length and pad out to next 20 octet boundary */
 			i = outp - optr - 1;
 			*optr = i;
-			i %= SHA_DIGESTSIZE;
+			i %= SHA_DIGEST_LENGTH;
 			if (i != 0) {
-				while (i < SHA_DIGESTSIZE) {
+				while (i < SHA_DIGEST_LENGTH) {
 					*outp++ = drand48() * 0x100;
 					i++;
 				}
@@ -1346,13 +1374,13 @@ eap_chap_response(eap_state *esp, u_char id, u_char *hash,
 	PUTCHAR(EAP_RESPONSE, outp);
 	PUTCHAR(id, outp);
 	esp->es_client.ea_id = id;
-	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + MD5_SIGNATURE_SIZE +
+	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + MD5_DIGEST_LENGTH +
 	    namelen;
 	PUTSHORT(msglen, outp);
 	PUTCHAR(EAPT_MD5CHAP, outp);
-	PUTCHAR(MD5_SIGNATURE_SIZE, outp);
-	BCOPY(hash, outp, MD5_SIGNATURE_SIZE);
-	INCPTR(MD5_SIGNATURE_SIZE, outp);
+	PUTCHAR(MD5_DIGEST_LENGTH, outp);
+	BCOPY(hash, outp, MD5_DIGEST_LENGTH);
+	INCPTR(MD5_DIGEST_LENGTH, outp);
 	if (namelen > 0) {
 		BCOPY(name, outp, namelen);
 	}
@@ -1406,12 +1434,12 @@ eap_srpval_response(eap_state *esp, u_char id, u_int32_t flags, u_char *str)
 	PUTCHAR(id, outp);
 	esp->es_client.ea_id = id;
 	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + sizeof (u_int32_t) +
-	    SHA_DIGESTSIZE;
+	    SHA_DIGEST_LENGTH;
 	PUTSHORT(msglen, outp);
 	PUTCHAR(EAPT_SRP, outp);
 	PUTCHAR(EAPSRP_CVALIDATOR, outp);
 	PUTLONG(flags, outp);
-	BCOPY(str, outp, SHA_DIGESTSIZE);
+	BCOPY(str, outp, SHA_DIGEST_LENGTH);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
 }
@@ -1566,7 +1594,7 @@ write_pseudonym(eap_state *esp, u_char *inp, int len, int id)
 	u_char val;
 	u_char *datp, *digp;
 	PPP_MD_CTX *ctxt;
-	u_char dig[SHA_DIGESTSIZE];
+	u_char dig[SHA_DIGEST_LENGTH];
 	int dsize, fd, olen = len, diglen = sizeof(dig);
 
 	/*
@@ -1575,8 +1603,8 @@ write_pseudonym(eap_state *esp, u_char *inp, int len, int id)
 	 */
 	val = id;
 	while (len > 0) {
-		if ((dsize = len % SHA_DIGESTSIZE) == 0)
-			dsize = SHA_DIGESTSIZE;
+		if ((dsize = len % SHA_DIGEST_LENGTH) == 0)
+			dsize = SHA_DIGEST_LENGTH;
 		len -= dsize;
 		datp = inp + len;
         ctxt = PPP_MD_CTX_new();
@@ -1668,9 +1696,9 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	int secret_len;
 	char secret[MAXWORDLEN];
 	char rhostname[256];
-    PPP_MD_CTX *mdctx;
-	u_char hash[MD5_SIGNATURE_SIZE];
-    int hashlen = MD5_SIGNATURE_SIZE;
+	PPP_MD_CTX *mdctx;
+	u_char hash[MD5_DIGEST_LENGTH];
+	int hashlen = MD5_DIGEST_LENGTH;
 #ifdef PPP_WITH_EAPTLS
 	u_char flags;
 	struct eaptls_session *ets = esp->es_client.ea_session;
@@ -1682,7 +1710,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	u_char vals[2];
 	PPP_MD_CTX *ctxt;
 	u_char dig[SHA_DIGESTSIZE];
-    int diglen = sizeof(dig);
+	int diglen = sizeof(dig);
 	int fd;
 #endif /* PPP_WITH_SRP */
 
@@ -2329,8 +2357,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	char secret[MAXSECRETLEN];
 	char rhostname[256];
     PPP_MD_CTX *mdctx;
-	u_char hash[MD5_SIGNATURE_SIZE];
-    int hashlen = MD5_SIGNATURE_SIZE;
+	u_char hash[MD5_DIGEST_LENGTH];
+    int hashlen = MD5_DIGEST_LENGTH;
 #ifdef PPP_WITH_SRP
 	struct t_server *ts;
 	struct t_num A;
@@ -2583,7 +2611,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
                             if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
 
-                                if (BCMP(hash, inp, MD5_SIGNATURE_SIZE) == 0) {
+                                if (BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
 
                                     esp->es_server.ea_type = EAPT_MD5CHAP;
                                     eap_send_success(esp);

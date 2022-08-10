@@ -94,7 +94,6 @@ extern "C" {
 #define	SRP_PSEUDO_ID	"pseudo_"
 #define	SRP_PSEUDO_LEN	7
 
-#define MD5_SIGNATURE_SIZE	16
 #define MIN_CHALLENGE_LENGTH	16
 #define MAX_CHALLENGE_LENGTH	24
 
