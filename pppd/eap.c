@@ -66,6 +66,7 @@
 #include "pppd.h"
 #include "pathnames.h"
 #include "ppp-crypto.h"
+#include "pppcrypt.h"
 #include "eap.h"
 #ifdef PPP_WITH_PEAP
 #include "peap.h"
@@ -79,10 +80,6 @@
 #include <t_server.h>
 #include <t_client.h>
 #endif /* PPP_WITH_SRP */
-
-#ifndef SHA_DIGESTSIZE
-#define	SHA_DIGESTSIZE 20
-#endif
 
 #ifdef PPP_WITH_EAPTLS
 #include "eap-tls.h"
@@ -451,7 +448,6 @@ eap_figure_next_state(eap_state *esp, int status)
 	int id, i, plen, clen, toffs, keylen;
 	u_char vals[2];
 	struct b64state bs;
-	PPP_CIPHER_CTX *cctx;
 #endif /* PPP_WITH_SRP */
 #ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
@@ -494,27 +490,11 @@ eap_figure_next_state(eap_state *esp, int status)
 			    esp->es_server.ea_peerlen - SRP_PSEUDO_LEN,
 			    secbuf);
 			toffs = 0;
-
-			cctx = PPP_CIPHER_CTX_new();
-			if (!cctx) {
-				dbglog("no DES here; cannot decode "
-					"pseudonym");
-				break;
-			}
-
-			if (!PPP_CipherInit(cctx, PPP_des_ecb(), NULL, NULL, 0)) {
-				dbglog("no DES here; cannot decode "
-					"pseudonym");
-				break;
-			}
-
 			for (i = 0; i < 5; i++) {
 				pncrypt_getkey(toffs, key, keylen);
 				toffs -= 86400;
 
-				PPP_CIPHER_CTX_set_cipher_data(cctx, key);
-
-				if (!PPP_CipherUpdate(cctx, clear, &clen, secbuf, 8)) {
+				if (!DesDecrypt(secbuf, key, clear)) {
 					dbglog("no DES here; cannot decode "
 						"pseudonym");
 					return;
@@ -538,12 +518,11 @@ eap_figure_next_state(eap_state *esp, int status)
 				dp += i;
 				sp = secbuf + 8;
 				while (plen > 0) {
-					PPP_CipherUpdate(cctx, dp, &clen, sp, 8);
+					DesDecrypt(sp, key, dp);
 					sp += 8;
 					dp += 8;
 					plen -= 8;
 				}
-				PPP_CIPHER_CTX_free(cctx);
 				esp->es_server.ea_peer[
 					esp->es_server.ea_peerlen] = '\0';
 				dbglog("decoded pseudonym to \"%.*q\"",
@@ -839,11 +818,10 @@ eap_send_request(eap_state *esp)
 	char *str;
 #ifdef PPP_WITH_SRP
 	struct t_server *ts;
-	u_char clear[8], cipher[8], dig[SHA_DIGESTSIZE], *optr, *cp, key[SHA_DIGEST_LENGTH];
+	u_char clear[8], cipher[8], dig[SHA_DIGEST_LENGTH], *optr, *cp, key[SHA_DIGEST_LENGTH];
 	int i, j, diglen, clen, keylen = sizeof(key);
 	struct b64state b64;
 	PPP_MD_CTX *ctxt;
-    PPP_CIPHER_CTX *cctx;
 #endif /* PPP_WITH_SRP */
 
 	/* Handle both initial auth and restart */
@@ -1017,20 +995,16 @@ eap_send_request(eap_state *esp)
 			i -= j;
 			cp += j;
 
-			cctx = PPP_CIPHER_CTX_new();
-			if (!cctx) {
+			if (!DesEncrypt(clear, key, cipher)) {
 				dbglog("no DES here; not generating pseudonym");
 				break;
-			}
-			PPP_CipherInit(cctx, PPP_des_ecb(), key, NULL, 1);
-
-			PPP_CipherUpdate(cctx, cipher, &clen, clear, sizeof(clear));
+            }
 
 			BZERO(&b64, sizeof (b64));
 			outp++;		/* space for pseudonym length */
 			outp += b64enc(&b64, cipher, 8, outp);
 			while (i >= 8) {
-				PPP_CipherUpdate(cctx, cipher, &clen, cp, 8);
+				DesEncrypt(cp, key, cipher);
 				outp += b64enc(&b64, cipher, 8, outp);
 				cp += 8;
 				i -= 8;
@@ -1043,12 +1017,10 @@ eap_send_request(eap_state *esp)
 					i++;
 				}
 
-				PPP_CipherUpdate(cctx, cipher, &clen, clear, 8);
+				DesEncrypt(clear, key, cipher);
 				outp += b64enc(&b64, cipher, 8, outp);
 			}
 			outp += b64flush(&b64, outp);
-
-			PPP_CIPHER_CTX_free(cctx);
 
 			/* Set length and pad out to next 20 octet boundary */
 			i = outp - optr - 1;
@@ -1062,33 +1034,32 @@ eap_send_request(eap_state *esp)
 			}
 
 			/* Obscure the pseudonym with SHA1 hash */
-            ctxt = PPP_MD_CTX_new();
-            if (ctxt) {
+			ctxt = PPP_MD_CTX_new();
+			if (ctxt) {
 
-                PPP_DigestInit(ctxt, PPP_sha1());
-                PPP_DigestUpdate(ctxt, &esp->es_server.ea_id, 1);
-                PPP_DigestUpdate(ctxt, &esp->es_server.ea_skey,
-                        SESSION_KEY_LEN);
-                PPP_DigestUpdate(ctxt,  esp->es_server.ea_peer,
-                        esp->es_server.ea_peerlen);
+				PPP_DigestInit(ctxt, PPP_sha1());
+				PPP_DigestUpdate(ctxt, &esp->es_server.ea_id, 1);
+				PPP_DigestUpdate(ctxt, &esp->es_server.ea_skey,
+					SESSION_KEY_LEN);
+				PPP_DigestUpdate(ctxt,  esp->es_server.ea_peer,
+					esp->es_server.ea_peerlen);
+				while (optr < outp) {
+					diglen = SHA_DIGEST_LENGTH;
+					PPP_DigestFinal(ctxt, dig, &diglen);
+					cp = dig;
+					while (cp < dig + SHA_DIGEST_LENGTH)
+						*optr++ ^= *cp++;
 
-                while (optr < outp) {
-                    diglen = SHA_DIGEST_LENGTH;
-                    PPP_DigestFinal(ctxt, dig, &diglen);
-                    cp = dig;
-                    while (cp < dig + SHA_DIGEST_LENGTH)
-                        *optr++ ^= *cp++;
+					PPP_DigestInit(ctxt, PPP_sha1());
+					PPP_DigestUpdate(ctxt, &esp->es_server.ea_id, 1);
+					PPP_DigestUpdate(ctxt, esp->es_server.ea_skey,
+						SESSION_KEY_LEN);
+					PPP_DigestUpdate(ctxt, optr - SHA_DIGEST_LENGTH,
+						SHA_DIGEST_LENGTH);
+				}
 
-                    PPP_DigestInit(ctxt, PPP_sha1());
-                    PPP_DigestUpdate(ctxt, &esp->es_server.ea_id, 1);
-                    PPP_DigestUpdate(ctxt, esp->es_server.ea_skey,
-                            SESSION_KEY_LEN);
-                    PPP_DigestUpdate(ctxt, optr - SHA_DIGEST_LENGTH,
-                            SHA_DIGEST_LENGTH);
-			    }
-
-                PPP_MD_CTX_free(ctxt);
-            }
+				PPP_MD_CTX_free(ctxt);
+			}
 		}
 		break;
 
@@ -1607,26 +1578,26 @@ write_pseudonym(eap_state *esp, u_char *inp, int len, int id)
 			dsize = SHA_DIGEST_LENGTH;
 		len -= dsize;
 		datp = inp + len;
-        ctxt = PPP_MD_CTX_new();
-        if (ctxt) {
+		ctxt = PPP_MD_CTX_new();
+		if (ctxt) {
 
-            PPP_DigestInit(ctxt, PPP_sha1());
-            PPP_DigestUpdate(ctxt, &val, 1);
-            PPP_DigestUpdate(ctxt, esp->es_client.ea_skey,
-                    SESSION_KEY_LEN);
-            if (len > 0) {
-                PPP_DigestUpdate(ctxt, datp, SHA_DIGESTSIZE);
-            } else {
-                PPP_DigestUpdate(ctxt, esp->es_client.ea_name,
-                    esp->es_client.ea_namelen);
-            }
-            PPP_DigestFinal(ctxt, dig, &diglen);
+			PPP_DigestInit(ctxt, PPP_sha1());
+			PPP_DigestUpdate(ctxt, &val, 1);
+			PPP_DigestUpdate(ctxt, esp->es_client.ea_skey,
+					SESSION_KEY_LEN);
+			if (len > 0) {
+				PPP_DigestUpdate(ctxt, datp, SHA_DIGEST_LENGTH);
+			} else {
+				PPP_DigestUpdate(ctxt, esp->es_client.ea_name,
+					esp->es_client.ea_namelen);
+			}
+			PPP_DigestFinal(ctxt, dig, &diglen);
 
-            for (digp = dig; digp < dig + SHA_DIGEST_LENGTH; digp++)
-                *datp++ ^= *digp;
+			for (digp = dig; digp < dig + SHA_DIGEST_LENGTH; digp++)
+				*datp++ ^= *digp;
 
-            PPP_MD_CTX_free(ctxt);
-        }
+			PPP_MD_CTX_free(ctxt);
+		}
 	}
 
 	/* Now check that the result is sane */
@@ -1709,7 +1680,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	struct t_num sval, gval, Nval, *Ap, Bval;
 	u_char vals[2];
 	PPP_MD_CTX *ctxt;
-	u_char dig[SHA_DIGESTSIZE];
+	u_char dig[SHA_DIGEST_LENGTH];
 	int diglen = sizeof(dig);
 	int fd;
 #endif /* PPP_WITH_SRP */
@@ -1837,27 +1808,27 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-        mdctx = PPP_MD_CTX_new();
-        if (mdctx != NULL) {
-            if (PPP_DigestInit(mdctx, PPP_md5())) {
-                typenum = id;
-                if (PPP_DigestUpdate(mdctx, &typenum, 1)) {
-                    if (PPP_DigestUpdate(mdctx, secret, secret_len)) {
-                        BZERO(secret, sizeof(secret));
-                        if (PPP_DigestUpdate(mdctx, inp, vallen)) {
-                            if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
-                                eap_chap_response(esp, id, hash, esp->es_client.ea_name,
-                                    esp->es_client.ea_namelen);
-                                PPP_MD_CTX_free(mdctx);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            PPP_MD_CTX_free(mdctx);
-        }
-        dbglog("EAP: Invalid MD5 checksum");
+		mdctx = PPP_MD_CTX_new();
+		if (mdctx != NULL) {
+			if (PPP_DigestInit(mdctx, PPP_md5())) {
+				typenum = id;
+				if (PPP_DigestUpdate(mdctx, &typenum, 1)) {
+					if (PPP_DigestUpdate(mdctx, secret, secret_len)) {
+						BZERO(secret, sizeof(secret));
+						if (PPP_DigestUpdate(mdctx, inp, vallen)) {
+							if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
+								eap_chap_response(esp, id, hash, esp->es_client.ea_name,
+										esp->es_client.ea_namelen);
+								PPP_MD_CTX_free(mdctx);
+								break;
+							}
+						}
+					}
+				}
+			}
+			PPP_MD_CTX_free(mdctx);
+		}
+		dbglog("EAP: Invalid MD5 checksum");
         eap_send_nak(esp, id, EAPT_SRP);
 		break;
 
@@ -2135,7 +2106,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 					    esp->es_client.ea_id, id);
 				}
 			} else {
-				len -= sizeof (u_int32_t) + SHA_DIGESTSIZE;
+				len -= sizeof (u_int32_t) + SHA_DIGEST_LENGTH;
 				if (len < 0 || t_clientverify(tc, inp +
 					sizeof (u_int32_t)) != 0) {
 					error("EAP: SRP server verification "
@@ -2145,7 +2116,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				GETLONG(esp->es_client.ea_keyflags, inp);
 				/* Save pseudonym if user wants it. */
 				if (len > 0 && esp->es_usepseudo) {
-					INCPTR(SHA_DIGESTSIZE, inp);
+					INCPTR(SHA_DIGEST_LENGTH, inp);
 					write_pseudonym(esp, inp, len, id);
 				}
 			}
@@ -2163,24 +2134,24 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				return;
 			}
 			ctxt = PPP_MD_CTX_new();
-            if (ctxt) {
+			if (ctxt) {
 
-                vals[0] = id;
-                PPP_DigestInit(ctxt, PPP_sha1());
-                PPP_DigestUpdate(ctxt, vals, 1);
-                PPP_DigestUpdate(ctxt, esp->es_client.ea_skey,
-                        SESSION_KEY_LEN);
-                PPP_DigestUpdate(ctxt, inp, len);
-                PPP_DigestUpdate(ctxt, esp->es_client.ea_name,
-                        esp->es_client.ea_namelen);
-                PPP_DigestFinal(ctxt, dig, &diglen);
+				vals[0] = id;
+				PPP_DigestInit(ctxt, PPP_sha1());
+				PPP_DigestUpdate(ctxt, vals, 1);
+				PPP_DigestUpdate(ctxt, esp->es_client.ea_skey,
+					SESSION_KEY_LEN);
+				PPP_DigestUpdate(ctxt, inp, len);
+				PPP_DigestUpdate(ctxt, esp->es_client.ea_name,
+					esp->es_client.ea_namelen);
+				PPP_DigestFinal(ctxt, dig, &diglen);
 
-                PPP_MD_CTX_free(ctxt);
+				PPP_MD_CTX_free(ctxt);
 
-                eap_srp_response(esp, id, EAPSRP_LWRECHALLENGE, dig,
-                    SHA_DIGESTSIZE);
+				eap_srp_response(esp, id, EAPSRP_LWRECHALLENGE, dig,
+					SHA_DIGEST_LENGTH);
 			}
-            break;
+			break;
 
 		default:
 			error("EAP: unknown SRP Subtype %d", vallen);
@@ -2356,15 +2327,15 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	int secret_len;
 	char secret[MAXSECRETLEN];
 	char rhostname[256];
-    PPP_MD_CTX *mdctx;
+	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
-    int hashlen = MD5_DIGEST_LENGTH;
+	int hashlen = MD5_DIGEST_LENGTH;
 #ifdef PPP_WITH_SRP
 	struct t_server *ts;
 	struct t_num A;
 	PPP_MD_CTX *ctxt;
-	u_char dig[SHA_DIGESTSIZE];
-    int diglen = sizeof(dig);
+	u_char dig[SHA_DIGEST_LENGTH];
+	int diglen = sizeof(dig);
 #endif /* PPP_WITH_SRP */
 
 #ifdef PPP_WITH_EAPTLS
@@ -2597,40 +2568,39 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-        mdctx = PPP_MD_CTX_new();
-        if (mdctx != NULL) {
+		mdctx = PPP_MD_CTX_new();
+		if (mdctx != NULL) {
 
-            if (PPP_DigestInit(mdctx, PPP_md5())) {
+			if (PPP_DigestInit(mdctx, PPP_md5())) {
 
-                if (PPP_DigestUpdate(mdctx, &esp->es_server.ea_id, 1)) {
+				if (PPP_DigestUpdate(mdctx, &esp->es_server.ea_id, 1)) {
 
-                    if (PPP_DigestUpdate(mdctx, &secret, secret_len)) {
+					if (PPP_DigestUpdate(mdctx, &secret, secret_len)) {
 
-                        BZERO(secret, sizeof(secret));
-                        if (PPP_DigestUpdate(mdctx, esp->es_challenge, esp->es_challen)) {
+						BZERO(secret, sizeof(secret));
+						if (PPP_DigestUpdate(mdctx, esp->es_challenge, esp->es_challen)) {
 
-                            if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
+							if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
 
-                                if (BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
+								if (BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
+									esp->es_server.ea_type = EAPT_MD5CHAP;
+									eap_send_success(esp);
+									eap_figure_next_state(esp, 0);
 
-                                    esp->es_server.ea_type = EAPT_MD5CHAP;
-                                    eap_send_success(esp);
-                                    eap_figure_next_state(esp, 0);
+									if (esp->es_rechallenge != 0) {
+										TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
+									}
+									PPP_MD_CTX_free(mdctx);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
 
-                                    if (esp->es_rechallenge != 0) {
-                                        TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
-                                    }
-                                    PPP_MD_CTX_free(mdctx);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            PPP_MD_CTX_free(mdctx);
-        }
+			PPP_MD_CTX_free(mdctx);
+		}
 
 		eap_send_failure(esp);
 		break;
@@ -2776,9 +2746,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				eap_figure_next_state(esp, 1);
 				break;
 			}
-			if (len < sizeof (u_int32_t) + SHA_DIGESTSIZE) {
+			if (len < sizeof (u_int32_t) + SHA_DIGEST_LENGTH) {
 				error("EAP: M1 length %d < %d", len,
-				    sizeof (u_int32_t) + SHA_DIGESTSIZE);
+				    sizeof (u_int32_t) + SHA_DIGEST_LENGTH);
 				eap_figure_next_state(esp, 1);
 				break;
 			}
@@ -2815,37 +2785,37 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				info("EAP: unexpected SRP Subtype 4 Response");
 				return;
 			}
-			if (len != SHA_DIGESTSIZE) {
+			if (len != SHA_DIGEST_LENGTH) {
 				error("EAP: bad Lightweight rechallenge "
 				    "response");
 				return;
 			}
-            ctxt = PPP_MD_CTX_new();
-            if (ctxt) {
-			    vallen = id;
+			ctxt = PPP_MD_CTX_new();
+			if (ctxt) {
+				vallen = id;
 
-                PPP_DigestInit(ctxt, PPP_sha1());
-                PPP_DigestUpdate(ctxt, &vallen, 1);
-                PPP_DigestUpdate(ctxt, esp->es_server.ea_skey,
-                    SESSION_KEY_LEN);
-                PPP_DigestUpdate(ctxt, esp->es_challenge, esp->es_challen);
-                PPP_DigestUpdate(ctxt, esp->es_server.ea_peer,
-                    esp->es_server.ea_peerlen);
-                PPP_DigestFinal(ctxt, dig, &diglen);
+				PPP_DigestInit(ctxt, PPP_sha1());
+				PPP_DigestUpdate(ctxt, &vallen, 1);
+				PPP_DigestUpdate(ctxt, esp->es_server.ea_skey,
+					SESSION_KEY_LEN);
+				PPP_DigestUpdate(ctxt, esp->es_challenge, esp->es_challen);
+				PPP_DigestUpdate(ctxt, esp->es_server.ea_peer,
+					esp->es_server.ea_peerlen);
+				PPP_DigestFinal(ctxt, dig, &diglen);
 
-                PPP_MD_CTX_free(ctxt);
+				PPP_MD_CTX_free(ctxt);
 
-                if (BCMP(dig, inp, SHA_DIGEST_LENGTH) != 0) {
-                    error("EAP: failed Lightweight rechallenge");
-                    eap_send_failure(esp);
-                    break;
-                }
+				if (BCMP(dig, inp, SHA_DIGEST_LENGTH) != 0) {
+					error("EAP: failed Lightweight rechallenge");
+					eap_send_failure(esp);
+					break;
+				}
 
-                esp->es_server.ea_state = eapOpen;
-                if (esp->es_lwrechallenge != 0)
-                    TIMEOUT(srp_lwrechallenge, esp,
-                        esp->es_lwrechallenge);
-            }
+				esp->es_server.ea_state = eapOpen;
+				if (esp->es_lwrechallenge != 0)
+					TIMEOUT(srp_lwrechallenge, esp,
+						esp->es_lwrechallenge);
+			}
 			break;
 		}
 		break;
@@ -3238,10 +3208,10 @@ eap_printpkt(u_char *inp, int inlen,
 				if (uval != 0) {
 					printer(arg, " f<%X>", uval);
 				}
-				if ((vallen = len) > SHA_DIGESTSIZE)
-					vallen = SHA_DIGESTSIZE;
+				if ((vallen = len) > SHA_DIGEST_LENGTH)
+					vallen = SHA_DIGEST_LENGTH;
 				printer(arg, " <M2%.*B%s>", len, inp,
-				    len < SHA_DIGESTSIZE ? "?" : "");
+				    len < SHA_DIGEST_LENGTH ? "?" : "");
 				INCPTR(vallen, inp);
 				len -= vallen;
 				if (len > 0) {
@@ -3411,7 +3381,7 @@ eap_printpkt(u_char *inp, int inlen,
 					printer(arg, " f<%X>", uval);
 				}
 				printer(arg, " <M1%.*B%s>", len, inp,
-				    len == SHA_DIGESTSIZE ? "" : "?");
+				    len == SHA_DIGEST_LENGTH ? "" : "?");
 				INCPTR(len, inp);
 				len = 0;
 				break;
@@ -3421,9 +3391,9 @@ eap_printpkt(u_char *inp, int inlen,
 
 			case EAPSRP_LWRECHALLENGE:
 				printer(arg, " <Response%.*B%s>", len, inp,
-				    len == SHA_DIGESTSIZE ? "" : "?");
-				if ((vallen = len) > SHA_DIGESTSIZE)
-					vallen = SHA_DIGESTSIZE;
+				    len == SHA_DIGEST_LENGTH ? "" : "?");
+				if ((vallen = len) > SHA_DIGEST_LENGTH)
+					vallen = SHA_DIGEST_LENGTH;
 				INCPTR(vallen, inp);
 				len -= vallen;
 				break;

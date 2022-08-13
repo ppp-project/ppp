@@ -51,8 +51,6 @@ struct _PPP_MD_CTX
 struct _PPP_CIPHER
 {
     int  (*init_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigned char *iv);
-    void (*set_key_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *key);
-    void (*set_iv_fn)(PPP_CIPHER_CTX *ctx, const unsigned char *iv);
     int  (*update_fn)(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl, const unsigned char *in, int inl);
     int  (*final_fn)(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
     void (*clean_fn)(PPP_CIPHER_CTX *ctx);

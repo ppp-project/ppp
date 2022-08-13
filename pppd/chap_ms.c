@@ -99,6 +99,7 @@
 #include "magic.h"
 #include "mppe.h"
 #include "ppp-crypto.h"
+#include "pppcrypt.h"
 
 #ifdef UNIT_TEST
 #undef PPP_WITH_MPPE
@@ -509,9 +510,6 @@ ChallengeResponse(u_char *challenge,
 {
     u_char ZPasswordHash[21];
     PPP_CIPHER_CTX *ctx;
-    int outlen = 0;
-    int offset = 0;
-    int retval = 0;
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
     BCOPY(PasswordHash, ZPasswordHash, MD4_DIGEST_LENGTH);
@@ -521,38 +519,15 @@ ChallengeResponse(u_char *challenge,
 	   sizeof(ZPasswordHash), ZPasswordHash);
 #endif
 
-    ctx = PPP_CIPHER_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_CipherInit(ctx, PPP_des_ecb(), ZPasswordHash + 0, NULL, 1)) {
-
-            if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
-                offset += outlen;
-
-                PPP_CIPHER_CTX_set_cipher_data(ctx, ZPasswordHash + 7);
-                if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
-                    offset += outlen;
-
-                    PPP_CIPHER_CTX_set_cipher_data(ctx, ZPasswordHash + 14);
-                    if (PPP_CipherUpdate(ctx, response + offset, &outlen, challenge, 8)) {
-                        offset += outlen;
-
-                        if (PPP_CipherFinal(ctx, response + offset, &outlen)) {
-
-                            retval = 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        PPP_CIPHER_CTX_free(ctx);
-    }
+    if (DesEncrypt(challenge, ZPasswordHash + 0,  response + 0) &&
+        DesEncrypt(challenge, ZPasswordHash + 7,  response + 8) &&
+        DesEncrypt(challenge, ZPasswordHash + 14, response + 16))
+        return 1;
 
 #if 0
     dbglog("ChallengeResponse - response %.24B", response);
 #endif
-    return retval;
+    return 0;
 }
 
 void

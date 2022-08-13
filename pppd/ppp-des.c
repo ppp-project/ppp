@@ -6,7 +6,7 @@
  *
  * Copyright (c) 1995 Eric Rosenquist. All rights reserved.
  * Copyright (c) 2022 Eivind Næss. All rights reserved.
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,89 +41,9 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ppp-crypto-priv.h"
-
-/*
- * DES related functions are imported from openssl 3.0 project with the 
- * follwoing license:
- *
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
- *
- * Licensed under the Apache License 2.0 (the "License").  You may not use
- * this file except in compliance with the License.  You can obtain a copy
- * in the file LICENSE in the source distribution or at
- * https://www.openssl.org/source/license.html
- */
-typedef unsigned char DES_cblock[8];
-#define DES_KEY_SZ      (sizeof(DES_cblock))
-
-static const unsigned char odd_parity[256] = {
-    1, 1, 2, 2, 4, 4, 7, 7, 8, 8, 11, 11, 13, 13, 14, 14,
-    16, 16, 19, 19, 21, 21, 22, 22, 25, 25, 26, 26, 28, 28, 31, 31,
-    32, 32, 35, 35, 37, 37, 38, 38, 41, 41, 42, 42, 44, 44, 47, 47,
-    49, 49, 50, 50, 52, 52, 55, 55, 56, 56, 59, 59, 61, 61, 62, 62,
-    64, 64, 67, 67, 69, 69, 70, 70, 73, 73, 74, 74, 76, 76, 79, 79,
-    81, 81, 82, 82, 84, 84, 87, 87, 88, 88, 91, 91, 93, 93, 94, 94,
-    97, 97, 98, 98, 100, 100, 103, 103, 104, 104, 107, 107, 109, 109, 110,
-    110,
-    112, 112, 115, 115, 117, 117, 118, 118, 121, 121, 122, 122, 124, 124, 127,
-    127,
-    128, 128, 131, 131, 133, 133, 134, 134, 137, 137, 138, 138, 140, 140, 143,
-    143,
-    145, 145, 146, 146, 148, 148, 151, 151, 152, 152, 155, 155, 157, 157, 158,
-    158,
-    161, 161, 162, 162, 164, 164, 167, 167, 168, 168, 171, 171, 173, 173, 174,
-    174,
-    176, 176, 179, 179, 181, 181, 182, 182, 185, 185, 186, 186, 188, 188, 191,
-    191,
-    193, 193, 194, 194, 196, 196, 199, 199, 200, 200, 203, 203, 205, 205, 206,
-    206,
-    208, 208, 211, 211, 213, 213, 214, 214, 217, 217, 218, 218, 220, 220, 223,
-    223,
-    224, 224, 227, 227, 229, 229, 230, 230, 233, 233, 234, 234, 236, 236, 239,
-    239,
-    241, 241, 242, 242, 244, 244, 247, 247, 248, 248, 251, 251, 253, 253, 254,
-    254
-};
-
-static void DES_set_odd_parity(DES_cblock *key)
-{
-    unsigned int i;
-    for (i = 0; i < DES_KEY_SZ; i++)
-        (*key)[i] = odd_parity[(*key)[i]];
-}
-
-static unsigned char
-Get7Bits(const unsigned char *input, int startBit)
-{
-	unsigned int word;
-
-	word  = (unsigned)input[startBit / 8] << 8;
-	word |= (unsigned)input[startBit / 8 + 1];
-
-	word >>= 15 - (startBit % 8 + 7);
-
-	return word & 0xFE;
-}
-
-static void
-MakeKey(const unsigned char *key, unsigned char *des_key)
-{
-	/* key     IN  56 bit DES key missing parity bits */
-	/* des_key OUT 64 bit DES key with parity bits added */
-	des_key[0] = Get7Bits(key,  0);
-	des_key[1] = Get7Bits(key,  7);
-	des_key[2] = Get7Bits(key, 14);
-	des_key[3] = Get7Bits(key, 21);
-	des_key[4] = Get7Bits(key, 28);
-	des_key[5] = Get7Bits(key, 35);
-	des_key[6] = Get7Bits(key, 42);
-	des_key[7] = Get7Bits(key, 49);
-
-	DES_set_odd_parity((DES_cblock *)des_key);
-}
-
 
 #ifdef OPENSSL_HAVE_DES
 
@@ -138,9 +58,14 @@ static int des_init(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigne
     if (ctx) {
         EVP_CIPHER_CTX *cc = EVP_CIPHER_CTX_new();
         if (cc) {
+
             if (key) {
-                MakeKey(key, ctx->key);
+                memcpy(ctx->key, key, 8);
             }
+            if (iv) {
+                memcpy(ctx->iv, iv, 8);
+            }
+
             if (EVP_CipherInit(cc, EVP_des_ecb(), ctx->key, ctx->iv, ctx->is_encr)) {
 
                 if (EVP_CIPHER_CTX_set_padding(cc, 0)) {
@@ -148,6 +73,7 @@ static int des_init(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigne
                     return 1;
                 }
             }
+
             EVP_CIPHER_CTX_free(cc);
         }
     }
@@ -176,22 +102,6 @@ static void des_clean(PPP_CIPHER_CTX *ctx)
         EVP_CIPHER_CTX_free((EVP_CIPHER_CTX*) ctx->priv);
         ctx->priv = NULL;
     }
-}
-
-/**
- * Using the EVP_ interface with openssl, there is no replacement for the
- * DES_set_key() function, and each iteration of DesEncrypt(Clear,Key,Cipher)
- * per RFC2759 is another iteration of the EVP_CipherInit, EVP_CipherUpdate,
- * EVP_CipherFinal functions.
- *
- * As a work-around, we reset the EVP_CIPHER_CTX object, and re-initializes
- * the context by calling EVP_CipherInit() with the new key.
- */
-static void des_set_key(PPP_CIPHER_CTX *ctx, const unsigned char *key)
-{
-    EVP_CIPHER_CTX_reset((EVP_CIPHER_CTX*) ctx->priv);
-    MakeKey(key, ctx->key);
-    EVP_CipherInit((EVP_CIPHER_CTX*) ctx->priv, EVP_des_ecb(), ctx->key, ctx->iv, ctx->is_encr);
 }
 
 #else
@@ -759,7 +669,14 @@ static int des_init(PPP_CIPHER_CTX *ctx, const unsigned char *key, const unsigne
     if (ks) {
 
         if (key) {
-            MakeKey(key, ctx->key);
+            memcpy(ctx->key, key, 8);
+        }
+
+        if (iv) {
+            memcpy(ctx->iv, iv, 8);
+        }
+
+        if (key) {
             DES_set_key((DES_cblock*) &ctx->key, ks);
         }
 
@@ -797,19 +714,12 @@ static void des_clean(PPP_CIPHER_CTX *ctx)
     }
 }
 
-static void des_set_key(PPP_CIPHER_CTX *ctx, const unsigned char *key)
-{
-    MakeKey(key, ctx->key);
-    DES_set_key((DES_cblock*) &ctx->key, (DES_key_schedule*) ctx->priv);
-}
-
 #endif
 
 static PPP_CIPHER ppp_des = {
     .init_fn = des_init,
     .update_fn = des_update,
     .final_fn = des_final,
-    .set_key_fn = des_set_key,
     .clean_fn = des_clean,
 };
 

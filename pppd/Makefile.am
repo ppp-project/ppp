@@ -2,7 +2,7 @@ sbin_PROGRAMS = pppd
 dist_man8_MANS = pppd.8
 check_PROGRAMS =
 
-utest_chap_SOURCES = chap_ms.c utils.c
+utest_chap_SOURCES = chap_ms.c utils.c pppcrypt.c
 utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
@@ -13,6 +13,10 @@ utest_peap_LDFLAGS =
 utest_crypto_SOURCES = ppp-crypto.c
 utest_crypto_CPPFLAGS = -DUNIT_TEST
 utest_crypto_LDFLAGS =
+
+utest_pppcrypt_SOURCES = pppcrypt.c
+utest_pppcrypt_CPPFLAGS = -DUNIT_TEST_PPPCRYPT
+utest_pppcrypt_LDFLAGS =
 
 check_PROGRAMS += utest_crypto
 
@@ -45,6 +49,7 @@ pppd_include_HEADERS = \
     peap.h \
     pppd.h \
     pppdconf.h \
+    pppcrypt.h \
     ppp-crypto.h \
     ppp-crypto-priv.h \
     session.h \
@@ -88,8 +93,14 @@ pppd_LIBS += -lsocket -lnsl
 endif
 
 if PPP_WITH_CHAPMS
-pppd_SOURCES += chap_ms.c
+pppd_SOURCES += chap_ms.c pppcrypt.c
 check_PROGRAMS += utest_chap
+check_PROGRAMS += utest_pppcrypt
+else
+if WITH_SRP
+pppd_SOURCES += pppcrypt.c
+check_PROGRAMS += utest_pppcrypt
+endif
 endif
 
 if PPP_WITH_CBCP
@@ -157,6 +168,7 @@ endif
 utest_peap_LDADD = libppp_crypt.la
 utest_chap_LDADD = libppp_crypt.la
 utest_crypto_LDADD = libppp_crypt.la
+utest_pppcrypt_LDADD = libppp_crypt.la
 
 pppd_LIBS += libppp_crypt.la
 
