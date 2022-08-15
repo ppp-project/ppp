@@ -358,6 +358,7 @@ extern bool	multilink;	/* enable multilink operation */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */
 extern bool	dump_options;	/* print out option values */
+extern bool	show_options;	/* show all option names and descriptions */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
@@ -776,7 +777,8 @@ int  override_value(char *, int, const char *);
 				/* override value if permitted by priority */
 void print_options(printer_func, void *);
 				/* print out values of all options */
-
+void showopts(void);
+                /* show all option names and description */
 int parse_dotted_ip(char *, u_int32_t *);
 
 /*
