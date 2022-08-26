@@ -93,6 +93,7 @@ struct notifier *ip_down_notifier = NULL;
 static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
+static bool resolvconf = 1;		/* deploy peer DNS addrs */
 static bool usepeerwins;		/* Ask peer for WINS addrs */
 static int ipcp_is_up;			/* have called np_up() */
 static int ipcp_is_open;		/* haven't called np_finished() */
@@ -221,6 +222,8 @@ static option_t ipcp_option_list[] = {
 
     { "usepeerdns", o_bool, &usepeerdns,
       "Ask peer for DNS address(es)", 1 },
+    { "noresolvconf", o_bool, &resolvconf,
+      "Ask for DNS but Don't deploy resolv.conf", OPT_A2CLR},
 
     { "usepeerwins", o_bool, &usepeerwins,
       "Ask peer for WINS address(es)", 1 },
@@ -1846,7 +1849,8 @@ ipcp_up(fsm *f)
 	script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
     if (usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
 	script_setenv("USEPEERDNS", "1", 0);
-	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
+	if (resolvconf)
+	    create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
     }
 
     if (go->winsaddr[0])

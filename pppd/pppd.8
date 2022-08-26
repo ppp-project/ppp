@@ -1190,7 +1190,10 @@ by the peer (if any) are passed to the /etc/ppp/ip\-up script in the
 environment variables DNS1 and DNS2, and the environment variable
 USEPEERDNS will be set to 1.  In addition, pppd will create an
 /etc/ppp/resolv.conf file containing one or two nameserver lines with
-the address(es) supplied by the peer.
+the address(es) supplied by the peer, unless \fBresolvconf\fB is turned off.
+.TP
+.B noresolvconf
+Do not create /etc/ppp/resolv.conf with the DNS server addresses supplied by the peer.
 .TP
 .B usepeerwins
 Ask the peer for up to 2 WINS server addresses.  The addresses supplied
