@@ -127,6 +127,7 @@ char	req_ifname[IFNAMSIZ];	/* requested interface name */
 bool	multilink = 0;		/* Enable multilink operation */
 char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
+bool	show_options;		/* print all supported options and exit */
 bool	dryrun;			/* print out option values and exit */
 char	*domain;		/* domain name set by domain option */
 int	child_wait = 5;		/* # seconds to wait for children at exit */
@@ -263,6 +264,10 @@ option_t general_options[] = {
 
     { "--version", o_special_noarg, (void *)showversion,
       "Show version number" },
+    { "-v", o_special_noarg, (void *)showversion,
+      "Show version number" },
+    { "show-options", o_bool, &show_options,
+      "Show all options and exit", 1 },
     { "--help", o_special_noarg, (void *)showhelp,
       "Show brief listing of options" },
     { "-h", o_special_noarg, (void *)showhelp,
@@ -390,23 +395,6 @@ option_t general_options[] = {
 #define IMPLEMENTATION ""
 #endif
 
-static char *usage_string = "\
-pppd version %s\n\
-Usage: %s [ options ], where options are:\n\
-	<device>	Communicate over the named device\n\
-	<speed>		Set the baud rate to <speed>\n\
-	<loc>:<rem>	Set the local and/or remote interface IP\n\
-			addresses.  Either one may be omitted.\n\
-	asyncmap <n>	Set the desired async map to hex <n>\n\
-	auth		Require authentication from peer\n\
-        connect <p>     Invoke shell command <p> to set up the serial line\n\
-	crtscts		Use hardware RTS/CTS flow control\n\
-	defaultroute	Add default route through interface\n\
-	file <f>	Take options from file <f>\n\
-	modem		Use modem control lines\n\
-	mru <n>		Set MRU value to <n> for negotiation\n\
-See pppd(8) for more options.\n\
-";
 
 /*
  * parse_args - parse a string of arguments from the command line.
@@ -1066,8 +1054,33 @@ print_options(printer_func printer, void *arg)
 static void
 usage(void)
 {
-    if (phase == PHASE_INITIALIZE)
-	fprintf(stderr, usage_string, VERSION, progname);
+    FILE *fp = stderr;
+    if (phase == PHASE_INITIALIZE) {
+        fprintf(fp, "%s v%s\n", PACKAGE_NAME, PACKAGE_VERSION);
+        fprintf(fp, "Copyright (C) 1999-2022 Paul Mackerras, and others. All rights reserved.\n\n");
+
+
+        fprintf(fp, "License BSD: The 3 clause BSD license <https://opensource.org/licenses/BSD-3-Clause>\n");
+        fprintf(fp, "This is free software: you are free to change and redistribute it.\n");
+        fprintf(fp, "There is NO WARRANTY, to the extent permitted by law.\n\n");
+
+        fprintf(fp, "Report Bugs:\n   %s\n\n", PACKAGE_BUGREPORT);
+        fprintf(fp, "Usage: %s [ options ], where options are:\n", progname);
+        fprintf(fp, "   <device>        Communicate over the named device\n");
+        fprintf(fp, "   <speed>         Set the baud rate to <speed>\n");
+        fprintf(fp, "   <loc>:<rem>     Set the local and/or remote interface IP\n");
+        fprintf(fp, "                   addresses.  Either one may be omitted.\n");
+        fprintf(fp, "   asyncmap <n>    Set the desired async map to hex <n>\n");
+        fprintf(fp, "   auth            Require authentication from peer\n");
+        fprintf(fp, "   connect <p>     Invoke shell command <p> to set up the serial line\n");
+        fprintf(fp, "   crtscts         Use hardware RTS/CTS flow control\n");
+        fprintf(fp, "   defaultroute    Add default route through interface\n");
+        fprintf(fp, "   file <f>        Take options from file <f>\n");
+        fprintf(fp, "   modem           Use modem control lines\n");
+        fprintf(fp, "   mru <n>         Set MRU value to <n> for negotiation\n");
+        fprintf(fp, "   show-options    Display an extended list of options\n");
+        fprintf(fp, "See pppd(8) for more options.\n");
+    }
 }
 
 /*
@@ -1094,6 +1107,61 @@ showversion(char **argv)
 	exit(0);
     }
     return 0;
+}
+
+/*
+ * Print a set of options including the name of the group of options
+ */
+static void
+showopts_list(FILE *fp, const char *title, option_t *list, ...)
+{
+	option_t *opt = list;
+    va_list varg;
+
+    if (opt && opt->name) {
+        va_start(varg, list);
+        vfprintf(fp, title, varg);
+        fprintf(fp, ":\n");
+        va_end(varg);
+
+        do {
+            fprintf(fp, "    %-22s %s\n", opt->name, opt->description?:"");
+            opt++;
+        } while (opt && opt->name);
+
+        fprintf(fp, "\n");
+    }
+}
+
+/*
+ * Dumps the list of available options
+ */
+void
+showopts(void)
+{
+    struct option_list *list;
+    FILE *fp = stderr;
+    int i = 0;
+
+    showopts_list(fp, "General Options",
+            general_options);
+
+    showopts_list(fp, "Authentication Options",
+            auth_options);
+
+    for (list = extra_options; list != NULL; list = list->next)
+		showopts_list(fp, "Extra Options", list->options);
+
+    showopts_list(fp, "Channel Options",
+            the_channel->options);
+
+    for (i = 0; protocols[i] != NULL; ++i) {
+        if (protocols[i]->options != NULL) {
+            showopts_list(fp, "%s Options",
+                    protocols[i]->options,
+                    protocols[i]->name);
+        }
+    }
 }
 
 /*

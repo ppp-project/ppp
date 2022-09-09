@@ -367,6 +367,11 @@ main(int argc, char *argv[])
     if (debug)
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 
+    if (show_options) {
+	showopts();
+	die(0);
+    }
+
     /*
      * Check that we are running as root.
      */
