@@ -864,7 +864,14 @@ static int make_ppp_unit_rtnetlink(void)
     nlreq.ifli.ifid.ifdata[0].rta.rta_type = IFLA_PPP_DEV_FD;
     nlreq.ifli.ifid.ifdata[0].ppp.ppp_dev_fd = ppp_dev_fd;
 
-    resp = rtnetlink_msg("RTM_NEWLINK/NLM_F_CREATE", NULL, &nlreq, sizeof(nlreq), NULL, NULL, 0);
+    /*
+     * See kernel function ppp_nl_newlink(), which may return -EBUSY to prevent
+     * possible deadlock in kernel and ask userspace to retry request again.
+     */
+    do {
+        resp = rtnetlink_msg("RTM_NEWLINK/NLM_F_CREATE", NULL, &nlreq, sizeof(nlreq), NULL, NULL, 0);
+    } while (resp == -EBUSY);
+
     if (resp) {
         /*
          * Linux kernel versions prior to 4.7 do not support creating ppp
