@@ -40,9 +40,8 @@
 #include "chap-new.h"
 #include "chap-md5.h"
 #include "magic.h"
-#include "md5.h"
+#include "ppp-crypto.h"
 
-#define MD5_HASH_SIZE		16
 #define MD5_MIN_CHALLENGE	16
 #define MD5_MAX_CHALLENGE	24
 
@@ -63,26 +62,42 @@ chap_md5_verify_response(int id, char *name,
 			 unsigned char *challenge, unsigned char *response,
 			 char *message, int message_space)
 {
-	MD5_CTX ctx;
 	unsigned char idbyte = id;
-	unsigned char hash[MD5_HASH_SIZE];
+	unsigned char hash[MD5_DIGEST_LENGTH];
+	unsigned int  hash_len = MD5_DIGEST_LENGTH;
 	int challenge_len, response_len;
+	bool success = 0;
 
 	challenge_len = *challenge++;
 	response_len = *response++;
-	if (response_len == MD5_HASH_SIZE) {
-		/* Generate hash of ID, secret, challenge */
-		MD5_Init(&ctx);
-		MD5_Update(&ctx, &idbyte, 1);
-		MD5_Update(&ctx, secret, secret_len);
-		MD5_Update(&ctx, challenge, challenge_len);
-		MD5_Final(hash, &ctx);
+	if (response_len == MD5_DIGEST_LENGTH) {
 
-		/* Test if our hash matches the peer's response */
-		if (memcmp(hash, response, MD5_HASH_SIZE) == 0) {
-			slprintf(message, message_space, "Access granted");
-			return 1;
+		/* Generate hash of ID, secret, challenge */
+		PPP_MD_CTX* ctx = PPP_MD_CTX_new();
+		if (ctx) {
+
+			if (PPP_DigestInit(ctx, PPP_md5())) {
+
+				if (PPP_DigestUpdate(ctx, &idbyte, 1)) {
+
+					if (PPP_DigestUpdate(ctx, secret, secret_len)) {
+
+						if (PPP_DigestUpdate(ctx, challenge, challenge_len)) {
+
+							if (PPP_DigestFinal(ctx, hash, &hash_len)) {
+
+								success = 1;
+							}
+						}
+					}
+				}
+			}
+			PPP_MD_CTX_free(ctx);
 		}
+	}
+	if (success && memcmp(hash, response, hash_len) == 0) {
+		slprintf(message, message_space, "Access granted");
+		return 1;
 	}
 	slprintf(message, message_space, "Access denied");
 	return 0;
@@ -93,16 +108,31 @@ chap_md5_make_response(unsigned char *response, int id, char *our_name,
 		       unsigned char *challenge, char *secret, int secret_len,
 		       unsigned char *private)
 {
-	MD5_CTX ctx;
 	unsigned char idbyte = id;
 	int challenge_len = *challenge++;
+	int hash_len = MD5_DIGEST_LENGTH;
 
-	MD5_Init(&ctx);
-	MD5_Update(&ctx, &idbyte, 1);
-	MD5_Update(&ctx, (u_char *)secret, secret_len);
-	MD5_Update(&ctx, challenge, challenge_len);
-	MD5_Final(&response[1], &ctx);
-	response[0] = MD5_HASH_SIZE;
+	PPP_MD_CTX* ctx = PPP_MD_CTX_new();
+	if (ctx) {
+
+		if (PPP_DigestInit(ctx, PPP_md5())) {
+
+			if (PPP_DigestUpdate(ctx, &idbyte, 1)) {
+
+				if (PPP_DigestUpdate(ctx, secret, secret_len)) {
+
+					if (PPP_DigestUpdate(ctx, challenge, challenge_len)) {
+
+						if (PPP_DigestFinal(ctx, &response[1], &hash_len)) {
+
+							response[0] = hash_len;
+						}
+					}
+				}
+			}
+		}
+		PPP_MD_CTX_free(ctx);
+	}
 }
 
 static struct chap_digest_type md5_digest = {

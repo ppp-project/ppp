@@ -32,9 +32,6 @@ radius_la_CPPFLAGS = $(RADIUS_CPPFLAGS)
 radius_la_LDFLAGS = $(RADIUS_LDFLAGS)
 radius_la_SOURCES = radius.c
 radius_la_LIBADD = libradiusclient.la
-if WITH_OPENSSL
-radius_la_LIBADD += $(OPENSSL_LIBS)
-endif
 
 radattr_la_CPPFLAGS = $(RADIUS_CPPFLAGS)
 radattr_la_LDFLAGS = $(RADIUS_LDFLAGS)
@@ -46,18 +43,8 @@ radrealms_la_SOURCES = radrealms.c
 
 libradiusclient_la_SOURCES = \
     avpair.c buildreq.c config.c dict.c ip_util.c \
-	clientid.c sendserver.c lock.c util.c
+	clientid.c sendserver.c lock.c util.c md5.c
 libradiusclient_la_CPPFLAGS = $(RADIUS_CPPFLAGS) -DSYSCONFDIR=\"${sysconfdir}\"
-
-if !WITH_OPENSSL
-libradiusclient_la_SOURCES += md5.c
-else
-if OPENSSL_HAVE_MD5
-libradiusclient_la_SOURCES += md5.c
-else
-libradiusclient_la_CPPFLAGS += $(OPENSSL_INCLUDES)
-endif
-endif
 
 EXTRA_DIST = \
     $(EXTRA_FILES) \

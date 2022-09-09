@@ -1,10 +1,102 @@
+/* ppp-sha1.c - SHA1 Digest implementation
+ *
+ * Copyright (c) 2022 Eivind Næss. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. The name(s) of the authors of this software must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission.
+ *
+ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
+ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * Sections of this code holds different copyright information.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdlib.h>
+#include <stddef.h>
+
+#include "ppp-crypto-priv.h"
+
+
+/* #define SHA1HANDSOFF * Copies data before messing with it. */
+#ifdef OPENSSL_HAVE_SHA
+#include <openssl/evp.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#endif
+
+static int sha1_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        EVP_MD_CTX *mctx = EVP_MD_CTX_new();
+        if (mctx) {
+            if (EVP_DigestInit(mctx, EVP_sha1())) {
+                ctx->priv = mctx;
+                return 1;
+            }
+            EVP_MD_CTX_free(mctx);
+        }
+    }
+    return 0;
+}
+
+static int sha1_update(PPP_MD_CTX *ctx, const void *data, size_t len)
+{
+    if (EVP_DigestUpdate((EVP_MD_CTX*) ctx->priv, data, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static int sha1_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    if (EVP_DigestFinal((EVP_MD_CTX*) ctx->priv, out, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static void sha1_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        EVP_MD_CTX_free((EVP_MD_CTX*) ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+
+#else // !OPENSSL_HAVE_SHA
+
 /*
  * ftp://ftp.funet.fi/pub/crypt/hash/sha/sha1.c
- * 
+ *
  * SHA-1 in C
  * By Steve Reid <steve@edmweb.com>
  * 100% Public Domain
- * 
+ *
  * Test Vectors (from FIPS PUB 180-1)
  * "abc"
  * A9993E36 4706816A BA3E2571 7850C26C 9CD0D89D
@@ -14,16 +106,15 @@
  * 34AA973C D4C4DAA4 F61EEB2B DBAD2731 6534016F
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-/* #define SHA1HANDSOFF * Copies data before messing with it. */
-
 #include <string.h>
-#include <time.h>
 #include <netinet/in.h>	/* htonl() */
-#include "sha1.h"
+
+typedef struct {
+    u_int32_t state[5];
+    u_int32_t count[2];
+    unsigned char buffer[64];
+} SHA1_CTX;
+
 
 static void
 SHA1_Transform(u_int32_t[5], const unsigned char[64]);
@@ -103,7 +194,7 @@ SHA1_Transform(u_int32_t state[5], const unsigned char buffer[64])
 
 /* SHA1Init - Initialize new context */
 
-void
+static void
 SHA1_Init(SHA1_CTX *context)
 {
     /* SHA1 initialization constants */
@@ -118,7 +209,7 @@ SHA1_Init(SHA1_CTX *context)
 
 /* Run your data through this. */
 
-void
+static void
 SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
 {
     unsigned int i, j;
@@ -142,7 +233,7 @@ SHA1_Update(SHA1_CTX *context, const unsigned char *data, unsigned int len)
 
 /* Add padding and return the message digest. */
 
-void
+static void
 SHA1_Final(unsigned char digest[20], SHA1_CTX *context)
 {
     u_int32_t i, j;
@@ -170,5 +261,52 @@ SHA1_Final(unsigned char digest[20], SHA1_CTX *context)
 #ifdef SHA1HANDSOFF  /* make SHA1Transform overwrite it's own static vars */
     SHA1Transform(context->state, context->buffer);
 #endif
+}
+
+static int sha1_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        SHA1_CTX *mctx = calloc(1, sizeof(SHA1_CTX));
+        if (mctx) {
+            SHA1_Init(mctx);
+            ctx->priv = mctx;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int sha1_update(PPP_MD_CTX* ctx, const void *data, size_t len)
+{
+    SHA1_Update((SHA1_CTX*) ctx->priv, (void*) data, len);
+    return 1;
+}
+
+static int sha1_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    SHA1_Final(out, (SHA1_CTX*) ctx->priv);
+    return 1;
+}
+
+static void sha1_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        free(ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+#endif
+
+static PPP_MD ppp_sha1 = {
+    .init_fn = sha1_init,
+    .update_fn = sha1_update,
+    .final_fn = sha1_final,
+    .clean_fn = sha1_clean,
+};
+
+const PPP_MD *PPP_sha1(void)
+{
+    return &ppp_sha1;
 }
 

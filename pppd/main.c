@@ -109,6 +109,7 @@
 #include "ccp.h"
 #include "ecp.h"
 #include "pathnames.h"
+#include "ppp-crypto.h"
 
 #ifdef PPP_WITH_TDB
 #include "tdb.h"
@@ -293,6 +294,8 @@ main(int argc, char *argv[])
     struct passwd *pw;
     struct protent *protp;
     char numbuf[16];
+
+    PPP_crypto_init();
 
     strlcpy(path_ipup, PPP_PATH_IPUP, MAXPATHLEN);
     strlcpy(path_ipdown, PPP_PATH_IPDOWN, MAXPATHLEN);
@@ -581,6 +584,7 @@ main(int argc, char *argv[])
 	}
     }
 
+    PPP_crypto_deinit();
     die(status);
     return 0;
 }

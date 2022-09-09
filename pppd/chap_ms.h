@@ -35,7 +35,6 @@
 
 #include "pppdconf.h"
 
-#define MD4_SIGNATURE_SIZE	16	/* 16 bytes in a MD4 message digest */
 #define MAX_NT_PASSWORD		256	/* Max (Unicode) chars in an NT pass */
 
 #define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
@@ -81,10 +80,18 @@ void ChapMS2 (u_char *, u_char *, char *, char *, int,
 
 void	ChallengeHash (u_char[16], u_char *, char *, u_char[8]);
 
-void GenerateAuthenticatorResponse(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-			u_char NTResponse[24], u_char PeerChallenge[16],
-			u_char *rchallenge, char *username,
-			u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1]);
+
+/**
+ * PasswordHashHash - 16 bytes representing the NT Password Hash Hash
+ * NTResponse - 24 bytes  represending the NTResponse parameter
+ * PeerChallenge - 16 bytes challange for peer
+ * rchallenge - 16 bytes challenge provided by peer
+ * authResponse - 24 + 1 byte to store the authenticator response
+ */
+void GenerateAuthenticatorResponse(unsigned char *PasswordHashHash,
+			unsigned char *NTResponse, unsigned char *PeerChallenge,
+			unsigned char *rchallenge, char *username,
+			unsigned char *authResponse);
 
 void chapms_init(void);
 

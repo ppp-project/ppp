@@ -468,6 +468,6 @@ void rc_mdelay(int);
 
 /* md5.c			*/
 
-void rc_md5_calc(unsigned char *, unsigned char *, unsigned int);
+int rc_md5_calc(unsigned char *out, const unsigned char *in, unsigned int inl);
 
 #endif /* RADIUSCLIENT_H */

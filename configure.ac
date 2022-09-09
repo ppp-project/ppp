@@ -221,7 +221,9 @@ AC_SUBST(PPPD_LOGFILE_DIR)
 #
 # Check for OpenSSL
 AX_CHECK_OPENSSL
-AM_CONDITIONAL(WITH_OPENSSL, test "x${with_openssl}" != "xno")
+AM_CONDITIONAL(PPP_WITH_OPENSSL, test "x${with_openssl}" != "xno")
+AM_COND_IF([PPP_WITH_OPENSSL],
+    AC_DEFINE([PPP_WITH_OPENSSL], 1, [PPP is compiled with openssl support]))
 
 #
 # Check if OpenSSL has compiled in support for various ciphers
@@ -236,29 +238,20 @@ AS_IF([test "x${with_openssl}" != "xno" ], [
 ])
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD4], test "x${ac_cv_openssl_md4}" = "xyes")
-AM_COND_IF([OPENSSL_HAVE_MD4],,
-    AC_DEFINE([USE_MD4], 1, [Use MD4 included with pppd]))
+AM_COND_IF([OPENSSL_HAVE_MD4],
+    AC_DEFINE([OPENSSL_HAVE_MD4], 1, [Use MD4 included with openssl]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_MD5], test "x${ac_cv_openssl_md5}" = "xyes")
-AM_COND_IF([OPENSSL_HAVE_MD5],,
-    AC_DEFINE([USE_MD5], 1, [Use MD5 included with pppd]))
+AM_COND_IF([OPENSSL_HAVE_MD5],
+    AC_DEFINE([OPENSSL_HAVE_MD5], 1, [Use MD5 included with openssl]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_SHA], test "x${ac_cv_openssl_sha}" = "xyes")
-AM_COND_IF([OPENSSL_HAVE_SHA],,
-    AC_DEFINE([USE_SHA], 1, [Use SHA included with pppd]))
+AM_COND_IF([OPENSSL_HAVE_SHA],
+    AC_DEFINE([OPENSSL_HAVE_SHA], 1, [Use SHA included with openssl]))
 
 AM_CONDITIONAL([OPENSSL_HAVE_DES], test "x${ac_cv_openssl_des}" = "xyes")
-AM_COND_IF([OPENSSL_HAVE_DES],,
-    AC_DEFINE([USE_CRYPT], 1, [Use DES included with pppd]))
-
-#
-# If OpenSSL doesn't support DES, then use the one from libcrypt (glibc dropped support for this in 2.27).
-AS_IF([test "x${ac_cv_openssl_des}" = "xno" ], [
-    AC_CHECK_LIB([crypt], [encrypt],
-        [LIBS="$LIBS -lcrypt"],
-        [AC_MSG_ERROR([OpenSSL not found or does not support DES, and libcrypt also doesn't support encrypt])]
-    )
-])
+AM_COND_IF([OPENSSL_HAVE_DES],
+    AC_DEFINE([OPENSSL_HAVE_DES], 1, [Use DES included with openssl]))
 
 #
 # With libsrp support

@@ -2,7 +2,9 @@
  * pppcrypt.c - PPP/DES linkage for MS-CHAP and EAP SRP-SHA1
  *
  * Extracted from chap_ms.c by James Carlson.
+ * Updated to better reflect RFC2759 by Eivind Naess
  *
+ * Copyright (c) 2022 Eivind Naess.  All rights reserved.
  * Copyright (c) 1995 Eric Rosenquist.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,16 +36,40 @@
 
 #include "pppdconf.h"
 
-#ifdef HAVE_CRYPT_H
-#include <crypt.h>
-#endif
+/**
+ * This is the DES encrypt functions as described by RFC2759.
+ * 
+ * Parameters:
+ * unsigned char *clear:
+ *      A 8 byte input array to be encrypted
+ * 
+ * unsigned char *key: 
+ *      A raw 7-byte array to be expanded to 8 with odd-parity
+ *
+ * unsigned char *cipher:
+ *      A 8 byte outut array providing space for the output data
+ *
+ * DesEncrypt returns 1 on success
+ */
+int DesEncrypt(unsigned char *clear, unsigned char *key, 
+        unsigned char *cipher);
 
-#ifndef USE_CRYPT
-#include <openssl/des.h>
-#endif
-
-extern bool	DesSetkey(u_char *);
-extern bool	DesEncrypt(u_char *, u_char *);
-extern bool	DesDecrypt(u_char *, u_char *);
+/**
+ * This is the DES decrypt functions as described by RFC2759.
+ * 
+ * Parameters:
+ * unsigned char *cipher:
+ *      A 8 byte input array to be decrypted
+ *
+ * unsigned char *key: 
+ *      A raw 7-byte array to be expanded to a 8-byte key with odd-parity
+ *
+ * unsigned char *clear:
+ *      A 8 byte output array providing space for the output data
+ *
+ * DesDecrypt returns 1 on success
+ */
+int DesDecrypt(unsigned char *cipher, unsigned char *key, 
+        unsigned char *clear);
 
 #endif /* PPP_PPPCRYPT_H */

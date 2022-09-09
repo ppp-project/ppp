@@ -1,3 +1,97 @@
+/* ppp-md4.c - MD4 Digest implementation
+ *
+ * Copyright (c) 2022 Eivind Næss. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. The name(s) of the authors of this software must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission.
+ *
+ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
+ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * Sections of this code holds different copyright information.
+ */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "ppp-crypto-priv.h"
+
+
+#ifdef OPENSSL_HAVE_MD4
+#include <openssl/evp.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#endif
+
+
+static int md4_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        EVP_MD_CTX *mctx = EVP_MD_CTX_new();
+        if (mctx) {
+            if (EVP_DigestInit(mctx, EVP_md4())) {
+                ctx->priv = mctx;
+                return 1;
+            }
+            EVP_MD_CTX_free(mctx);
+        }
+    }
+    return 0;
+}
+
+static int md4_update(PPP_MD_CTX *ctx, const void *data, size_t len)
+{
+    if (EVP_DigestUpdate((EVP_MD_CTX*) ctx->priv, data, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static int md4_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    if (EVP_DigestFinal((EVP_MD_CTX*) ctx->priv, out, len)) {
+        return 1;
+    }
+    return 0;
+}
+
+static void md4_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        EVP_MD_CTX_free(ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+
+#else // !OPENSSL_HAVE_MD4
+
+#define TRUE  1
+#define FALSE 0
+
 /*
 ** ********************************************************************
 ** md4.c -- Implementation of MD4 Message Digest Algorithm           **
@@ -30,18 +124,15 @@
 /* Implementation notes:
 ** This implementation assumes that ints are 32-bit quantities.
 */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
-#define TRUE  1
-#define FALSE 0
-
-/* Compile-time includes
+/* MDstruct is the data structure for a message digest computation.
 */
-#include <stdio.h>
-#include "md4.h"
-#include "pppd.h"
+typedef struct {
+	unsigned int buffer[4]; /* Holds 4-word result of MD computation */
+	unsigned char count[8]; /* Number of bits processed so far */
+	unsigned int done;      /* Nonzero means MD computation finished */
+} MD4_CTX;
+
 
 /* Compile-time declarations of MD4 "magic constants".
 */
@@ -89,7 +180,7 @@
 ** Each byte is printed with high-order hexadecimal digit first.
 ** This is a user-callable routine.
 */
-void
+static void
 MD4Print(MD4_CTX *MDp)
 {
   int i,j;
@@ -102,7 +193,7 @@ MD4Print(MD4_CTX *MDp)
 ** Initialize message digest buffer MDp.
 ** This is a user-callable routine.
 */
-void
+static void
 MD4Init(MD4_CTX *MDp)
 {
   int i;
@@ -204,7 +295,7 @@ MDblock(MD4_CTX *MDp, unsigned char *Xb)
 ** count 0 can be given as a "courtesy close" to force termination
 ** if desired.
 */
-void
+static void
 MD4Update(MD4_CTX *MDp, unsigned char *X, unsigned int count)
 {
   unsigned int i, tmp, bit, byte, mask;
@@ -272,7 +363,7 @@ MD4Update(MD4_CTX *MDp, unsigned char *X, unsigned int count)
 /*
 ** Finish up MD4 computation and return message digest.
 */
-void
+static void
 MD4Final(unsigned char *buf, MD4_CTX *MD)
 {
   int i, j;
@@ -291,3 +382,63 @@ MD4Final(unsigned char *buf, MD4_CTX *MD)
 /*
 ** End of md4.c
 ****************************(cut)***********************************/
+
+static int md4_init(PPP_MD_CTX *ctx)
+{
+    if (ctx) {
+        MD4_CTX *mctx = calloc(1, sizeof(MD4_CTX));
+        if (mctx) {
+            MD4Init(mctx);
+            ctx->priv = mctx;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int md4_update(PPP_MD_CTX *ctx, const void *data, size_t len)
+{
+#if defined(__NetBSD__)
+    /* NetBSD uses the libc md4 routines which take bytes instead of bits */
+    int			mdlen = len;
+#else
+    int			mdlen = len * 8;
+#endif
+
+    /* Internal MD4Update can take at most 64 bytes at a time */
+    while (mdlen > 512) {
+        MD4Update((MD4_CTX*) ctx->priv, (unsigned char*) data, 512);
+        data += 64;
+        mdlen -= 512;
+    }
+    MD4Update((MD4_CTX*) ctx->priv, (unsigned char*) data, mdlen);
+    return 1;
+}
+
+static int md4_final(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *len)
+{
+    MD4Final(out, (MD4_CTX*) ctx->priv);
+    return 1;
+}
+
+static void md4_clean(PPP_MD_CTX *ctx)
+{
+    if (ctx->priv) {
+        free(ctx->priv);
+        ctx->priv = NULL;
+    }
+}
+
+#endif
+
+static PPP_MD ppp_md4 = {
+    .init_fn = md4_init,
+    .update_fn = md4_update,
+    .final_fn = md4_final,
+    .clean_fn = md4_clean,
+};
+
+const PPP_MD *PPP_md4(void)
+{
+    return &ppp_md4;
+}

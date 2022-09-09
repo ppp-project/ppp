@@ -1,4 +1,4 @@
-/* * mppe.c - MPPE key implementation
+/* mppe.c - MPPE key implementation
  *
  * Copyright (c) 2020 Eivind Naess. All rights reserved.
  * Copyright (c) 2008 Paul Mackerras. All rights reserved.
@@ -26,7 +26,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -38,11 +37,10 @@
 
 #include "pppd.h"
 #include "fsm.h"
-#include "md4.h"
-#include "sha1.h"
 #include "ccp.h"
 #include "chap_ms.h"
 #include "mppe.h"
+#include "ppp-crypto.h"
 
 u_char mppe_send_key[MPPE_MAX_KEY_SIZE];
 u_char mppe_recv_key[MPPE_MAX_KEY_SIZE];
@@ -111,16 +109,33 @@ mppe_clear_keys(void)
  * RFC 2548 (RADIUS support) requires us to export this function (ugh).
  */
 void
-mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
+mppe_set_chapv1(unsigned char *rchallenge, unsigned char *PasswordHashHash)
 {
-    SHA1_CTX	sha1Context;
-    u_char	Digest[SHA1_SIGNATURE_SIZE];
+    PPP_MD_CTX *ctx;
+    u_char Digest[SHA_DIGEST_LENGTH];
+    int DigestLen;
 
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, rchallenge, 8);
-    SHA1_Final(Digest, &sha1Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
+
+                if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
+
+                    if (PPP_DigestUpdate(ctx, rchallenge, 8)) {
+                        
+                        DigestLen = SHA_DIGEST_LENGTH;
+                        PPP_DigestFinal(ctx, Digest, &DigestLen);
+                    }
+                }
+            }
+        }
+        
+        PPP_MD_CTX_free(ctx);
+    }
+
 
     /* Same key in both directions. */
     mppe_set_keys(Digest, Digest, sizeof(Digest));
@@ -133,13 +148,15 @@ mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE])
  * NTHashHash from the server.
  */
 void
-mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-	       u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer)
+mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
+        int IsServer)
 {
-    SHA1_CTX	sha1Context;
-    u_char	MasterKey[SHA1_SIGNATURE_SIZE];
-    u_char	SendKey[SHA1_SIGNATURE_SIZE];
-    u_char	RecvKey[SHA1_SIGNATURE_SIZE];
+    PPP_MD_CTX *ctx;
+    
+    u_char	MasterKey[SHA_DIGEST_LENGTH];
+    u_char	SendKey[SHA_DIGEST_LENGTH];
+    u_char	RecvKey[SHA_DIGEST_LENGTH];
+    int KeyLen;
 
     u_char SHApad1[40] =
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -183,11 +200,26 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	  0x6b, 0x65, 0x79, 0x2e };
     u_char *s;
 
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
-    SHA1_Update(&sha1Context, NTResponse, 24);
-    SHA1_Update(&sha1Context, Magic1, sizeof(Magic1));
-    SHA1_Final(MasterKey, &sha1Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
+
+                if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
+
+                    if (PPP_DigestUpdate(ctx, Magic1, sizeof(Magic1))) {
+                        
+                        KeyLen = SHA_DIGEST_LENGTH;
+                        PPP_DigestFinal(ctx, MasterKey, &KeyLen);
+                    }
+                }
+            }
+        }
+        
+        PPP_MD_CTX_free(ctx);
+    }
 
     /*
      * generate send key
@@ -196,12 +228,31 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	s = Magic3;
     else
 	s = Magic2;
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, MasterKey, 16);
-    SHA1_Update(&sha1Context, SHApad1, sizeof(SHApad1));
-    SHA1_Update(&sha1Context, s, 84);
-    SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
-    SHA1_Final(SendKey, &sha1Context);
+
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, MasterKey, 16)) {
+
+                if (PPP_DigestUpdate(ctx, SHApad1, sizeof(SHApad1))) {
+
+                    if (PPP_DigestUpdate(ctx, s, 84)) {
+
+                        if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
+                        
+                            KeyLen = SHA_DIGEST_LENGTH;
+                            PPP_DigestFinal(ctx, SendKey, &KeyLen);
+                        }
+                    }
+                }
+            }
+        }
+        
+        PPP_MD_CTX_free(ctx);
+    }
+
 
     /*
      * generate recv key
@@ -210,14 +261,32 @@ mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
 	s = Magic2;
     else
 	s = Magic3;
-    SHA1_Init(&sha1Context);
-    SHA1_Update(&sha1Context, MasterKey, 16);
-    SHA1_Update(&sha1Context, SHApad1, sizeof(SHApad1));
-    SHA1_Update(&sha1Context, s, 84);
-    SHA1_Update(&sha1Context, SHApad2, sizeof(SHApad2));
-    SHA1_Final(RecvKey, &sha1Context);
 
-    mppe_set_keys(SendKey, RecvKey, SHA1_SIGNATURE_SIZE);
+    ctx = PPP_MD_CTX_new();
+    if (ctx != NULL) {
+
+        if (PPP_DigestInit(ctx, PPP_sha1())) {
+
+            if (PPP_DigestUpdate(ctx, MasterKey, 16)) {
+
+                if (PPP_DigestUpdate(ctx, SHApad1, sizeof(SHApad1))) {
+
+                    if (PPP_DigestUpdate(ctx, s, 84)) {
+
+                        if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
+                        
+                            KeyLen = SHA_DIGEST_LENGTH;
+                            PPP_DigestFinal(ctx, RecvKey, &KeyLen);
+                        }
+                    }
+                }
+            }
+        }
+        
+        PPP_MD_CTX_free(ctx);
+    }
+
+    mppe_set_keys(SendKey, RecvKey, SHA_DIGEST_LENGTH);
 }
 
 #ifndef UNIT_TEST

@@ -40,7 +40,7 @@ static char const RCSID[] =
 #include <pppd/chap_ms.h>
 #ifdef PPP_WITH_MPPE
 #include <pppd/mppe.h>
-#include <pppd/md5.h>
+#include <pppd/ppp-crypto.h>
 #endif
 #endif
 #include <pppd/fsm.h>
@@ -49,8 +49,6 @@ static char const RCSID[] =
 #include "radiusclient.h"
 
 #define BUF_LEN 1024
-
-#define MD5_HASH_SIZE	16
 
 #define MSDNS 1
 
@@ -400,15 +398,15 @@ radius_chap_verify(char *user, char *ourname, int id,
     switch (digest->code) {
     case CHAP_MD5:
 	/* CHAP-Challenge and CHAP-Password */
-	if (response_len != MD5_HASH_SIZE)
+	if (response_len != MD5_DIGEST_LENGTH)
 	    return 0;
 	cpassword[0] = id;
-	memcpy(&cpassword[1], response, MD5_HASH_SIZE);
+	memcpy(&cpassword[1], response, MD5_DIGEST_LENGTH);
 
 	rc_avpair_add(&send, PW_CHAP_CHALLENGE,
 		      challenge, challenge_len, VENDOR_NONE);
 	rc_avpair_add(&send, PW_CHAP_PASSWORD,
-		      cpassword, MD5_HASH_SIZE + 1, VENDOR_NONE);
+		      cpassword, MD5_DIGEST_LENGTH + 1, VENDOR_NONE);
 	break;
 
 #ifdef PPP_WITH_CHAPMS
@@ -772,9 +770,12 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
 		   unsigned char *challenge)
 {
     int i;
-    MD5_CTX Context;
-    u_char  plain[32];
-    u_char  buf[16];
+    int status = 0;
+    PPP_MD_CTX *ctx;
+    unsigned char plain[32];
+    unsigned char buf[MD5_DIGEST_LENGTH];
+    unsigned int  buflen;
+
 
     if (vp->lvalue != 32) {
 	error("RADIUS: Incorrect attribute length (%d) for MS-CHAP-MPPE-Keys",
@@ -784,30 +785,70 @@ radius_setmppekeys(VALUE_PAIR *vp, REQUEST_INFO *req_info,
 
     memcpy(plain, vp->strvalue, sizeof(plain));
 
-    MD5_Init(&Context);
-    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5_Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
-    MD5_Final(buf, &Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx) {
 
-    for (i = 0; i < 16; i++)
-	plain[i] ^= buf[i];
+        if (PPP_DigestInit(ctx, PPP_md5())) {
 
-    MD5_Init(&Context);
-    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5_Update(&Context, vp->strvalue, 16);
-    MD5_Final(buf, &Context);
+            if (PPP_DigestUpdate(ctx, req_info->secret, strlen(req_info->secret))) {
 
-    for(i = 0; i < 16; i++)
-	plain[i + 16] ^= buf[i];
+                if (PPP_DigestUpdate(ctx, req_info->request_vector, AUTH_VECTOR_LEN)) {
 
-    /*
-     * Annoying.  The "key" returned is just the NTPasswordHashHash, which
-     * the NAS (us) doesn't need; we only need the start key.  So we have
-     * to generate the start key, sigh.  NB: We do not support the LM-Key.
-     */
-    mppe_set_chapv1(challenge, &plain[8]);
+                    buflen = sizeof(buf);
+                    if (PPP_DigestFinal(ctx, buf, &buflen)) {
 
-    return 0;    
+                        status = 1;
+                    }
+                }
+            }
+        }
+        PPP_MD_CTX_free(ctx);
+    }
+
+    if (status) {
+
+        for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
+            plain[i] ^= buf[i];
+        }
+
+        status = 0;
+        ctx = PPP_MD_CTX_new();
+        if (ctx) {
+
+            if (PPP_DigestInit(ctx, PPP_md5())) {
+
+                if (PPP_DigestUpdate(ctx, req_info->secret, strlen(req_info->secret))) {
+
+                    if (PPP_DigestUpdate(ctx, vp->strvalue, 16)) {
+
+                        buflen = MD5_DIGEST_LENGTH;
+                        if (PPP_DigestFinal(ctx, buf, &buflen)) {
+
+                            status = 1;
+                        }
+                    }
+                }
+            }
+            PPP_MD_CTX_free(ctx);
+        }
+
+        if (status) {
+
+            for(i = 0; i < MD5_DIGEST_LENGTH; i++) {
+                plain[i + 16] ^= buf[i];
+            }
+
+            /*
+             * Annoying.  The "key" returned is just the NTPasswordHashHash, which
+             * the NAS (us) doesn't need; we only need the start key.  So we have
+             * to generate the start key, sigh.  NB: We do not support the LM-Key.
+             */
+            mppe_set_chapv1(challenge, &plain[8]);
+            return 0;
+        }
+    }
+
+    return -1;
 }
 
 /**********************************************************************
@@ -825,11 +866,13 @@ static int
 radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 {
     int i;
-    MD5_CTX Context;
-    u_char  *salt = vp->strvalue;
-    u_char  *crypt = vp->strvalue + 2;
-    u_char  plain[32];
-    u_char  buf[MD5_HASH_SIZE];
+    int status = 0;
+    PPP_MD_CTX *ctx;
+    unsigned char *salt = vp->strvalue;
+    unsigned char *crypt = vp->strvalue + 2;
+    unsigned char plain[32];
+    unsigned char buf[MD5_DIGEST_LENGTH];
+    unsigned int  buflen;
     char    *type = "Send";
 
     if (vp->attribute == PW_MS_MPPE_RECV_KEY)
@@ -848,34 +891,81 @@ radius_setmppekeys2(VALUE_PAIR *vp, REQUEST_INFO *req_info)
 
     memcpy(plain, crypt, 32);
 
-    MD5_Init(&Context);
-    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5_Update(&Context, req_info->request_vector, AUTH_VECTOR_LEN);
-    MD5_Update(&Context, salt, 2);
-    MD5_Final(buf, &Context);
+    ctx = PPP_MD_CTX_new();
+    if (ctx) {
 
-    for (i = 0; i < 16; i++)
-	plain[i] ^= buf[i];
+        if (PPP_DigestInit(ctx, PPP_md5())) {
 
-    if (plain[0] != 16) {
-	error("RADIUS: Incorrect key length (%d) for MS-MPPE-%s-Key attribute",
-	      (int) plain[0], type);
-	return -1;
+            if (PPP_DigestUpdate(ctx, req_info->secret, strlen(req_info->secret))) {
+
+                if (PPP_DigestUpdate(ctx, req_info->request_vector, AUTH_VECTOR_LEN)) {
+
+                    if (PPP_DigestUpdate(ctx, salt, 2)) {
+
+                        buflen = sizeof(buf);
+                        if (PPP_DigestFinal(ctx, buf, &buflen)) {
+
+                            status = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        PPP_MD_CTX_free(ctx);
     }
 
-    MD5_Init(&Context);
-    MD5_Update(&Context, req_info->secret, strlen(req_info->secret));
-    MD5_Update(&Context, crypt, 16);
-    MD5_Final(buf, &Context);
+    if (status) {
 
-    plain[16] ^= buf[0]; /* only need the first byte */
+        for (i = 0; i < 16; i++) {
+            plain[i] ^= buf[i];
+        }
 
-    if (vp->attribute == PW_MS_MPPE_SEND_KEY)
-	mppe_set_keys(plain + 1, NULL, 16);
-    else
-	mppe_set_keys(NULL, plain + 1, 16);
+        if (plain[0] != 16) {
+            error("RADIUS: Incorrect key length (%d) for MS-MPPE-%s-Key attribute",
+                  (int) plain[0], type);
+            return -1;
+        }
 
-    return 0;
+        status = 0;
+        ctx = PPP_MD_CTX_new();
+        if (ctx) {
+
+            if (PPP_DigestInit(ctx, PPP_md5())) {
+
+                if (PPP_DigestUpdate(ctx, req_info->secret, strlen(req_info->secret))) {
+
+                    if (PPP_DigestUpdate(ctx, crypt, 16)) {
+
+                        if (PPP_DigestUpdate(ctx, salt, 2)) {
+
+                            buflen = sizeof(buf);
+                            if (PPP_DigestFinal(ctx, buf, &buflen)) {
+
+                                status = 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            PPP_MD_CTX_free(ctx);
+        }
+
+        if (status) {
+
+            plain[16] ^= buf[0]; /* only need the first byte */
+
+            if (vp->attribute == PW_MS_MPPE_SEND_KEY) {
+                mppe_set_keys(plain + 1, NULL, 16);
+            } else {
+                mppe_set_keys(NULL, plain + 1, 16);
+            }
+            return 0;
+        }
+    }
+
+    return -1;
 }
 #endif /* PPP_WITH_MPPE */
 

@@ -179,13 +179,13 @@ bool mppe_keys_isset(void);
 /*
  * Set mppe_xxxx_key from NT Password Hash Hash (MSCHAPv1), see RFC3079
  */
-void mppe_set_chapv1(u_char *rchallenge, u_char PasswordHashHash[MD4_SIGNATURE_SIZE]);
+void mppe_set_chapv1(unsigned char *rchallenge, unsigned char *PasswordHashHash);
 
 /*
  * Set the mppe_xxxx_key from MS-CHAP-v2 credentials, see RFC3079
  */
-void mppe_set_chapv2(u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
-		    u_char NTResponse[MS_AUTH_NTRESP_LEN], int IsServer);
+void mppe_set_chapv2(unsigned char *PasswordHashHash,
+		    unsigned char *NTResponse, int IsServer);
 
 #endif  // #ifdef PPP_WITH_MPPE
 #endif  // #ifdef PPP_MPPE_H
