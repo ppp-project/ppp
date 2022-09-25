@@ -18,11 +18,11 @@ pppd.
       ;;
 esac
 
-if [ -z "$1" -a -x "$PPP_ON_BOOT" ]; then
+if [ -z "$1" ] && [ -x "$PPP_ON_BOOT" ]; then
   exec "$PPP_ON_BOOT"
 fi
 
-if [ -z "$1" -a ! -f /etc/ppp/peers/provider ]; then
+if [ -z "$1" ] && [ ! -f /etc/ppp/peers/provider ]; then
   echo "
 Please configure /etc/ppp/peers/provider or use a command line argument to
 use another file in /etc/ppp/peers/ directory.
@@ -30,11 +30,11 @@ use another file in /etc/ppp/peers/ directory.
   exit 1
 fi
 
-if [ "$1" -a ! -f "/etc/ppp/peers/$1" ]; then
+if [ "$1" ] && [ ! -f "/etc/ppp/peers/$1" ]; then
   echo "
 The file /etc/ppp/peers/$1 does not exist.
 "
   exit 1
 fi
 
-exec /usr/sbin/pppd call ${@:-provider}
+exec /usr/sbin/pppd call "${@:-provider}"
