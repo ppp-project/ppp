@@ -113,7 +113,8 @@
 #include <systemd/sd-daemon.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "ccp.h"
@@ -322,7 +323,7 @@ static void check_maxoctets (void *);
 /*
  * Authentication-related options.
  */
-option_t auth_options[] = {
+struct option auth_options[] = {
     { "auth", o_bool, &auth_required,
       "Require authentication from peer", OPT_PRIO | 1 },
     { "noauth", o_bool, &auth_required,

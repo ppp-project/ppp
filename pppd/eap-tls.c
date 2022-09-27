@@ -51,7 +51,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/pkcs12.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "tls.h"
 #include "eap.h"
 #include "eap-tls.h"

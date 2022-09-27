@@ -51,7 +51,7 @@
 #include <pcap-bpf.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "lcp.h"

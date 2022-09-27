@@ -44,10 +44,6 @@
 #include "config.h"
 #endif
 
-/*
- * TODO:
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -59,7 +55,8 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "pathnames.h"
@@ -142,9 +139,9 @@ static int setdnsaddr (char **);
 static int setwinsaddr (char **);
 static int setnetmask (char **);
 int setipaddr (char *, char **, int);
-static void printipaddr (option_t *, void (*)(void *, char *,...),void *);
+static void printipaddr (struct option *, void (*)(void *, char *,...),void *);
 
-static option_t ipcp_option_list[] = {
+static struct option ipcp_option_list[] = {
     { "noip", o_bool, &ipcp_protent.enabled_flag,
       "Disable IP and IPCP" },
     { "-ip", o_bool, &ipcp_protent.enabled_flag,
@@ -488,7 +485,7 @@ setipaddr(char *arg, char **argv, int doit)
 }
 
 static void
-printipaddr(option_t *opt, void (*printer) (void *, char *, ...), void *arg)
+printipaddr(struct option *opt, void (*printer) (void *, char *, ...), void *arg)
 {
 	ipcp_options *wo = &ipcp_wantoptions[0];
 

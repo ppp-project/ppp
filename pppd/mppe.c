@@ -35,7 +35,7 @@
 #include <string.h>
 
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "ccp.h"
 #include "chap_ms.h"

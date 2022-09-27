@@ -95,7 +95,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "lcp.h"
 
@@ -111,7 +112,7 @@ static int setdevname(char *, char **, int);
 static int setspeed(char *, char **, int);
 static int setxonxoff(char **);
 static int setescape(char **);
-static void printescape(option_t *, void (*)(void *, char *,...),void *);
+static void printescape(struct option *, void (*)(void *, char *,...),void *);
 static void finish_tty(void);
 static int start_charshunt(int, int);
 static void stop_charshunt(void *, int);
@@ -164,7 +165,7 @@ extern int privopen;		/* don't lock, open device as root */
 u_int32_t xmit_accm[8];		/* extended transmit ACCM */
 
 /* option descriptors */
-option_t tty_options[] = {
+static struct option tty_options[] = {
     /* device name must be first, or change connect_tty() below! */
     { "device name", o_wild, (void *) &setdevname,
       "Serial port device name",
@@ -369,7 +370,7 @@ setescape(char **argv)
 }
 
 static void
-printescape(option_t *opt, void (*printer)(void *, char *, ...), void *arg)
+printescape(struct option *opt, void (*printer)(void *, char *, ...), void *arg)
 {
 	int n;
 	int first = 1;

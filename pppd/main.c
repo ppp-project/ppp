@@ -95,7 +95,8 @@
 #include <inttypes.h>
 #include <net/if.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "magic.h"
 #include "fsm.h"
 #include "lcp.h"

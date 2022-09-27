@@ -77,7 +77,8 @@
 #endif
 #endif /* PPP_WITH_FILTER */
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "pathnames.h"
 
 #if defined(ultrix) || defined(NeXT)
@@ -144,7 +145,7 @@ int maxoctets_dir = 0;       /* default - sum of traffic */
 int maxoctets_timeout = 1;   /* default 1 second */ 
 
 
-extern option_t auth_options[];
+extern struct option auth_options[];
 extern struct stat devstat;
 
 #ifdef PPP_WITH_FILTER
@@ -152,7 +153,7 @@ struct	bpf_program pass_filter;/* Filter program for packets to pass */
 struct	bpf_program active_filter; /* Filter program for link-active pkts */
 #endif
 
-static option_t *curopt;	/* pointer to option being processed */
+static struct option *curopt;	/* pointer to option being processed */
 char *current_option;		/* the name of the option being parsed */
 int  privileged_option;		/* set iff the current option came from root */
 char *option_source;		/* string saying where the option came from */
@@ -186,20 +187,20 @@ static int setactivefilter(char **);
 static int setmodir(char **);
 
 static int user_setenv(char **);
-static void user_setprint(option_t *, printer_func, void *);
+static void user_setprint(struct option *, printer_func, void *);
 static int user_unsetenv(char **);
-static void user_unsetprint(option_t *, printer_func, void *);
+static void user_unsetprint(struct option *, printer_func, void *);
 
-static option_t *find_option(char *name);
-static int process_option(option_t *, char *, char **);
-static int n_arguments(option_t *);
+static struct option *find_option(char *name);
+static int process_option(struct option *, char *, char **);
+static int n_arguments(struct option *);
 static int number_option(char *, u_int32_t *, int);
 
 /*
  * Structure to store extra lists of options.
  */
 struct option_list {
-    option_t *options;
+    struct option *options;
     struct option_list *next;
 };
 
@@ -208,7 +209,7 @@ static struct option_list *extra_options = NULL;
 /*
  * Valid arguments.
  */
-option_t general_options[] = {
+struct option general_options[] = {
     { "debug", o_int, &debug,
       "Increase debugging level", OPT_INC | OPT_NOARG | 1 },
     { "-d", o_int, &debug,
@@ -403,7 +404,7 @@ int
 parse_args(int argc, char **argv)
 {
     char *arg;
-    option_t *opt;
+    struct option *opt;
     int n;
 
     privileged_option = privileged;
@@ -440,7 +441,7 @@ options_from_file(char *filename, int must_exist, int check_prot, int priv)
 {
     FILE *f;
     int i, newline, ret, err;
-    option_t *opt;
+    struct option *opt;
     int oldpriv, n;
     char *oldsource;
     uid_t euid;
@@ -573,7 +574,7 @@ int
 options_from_list(struct wordlist *w, int priv)
 {
     char *argv[MAXARGS];
-    option_t *opt;
+    struct option *opt;
     int i, n, ret = 0;
     struct wordlist *w0;
 
@@ -611,10 +612,10 @@ err:
 }
 
 /*
- * match_option - see if this option matches an option_t structure.
+ * match_option - see if this option matches an option structure.
  */
 static int
-match_option(char *name, option_t *opt, int dowild)
+match_option(char *name, struct option *opt, int dowild)
 {
 	int (*match)(char *, char **, int);
 
@@ -631,10 +632,10 @@ match_option(char *name, option_t *opt, int dowild)
  * looking for an entry with the given name.
  * This could be optimized by using a hash table.
  */
-static option_t *
+static struct option *
 find_option(char *name)
 {
-	option_t *opt;
+	struct option *opt;
 	struct option_list *list;
 	int i, dowild;
 
@@ -665,7 +666,7 @@ find_option(char *name)
  * process_option - process one new-style option.
  */
 static int
-process_option(option_t *opt, char *cmd, char **argv)
+process_option(struct option *opt, char *cmd, char **argv)
 {
     u_int32_t v;
     int iv, a;
@@ -674,7 +675,7 @@ process_option(option_t *opt, char *cmd, char **argv)
     int (*wildp)(char *, char **, int);
     char *optopt = (opt->type == o_wild)? "": " option";
     int prio = option_priority;
-    option_t *mainopt = opt;
+    struct option *mainopt = opt;
 
     current_option = opt->name;
     if ((opt->flags & OPT_PRIVFIX) && privileged_option)
@@ -863,7 +864,7 @@ process_option(option_t *opt, char *cmd, char **argv)
 int
 override_value(char *option, int priority, const char *source)
 {
-	option_t *opt;
+	struct option *opt;
 
 	opt = find_option(option);
 	if (opt == NULL)
@@ -882,7 +883,7 @@ override_value(char *option, int priority, const char *source)
  * n_arguments - tell how many arguments an option takes
  */
 static int
-n_arguments(option_t *opt)
+n_arguments(struct option *opt)
 {
 	return (opt->type == o_bool || opt->type == o_special_noarg
 		|| (opt->flags & OPT_NOARG))? 0: 1;
@@ -892,7 +893,7 @@ n_arguments(option_t *opt)
  * add_options - add a list of options to the set we grok.
  */
 void
-add_options(option_t *opt)
+add_options(struct option *opt)
 {
     struct option_list *list;
 
@@ -918,7 +919,7 @@ check_options(void)
  * print_option - print out an option and its value
  */
 static void
-print_option(option_t *opt, option_t *mainopt, printer_func printer, void *arg)
+print_option(struct option *opt, struct option *mainopt, printer_func printer, void *arg)
 {
 	int i, v;
 	char *p;
@@ -980,8 +981,8 @@ print_option(option_t *opt, option_t *mainopt, printer_func printer, void *arg)
 			printer(arg, " ");
 		}
 		if (opt->flags & OPT_A2PRINTER) {
-			void (*oprt)(option_t *, printer_func, void *);
-			oprt = (void (*)(option_t *, printer_func, void *))
+			void (*oprt)(struct option *, printer_func, void *);
+			oprt = (void (*)(struct option *, printer_func, void *))
 				opt->addr2;
 			(*oprt)(opt, printer, arg);
 		} else if (opt->flags & OPT_A2STRVAL) {
@@ -1017,7 +1018,7 @@ print_option(option_t *opt, option_t *mainopt, printer_func printer, void *arg)
  * array of options.
  */
 static void
-print_option_list(option_t *opt, printer_func printer, void *arg)
+print_option_list(struct option *opt, printer_func printer, void *arg)
 {
 	while (opt->name != NULL) {
 		if (opt->priority != OPRIO_DEFAULT
@@ -1113,9 +1114,9 @@ showversion(char **argv)
  * Print a set of options including the name of the group of options
  */
 static void
-showopts_list(FILE *fp, const char *title, option_t *list, ...)
+showopts_list(FILE *fp, const char *title, struct option *list, ...)
 {
-	option_t *opt = list;
+	struct option *opt = list;
     va_list varg;
 
     if (opt && opt->name) {
@@ -1764,7 +1765,7 @@ user_setenv(char **argv)
 }
 
 static void
-user_setprint(option_t *opt, printer_func printer, void *arg)
+user_setprint(struct option *opt, printer_func printer, void *arg)
 {
     struct userenv *uep, *uepnext;
 
@@ -1832,7 +1833,7 @@ user_unsetenv(char **argv)
 }
 
 static void
-user_unsetprint(option_t *opt, printer_func printer, void *arg)
+user_unsetprint(struct option *opt, printer_func printer, void *arg)
 {
     struct userenv *uep, *uepnext;
 

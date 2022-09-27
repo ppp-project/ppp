@@ -42,7 +42,8 @@
 #include <linux/ppp-comp.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ccp.h"
 
@@ -75,7 +76,7 @@ static char deflate_value[8];
 bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
 #endif
 
-static option_t ccp_option_list[] = {
+static struct option ccp_option_list[] = {
     { "noccp", o_bool, &ccp_protent.enabled_flag,
       "Disable CCP negotiation" },
     { "-ccp", o_bool, &ccp_protent.enabled_flag,

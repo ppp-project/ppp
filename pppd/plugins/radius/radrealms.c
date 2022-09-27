@@ -21,6 +21,10 @@ static char const RCSID[] =
 #include <string.h>
 #include <stdlib.h>
 #include <sys/param.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdarg.h>
+
 #include <pppd/pppd.h>
 
 #include "radiusclient.h"

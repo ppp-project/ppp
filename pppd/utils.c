@@ -58,7 +58,7 @@
 #include <sys/mkdev.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "pathnames.h"

@@ -36,7 +36,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "session.h"
 #include "chap-new.h"
 #include "chap-md5.h"
@@ -68,7 +69,7 @@ int chapms_strip_domain = 0;
 /*
  * Command-line options.
  */
-static option_t chap_option_list[] = {
+static struct option chap_option_list[] = {
 	{ "chap-restart", o_int, &chap_server_timeout_time,
 	  "Set timeout for CHAP (as server)", OPT_PRIO },
 	{ "chap-max-challenge", o_int, &chap_max_transmits,

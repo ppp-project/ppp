@@ -41,7 +41,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "tdb.h"

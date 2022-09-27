@@ -20,7 +20,10 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdbool.h>
+
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 
 #ifndef _UINT4_T
 /* This works for all machines that Linux runs on... */

@@ -41,7 +41,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "cbcp.h"
 #include "fsm.h"
 #include "lcp.h"

@@ -57,7 +57,7 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "eap.h"
 #include "tls.h"
 #include "chap-new.h"

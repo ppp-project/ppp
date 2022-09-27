@@ -35,13 +35,21 @@
 
 #include <stddef.h>
 #include <time.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <sys/types.h>
+
 #include <pppd/pppd.h>
+#include <pppd/options.h>
+
+#include <linux/ppp_defs.h>
 
 char pppd_version[] = PPPD_VERSION;
 
 static int minconnect = 0;
 
-static option_t my_options[] = {
+static struct option my_options[] = {
 	{ "minconnect", o_int, &minconnect,
 	  "Set minimum connect time before idle timeout applies" },
 	{ NULL }

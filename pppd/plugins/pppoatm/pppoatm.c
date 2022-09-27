@@ -24,8 +24,11 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
+#include <stdbool.h>
+#include <stdarg.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/pathnames.h>
 #include <pppd/fsm.h> /* Needed for lcp.h to include cleanly */
 #include <pppd/lcp.h>
@@ -43,7 +46,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit);
 struct channel pppoa_channel;
 static int pppoa_fd = -1;
 
-static option_t pppoa_options[] = {
+static struct option pppoa_options[] = {
 	{ "device name", o_wild, (void *) &setdevname_pppoatm,
 	  "ATM service provider IDs: VPI.VCI",
 	  OPT_DEVNAM | OPT_PRIVFIX | OPT_NOARG  | OPT_A2STRVAL | OPT_STATIC,

@@ -45,8 +45,13 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/chap-new.h>
 #include <pppd/chap_ms.h>
 #include <pppd/fsm.h>
@@ -81,7 +86,7 @@ static int set_ntlm_auth(char **argv)
 	return 1;
 }
 
-static option_t Options[] = {
+static struct option Options[] = {
 	{ "ntlm_auth-helper", o_special, (void *) &set_ntlm_auth,
 	  "Path to ntlm_auth executable", OPT_PRIV },
 	{ NULL }

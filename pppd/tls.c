@@ -31,7 +31,7 @@
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "tls.h"
 
 /**

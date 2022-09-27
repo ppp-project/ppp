@@ -14,15 +14,21 @@
 #include <sys/wait.h>
 #include <sys/param.h>
 #include <limits.h>
+#include <stdio.h>
 #include <syslog.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 
 char pppd_version[] = PPPD_VERSION;
 
 static char promptprog[PATH_MAX+1];
 static int promptprog_refused = 0;
 
-static option_t options[] = {
+static struct option options[] = {
     { "promptprog", o_string, promptprog,
       "External PAP password prompting program",
       OPT_STATIC, NULL, PATH_MAX },

@@ -63,7 +63,8 @@
 #include <assert.h>
 #include <errno.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "pathnames.h"
 #include "ppp-crypto.h"
 #include "pppcrypt.h"
@@ -100,7 +101,7 @@ static char *pn_secret = NULL;		/* Pseudonym generating secret */
 /*
  * Command-line options.
  */
-static option_t eap_option_list[] = {
+static struct option eap_option_list[] = {
     { "eap-restart", o_int, &eap_states[0].es_server.ea_timeout,
       "Set retransmit timeout for EAP Requests (server)" },
     { "eap-max-sreq", o_int, &eap_states[0].es_server.ea_maxrequests,

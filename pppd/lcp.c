@@ -48,7 +48,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "eap.h"
@@ -82,7 +83,7 @@ static int setendpoint(char **);
 static void printendpoint(option_t *, void (*)(void *, char *, ...), void *);
 #endif /* PPP_WITH_MULTILINK */
 
-static option_t lcp_option_list[] = {
+static struct option lcp_option_list[] = {
     /* LCP options */
     { "-all", o_special_noarg, (void *)noopt,
       "Don't request/allow any LCP options" },

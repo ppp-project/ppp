@@ -30,6 +30,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <stdio.h>
+
 #include <linux/version.h>
 #include <linux/sockios.h>
 
@@ -46,6 +50,7 @@
 #include <linux/if_pppol2tp.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/pathnames.h>
 #include <pppd/fsm.h>
 #include <pppd/lcp.h>
@@ -86,7 +91,7 @@ void (*pppol2tp_send_accm_hook)(int tunnel_id, int session_id,
 /* Hook provided to allow other plugins to handle IP up/down */
 void (*pppol2tp_ip_updown_hook)(int tunnel_id, int session_id, int up) = NULL;
 
-static option_t pppol2tp_options[] = {
+static struct option pppol2tp_options[] = {
 	{ "pppol2tp", o_special, &setdevname_pppol2tp,
 	  "FD for PPPoL2TP socket", OPT_DEVNAM | OPT_A2STRVAL,
           &pppol2tp_fd_str },

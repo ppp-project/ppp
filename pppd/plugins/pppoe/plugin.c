@@ -49,6 +49,7 @@ static char const RCSID[] =
 #include <linux/if_pppox.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/fsm.h>
 #include <pppd/lcp.h>
 #include <pppd/ipcp.h>
@@ -72,7 +73,7 @@ static int pppoe_padi_timeout = PADI_TIMEOUT;
 static int pppoe_padi_attempts = MAX_PADI_ATTEMPTS;
 
 static int PPPoEDevnameHook(char *cmd, char **argv, int doit);
-static option_t Options[] = {
+static struct option Options[] = {
     { "device name", o_wild, (void *) &PPPoEDevnameHook,
       "PPPoE device name",
       OPT_DEVNAM | OPT_PRIVFIX | OPT_NOARG  | OPT_A2STRVAL | OPT_STATIC,

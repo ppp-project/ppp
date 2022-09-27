@@ -33,8 +33,12 @@
 #include <signal.h>
 #include <linux/version.h>
 #include <linux/sockios.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/pathnames.h>
 #include <pppd/fsm.h>
 #include <pppd/lcp.h>

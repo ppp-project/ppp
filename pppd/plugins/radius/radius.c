@@ -33,8 +33,11 @@ static char const RCSID[] =
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdbool.h>
 
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 #include <pppd/chap-new.h>
 #ifdef PPP_WITH_CHAPMS
 #include <pppd/chap_ms.h>

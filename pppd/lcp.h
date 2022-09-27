@@ -84,6 +84,14 @@
 /* Value used as data for CI_CALLBACK option */
 #define CBCP_OPT	6	/* Use callback control protocol */
 
+/* An endpoint discriminator, used with multilink. */
+#define MAX_ENDP_LEN	20	/* maximum length of discriminator value */
+struct epdisc {
+    unsigned char	class;
+    unsigned char	length;
+    unsigned char	value[MAX_ENDP_LEN];
+};
+
 /*
  * The state of options is described by an lcp_options structure.
  */

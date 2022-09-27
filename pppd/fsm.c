@@ -54,7 +54,7 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 
 

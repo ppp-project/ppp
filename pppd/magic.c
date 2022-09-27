@@ -50,7 +50,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "magic.h"
 
 

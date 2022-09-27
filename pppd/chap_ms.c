@@ -93,7 +93,8 @@
 #include <linux/ppp-comp.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "chap-new.h"
 #include "chap_ms.h"
 #include "magic.h"
@@ -139,7 +140,7 @@ static char *mschap2_peer_challenge = NULL;
 /*
  * Command-line options.
  */
-static option_t chapms_option_list[] = {
+static struct option chapms_option_list[] = {
 #ifdef PPP_WITH_MSLANMAN
 	{ "ms-lanman", o_bool, &ms_lanman,
 	  "Use LanMan passwd when using MS-CHAP", 1 },

@@ -159,7 +159,8 @@
 #define IFLA_PPP_DEV_FD 1
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ipcp.h"
 

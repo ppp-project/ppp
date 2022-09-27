@@ -162,7 +162,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "eui64.h"
 #include "ipcp.h"
@@ -231,10 +232,10 @@ static fsm_callbacks ipv6cp_callbacks = { /* IPV6CP callback routines */
  * Command-line options.
  */
 static int setifaceid (char **arg);
-static void printifaceid (option_t *,
+static void printifaceid (struct option *,
 			  void (*)(void *, char *, ...), void *);
 
-static option_t ipv6cp_option_list[] = {
+static struct option ipv6cp_option_list[] = {
     { "ipv6", o_special, (void *)setifaceid,
       "Set interface identifiers for IPV6",
       OPT_A2PRINTER, (void *)printifaceid },
@@ -408,7 +409,7 @@ setifaceid(char **argv)
 char *llv6_ntoa(eui64_t ifaceid);
 
 static void
-printifaceid(option_t *opt, void (*printer) (void *, char *, ...), void *arg)
+printifaceid(struct option *opt, void (*printer) (void *, char *, ...), void *arg)
 {
 	ipv6cp_options *wo = &ipv6cp_wantoptions[0];
 
