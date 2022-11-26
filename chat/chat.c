@@ -198,7 +198,7 @@ SIGTYPE sigalrm (int signo);
 SIGTYPE sigint (int signo);
 SIGTYPE sigterm (int signo);
 SIGTYPE sighup (int signo);
-void unalarm (void);
+void checksigs(void);
 void init (void);
 void set_tty_parameters (void);
 int  echo_stderr (int);
@@ -215,7 +215,6 @@ char *character (int c);
 void chat_expect (register char *s);
 char *clean (register char *s, int sending);
 void break_sequence (void);
-void terminate (int status);
 void pack_array (char **array, int end);
 char *expect_strtok (char *, char *);
 int vfmtmsg (char *, int, const char *, va_list);	/* vsprintf++ */
@@ -347,16 +346,12 @@ main(int argc, char **argv)
 	report_fp = stderr;
 
     if (to_log) {
-#ifdef ultrix
-	openlog("chat", LOG_PID);
-#else
 	openlog("chat", LOG_PID | LOG_NDELAY, LOG_LOCAL2);
 
 	if (verbose)
 	    setlogmask(LOG_UPTO(LOG_INFO));
 	else
 	    setlogmask(LOG_UPTO(LOG_WARNING));
-#endif
     }
 
     init();
@@ -373,6 +368,7 @@ main(int argc, char **argv)
 
 	    if ((arg = ARG(argc, argv)) != NULL)
 		chat_send(arg);
+	    checksigs();
 	}
     }
 
@@ -444,8 +440,10 @@ void do_file (char *chat_file)
 	    else
 		chat_expect (arg);
 	    sendflg = !sendflg;
+	    checksigs();
 	}
     }
+    checksigs();
     fclose (cfp);
 }
 
@@ -499,59 +497,68 @@ void fatal(int code, const char *fmt, ...)
 }
 
 int alarmed = 0;
+int alarmsig = 0;
 
 SIGTYPE sigalrm(int signo)
 {
     int flags;
 
     alarm(1);
-    alarmed = 1;		/* Reset alarm to avoid race window */
-    signal(SIGALRM, sigalrm);	/* that can cause hanging in read() */
-
-    if ((flags = fcntl(0, F_GETFL, 0)) == -1)
-	fatal(2, "Can't get file mode flags on stdin: %m");
-
-    if (fcntl(0, F_SETFL, flags | O_NONBLOCK) == -1)
-	fatal(2, "Can't set file mode flags on stdin: %m");
-
-    if (verbose)
-	msgf("alarm");
+    alarmed = 1;
+    alarmsig = 1;
 }
 
-void unalarm(void)
-{
-    int flags;
-
-    if ((flags = fcntl(0, F_GETFL, 0)) == -1)
-	fatal(2, "Can't get file mode flags on stdin: %m");
-
-    if (fcntl(0, F_SETFL, flags & ~O_NONBLOCK) == -1)
-	fatal(2, "Can't set file mode flags on stdin: %m");
-}
+const char *fatalsig = NULL;
 
 SIGTYPE sigint(int signo)
 {
-    fatal(2, "SIGINT");
+    fatalsig = "SIGINT";
 }
 
 SIGTYPE sigterm(int signo)
 {
-    fatal(2, "SIGTERM");
+    fatalsig = "SIGTERM";
 }
 
 SIGTYPE sighup(int signo)
 {
-    fatal(2, "SIGHUP");
+    fatalsig = "SIGHUP";
+}
+
+void checksigs(void)
+{
+    int err;
+    const char *signame;
+
+    if (fatalsig) {
+	signame = fatalsig;
+	fatalsig = NULL;
+	alarmsig = 0;
+	fatal(2, signame);
+    }
+    if (alarmsig && verbose) {
+	err = errno;
+	msgf("alarm");
+	errno = err;
+	alarmsig = 0;
+    }
 }
 
 void init(void)
 {
-    signal(SIGINT, sigint);
-    signal(SIGTERM, sigterm);
-    signal(SIGHUP, sighup);
+    struct sigaction sa;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = sigint;
+    sigaction(SIGINT, &sa, NULL);
+    sa.sa_handler = sigterm;
+    sigaction(SIGTERM, &sa, NULL);
+    sa.sa_handler = sighup;
+    sigaction(SIGHUP, &sa, NULL);
 
     set_tty_parameters();
-    signal(SIGALRM, sigalrm);
+    sa.sa_handler = sigalrm;
+    sigaction(SIGALRM, &sa, NULL);
     alarm(0);
     alarmed = 0;
 }
@@ -945,6 +952,7 @@ void chat_expect (char *s)
 	    break;
 
 	chat_send (reply);
+	checksigs();
     }
 
 /*
@@ -987,6 +995,7 @@ int chat_send (register char *s)
 {
     char file_data[STR_LEN];
     int len, ret = 0;
+    struct sigaction sa;
 
     if (say_next) {
 	say_next = 0;
@@ -999,10 +1008,13 @@ int chat_send (register char *s)
 
     if (hup_next) {
         hup_next = 0;
+	memset(&sa, 0, sizeof(sa));
+
 	if (strcmp(s, "OFF") == 0)
-           signal(SIGHUP, SIG_IGN);
+	    sa.sa_handler = SIG_IGN;
         else
-           signal(SIGHUP, sighup);
+	    sa.sa_handler = sighup;
+	sigaction(SIGHUP, &sa, NULL);
         return 0;
     }
 
@@ -1179,6 +1191,7 @@ int get_char(void)
     char c;
 
     status = read(0, &c, 1);
+    checksigs();
 
     switch (status) {
     case 1:
@@ -1188,12 +1201,6 @@ int get_char(void)
 	msgf("warning: read() on stdin returned %d", status);
 
     case -1:
-	if ((status = fcntl(0, F_GETFL, 0)) == -1)
-	    fatal(2, "Can't get file mode flags on stdin: %m");
-
-	if (fcntl(0, F_SETFL, status & ~O_NONBLOCK) == -1)
-	    fatal(2, "Can't set file mode flags on stdin: %m");
-	
 	return (-1);
     }
 }
@@ -1204,8 +1211,10 @@ int put_char(int c)
     char ch = c;
 
     usleep(10000);		/* inter-character typing delay (?) */
+    checksigs();
 
     status = write(1, &ch, 1);
+    checksigs();
 
     switch (status) {
     case 1:
@@ -1215,12 +1224,6 @@ int put_char(int c)
 	msgf("warning: write() on stdout returned %d", status);
 	
     case -1:
-	if ((status = fcntl(0, F_GETFL, 0)) == -1)
-	    fatal(2, "Can't get file mode flags on stdin, %m");
-
-	if (fcntl(0, F_SETFL, status & ~O_NONBLOCK) == -1)
-	    fatal(2, "Can't set file mode flags on stdin: %m");
-	
 	return (-1);
     }
 }
@@ -1284,6 +1287,7 @@ int put_string(register char *s)
 		return 0;
 	    break;
 	}
+	checksigs();
     }
 
     alarm(0);
@@ -1320,6 +1324,7 @@ int echo_stderr(int n)
 	need_lf = 1;
 	break;
     }
+    checksigs();
     return ret;
 }
 
