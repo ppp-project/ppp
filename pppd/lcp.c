@@ -2279,6 +2279,8 @@ LcpSendEchoRequest (fsm *f)
 
 	if (get_ppp_stats(f->unit, &cur_stats) && cur_stats.pkts_in != last_pkts_in) {
 	    last_pkts_in = cur_stats.pkts_in;
+	    /* receipt of traffic indicates the link is working... */
+	    lcp_echos_pending = 0;
 	    return;
 	}
     }
