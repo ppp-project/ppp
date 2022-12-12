@@ -9,7 +9,7 @@ Introduction.
 The Point-to-Point Protocol (PPP) provides a standard way to establish
 a network connection over a serial link.  At present, this package
 supports IP and IPV6 and the protocols layered above them, such as TCP
-and UDP.  The Linux port of this package also has support for IPX.
+and UDP.
 
 This PPP implementation consists of two parts:
 

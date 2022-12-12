@@ -5,7 +5,7 @@ jobs:
   build_and_test:
     runs-on: ubuntu-latest
     env:
-      configure_flags: --enable-ipxcp --enable-multilink --enable-systemd
+      configure_flags: --enable-multilink --enable-systemd
 
     steps:
     - uses: actions/checkout@v2
