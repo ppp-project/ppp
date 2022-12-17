@@ -314,6 +314,7 @@ const char *protocol_name(int);
 void remove_pidfiles(void);
 void lock_db(void);
 void unlock_db(void);
+void ppp_set_hostname(const char *name);
 
 /* Procedures exported from tty.c. */
 void tty_init(void);
@@ -376,8 +377,8 @@ int  str_to_epdisc(struct epdisc *, char *); /* endpt disc. from str */
 #else
 #define mp_bundle_terminated()	/* nothing */
 #define mp_exit_bundle()	/* nothing */
-#define doing_multilink		0
-#define multilink_master	0
+#define ppp_multilink_on()     0
+#define ppp_multilink_master() 0
 #endif
 
 /* Procedures exported from sys-*.c */

@@ -452,8 +452,8 @@ VENDOR_DICT * rc_dict_getvendor(int);
 
 /*	ip_util.c		*/
 
-UINT4 rc_get_ipaddr(char *);
-int rc_good_ipaddr(char *);
+UINT4 rc_get_ipaddr(const char *);
+int rc_good_ipaddr(const char *);
 const char *rc_ip_hostname(UINT4);
 UINT4 rc_own_ipaddress(void);
 UINT4 rc_own_bind_ipaddress(void);

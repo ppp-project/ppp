@@ -1732,7 +1732,7 @@ ip_check_options(void)
 	 * If there isn't an IP address for our hostname, too bad.
 	 */
 	wo->accept_local = 1;	/* don't insist on this default value */
-	if ((hp = gethostbyname(hostname)) != NULL) {
+	if ((hp = gethostbyname(ppp_get_hostname(NULL, NULL))) != NULL) {
 	    local = *(u_int32_t *)hp->h_addr;
 	    if (local != 0 && !bad_ip_adrs(local))
 		wo->ouraddr = local;

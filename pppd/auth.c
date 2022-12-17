@@ -685,7 +685,7 @@ link_terminated(int unit)
     }
     session_end(devnam);
 
-    if (!doing_multilink) {
+    if (!ppp_multilink_on()) {
 	notice("Connection terminated.");
 	print_link_stats();
     } else
@@ -696,7 +696,7 @@ link_terminated(int unit)
      * can happen that another pppd gets the same unit and then
      * we delete its pid file.
      */
-    if (!doing_multilink && !demand)
+    if (!ppp_multilink_on() && !demand)
 	remove_pidfiles();
 
     /*
@@ -708,13 +708,13 @@ link_terminated(int unit)
 	remove_fd(fd_ppp);
 	clean_check();
 	the_channel->disestablish_ppp(devfd);
-	if (doing_multilink)
+	if (ppp_multilink_on())
 	    mp_exit_bundle();
 	fd_ppp = -1;
     }
     if (!hungup)
 	lcp_lowerdown(0);
-    if (!doing_multilink && !demand)
+    if (!ppp_multilink_on() && !demand)
 	script_unsetenv("IFNAME");
 
     /*
@@ -728,7 +728,7 @@ link_terminated(int unit)
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
-    if (doing_multilink && multilink_master) {
+    if (ppp_multilink_on() && ppp_multilink_master()) {
 	if (!bundle_terminating) {
 	    new_phase(PHASE_MASTER);
 	    if (master_detach && !detached)
@@ -754,7 +754,7 @@ link_down(int unit)
 	    auth_script(PPP_PATH_AUTHDOWN);
 	}
     }
-    if (!doing_multilink) {
+    if (!ppp_multilink_on()) {
 	upper_layers_down(unit);
 	if (phase != PHASE_DEAD && phase != PHASE_MASTER)
 	    new_phase(PHASE_ESTABLISH);
@@ -800,7 +800,7 @@ link_established(int unit)
     /*
      * Tell higher-level protocols that LCP is up.
      */
-    if (!doing_multilink) {
+    if (!ppp_multilink_on()) {
 	for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	    if (protp->protocol != PPP_LCP && protp->enabled_flag
 		&& protp->lowerup != NULL)
@@ -1292,8 +1292,10 @@ auth_check_options(void)
     int lacks_ip;
 
     /* Default our_name to hostname, and user to our_name */
-    if (our_name[0] == 0 || usehostname)
-	strlcpy(our_name, hostname, sizeof(our_name));
+    if (our_name[0] == 0 || usehostname) {
+        ppp_get_hostname(our_name, NULL);
+    }
+
     /* If a blank username was explicitly given as an option, trust
        the user and don't use our_name */
     if (user[0] == 0 && !explicit_user)

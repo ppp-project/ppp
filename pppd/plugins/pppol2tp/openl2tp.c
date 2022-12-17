@@ -279,7 +279,7 @@ out:
 
 static void openl2tp_multilink_join_ind(void)
 {
-	if (doing_multilink && !multilink_master) {
+	if (ppp_multilink_on() && !ppp_multilink_master()) {
 		/* send event only if not master */
 		openl2tp_ppp_updown_ind(pppol2tp_tunnel_id,
 					pppol2tp_session_id, 1);

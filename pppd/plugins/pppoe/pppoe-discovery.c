@@ -126,6 +126,12 @@ get_time(struct timeval *tv)
     return gettimeofday(tv, NULL);
 }
 
+int signaled(int signal) {
+    if (signal == SIGTERM)
+        return got_sigterm;
+    return 0;
+}
+
 static void
 term_handler(int signum)
 {

@@ -798,7 +798,7 @@ void generic_disestablish_ppp(int dev_fd)
 	if (demand) {
 	    modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	    looped = 1;
-	} else if (!doing_multilink && ppp_dev_fd >= 0) {
+	} else if (!ppp_multilink_on() && ppp_dev_fd >= 0) {
 	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
 	    ppp_dev_fd = -1;
@@ -1504,7 +1504,7 @@ int read_packet (unsigned char *buf)
 	    error("read /dev/ppp: %m");
 	if (nr < 0 && errno == ENXIO)
 	    nr = 0;
-	if (nr == 0 && doing_multilink) {
+	if (nr == 0 && ppp_multilink_on()) {
 	    remove_fd(ppp_dev_fd);
 	    bundle_eof = 1;
 	}
@@ -3675,10 +3675,10 @@ int
 get_host_seed(void)
 {
     int h;
-    char *p = hostname;
+    const char *p;
 
     h = 407;
-    for (p = hostname; *p != 0; ++p)
+    for (p = ppp_get_hostname(NULL,NULL); *p != 0; ++p)
 	h = h * 37 + *p;
     return h;
 }

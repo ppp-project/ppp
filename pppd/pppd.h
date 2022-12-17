@@ -286,10 +286,27 @@ void untimeout(void (*func)(void *), void *arg);
 void sys_close(void);	/* Clean up in a child before execing */
 pid_t safe_fork(int, int, int);	/* Fork & close stuff in child */
 
-extern char	hostname[];	/* Our hostname */
-extern bool	doing_multilink;
-extern bool	multilink_master;
-extern int	got_sigterm;	/* SIGINT or SIGTERM was received */
+/**
+ * Get the current hostname
+ */
+const char *ppp_get_hostname(char *name, size_t *namesiz);
+
+/**
+ * Check if current session is using multi-link
+ */
+bool ppp_multilink_on();
+
+/**
+ * Check if we are multi-link master
+ */
+bool ppp_multilink_master();
+
+/**
+ * Check if pppd got signaled, returns 0 if not signaled, returns -1 on failure, and the signal number when signaled.
+ */
+extern bool ppp_signaled(int sig);
+
+
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name (IFNAMSIZ) */
 extern char	devnam[];	/* Device name */

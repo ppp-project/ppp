@@ -90,7 +90,7 @@ static int promptpass(char *user, char *passwd)
 	if (red == 0)
 	    break;
 	if (red < 0) {
-	    if (errno == EINTR && !got_sigterm)
+	    if (errno == EINTR && !ppp_signaled(SIGTERM))
 		continue;
 	    error("Can't read secret from %s: %m", promptprog);
 	    readgood = -1;
@@ -102,7 +102,7 @@ static int promptpass(char *user, char *passwd)
 
     /* now wait for child to exit */
     while (waitpid(kid, &wstat, 0) < 0) {
-	if (errno != EINTR || got_sigterm) {
+	if (errno != EINTR || ppp_signaled(SIGTERM)) {
 	    warn("error waiting for %s: %m", promptprog);
 	    break;
 	}

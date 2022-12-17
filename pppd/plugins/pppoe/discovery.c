@@ -44,6 +44,12 @@ static char const RCSID[] =
 
 #include <signal.h>
 
+#ifdef PLUGIN
+#define signaled(x) ppp_signaled(x)
+#else
+int signaled(int signal);
+#endif
+
 /* Calculate time remaining until *exp, return 0 if now >= *exp */
 static int time_left(struct timeval *diff, struct timeval *exp)
 {
@@ -404,7 +410,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR || got_sigterm) break;
+		if (r >= 0 || errno != EINTR || signaled(SIGTERM)) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADO): %m");
@@ -595,7 +601,7 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 
 	    while(1) {
 		r = select(conn->discoverySocket+1, &readable, NULL, NULL, &tv);
-		if (r >= 0 || errno != EINTR || got_sigterm) break;
+		if (r >= 0 || errno != EINTR || signaled(SIGTERM)) break;
 	    }
 	    if (r < 0) {
 		error("select (waitForPADS): %m");
@@ -666,7 +672,7 @@ discovery1(PPPoEConnection *conn)
 
     do {
 	padiAttempts++;
-	if (got_sigterm || padiAttempts > conn->discoveryAttempts) {
+	if (signaled(SIGTERM) || padiAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADO packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;
@@ -697,7 +703,7 @@ discovery2(PPPoEConnection *conn)
 
     do {
 	padrAttempts++;
-	if (got_sigterm || padrAttempts > conn->discoveryAttempts) {
+	if (signaled(SIGTERM) || padrAttempts > conn->discoveryAttempts) {
 	    warn("Timeout waiting for PADS packets");
 	    close(conn->discoverySocket);
 	    conn->discoverySocket = -1;

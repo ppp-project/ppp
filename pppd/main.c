@@ -132,7 +132,6 @@ int ifunit;			/* Interface unit number */
 struct channel *the_channel;
 
 char *progname;			/* Name of this program */
-char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
 char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
@@ -262,6 +261,45 @@ void print_link_stats(void);
 extern	char	*getlogin(void);
 int main(int, char *[]);
 
+
+
+static char hostname[MAXNAMELEN];
+
+const char *ppp_get_hostname(char *name, size_t *namesiz)
+{
+    if (name) {
+        size_t len = sizeof(hostname);
+        if (namesiz && *namesiz > len)
+            len = *namesiz;
+        len = strlcpy(hostname, name, len);
+        if (namesiz)
+            *namesiz = len;
+        return name;
+    }
+    return hostname;
+}
+
+void ppp_set_hostname(const char *name)
+{
+    if (name) {
+        int len = strlen(name);
+        if (len > sizeof(hostname))
+            len = sizeof(hostname) - 1;
+        strlcpy(hostname, name, len);
+    }
+}
+
+bool ppp_signaled(int sig)
+{
+    if (sig == SIGTERM)
+        return !!got_sigterm;
+    if (sig == SIGUSR2)
+        return !!got_sigusr2;
+    if (sig == SIGHUP)
+        return !!got_sighup;
+    return false;
+}
+
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
@@ -295,6 +333,7 @@ main(int argc, char *argv[])
     struct passwd *pw;
     struct protent *protp;
     char numbuf[16];
+    char name[MAXNAMELEN];
 
     PPP_crypto_init();
 
@@ -313,11 +352,12 @@ main(int argc, char *argv[])
     /* Initialize syslog facilities */
     reopen_log();
 
-    if (gethostname(hostname, MAXNAMELEN) < 0 ) {
+    if (gethostname(name, sizeof(name)) < 0 ) {
 	option_error("Couldn't get hostname: %m");
 	exit(1);
     }
-    hostname[MAXNAMELEN-1] = 0;
+    name[MAXNAMELEN-1] = '\0';
+    ppp_set_hostname(name);
 
     /* make sure we don't create world or group writable files. */
     umask(umask(0777) | 022);
@@ -1044,7 +1084,7 @@ get_input(void)
 	return;
 
     if (len == 0) {
-	if (bundle_eof && multilink_master) {
+	if (bundle_eof && ppp_multilink_master()) {
 	    notice("Last channel has disconnected");
 	    mp_bundle_terminated();
 	    return;
@@ -1169,7 +1209,7 @@ new_phase(int p)
 void
 die(int status)
 {
-    if (!doing_multilink || multilink_master)
+    if (!ppp_multilink_on() || ppp_multilink_master())
 	print_link_stats();
     cleanup();
     notify(exitnotify, status);
