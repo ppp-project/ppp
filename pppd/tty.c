@@ -262,6 +262,11 @@ struct channel tty_channel = {
 	&tty_close_fds
 };
 
+bool ppp_sync_serial()
+{
+    return sync_serial;
+}
+
 /*
  * setspeed - Set the serial port baud rate.
  * If doit is 0, the call is to check whether this option is
@@ -526,7 +531,7 @@ int connect_tty(void)
 	if (using_pty || record_file != NULL) {
 		if (!get_pty(&pty_master, &pty_slave, ppp_devnam, uid)) {
 			error("Couldn't allocate pseudo-tty");
-			status = EXIT_FATAL_ERROR;
+			ppp_set_status(EXIT_FATAL_ERROR);
 			return -1;
 		}
 		set_up_tty(pty_slave, 1);
@@ -535,7 +540,7 @@ int connect_tty(void)
 	/*
 	 * Lock the device if we've been asked to.
 	 */
-	status = EXIT_LOCK_FAILED;
+	ppp_set_status(EXIT_LOCK_FAILED);
 	if (lockflag && !privopen) {
 		if (lock(devnam) < 0)
 			goto errret;
@@ -561,7 +566,7 @@ int connect_tty(void)
 			if (prio < OPRIO_ROOT && seteuid(uid) == -1) {
 				error("Unable to drop privileges before opening %s: %m\n",
 				      devnam);
-				status = EXIT_OPEN_FAILED;
+				ppp_set_status(EXIT_OPEN_FAILED);
 				goto errret;
 			}
 			real_ttyfd = open(devnam, O_NONBLOCK | O_RDWR, 0);
@@ -573,7 +578,7 @@ int connect_tty(void)
 			errno = err;
 			if (err != EINTR) {
 				error("Failed to open %s: %m", devnam);
-				status = EXIT_OPEN_FAILED;
+				ppp_set_status(EXIT_OPEN_FAILED);
 			}
 			if (!persist || err != EINTR)
 				goto errret;
@@ -616,7 +621,7 @@ int connect_tty(void)
 	 * If the pty, socket, notty and/or record option was specified,
 	 * start up the character shunt now.
 	 */
-	status = EXIT_PTYCMD_FAILED;
+	ppp_set_status(EXIT_PTYCMD_FAILED);
 	if (ptycommand != NULL) {
 		if (record_file != NULL) {
 			int ipipe[2], opipe[2], ok;
@@ -682,7 +687,7 @@ int connect_tty(void)
 		if (initializer && initializer[0]) {
 			if (device_script(initializer, ttyfd, ttyfd, 0) < 0) {
 				error("Initializer script failed");
-				status = EXIT_INIT_FAILED;
+				ppp_set_status(EXIT_INIT_FAILED);
 				goto errretf;
 			}
 			if (got_sigterm) {
@@ -695,7 +700,7 @@ int connect_tty(void)
 		if (connector && connector[0]) {
 			if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
 				error("Connect script failed");
-				status = EXIT_CONNECT_FAILED;
+				ppp_set_status(EXIT_CONNECT_FAILED);
 				goto errretf;
 			}
 			if (got_sigterm) {
@@ -722,7 +727,7 @@ int connect_tty(void)
 				break;
 			if (errno != EINTR) {
 				error("Failed to reopen %s: %m", devnam);
-				status = EXIT_OPEN_FAILED;
+				ppp_set_status(EXIT_OPEN_FAILED);
 			}
 			if (!persist || errno != EINTR || hungup || got_sigterm)
 				goto errret;

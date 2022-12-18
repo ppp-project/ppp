@@ -290,8 +290,8 @@ radius_pap_auth(char *user,
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
-    } else if (ipparam)
-	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
+    } else if (ppp_ipparam(NULL,0))
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ppp_ipparam(NULL,0), 0, VENDOR_NONE);
 
     /* Add user specified vp's */
     if (rstate.avp)
@@ -457,8 +457,8 @@ radius_chap_verify(char *user, char *ourname, int id,
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
-    } else if (ipparam)
-	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
+    } else if (ppp_ipparam(NULL,0))
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ppp_ipparam(NULL,0), 0, VENDOR_NONE);
 
     /* Add user specified vp's */
     if (rstate.avp)
@@ -593,7 +593,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 
 	    case PW_SESSION_TIMEOUT:
 		/* Session timeout */
-		maxconnect = vp->lvalue;
+		ppp_set_max_connect_time(vp->lvalue);
 		break;
            case PW_FILTER_ID:
                /* packet filter, will be handled via ip-(up|down) script */
@@ -605,7 +605,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
                break;
            case PW_IDLE_TIMEOUT:
                /* idle parameter */
-               idle_time_limit = vp->lvalue;
+               ppp_set_max_idle_time(vp->lvalue);
                break;
 	    case PW_SESSION_OCTETS_LIMIT:
 		/* Session traffic limit */
@@ -634,7 +634,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		} else if (remote != 0xfffffffe) {
 		    /* 0xfffffffe means NAS should select an ip address */
 		    remote = htonl(vp->lvalue);
-		    if (bad_ip_adrs (remote)) {
+		    if (ppp_bad_ip_addr (remote)) {
 			slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
 				 remote, rstate.user);
 			return -1;
@@ -1019,14 +1019,14 @@ radius_acct_start(void)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    } else if (ipparam)
-	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
+    } else if (ppp_ipparam(NULL,0))
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ppp_ipparam(NULL,0), 0, VENDOR_NONE);
 
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
@@ -1106,7 +1106,7 @@ radius_acct_stop(void)
 
 
     if (link_stats_valid) {
-	av_type = link_connect_time;
+	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
 	av_type = link_stats.bytes_out & 0xFFFFFFFF;
@@ -1135,14 +1135,14 @@ radius_acct_stop(void)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    } else if (ipparam)
-	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
+    } else if (ppp_ipparam(NULL,0))
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ppp_ipparam(NULL,0), 0, VENDOR_NONE);
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     av_type = PW_NAS_ERROR;
-    switch( status ) {
+    switch( ppp_status() ) {
 	case EXIT_OK:
 	    av_type = PW_USER_REQUEST;
 	    break;
@@ -1265,7 +1265,7 @@ radius_acct_interim(void *ignored)
     if (link_stats_valid) {
 	link_stats_valid = 0; /* Force later code to update */
 
-	av_type = link_connect_time;
+	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
 	av_type = link_stats.bytes_out & 0xFFFFFFFF;
@@ -1294,10 +1294,10 @@ radius_acct_interim(void *ignored)
     if (*remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
-    } else if (ipparam)
-	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
+    } else if (ppp_ipparam(NULL,0))
+	rc_avpair_add(&send, PW_CALLING_STATION_ID, ppp_ipparam(NULL,0), 0, VENDOR_NONE);
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;

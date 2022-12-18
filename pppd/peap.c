@@ -436,6 +436,7 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		}
 		case CHAP_FAILURE: {
 
+			u_char status = CHAP_FAILURE;
 			psm->chap->handle_failure(in_buf, in_len);
 			PUTCHAR(EAPT_MSCHAPV2, outp);
 			PUTCHAR(status, outp);

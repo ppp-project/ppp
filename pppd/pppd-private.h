@@ -302,7 +302,7 @@ void quit(void);		/* like die(1) */
 void record_child(int, char *, void (*) (void *), void *, int);
 int  device_script(char *cmd, int in, int out, int dont_wait);
 				/* Run `cmd' with given stdin and stdout */
-pid_t run_program(char *prog, char **args, int must_exist,
+pid_t run_program(char *prog, const char ** args, int must_exist,
 		  void (*done)(void *), void *arg, int wait);
 				/* Run program prog with args in child */
 void reopen_log(void);	/* (re)open the connection to syslog */
@@ -314,7 +314,6 @@ const char *protocol_name(int);
 void remove_pidfiles(void);
 void lock_db(void);
 void unlock_db(void);
-void ppp_set_hostname(const char *name);
 
 /* Procedures exported from tty.c. */
 void tty_init(void);

@@ -68,6 +68,7 @@ ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 ipcp_options ipcp_allowoptions[NUM_PPP]; /* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 
+char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 u_int32_t netmask = 0;		/* IP netmask to set on interface */
 
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
@@ -449,7 +450,7 @@ setipaddr(char *arg, char **argv, int doit)
 	    }
 	    local = *(u_int32_t *)hp->h_addr;
 	}
-	if (bad_ip_adrs(local)) {
+	if (ppp_bad_ip_addr(local)) {
 	    option_error("bad local IP address %s", ip_ntoa(local));
 	    return 0;
 	}
@@ -472,7 +473,7 @@ setipaddr(char *arg, char **argv, int doit)
 	    if (remote_name[0] == 0)
 		strlcpy(remote_name, colon, sizeof(remote_name));
 	}
-	if (bad_ip_adrs(remote)) {
+	if (ppp_bad_ip_addr(remote)) {
 	    option_error("bad remote IP address %s", ip_ntoa(remote));
 	    return 0;
 	}
@@ -555,6 +556,14 @@ parse_dotted_ip(char *p, u_int32_t *vp)
     }
     *vp = v;
     return p - p0;
+}
+
+const char *ppp_ipparam(char *buf, size_t bufsz)
+{
+    if (buf && bufsz > 0) {
+        strlcpy(buf, ipparam, MIN(bufsz, sizeof(ipparam)));
+    }
+    return ipparam;
 }
 
 
@@ -1734,7 +1743,7 @@ ip_check_options(void)
 	wo->accept_local = 1;	/* don't insist on this default value */
 	if ((hp = gethostbyname(ppp_get_hostname(NULL, NULL))) != NULL) {
 	    local = *(u_int32_t *)hp->h_addr;
-	    if (local != 0 && !bad_ip_adrs(local))
+	    if (local != 0 && !ppp_bad_ip_addr(local))
 		wo->ouraddr = local;
 	}
     }
@@ -2121,7 +2130,7 @@ static void
 ipcp_script(char *script, int wait)
 {
     char strspeed[32], strlocal[32], strremote[32];
-    char *argv[8];
+    const char *argv[8];
 
     slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
     slprintf(strlocal, sizeof(strlocal), "%I", ipcp_gotoptions[0].ouraddr);

@@ -402,9 +402,9 @@ typedef struct env
 
 /*	avpair.c		*/
 
-VALUE_PAIR *rc_avpair_add(VALUE_PAIR **, int, void *, int, int);
-int rc_avpair_assign(VALUE_PAIR *, void *, int);
-VALUE_PAIR *rc_avpair_new(int, void *, int, int);
+VALUE_PAIR *rc_avpair_add(VALUE_PAIR **, int, const void *, int, int);
+int rc_avpair_assign(VALUE_PAIR *, const void *, int);
+VALUE_PAIR *rc_avpair_new(int, const void *, int, int);
 VALUE_PAIR *rc_avpair_gen(AUTH_HDR *);
 VALUE_PAIR *rc_avpair_get(VALUE_PAIR *, UINT4);
 VALUE_PAIR *rc_avpair_copy(VALUE_PAIR *);

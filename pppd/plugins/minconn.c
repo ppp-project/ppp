@@ -60,11 +60,11 @@ static int my_get_idle(struct ppp_idle *idle)
 	time_t t;
 
 	if (idle == NULL)
-		return minconnect? minconnect: idle_time_limit;
+		return minconnect ? minconnect: ppp_get_max_idle_time();
 	t = idle->xmit_idle;
 	if (idle->recv_idle < t)
 		t = idle->recv_idle;
-	return idle_time_limit - t;
+	return ppp_get_max_idle_time() - t;
 }
 
 void plugin_init(void)

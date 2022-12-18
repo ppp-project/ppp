@@ -1277,7 +1277,7 @@ lcp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 	if (looped_back) {
 	    if (++try.numloops >= lcp_loopbackfail) {
 		notice("Serial line is looped back.");
-		status = EXIT_LOOPBACK;
+		ppp_set_status(EXIT_LOOPBACK);
 		lcp_close(f->unit, "Loopback detected");
 	    }
 	} else
@@ -2187,7 +2187,7 @@ void LcpLinkFailure (fsm *f)
     if (f->state == OPENED) {
 	info("No response to %d echo-requests", lcp_echos_pending);
         notice("Serial link appears to be disconnected.");
-	status = EXIT_PEER_DEAD;
+	ppp_set_status(EXIT_PEER_DEAD);
 	lcp_close(f->unit, "Peer not responding");
     }
 }

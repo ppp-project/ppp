@@ -146,7 +146,7 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
-volatile int status;		/* exit status for pppd */
+volatile int code;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
@@ -298,6 +298,16 @@ bool ppp_signaled(int sig)
     if (sig == SIGHUP)
         return !!got_sighup;
     return false;
+}
+
+ppp_exit_code_t ppp_status()
+{
+   return code;
+}
+
+void ppp_set_status(ppp_exit_code_t value)
+{
+    code = value;
 }
 
 /*
@@ -534,7 +544,7 @@ main(int argc, char *argv[])
 	listen_time = 0;
 	need_holdoff = 1;
 	devfd = -1;
-	status = EXIT_OK;
+	code = EXIT_OK;
 	++unsuccess;
 	doing_callback = do_callback;
 	do_callback = 0;
@@ -631,7 +641,7 @@ main(int argc, char *argv[])
     }
 
     PPP_crypto_deinit();
-    die(status);
+    die(code);
     return 0;
 }
 
@@ -662,15 +672,15 @@ handle_events(void)
 	info("Hangup (SIGHUP)");
 	kill_link = 1;
 	got_sighup = 0;
-	if (status != EXIT_HANGUP)
-	    status = EXIT_USER_REQUEST;
+	if (code != EXIT_HANGUP)
+	    code = EXIT_USER_REQUEST;
     }
     if (got_sigterm) {
 	info("Terminating on signal %d", got_sigterm);
 	kill_link = 1;
 	asked_to_quit = 1;
 	persist = 0;
-	status = EXIT_USER_REQUEST;
+	code = EXIT_USER_REQUEST;
 	got_sigterm = 0;
     }
     if (got_sigchld) {
@@ -1091,7 +1101,7 @@ get_input(void)
 	}
 	notice("Modem hangup");
 	hungup = 1;
-	status = EXIT_HANGUP;
+	code = EXIT_HANGUP;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	link_terminated(0);
 	return;
@@ -1815,7 +1825,7 @@ update_script_environment(void)
  * reap_kids) iff the return value is > 0.
  */
 pid_t
-run_program(char *prog, char **args, int must_exist, void (*done)(void *), void *arg, int wait)
+run_program(char *prog, const char **args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
     int pid, status, ret;
     struct stat sbuf;
@@ -1878,7 +1888,7 @@ run_program(char *prog, char **args, int must_exist, void (*done)(void *), void 
 
     /* run the program */
     update_script_environment();
-    execve(prog, args, script_env);
+    execve(prog, (char * const *) args, script_env);
     if (must_exist || errno != ENOENT) {
 	/* have to reopen the log, there's nowhere else
 	   for the message to go. */

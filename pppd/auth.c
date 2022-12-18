@@ -617,7 +617,7 @@ link_required(int unit)
  */
 void start_link(int unit)
 {
-    status = EXIT_CONNECT_FAILED;
+    ppp_set_status(EXIT_CONNECT_FAILED);
     new_phase(PHASE_SERIALCONN);
 
     hungup = 0;
@@ -635,7 +635,7 @@ void start_link(int unit)
      */
     fd_ppp = the_channel->establish_ppp(devfd);
     if (fd_ppp < 0) {
-	status = EXIT_FATAL_ERROR;
+	ppp_set_status(EXIT_FATAL_ERROR);
 	goto disconnect;
     }
 
@@ -652,7 +652,7 @@ void start_link(int unit)
 	notice("Starting negotiation on %s", ppp_devnam);
     add_fd(fd_ppp);
 
-    status = EXIT_NEGOTIATION_FAILED;
+    ppp_set_status(EXIT_NEGOTIATION_FAILED);
     new_phase(PHASE_ESTABLISH);
 
     lcp_lowerup(0);
@@ -822,7 +822,7 @@ link_established(int unit)
 	    set_allowed_addrs(unit, NULL, NULL);
 	} else if (!wo->neg_upap || uselogin || !null_login(unit)) {
 	    warn("peer refused to authenticate: terminating link");
-	    status = EXIT_PEER_AUTH_FAILED;
+	    ppp_set_status(EXIT_PEER_AUTH_FAILED);
 	    lcp_close(unit, "peer refused to authenticate");
 	    return;
 	}
@@ -832,14 +832,14 @@ link_established(int unit)
     if (need_peer_eap && !ao->neg_eap) {
 	warn("eap required to authenticate us but no suitable secrets");
 	lcp_close(unit, "couldn't negotiate eap");
-	status = EXIT_AUTH_TOPEER_FAILED;
+	ppp_set_status(EXIT_AUTH_TOPEER_FAILED);
 	return;
     }
 
     if (need_peer_eap && !ho->neg_eap) {
 	warn("peer doesn't want to authenticate us with eap");
 	lcp_close(unit, "couldn't negotiate eap");
-	status = EXIT_PEER_AUTH_FAILED;
+	ppp_set_status(EXIT_PEER_AUTH_FAILED);
 	return;
     }
 #endif
@@ -997,7 +997,7 @@ auth_peer_fail(int unit, int protocol)
     /*
      * Authentication failure: take the link down
      */
-    status = EXIT_PEER_AUTH_FAILED;
+    ppp_set_status(EXIT_PEER_AUTH_FAILED);
     lcp_close(unit, "Authentication failed");
 }
 
@@ -1072,7 +1072,7 @@ auth_withpeer_fail(int unit, int protocol)
      * is no point in persisting without any way to get updated
      * authentication secrets.
      */
-    status = EXIT_AUTH_TOPEER_FAILED;
+    ppp_set_status(EXIT_AUTH_TOPEER_FAILED);
     lcp_close(unit, "Failed to authenticate ourselves to peer");
 }
 
@@ -1144,14 +1144,14 @@ np_up(int unit, int proto)
 	/*
 	 * At this point we consider that the link has come up successfully.
 	 */
-	status = EXIT_OK;
+	ppp_set_status(EXIT_OK);
 	unsuccess = 0;
 	new_phase(PHASE_RUNNING);
 
 	if (idle_time_hook != 0)
 	    tlim = (*idle_time_hook)(NULL);
 	else
-	    tlim = idle_time_limit;
+	    tlim = ppp_get_max_idle_time();
 	if (tlim > 0)
 	    TIMEOUT(check_idle, NULL, tlim);
 
@@ -1159,8 +1159,8 @@ np_up(int unit, int proto)
 	 * Set a timeout to close the connection once the maximum
 	 * connect time has expired.
 	 */
-	if (maxconnect > 0)
-	    TIMEOUT(connect_time_expired, 0, maxconnect);
+	if (ppp_get_max_connect_time() > 0)
+	    TIMEOUT(connect_time_expired, 0, ppp_get_max_connect_time());
 
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
@@ -1232,7 +1232,7 @@ check_maxoctets(void *arg)
     }
     if (used > maxoctets) {
 	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
-	status = EXIT_TRAFFIC_LIMIT;
+	ppp_set_status(EXIT_TRAFFIC_LIMIT);
 	lcp_close(0, "Traffic limit");
 	need_holdoff = 0;
     } else {
@@ -1257,12 +1257,12 @@ check_idle(void *arg)
 	tlim = idle_time_hook(&idle);
     } else {
 	itime = MIN(idle.xmit_idle, idle.recv_idle);
-	tlim = idle_time_limit - itime;
+	tlim = ppp_get_max_idle_time() - itime;
     }
     if (tlim <= 0) {
 	/* link is idle: shut it down. */
 	notice("Terminating connection due to lack of activity.");
-	status = EXIT_IDLE_TIMEOUT;
+	ppp_set_status(EXIT_IDLE_TIMEOUT);
 	lcp_close(0, "Link inactive");
 	need_holdoff = 0;
     } else {
@@ -1277,7 +1277,7 @@ static void
 connect_time_expired(void *arg)
 {
     info("Connect time expired");
-    status = EXIT_CONNECT_TIME;
+    ppp_set_status(EXIT_CONNECT_TIME);
     lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
@@ -2052,7 +2052,7 @@ auth_ip_addr(int unit, u_int32_t addr)
     int ok;
 
     /* don't allow loopback or multicast address */
-    if (bad_ip_adrs(addr))
+    if (ppp_bad_ip_addr(addr))
 	return 0;
 
     if (allowed_address_hook) {
@@ -2080,12 +2080,10 @@ ip_addr_check(u_int32_t addr, struct permitted_ip *addrs)
 }
 
 /*
- * bad_ip_adrs - return 1 if the IP address is one we don't want
- * to use, such as an address in the loopback net or a multicast address.
- * addr is in network byte order.
+ * Check if given addr in network byte order is in the looback network, or a multicast address.
  */
-int
-bad_ip_adrs(u_int32_t addr)
+bool
+ppp_bad_ip_addr(u_int32_t addr)
 {
     addr = ntohl(addr);
     return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET
@@ -2385,7 +2383,7 @@ auth_script(char *script)
     struct passwd *pw;
     char struid[32];
     char *user_name;
-    char *argv[8];
+    const char *argv[8];
 
     if ((pw = getpwuid(getuid())) != NULL && pw->pw_name != NULL)
 	user_name = pw->pw_name;
@@ -2401,7 +2399,7 @@ auth_script(char *script)
     argv[3] = user_name;
     argv[4] = devnam;
     argv[5] = strspeed;
-    argv[6] = ipparam;
+    argv[6] = ppp_ipparam(NULL, 0);
     argv[7] = NULL;
 
     auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);

@@ -48,7 +48,6 @@
 /*
  * Limits
  */
-
 #define NUM_PPP		1	/* One PPP interface supported (per process) */
 #define MAXWORDLEN	1024	/* max length of word in file (incl null) */
 #define MAXARGS		1	/* max # args to a command */
@@ -73,31 +72,34 @@
 #define PHASE_HOLDOFF       11
 #define PHASE_MASTER        12
 
-/*
- * Exit status values.
- */
-#define EXIT_OK			0
-#define EXIT_FATAL_ERROR	1
-#define EXIT_OPTION_ERROR	2
-#define EXIT_NOT_ROOT		3
-#define EXIT_NO_KERNEL_SUPPORT	4
-#define EXIT_USER_REQUEST	5
-#define EXIT_LOCK_FAILED	6
-#define EXIT_OPEN_FAILED	7
-#define EXIT_CONNECT_FAILED	8
-#define EXIT_PTYCMD_FAILED	9
-#define EXIT_NEGOTIATION_FAILED	10
-#define EXIT_PEER_AUTH_FAILED	11
-#define EXIT_IDLE_TIMEOUT	12
-#define EXIT_CONNECT_TIME	13
-#define EXIT_CALLBACK		14
-#define EXIT_PEER_DEAD		15
-#define EXIT_HANGUP		16
-#define EXIT_LOOPBACK		17
-#define EXIT_INIT_FAILED	18
-#define EXIT_AUTH_TOPEER_FAILED	19
-#define EXIT_TRAFFIC_LIMIT	20
-#define EXIT_CNID_AUTH_FAILED	21
+typedef enum
+{
+    EXIT_OK                 = 0,
+    EXIT_FATAL_ERROR        = 1,
+    EXIT_OPTION_ERROR       = 2,
+    EXIT_NOT_ROOT           = 3,
+    EXIT_NO_KERNEL_SUPPORT  = 4,
+    EXIT_USER_REQUEST       = 5,
+    EXIT_LOCK_FAILED        = 6,
+    EXIT_OPEN_FAILED        = 7,
+    EXIT_CONNECT_FAILED     = 8,
+    EXIT_PTYCMD_FAILED      = 9,
+    EXIT_NEGOTIATION_FAILED = 10,
+    EXIT_PEER_AUTH_FAILED   = 11,
+    EXIT_IDLE_TIMEOUT       = 12,
+    EXIT_CONNECT_TIME       = 13,
+    EXIT_CALLBACK           = 14,
+    EXIT_PEER_DEAD          = 15,
+    EXIT_HANGUP             = 16,
+    EXIT_LOOPBACK           = 17,
+    EXIT_INIT_FAILED        = 18,
+    EXIT_AUTH_TOPEER_FAILED = 19,
+    EXIT_TRAFFIC_LIMIT      = 20,
+    EXIT_CNID_AUTH_FAILED   = 21
+} ppp_exit_code_t;
+
+ppp_exit_code_t ppp_status();
+void ppp_set_status(ppp_exit_code_t code);
 
 
 struct option;
@@ -214,6 +216,9 @@ void error(char *, ...);
 /* log an error message and die(1) */
 void fatal(char *, ...);	
 
+/* Say we ran out of memory, and die */
+void novm(char *);
+
 /* Format a packet and log it with syslog */
 void log_packet(unsigned char *, int, char *, int);
 
@@ -231,14 +236,6 @@ void end_pr_log(void);
 
 
 /* RADIUS */
-extern int	maxconnect;	/* Maximum connect time (seconds) */
-extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
-extern int	idle_time_limit;/* Shut down link if idle for this long */
-extern int	using_pty;	/* using pty as device (notty or pty opt.) */
-extern unsigned	link_connect_time; /* time the link was up for */
-extern bool	sync_serial;	/* Device is synchronous serial device */
-int  bad_ip_adrs(uint32_t);
-				/* check if IP address is unreasonable */
 
 extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
 extern int       maxoctets_dir;      /* Direction :
@@ -251,9 +248,8 @@ extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
 #define PPP_OCTETS_DIRECTION_IN         1
 #define PPP_OCTETS_DIRECTION_OUT        2
 #define PPP_OCTETS_DIRECTION_MAXOVERAL  3
-/* same as previos, but little different on RADIUS side */
+/* same as previous, but little different on RADIUS side */
 #define PPP_OCTETS_DIRECTION_MAXSESSION 4
-extern volatile int status;	/* exit status for pppd */
 
 /*
  * Unfortunately, the linux kernel driver uses a different structure
@@ -267,13 +263,16 @@ struct pppd_stats {
     unsigned int	pkts_in;
     unsigned int	pkts_out;
 };
+
 extern int	link_stats_valid; /* set if link_stats is valid */
 void print_link_stats(void); /* Print stats, if available */
 void reset_link_stats(int); /* Reset (init) stats when link goes up */
 void update_link_stats(int); /* Get stats at link termination */
 
-
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
+
+
+int get_time(struct timeval *);
 void timeout(void (*func)(void *), void *arg, int s, int us);
 				/* Call func(arg) after s.us seconds */
 void untimeout(void (*func)(void *), void *arg);
@@ -286,25 +285,70 @@ void untimeout(void (*func)(void *), void *arg);
 void sys_close(void);	/* Clean up in a child before execing */
 pid_t safe_fork(int, int, int);	/* Fork & close stuff in child */
 
-/**
+/*
  * Get the current hostname
  */
 const char *ppp_get_hostname(char *name, size_t *namesiz);
 
-/**
+/*
  * Check if current session is using multi-link
  */
 bool ppp_multilink_on();
 
-/**
+/*
  * Check if we are multi-link master
  */
 bool ppp_multilink_master();
 
-/**
+/*
+ * Is pppd using pty as a device (opposed to notty or pty opt).
+ */
+bool ppp_using_pty();
+
+/*
+ * Device is synchronous serial device
+ */
+bool ppp_sync_serial();
+
+/*
  * Check if pppd got signaled, returns 0 if not signaled, returns -1 on failure, and the signal number when signaled.
  */
-extern bool ppp_signaled(int sig);
+bool ppp_signaled(int sig);
+
+/*
+ * Maximum connect time in seconds
+ */
+int ppp_get_max_connect_time();
+
+/*
+ * Set the maximum connect time in seconds
+ */
+void ppp_set_max_connect_time(unsigned int max);
+
+/*
+ * Get the link idle time before shutting the link down
+ */
+int ppp_get_max_idle_time();
+
+/*
+ * Set the link idle time before shutting the link down
+ */
+void ppp_set_max_idle_time(unsigned int idle);
+
+/*
+ * Get the duration the link was up (uptime)
+ */
+int ppp_get_link_uptime();
+
+/*
+ * Get the ipparam configured with pppd
+ */
+const char *ppp_ipparam(char *buf, size_t bufsz);
+
+/*
+ * check if IP address is unreasonable
+ */
+bool ppp_bad_ip_addr(uint32_t);
 
 
 extern int	ifunit;		/* Interface unit number */
@@ -316,7 +360,6 @@ extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 extern char	peer_authname[];/* Authenticated name of peer */
 extern char remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
 extern int  ppp_session_number; /* Session number (eg PPPoE session) */
-void novm(char *);	/* Say we ran out of memory, and die */
 
 void script_setenv(char *, char *, int);	/* set script env var */
 void script_unsetenv(char *);		/* unset script env var */
@@ -326,7 +369,6 @@ void generic_disestablish_ppp(int dev_fd); /* Restore device setting */
 int  generic_establish_ppp(int dev_fd); /* Make a ppp interface */
 extern bool	modem;		/* Use modem control lines */
 
-int get_time(struct timeval *);
 				/* Get current time, monotonic if possible. */
 void netif_set_mtu(int, int); /* Set PPP interface MTU */
 int  netif_get_mtu(int);      /* Get PPP interface MTU */

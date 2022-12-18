@@ -615,7 +615,7 @@ int tty_establish_ppp (int tty_fd)
 #ifndef N_SYNC_PPP
 #define N_SYNC_PPP 14
 #endif
-    ppp_disc = (new_style_driver && sync_serial)? N_SYNC_PPP: N_PPP;
+    ppp_disc = (new_style_driver && ppp_sync_serial())? N_SYNC_PPP: N_PPP;
     if (ioctl(tty_fd, TIOCSETD, &ppp_disc) < 0) {
 	if ( ! ok_error (errno) ) {
 	    error("Couldn't set tty to PPP discipline: %m");
@@ -1601,7 +1601,7 @@ void tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 	}
 
 	x = (pcomp? SC_COMP_PROT: 0) | (accomp? SC_COMP_AC: 0)
-	    | (sync_serial? SC_SYNC: 0);
+	    | (ppp_sync_serial()? SC_SYNC: 0);
 	modify_flags(ppp_fd, SC_COMP_PROT|SC_COMP_AC|SC_SYNC, x);
 }
 
