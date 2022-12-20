@@ -21,6 +21,8 @@
 #include <stdbool.h>
 
 #include <pppd/pppd.h>
+#include <pppd/upap.h>
+#include <pppd/eap.h>
 #include <pppd/options.h>
 
 char pppd_version[] = PPPD_VERSION;

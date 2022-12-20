@@ -1494,7 +1494,7 @@ static void
 ipv6cp_script(char *script)
 {
     char strspeed[32], strlocal[32], strremote[32];
-    const char *argv[8];
+    char *argv[8];
 
     sprintf(strspeed, "%d", baud_rate);
     strcpy(strlocal, llv6_ntoa(ipv6cp_gotoptions[0].ourid));
@@ -1506,7 +1506,7 @@ ipv6cp_script(char *script)
     argv[3] = strspeed;
     argv[4] = strlocal;
     argv[5] = strremote;
-    argv[6] = ppp_ipparam(NULL, 0);
+    argv[6] = ipparam;
     argv[7] = NULL;
 
     ipv6cp_script_pid = run_program(script, argv, 0, ipv6cp_script_done,

@@ -180,28 +180,26 @@ static bool default_auth;
 int (*idle_time_hook)(struct ppp_idle *) = NULL;
 
 /* Hook for a plugin to say whether we can possibly authenticate any peer */
-int (*pap_check_hook)(void) = NULL;
+pap_check_hook_fn *pap_check_hook = NULL;
 
 /* Hook for a plugin to check the PAP user and password */
-int (*pap_auth_hook)(char *user, char *passwd, char **msgp,
-		     struct wordlist **paddrs,
-		     struct wordlist **popts) = NULL;
+pap_auth_hook_fn *pap_auth_hook = NULL;
 
 /* Hook for a plugin to know about the PAP user logout */
-void (*pap_logout_hook)(void) = NULL;
+pap_logout_hook_fn *pap_logout_hook = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
-int (*pap_passwd_hook)(char *user, char *passwd) = NULL;
+pap_passwd_hook_fn *pap_passwd_hook = NULL;
 
 /* Hook for a plugin to say if we can possibly authenticate a peer using CHAP */
-int (*chap_check_hook)(void) = NULL;
+chap_check_hook_fn *chap_check_hook = NULL;
 
 /* Hook for a plugin to get the CHAP password for authenticating us */
-int (*chap_passwd_hook)(char *user, char *passwd) = NULL;
+chap_passwd_hook_fn *chap_passwd_hook = NULL;
 
 #ifdef PPP_WITH_EAPTLS
 /* Hook for a plugin to get the EAP-TLS password for authenticating us */
-int (*eaptls_passwd_hook)(char *user, char *passwd) = NULL;
+eaptls_passwd_hook_fn *eaptls_passwd_hook = NULL;
 #endif
 
 /* Hook for a plugin to say whether it is OK if the peer
@@ -2383,7 +2381,7 @@ auth_script(char *script)
     struct passwd *pw;
     char struid[32];
     char *user_name;
-    const char *argv[8];
+    char *argv[8];
 
     if ((pw = getpwuid(getuid())) != NULL && pw->pw_name != NULL)
 	user_name = pw->pw_name;
@@ -2399,7 +2397,7 @@ auth_script(char *script)
     argv[3] = user_name;
     argv[4] = devnam;
     argv[5] = strspeed;
-    argv[6] = ppp_ipparam(NULL, 0);
+    argv[6] = ipparam;
     argv[7] = NULL;
 
     auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);

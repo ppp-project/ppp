@@ -39,6 +39,7 @@ static char const RCSID[] =
 #include <pppd/pppd.h>
 #include <pppd/options.h>
 #include <pppd/chap-new.h>
+#include <pppd/upap.h>
 #ifdef PPP_WITH_CHAPMS
 #include <pppd/chap_ms.h>
 #ifdef PPP_WITH_MPPE
@@ -73,17 +74,9 @@ static option_t Options[] = {
     { NULL }
 };
 
-static int radius_secret_check(void);
-static int radius_pap_auth(char *user,
-			   char *passwd,
-			   char **msgp,
-			   struct wordlist **paddrs,
-			   struct wordlist **popts);
-static int radius_chap_verify(char *user, char *ourname, int id,
-			      struct chap_digest_type *digest,
-			      unsigned char *challenge,
-			      unsigned char *response,
-			      char *message, int message_space);
+static pap_check_hook_fn radius_secret_check;
+static pap_auth_hook_fn radius_pap_auth;
+static chap_verify_hook_fn radius_chap_verify;
 
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);

@@ -539,7 +539,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
     PPP_MD_CTX* ctx;
     u_char	hash[SHA_DIGEST_LENGTH];
     int     hash_len;
-    char	*user;
+    const char *user;
 
     /* remove domain from "domain\username" */
     if ((user = strrchr(username, '\\')) != NULL)
@@ -836,7 +836,7 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
  * Authenticator Response.
  */
 void
-ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
+ChapMS2(unsigned char *rchallenge, unsigned char *PeerChallenge,
 	char *user, char *secret, int secret_len, unsigned char *response,
 	u_char authResponse[], int authenticator)
 {

@@ -2345,8 +2345,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #endif /* PPP_WITH_EAPTLS */
 #ifdef PPP_WITH_CHAPMS
 	u_char opcode;
-	int (*chap_verifier)(char *, char *, int, struct chap_digest_type *,
-		unsigned char *, unsigned char *, char *, int);
+        chap_verify_hook_fn *chap_verifier;
 	char response_message[256];
 #endif /* PPP_WITH_CHAPMS */
 

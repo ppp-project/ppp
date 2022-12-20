@@ -192,6 +192,7 @@ extern bool	session_mgmt;	/* Do session management (login records) */
 extern char	our_name[MAXNAMELEN];/* Our name for authentication purposes */
 extern bool	explicit_remote;/* remote_name specified with remotename opt */
 extern bool	demand;		/* Do dial-on-demand */
+extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
 extern bool	cryptpap;	/* Others' PAP passwords are encrypted */
 extern int	holdoff;	/* Dead time before restarting */
 extern bool	holdoff_specified; /* true if user gave a holdoff value */
@@ -302,7 +303,7 @@ void quit(void);		/* like die(1) */
 void record_child(int, char *, void (*) (void *), void *, int);
 int  device_script(char *cmd, int in, int out, int dont_wait);
 				/* Run `cmd' with given stdin and stdout */
-pid_t run_program(char *prog, const char ** args, int must_exist,
+pid_t run_program(char *prog, char * const * args, int must_exist,
 		  void (*done)(void *), void *arg, int wait);
 				/* Run program prog with args in child */
 void reopen_log(void);	/* (re)open the connection to syslog */
@@ -473,6 +474,7 @@ int  getword(FILE *f, char *word, int *newlinep, char *filename);
 				/* Read a word from a file */
 int  options_from_user(void); /* Parse options from user's .ppprc */
 int  options_for_tty(void); /* Parse options from /etc/ppp/options.tty */
+struct wordlist;
 int  options_from_list(struct wordlist *, int privileged);
 				/* Parse options from a wordlist */
 void check_options(void);	/* check values after all options parsed */

@@ -2130,7 +2130,7 @@ static void
 ipcp_script(char *script, int wait)
 {
     char strspeed[32], strlocal[32], strremote[32];
-    const char *argv[8];
+    char *argv[8];
 
     slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
     slprintf(strlocal, sizeof(strlocal), "%I", ipcp_gotoptions[0].ouraddr);

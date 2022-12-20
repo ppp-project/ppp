@@ -417,24 +417,12 @@ void remove_notifier(struct notifier **, notify_func, void *);
  * Hooks to enable plugins to hook into various parts of the code
  */
 
-/* Used for storing a sequence of words.  Usually malloced. */
-struct wordlist {
-    struct wordlist	*next;
-    char		*word;
-};
-
 /* Declared in <linux/ppp_defs.h> */
 struct ppp_idle;
 
 extern int (*new_phase_hook)(int);
 extern int (*idle_time_hook)(struct ppp_idle *);
 extern int (*holdoff_hook)(void);
-extern int (*pap_check_hook)(void);
-extern int (*pap_auth_hook)(char *user, char *passwd, char **msgp,
-			    struct wordlist **paddrs,
-			    struct wordlist **popts);
-extern void (*pap_logout_hook)(void);
-extern int  (*pap_passwd_hook)(char *user, char *passwd);
 extern int  (*allowed_address_hook)(uint32_t addr);
 extern void (*ip_up_hook)(void);
 extern void (*ip_down_hook)(void);
@@ -442,14 +430,8 @@ extern void (*ip_choose_hook)(uint32_t *);
 extern void (*ipv6_up_hook)(void);
 extern void (*ipv6_down_hook)(void);
 
-extern int  (*chap_check_hook)(void);
-extern int  (*chap_passwd_hook)(char *user, char *passwd);
 extern void (*multilink_join_hook)(void);
 extern void (*snoop_recv_hook)(unsigned char *p, int len);
 extern void (*snoop_send_hook)(unsigned char *p, int len);
-
-#ifdef PPP_WITH_EAPTLS
-extern int  (*eaptls_passwd_hook)(char *user, char *passwd);
-#endif
 
 #endif /* PPP_PPPD_H */

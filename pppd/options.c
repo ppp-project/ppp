@@ -79,6 +79,7 @@
 
 #include "pppd-private.h"
 #include "options.h"
+#include "upap.h"
 #include "pathnames.h"
 
 #if defined(ultrix) || defined(NeXT)

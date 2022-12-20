@@ -54,6 +54,7 @@
 #include <pppd/options.h>
 #include <pppd/chap-new.h>
 #include <pppd/chap_ms.h>
+#include <pppd/upap.h>
 #include <pppd/fsm.h>
 #include <pppd/ipcp.h>
 #include <pppd/mppe.h>
@@ -92,19 +93,9 @@ static struct option Options[] = {
 	{ NULL }
 };
 
-static int
-winbind_secret_check(void);
-
-static int winbind_pap_auth(char *user,
-			   char *passwd,
-			   char **msgp,
-			   struct wordlist **paddrs,
-			   struct wordlist **popts);
-static int winbind_chap_verify(char *user, char *ourname, int id,
-			       struct chap_digest_type *digest,
-			       unsigned char *challenge,
-			       unsigned char *response,
-			       char *message, int message_space);
+static pap_check_hook_fn winbind_secret_check;
+static pap_auth_hook_fn winbind_pap_auth;
+static chap_verify_hook_fn winbind_chap_verify;
 static int winbind_allowed_address(u_int32_t addr); 
 
 char pppd_version[] = PPPD_VERSION;

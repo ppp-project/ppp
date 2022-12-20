@@ -1825,7 +1825,7 @@ update_script_environment(void)
  * reap_kids) iff the return value is > 0.
  */
 pid_t
-run_program(char *prog, const char **args, int must_exist, void (*done)(void *), void *arg, int wait)
+run_program(char *prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
     int pid, status, ret;
     struct stat sbuf;
