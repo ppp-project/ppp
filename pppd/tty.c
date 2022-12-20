@@ -736,7 +736,7 @@ int connect_tty(void)
 	}
 
 	slprintf(numbuf, sizeof(numbuf), "%d", baud_rate);
-	script_setenv("SPEED", numbuf, 0);
+	ppp_script_setenv("SPEED", numbuf, 0);
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {

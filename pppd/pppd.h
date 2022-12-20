@@ -350,28 +350,15 @@ const char *ppp_ipparam(char *buf, size_t bufsz);
  */
 bool ppp_bad_ip_addr(uint32_t);
 
+/*
+ * Expose an environment variable to scripts
+ */
+void ppp_script_setenv(char *, char *, int);
 
-extern int	ifunit;		/* Interface unit number */
-extern char	ifname[];	/* Interface name (IFNAMSIZ) */
-extern char	devnam[];	/* Device name */
-extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
-extern int	debug;		/* Debug flag */
-extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
-extern char	peer_authname[];/* Authenticated name of peer */
-extern char remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
-extern int  ppp_session_number; /* Session number (eg PPPoE session) */
-
-void script_setenv(char *, char *, int);	/* set script env var */
-void script_unsetenv(char *);		/* unset script env var */
-
-int  ppp_available(void);	/* Test whether ppp kernel support exists */
-void generic_disestablish_ppp(int dev_fd); /* Restore device setting */
-int  generic_establish_ppp(int dev_fd); /* Make a ppp interface */
-extern bool	modem;		/* Use modem control lines */
-
-				/* Get current time, monotonic if possible. */
-void netif_set_mtu(int, int); /* Set PPP interface MTU */
-int  netif_get_mtu(int);      /* Get PPP interface MTU */
+/*
+ * Unexpose an environment variable to scripts
+ */
+void ppp_script_unsetenv(char *);
 
 
 #ifndef MIN

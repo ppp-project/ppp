@@ -1303,9 +1303,9 @@ ipv6cp_up(fsm *f)
 	    return;
 	}
     }
-    script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
+    ppp_script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
     if (!eui64_iszero(ho->hisid))
-        script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
+        ppp_script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
 
 #ifdef IPV6CP_COMP
     /* set tcp compression */

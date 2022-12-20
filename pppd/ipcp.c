@@ -1838,29 +1838,29 @@ ipcp_up(fsm *f)
 	warn("Could not determine remote IP address: defaulting to %I",
 	     ho->hisaddr);
     }
-    script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
+    ppp_script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
     if (ho->hisaddr != 0)
-	script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
+	ppp_script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
 
     if (!go->req_dns1)
 	    go->dnsaddr[0] = 0;
     if (!go->req_dns2)
 	    go->dnsaddr[1] = 0;
     if (go->dnsaddr[0])
-	script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
+	ppp_script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
     if (go->dnsaddr[1])
-	script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
+	ppp_script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
     if (usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
-	script_setenv("USEPEERDNS", "1", 0);
+	ppp_script_setenv("USEPEERDNS", "1", 0);
 	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
     }
 
     if (go->winsaddr[0])
-        script_setenv("WINS1", ip_ntoa(go->winsaddr[0]), 0);
+        ppp_script_setenv("WINS1", ip_ntoa(go->winsaddr[0]), 0);
     if (go->winsaddr[1])
-        script_setenv("WINS2", ip_ntoa(go->winsaddr[1]), 0);
+        ppp_script_setenv("WINS2", ip_ntoa(go->winsaddr[1]), 0);
     if (usepeerwins && (go->winsaddr[0] || go->winsaddr[1]))
-        script_setenv("USEPEERWINS", "1", 0);
+        ppp_script_setenv("USEPEERWINS", "1", 0);
 
     /*
      * Check that the peer is allowed to use the IP address it wants.
@@ -1885,17 +1885,17 @@ ipcp_up(fsm *f)
 				      wo->replace_default_route);
 	    if (go->ouraddr != wo->ouraddr) {
 		warn("Local IP address changed to %I", go->ouraddr);
-		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
+		ppp_script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
 		wo->ouraddr = go->ouraddr;
 	    } else
-		script_unsetenv("OLDIPLOCAL");
+		ppp_script_unsetenv("OLDIPLOCAL");
 	    if (ho->hisaddr != wo->hisaddr) {
 		warn("Remote IP address changed to %I", ho->hisaddr);
 		if (wo->hisaddr != 0)
-		    script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
+		    ppp_script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
 		wo->hisaddr = ho->hisaddr;
 	    } else
-		script_unsetenv("OLDIPREMOTE");
+		ppp_script_unsetenv("OLDIPREMOTE");
 
 	    /* Set the interface to the new addresses */
 	    mask = GetMask(go->ouraddr);

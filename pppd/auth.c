@@ -713,7 +713,7 @@ link_terminated(int unit)
     if (!hungup)
 	lcp_lowerdown(0);
     if (!ppp_multilink_on() && !demand)
-	script_unsetenv("IFNAME");
+	ppp_script_unsetenv("IFNAME");
 
     /*
      * Run disconnector script, if requested.
@@ -1043,7 +1043,7 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 	namelen = sizeof(peer_authname) - 1;
     BCOPY(name, peer_authname, namelen);
     peer_authname[namelen] = 0;
-    script_setenv("PEERNAME", peer_authname, 0);
+    ppp_script_setenv("PEERNAME", peer_authname, 0);
 
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;

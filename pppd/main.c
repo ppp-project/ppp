@@ -375,7 +375,7 @@ main(int argc, char *argv[])
     uid = getuid();
     privileged = uid == 0;
     slprintf(numbuf, sizeof(numbuf), "%d", uid);
-    script_setenv("ORIG_UID", numbuf, 0);
+    ppp_script_setenv("ORIG_UID", numbuf, 0);
 
     ngroups = getgroups(NGROUPS_MAX, groups);
 
@@ -508,12 +508,12 @@ main(int argc, char *argv[])
 	    p = "(unknown)";
     }
     syslog(LOG_NOTICE, "pppd %s started by %s, uid %d", VERSION, p, uid);
-    script_setenv("PPPLOGNAME", p, 0);
+    ppp_script_setenv("PPPLOGNAME", p, 0);
 
     if (devnam[0])
-	script_setenv("DEVICE", devnam, 1);
+	ppp_script_setenv("DEVICE", devnam, 1);
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf, 1);
+    ppp_script_setenv("PPPD_PID", numbuf, 1);
 
     setup_signals();
 
@@ -575,9 +575,9 @@ main(int argc, char *argv[])
 	}
 
 	get_time(&start_time);
-	script_unsetenv("CONNECT_TIME");
-	script_unsetenv("BYTES_SENT");
-	script_unsetenv("BYTES_RCVD");
+	ppp_script_unsetenv("CONNECT_TIME");
+	ppp_script_unsetenv("BYTES_SENT");
+	ppp_script_unsetenv("BYTES_RCVD");
 
 	lcp_open(0);		/* Start protocol */
 	start_link(0);
@@ -798,9 +798,9 @@ set_ifunit(int iskey)
     else
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     info("Using interface %s", ifname);
-    script_setenv("IFNAME", ifname, iskey);
+    ppp_script_setenv("IFNAME", ifname, iskey);
     slprintf(ifkey, sizeof(ifkey), "%d", ifunit);
-    script_setenv("UNIT", ifkey, iskey);
+    ppp_script_setenv("UNIT", ifkey, iskey);
     if (iskey) {
 	create_pidfile(getpid());	/* write pid to file */
 	create_linkpidfile(getpid());
@@ -847,7 +847,7 @@ detach(void)
     if (log_default)
 	log_to_fd = -1;
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf, 1);
+    ppp_script_setenv("PPPD_PID", numbuf, 1);
 
     /* wait for parent to finish updating pid & lock files and die */
     close(pipefd[1]);
@@ -891,7 +891,7 @@ create_linkpidfile(int pid)
 
     if (linkname[0] == 0)
 	return;
-    script_setenv("LINKNAME", linkname, 1);
+    ppp_script_setenv("LINKNAME", linkname, 1);
     slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
 	     PPP_PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
@@ -1296,11 +1296,11 @@ update_link_stats(int u)
     link_stats.pkts_out  -= old_link_stats.pkts_out;
 
     slprintf(numbuf, sizeof(numbuf), "%u", link_connect_time);
-    script_setenv("CONNECT_TIME", numbuf, 0);
+    ppp_script_setenv("CONNECT_TIME", numbuf, 0);
     snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_out);
-    script_setenv("BYTES_SENT", numbuf, 0);
+    ppp_script_setenv("BYTES_SENT", numbuf, 0);
     snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_in);
-    script_setenv("BYTES_RCVD", numbuf, 0);
+    ppp_script_setenv("BYTES_RCVD", numbuf, 0);
 }
 
 
@@ -1781,7 +1781,7 @@ device_script(char *program, int in, int out, int dont_wait)
  * and update the script environment.  Note that we intentionally do
  * not update the TDB.  These changes are layered on top right before
  * exec.  It is not possible to use script_setenv() or
- * script_unsetenv() safely after this routine is run.
+ * ppp_script_unsetenv() safely after this routine is run.
  */
 static void
 update_script_environment(void)
@@ -2052,11 +2052,11 @@ novm(char *msg)
 }
 
 /*
- * script_setenv - set an environment variable value to be used
+ * ppp_script_setenv - set an environment variable value to be used
  * for scripts that we run (e.g. ip-up, auth-up, etc.)
  */
 void
-script_setenv(char *var, char *value, int iskey)
+ppp_script_setenv(char *var, char *value, int iskey)
 {
     size_t varl = strlen(var);
     size_t vl = varl + strlen(value) + 2;
@@ -2113,11 +2113,11 @@ script_setenv(char *var, char *value, int iskey)
 }
 
 /*
- * script_unsetenv - remove a variable from the environment
+ * ppp_script_unsetenv - remove a variable from the environment
  * for scripts.
  */
 void
-script_unsetenv(char *var)
+ppp_script_unsetenv(char *var)
 {
     int vl = strlen(var);
     int i;

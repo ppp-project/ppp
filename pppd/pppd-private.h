@@ -127,6 +127,8 @@ struct permitted_ip {
  */
 
 extern int	hungup;		/* Physical layer has disconnected */
+extern int	ifunit;		/* Interface unit number */
+extern char	ifname[];	/* Interface name (IFNAMSIZ) */
 extern unsigned char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	devfd;		/* fd of underlying device */
 extern int	fd_ppp;		/* fd for talking PPP */
@@ -134,6 +136,7 @@ extern int	phase;		/* Current state of link - see values below */
 extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
 extern int	redirect_stderr;/* Connector's stderr should go to file */
+extern char	peer_authname[];/* Authenticated name of peer */
 extern int	auth_done[NUM_PPP]; /* Methods actually used for auth */
 extern int	privileged;	/* We were run by real-uid root */
 extern int	need_holdoff;	/* Need holdoff period after link terminates */
@@ -149,6 +152,7 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern int	error_count;	/* # of times error() has been called */
+extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
 extern int	fd_devnull;	/* fd open to /dev/null */
 
 extern int	listen_time;	/* time to listen first (ms) */
@@ -164,8 +168,12 @@ extern bool	bundle_terminating;
  * Variables set by command-line options.
  */
 
+extern int	debug;		/* Debug flag */
 extern int	kdebugflag;	/* Tell kernel to print debug messages */
 extern int	default_device;	/* Using /dev/tty or equivalent */
+extern char	devnam[];	/* Device name */
+extern char remote_number[MAXNAMELEN]; /* Remote telephone number, if avail. */
+extern int  ppp_session_number; /* Session number (eg PPPoE session) */
 extern int	crtscts;	/* Use hardware flow control */
 extern int	stop_bits;	/* Number of serial port stop bits */
 extern bool	modem;		/* Use modem control lines */
@@ -190,6 +198,7 @@ extern bool	persist;	/* Reopen link after it goes down */
 extern bool	uselogin;	/* Use /etc/passwd for checking PAP */
 extern bool	session_mgmt;	/* Do session management (login records) */
 extern char	our_name[MAXNAMELEN];/* Our name for authentication purposes */
+extern char	remote_name[MAXNAMELEN]; /* Peer's name for authentication */
 extern bool	explicit_remote;/* remote_name specified with remotename opt */
 extern bool	demand;		/* Do dial-on-demand */
 extern char	*ipparam;	/* Extra parameter for ip up/down scripts */
@@ -215,6 +224,17 @@ extern bool	dump_options;	/* print out option values */
 extern bool	show_options;	/* show all option names and descriptions */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
+
+int  ppp_available(void);	/* Test whether ppp kernel support exists */
+void generic_disestablish_ppp(int dev_fd); /* Restore device setting */
+int  generic_establish_ppp(int dev_fd); /* Make a ppp interface */
+extern bool	modem;		/* Use modem control lines */
+
+				/* Get current time, monotonic if possible. */
+void netif_set_mtu(int, int); /* Set PPP interface MTU */
+int  netif_get_mtu(int);      /* Get PPP interface MTU */
+
+
 
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */
