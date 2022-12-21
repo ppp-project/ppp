@@ -36,7 +36,6 @@ pppd_include_HEADERS = \
     chap_ms.h \
     chap-new.h \
     eap.h \
-    eap-tls.h \
     ecp.h \
     eui64.h \
     fsm.h \
@@ -45,18 +44,24 @@ pppd_include_HEADERS = \
     lcp.h \
     magic.h \
     mppe.h \
+    pppd.h \
+    options.h \
+    pppdconf.h \
+    ppp-crypto.h \
+    session.h \
+    upap.h 
+
+# Headers to be distributed, but not installed in /usr/include/pppd
+noinst_HEADERS = \
+    eap-tls.h \
     pathnames.h \
     peap.h \
-    pppd.h \
-    pppdconf.h \
     pppcrypt.h \
-    ppp-crypto.h \
     ppp-crypto-priv.h \
-    session.h \
+    pppd-private.h \
     spinlock.h \
     tls.h \
-    tdb.h \
-    upap.h 
+    tdb.h
 
 pppd_SOURCES = \
     auth.c \

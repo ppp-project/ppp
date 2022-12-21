@@ -51,7 +51,6 @@
 
 #include <pppd/pppd.h>
 #include <pppd/options.h>
-#include <pppd/pathnames.h>
 #include <pppd/fsm.h>
 #include <pppd/lcp.h>
 #include <pppd/ccp.h>

@@ -29,7 +29,6 @@
 
 #include <pppd/pppd.h>
 #include <pppd/options.h>
-#include <pppd/pathnames.h>
 #include <pppd/fsm.h> /* Needed for lcp.h to include cleanly */
 #include <pppd/lcp.h>
 
