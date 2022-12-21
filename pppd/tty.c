@@ -927,7 +927,7 @@ start_charshunt(int ifd, int ofd)
 {
     int cpid, ret;
 
-    cpid = safe_fork(ifd, ofd, (log_to_fd >= 0? log_to_fd: 2));
+    cpid = ppp_safe_fork(ifd, ofd, (log_to_fd >= 0? log_to_fd: 2));
     if (cpid == -1) {
 	error("Can't fork process for character shunt: %m");
 	return 0;

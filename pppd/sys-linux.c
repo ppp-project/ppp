@@ -548,10 +548,10 @@ void sys_cleanup(void)
 
 /********************************************************************
  *
- * sys_close - Clean up in a child process before execing.
+ * ppp_sys_close - Clean up in a child process before execing.
  */
 void
-sys_close(void)
+ppp_sys_close(void)
 {
     if (new_style_driver && ppp_dev_fd >= 0)
 	close(ppp_dev_fd);

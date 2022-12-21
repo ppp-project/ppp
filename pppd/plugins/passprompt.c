@@ -64,7 +64,7 @@ static int promptpass(char *user, char *passwd)
     if (!kid) {
 	/* we are the child, exec the program */
 	char *argv[5], fdstr[32];
-	sys_close();
+	ppp_sys_close();
 	closelog();
 	close(p[0]);
 	ret = seteuid(getuid());

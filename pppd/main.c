@@ -1611,14 +1611,14 @@ bad_signal(int sig)
 }
 
 /*
- * safe_fork - Create a child process.  The child closes all the
+ * ppp_safe_fork - Create a child process.  The child closes all the
  * file descriptors that we don't want to leak to a script.
  * The parent waits for the child to do this before returning.
  * This also arranges for the specified fds to be dup'd to
  * fds 0, 1, 2 in the child.
  */
 pid_t
-safe_fork(int infd, int outfd, int errfd)
+ppp_safe_fork(int infd, int outfd, int errfd)
 {
 	pid_t pid;
 	int fd, pipefd[2];
@@ -1649,7 +1649,7 @@ safe_fork(int infd, int outfd, int errfd)
 	}
 
 	/* Executing in the child */
-	sys_close();
+	ppp_sys_close();
 #ifdef PPP_WITH_TDB
 	if (pppdb != NULL)
 		tdb_close(pppdb);
@@ -1758,7 +1758,7 @@ device_script(char *program, int in, int out, int dont_wait)
 	errfd = open(PPP_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
 
     ++conn_running;
-    pid = safe_fork(in, out, errfd);
+    pid = ppp_safe_fork(in, out, errfd);
 
     if (pid != 0 && log_to_fd < 0)
 	close(errfd);
@@ -1871,7 +1871,7 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 	return 0;
     }
 
-    pid = safe_fork(fd_devnull, fd_devnull, fd_devnull);
+    pid = ppp_safe_fork(fd_devnull, fd_devnull, fd_devnull);
     if (pid == -1) {
 	error("Failed to create child process for %s: %m", prog);
 	return -1;

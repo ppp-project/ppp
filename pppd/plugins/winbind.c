@@ -281,7 +281,7 @@ unsigned int run_ntlm_auth(const char *username,
 		return NOT_AUTHENTICATED;
         }
 
-        forkret = safe_fork(child_in[0], child_out[1], 2);
+        forkret = ppp_safe_fork(child_in[0], child_out[1], 2);
         if (forkret == -1) {
 		if (error_string) {
 			*error_string = strdup("fork failed!");

@@ -285,8 +285,15 @@ void untimeout(void (*func)(void *), void *arg);
 #define UNTIMEOUT(r, f)		untimeout((r), (f))
 
 
-void sys_close(void);	/* Clean up in a child before execing */
-pid_t safe_fork(int, int, int);	/* Fork & close stuff in child */
+/*
+ * Clean up in a child before execing
+ */
+void ppp_sys_close(void);
+
+/*
+ * Fork & close stuff in child
+ */
+pid_t ppp_safe_fork(int, int, int);
 
 /*
  * Get the current hostname
