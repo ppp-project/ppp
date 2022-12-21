@@ -1176,9 +1176,9 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 		     * because MPPE frames **grow**.  The kernel [must]
 		     * allocate MPPE_PAD extra bytes in xmit buffers.
 		     */
-		    mtu = netif_get_mtu(f->unit);
+		    mtu = ppp_get_mtu(f->unit);
 		    if (mtu)
-			netif_set_mtu(f->unit, mtu - MPPE_PAD);
+			ppp_set_mtu(f->unit, mtu - MPPE_PAD);
 		    else
 			newret = CONFREJ;
 		}

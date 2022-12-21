@@ -519,7 +519,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	int challenge_len, response_len;
 	char domainname[256];
 	char *domain;
-	char *username;
+	const char *username;
 	char *p;
 	unsigned char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
 

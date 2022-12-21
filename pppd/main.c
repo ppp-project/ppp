@@ -310,6 +310,34 @@ void ppp_set_status(ppp_exit_code_t value)
     code = value;
 }
 
+void ppp_set_session_number(int number)
+{
+    ppp_session_number = number;
+}
+
+int ppp_get_session_number()
+{
+    return ppp_session_number;
+}
+
+void ppp_set_ifname(const char *name)
+{
+    if (ifname) {
+        strlcpy(ifname, name, sizeof(ifname));
+    }
+}
+
+const char *ppp_get_ifname(char *buf, size_t bufsz)
+{
+    return ifname;
+}
+
+int ppp_ifunit()
+{
+    return ifunit;
+}
+
+
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
@@ -366,8 +394,7 @@ main(int argc, char *argv[])
 	option_error("Couldn't get hostname: %m");
 	exit(1);
     }
-    name[MAXNAMELEN-1] = '\0';
-    ppp_set_hostname(name);
+    hostname[MAXNAMELEN-1] = 0;
 
     /* make sure we don't create world or group writable files. */
     umask(umask(0777) | 022);
@@ -432,7 +459,7 @@ main(int argc, char *argv[])
 	exit(EXIT_NOT_ROOT);
     }
 
-    if (!ppp_available()) {
+    if (!ppp_check_kernel_support()) {
 	option_error("%s", no_ppp_msg);
 	exit(EXIT_NO_KERNEL_SUPPORT);
     }
@@ -1888,7 +1915,7 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 
     /* run the program */
     update_script_environment();
-    execve(prog, (char * const *) args, script_env);
+    execve(prog, args, script_env);
     if (must_exist || errno != ENOENT) {
 	/* have to reopen the log, there's nowhere else
 	   for the message to go. */

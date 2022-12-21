@@ -406,6 +406,11 @@ int ppp_get_max_connect_time()
     return maxconnect;
 }
 
+bool debug_on()
+{
+    return !!debug;
+}
+
 /*
  * parse_args - parse a string of arguments from the command line.
  */

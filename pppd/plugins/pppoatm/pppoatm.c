@@ -180,7 +180,7 @@ void plugin_init(void)
 {
 #ifdef linux
 	extern int new_style_driver;	/* From sys-linux.c */
-	if (!ppp_available() && !new_style_driver)
+	if (!ppp_check_kernel_support() && !new_style_driver)
 		fatal("Kernel doesn't support ppp_generic - "
 		    "needed for PPPoATM");
 #else
@@ -195,8 +195,8 @@ struct channel pppoa_channel = {
     .check_options = NULL,
     .connect = &connect_pppoatm,
     .disconnect = &disconnect_pppoatm,
-    .establish_ppp = &generic_establish_ppp,
-    .disestablish_ppp = &generic_disestablish_ppp,
+    .establish_ppp = &ppp_generic_establish,
+    .disestablish_ppp = &ppp_generic_disestablish,
     .send_config = NULL,
     .recv_config = NULL,
     .close = NULL,

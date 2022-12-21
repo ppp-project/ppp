@@ -149,6 +149,7 @@ PPPOEConnectDevice(void)
     struct sockaddr_pppox sp;
     struct ifreq ifr;
     int s;
+    char remote_number[MAXNAMELEN];
 
     /* Open session socket before discovery phase, to avoid losing session */
     /* packets sent by peer just after PADS packet (noted on some Cisco    */
@@ -236,7 +237,7 @@ PPPOEConnectDevice(void)
     }
 
     /* Set PPPoE session-number for further consumption */
-    ppp_session_number = ntohs(conn->session);
+    ppp_set_session_number(ntohs(conn->session));
 
     sp.sa_family = AF_PPPOX;
     sp.sa_protocol = PX_PROTO_OE;
@@ -252,17 +253,10 @@ PPPOEConnectDevice(void)
 	    (unsigned) conn->peerEth[3],
 	    (unsigned) conn->peerEth[4],
 	    (unsigned) conn->peerEth[5]);
+    warn("Connected to %s via interface %s", remote_number, conn->ifName);
+    ppp_set_remote_number(remote_number);
 
-    warn("Connected to %02X:%02X:%02X:%02X:%02X:%02X via interface %s",
-	 (unsigned) conn->peerEth[0],
-	 (unsigned) conn->peerEth[1],
-	 (unsigned) conn->peerEth[2],
-	 (unsigned) conn->peerEth[3],
-	 (unsigned) conn->peerEth[4],
-	 (unsigned) conn->peerEth[5],
-	 conn->ifName);
-
-    script_setenv("MACREMOTE", remote_number, 0);
+    ppp_script_setenv("MACREMOTE", remote_number, 0);
 
     if (connect(conn->sessionSocket, (struct sockaddr *) &sp,
 		sizeof(struct sockaddr_pppox)) < 0) {
@@ -396,7 +390,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
 	if (the_channel != &pppoe_channel) {
 
 	    the_channel = &pppoe_channel;
-	    modem = 0;
+	    ppp_set_modem(0);
 
 	    PPPOEInitDevice();
 	}
@@ -418,7 +412,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
 void
 plugin_init(void)
 {
-    if (!ppp_available() && !new_style_driver) {
+    if (!ppp_check_kernel_support() && !new_style_driver) {
 	fatal("Linux kernel does not support PPPoE -- are you running 2.4.x?");
     }
 
@@ -478,8 +472,8 @@ struct channel pppoe_channel = {
     .check_options = pppoe_check_options,
     .connect = &PPPOEConnectDevice,
     .disconnect = &PPPOEDisconnectDevice,
-    .establish_ppp = &generic_establish_ppp,
-    .disestablish_ppp = &generic_disestablish_ppp,
+    .establish_ppp = &ppp_generic_establish,
+    .disestablish_ppp = &ppp_generic_disestablish,
     .send_config = NULL,
     .recv_config = &PPPOERecvConfig,
     .close = NULL,

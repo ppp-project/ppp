@@ -186,6 +186,9 @@ extern struct channel *the_channel;
  * Functions for string formatting and debugging
  */
 
+/* Is debug enabled */
+bool debug_on();
+
 /* Safe sprintf++ */
 int slprintf(char *, int, char *, ...);		
 
@@ -311,6 +314,26 @@ bool ppp_using_pty();
 bool ppp_sync_serial();
 
 /*
+ * Modem mode
+ */
+bool ppp_get_modem();
+
+/*
+ * Control the mode of the tty terminal
+ */
+void ppp_set_modem(bool on);
+
+/*
+ * Set the current session number, e.g. for PPPoE
+ */
+void ppp_set_session_number(int number);
+
+/*
+ * Set the current session number, e.g. for PPPoE
+ */
+int ppp_get_session_number(void);
+
+/*
  * Check if pppd got signaled, returns 0 if not signaled, returns -1 on failure, and the signal number when signaled.
  */
 bool ppp_signaled(int sig);
@@ -318,7 +341,7 @@ bool ppp_signaled(int sig);
 /*
  * Maximum connect time in seconds
  */
-int ppp_get_max_connect_time();
+int ppp_get_max_connect_time(void);
 
 /*
  * Set the maximum connect time in seconds
@@ -328,7 +351,7 @@ void ppp_set_max_connect_time(unsigned int max);
 /*
  * Get the link idle time before shutting the link down
  */
-int ppp_get_max_idle_time();
+int ppp_get_max_idle_time(void);
 
 /*
  * Set the link idle time before shutting the link down
@@ -343,7 +366,7 @@ int ppp_get_link_uptime();
 /*
  * Get the ipparam configured with pppd
  */
-const char *ppp_ipparam(char *buf, size_t bufsz);
+const char *ppp_ipparam();
 
 /*
  * check if IP address is unreasonable
@@ -360,14 +383,68 @@ void ppp_script_setenv(char *, char *, int);
  */
 void ppp_script_unsetenv(char *);
 
+/*
+ * Test whether ppp kernel support exists
+ */
+int ppp_check_kernel_support(void);
 
-#ifndef MIN
-#define MIN(a, b)	((a) < (b)? (a): (b))
-#endif
-#ifndef MAX
-#define MAX(a, b)	((a) > (b)? (a): (b))
-#endif
+/*
+ * Restore device setting
+ */
+void ppp_generic_disestablish(int dev_fd);
 
+/*
+ * Set the interface MTU
+ */
+void ppp_set_mtu(int, int);
+
+/*
+ * Get the interface MTU
+ */
+int  ppp_get_mtu(int);
+
+/*
+ * Make a ppp interface
+ */
+int ppp_generic_establish(int dev_fd);
+
+/*
+ * Set the current interface name, ifname is a \0 terminated string
+ */
+void ppp_set_ifname(const char *ifname);
+
+/*
+ * Get the current interface name
+ */
+const char *ppp_get_ifname(char *buf, size_t bufsz);
+
+/*
+ * Get the current interface unit for the pppX device
+ */
+int ppp_ifunit();
+
+/*
+ * Get the peer's authentication name
+ */
+const char *ppp_peer_authname(char *buf, size_t bufsz);
+
+/*
+ * Get the remote name
+ */
+const char *ppp_remote_name();
+
+/*
+ * Get the remote number (if set), otherwise return NULL
+ */
+const char *ppp_get_remote_number(void);
+
+/*
+ * Set the remote number, typically it's a MAC address
+ */
+void ppp_set_remote_number(const char *buf);
+
+extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
+extern char	devnam[];	/* Device name */
 
 /* 
  * Register notification callback on certain events

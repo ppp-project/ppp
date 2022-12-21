@@ -163,7 +163,7 @@ static int setdevname_pppol2tp(char **argv)
 
 	/* Setup option defaults. Compression options are disabled! */
 
-	modem = 0;
+	ppp_set_modem(false);
 
 	lcp_allowoptions[0].neg_accompression = 1;
 	lcp_wantoptions[0].neg_accompression = 0;
@@ -222,14 +222,14 @@ static void send_config_pppol2tp(int mtu,
 		fd = socket(AF_INET, SOCK_DGRAM, 0);
 		if (fd >= 0) {
 			memset (&ifr, '\0', sizeof (ifr));
-			strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+			ppp_get_ifname(ifr.ifr_name, sizeof(ifr.ifr_name));
 			strlcpy(ifr.ifr_newname, pppol2tp_ifname,
 				sizeof(ifr.ifr_name));
 			ioctl(fd, SIOCSIFNAME, (caddr_t) &ifr);
-			strlcpy(ifname, pppol2tp_ifname, 32);
+			ppp_set_ifname(pppol2tp_ifname);
 			if (pppol2tp_debug_mask & PPPOL2TP_MSG_CONTROL) {
 				dbglog("ppp%d: interface name %s",
-				       ifunit, ifname);
+					ppp_ifunit(), ppp_get_ifname(NULL,0));
 			}
 		}
 		close(fd);
@@ -239,7 +239,7 @@ static void send_config_pppol2tp(int mtu,
 		warn("Overriding mtu %d to %d", mtu, lcp_allowoptions[0].mru);
 		mtu = lcp_allowoptions[0].mru;
 	}
-	netif_set_mtu(ifunit, mtu);
+	ppp_set_mtu(ppp_ifunit(), mtu);
 
 	reorderto[0] = '\0';
 	if (pppol2tp_reorder_timeout > 0)
@@ -293,7 +293,7 @@ static void recv_config_pppol2tp(int mru,
 		     lcp_allowoptions[0].mru);
 		mru = lcp_allowoptions[0].mru;
 	}
-	if ((ifunit >= 0) && ioctl(pppol2tp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
+	if ((ppp_ifunit() >= 0) && ioctl(pppol2tp_fd, PPPIOCSMRU, (caddr_t) &mru) < 0)
 		error("Couldn't set PPP MRU: %m");
 }
 
@@ -501,7 +501,7 @@ void plugin_init(void)
 {
 #if defined(__linux__)
 	extern int new_style_driver;	/* From sys-linux.c */
-	if (!ppp_available() && !new_style_driver)
+	if (!ppp_check_kernel_support() && !new_style_driver)
 		fatal("Kernel doesn't support ppp_generic - "
 		    "needed for PPPoL2TP");
 #else
@@ -526,8 +526,8 @@ struct channel pppol2tp_channel = {
     .check_options = &pppol2tp_check_options,
     .connect = &connect_pppol2tp,
     .disconnect = &disconnect_pppol2tp,
-    .establish_ppp = &generic_establish_ppp,
-    .disestablish_ppp = &generic_disestablish_ppp,
+    .establish_ppp = &ppp_generic_establish,
+    .disestablish_ppp = &ppp_generic_disestablish,
     .send_config = &send_config_pppol2tp,
     .recv_config = &recv_config_pppol2tp,
     .close = NULL,

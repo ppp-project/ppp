@@ -468,6 +468,36 @@ struct option auth_options[] = {
     { NULL }
 };
 
+const char *
+ppp_remote_name()
+{
+    return remote_name;
+}
+
+const char *
+ppp_get_remote_number(void)
+{
+    return remote_number;
+}
+
+void
+ppp_set_remote_number(const char *buf)
+{
+    if (buf) {
+        strlcpy(remote_number, buf, sizeof(remote_number));
+    }
+}
+
+const char *
+ppp_peer_authname(char *buf, size_t bufsz)
+{
+    if (buf && bufsz > 0) {
+        strlcpy(buf, peer_authname, bufsz);
+        return buf;
+    }
+    return peer_authname;
+}
+
 /*
  * setupapfile - specifies UPAP info for authenticating with peer.
  */

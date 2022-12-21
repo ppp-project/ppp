@@ -558,11 +558,8 @@ parse_dotted_ip(char *p, u_int32_t *vp)
     return p - p0;
 }
 
-const char *ppp_ipparam(char *buf, size_t bufsz)
+const char *ppp_ipparam()
 {
-    if (buf && bufsz > 0) {
-        strlcpy(buf, ipparam, MIN(bufsz, sizeof(ipparam)));
-    }
     return ipparam;
 }
 

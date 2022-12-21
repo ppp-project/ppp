@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include <pppd/pppd.h>
 #include <pppd/upap.h>
@@ -74,10 +75,10 @@ static int promptpass(char *user, char *passwd)
 	if (ret != 0) {
 		warn("Couldn't set effective user id");
 	}
-	argv[0] = promptprog;
-	argv[1] = user;
-	argv[2] = remote_name;
 	sprintf(fdstr, "%d", p[1]);
+	argv[0] = promptprog;
+	argv[1] = strdup(user);
+	argv[2] = strdup(ppp_remote_name());
 	argv[3] = fdstr;
 	argv[4] = 0;
 	execv(*argv, argv);

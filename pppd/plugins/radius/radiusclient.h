@@ -430,7 +430,7 @@ int rc_check(char *, unsigned short, char *);
 /*	clientid.c		*/
 
 int rc_read_mapfile(char *);
-UINT4 rc_map2id(char *);
+UINT4 rc_map2id(const char *);
 
 /*	config.c		*/
 

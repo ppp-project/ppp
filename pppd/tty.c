@@ -267,6 +267,16 @@ bool ppp_sync_serial()
     return sync_serial;
 }
 
+bool ppp_get_modem()
+{
+    return modem;
+}
+
+void ppp_set_modem(bool on)
+{
+    modem = on;
+}
+
 /*
  * setspeed - Set the serial port baud rate.
  * If doit is 0, the call is to check whether this option is

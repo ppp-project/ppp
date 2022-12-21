@@ -225,17 +225,6 @@ extern bool	show_options;	/* show all option names and descriptions */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
 
-int  ppp_available(void);	/* Test whether ppp kernel support exists */
-void generic_disestablish_ppp(int dev_fd); /* Restore device setting */
-int  generic_establish_ppp(int dev_fd); /* Make a ppp interface */
-extern bool	modem;		/* Use modem control lines */
-
-				/* Get current time, monotonic if possible. */
-void netif_set_mtu(int, int); /* Set PPP interface MTU */
-int  netif_get_mtu(int);      /* Get PPP interface MTU */
-
-
-
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */
 extern char	path_ipv6down[]; /* pathname of ipv6-down script */
@@ -642,6 +631,13 @@ int parse_dotted_ip(char *, u_int32_t *);
 #define SIGTYPE int
 #endif /* defined(sun) || defined(SYSV) || defined(POSIX_SOURCE) */
 #endif /* SIGTYPE */
+
+#ifndef MIN
+#define MIN(a, b)	((a) < (b)? (a): (b))
+#endif
+#ifndef MAX
+#define MAX(a, b)	((a) > (b)? (a): (b))
+#endif
 
 #ifndef offsetof
 #define offsetof(type, member) ((size_t) &((type *)0)->member)

@@ -181,8 +181,12 @@ static void openl2tp_ppp_updown_ind(int tunnel_id, int session_id, int up)
 	uint16_t tid = tunnel_id;
 	uint16_t sid = session_id;
 	uint8_t state = up;
-	int unit = ifunit;
-	char *user_name = NULL;
+	int unit = 0;
+	char ifname[MAXNAMELEN];
+	char user_name[MAXNAMELEN];
+
+	unit = ppp_ifunit();
+	ppp_get_ifname(ifname, sizeof(ifname));
 
 	if (openl2tp_fd < 0) {
 		result = openl2tp_client_create();
@@ -191,9 +195,8 @@ static void openl2tp_ppp_updown_ind(int tunnel_id, int session_id, int up)
 		}
 	}
 
-	if (peer_authname[0] != '\0') {
-		user_name = strdup(peer_authname);
-	}
+	if (!ppp_peer_authname(user_name, sizeof(user_name)))
+		user_name[0] = '\0';
 
 	msg->msg_signature = OPENL2TP_MSG_SIGNATURE;
 	msg->msg_type = OPENL2TP_MSG_TYPE_PPP_UPDOWN_IND;
@@ -229,7 +232,7 @@ static void openl2tp_ppp_updown_ind(int tunnel_id, int session_id, int up)
 	memcpy(&tlv->tlv_value[0], ifname, tlv->tlv_len);
 	msg->msg_len += sizeof(*tlv) + ALIGN32(tlv->tlv_len);
 
-	if (user_name != NULL) {
+	if (user_name[0] != '\0') {
 		tlv = (void *) &msg->msg_data[msg->msg_len];
 		tlv->tlv_type = OPENL2TP_TLV_TYPE_PPP_USER_NAME;
 		tlv->tlv_len = strlen(user_name) + 1;
@@ -252,9 +255,6 @@ out:
 	if (old_pppol2tp_ip_updown_hook != NULL) {
 		(*old_pppol2tp_ip_updown_hook)(tunnel_id, session_id, up);
 	}
-
-	if (user_name != NULL)
-		free(user_name);
 
 	return;
 }

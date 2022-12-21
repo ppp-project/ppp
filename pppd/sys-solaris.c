@@ -865,10 +865,10 @@ daemon(int nochdir, int noclose)
 #endif
 
 /*
- * ppp_available - check whether the system has any ppp interfaces
+ * ppp_check_kernel_support - check whether the system has any ppp interfaces
  */
 int
-ppp_available(void)
+ppp_check_kernel_support(void)
 {
     struct stat buf;
 

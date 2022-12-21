@@ -132,6 +132,11 @@ int signaled(int signal) {
     return 0;
 }
 
+bool debug_on()
+{
+    return !!debug;
+}
+
 static void
 term_handler(int signum)
 {

@@ -1873,7 +1873,7 @@ lcp_up(fsm *f)
 #ifdef PPP_WITH_MULTILINK
     if (!(multilink && go->neg_mrru && ho->neg_mrru))
 #endif /* PPP_WITH_MULTILINK */
-	netif_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
+	ppp_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
     ppp_send_config(f->unit, mtu,
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);

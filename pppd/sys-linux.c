@@ -623,7 +623,7 @@ int tty_establish_ppp (int tty_fd)
 	}
     }
 
-    ret_fd = generic_establish_ppp(tty_fd);
+    ret_fd = ppp_generic_establish(tty_fd);
 
 #define SC_RCVB	(SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP)
 #define SC_LOGB	(SC_DEBUG | SC_LOG_INPKT | SC_LOG_OUTPKT | SC_LOG_RAWIN \
@@ -644,7 +644,7 @@ int tty_establish_ppp (int tty_fd)
  *
  * generic_establish_ppp - Turn the fd into a ppp interface.
  */
-int generic_establish_ppp (int fd)
+int ppp_generic_establish (int fd)
 {
     int x;
 
@@ -781,16 +781,16 @@ void tty_disestablish_ppp(int tty_fd)
 flushfailed:
     initfdflags = -1;
 
-    generic_disestablish_ppp(tty_fd);
+    ppp_generic_disestablish(tty_fd);
 }
 
 /********************************************************************
  *
- * generic_disestablish_ppp - Restore device components to normal
+ * ppp_generic_disestablish - Restore device components to normal
  * operation, and reconnect the ppp unit to the loopback if in demand
  * mode.  This shouldn't call die() because it's called from die().
  */
-void generic_disestablish_ppp(int dev_fd)
+void ppp_generic_disestablish(int dev_fd)
 {
     if (new_style_driver) {
 	close(ppp_fd);
@@ -1550,7 +1550,7 @@ get_loop_output(void)
  * netif_set_mtu - set the MTU on the PPP network interface.
  */
 void
-netif_set_mtu(int unit, int mtu)
+ppp_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
 
@@ -1566,7 +1566,7 @@ netif_set_mtu(int unit, int mtu)
  * netif_get_mtu - get the MTU on the PPP network interface.
  */
 int
-netif_get_mtu(int unit)
+ppp_get_mtu(int unit)
 {
     struct ifreq ifr;
 
@@ -2858,11 +2858,11 @@ ppp_registered(void)
 
 /********************************************************************
  *
- * ppp_available - check whether the system has any ppp interfaces
+ * ppp_check_kernel_support - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
 
-int ppp_available(void)
+int ppp_check_kernel_support(void)
 {
     int s, ok, fd;
     struct ifreq ifr;
