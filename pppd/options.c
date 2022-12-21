@@ -1609,8 +1609,6 @@ setactivefilter(char **argv)
 static int
 setdomain(char **argv)
 {
-    char hostname[MAXNAMELEN];
-
     gethostname(hostname, MAXNAMELEN);
     if (**argv != 0) {
 	if (**argv != '.')
@@ -1619,7 +1617,6 @@ setdomain(char **argv)
 	strncat(hostname, *argv, MAXNAMELEN - strlen(hostname));
     }
     hostname[MAXNAMELEN-1] = 0;
-    ppp_set_hostname(hostname);
     return (1);
 }
 

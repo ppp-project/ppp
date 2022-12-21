@@ -127,7 +127,7 @@ UINT4 rc_own_ipaddress(void)
 	static UINT4 this_host_ipaddr = 0;
 
 	if (!this_host_ipaddr) {
-		if ((this_host_ipaddr = rc_get_ipaddr (ppp_get_hostname(NULL,NULL))) == 0) {
+		if ((this_host_ipaddr = rc_get_ipaddr (ppp_hostname())) == 0) {
 			error("rc_own_ipaddress: couldn't get own IP address");
 			return 0;
 		}

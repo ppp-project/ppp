@@ -132,6 +132,7 @@ int ifunit;			/* Interface unit number */
 struct channel *the_channel;
 
 char *progname;			/* Name of this program */
+char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
 char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
@@ -261,32 +262,9 @@ void print_link_stats(void);
 extern	char	*getlogin(void);
 int main(int, char *[]);
 
-
-
-static char hostname[MAXNAMELEN];
-
-const char *ppp_get_hostname(char *name, size_t *namesiz)
+const char *ppp_hostname()
 {
-    if (name) {
-        size_t len = sizeof(hostname);
-        if (namesiz && *namesiz > len)
-            len = *namesiz;
-        len = strlcpy(hostname, name, len);
-        if (namesiz)
-            *namesiz = len;
-        return name;
-    }
     return hostname;
-}
-
-void ppp_set_hostname(const char *name)
-{
-    if (name) {
-        int len = strlen(name);
-        if (len > sizeof(hostname))
-            len = sizeof(hostname) - 1;
-        strlcpy(hostname, name, len);
-    }
 }
 
 bool ppp_signaled(int sig)
@@ -371,7 +349,6 @@ main(int argc, char *argv[])
     struct passwd *pw;
     struct protent *protp;
     char numbuf[16];
-    char name[MAXNAMELEN];
 
     PPP_crypto_init();
 
@@ -390,7 +367,7 @@ main(int argc, char *argv[])
     /* Initialize syslog facilities */
     reopen_log();
 
-    if (gethostname(name, sizeof(name)) < 0 ) {
+    if (gethostname(hostname, sizeof(hostname)) < 0 ) {
 	option_error("Couldn't get hostname: %m");
 	exit(1);
     }

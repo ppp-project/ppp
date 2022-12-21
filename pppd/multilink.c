@@ -78,6 +78,18 @@ static int owns_unit(TDB_DATA pid, int unit);
 
 #define process_exists(n)	(kill((n), 0) == 0 || errno != ESRCH)
 
+bool
+ppp_multilink_on()
+{
+    return doing_multilink;
+}
+
+bool
+ppp_multilink_master()
+{
+    return multilink_master;
+}
+
 void
 mp_check_options(void)
 {
@@ -139,12 +151,12 @@ mp_join_bundle(void)
 		if (demand) {
 			/* already have a bundle */
 			cfg_bundle(0, 0, 0, 0);
-			netif_set_mtu(0, mtu);
+			ppp_set_mtu(0, mtu);
 			return 0;
 		}
 		make_new_bundle(0, 0, 0, 0);
 		set_ifunit(1);
-		netif_set_mtu(0, mtu);
+		ppp_set_mtu(0, mtu);
 		return 0;
 	}
 
@@ -189,8 +201,8 @@ mp_join_bundle(void)
 	mtu = MIN(ho->mrru, ao->mru);
 	if (demand) {
 		cfg_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
-		netif_set_mtu(0, mtu);
-		script_setenv("BUNDLE", bundle_id + 7, 1);
+		ppp_set_mtu(0, mtu);
+		ppp_script_setenv("BUNDLE", bundle_id + 7, 1);
 		return 0;
 	}
 
@@ -224,7 +236,7 @@ mp_join_bundle(void)
 		/* attach to existing unit */
 		if (bundle_attach(unit)) {
 			set_ifunit(0);
-			script_setenv("BUNDLE", bundle_id + 7, 0);
+			ppp_script_setenv("BUNDLE", bundle_id + 7, 0);
 			make_bundle_links(1);
 			unlock_db();
 			info("Link attached to %s", ifname);
@@ -236,8 +248,8 @@ mp_join_bundle(void)
 	/* we have to make a new bundle */
 	make_new_bundle(go->mrru, ho->mrru, go->neg_ssnhf, ho->neg_ssnhf);
 	set_ifunit(1);
-	netif_set_mtu(0, mtu);
-	script_setenv("BUNDLE", bundle_id + 7, 1);
+	ppp_set_mtu(0, mtu);
+	ppp_script_setenv("BUNDLE", bundle_id + 7, 1);
 	make_bundle_links(0);
 	unlock_db();
 	info("New bundle %s created", ifname);
@@ -273,7 +285,7 @@ void mp_bundle_terminated(void)
 	print_link_stats();
 	if (!demand) {
 		remove_pidfiles();
-		script_unsetenv("IFNAME");
+		ppp_script_unsetenv("IFNAME");
 	}
 
 	lock_db();
@@ -449,7 +461,7 @@ get_default_epdisc(struct epdisc *ep)
 	hp = gethostbyname(hostname);
 	if (hp != NULL) {
 		addr = *(u_int32_t *)hp->h_addr;
-		if (!bad_ip_adrs(addr)) {
+		if (!ppp_bad_ip_addr(addr)) {
 			addr = ntohl(addr);
 			if (!LOCAL_IP_ADDR(addr)) {
 				ep->class = EPD_IP;

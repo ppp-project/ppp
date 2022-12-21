@@ -298,7 +298,7 @@ pid_t ppp_safe_fork(int, int, int);
 /*
  * Get the current hostname
  */
-const char *ppp_get_hostname(char *name, size_t *namesiz);
+const char *ppp_hostname();
 
 /*
  * Check if current session is using multi-link

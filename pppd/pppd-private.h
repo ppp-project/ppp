@@ -129,6 +129,7 @@ struct permitted_ip {
 extern int	hungup;		/* Physical layer has disconnected */
 extern int	ifunit;		/* Interface unit number */
 extern char	ifname[];	/* Interface name (IFNAMSIZ) */
+extern char	hostname[];	/* Our hostname */
 extern unsigned char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	devfd;		/* fd of underlying device */
 extern int	fd_ppp;		/* fd for talking PPP */
@@ -381,6 +382,7 @@ void mp_check_options(void); /* Check multilink-related options */
 int  mp_join_bundle(void);  /* join our link to an appropriate bundle */
 void mp_exit_bundle(void);  /* have disconnected our link from bundle */
 void mp_bundle_terminated(void);
+struct epdisc;
 char *epdisc_to_str(struct epdisc *); /* string from endpoint discrim. */
 int  str_to_epdisc(struct epdisc *, char *); /* endpt disc. from str */
 #else

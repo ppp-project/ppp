@@ -1320,9 +1320,8 @@ auth_check_options(void)
     int lacks_ip;
 
     /* Default our_name to hostname, and user to our_name */
-    if (our_name[0] == 0 || usehostname) {
-        ppp_get_hostname(our_name, NULL);
-    }
+    if (our_name[0] == 0 || usehostname)
+        strlcpy(our_name, hostname, sizeof(our_name));
 
     /* If a blank username was explicitly given as an option, trust
        the user and don't use our_name */

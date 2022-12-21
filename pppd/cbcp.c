@@ -45,6 +45,7 @@
 #include "cbcp.h"
 #include "fsm.h"
 #include "lcp.h"
+#include "options.h"
 
 
 /*
@@ -52,7 +53,7 @@
  */
 static int setcbcp (char **);
 
-static option_t cbcp_option_list[] = {
+static struct option cbcp_option_list[] = {
     { "callback", o_special, (void *)setcbcp,
       "Ask for callback", OPT_PRIO | OPT_A2STRVAL, &cbcp[0].us_number },
     { NULL }
@@ -461,6 +462,6 @@ static void
 cbcp_up(cbcp_state *us)
 {
     persist = 0;
-    status = EXIT_CALLBACK;
+    ppp_set_status(EXIT_CALLBACK);
     lcp_close(0, "Call me back, please");
 }

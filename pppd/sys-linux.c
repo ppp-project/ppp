@@ -3678,7 +3678,7 @@ get_host_seed(void)
     const char *p;
 
     h = 407;
-    for (p = ppp_get_hostname(NULL,NULL); *p != 0; ++p)
+    for (p = hostname; *p != 0; ++p)
 	h = h * 37 + *p;
     return h;
 }
