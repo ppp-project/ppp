@@ -55,7 +55,7 @@
 #include "eap.h"
 #include "chap-new.h"
 #include "magic.h"
-
+#include "multilink.h"
 
 /*
  * When the link comes up we want to be able to wait for a short while,

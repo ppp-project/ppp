@@ -43,6 +43,7 @@
 #include <pppd/lcp.h>
 #include <pppd/ccp.h>
 #include <pppd/ipcp.h>
+#include <pppd/multilink.h>
 
 
 #ifndef aligned_u64
@@ -74,7 +75,9 @@ static void (*old_pppol2tp_send_accm_hook)(int tunnel_id, int session_id,
 					   uint32_t recv_accm) = NULL;
 static void (*old_pppol2tp_ip_updown_hook)(int tunnel_id, int session_id,
 					   int up) = NULL;
-static void (*old_multilink_join_hook)(void) = NULL;
+#ifdef PPP_WITH_MULTILINK
+static multilink_join_hook_fn *old_multilink_join_hook = NULL;
+#endif
 
 /*****************************************************************************
  * OpenL2TP interface.
@@ -278,11 +281,13 @@ out:
 
 static void openl2tp_multilink_join_ind(void)
 {
-	if (ppp_multilink_on() && !ppp_multilink_master()) {
+#ifdef PPP_WITH_MULTILINK
+	if (mp_on() && !mp_master()) {
 		/* send event only if not master */
 		openl2tp_ppp_updown_ind(pppol2tp_tunnel_id,
 					pppol2tp_session_id, 1);
 	}
+#endif
 }
 
 /*****************************************************************************
@@ -297,7 +302,9 @@ void plugin_init(void)
 	old_pppol2tp_ip_updown_hook = pppol2tp_ip_updown_hook;
 	pppol2tp_ip_updown_hook = openl2tp_ppp_updown_ind;
 
+#ifdef PPP_WITH_MULTILINK
 	old_multilink_join_hook = multilink_join_hook;
 	multilink_join_hook = openl2tp_multilink_join_ind;
+#endif
 }
 

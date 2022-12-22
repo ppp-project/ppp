@@ -45,6 +45,7 @@
 #include "fsm.h"
 #include "lcp.h"
 #include "tdb.h"
+#include "multilink.h"
 
 bool endpoint_specified;	/* user gave explicit endpoint discriminator */
 char *bundle_id;		/* identifier for our bundle */
@@ -78,16 +79,16 @@ static int owns_unit(TDB_DATA pid, int unit);
 
 #define process_exists(n)	(kill((n), 0) == 0 || errno != ESRCH)
 
-bool
-ppp_multilink_on()
-{
-    return doing_multilink;
-}
+multilink_join_hook_fn *multilink_join_hook = NULL;
 
-bool
-ppp_multilink_master()
+bool mp_master()
 {
     return multilink_master;
+}
+
+bool mp_on()
+{
+    return doing_multilink;
 }
 
 void

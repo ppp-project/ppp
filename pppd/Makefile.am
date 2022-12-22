@@ -44,6 +44,7 @@ pppd_include_HEADERS = \
     lcp.h \
     magic.h \
     mppe.h \
+    multilink.h \
     pppd.h \
     options.h \
     pppdconf.h \

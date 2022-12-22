@@ -113,14 +113,11 @@ struct permitted_ip {
     u_int32_t	mask;		/* base and mask are in network byte order */
 };
 
-
-/* values for epdisc.class */
-#define EPD_NULL	0	/* null discriminator, no data */
-#define EPD_LOCAL	1
-#define EPD_IP		2
-#define EPD_MAC		3
-#define EPD_MAGIC	4
-#define EPD_PHONENUM	5
+struct notifier {
+    struct notifier *next;
+    ppp_notify_fn *func;
+    void *arg;
+};
 
 /*
  * Global variables.
@@ -186,7 +183,7 @@ extern bool	nodetach;	/* Don't detach from controlling tty */
 extern bool	up_sdnotify;	/* Notify systemd once link is up (implies nodetach) */
 #endif
 extern bool	updetach;	/* Detach from controlling tty when link up */
-extern bool	master_detach;	/* Detach when multilink master without link */
+extern bool	master_detach;	/* Detach when multilink master without link (options.c) */
 extern char	*initializer;	/* Script to initialize physical link */
 extern char	*connect_script; /* Script to establish physical link */
 extern char	*disconnect_script; /* Script to disestablish physical link */
@@ -218,7 +215,7 @@ extern int	req_unit;	/* interface unit number to use */
 extern char	path_ipup[]; 	/* pathname of ip-up script */
 extern char	path_ipdown[];	/* pathname of ip-down script */
 extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
-extern bool	multilink;	/* enable multilink operation */
+extern bool	multilink;	/* enable multilink operation (options.c) */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */
 extern bool	dump_options;	/* print out option values */
@@ -375,22 +372,6 @@ void demand_discard(void); /* set all NPs to discard packets */
 void demand_rexmit(int);	/* retransmit saved frames for an NP */
 int  loop_chars(unsigned char *, int); /* process chars from loopback */
 int  loop_frame(unsigned char *, int); /* should we bring link up? */
-
-/* Procedures exported from multilink.c */
-#ifdef PPP_WITH_MULTILINK
-void mp_check_options(void); /* Check multilink-related options */
-int  mp_join_bundle(void);  /* join our link to an appropriate bundle */
-void mp_exit_bundle(void);  /* have disconnected our link from bundle */
-void mp_bundle_terminated(void);
-struct epdisc;
-char *epdisc_to_str(struct epdisc *); /* string from endpoint discrim. */
-int  str_to_epdisc(struct epdisc *, char *); /* endpt disc. from str */
-#else
-#define mp_bundle_terminated()	/* nothing */
-#define mp_exit_bundle()	/* nothing */
-#define ppp_multilink_on()     0
-#define ppp_multilink_master() 0
-#endif
 
 /* Procedures exported from sys-*.c */
 void sys_init(void);	/* Do system-dependent initialization */

@@ -111,6 +111,7 @@
 #include "ecp.h"
 #include "pathnames.h"
 #include "ppp-crypto.h"
+#include "multilink.h"
 
 #ifdef PPP_WITH_TDB
 #include "tdb.h"
@@ -123,7 +124,6 @@
 #ifdef AT_CHANGE
 #include "atcp.h"
 #endif
-
 
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
@@ -314,7 +314,6 @@ int ppp_ifunit()
 {
     return ifunit;
 }
-
 
 /*
  * PPP Data Link Layer "protocol" table.
@@ -592,8 +591,10 @@ main(int argc, char *argv[])
 		lcp_close(0, "User request");
 	    if (asked_to_quit) {
 		bundle_terminating = 1;
+#ifdef PPP_WITH_MULTILINK
 		if (phase == PHASE_MASTER)
 		    mp_bundle_terminated();
+#endif
 	    }
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK || phase == PHASE_RUNNING) {
@@ -1098,11 +1099,13 @@ get_input(void)
 	return;
 
     if (len == 0) {
-	if (bundle_eof && ppp_multilink_master()) {
+#ifdef PPP_WITH_MULTILINK
+	if (bundle_eof && mp_master()) {
 	    notice("Last channel has disconnected");
 	    mp_bundle_terminated();
 	    return;
 	}
+#endif
 	notice("Modem hangup");
 	hungup = 1;
 	code = EXIT_HANGUP;
@@ -1223,8 +1226,11 @@ new_phase(int p)
 void
 die(int status)
 {
-    if (!ppp_multilink_on() || ppp_multilink_master())
+
+#if PPP_WITH_MULTILINK
+    if (!mp_on() || mp_master())
 	print_link_stats();
+#endif
     cleanup();
     notify(exitnotify, status);
     syslog(LOG_INFO, "Exit.");

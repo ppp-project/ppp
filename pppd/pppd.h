@@ -301,16 +301,6 @@ pid_t ppp_safe_fork(int, int, int);
 const char *ppp_hostname();
 
 /*
- * Check if current session is using multi-link
- */
-bool ppp_multilink_on();
-
-/*
- * Check if we are multi-link master
- */
-bool ppp_multilink_master();
-
-/*
  * Is pppd using pty as a device (opposed to notty or pty opt).
  */
 bool ppp_using_pty();
@@ -501,7 +491,6 @@ extern void (*ip_choose_hook)(uint32_t *);
 extern void (*ipv6_up_hook)(void);
 extern void (*ipv6_down_hook)(void);
 
-extern void (*multilink_join_hook)(void);
 extern void (*snoop_recv_hook)(unsigned char *p, int len);
 extern void (*snoop_send_hook)(unsigned char *p, int len);
 

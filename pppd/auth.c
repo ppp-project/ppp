@@ -129,6 +129,7 @@
 #ifdef PPP_WITH_CBCP
 #include "cbcp.h"
 #endif
+#include "multilink.h"
 #include "pathnames.h"
 #include "session.h"
 
@@ -208,11 +209,6 @@ int (*null_auth_hook)(struct wordlist **paddrs,
 		      struct wordlist **popts) = NULL;
 
 int (*allowed_address_hook)(u_int32_t addr) = NULL;
-
-#ifdef PPP_WITH_MULTILINK
-/* Hook for plugin to hear when an interface joins a multilink bundle */
-void (*multilink_join_hook)(void) = NULL;
-#endif
 
 /* A notifier for when the peer has authenticated itself,
    and we are proceeding to the network phase. */
@@ -713,10 +709,12 @@ link_terminated(int unit)
     }
     session_end(devnam);
 
-    if (!ppp_multilink_on()) {
+#ifdef PPP_WITH_MULTILINK
+    if (!mp_on()) {
 	notice("Connection terminated.");
 	print_link_stats();
     } else
+#endif
 	notice("Link terminated.");
 
     /*
@@ -724,9 +722,12 @@ link_terminated(int unit)
      * can happen that another pppd gets the same unit and then
      * we delete its pid file.
      */
-    if (!ppp_multilink_on() && !demand)
+#ifdef PPP_WITH_MULTILINK
+    if (!demand && !mp_on())
+#else
+    if (!demand)
+#endif
 	remove_pidfiles();
-
     /*
      * If we may want to bring the link up again, transfer
      * the ppp unit back to the loopback.  Set the
@@ -736,13 +737,19 @@ link_terminated(int unit)
 	remove_fd(fd_ppp);
 	clean_check();
 	the_channel->disestablish_ppp(devfd);
-	if (ppp_multilink_on())
+#ifdef PPP_WITH_MULTILINK
+	if (mp_on())
 	    mp_exit_bundle();
+#endif
 	fd_ppp = -1;
     }
     if (!hungup)
 	lcp_lowerdown(0);
-    if (!ppp_multilink_on() && !demand)
+#ifdef PPP_WITH_MULTILINK
+    if (!mp_on() && !demand)
+#else
+    if (!demand)
+#endif
 	ppp_script_unsetenv("IFNAME");
 
     /*
@@ -756,7 +763,8 @@ link_terminated(int unit)
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
-    if (ppp_multilink_on() && ppp_multilink_master()) {
+#ifdef PPP_WITH_MULTILINK
+    if (mp_on() && mp_master()) {
 	if (!bundle_terminating) {
 	    new_phase(PHASE_MASTER);
 	    if (master_detach && !detached)
@@ -764,6 +772,7 @@ link_terminated(int unit)
 	} else
 	    mp_bundle_terminated();
     } else
+#endif
 	new_phase(PHASE_DEAD);
 }
 
@@ -782,13 +791,15 @@ link_down(int unit)
 	    auth_script(PPP_PATH_AUTHDOWN);
 	}
     }
-    if (!ppp_multilink_on()) {
+#ifdef PPP_WITH_MULTILINK
+    if (!mp_on()) {
 	upper_layers_down(unit);
 	if (phase != PHASE_DEAD && phase != PHASE_MASTER)
 	    new_phase(PHASE_ESTABLISH);
     }
     /* XXX if doing_multilink, should do something to stop
        network-layer traffic on the link */
+#endif
 }
 
 void upper_layers_down(int unit)
@@ -828,13 +839,14 @@ link_established(int unit)
     /*
      * Tell higher-level protocols that LCP is up.
      */
-    if (!ppp_multilink_on()) {
+#ifdef PPP_WITH_MULTILINK
+    if (!mp_on()) {
 	for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	    if (protp->protocol != PPP_LCP && protp->enabled_flag
 		&& protp->lowerup != NULL)
 		(*protp->lowerup)(unit);
     }
-
+#endif
     if (!auth_required && noauth_addrs != NULL)
 	set_allowed_addrs(unit, NULL, NULL);
 
