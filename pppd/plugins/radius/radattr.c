@@ -51,11 +51,11 @@ plugin_init(void)
     /* calling cleanup() on link down is problematic because print_attributes()
        is called only after PAP or CHAP authentication, but not when the link
        should go up again for any other reason */
-    add_notifier(&link_down_notifier, cleanup, NULL);
+    ppp_add_notify(NF_LINK_DOWN, cleanup, NULL);
 #endif
 
     /* Just in case... */
-    add_notifier(&exitnotify, cleanup, NULL);
+    ppp_add_notify(NF_EXIT, cleanup, NULL);
     info("RADATTR plugin initialized.");
 }
 

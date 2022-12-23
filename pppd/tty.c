@@ -410,7 +410,7 @@ printescape(struct option *opt, void (*printer)(void *, char *, ...), void *arg)
  */
 void tty_init(void)
 {
-    add_notifier(&pidchange, maybe_relock, 0);
+    ppp_add_notify(NF_PID_CHANGE, maybe_relock, 0);
     the_channel = &tty_channel;
     xmit_accm[3] = 0x60000000;
 }

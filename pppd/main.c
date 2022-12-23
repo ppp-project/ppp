@@ -2003,21 +2003,44 @@ reap_kids(void)
     return 0;
 }
 
+
+struct notifier **get_notifier_by_type(ppp_notify_t type)
+{
+    struct notifier **list[NF_MAX_NOTIFY] = {
+        [NF_PID_CHANGE  ] = &pidchange,
+        [NF_PHASE_CHANGE] = &phasechange,
+        [NF_EXIT        ] = &exitnotify,
+        [NF_SIGNALED    ] = &sigreceived,
+        [NF_IP_UP       ] = &ip_up_notifier,
+        [NF_IP_DOWN     ] = &ip_down_notifier,
+        [NF_IPV6_UP     ] = &ipv6_up_notifier,
+        [NF_IPV6_DOWN   ] = &ipv6_down_notifier,
+        [NF_AUTH_UP     ] = &auth_up_notifier,
+        [NF_LINK_DOWN   ] = &link_down_notifier,
+        [NF_FORK        ] = &fork_notifier,
+    };
+    return list[type];
+}
+
 /*
  * add_notifier - add a new function to be called when something happens.
  */
 void
-add_notifier(struct notifier **notif, notify_func func, void *arg)
+ppp_add_notify(ppp_notify_t type, ppp_notify_fn *func, void *arg)
 {
-    struct notifier *np;
+    struct notifier **notif = get_notifier_by_type(type);
+    if (notif) {
 
-    np = malloc(sizeof(struct notifier));
-    if (np == 0)
-	novm("notifier struct");
-    np->next = *notif;
-    np->func = func;
-    np->arg = arg;
-    *notif = np;
+	struct notifier *np = malloc(sizeof(struct notifier));
+	if (np == 0)
+	    novm("notifier struct");
+	np->next = *notif;
+	np->func = func;
+	np->arg = arg;
+	*notif = np;
+    } else {
+	error("Could not find notifier function for: %d", type);
+    }
 }
 
 /*
@@ -2025,16 +2048,21 @@ add_notifier(struct notifier **notif, notify_func func, void *arg)
  * be called when something happens.
  */
 void
-remove_notifier(struct notifier **notif, notify_func func, void *arg)
+ppp_del_notify(ppp_notify_t type, ppp_notify_fn *func, void *arg)
 {
-    struct notifier *np;
+    struct notifier **notif = get_notifier_by_type(type);
+    if (notif) {
+	struct notifier *np;
 
-    for (; (np = *notif) != 0; notif = &np->next) {
-	if (np->func == func && np->arg == arg) {
-	    *notif = np->next;
-	    free(np);
-	    break;
+	for (; (np = *notif) != 0; notif = &np->next) {
+	    if (np->func == func && np->arg == arg) {
+		*notif = np->next;
+		free(np);
+		break;
+	    }
 	}
+    } else {
+	error("Could not find notifier function for: %d", type);
     }
 }
 

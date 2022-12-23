@@ -511,11 +511,11 @@ void plugin_init(void)
 	/* Hook up ip up/down notifiers to send indicator to openl2tpd
 	 * that the link is up
 	 */
-	add_notifier(&ip_up_notifier, pppol2tp_ip_up, NULL);
-	add_notifier(&ip_down_notifier, pppol2tp_ip_down, NULL);
-#ifdef INET6
-	add_notifier(&ipv6_up_notifier, pppol2tp_ip_up, NULL);
-	add_notifier(&ipv6_down_notifier, pppol2tp_ip_down, NULL);
+	ppp_add_notify(NF_IP_UP, pppol2tp_ip_up, NULL);
+	ppp_add_notify(NF_IP_DOWN, pppol2tp_ip_down, NULL);
+#ifdef PPP_WITH_IPV6CP
+	ppp_add_notify(NF_IPV6_UP, pppol2tp_ip_up, NULL);
+	ppp_add_notify(NF_IPV6_DOWN, pppol2tp_ip_down, NULL);
 #endif
 }
 

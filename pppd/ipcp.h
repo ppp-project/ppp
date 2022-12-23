@@ -100,4 +100,22 @@ char *ip_ntoa(u_int32_t);
 
 extern struct protent ipcp_protent;
 
+/*
+ * Hook for a plugin to know when IP protocol has come up
+ */
+typedef void (ip_up_hook_fn)(void);
+extern ip_up_hook_fn *ip_up_hook;
+
+/*
+ * Hook for a plugin to know when IP protocol has come down
+ */
+typedef void (ip_down_hook_fn)(void);
+extern ip_down_hook_fn *ip_down_hook;
+
+/*
+ * Hook for a plugin to choose the remote IP address
+ */
+typedef void (ip_choose_hook_fn)(uint32_t *);
+extern ip_choose_hook_fn *ip_choose_hook;
+
 #endif /* PPP_IPCP_H */

@@ -184,11 +184,8 @@ static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
 static bool ipv6cp_noremote;
 
-/* Hook for a plugin to know when IPv6 protocol has come up */
-void (*ipv6_up_hook)(void) = NULL;
-
-/* Hook for a plugin to know when IPv6 protocol has come down */
-void (*ipv6_down_hook)(void) = NULL;
+ipv6_up_hook_fn *ipv6_up_hook = NULL;
+ipv6_down_hook_fn *ipv6_down_hook = NULL;
 
 /* Notifiers for when IPCPv6 goes up and down */
 struct notifier *ipv6_up_notifier = NULL;

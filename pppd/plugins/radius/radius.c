@@ -156,8 +156,8 @@ plugin_init(void)
     ip_choose_hook = radius_choose_ip;
     allowed_address_hook = radius_allowed_address;
 
-    add_notifier(&ip_up_notifier, radius_ip_up, NULL);
-    add_notifier(&ip_down_notifier, radius_ip_down, NULL);
+    ppp_add_notify(NF_IP_UP, radius_ip_up, NULL);
+    ppp_add_notify(NF_IP_DOWN, radius_ip_down, NULL);
 
     memset(&rstate, 0, sizeof(rstate));
 

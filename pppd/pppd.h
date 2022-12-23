@@ -446,51 +446,49 @@ extern char	devnam[];	/* Device name */
 /* 
  * Register notification callback on certain events
  */
+typedef enum
+{
+    NF_PID_CHANGE,
+    NF_PHASE_CHANGE,
+    NF_EXIT,
+    NF_SIGNALED,
+    NF_IP_UP,
+    NF_IP_DOWN,
+    NF_IPV6_UP,
+    NF_IPV6_DOWN,
+    NF_AUTH_UP,
+    NF_LINK_DOWN,
+    NF_FORK,
+    NF_MAX_NOTIFY
+} ppp_notify_t;
 
-typedef void (*notify_func)(void *, int);
+/*
+ * Definition for the notify callback function
+ *   ctx - contextual argument provided with the registration
+ *   arg - anything passed by the notification, e.g. phase, pid, etc
+ */
+typedef void (ppp_notify_fn)(void *ctx, int arg);
 
-struct notifier {
-    struct notifier *next;
-    notify_func	    func;
-    void	    *arg;
-};
+/*
+ * Add a callback notification for when a given event has occured
+ */
+void ppp_add_notify(ppp_notify_t type, ppp_notify_fn *func, void *ctx);
 
-extern struct notifier *pidchange;   /* for notifications of pid changing */
-extern struct notifier *phasechange; /* for notifications of phase changes */
-extern struct notifier *exitnotify;  /* for notification that we're exiting */
-extern struct notifier *sigreceived; /* notification of received signal */
-extern struct notifier *ip_up_notifier;     /* IPCP has come up */
-extern struct notifier *ip_down_notifier;   /* IPCP has gone down */
-extern struct notifier *ipv6_up_notifier;   /* IPV6CP has come up */
-extern struct notifier *ipv6_down_notifier; /* IPV6CP has gone down */
-extern struct notifier *auth_up_notifier; /* peer has authenticated */
-extern struct notifier *link_down_notifier; /* link has gone down */
-extern struct notifier *fork_notifier;	/* we are a new child process */
-
-/* Add a callback notifier */
-void add_notifier(struct notifier **, notify_func, void *);
-
-/* Remove the callback notifier */
-void remove_notifier(struct notifier **, notify_func, void *);
+/*
+ * Remove a callback notification previously registered
+ */
+void ppp_del_notify(ppp_notify_t type, ppp_notify_fn *func, void *ctx);
 
 
 /*
  * Hooks to enable plugins to hook into various parts of the code
  */
 
-/* Declared in <linux/ppp_defs.h> */
-struct ppp_idle;
-
-extern int (*new_phase_hook)(int);
+struct ppp_idle; /* Declared in <linux/ppp_defs.h> */
 extern int (*idle_time_hook)(struct ppp_idle *);
+extern int (*new_phase_hook)(int);
 extern int (*holdoff_hook)(void);
 extern int  (*allowed_address_hook)(uint32_t addr);
-extern void (*ip_up_hook)(void);
-extern void (*ip_down_hook)(void);
-extern void (*ip_choose_hook)(uint32_t *);
-extern void (*ipv6_up_hook)(void);
-extern void (*ipv6_down_hook)(void);
-
 extern void (*snoop_recv_hook)(unsigned char *p, int len);
 extern void (*snoop_send_hook)(unsigned char *p, int len);
 

@@ -157,6 +157,18 @@ extern int	listen_time;	/* time to listen first (ms) */
 extern bool	bundle_eof;
 extern bool	bundle_terminating;
 
+extern struct notifier *pidchange;   /* for notifications of pid changing */
+extern struct notifier *phasechange; /* for notifications of phase changes */
+extern struct notifier *exitnotify;  /* for notification that we're exiting */
+extern struct notifier *sigreceived; /* notification of received signal */
+extern struct notifier *ip_up_notifier;     /* IPCP has come up */
+extern struct notifier *ip_down_notifier;   /* IPCP has gone down */
+extern struct notifier *ipv6_up_notifier;   /* IPV6CP has come up */
+extern struct notifier *ipv6_down_notifier; /* IPV6CP has gone down */
+extern struct notifier *auth_up_notifier; /* peer has authenticated */
+extern struct notifier *link_down_notifier; /* link has gone down */
+extern struct notifier *fork_notifier;	/* we are a new child process */
+
 
 /* Values for do_callback and doing_callback */
 #define CALLBACK_DIALIN		1	/* we are expecting the call back */

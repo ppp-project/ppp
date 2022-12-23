@@ -74,14 +74,10 @@ u_int32_t netmask = 0;		/* IP netmask to set on interface */
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 bool	noremoteip = 0;		/* Let him have no IP address */
 
-/* Hook for a plugin to know when IP protocol has come up */
-void (*ip_up_hook)(void) = NULL;
+ip_up_hook_fn *ip_up_hook = NULL;
+ip_down_hook_fn *ip_down_hook = NULL;
+ip_choose_hook_fn *ip_choose_hook = NULL;
 
-/* Hook for a plugin to know when IP protocol has come down */
-void (*ip_down_hook)(void) = NULL;
-
-/* Hook for a plugin to choose the remote IP address */
-void (*ip_choose_hook)(u_int32_t *) = NULL;
 
 /* Notifiers for when IPCP goes up and down */
 struct notifier *ip_up_notifier = NULL;
