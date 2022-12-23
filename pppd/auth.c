@@ -121,7 +121,7 @@
 #include "ecp.h"
 #include "ipcp.h"
 #include "upap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "eap.h"
 #ifdef PPP_WITH_EAPTLS
 #include "eap-tls.h"

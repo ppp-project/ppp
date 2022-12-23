@@ -52,7 +52,7 @@
 
 #include <pppd/pppd.h>
 #include <pppd/options.h>
-#include <pppd/chap-new.h>
+#include <pppd/chap.h>
 #include <pppd/chap_ms.h>
 #include <pppd/upap.h>
 #include <pppd/fsm.h>

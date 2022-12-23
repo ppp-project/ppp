@@ -78,7 +78,7 @@ void ChapMS (u_char *, char *, int, u_char *);
 void ChapMS2 (u_char *, u_char *, char *, char *, int,
 	      u_char *, u_char[MS_AUTH_RESPONSE_LENGTH+1], int);
 
-void	ChallengeHash (u_char[16], u_char *, char *, u_char[8]);
+void ChallengeHash (u_char[16], u_char *, char *, u_char[8]);
 
 
 /**

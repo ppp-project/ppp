@@ -105,7 +105,7 @@
 #include "ipv6cp.h"
 #endif
 #include "upap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "eap.h"
 #include "ccp.h"
 #include "ecp.h"

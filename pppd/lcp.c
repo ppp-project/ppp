@@ -53,7 +53,7 @@
 #include "fsm.h"
 #include "lcp.h"
 #include "eap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "magic.h"
 #include "multilink.h"
 

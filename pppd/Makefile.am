@@ -32,9 +32,8 @@ pppd_includedir = $(includedir)/pppd
 pppd_include_HEADERS = \
     cbcp.h \
     ccp.h \
-    chap-md5.h \
+    chap.h \
     chap_ms.h \
-    chap-new.h \
     crypto.h \
     crypto_ms.h \
     eap.h \
@@ -55,6 +54,7 @@ pppd_include_HEADERS = \
 
 # Headers to be distributed, but not installed in /usr/include/pppd
 noinst_HEADERS = \
+    chap-md5.h \
     crypto-priv.h \
     eap-tls.h \
     pathnames.h \
@@ -68,7 +68,7 @@ pppd_SOURCES = \
     auth.c \
     ccp.c \
     chap-md5.c \
-    chap-new.c \
+    chap.c \
     demand.c \
     eap.c \
     ecp.c \

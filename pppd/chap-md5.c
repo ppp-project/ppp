@@ -37,7 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pppd-private.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap-md5.h"
 #include "magic.h"
 #include "crypto.h"

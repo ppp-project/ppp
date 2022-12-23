@@ -95,7 +95,7 @@
 
 #include "pppd-private.h"
 #include "options.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap_ms.h"
 #include "magic.h"
 #include "mppe.h"

@@ -64,7 +64,7 @@
 #include "pppd-private.h"
 #include "eap.h"
 #include "tls.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap_ms.h"
 #include "mppe.h"
 #include "peap.h"

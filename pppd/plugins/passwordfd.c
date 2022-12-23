@@ -18,7 +18,7 @@
 
 #include <pppd/pppd.h>
 #include <pppd/upap.h>
-#include <pppd/chap-new.h>
+#include <pppd/chap.h>
 #include <pppd/eap.h>
 #include <pppd/options.h>
 

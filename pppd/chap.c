@@ -39,7 +39,7 @@
 #include "pppd-private.h"
 #include "options.h"
 #include "session.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap-md5.h"
 
 #ifdef PPP_WITH_CHAPMS

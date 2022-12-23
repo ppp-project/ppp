@@ -87,8 +87,8 @@
 #endif /* PPP_WITH_EAPTLS */
 
 #ifdef PPP_WITH_CHAPMS
+#include "chap.h"
 #include "chap_ms.h"
-#include "chap-new.h"
 
 extern int chapms_strip_domain;
 #endif /* PPP_WITH_CHAPMS */
