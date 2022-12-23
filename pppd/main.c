@@ -577,7 +577,7 @@ main(int argc, char *argv[])
 	    info("Starting link");
 	}
 
-	get_time(&start_time);
+	ppp_get_time(&start_time);
 	ppp_script_unsetenv("CONNECT_TIME");
 	ppp_script_unsetenv("BYTES_SENT");
 	ppp_script_unsetenv("BYTES_RCVD");
@@ -1282,7 +1282,7 @@ reset_link_stats(int u)
 {
     if (!get_ppp_stats(u, &old_link_stats))
 	return;
-    get_time(&start_time);
+    ppp_get_time(&start_time);
 }
 
 /*
@@ -1295,7 +1295,7 @@ update_link_stats(int u)
     char numbuf[32];
 
     if (!get_ppp_stats(u, &link_stats)
-	|| get_time(&now) < 0)
+	|| ppp_get_time(&now) < 0)
 	return;
     link_connect_time = now.tv_sec - start_time.tv_sec;
     link_stats_valid = 1;
@@ -1328,7 +1328,7 @@ static struct timeval timenow;		/* Current time */
  * timeout - Schedule a timeout.
  */
 void
-timeout(void (*func)(void *), void *arg, int secs, int usecs)
+ppp_timeout(void (*func)(void *), void *arg, int secs, int usecs)
 {
     struct callout *newp, *p, **pp;
 
@@ -1339,7 +1339,7 @@ timeout(void (*func)(void *), void *arg, int secs, int usecs)
 	fatal("Out of memory in timeout()!");
     newp->c_arg = arg;
     newp->c_func = func;
-    get_time(&timenow);
+    ppp_get_time(&timenow);
     newp->c_time.tv_sec = timenow.tv_sec + secs;
     newp->c_time.tv_usec = timenow.tv_usec + usecs;
     if (newp->c_time.tv_usec >= 1000000) {
@@ -1364,7 +1364,7 @@ timeout(void (*func)(void *), void *arg, int secs, int usecs)
  * untimeout - Unschedule a timeout.
  */
 void
-untimeout(void (*func)(void *), void *arg)
+ppp_untimeout(void (*func)(void *), void *arg)
 {
     struct callout **copp, *freep;
 
@@ -1391,7 +1391,7 @@ calltimeout(void)
     while (callout != NULL) {
 	p = callout;
 
-	if (get_time(&timenow) < 0)
+	if (ppp_get_time(&timenow) < 0)
 	    fatal("Failed to get time of day: %m");
 	if (!(p->c_time.tv_sec < timenow.tv_sec
 	      || (p->c_time.tv_sec == timenow.tv_sec
@@ -1415,7 +1415,7 @@ timeleft(struct timeval *tvp)
     if (callout == NULL)
 	return NULL;
 
-    get_time(&timenow);
+    ppp_get_time(&timenow);
     tvp->tv_sec = callout->c_time.tv_sec - timenow.tv_sec;
     tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_usec;
     if (tvp->tv_usec < 0) {

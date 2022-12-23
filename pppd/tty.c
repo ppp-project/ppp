@@ -1070,7 +1070,7 @@ charshunt(int ifd, int ofd, char *record_file)
     pty_readable = stdin_readable = 1;
 
     ilevel = olevel = 0;
-    get_time(&levelt);
+    ppp_get_time(&levelt);
     if (max_data_rate) {
 	max_level = max_data_rate / 10;
 	if (max_level < 100)
@@ -1119,7 +1119,7 @@ charshunt(int ifd, int ofd, char *record_file)
 	    int nbt;
 	    struct timeval now;
 
-	    get_time(&now);
+	    ppp_get_time(&now);
 	    dt = (now.tv_sec - levelt.tv_sec
 		  + (now.tv_usec - levelt.tv_usec) / 1e6);
 	    nbt = (int)(dt * max_data_rate);

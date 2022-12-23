@@ -511,6 +511,9 @@ int parse_dotted_ip(char *, u_int32_t *);
  * System dependent definitions for user-level 4.3BSD UNIX implementation.
  */
 
+#define TIMEOUT(r, f, t)	ppp_timeout((r), (f), (t), 0)
+#define UNTIMEOUT(r, f)		ppp_untimeout((r), (f))
+
 #define BCOPY(s, d, l)		memcpy(d, s, l)
 #define BZERO(s, n)		memset(s, 0, n)
 #define	BCMP(s1, s2, l)		memcmp(s1, s2, l)

@@ -3719,7 +3719,7 @@ sys_check_options(void)
  * get_time - Get current time, monotonic if possible.
  */
 int
-get_time(struct timeval *tv)
+ppp_get_time(struct timeval *tv)
 {
 /* Old glibc (< 2.3.4) does define CLOCK_MONOTONIC, but kernel may have it.
  * Runtime checking makes it safe. */

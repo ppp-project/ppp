@@ -394,7 +394,7 @@ lcp_close(int unit, char *reason)
 	new_phase(PHASE_TERMINATE);
 
     if (f->flags & DELAYED_UP) {
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
 	f->state = STOPPED;
     }
     oldstate = f->state;
@@ -436,7 +436,7 @@ lcp_lowerup(int unit)
 
     if (listen_time != 0) {
 	f->flags |= DELAYED_UP;
-	timeout(lcp_delayed_up, f, 0, listen_time * 1000);
+	ppp_timeout(lcp_delayed_up, f, 0, listen_time * 1000);
     } else
 	fsm_lowerup(f);
 }
@@ -452,7 +452,7 @@ lcp_lowerdown(int unit)
 
     if (f->flags & DELAYED_UP) {
 	f->flags &= ~DELAYED_UP;
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
     } else
 	fsm_lowerdown(&lcp_fsm[unit]);
 }
@@ -483,7 +483,7 @@ lcp_input(int unit, u_char *p, int len)
 
     if (f->flags & DELAYED_UP) {
 	f->flags &= ~DELAYED_UP;
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
 	fsm_lowerup(f);
     }
     fsm_input(f, p, len);

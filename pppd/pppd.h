@@ -262,7 +262,6 @@ void end_pr_log(void);
 extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
 extern char	devnam[];	/* Device name */
 
-
 /*
  * Configure the session's maximum number of octets
  */
@@ -293,16 +292,21 @@ void update_link_stats(int); /* Get stats at link termination */
 
 extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
 
+/*
+ * Get pppd's notion of time
+ */
+int ppp_get_time(struct timeval *);
 
-int get_time(struct timeval *);
-void timeout(void (*func)(void *), void *arg, int s, int us);
-				/* Call func(arg) after s.us seconds */
-void untimeout(void (*func)(void *), void *arg);
-				/* Cancel call to func(arg) */
+/*
+ * Schedule a callback in s.us seconds from now
+ */
+typedef void (*ppp_timer_cb)(void *arg);
+void ppp_timeout(ppp_timer_cb func, void *arg, int s, int us);
 
-#define TIMEOUT(r, f, t)	timeout((r), (f), (t), 0)
-#define UNTIMEOUT(r, f)		untimeout((r), (f))
-
+/*
+ * Cancel any pending timer callbacks
+ */
+void ppp_untimeout(void (*func)(void *), void *arg);
 
 /*
  * Clean up in a child before execing

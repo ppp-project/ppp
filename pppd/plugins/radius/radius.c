@@ -1059,7 +1059,7 @@ radius_acct_start(void)
 
     /* Kick off periodic accounting reports */
     if (rstate.acct_interim_interval) {
-	TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
+	ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
     }
 }
 
@@ -1087,7 +1087,7 @@ radius_acct_stop(void)
     }
 
     if (rstate.acct_interim_interval)
-	UNTIMEOUT(radius_acct_interim, NULL);
+	ppp_untimeout(radius_acct_interim, NULL);
 
     rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
 		   0, VENDOR_NONE);
@@ -1335,7 +1335,7 @@ radius_acct_interim(void *ignored)
     rc_avpair_free(send);
 
     /* Schedule another one */
-    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
+    ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
 }
 
 /**********************************************************************

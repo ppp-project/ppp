@@ -327,7 +327,7 @@ int rc_acct_using_server(SERVER *acctserver,
 	if ((adt_vp = rc_avpair_add(&(data.send_pairs), PW_ACCT_DELAY_TIME, &dtime.tv_sec, 0, VENDOR_NONE)) == NULL)
 		return (ERROR_RC);
 
-	get_time(&start_time);
+	ppp_get_time(&start_time);
 	result = ERROR_RC;
 	for(i=0; (i<acctserver->max) && (result != OK_RC) && (result != BADRESP_RC)
 		; i++)
@@ -339,7 +339,7 @@ int rc_acct_using_server(SERVER *acctserver,
 		rc_buildreq(&data, PW_ACCOUNTING_REQUEST, acctserver->name[i],
 			    acctserver->port[i], timeout, retries);
 
-		get_time(&dtime);
+		ppp_get_time(&dtime);
 		dtime.tv_sec -= start_time.tv_sec;
 		rc_avpair_assign(adt_vp, &dtime.tv_sec, 0);
 

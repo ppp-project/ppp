@@ -46,8 +46,11 @@ static char const RCSID[] =
 
 #ifdef PLUGIN
 #define signaled(x) ppp_signaled(x)
+#define get_time(x) ppp_get_time(x)
 #else
 int signaled(int signal);
+int get_time(struct timeval *tv);
+
 #endif
 
 /* Calculate time remaining until *exp, return 0 if now >= *exp */
