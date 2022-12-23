@@ -141,7 +141,7 @@ char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 #endif
 
 unsigned int  maxoctets = 0;    /* default - no limit */
-int maxoctets_dir = 0;       /* default - sum of traffic */
+session_limit_dir_t maxoctets_dir = PPP_OCTETS_DIRECTION_SUM; /* default - sum of traffic */
 int maxoctets_timeout = 1;   /* default 1 second */ 
 
 
@@ -396,17 +396,34 @@ struct option general_options[] = {
 #define IMPLEMENTATION ""
 #endif
 
-int ppp_get_max_idle_time()
+int
+ppp_get_max_idle_time()
 {
     return idle_time_limit;
 }
 
-int ppp_get_max_connect_time()
+int
+ppp_get_max_connect_time()
 {
     return maxconnect;
 }
 
-bool debug_on()
+void
+ppp_set_session_limit(unsigned int octets)
+{
+    maxoctets = octets;
+}
+
+void
+ppp_set_session_limit_dir(unsigned int dir)
+{
+    if (dir > 4)
+        dir = PPP_OCTETS_DIRECTION_SUM;
+    maxoctets_dir = (session_limit_dir_t) dir;
+}
+
+bool
+debug_on()
 {
     return !!debug;
 }

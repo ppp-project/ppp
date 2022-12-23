@@ -227,6 +227,17 @@ extern char *tls_verify_method;
 extern char *pkcs12_file;
 #endif /* PPP_WITH_EAPTLS */
 
+typedef enum {
+    PPP_OCTETS_DIRECTION_SUM,
+    PPP_OCTETS_DIRECTION_IN,
+    PPP_OCTETS_DIRECTION_OUT,
+    PPP_OCTETS_DIRECTION_MAXOVERAL,
+    PPP_OCTETS_DIRECTION_MAXSESSION             /* Same as MAXOVERALL, but a little different for RADIUS */
+} session_limit_dir_t;
+
+extern unsigned int        maxoctets;           /* Maximum octetes per session (in bytes) */
+extern session_limit_dir_t maxoctets_dir;       /* Direction */
+extern int                 maxoctets_timeout;   /* Timeout for check of octets limit */
 
 #ifdef PPP_WITH_FILTER
 extern struct	bpf_program pass_filter;   /* Filter for pkts to pass */

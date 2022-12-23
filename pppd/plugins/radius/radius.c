@@ -610,11 +610,11 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
                break;
 	    case PW_SESSION_OCTETS_LIMIT:
 		/* Session traffic limit */
-		maxoctets = vp->lvalue;
+		ppp_set_session_limit(vp->lvalue);
 		break;
 	    case PW_OCTETS_DIRECTION:
 		/* Session traffic limit direction check */
-		maxoctets_dir = ( vp->lvalue > 4 ) ? 0 : vp->lvalue ;
+		ppp_set_session_limit_dir(vp->lvalue);
 		break;
 	    case PW_ACCT_INTERIM_INTERVAL:
 		/* Send accounting updates every few seconds */

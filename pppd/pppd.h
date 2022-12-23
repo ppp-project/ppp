@@ -259,20 +259,19 @@ void end_pr_log(void);
 
 
 /* RADIUS */
+extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
+extern char	devnam[];	/* Device name */
 
-extern unsigned int maxoctets;	     /* Maximum octetes per session (in bytes) */
-extern int       maxoctets_dir;      /* Direction :
-				      0 - in+out (default)
-				      1 - in
-				      2 - out
-				      3 - max(in,out) */
-extern int       maxoctets_timeout;  /* Timeout for check of octets limit */
-#define PPP_OCTETS_DIRECTION_SUM        0
-#define PPP_OCTETS_DIRECTION_IN         1
-#define PPP_OCTETS_DIRECTION_OUT        2
-#define PPP_OCTETS_DIRECTION_MAXOVERAL  3
-/* same as previous, but little different on RADIUS side */
-#define PPP_OCTETS_DIRECTION_MAXSESSION 4
+
+/*
+ * Configure the session's maximum number of octets
+ */
+void ppp_set_session_limit(unsigned int octets);
+
+/*
+ * Which direction to limit the number of octets
+ */
+void ppp_set_session_limit_dir(unsigned int direction);
 
 /*
  * Unfortunately, the linux kernel driver uses a different structure
@@ -459,9 +458,6 @@ const char *ppp_get_remote_number(void);
  * Set the remote number, typically it's a MAC address
  */
 void ppp_set_remote_number(const char *buf);
-
-extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
-extern char	devnam[];	/* Device name */
 
 /* 
  * Register notification callback on certain events
