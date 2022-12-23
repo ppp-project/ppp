@@ -79,7 +79,7 @@ print_attributes(VALUE_PAIR *vp)
     int cnt = 0;
     mode_t old_umask;
 
-    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_get_ifname(NULL, 0));
+    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_ifname());
     old_umask = umask(077);
     fp = fopen(fname, "w");
     umask(old_umask);

@@ -428,14 +428,19 @@ int  ppp_get_mtu(int);
 int ppp_generic_establish(int dev_fd);
 
 /*
- * Set the current interface name, ifname is a \0 terminated string
+ * Get the current interface name
  */
-void ppp_set_ifname(const char *ifname);
+const char *ppp_ifname();
 
 /*
  * Get the current interface name
  */
-const char *ppp_get_ifname(char *buf, size_t bufsz);
+int ppp_get_ifname(char *buf, size_t bufsz);
+
+/*
+ * Set the current interface name, ifname is a \0 terminated string
+ */
+void ppp_set_ifname(const char *ifname);
 
 /*
  * Get the current interface unit for the pppX device

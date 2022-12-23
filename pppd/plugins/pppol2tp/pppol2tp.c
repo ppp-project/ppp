@@ -228,7 +228,7 @@ static void send_config_pppol2tp(int mtu,
 			ppp_set_ifname(pppol2tp_ifname);
 			if (pppol2tp_debug_mask & PPPOL2TP_MSG_CONTROL) {
 				dbglog("ppp%d: interface name %s",
-					ppp_ifunit(), ppp_get_ifname(NULL,0));
+					ppp_ifunit(), ppp_ifname());
 			}
 		}
 		close(fd);

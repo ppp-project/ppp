@@ -299,16 +299,24 @@ int ppp_get_session_number()
     return ppp_session_number;
 }
 
+const char *ppp_ifname()
+{
+    return ifname;
+}
+
+int ppp_get_ifname(char *buf, size_t bufsz)
+{
+    if (buf) {
+        return strlcpy(buf, ifname, bufsz);
+    }
+    return false;
+}
+
 void ppp_set_ifname(const char *name)
 {
     if (ifname) {
         strlcpy(ifname, name, sizeof(ifname));
     }
-}
-
-const char *ppp_get_ifname(char *buf, size_t bufsz)
-{
-    return ifname;
 }
 
 int ppp_ifunit()
