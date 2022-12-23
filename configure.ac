@@ -52,6 +52,7 @@ AC_CHECK_HEADERS([  \
     paths.h         \
     shadow.h        \
     stddef.h        \
+    stdarg.h        \
     sys/dlpi.h      \
     sys/ioctl.h     \
     sys/socket.h    \

@@ -43,7 +43,11 @@
 #include <pppd/pppd.h>
 #include <pppd/options.h>
 
+#if !defined(SOL2)
 #include <linux/ppp_defs.h>
+#else
+#include <net/ppp_defs.h>
+#endif
 
 char pppd_version[] = PPPD_VERSION;
 

@@ -24,6 +24,7 @@ static char const RCSID[] =
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 #include <pppd/pppd.h>
 

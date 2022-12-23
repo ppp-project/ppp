@@ -114,11 +114,11 @@ typedef struct lcp_options {
     bool neg_endpoint;		/* negotiate endpoint discriminator */
     int  mru;			/* Value of MRU */
     int	 mrru;			/* Value of MRRU, and multilink enable */
-    u_char chap_mdtype;		/* which MD types (hashing algorithm) */
-    u_int32_t asyncmap;		/* Value of async map */
-    u_int32_t magicnumber;
+    unsigned char chap_mdtype;		/* which MD types (hashing algorithm) */
+    uint32_t asyncmap;		/* Value of async map */
+    uint32_t magicnumber;
     int  numloops;		/* Number of loops during magic number neg. */
-    u_int32_t lqr_period;	/* Reporting period for LQR 1/100ths second */
+    uint32_t lqr_period;	/* Reporting period for LQR 1/100ths second */
     struct epdisc endpoint;	/* endpoint discriminator */
 } lcp_options;
 
@@ -136,7 +136,7 @@ void lcp_open(int);
 void lcp_close(int, char *);
 void lcp_lowerup(int);
 void lcp_lowerdown(int);
-void lcp_sprotrej(int, u_char *, int);	/* send protocol reject */
+void lcp_sprotrej(int, unsigned char *, int);	/* send protocol reject */
 
 extern struct protent lcp_protent;
 

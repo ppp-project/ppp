@@ -17,8 +17,6 @@
 #include <sys/types.h>		/* For pid_t */
 #include <ctype.h>
 #include <string.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 #include <pppd/pppd.h>		/* For error */
 

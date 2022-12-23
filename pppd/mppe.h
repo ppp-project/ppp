@@ -72,7 +72,7 @@
 /* Build a CI from mppe opts (see RFC 3078) */
 #define MPPE_OPTS_TO_CI(opts, ci)		\
     do {					\
-	u_char *ptr = ci; /* u_char[4] */	\
+	unsigned char *ptr = ci; /* unsigned char[4] */	\
 						\
 	/* H bit */				\
 	if (opts & MPPE_OPT_STATEFUL)		\
@@ -94,7 +94,7 @@
 /* The reverse of the above */
 #define MPPE_CI_TO_OPTS(ci, opts)		\
     do {					\
-	u_char *ptr = ci; /* u_char[4] */	\
+	unsigned char *ptr = ci; /* unsigned char[4] */	\
 						\
 	opts = 0;				\
 						\
@@ -135,9 +135,9 @@
  */
 
 /* The key material generated which is used for MPPE send key */
-extern u_char mppe_send_key[MPPE_MAX_KEY_SIZE];
+extern unsigned char mppe_send_key[MPPE_MAX_KEY_SIZE];
 /* The key material generated which is used for MPPE recv key */
-extern u_char mppe_recv_key[MPPE_MAX_KEY_SIZE];
+extern unsigned char mppe_recv_key[MPPE_MAX_KEY_SIZE];
 /* Keys are set if value is non-zero */
 extern int mppe_keys_set;
 
@@ -154,17 +154,17 @@ void mppe_set_enc_types (int policy, int types);
  * Set the MPPE send and recv keys. NULL values for keys are ignored
  *   and input values are cleared to avoid leaving them on the stack
  */
-void mppe_set_keys(u_char *send_key, u_char *recv_key, int keylen);
+void mppe_set_keys(unsigned char *send_key, unsigned char *recv_key, int keylen);
 
 /*
  * Get the MPPE recv key
  */
-int mppe_get_recv_key(u_char *recv_key, int length);
+int mppe_get_recv_key(unsigned char *recv_key, int length);
 
 /*
  * Get the MPPE send key
  */
-int mppe_get_send_key(u_char *send_key, int length);
+int mppe_get_send_key(unsigned char *send_key, int length);
 
 /*
  * Clear the MPPE keys

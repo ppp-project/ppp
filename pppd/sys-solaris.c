@@ -820,7 +820,7 @@ sys_cleanup(void)
  * sys_close - Clean up in a child process before execing.
  */
 void
-sys_close(void)
+ppp_sys_close(void)
 {
     close(ipfd);
 #if defined(PPP_WITH_IPV6CP) && defined(SOL2)
@@ -915,7 +915,7 @@ tty_establish_ppp(int fd)
     /* Push the async hdlc module and the compressor module. */
     tty_npushed = 0;
 
-    if(!sync_serial) {
+    if(!ppp_sync_serial()) {
         if (ioctl(fd, I_PUSH, AHDLC_MOD_NAME) < 0) {
             error("Couldn't push PPP Async HDLC module: %m");
 	    return -1;
@@ -1160,12 +1160,12 @@ set_up_tty(int fd, int local)
     struct termiox tiox;
 #endif
 
-    if (!sync_serial && tcgetattr(fd, &tios) < 0)
+    if (!ppp_sync_serial() && tcgetattr(fd, &tios) < 0)
 	fatal("tcgetattr: %m");
 
 #ifndef CRTSCTS
     termiox_ok = 1;
-    if (!sync_serial && ioctl (fd, TCGETX, &tiox) < 0) {
+    if (!ppp_sync_serial() && ioctl (fd, TCGETX, &tiox) < 0) {
 	termiox_ok = 0;
 	if (errno != ENOTTY)
 	    error("TCGETX: %m");
@@ -1177,7 +1177,7 @@ set_up_tty(int fd, int local)
 #ifndef CRTSCTS
 	inittermiox = tiox;
 #endif
-	if (!sync_serial)
+	if (!ppp_sync_serial())
 	    ioctl(fd, TIOCGWINSZ, &wsinfo);
     }
 
@@ -1225,21 +1225,21 @@ set_up_tty(int fd, int local)
 	 * We can't proceed if the serial port speed is 0,
 	 * since that implies that the serial port is disabled.
 	 */
-	if ((speed == B0) && !sync_serial)
+	if ((speed == B0) && !ppp_sync_serial())
 	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
     }
 
-    if (!sync_serial && tcsetattr(fd, TCSAFLUSH, &tios) < 0)
+    if (!ppp_sync_serial() && tcsetattr(fd, TCSAFLUSH, &tios) < 0)
 	fatal("tcsetattr: %m");
 
 #ifndef CRTSCTS
-    if (!sync_serial && termiox_ok && ioctl (fd, TCSETXF, &tiox) < 0){
+    if (!ppp_sync_serial() && termiox_ok && ioctl (fd, TCSETXF, &tiox) < 0){
 	error("TCSETXF: %m");
     }
 #endif
 
     baud_rate = inspeed = baud_rate_of(speed);
-    if (!sync_serial)
+    if (!ppp_sync_serial())
 	restore_term = 1;
 }
 
@@ -1259,16 +1259,16 @@ restore_tty(int fd)
 	     */
 	    inittermios.c_lflag &= ~(ECHO | ECHONL);
 	}
-	if (!sync_serial && tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
+	if (!ppp_sync_serial() && tcsetattr(fd, TCSAFLUSH, &inittermios) < 0)
 	    if (!hungup && errno != ENXIO)
 		warn("tcsetattr: %m");
 #ifndef CRTSCTS
-	if (!sync_serial && ioctl (fd, TCSETXF, &inittermiox) < 0){
+	if (!ppp_sync_serial() && ioctl (fd, TCSETXF, &inittermiox) < 0){
 	    if (!hungup && errno != ENXIO)
 		error("TCSETXF: %m");
 	}
 #endif
-	if (!sync_serial)
+	if (!ppp_sync_serial())
 	    ioctl(fd, TIOCSWINSZ, &wsinfo);
 	restore_term = 0;
     }
@@ -1460,10 +1460,10 @@ get_loop_output(void)
 }
 
 /*
- * netif_set_mtu - set the MTU on the PPP network interface.
+ * ppp_set_mtu - set the MTU on the PPP network interface.
  */
 void
-netif_set_mtu(int unit, int mtu)
+ppp_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
 #if defined(PPP_WITH_IPV6CP) && defined(SOL2)
@@ -1497,10 +1497,10 @@ netif_set_mtu(int unit, int mtu)
 
 
 /*
- * netif_get_mtu - get the MTU on the PPP network interface.
+ * ppp_get_mtu - get the MTU on the PPP network interface.
  */
 int
-netif_get_mtu(int unit)
+ppp_get_mtu(int unit)
 {
     struct ifreq ifr;
 
@@ -1532,7 +1532,7 @@ tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 	error("Couldn't set MTU: %m");
     }
     if (fdmuxid >= 0) {
-	if (!sync_serial) {
+	if (!ppp_sync_serial()) {
 	    if (strioctl(pppfd, PPPIO_XACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 		error("Couldn't set transmit ACCM: %m");
 	}
@@ -1550,7 +1550,7 @@ tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 void
 tty_set_xaccm(ext_accm accm)
 {
-    if (sync_serial)
+    if (ppp_sync_serial())
 	return;
 
     if (fdmuxid >= 0
@@ -1578,7 +1578,7 @@ tty_recv_config(int mru, u_int32_t asyncmap, int pcomp, int accomp)
 	error("Couldn't set MRU: %m");
     }
     if (fdmuxid >= 0) {
-	if (!sync_serial) {
+	if (!ppp_sync_serial()) {
 	    if (strioctl(pppfd, PPPIO_RACCM, &asyncmap, sizeof(asyncmap), 0) < 0)
 		error("Couldn't set receive ACCM: %m");
 	}
@@ -1636,7 +1636,7 @@ get_ppp_stats(int u, struct pppd_stats *stats)
 {
     struct ppp_stats s;
 
-    if (!sync_serial && 
+    if (!ppp_sync_serial() &&
 	strioctl(pppfd, PPPIO_GETSTAT, &s, 0, sizeof(s)) < 0) {
 	error("Couldn't get link statistics: %m");
 	return 0;
@@ -2313,7 +2313,7 @@ dlpi_get_reply(int fd, union DL_primitives *reply, int expected_prim, size_t max
     pfd.events = POLLIN | POLLPRI;
     do {
 	n = poll(&pfd, 1, 1000);
-    } while (n == -1 && errno == EINTR && !got_sigterm);
+    } while (n == -1 && errno == EINTR && !ppp_signaled(SIGTERM));
     if (n <= 0)
 	return -1;
 
@@ -2744,7 +2744,7 @@ get_pty(int *master_fdp, int *slave_fdp, char *slave_name, int uid)
  * get_time - Get current time, monotonic if possible.
  */
 int
-get_time(struct timeval *tv)
+ppp_get_time(struct timeval *tv)
 {
     return gettimeofday(tv, NULL);
 }

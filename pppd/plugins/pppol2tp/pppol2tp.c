@@ -28,6 +28,8 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -203,7 +205,7 @@ static void disconnect_pppol2tp(void)
 }
 
 static void send_config_pppol2tp(int mtu,
-			      u_int32_t asyncmap,
+			      uint32_t asyncmap,
 			      int pcomp,
 			      int accomp)
 {
@@ -283,7 +285,7 @@ static void send_config_pppol2tp(int mtu,
 }
 
 static void recv_config_pppol2tp(int mru,
-			      u_int32_t asyncmap,
+			      uint32_t asyncmap,
 			      int pcomp,
 			      int accomp)
 {

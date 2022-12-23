@@ -96,7 +96,7 @@ static struct option Options[] = {
 static pap_check_hook_fn winbind_secret_check;
 static pap_auth_hook_fn winbind_pap_auth;
 static chap_verify_hook_fn winbind_chap_verify;
-static int winbind_allowed_address(u_int32_t addr); 
+static int winbind_allowed_address(uint32_t addr);
 
 char pppd_version[] = PPPD_VERSION;
 
@@ -665,7 +665,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 }
 
 static int 
-winbind_allowed_address(u_int32_t addr) 
+winbind_allowed_address(uint32_t addr)
 {
 	ipcp_options *wo = &ipcp_wantoptions[0];
 	if (wo->hisaddr !=0 && wo->hisaddr == addr) {
