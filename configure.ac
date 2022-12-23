@@ -51,6 +51,7 @@ AC_CHECK_HEADERS([  \
     crypt.h         \
     paths.h         \
     shadow.h        \
+    stddef.h        \
     sys/dlpi.h      \
     sys/ioctl.h     \
     sys/socket.h    \
