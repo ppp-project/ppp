@@ -78,7 +78,7 @@
 /*
  * Values for phase.
  */
-typedef enum
+typedef enum ppp_phase
 {
     PHASE_DEAD,
     PHASE_INITIALIZE,
@@ -98,7 +98,7 @@ typedef enum
 /*
  * Values for exit codes
  */
-typedef enum
+typedef enum ppp_exit_code
 {
     EXIT_OK                 = 0,
     EXIT_FATAL_ERROR        = 1,
@@ -124,9 +124,47 @@ typedef enum
     EXIT_CNID_AUTH_FAILED   = 21
 } ppp_exit_code_t;
 
-ppp_exit_code_t ppp_status();
-void ppp_set_status(ppp_exit_code_t code);
+/*
+ * Type of notifier callbacks
+ */
+typedef enum
+{
+    NF_PID_CHANGE,
+    NF_PHASE_CHANGE,
+    NF_EXIT,
+    NF_SIGNALED,
+    NF_IP_UP,
+    NF_IP_DOWN,
+    NF_IPV6_UP,
+    NF_IPV6_DOWN,
+    NF_AUTH_UP,
+    NF_LINK_DOWN,
+    NF_FORK,
+    NF_MAX_NOTIFY
+} ppp_notify_t;
 
+/*
+ * Unfortunately, the linux kernel driver uses a different structure
+ * for statistics from the rest of the ports.
+ * This structure serves as a common representation for the bits
+ * pppd needs.
+ */
+struct pppd_stats
+{
+    uint64_t		bytes_in;
+    uint64_t		bytes_out;
+    unsigned int	pkts_in;
+    unsigned int	pkts_out;
+};
+typedef struct pppd_stats ppp_link_stats_st;
+
+/*
+ * Used for storing a sequence of words.  Usually malloced.
+ */
+struct wordlist {
+    struct wordlist	*next;
+    char		*word;
+};
 
 struct option;
 typedef void (*printer_func)(void *, char *, ...);
@@ -264,6 +302,16 @@ void pr_log(void *, char *, ...);
 void end_pr_log(void);
 
 /*
+ * Get the current exist status of pppd
+ */
+ppp_exit_code_t ppp_status();
+
+/*
+ * Set the exit status
+ */
+void ppp_set_status(ppp_exit_code_t code);
+
+/*
  * Configure the session's maximum number of octets
  */
 void ppp_set_session_limit(unsigned int octets);
@@ -272,20 +320,6 @@ void ppp_set_session_limit(unsigned int octets);
  * Which direction to limit the number of octets
  */
 void ppp_set_session_limit_dir(unsigned int direction);
-
-/*
- * Unfortunately, the linux kernel driver uses a different structure
- * for statistics from the rest of the ports.
- * This structure serves as a common representation for the bits
- * pppd needs.
- */
-struct pppd_stats {
-    uint64_t		bytes_in;
-    uint64_t		bytes_out;
-    unsigned int	pkts_in;
-    unsigned int	pkts_out;
-};
-typedef struct pppd_stats ppp_link_stats_st;
 
 /*
  * Get the current link stats, returns true when valid and false if otherwise
@@ -487,25 +521,6 @@ const char *ppp_devnam();
  * Set the device name
  */
 int ppp_set_devnam(const char *name);
-
-/* 
- * Register notification callback on certain events
- */
-typedef enum
-{
-    NF_PID_CHANGE,
-    NF_PHASE_CHANGE,
-    NF_EXIT,
-    NF_SIGNALED,
-    NF_IP_UP,
-    NF_IP_DOWN,
-    NF_IPV6_UP,
-    NF_IPV6_DOWN,
-    NF_AUTH_UP,
-    NF_LINK_DOWN,
-    NF_FORK,
-    NF_MAX_NOTIFY
-} ppp_notify_t;
 
 /*
  * Definition for the notify callback function

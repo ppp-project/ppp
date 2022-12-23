@@ -113,13 +113,6 @@ void upap_authpeer(int);
 
 extern struct protent pap_protent;
 
-/* Used for storing a sequence of words.  Usually malloced. */
-struct wordlist {
-    struct wordlist	*next;
-    char		*word;
-};
-
-
 typedef int  (pap_check_hook_fn)(void);
 typedef int  (pap_auth_hook_fn)(char *user, char *passwd, char **msgp,
                 struct wordlist **paddrs,
