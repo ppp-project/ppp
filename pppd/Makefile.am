@@ -2,7 +2,7 @@ sbin_PROGRAMS = pppd
 dist_man8_MANS = pppd.8
 check_PROGRAMS =
 
-utest_chap_SOURCES = chap_ms.c utils.c pppcrypt.c
+utest_chap_SOURCES = chap_ms.c utils.c crypto_ms.c
 utest_chap_CPPFLAGS = -DUNIT_TEST
 utest_chap_LDFLAGS =
 
@@ -10,12 +10,12 @@ utest_peap_SOURCES = peap.c utils.c mppe.c
 utest_peap_CPPFLAGS = -DUNIT_TEST
 utest_peap_LDFLAGS =
 
-utest_crypto_SOURCES = ppp-crypto.c
+utest_crypto_SOURCES = crypto.c
 utest_crypto_CPPFLAGS = -DUNIT_TEST
 utest_crypto_LDFLAGS =
 
-utest_pppcrypt_SOURCES = pppcrypt.c
-utest_pppcrypt_CPPFLAGS = -DUNIT_TEST_PPPCRYPT
+utest_pppcrypt_SOURCES = crypto_ms.c
+utest_pppcrypt_CPPFLAGS = -DUNIT_TEST_MSCRYPTO
 utest_pppcrypt_LDFLAGS =
 
 check_PROGRAMS += utest_crypto
@@ -35,6 +35,8 @@ pppd_include_HEADERS = \
     chap-md5.h \
     chap_ms.h \
     chap-new.h \
+    crypto.h \
+    crypto_ms.h \
     eap.h \
     ecp.h \
     eui64.h \
@@ -48,17 +50,15 @@ pppd_include_HEADERS = \
     pppd.h \
     options.h \
     pppdconf.h \
-    ppp-crypto.h \
     session.h \
     upap.h 
 
 # Headers to be distributed, but not installed in /usr/include/pppd
 noinst_HEADERS = \
+    crypto-priv.h \
     eap-tls.h \
     pathnames.h \
     peap.h \
-    pppcrypt.h \
-    ppp-crypto-priv.h \
     pppd-private.h \
     spinlock.h \
     tls.h \
@@ -88,7 +88,8 @@ pppd_LDFLAGS =
 pppd_LIBS =
 
 if LINUX
-pppd_SOURCES += sys-linux.c termios_linux.h
+pppd_SOURCES += sys-linux.c
+noinst_HEADERS += termios_linux.h
 pppd_LIBS += $(CRYPT_LIBS) $(UTIL_LIBS)
 endif
 
@@ -99,12 +100,12 @@ pppd_LIBS += -lsocket -lnsl
 endif
 
 if PPP_WITH_CHAPMS
-pppd_SOURCES += chap_ms.c pppcrypt.c
+pppd_SOURCES += chap_ms.c crypto_ms.c
 check_PROGRAMS += utest_chap
 check_PROGRAMS += utest_pppcrypt
 else
 if WITH_SRP
-pppd_SOURCES += pppcrypt.c
+pppd_SOURCES += crypto_ms.c
 check_PROGRAMS += utest_pppcrypt
 endif
 endif
@@ -162,21 +163,21 @@ pppd_SOURCES += peap.c
 check_PROGRAMS += utest_peap
 endif
 
-noinst_LTLIBRARIES = libppp_crypt.la
-libppp_crypt_la_SOURCES=ppp-crypto.c ppp-md5.c ppp-md4.c ppp-sha1.c ppp-des.c
+noinst_LTLIBRARIES = libppp_crypto.la
+libppp_crypto_la_SOURCES=crypto.c ppp-md5.c ppp-md4.c ppp-sha1.c ppp-des.c
 
 if PPP_WITH_OPENSSL
-libppp_crypt_la_CPPFLAGS=$(OPENSSL_INCLUDES)
-libppp_crypt_la_LDFLAGS=$(OPENSSL_LDFLAGS)
-libppp_crypt_la_LIBADD=$(OPENSSL_LIBS)
+libppp_crypto_la_CPPFLAGS=$(OPENSSL_INCLUDES)
+libppp_crypto_la_LDFLAGS=$(OPENSSL_LDFLAGS)
+libppp_crypto_la_LIBADD=$(OPENSSL_LIBS)
 endif
 
-utest_peap_LDADD = libppp_crypt.la
-utest_chap_LDADD = libppp_crypt.la
-utest_crypto_LDADD = libppp_crypt.la
-utest_pppcrypt_LDADD = libppp_crypt.la
+utest_peap_LDADD = libppp_crypto.la
+utest_chap_LDADD = libppp_crypto.la
+utest_crypto_LDADD = libppp_crypto.la
+utest_pppcrypt_LDADD = libppp_crypto.la
 
-pppd_LIBS += libppp_crypt.la
+pppd_LIBS += libppp_crypto.la
 
 if WITH_SYSTEMD
 pppd_CPPFLAGS += $(SYSTEMD_CFLAGS)

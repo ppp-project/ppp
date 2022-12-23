@@ -44,7 +44,7 @@ static char const RCSID[] =
 #include <pppd/chap_ms.h>
 #ifdef PPP_WITH_MPPE
 #include <pppd/mppe.h>
-#include <pppd/ppp-crypto.h>
+#include <pppd/crypto.h>
 #endif
 #endif
 #include <pppd/fsm.h>

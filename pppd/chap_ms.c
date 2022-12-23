@@ -99,8 +99,8 @@
 #include "chap_ms.h"
 #include "magic.h"
 #include "mppe.h"
-#include "ppp-crypto.h"
-#include "pppcrypt.h"
+#include "crypto.h"
+#include "crypto_ms.h"
 
 #ifdef UNIT_TEST
 #undef PPP_WITH_MPPE

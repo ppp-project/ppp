@@ -40,7 +40,7 @@
 #include "chap-new.h"
 #include "chap-md5.h"
 #include "magic.h"
-#include "ppp-crypto.h"
+#include "crypto.h"
 
 #define MD5_MIN_CHALLENGE	16
 #define MD5_MAX_CHALLENGE	24

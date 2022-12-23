@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-#include "ppp-crypto-priv.h"
+#include "crypto-priv.h"
 
 
 /* #define SHA1HANDSOFF * Copies data before messing with it. */

@@ -110,7 +110,7 @@
 #include "ccp.h"
 #include "ecp.h"
 #include "pathnames.h"
-#include "ppp-crypto.h"
+#include "crypto.h"
 #include "multilink.h"
 
 #ifdef PPP_WITH_TDB

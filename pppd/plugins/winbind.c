@@ -58,7 +58,7 @@
 #include <pppd/fsm.h>
 #include <pppd/ipcp.h>
 #include <pppd/mppe.h>
-#include <pppd/ppp-crypto.h>
+#include <pppd/crypto.h>
 
 #define BUF_LEN 1024
 

@@ -29,7 +29,7 @@
 #ifndef PPP_CRYPTO_PRIV_H
 #define PPP_CRYPTO_PRIV_H
 
-#include "ppp-crypto.h"
+#include "crypto.h"
 
 #define MAX_KEY_SIZE 32
 #define MAX_IV_SIZE 32

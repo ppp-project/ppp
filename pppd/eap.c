@@ -66,8 +66,8 @@
 #include "pppd-private.h"
 #include "options.h"
 #include "pathnames.h"
-#include "ppp-crypto.h"
-#include "pppcrypt.h"
+#include "crypto.h"
+#include "crypto_ms.h"
 #include "eap.h"
 #ifdef PPP_WITH_PEAP
 #include "peap.h"
