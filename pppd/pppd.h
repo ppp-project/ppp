@@ -284,13 +284,12 @@ struct pppd_stats {
     unsigned int	pkts_in;
     unsigned int	pkts_out;
 };
+typedef struct pppd_stats ppp_link_stats_st;
 
-extern int	link_stats_valid; /* set if link_stats is valid */
-void print_link_stats(void); /* Print stats, if available */
-void reset_link_stats(int); /* Reset (init) stats when link goes up */
-void update_link_stats(int); /* Get stats at link termination */
-
-extern struct pppd_stats link_stats; /* byte/packet counts etc. for link */
+/*
+ * Get the current link stats, returns true when valid and false if otherwise
+ */
+bool ppp_get_link_stats(ppp_link_stats_st *stats);
 
 /*
  * Get pppd's notion of time

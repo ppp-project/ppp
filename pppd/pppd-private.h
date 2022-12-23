@@ -109,6 +109,8 @@ extern char	**script_env;	/* Environment variables for scripts */
 extern int	detached;	/* Have detached from controlling tty */
 extern GIDSET_TYPE groups[];	/* groups the user is in */
 extern int	ngroups;	/* How many groups valid in groups */
+extern int	link_stats_valid; /* set if link_stats is valid */
+extern int	link_stats_print; /* set if link_stats is to be printed on link termination */
 extern int	log_to_fd;	/* logging to this fd as well as syslog */
 extern bool	log_default;	/* log_to_fd is default (stdout) */
 extern char	*no_ppp_msg;	/* message to print if ppp not in kernel */
@@ -304,6 +306,8 @@ pid_t run_program(char *prog, char * const * args, int must_exist,
 		  void (*done)(void *), void *arg, int wait);
 				/* Run program prog with args in child */
 void reopen_log(void);	/* (re)open the connection to syslog */
+void print_link_stats(void); /* Print stats, if available */
+void reset_link_stats(int); /* Reset (init) stats when link goes up */
 void new_phase(int);	/* signal start of new phase */
 void notify(struct notifier *, int);
 int  ppp_send_config(int, int, u_int32_t, int, int);

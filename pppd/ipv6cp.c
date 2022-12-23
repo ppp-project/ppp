@@ -1396,7 +1396,7 @@ static void
 ipv6cp_down(fsm *f)
 {
     IPV6CPDEBUG(("ipv6cp: down"));
-    update_link_stats(f->unit);
+    ppp_get_link_stats(NULL);
     notify(ipv6_down_notifier, 0);
     if (ipv6_down_hook)
        ipv6_down_hook();

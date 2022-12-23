@@ -1082,6 +1082,8 @@ radius_acct_stop(void)
     int result;
     const char *remote_number;
     const char *ipparam;
+    ppp_link_stats_st stats;
+
     if (!rstate.initialized) {
 	return;
     }
@@ -1110,31 +1112,31 @@ radius_acct_stop(void)
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
+    if (ppp_get_link_stats(&stats)) {
 
-    if (link_stats_valid) {
 	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out & 0xFFFFFFFF;
+	av_type = stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_out > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_out >> 32;
+	if (stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = stats.bytes_out >> 32;
 	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.bytes_in & 0xFFFFFFFF;
+	av_type = stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_in > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_in >> 32;
+	if (stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = stats.bytes_in >> 32;
 	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.pkts_out;
+	av_type = stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.pkts_in;
+	av_type = stats.pkts_in;
 	rc_avpair_add(&send, PW_ACCT_INPUT_PACKETS, &av_type, 0, VENDOR_NONE);
     }
 
@@ -1243,6 +1245,7 @@ radius_acct_interim(void *ignored)
     int result;
     const char *remote_number;
     const char *ipparam;
+    ppp_link_stats_st stats;
 
     if (!rstate.initialized) {
 	return;
@@ -1269,35 +1272,31 @@ radius_acct_interim(void *ignored)
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
-    /* Update link stats */
-    update_link_stats(0);
-
-    if (link_stats_valid) {
-	link_stats_valid = 0; /* Force later code to update */
+    if (ppp_get_link_stats(&stats)) {
 
 	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out & 0xFFFFFFFF;
+	av_type = stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_out > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_out >> 32;
+	if (stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = stats.bytes_out >> 32;
 	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.bytes_in & 0xFFFFFFFF;
+	av_type = stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_in > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_in >> 32;
+	if (stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = stats.bytes_in >> 32;
 	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.pkts_out;
+	av_type = stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.pkts_in;
+	av_type = stats.pkts_in;
 	rc_avpair_add(&send, PW_ACCT_INPUT_PACKETS, &av_type, 0, VENDOR_NONE);
     }
 

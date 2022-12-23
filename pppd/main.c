@@ -207,6 +207,7 @@ static struct pppd_stats old_link_stats;
 struct pppd_stats link_stats;
 unsigned link_connect_time;
 int link_stats_valid;
+int link_stats_print;
 
 int error_count;
 
@@ -359,6 +360,7 @@ main(int argc, char *argv[])
     strlcpy(path_ipv6down, PPP_PATH_IPV6DOWN, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
+    link_stats_print = 1;
     new_phase(PHASE_INITIALIZE);
 
     script_env = NULL;
@@ -1265,12 +1267,12 @@ print_link_stats(void)
     /*
      * Print connect time and statistics.
      */
-    if (link_stats_valid) {
+    if (link_stats_print && link_stats_valid) {
        int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
        info("Connect time %d.%d minutes.", t/10, t%10);
        info("Sent %u bytes, received %u bytes.",
 	    link_stats.bytes_out, link_stats.bytes_in);
-       link_stats_valid = 0;
+       link_stats_print = 0;
     }
 }
 
@@ -1311,6 +1313,19 @@ update_link_stats(int u)
     ppp_script_setenv("BYTES_SENT", numbuf, 0);
     snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_in);
     ppp_script_setenv("BYTES_RCVD", numbuf, 0);
+}
+
+bool
+ppp_get_link_stats(ppp_link_stats_st *stats)
+{
+    update_link_stats(0);
+    if (stats != NULL &&
+        link_stats_valid) {
+
+        memcpy(stats, &link_stats, sizeof(*stats));
+        return true;
+    }
+    return false;
 }
 
 

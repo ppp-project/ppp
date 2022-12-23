@@ -786,7 +786,7 @@ link_down(int unit)
 	notify(link_down_notifier, 0);
 	auth_state = s_down;
 	if (auth_script_state == s_up && auth_script_pid == 0) {
-	    update_link_stats(unit);
+	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
 	    auth_script(PPP_PATH_AUTHDOWN);
 	}
@@ -1202,6 +1202,10 @@ np_up(int unit, int proto)
 	if (ppp_get_max_connect_time() > 0)
 	    TIMEOUT(connect_time_expired, 0, ppp_get_max_connect_time());
 
+	/*
+	 * Configure a check to see if session has outlived it's limit
+	 *   in terms of octets
+	 */
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
 
@@ -1247,33 +1251,41 @@ np_finished(int unit, int proto)
     }
 }
 
+/*
+ * Periodic callback to check if session has reached its limit. The period defaults
+ * to 1 second and is configurable by setting "mo-timeout" in configuration
+ */
 static void
 check_maxoctets(void *arg)
 {
     unsigned int used;
+    ppp_link_stats_st stats;
 
-    update_link_stats(ifunit);
-    link_stats_valid=0;
-    
-    switch(maxoctets_dir) {
-	case PPP_OCTETS_DIRECTION_IN:
-	    used = link_stats.bytes_in;
-	    break;
-	case PPP_OCTETS_DIRECTION_OUT:
-	    used = link_stats.bytes_out;
-	    break;
-	case PPP_OCTETS_DIRECTION_MAXOVERAL:
-	case PPP_OCTETS_DIRECTION_MAXSESSION:
-	    used = (link_stats.bytes_in > link_stats.bytes_out) ? link_stats.bytes_in : link_stats.bytes_out;
-	    break;
-	default:
-	    used = link_stats.bytes_in+link_stats.bytes_out;
-	    break;
+    if (ppp_get_link_stats(&stats)) {
+        switch(maxoctets_dir) {
+            case PPP_OCTETS_DIRECTION_IN:
+                used = stats.bytes_in;
+                break;
+            case PPP_OCTETS_DIRECTION_OUT:
+                used = stats.bytes_out;
+                break;
+            case PPP_OCTETS_DIRECTION_MAXOVERAL:
+            case PPP_OCTETS_DIRECTION_MAXSESSION:
+                used = (stats.bytes_in > stats.bytes_out)
+                                ? stats.bytes_in
+                                : stats.bytes_out;
+                break;
+            default:
+                used = stats.bytes_in+stats.bytes_out;
+                break;
+        }
     }
+
     if (used > maxoctets) {
 	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
 	ppp_set_status(EXIT_TRAFFIC_LIMIT);
 	lcp_close(0, "Traffic limit");
+	link_stats_print = 0;
 	need_holdoff = 0;
     } else {
         TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);

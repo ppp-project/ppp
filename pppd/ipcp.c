@@ -2015,7 +2015,7 @@ ipcp_down(fsm *f)
      * before the interface is marked down. */
     /* XXX more correct: we must get the stats before running the notifiers,
      * at least for the radius plugin */
-    update_link_stats(f->unit);
+    ppp_get_link_stats(NULL);
     notify(ip_down_notifier, 0);
     if (ip_down_hook)
 	ip_down_hook();
