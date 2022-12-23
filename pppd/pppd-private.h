@@ -119,7 +119,7 @@ extern int	unsuccess;	/* # unsuccessful connection attempts */
 extern int	do_callback;	/* set if we want to do callback next */
 extern int	doing_callback;	/* set if this is a callback */
 extern int	error_count;	/* # of times error() has been called */
-extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
+extern char	ppp_devname[];	/* name of PPP tty (maybe ttypx) */
 extern int	fd_devnull;	/* fd open to /dev/null */
 
 extern int	listen_time;	/* time to listen first (ms) */

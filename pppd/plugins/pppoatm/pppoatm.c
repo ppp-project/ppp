@@ -44,6 +44,7 @@ static int pppoatm_max_mtu, pppoatm_max_mru;
 static int setdevname_pppoatm(const char *cp, const char **argv, int doit);
 struct channel pppoa_channel;
 static int pppoa_fd = -1;
+static char devnam[MAXNAMELEN];
 
 static struct option pppoa_options[] = {
 	{ "device name", o_wild, (void *) &setdevname_pppoatm,
@@ -92,6 +93,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit)
 
 	memcpy(&pvcaddr, &addr, sizeof pvcaddr);
 	strlcpy(devnam, cp, MAXPATHLEN);
+	ppp_set_devnam(devnam);
 	devstat.st_mode = S_IFSOCK;
 	if (the_channel != &pppoa_channel) {
 		the_channel = &pppoa_channel;
@@ -165,7 +167,7 @@ static int connect_pppoatm(void)
 	pppoatm_max_mtu = lcp_allowoptions[0].mru;
 	pppoatm_max_mru = lcp_wantoptions[0].mru;
 	set_line_discipline_pppoatm(fd);
-	strlcpy(ppp_devnam, devnam, MAXPATHLEN);
+	ppp_set_pppdevnam(devnam);
 	pppoa_fd = fd;
 	return fd;
 }

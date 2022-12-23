@@ -78,20 +78,26 @@
 /*
  * Values for phase.
  */
-#define PHASE_DEAD          0
-#define PHASE_INITIALIZE    1
-#define PHASE_SERIALCONN    2
-#define PHASE_DORMANT       3
-#define PHASE_ESTABLISH     4
-#define PHASE_AUTHENTICATE  5
-#define PHASE_CALLBACK      6
-#define PHASE_NETWORK       7
-#define PHASE_RUNNING       8
-#define PHASE_TERMINATE     9
-#define PHASE_DISCONNECT    10
-#define PHASE_HOLDOFF       11
-#define PHASE_MASTER        12
+typedef enum
+{
+    PHASE_DEAD,
+    PHASE_INITIALIZE,
+    PHASE_SERIALCONN,
+    PHASE_DORMANT,
+    PHASE_ESTABLISH,
+    PHASE_AUTHENTICATE,
+    PHASE_CALLBACK,
+    PHASE_NETWORK,
+    PHASE_RUNNING,
+    PHASE_TERMINATE,
+    PHASE_DISCONNECT,
+    PHASE_HOLDOFF,
+    PHASE_MASTER,
+} ppp_phase_t;
 
+/*
+ * Values for exit codes
+ */
 typedef enum
 {
     EXIT_OK                 = 0,
@@ -256,11 +262,6 @@ void pr_log(void *, char *, ...);
 
 /* finish up after using pr_log */
 void end_pr_log(void);
-
-
-/* RADIUS */
-extern char	ppp_devnam[];	/* name of PPP tty (maybe ttypx) */
-extern char	devnam[];	/* Device name */
 
 /*
  * Configure the session's maximum number of octets
@@ -428,26 +429,6 @@ int  ppp_get_mtu(int);
 int ppp_generic_establish(int dev_fd);
 
 /*
- * Get the current interface name
- */
-const char *ppp_ifname();
-
-/*
- * Get the current interface name
- */
-int ppp_get_ifname(char *buf, size_t bufsz);
-
-/*
- * Set the current interface name, ifname is a \0 terminated string
- */
-void ppp_set_ifname(const char *ifname);
-
-/*
- * Get the current interface unit for the pppX device
- */
-int ppp_ifunit();
-
-/*
  * Get the peer's authentication name
  */
 const char *ppp_peer_authname(char *buf, size_t bufsz);
@@ -466,6 +447,46 @@ const char *ppp_get_remote_number(void);
  * Set the remote number, typically it's a MAC address
  */
 void ppp_set_remote_number(const char *buf);
+
+/*
+ * Get the current interface unit for the pppX device
+ */
+int ppp_ifunit();
+
+/*
+ * Get the current interface name
+ */
+const char *ppp_ifname();
+
+/*
+ * Get the current interface name
+ */
+int ppp_get_ifname(char *buf, size_t bufsz);
+
+/*
+ * Set the current interface name, ifname is a \0 terminated string
+ */
+void ppp_set_ifname(const char *ifname);
+
+/*
+ * Set the original devnam (prior to any renaming, etc).
+ */
+int ppp_set_pppdevnam(const char *name);
+
+/*
+ * Get the original devnam (prior to any renaming, etc).
+ */
+const char *ppp_pppdevnam();
+
+/*
+ * Get the current devnam, e.g. /dev/ttyS0, /dev/ptmx
+ */
+const char *ppp_devnam();
+
+/*
+ * Set the device name
+ */
+int ppp_set_devnam(const char *name);
 
 /* 
  * Register notification callback on certain events

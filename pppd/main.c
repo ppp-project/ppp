@@ -135,7 +135,6 @@ char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
-char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
 uid_t uid;			/* Our real user-id */
 struct notifier *pidchange = NULL;
 struct notifier *phasechange = NULL;

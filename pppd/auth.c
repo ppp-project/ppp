@@ -671,9 +671,9 @@ void start_link(int unit)
      * incoming events (reply, timeout, etc.).
      */
     if (ifunit >= 0)
-	notice("Connect: %s <--> %s", ifname, ppp_devnam);
+	notice("Connect: %s <--> %s", ifname, ppp_devname);
     else
-	notice("Starting negotiation on %s", ppp_devnam);
+	notice("Starting negotiation on %s", ppp_devname);
     add_fd(fd_ppp);
 
     ppp_set_status(EXIT_NEGOTIATION_FAILED);

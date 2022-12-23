@@ -71,6 +71,7 @@ unsigned char pppoe_reqd_mac_addr[6];
 static char *pppoe_host_uniq;
 static int pppoe_padi_timeout = PADI_TIMEOUT;
 static int pppoe_padi_attempts = MAX_PADI_ATTEMPTS;
+static char devnam[MAXNAMELEN];
 
 static int PPPoEDevnameHook(char *cmd, char **argv, int doit);
 static struct option Options[] = {
@@ -198,7 +199,7 @@ PPPOEConnectDevice(void)
 
     conn->acName = acName;
     conn->serviceName = pppd_pppoe_service;
-    strlcpy(ppp_devnam, devnam, MAXPATHLEN);
+    ppp_set_pppdevnam(devnam);
     if (existingSession) {
 	unsigned int mac[ETH_ALEN];
 	int i, ses;
@@ -394,6 +395,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
 
 	    PPPOEInitDevice();
 	}
+	ppp_set_devnam(devnam);
 	return 1;
     }
 

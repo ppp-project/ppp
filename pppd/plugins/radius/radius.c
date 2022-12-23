@@ -272,7 +272,7 @@ radius_pap_auth(char *user,
 
     /* Hack... the "port" is the ppp interface number.  Should really be
        the tty */
-    rstate.client_port = get_client_port(portnummap ? devnam : ppp_ifname());
+    rstate.client_port = get_client_port(portnummap ? ppp_devnam() : ppp_ifname());
 
     av_type = PW_FRAMED;
     rc_avpair_add(&send, PW_SERVICE_TYPE, &av_type, 0, VENDOR_NONE);
@@ -376,7 +376,7 @@ radius_chap_verify(char *user, char *ourname, int id,
     /* Put user with potentially realm added in rstate.user */
     if (!rstate.done_chap_once) {
 	make_username_realm(user);
-	rstate.client_port = get_client_port (portnummap ? devnam : ppp_ifname());
+	rstate.client_port = get_client_port (portnummap ? ppp_devnam() : ppp_ifname());
 	if (radius_pre_auth_hook) {
 	    radius_pre_auth_hook(rstate.user,
 				 &rstate.authserver,

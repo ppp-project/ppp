@@ -534,12 +534,12 @@ int connect_tty(void)
 	 * Get a pty master/slave pair if the pty, notty, socket,
 	 * or record options were specified.
 	 */
-	strlcpy(ppp_devnam, devnam, MAXPATHLEN);
+	strlcpy(ppp_devname, devnam, MAXPATHLEN);
 	pty_master = -1;
 	pty_slave = -1;
 	real_ttyfd = -1;
 	if (using_pty || record_file != NULL) {
-		if (!get_pty(&pty_master, &pty_slave, ppp_devnam, uid)) {
+		if (!get_pty(&pty_master, &pty_slave, devnam, uid)) {
 			error("Couldn't allocate pseudo-tty");
 			ppp_set_status(EXIT_FATAL_ERROR);
 			return -1;
