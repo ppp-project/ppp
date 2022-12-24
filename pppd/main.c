@@ -171,7 +171,7 @@ static int fd_loop;		/* fd for getting demand-dial packets */
 int fd_devnull;			/* fd for /dev/null */
 int devfd = -1;			/* fd of underlying device */
 int fd_ppp = -1;		/* fd for talking PPP */
-int phase;			/* where the link is at */
+ppp_phase_t phase;		/* where the link is at */
 int kill_link;
 int asked_to_quit;
 int open_ccp_flag;
@@ -1221,12 +1221,18 @@ ppp_recv_config(int unit, int mru, u_int32_t accm, int pcomp, int accomp)
  * new_phase - signal the start of a new phase of pppd's operation.
  */
 void
-new_phase(int p)
+new_phase(ppp_phase_t p)
 {
     phase = p;
     if (new_phase_hook)
 	(*new_phase_hook)(p);
     notify(phasechange, p);
+}
+
+bool
+in_phase(ppp_phase_t p)
+{
+    return (phase == p);
 }
 
 /*

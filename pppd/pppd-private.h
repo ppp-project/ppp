@@ -97,7 +97,6 @@ extern char	hostname[];	/* Our hostname */
 extern unsigned char	outpacket_buf[]; /* Buffer for outgoing packets */
 extern int	devfd;		/* fd of underlying device */
 extern int	fd_ppp;		/* fd for talking PPP */
-extern int	phase;		/* Current state of link - see values below */
 extern int	baud_rate;	/* Current link speed in bits/sec */
 extern char	*progname;	/* Name of this program */
 extern int	redirect_stderr;/* Connector's stderr should go to file */
@@ -308,7 +307,8 @@ pid_t run_program(char *prog, char * const * args, int must_exist,
 void reopen_log(void);	/* (re)open the connection to syslog */
 void print_link_stats(void); /* Print stats, if available */
 void reset_link_stats(int); /* Reset (init) stats when link goes up */
-void new_phase(int);	/* signal start of new phase */
+void new_phase(ppp_phase_t);	/* signal start of new phase */
+bool in_phase(ppp_phase_t);
 void notify(struct notifier *, int);
 int  ppp_send_config(int, int, u_int32_t, int, int);
 int  ppp_recv_config(int, int, u_int32_t, int, int);

@@ -759,7 +759,7 @@ process_option(struct option *opt, char *cmd, char **argv)
 		 opt->name, optopt, option_source);
     }
 
-    if ((opt->flags & OPT_INITONLY) && phase != PHASE_INITIALIZE) {
+    if ((opt->flags & OPT_INITONLY) && !in_phase(PHASE_INITIALIZE)) {
 	option_error("%s%s cannot be changed after initialization",
 		     opt->name, optopt);
 	return 0;
@@ -1118,7 +1118,7 @@ static void
 usage(void)
 {
     FILE *fp = stderr;
-    if (phase == PHASE_INITIALIZE) {
+    if (in_phase(PHASE_INITIALIZE)) {
         fprintf(fp, "%s v%s\n", PACKAGE_NAME, PACKAGE_VERSION);
         fprintf(fp, "Copyright (C) 1999-2022 Paul Mackerras, and others. All rights reserved.\n\n");
 
@@ -1152,7 +1152,7 @@ usage(void)
 static int
 showhelp(char **argv)
 {
-    if (phase == PHASE_INITIALIZE) {
+    if (in_phase(PHASE_INITIALIZE)) {
 	usage();
 	exit(0);
     }
@@ -1165,7 +1165,7 @@ showhelp(char **argv)
 static int
 showversion(char **argv)
 {
-    if (phase == PHASE_INITIALIZE) {
+    if (in_phase(PHASE_INITIALIZE)) {
 	fprintf(stdout, "pppd version %s\n", VERSION);
 	exit(0);
     }
@@ -1230,7 +1230,7 @@ showopts(void)
 /*
  * option_error - print a message about an error in an option.
  * The message is logged, and also sent to
- * stderr if phase == PHASE_INITIALIZE.
+ * stderr if in_phase(PHASE_INITIALIZE).
  */
 void
 option_error(char *fmt, ...)
@@ -1241,7 +1241,7 @@ option_error(char *fmt, ...)
     va_start(args, fmt);
     vslprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    if (phase == PHASE_INITIALIZE)
+    if (in_phase(PHASE_INITIALIZE))
 	fprintf(stderr, "%s: %s\n", progname, buf);
     syslog(LOG_ERR, "%s", buf);
 }

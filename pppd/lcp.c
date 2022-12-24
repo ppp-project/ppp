@@ -390,7 +390,7 @@ lcp_close(int unit, char *reason)
     fsm *f = &lcp_fsm[unit];
     int oldstate;
 
-    if (phase != PHASE_DEAD && phase != PHASE_MASTER)
+    if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
 	new_phase(PHASE_TERMINATE);
 
     if (f->flags & DELAYED_UP) {

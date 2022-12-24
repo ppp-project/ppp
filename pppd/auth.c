@@ -700,7 +700,7 @@ void start_link(int unit)
 void
 link_terminated(int unit)
 {
-    if (phase == PHASE_DEAD || phase == PHASE_MASTER)
+    if (in_phase(PHASE_DEAD) || in_phase(PHASE_MASTER))
 	return;
     new_phase(PHASE_DISCONNECT);
 
@@ -794,7 +794,7 @@ link_down(int unit)
 #ifdef PPP_WITH_MULTILINK
     if (!mp_on()) {
 	upper_layers_down(unit);
-	if (phase != PHASE_DEAD && phase != PHASE_MASTER)
+	if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
 	    new_phase(PHASE_ESTABLISH);
     }
     /* XXX if doing_multilink, should do something to stop
