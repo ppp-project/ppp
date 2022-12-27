@@ -403,10 +403,22 @@ ppp_get_max_idle_time()
     return idle_time_limit;
 }
 
+void
+ppp_set_max_idle_time(unsigned int max)
+{
+    idle_time_limit = max;
+}
+
 int
 ppp_get_max_connect_time()
 {
     return maxconnect;
+}
+
+void
+ppp_set_max_connect_time(unsigned int max)
+{
+    maxconnect = max;
 }
 
 void

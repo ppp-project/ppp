@@ -277,6 +277,11 @@ void ppp_set_modem(bool on)
     modem = on;
 }
 
+bool ppp_using_pty()
+{
+    return using_pty;
+}
+
 /*
  * setspeed - Set the serial port baud rate.
  * If doit is 0, the call is to check whether this option is

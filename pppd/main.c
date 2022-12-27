@@ -323,6 +323,11 @@ int ppp_ifunit()
     return ifunit;
 }
 
+int ppp_get_link_uptime()
+{
+    return link_connect_time;
+}
+
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
