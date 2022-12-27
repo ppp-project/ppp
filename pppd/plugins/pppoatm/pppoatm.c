@@ -187,7 +187,7 @@ void plugin_init(void)
 #else
 	fatal("No PPPoATM support on this OS");
 #endif
-	add_options(pppoa_options);
+	ppp_add_options(pppoa_options);
 }
 
 struct channel pppoa_channel = {

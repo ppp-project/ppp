@@ -376,7 +376,7 @@ main(int argc, char *argv[])
     reopen_log();
 
     if (gethostname(hostname, sizeof(hostname)) < 0 ) {
-	option_error("Couldn't get hostname: %m");
+	ppp_option_error("Couldn't get hostname: %m");
 	exit(1);
     }
     hostname[MAXNAMELEN-1] = 0;
@@ -414,7 +414,7 @@ main(int argc, char *argv[])
      * Parse, in order, the system options file, the user's options file,
      * and the command line arguments.
      */
-    if (!options_from_file(PPP_PATH_SYSOPTIONS, !privileged, 0, 1)
+    if (!ppp_options_from_file(PPP_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user()
 	|| !parse_args(argc-1, argv+1))
 	exit(EXIT_OPTION_ERROR);
@@ -439,13 +439,13 @@ main(int argc, char *argv[])
      * Check that we are running as root.
      */
     if (geteuid() != 0) {
-	option_error("must be root to run %s, since it is not setuid-root",
+	ppp_option_error("must be root to run %s, since it is not setuid-root",
 		     argv[0]);
 	exit(EXIT_NOT_ROOT);
     }
 
     if (!ppp_check_kernel_support()) {
-	option_error("%s", no_ppp_msg);
+	ppp_option_error("%s", no_ppp_msg);
 	exit(EXIT_NO_KERNEL_SUPPORT);
     }
 

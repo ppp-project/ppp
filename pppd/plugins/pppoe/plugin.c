@@ -325,7 +325,7 @@ PPPOEDeviceOptions(void)
 
     strlcpy(buf, PPP_PATH_ETHOPT, MAXPATHLEN);
     strlcat(buf, devnam, MAXPATHLEN);
-    if (!options_from_file(buf, 0, 0, 1))
+    if (!ppp_options_from_file(buf, 0, 0, 1))
 	exit(EXIT_OPTION_ERROR);
 
 }
@@ -418,7 +418,7 @@ plugin_init(void)
 	fatal("Linux kernel does not support PPPoE -- are you running 2.4.x?");
     }
 
-    add_options(Options);
+    ppp_add_options(Options);
 
     info("PPPoE plugin from pppd %s", PPPD_VERSION);
 }
@@ -432,7 +432,7 @@ void pppoe_check_options(void)
 	if (sscanf(pppoe_reqd_mac, "%x:%x:%x:%x:%x:%x",
 		   &mac[0], &mac[1], &mac[2], &mac[3],
 		   &mac[4], &mac[5]) != 6) {
-	    option_error("cannot parse pppoe-mac option value");
+	    ppp_option_error("cannot parse pppoe-mac option value");
 	    exit(EXIT_OPTION_ERROR);
 	}
 	for (i = 0; i < 6; ++i)

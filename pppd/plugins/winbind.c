@@ -73,7 +73,7 @@ static int set_ntlm_auth(char **argv)
 
 	p = argv[0];
 	if (p[0] != '/') {
-		option_error("ntlm_auth-helper argument must be full path");
+		ppp_option_error("ntlm_auth-helper argument must be full path");
 		return 0;
 	}
 	p = strdup(p);
@@ -123,7 +123,7 @@ plugin_init(void)
     /* Don't ask the peer for anything other than MS-CHAP or MS-CHAP V2 */
     chap_mdtype_all &= (MDTYPE_MICROSOFT_V2 | MDTYPE_MICROSOFT);
     
-    add_options(Options);
+    ppp_add_options(Options);
 
     info("WINBIND plugin initialized.");
 }

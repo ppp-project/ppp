@@ -164,7 +164,7 @@ plugin_init(void)
     strlcpy(rstate.config_file, "/etc/radiusclient/radiusclient.conf",
 	    sizeof(rstate.config_file));
 
-    add_options(Options);
+    ppp_add_options(Options);
 
     info("RADIUS plugin initialized.");
 }

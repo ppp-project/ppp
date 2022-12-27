@@ -277,12 +277,12 @@ setbsdcomp(char **argv)
 	abits = strtol(str, &endp, 0);
     }
     if (*endp != 0 || endp == str) {
-	option_error("invalid parameter '%s' for bsdcomp option", *argv);
+	ppp_option_error("invalid parameter '%s' for bsdcomp option", *argv);
 	return 0;
     }
     if ((rbits != 0 && (rbits < BSD_MIN_BITS || rbits > BSD_MAX_BITS))
 	|| (abits != 0 && (abits < BSD_MIN_BITS || abits > BSD_MAX_BITS))) {
-	option_error("bsdcomp option values must be 0 or %d .. %d",
+	ppp_option_error("bsdcomp option values must be 0 or %d .. %d",
 		     BSD_MIN_BITS, BSD_MAX_BITS);
 	return 0;
     }
@@ -315,13 +315,13 @@ setdeflate(char **argv)
 	abits = strtol(str, &endp, 0);
     }
     if (*endp != 0 || endp == str) {
-	option_error("invalid parameter '%s' for deflate option", *argv);
+	ppp_option_error("invalid parameter '%s' for deflate option", *argv);
 	return 0;
     }
     if ((rbits != 0 && (rbits < DEFLATE_MIN_SIZE || rbits > DEFLATE_MAX_SIZE))
 	|| (abits != 0 && (abits < DEFLATE_MIN_SIZE
 			  || abits > DEFLATE_MAX_SIZE))) {
-	option_error("deflate option values must be 0 or %d .. %d",
+	ppp_option_error("deflate option values must be 0 or %d .. %d",
 		     DEFLATE_MIN_SIZE, DEFLATE_MAX_SIZE);
 	return 0;
     }

@@ -80,7 +80,7 @@ static int pwfd_passwd (char *user, char *passwd)
 
 void plugin_init (void)
 {
-    add_options (options);
+    ppp_add_options (options);
 
     pap_check_hook = pwfd_check;
     pap_passwd_hook = pwfd_passwd;

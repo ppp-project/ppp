@@ -514,7 +514,7 @@ setupapfile(char **argv)
 	novm("+ua file name");
     euid = geteuid();
     if (seteuid(getuid()) == -1) {
-	option_error("unable to reset uid before opening %s: %m", fname);
+	ppp_option_error("unable to reset uid before opening %s: %m", fname);
         free(fname);
 	return 0;
     }
@@ -522,7 +522,7 @@ setupapfile(char **argv)
     if (seteuid(euid) == -1)
 	fatal("unable to regain privileges: %m");
     if (ufile == NULL) {
-	option_error("unable to open user login data file %s", fname);
+	ppp_option_error("unable to open user login data file %s", fname);
         free(fname);
 	return 0;
     }
@@ -533,7 +533,7 @@ setupapfile(char **argv)
     if (fgets(u, MAXNAMELEN - 1, ufile) == NULL
 	|| fgets(p, MAXSECRETLEN - 1, ufile) == NULL) {
 	fclose(ufile);
-	option_error("unable to read user login data file %s", fname);
+	ppp_option_error("unable to read user login data file %s", fname);
         free(fname);
 	return 0;
     }
@@ -572,7 +572,7 @@ privgroup(char **argv)
 
     g = getgrnam(*argv);
     if (g == 0) {
-	option_error("group %s is unknown", *argv);
+	ppp_option_error("group %s is unknown", *argv);
 	return 0;
     }
     for (i = 0; i < ngroups; ++i) {
@@ -1408,21 +1408,21 @@ auth_check_options(void)
 
     if (auth_required && !can_auth && noauth_addrs == NULL) {
 	if (default_auth) {
-	    option_error(
+	    ppp_option_error(
 "By default the remote system is required to authenticate itself");
-	    option_error(
+	    ppp_option_error(
 "(because this system has a default route to the internet)");
 	} else if (explicit_remote)
-	    option_error(
+	    ppp_option_error(
 "The remote system (%s) is required to authenticate itself",
 			 remote_name);
 	else
-	    option_error(
+	    ppp_option_error(
 "The remote system is required to authenticate itself");
-	option_error(
+	ppp_option_error(
 "but I couldn't find any suitable secret (password) for it to use to do so.");
 	if (lacks_ip)
-	    option_error(
+	    ppp_option_error(
 "(None of the available passwords would let it use an IP address.)");
 
 	exit(1);

@@ -331,10 +331,10 @@ setvjslots(char **argv)
 {
     int value;
 
-    if (!int_option(*argv, &value))
+    if (!ppp_int_option(*argv, &value))
 	return 0;
     if (value < 2 || value > 16) {
-	option_error("vj-max-slots value must be between 2 and 16");
+	ppp_option_error("vj-max-slots value must be between 2 and 16");
 	return 0;
     }
     ipcp_wantoptions [0].maxslotindex =
@@ -355,7 +355,7 @@ setdnsaddr(char **argv)
     dns = inet_addr(*argv);
     if (dns == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
-	    option_error("invalid address parameter '%s' for ms-dns option",
+	    ppp_option_error("invalid address parameter '%s' for ms-dns option",
 			 *argv);
 	    return 0;
 	}
@@ -390,7 +390,7 @@ setwinsaddr(char **argv)
     wins = inet_addr(*argv);
     if (wins == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
-	    option_error("invalid address parameter '%s' for ms-wins option",
+	    ppp_option_error("invalid address parameter '%s' for ms-wins option",
 			 *argv);
 	    return 0;
 	}
@@ -441,13 +441,13 @@ setipaddr(char *arg, char **argv, int doit)
 	*colon = '\0';
 	if ((local = inet_addr(arg)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(arg)) == NULL) {
-		option_error("unknown host: %s", arg);
+		ppp_option_error("unknown host: %s", arg);
 		return 0;
 	    }
 	    local = *(u_int32_t *)hp->h_addr;
 	}
 	if (ppp_bad_ip_addr(local)) {
-	    option_error("bad local IP address %s", ip_ntoa(local));
+	    ppp_option_error("bad local IP address %s", ip_ntoa(local));
 	    return 0;
 	}
 	if (local != 0)
@@ -462,7 +462,7 @@ setipaddr(char *arg, char **argv, int doit)
     if (*++colon != '\0' && option_priority >= prio_remote) {
 	if ((remote = inet_addr(colon)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(colon)) == NULL) {
-		option_error("unknown host: %s", colon);
+		ppp_option_error("unknown host: %s", colon);
 		return 0;
 	    }
 	    remote = *(u_int32_t *)hp->h_addr;
@@ -470,7 +470,7 @@ setipaddr(char *arg, char **argv, int doit)
 		strlcpy(remote_name, colon, sizeof(remote_name));
 	}
 	if (ppp_bad_ip_addr(remote)) {
-	    option_error("bad remote IP address %s", ip_ntoa(remote));
+	    ppp_option_error("bad remote IP address %s", ip_ntoa(remote));
 	    return 0;
 	}
 	if (remote != 0)
@@ -513,7 +513,7 @@ setnetmask(char **argv)
     mask = htonl(mask);
 
     if (n == 0 || p[n] != 0 || (netmask & ~mask) != 0) {
-	option_error("invalid netmask value '%s'", *argv);
+	ppp_option_error("invalid netmask value '%s'", *argv);
 	return 0;
     }
 

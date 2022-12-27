@@ -3702,7 +3702,7 @@ int
 sys_check_options(void)
 {
     if (demand && driver_is_old) {
-	option_error("demand dialling is not supported by kernel driver "
+	ppp_option_error("demand dialling is not supported by kernel driver "
 		     "version %d.%d.%d", driver_version, driver_modification,
 		     driver_patch);
 	return 0;

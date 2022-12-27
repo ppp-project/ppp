@@ -895,7 +895,7 @@ chapms_init(void)
 {
 	chap_register_digest(&chapms_digest);
 	chap_register_digest(&chapms2_digest);
-	add_options(chapms_option_list);
+	ppp_add_options(chapms_option_list);
 }
 #else
 

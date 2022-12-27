@@ -202,6 +202,10 @@ extern bool	dump_options;	/* print out option values */
 extern bool	show_options;	/* show all option names and descriptions */
 extern bool	dryrun;		/* check everything, print options, exit */
 extern int	child_wait;	/* # seconds to wait for children at end */
+extern char *current_option;    /* the name of the option being parsed */
+extern int  privileged_option;  /* set iff the current option came from root */
+extern char *option_source;     /* string saying where the option came from */
+extern int  option_priority;    /* priority of current options */
 
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */
@@ -249,11 +253,6 @@ extern struct	bpf_program active_filter; /* Filter for link-active pkts */
 extern bool	ms_lanman;	/* Use LanMan password instead of NT */
 				/* Has meaning only with MS-CHAP challenges */
 #endif
-
-
-
-
-// TODO: These goes into auth.h
 
 /* Values for auth_pending, auth_done */
 #define PAP_WITHPEER	0x1

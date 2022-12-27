@@ -371,7 +371,7 @@ setifaceid(char **argv)
 	*comma = '\0';
 
 	if (inet_pton(AF_INET6, arg, &addr) == 0 || !VALIDID(addr)) {
-	    option_error("Illegal interface identifier (local): %s", arg);
+	    ppp_option_error("Illegal interface identifier (local): %s", arg);
 	    return 0;
 	}
 
@@ -388,7 +388,7 @@ setifaceid(char **argv)
      */
     if (*comma != 0 && *++comma != '\0') {
 	if (inet_pton(AF_INET6, comma, &addr) == 0 || !VALIDID(addr)) {
-	    option_error("Illegal interface identifier (remote): %s", comma);
+	    ppp_option_error("Illegal interface identifier (remote): %s", comma);
 	    return 0;
 	}
 	if (option_priority >= prio_remote) {

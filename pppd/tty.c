@@ -325,12 +325,12 @@ setdevname(char *cp, char **argv, int doit)
 	if (stat(cp, &statbuf) < 0) {
 		if (!doit)
 			return errno != ENOENT;
-		option_error("Couldn't stat %s: %m", cp);
+		ppp_option_error("Couldn't stat %s: %m", cp);
 		return 0;
 	}
 	if (!S_ISCHR(statbuf.st_mode)) {
 		if (doit)
-			option_error("%s is not a character device", cp);
+			ppp_option_error("%s is not a character device", cp);
 		return 0;
 	}
 
@@ -367,13 +367,13 @@ setescape(char **argv)
     while (*p) {
 	n = strtol(p, &endp, 16);
 	if (p == endp) {
-	    option_error("escape parameter contains invalid hex number '%s'",
+	    ppp_option_error("escape parameter contains invalid hex number '%s'",
 			 p);
 	    return 0;
 	}
 	p = endp;
 	if (n < 0 || n == 0x5E || n > 0xFF) {
-	    option_error("can't escape character 0x%x", n);
+	    ppp_option_error("can't escape character 0x%x", n);
 	    ret = 0;
 	} else
 	    xmit_accm[n >> 5] |= 1 << (n & 0x1F);
@@ -427,7 +427,7 @@ void tty_process_extra_options(void)
 	if (default_device) {
 		char *p;
 		if (!isatty(0) || (p = ttyname(0)) == NULL) {
-			option_error("no device specified and stdin is not a tty");
+			ppp_option_error("no device specified and stdin is not a tty");
 			exit(EXIT_OPTION_ERROR);
 		}
 		strlcpy(devnam, p, MAXPATHLEN);
@@ -457,12 +457,12 @@ tty_check_options(void)
 	int fdflags;
 
 	if (demand && notty) {
-		option_error("demand-dialling is incompatible with notty");
+		ppp_option_error("demand-dialling is incompatible with notty");
 		exit(EXIT_OPTION_ERROR);
 	}
 	if (demand && connect_script == 0 && ptycommand == NULL
 	    && pty_socket == NULL) {
-		option_error("connect script is required for demand-dialling\n");
+		ppp_option_error("connect script is required for demand-dialling\n");
 		exit(EXIT_OPTION_ERROR);
 	}
 	/* default holdoff to 0 if no connect script has been given */
@@ -471,16 +471,16 @@ tty_check_options(void)
 
 	if (using_pty) {
 		if (!default_device) {
-			option_error("%s option precludes specifying device name",
+			ppp_option_error("%s option precludes specifying device name",
 				     pty_socket? "socket": notty? "notty": "pty");
 			exit(EXIT_OPTION_ERROR);
 		}
 		if (ptycommand != NULL && notty) {
-			option_error("pty option is incompatible with notty option");
+			ppp_option_error("pty option is incompatible with notty option");
 			exit(EXIT_OPTION_ERROR);
 		}
 		if (pty_socket != NULL && (ptycommand != NULL || notty)) {
-			option_error("socket option is incompatible with pty and notty");
+			ppp_option_error("socket option is incompatible with pty and notty");
 			exit(EXIT_OPTION_ERROR);
 		}
 		default_device = notty;

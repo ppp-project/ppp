@@ -110,22 +110,17 @@ typedef struct option option_t;
 #define OPRIO_SECFILE   3	/* value from options in a secrets file */
 #define OPRIO_ROOT      100	/* added to priority if OPT_PRIVFIX && root */
 
-extern char *current_option;    /* the name of the option being parsed */
-extern int  privileged_option;  /* set iff the current option came from root */
-extern char *option_source;     /* string saying where the option came from */
-extern int  option_priority;    /* priority of current options */
-
 /* Add additional supported options by e.g. plug-in */
-void add_options(struct option *);
+void ppp_add_options(struct option *options);
 
 /* Parse options from an options file */
-int options_from_file(char *filename, int must_exist, int check_prot,
+int ppp_options_from_file(char *filename, int must_exist, int check_prot,
 		       int privileged);
-				
-/* Print an error message about an option */
-void option_error(char *fmt, ...);
-				
+
 /* Simplified number_option for decimal ints */
-int int_option(char *, int *);
+int ppp_int_option(char *name, int *value);
+
+/* Print an error message about an option */
+void ppp_option_error(char *fmt, ...);
 
 #endif

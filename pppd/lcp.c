@@ -313,7 +313,7 @@ setendpoint(char **argv)
 	lcp_wantoptions[0].neg_endpoint = 1;
 	return 1;
     }
-    option_error("Can't parse '%s' as an endpoint discriminator", *argv);
+    ppp_option_error("Can't parse '%s' as an endpoint discriminator", *argv);
     return 0;
 }
 

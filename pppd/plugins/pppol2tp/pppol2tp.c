@@ -139,7 +139,7 @@ static int setdevname_pppol2tp(char **argv)
 	if (device_got_set)
 		return 0;
 
-	if (!int_option(*argv, &pppol2tp_fd))
+	if (!ppp_int_option(*argv, &pppol2tp_fd))
 		return 0;
 
 	if(getsockname(pppol2tp_fd, (struct sockaddr *)&s, &len) < 0) {
@@ -508,7 +508,7 @@ void plugin_init(void)
 #else
 	fatal("No PPPoL2TP support on this OS");
 #endif
-	add_options(pppol2tp_options);
+	ppp_add_options(pppol2tp_options);
 
 	/* Hook up ip up/down notifiers to send indicator to openl2tpd
 	 * that the link is up

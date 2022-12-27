@@ -74,6 +74,6 @@ static int my_get_idle(struct ppp_idle *idle)
 void plugin_init(void)
 {
 	info("plugin_init");
-	add_options(my_options);
+	ppp_add_options(my_options);
 	idle_time_hook = my_get_idle;
 }
