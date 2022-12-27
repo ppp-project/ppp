@@ -137,6 +137,8 @@ int locked;			/* lock() has succeeded */
 struct stat devstat;		/* result of stat() on devnam */
 
 /* option variables */
+char	devnam[MAXPATHLEN];	/* Device name */
+char	ppp_devname[MAXPATHLEN];/* name of PPP tty (maybe ttypx) */
 int	crtscts = 0;		/* Use hardware flow control */
 int	stop_bits = 1;		/* Number of serial port stop bits */
 bool	modem = 1;		/* Use modem control lines */
@@ -262,25 +264,60 @@ struct channel tty_channel = {
 	&tty_close_fds
 };
 
-bool ppp_sync_serial()
+bool
+ppp_sync_serial()
 {
     return sync_serial;
 }
 
-bool ppp_get_modem()
+bool
+ppp_get_modem()
 {
     return modem;
 }
 
-void ppp_set_modem(bool on)
+void
+ppp_set_modem(bool on)
 {
     modem = on;
 }
 
-bool ppp_using_pty()
+bool
+ppp_using_pty()
 {
     return using_pty;
 }
+
+int
+ppp_set_pppdevnam(const char *name)
+{
+    if (name) {
+        return strlcpy(ppp_devname, name, sizeof(ppp_devname));
+    }
+    return -1;
+}
+
+const char *
+ppp_pppdevnam()
+{
+    return ppp_devname;
+}
+
+const char *
+ppp_devnam()
+{
+    return devnam;
+}
+
+int
+ppp_set_devnam(const char *name)
+{
+    if (name) {
+        return strlcpy(devnam, name, sizeof(devnam));
+    }
+    return -1;
+}
+
 
 /*
  * setspeed - Set the serial port baud rate.
@@ -544,7 +581,7 @@ int connect_tty(void)
 	pty_slave = -1;
 	real_ttyfd = -1;
 	if (using_pty || record_file != NULL) {
-		if (!get_pty(&pty_master, &pty_slave, devnam, uid)) {
+		if (!get_pty(&pty_master, &pty_slave, ppp_devname, uid)) {
 			error("Couldn't allocate pseudo-tty");
 			ppp_set_status(EXIT_FATAL_ERROR);
 			return -1;

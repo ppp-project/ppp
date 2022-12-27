@@ -99,8 +99,6 @@ struct option_value {
 int	debug = 0;		/* Debug flag */
 int	kdebugflag = 0;		/* Tell kernel to print debug messages */
 int	default_device = 1;	/* Using /dev/tty or equivalent */
-char	devnam[MAXPATHLEN];	/* Device name */
-char	ppp_devname[MAXPATHLEN];/* name of PPP tty (maybe ttypx) */
 bool	nodetach = 0;		/* Don't detach from controlling tty */
 bool	updetach = 0;		/* Detach once link is up */
 bool	master_detach;		/* Detach when we're (only) multilink master */
@@ -439,36 +437,6 @@ bool
 debug_on()
 {
     return !!debug;
-}
-
-int
-ppp_set_pppdevnam(const char *name)
-{
-    if (name) {
-        return strlcpy(ppp_devname, name, sizeof(ppp_devname));
-    }
-    return -1;
-}
-
-const char *
-ppp_pppdevnam()
-{
-    return ppp_devname;
-}
-
-const char *
-ppp_devnam()
-{
-    return devnam;
-}
-
-int
-ppp_set_devnam(const char *name)
-{
-    if (name) {
-        return strlcpy(devnam, name, sizeof(devnam));
-    }
-    return -1;
 }
 
 /*
