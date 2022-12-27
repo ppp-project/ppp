@@ -128,19 +128,6 @@
 
 #if PPP_WITH_MPPE
 
-/*
- * NOTE:
- *   Access to these variables directly is discuraged. Please
- *   change your code to use below accessor functions.
- */
-
-/* The key material generated which is used for MPPE send key */
-extern unsigned char mppe_send_key[MPPE_MAX_KEY_SIZE];
-/* The key material generated which is used for MPPE recv key */
-extern unsigned char mppe_recv_key[MPPE_MAX_KEY_SIZE];
-/* Keys are set if value is non-zero */
-extern int mppe_keys_set;
-
 /* These values are the RADIUS attribute values--see RFC 2548. */
 #define MPPE_ENC_POL_ENC_ALLOWED 1
 #define MPPE_ENC_POL_ENC_REQUIRED 2
