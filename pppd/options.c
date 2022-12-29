@@ -439,6 +439,61 @@ debug_on()
     return !!debug;
 }
 
+int
+ppp_get_path(ppp_path_t type, char *buf, size_t bufsz)
+{
+    const char *path;
+
+    if (buf && bufsz > 0) {
+        switch (type) {
+        case PPP_DIR_LOG:
+            path = PPP_PATH_VARLOG;
+            break;
+        case PPP_DIR_RUNTIME:
+            path = PPP_PATH_VARRUN;
+            break;
+        case PPP_DIR_PLUGIN:
+            path = PPP_PATH_PLUGIN;
+            break;
+        case PPP_DIR_CONF:
+            path = PPP_PATH_CONFDIR;
+            break;
+        }
+        return strlcpy(buf, path, bufsz);
+    }
+    return -1;
+}
+
+int
+ppp_get_filepath(ppp_path_t type, const char *name, char *buf, size_t bufsz)
+{
+    const char *path;
+
+    if (buf && bufsz > 0) {
+        switch (type) {
+        case PPP_DIR_LOG:
+            path = PPP_PATH_VARLOG;
+            break;
+        case PPP_DIR_RUNTIME:
+            path = PPP_PATH_VARRUN;
+            break;
+        case PPP_DIR_PLUGIN:
+            path = PPP_PATH_PLUGIN;
+            break;
+        case PPP_DIR_CONF:
+            path = PPP_PATH_CONFDIR;
+            break;
+        }
+        return slprintf(buf, bufsz, "%s/%s", path, name);
+    }
+    return -1;
+}
+
+bool ppp_persist()
+{
+    return !!persist;
+}
+
 /*
  * parse_args - parse a string of arguments from the command line.
  */

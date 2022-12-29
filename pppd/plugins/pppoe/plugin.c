@@ -55,8 +55,6 @@ static char const RCSID[] =
 #include <pppd/ipcp.h>
 #include <pppd/ccp.h>
 
-#define PPP_PATH_ETHOPT         SYSCONFDIR "/ppp/options."
-
 char pppd_version[] = PPPD_VERSION;
 
 /* From sys-linux.c in pppd -- MUST FIX THIS! */
@@ -321,13 +319,17 @@ PPPOEDisconnectDevice(void)
 static void
 PPPOEDeviceOptions(void)
 {
+    char name[MAXPATHLEN];
     char buf[MAXPATHLEN];
 
-    strlcpy(buf, PPP_PATH_ETHOPT, MAXPATHLEN);
-    strlcat(buf, devnam, MAXPATHLEN);
-    if (!ppp_options_from_file(buf, 0, 0, 1))
-	exit(EXIT_OPTION_ERROR);
-
+    slprintf(name, sizeof(name), "options.%s", devnam);
+	if (ppp_get_filepath(PPP_DIR_CONF, name, buf, sizeof(buf)) < sizeof(buf)) {
+		if (!ppp_options_from_file(buf, 0, 0, 1)) {
+			exit(EXIT_OPTION_ERROR);
+		}
+	} else {
+		exit(EXIT_OPTION_ERROR);
+	}
 }
 
 struct channel pppoe_channel;

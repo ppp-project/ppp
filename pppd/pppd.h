@@ -143,6 +143,14 @@ typedef enum
     NF_MAX_NOTIFY
 } ppp_notify_t;
 
+typedef enum
+{
+    PPP_DIR_LOG,
+    PPP_DIR_RUNTIME,
+    PPP_DIR_CONF,
+    PPP_DIR_PLUGIN,
+} ppp_path_t;
+
 /*
  * Unfortunately, the linux kernel driver uses a different structure
  * for statistics from the rest of the ports.
@@ -539,6 +547,20 @@ void ppp_add_notify(ppp_notify_t type, ppp_notify_fn *func, void *ctx);
  */
 void ppp_del_notify(ppp_notify_t type, ppp_notify_fn *func, void *ctx);
 
+/*
+ * Get the path prefix in which a file is installed
+ */
+int ppp_get_path(ppp_path_t type, char *buf, size_t bufsz);
+
+/*
+ * Get the file with path prefix
+ */
+int ppp_get_filepath(ppp_path_t type, const char *name, char *buf, size_t bufsz);
+
+/*
+ * Check if pppd is to re-open link after it goes down
+ */
+bool ppp_persist();
 
 /*
  * Hooks to enable plugins to hook into various parts of the code
