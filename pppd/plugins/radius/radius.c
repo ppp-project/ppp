@@ -1141,8 +1141,11 @@ radius_acct_stop(void)
     av_type = PW_NAS_ERROR;
     switch( status ) {
 	case EXIT_OK:
-	case EXIT_USER_REQUEST:
 	    av_type = PW_USER_REQUEST;
+	    break;
+
+	case EXIT_USER_REQUEST:
+	    av_type = PW_ADMIN_RESET;
 	    break;
 
 	case EXIT_HANGUP:
