@@ -1512,12 +1512,10 @@ int read_packet (unsigned char *buf)
 	    nr = 0;
 #ifdef PPP_WITH_MULTILINK
 	if (nr == 0 && mp_on()) {
-#else
-	if (nr == 0) {
-#endif
 	    remove_fd(ppp_dev_fd);
 	    bundle_eof = 1;
 	}
+#endif
     }
     if (new_style_driver && ppp_fd < 0 && ppp_dev_fd < 0)
 	nr = 0;

@@ -792,14 +792,15 @@ link_down(int unit)
 	}
     }
 #ifdef PPP_WITH_MULTILINK
-    if (!mp_on()) {
+    if (!mp_on())
+#endif
+    {
 	upper_layers_down(unit);
 	if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
 	    new_phase(PHASE_ESTABLISH);
     }
     /* XXX if doing_multilink, should do something to stop
        network-layer traffic on the link */
-#endif
 }
 
 void upper_layers_down(int unit)
@@ -840,13 +841,12 @@ link_established(int unit)
      * Tell higher-level protocols that LCP is up.
      */
 #ifdef PPP_WITH_MULTILINK
-    if (!mp_on()) {
+    if (!mp_on())
+#endif
 	for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	    if (protp->protocol != PPP_LCP && protp->enabled_flag
 		&& protp->lowerup != NULL)
 		(*protp->lowerup)(unit);
-    }
-#endif
     if (!auth_required && noauth_addrs != NULL)
 	set_allowed_addrs(unit, NULL, NULL);
 
