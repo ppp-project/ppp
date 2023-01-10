@@ -134,7 +134,7 @@ while (1)
     syslog('err', "pppd returned: unknown error ($pppd_code), delayed retry");
     $pppd_fail = 1;
   }
-  # if it hasn't ran for at least an hour, then somthing went wrong
+  # if it hasn't ran for at least an hour, then something went wrong
   elsif ($pppd_run_time < toseconds("01:00:00")) {
     syslog('err',"pppd session didn't last 1 hour, delayed retry");
     $pppd_fail = 1;
