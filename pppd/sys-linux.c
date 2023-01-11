@@ -800,11 +800,7 @@ void ppp_generic_disestablish(int dev_fd)
 	if (demand) {
 	    modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	    looped = 1;
-#ifdef PPP_WITH_MULTILINK
 	} else if (!mp_on() && ppp_dev_fd >= 0) {
-#else
-	} else if (ppp_dev_fd >= 0) {
-#endif
 	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
 	    ppp_dev_fd = -1;
@@ -1510,12 +1506,10 @@ int read_packet (unsigned char *buf)
 	    error("read /dev/ppp: %m");
 	if (nr < 0 && errno == ENXIO)
 	    nr = 0;
-#ifdef PPP_WITH_MULTILINK
 	if (nr == 0 && mp_on()) {
 	    remove_fd(ppp_dev_fd);
 	    bundle_eof = 1;
 	}
-#endif
     }
     if (new_style_driver && ppp_fd < 0 && ppp_dev_fd < 0)
 	nr = 0;

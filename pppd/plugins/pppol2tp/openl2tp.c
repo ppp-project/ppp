@@ -280,16 +280,16 @@ out:
  * multilink bundle.
  *****************************************************************************/
 
+#ifdef PPP_WITH_MULTILINK
 static void openl2tp_multilink_join_ind(void)
 {
-#ifdef PPP_WITH_MULTILINK
 	if (mp_on() && !mp_master()) {
 		/* send event only if not master */
 		openl2tp_ppp_updown_ind(pppol2tp_tunnel_id,
 					pppol2tp_session_id, 1);
 	}
-#endif
 }
+#endif
 
 /*****************************************************************************
  * Application init

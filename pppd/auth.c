@@ -709,12 +709,10 @@ link_terminated(int unit)
     }
     session_end(devnam);
 
-#ifdef PPP_WITH_MULTILINK
     if (!mp_on()) {
 	notice("Connection terminated.");
 	print_link_stats();
     } else
-#endif
 	notice("Link terminated.");
 
     /*
@@ -722,11 +720,7 @@ link_terminated(int unit)
      * can happen that another pppd gets the same unit and then
      * we delete its pid file.
      */
-#ifdef PPP_WITH_MULTILINK
     if (!demand && !mp_on())
-#else
-    if (!demand)
-#endif
 	remove_pidfiles();
     /*
      * If we may want to bring the link up again, transfer
@@ -737,19 +731,13 @@ link_terminated(int unit)
 	remove_fd(fd_ppp);
 	clean_check();
 	the_channel->disestablish_ppp(devfd);
-#ifdef PPP_WITH_MULTILINK
 	if (mp_on())
 	    mp_exit_bundle();
-#endif
 	fd_ppp = -1;
     }
     if (!hungup)
 	lcp_lowerdown(0);
-#ifdef PPP_WITH_MULTILINK
     if (!mp_on() && !demand)
-#else
-    if (!demand)
-#endif
 	ppp_script_unsetenv("IFNAME");
 
     /*
@@ -763,7 +751,6 @@ link_terminated(int unit)
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
-#ifdef PPP_WITH_MULTILINK
     if (mp_on() && mp_master()) {
 	if (!bundle_terminating) {
 	    new_phase(PHASE_MASTER);
@@ -772,7 +759,6 @@ link_terminated(int unit)
 	} else
 	    mp_bundle_terminated();
     } else
-#endif
 	new_phase(PHASE_DEAD);
 }
 
@@ -791,9 +777,7 @@ link_down(int unit)
 	    auth_script(PPP_PATH_AUTHDOWN);
 	}
     }
-#ifdef PPP_WITH_MULTILINK
     if (!mp_on())
-#endif
     {
 	upper_layers_down(unit);
 	if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
@@ -840,9 +824,7 @@ link_established(int unit)
     /*
      * Tell higher-level protocols that LCP is up.
      */
-#ifdef PPP_WITH_MULTILINK
     if (!mp_on())
-#endif
 	for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	    if (protp->protocol != PPP_LCP && protp->enabled_flag
 		&& protp->lowerup != NULL)

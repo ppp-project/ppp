@@ -93,5 +93,20 @@ int str_to_epdisc(struct epdisc *, char *);
 typedef void (multilink_join_hook_fn)(void);
 extern multilink_join_hook_fn *multilink_join_hook;
 
+#else
+
+#define mp_check_options(x)     ((void)0)
+#define mp_join_bundle(x)       ((void)0)
+#define mp_exit_bundle(x)       ((void)0)
+#define mp_bundle_terminated(x) ((void)0)
+
+static inline bool mp_on() {
+    return false;
+}
+
+static inline bool mp_master() {
+    return false;
+}
+
 #endif // PPP_WITH_MULTILINK
 #endif // PPP_MULTILINK_H

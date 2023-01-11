@@ -461,9 +461,7 @@ main(int argc, char *argv[])
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
-#ifdef PPP_WITH_MULTILINK
     mp_check_options();
-#endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
@@ -605,10 +603,8 @@ main(int argc, char *argv[])
 		lcp_close(0, "User request");
 	    if (asked_to_quit) {
 		bundle_terminating = 1;
-#ifdef PPP_WITH_MULTILINK
 		if (phase == PHASE_MASTER)
 		    mp_bundle_terminated();
-#endif
 	    }
 	    if (open_ccp_flag) {
 		if (phase == PHASE_NETWORK || phase == PHASE_RUNNING) {
@@ -1113,13 +1109,11 @@ get_input(void)
 	return;
 
     if (len == 0) {
-#ifdef PPP_WITH_MULTILINK
 	if (bundle_eof && mp_master()) {
 	    notice("Last channel has disconnected");
 	    mp_bundle_terminated();
 	    return;
 	}
-#endif
 	notice("Modem hangup");
 	hungup = 1;
 	code = EXIT_HANGUP;
@@ -1247,10 +1241,8 @@ void
 die(int status)
 {
 
-#if PPP_WITH_MULTILINK
     if (!mp_on() || mp_master())
 	print_link_stats();
-#endif
     cleanup();
     notify(exitnotify, status);
     syslog(LOG_INFO, "Exit.");
