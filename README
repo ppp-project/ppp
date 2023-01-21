@@ -61,6 +61,37 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
+What's new in ppp-2.5.0.
+************************
+
+The 2.5.0 release is a major release of pppd which contains breaking 
+changes for third-party plugins, a complete revamp of the build-system
+and that allows for flexibility of configuring features as needed.
+
+In Summary:
+* Support for PEAP authentication by Eivind Næss and Rustam Kovhaev
+* Support for loading PKCS12 certificate envelopes 
+* Adoption of GNU Autoconf / Automake build environment, by Eivind Næss
+  and others.
+* Support for pkgconfig tool has been added by Eivind Næss.
+* Bunch of fixes and cleanup to PPPoE and IPv6 support by Pali Rohár.
+* Major revision to PPPD's Plugin API by Eivind Næss.
+  - Defines in which describes what features was included in pppd
+  - Function now prefixed with explicit ppp_* to indicate it's a 
+    pppd functions being called.
+  - Header files was renamed to better align with their features
+    and use of proper include guards
+  - A pppdconf.h files is supplied to allow third-party use the same
+    feature defines pppd was compiled with.
+  - No extern declarations of internal variable names of pppd, 
+    continued use of these extern variables are considered 
+    unstable.
+* Lots of internal fixes and cleanups for Radius and PPPoE by Jaco Kroon
+* Dropped IPX support, as Linux 5.15 already have dropped support
+  for this protocol.
+* Many more fixes and cleanups.
+
+
 What's new in ppp-2.4.9.
 ************************
 
