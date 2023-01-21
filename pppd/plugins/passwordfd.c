@@ -11,15 +11,23 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <sys/time.h>
 
 #include <pppd/pppd.h>
+#include <pppd/upap.h>
+#include <pppd/chap.h>
+#include <pppd/eap.h>
+#include <pppd/options.h>
 
 char pppd_version[] = PPPD_VERSION;
 
 static int passwdfd = -1;
 static char save_passwd[MAXSECRETLEN];
 
-static option_t options[] = {
+static struct option options[] = {
     { "passwordfd", o_int, &passwdfd,
       "Receive password on this file descriptor" },
     { NULL }
@@ -72,7 +80,7 @@ static int pwfd_passwd (char *user, char *passwd)
 
 void plugin_init (void)
 {
-    add_options (options);
+    ppp_add_options (options);
 
     pap_check_hook = pwfd_check;
     pap_passwd_hook = pwfd_passwd;

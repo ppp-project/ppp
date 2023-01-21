@@ -14,15 +14,24 @@
 #include <sys/wait.h>
 #include <sys/param.h>
 #include <limits.h>
+#include <stdio.h>
 #include <syslog.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
 #include <pppd/pppd.h>
+#include <pppd/upap.h>
+#include <pppd/eap.h>
+#include <pppd/options.h>
 
 char pppd_version[] = PPPD_VERSION;
 
 static char promptprog[PATH_MAX+1];
 static int promptprog_refused = 0;
 
-static option_t options[] = {
+static struct option options[] = {
     { "promptprog", o_string, promptprog,
       "External PAP password prompting program",
       OPT_STATIC, NULL, PATH_MAX },
@@ -55,7 +64,7 @@ static int promptpass(char *user, char *passwd)
     if (!kid) {
 	/* we are the child, exec the program */
 	char *argv[5], fdstr[32];
-	sys_close();
+	ppp_sys_close();
 	closelog();
 	close(p[0]);
 	ret = seteuid(getuid());
@@ -66,10 +75,10 @@ static int promptpass(char *user, char *passwd)
 	if (ret != 0) {
 		warn("Couldn't set effective user id");
 	}
-	argv[0] = promptprog;
-	argv[1] = user;
-	argv[2] = remote_name;
 	sprintf(fdstr, "%d", p[1]);
+	argv[0] = promptprog;
+	argv[1] = strdup(user);
+	argv[2] = strdup(ppp_remote_name());
 	argv[3] = fdstr;
 	argv[4] = 0;
 	execv(*argv, argv);
@@ -84,7 +93,7 @@ static int promptpass(char *user, char *passwd)
 	if (red == 0)
 	    break;
 	if (red < 0) {
-	    if (errno == EINTR && !got_sigterm)
+	    if (errno == EINTR && !ppp_signaled(SIGTERM))
 		continue;
 	    error("Can't read secret from %s: %m", promptprog);
 	    readgood = -1;
@@ -96,7 +105,7 @@ static int promptpass(char *user, char *passwd)
 
     /* now wait for child to exit */
     while (waitpid(kid, &wstat, 0) < 0) {
-	if (errno != EINTR || got_sigterm) {
+	if (errno != EINTR || ppp_signaled(SIGTERM)) {
 	    warn("error waiting for %s: %m", promptprog);
 	    break;
 	}
@@ -120,7 +129,7 @@ static int promptpass(char *user, char *passwd)
 
 void plugin_init(void)
 {
-    add_options(options);
+    ppp_add_options(options);
     pap_passwd_hook = promptpass;
 #ifdef PPP_WITH_EAPTLS
     eaptls_passwd_hook = promptpass;

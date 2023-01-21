@@ -44,10 +44,6 @@
 #include "config.h"
 #endif
 
-/*
- * TODO:
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -59,7 +55,8 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "pathnames.h"
@@ -71,19 +68,16 @@ ipcp_options ipcp_gotoptions[NUM_PPP];	/* Options that peer ack'd */
 ipcp_options ipcp_allowoptions[NUM_PPP]; /* Options we allow peer to request */
 ipcp_options ipcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 
+char	*ipparam = NULL;	/* Extra parameter for ip up/down scripts */
 u_int32_t netmask = 0;		/* IP netmask to set on interface */
 
 bool	disable_defaultip = 0;	/* Don't use hostname for default IP adrs */
 bool	noremoteip = 0;		/* Let him have no IP address */
 
-/* Hook for a plugin to know when IP protocol has come up */
-void (*ip_up_hook)(void) = NULL;
+ip_up_hook_fn *ip_up_hook = NULL;
+ip_down_hook_fn *ip_down_hook = NULL;
+ip_choose_hook_fn *ip_choose_hook = NULL;
 
-/* Hook for a plugin to know when IP protocol has come down */
-void (*ip_down_hook)(void) = NULL;
-
-/* Hook for a plugin to choose the remote IP address */
-void (*ip_choose_hook)(u_int32_t *) = NULL;
 
 /* Notifiers for when IPCP goes up and down */
 struct notifier *ip_up_notifier = NULL;
@@ -142,9 +136,9 @@ static int setdnsaddr (char **);
 static int setwinsaddr (char **);
 static int setnetmask (char **);
 int setipaddr (char *, char **, int);
-static void printipaddr (option_t *, void (*)(void *, char *,...),void *);
+static void printipaddr (struct option *, void (*)(void *, char *,...),void *);
 
-static option_t ipcp_option_list[] = {
+static struct option ipcp_option_list[] = {
     { "noip", o_bool, &ipcp_protent.enabled_flag,
       "Disable IP and IPCP" },
     { "-ip", o_bool, &ipcp_protent.enabled_flag,
@@ -337,10 +331,10 @@ setvjslots(char **argv)
 {
     int value;
 
-    if (!int_option(*argv, &value))
+    if (!ppp_int_option(*argv, &value))
 	return 0;
     if (value < 2 || value > 16) {
-	option_error("vj-max-slots value must be between 2 and 16");
+	ppp_option_error("vj-max-slots value must be between 2 and 16");
 	return 0;
     }
     ipcp_wantoptions [0].maxslotindex =
@@ -361,7 +355,7 @@ setdnsaddr(char **argv)
     dns = inet_addr(*argv);
     if (dns == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
-	    option_error("invalid address parameter '%s' for ms-dns option",
+	    ppp_option_error("invalid address parameter '%s' for ms-dns option",
 			 *argv);
 	    return 0;
 	}
@@ -396,7 +390,7 @@ setwinsaddr(char **argv)
     wins = inet_addr(*argv);
     if (wins == (u_int32_t) -1) {
 	if ((hp = gethostbyname(*argv)) == NULL) {
-	    option_error("invalid address parameter '%s' for ms-wins option",
+	    ppp_option_error("invalid address parameter '%s' for ms-wins option",
 			 *argv);
 	    return 0;
 	}
@@ -447,13 +441,13 @@ setipaddr(char *arg, char **argv, int doit)
 	*colon = '\0';
 	if ((local = inet_addr(arg)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(arg)) == NULL) {
-		option_error("unknown host: %s", arg);
+		ppp_option_error("unknown host: %s", arg);
 		return 0;
 	    }
 	    local = *(u_int32_t *)hp->h_addr;
 	}
-	if (bad_ip_adrs(local)) {
-	    option_error("bad local IP address %s", ip_ntoa(local));
+	if (ppp_bad_ip_addr(local)) {
+	    ppp_option_error("bad local IP address %s", ip_ntoa(local));
 	    return 0;
 	}
 	if (local != 0)
@@ -468,15 +462,15 @@ setipaddr(char *arg, char **argv, int doit)
     if (*++colon != '\0' && option_priority >= prio_remote) {
 	if ((remote = inet_addr(colon)) == (u_int32_t) -1) {
 	    if ((hp = gethostbyname(colon)) == NULL) {
-		option_error("unknown host: %s", colon);
+		ppp_option_error("unknown host: %s", colon);
 		return 0;
 	    }
 	    remote = *(u_int32_t *)hp->h_addr;
 	    if (remote_name[0] == 0)
 		strlcpy(remote_name, colon, sizeof(remote_name));
 	}
-	if (bad_ip_adrs(remote)) {
-	    option_error("bad remote IP address %s", ip_ntoa(remote));
+	if (ppp_bad_ip_addr(remote)) {
+	    ppp_option_error("bad remote IP address %s", ip_ntoa(remote));
 	    return 0;
 	}
 	if (remote != 0)
@@ -488,7 +482,7 @@ setipaddr(char *arg, char **argv, int doit)
 }
 
 static void
-printipaddr(option_t *opt, void (*printer) (void *, char *, ...), void *arg)
+printipaddr(struct option *opt, void (*printer) (void *, char *, ...), void *arg)
 {
 	ipcp_options *wo = &ipcp_wantoptions[0];
 
@@ -519,7 +513,7 @@ setnetmask(char **argv)
     mask = htonl(mask);
 
     if (n == 0 || p[n] != 0 || (netmask & ~mask) != 0) {
-	option_error("invalid netmask value '%s'", *argv);
+	ppp_option_error("invalid netmask value '%s'", *argv);
 	return 0;
     }
 
@@ -558,6 +552,11 @@ parse_dotted_ip(char *p, u_int32_t *vp)
     }
     *vp = v;
     return p - p0;
+}
+
+const char *ppp_ipparam()
+{
+    return ipparam;
 }
 
 
@@ -1737,7 +1736,7 @@ ip_check_options(void)
 	wo->accept_local = 1;	/* don't insist on this default value */
 	if ((hp = gethostbyname(hostname)) != NULL) {
 	    local = *(u_int32_t *)hp->h_addr;
-	    if (local != 0 && !bad_ip_adrs(local))
+	    if (local != 0 && !ppp_bad_ip_addr(local))
 		wo->ouraddr = local;
 	}
     }
@@ -1832,29 +1831,29 @@ ipcp_up(fsm *f)
 	warn("Could not determine remote IP address: defaulting to %I",
 	     ho->hisaddr);
     }
-    script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
+    ppp_script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
     if (ho->hisaddr != 0)
-	script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
+	ppp_script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
 
     if (!go->req_dns1)
 	    go->dnsaddr[0] = 0;
     if (!go->req_dns2)
 	    go->dnsaddr[1] = 0;
     if (go->dnsaddr[0])
-	script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
+	ppp_script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
     if (go->dnsaddr[1])
-	script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
+	ppp_script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
     if (usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
-	script_setenv("USEPEERDNS", "1", 0);
+	ppp_script_setenv("USEPEERDNS", "1", 0);
 	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
     }
 
     if (go->winsaddr[0])
-        script_setenv("WINS1", ip_ntoa(go->winsaddr[0]), 0);
+        ppp_script_setenv("WINS1", ip_ntoa(go->winsaddr[0]), 0);
     if (go->winsaddr[1])
-        script_setenv("WINS2", ip_ntoa(go->winsaddr[1]), 0);
+        ppp_script_setenv("WINS2", ip_ntoa(go->winsaddr[1]), 0);
     if (usepeerwins && (go->winsaddr[0] || go->winsaddr[1]))
-        script_setenv("USEPEERWINS", "1", 0);
+        ppp_script_setenv("USEPEERWINS", "1", 0);
 
     /*
      * Check that the peer is allowed to use the IP address it wants.
@@ -1879,17 +1878,17 @@ ipcp_up(fsm *f)
 				      wo->replace_default_route);
 	    if (go->ouraddr != wo->ouraddr) {
 		warn("Local IP address changed to %I", go->ouraddr);
-		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
+		ppp_script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
 		wo->ouraddr = go->ouraddr;
 	    } else
-		script_unsetenv("OLDIPLOCAL");
+		ppp_script_unsetenv("OLDIPLOCAL");
 	    if (ho->hisaddr != wo->hisaddr) {
 		warn("Remote IP address changed to %I", ho->hisaddr);
 		if (wo->hisaddr != 0)
-		    script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
+		    ppp_script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
 		wo->hisaddr = ho->hisaddr;
 	    } else
-		script_unsetenv("OLDIPREMOTE");
+		ppp_script_unsetenv("OLDIPREMOTE");
 
 	    /* Set the interface to the new addresses */
 	    mask = GetMask(go->ouraddr);
@@ -2016,7 +2015,7 @@ ipcp_down(fsm *f)
      * before the interface is marked down. */
     /* XXX more correct: we must get the stats before running the notifiers,
      * at least for the radius plugin */
-    update_link_stats(f->unit);
+    ppp_get_link_stats(NULL);
     notify(ip_down_notifier, 0);
     if (ip_down_hook)
 	ip_down_hook();

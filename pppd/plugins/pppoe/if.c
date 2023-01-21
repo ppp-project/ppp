@@ -205,7 +205,7 @@ sendPacket(PPPoEConnection *conn, int sock, PPPoEPacket *pkt, int size)
 {
     int err;
 
-    if (debug)
+    if (debug_on())
 	pppoe_log_packet("Send ", pkt);
 #if defined(HAVE_STRUCT_SOCKADDR_LL)
     err = send(sock, pkt, size, 0);
@@ -240,7 +240,7 @@ receivePacket(int sock, PPPoEPacket *pkt, int *size)
 	error("error receiving pppoe packet: %m");
 	return -1;
     }
-    if (debug)
+    if (debug_on())
 	pppoe_log_packet("Recv ", pkt);
     return 0;
 }

@@ -95,7 +95,8 @@
 #include <inttypes.h>
 #include <net/if.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "magic.h"
 #include "fsm.h"
 #include "lcp.h"
@@ -104,12 +105,13 @@
 #include "ipv6cp.h"
 #endif
 #include "upap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "eap.h"
 #include "ccp.h"
 #include "ecp.h"
 #include "pathnames.h"
-#include "ppp-crypto.h"
+#include "crypto.h"
+#include "multilink.h"
 
 #ifdef PPP_WITH_TDB
 #include "tdb.h"
@@ -123,7 +125,6 @@
 #include "atcp.h"
 #endif
 
-
 /* interface vars */
 char ifname[IFNAMSIZ];		/* Interface name */
 int ifunit;			/* Interface unit number */
@@ -134,7 +135,6 @@ char *progname;			/* Name of this program */
 char hostname[MAXNAMELEN];	/* Our hostname */
 static char pidfilename[MAXPATHLEN];	/* name of pid file */
 static char linkpidfile[MAXPATHLEN];	/* name of linkname pid file */
-char ppp_devnam[MAXPATHLEN];	/* name of PPP tty (maybe ttypx) */
 uid_t uid;			/* Our real user-id */
 struct notifier *pidchange = NULL;
 struct notifier *phasechange = NULL;
@@ -146,7 +146,7 @@ int hungup;			/* terminal has been hung up */
 int privileged;			/* we're running as real uid root */
 int need_holdoff;		/* need holdoff period before restarting */
 int detached;			/* have detached from terminal */
-volatile int status;		/* exit status for pppd */
+volatile int code;		/* exit status for pppd */
 int unsuccess;			/* # unsuccessful connection attempts */
 int do_callback;		/* != 0 if we should do callback next */
 int doing_callback;		/* != 0 if we are doing callback */
@@ -171,7 +171,7 @@ static int fd_loop;		/* fd for getting demand-dial packets */
 int fd_devnull;			/* fd for /dev/null */
 int devfd = -1;			/* fd of underlying device */
 int fd_ppp = -1;		/* fd for talking PPP */
-int phase;			/* where the link is at */
+ppp_phase_t phase;		/* where the link is at */
 int kill_link;
 int asked_to_quit;
 int open_ccp_flag;
@@ -206,6 +206,7 @@ static struct pppd_stats old_link_stats;
 struct pppd_stats link_stats;
 unsigned link_connect_time;
 int link_stats_valid;
+int link_stats_print;
 
 int error_count;
 
@@ -261,6 +262,72 @@ void print_link_stats(void);
 extern	char	*getlogin(void);
 int main(int, char *[]);
 
+const char *ppp_hostname()
+{
+    return hostname;
+}
+
+bool ppp_signaled(int sig)
+{
+    if (sig == SIGTERM)
+        return !!got_sigterm;
+    if (sig == SIGUSR2)
+        return !!got_sigusr2;
+    if (sig == SIGHUP)
+        return !!got_sighup;
+    return false;
+}
+
+ppp_exit_code_t ppp_status()
+{
+   return code;
+}
+
+void ppp_set_status(ppp_exit_code_t value)
+{
+    code = value;
+}
+
+void ppp_set_session_number(int number)
+{
+    ppp_session_number = number;
+}
+
+int ppp_get_session_number()
+{
+    return ppp_session_number;
+}
+
+const char *ppp_ifname()
+{
+    return ifname;
+}
+
+int ppp_get_ifname(char *buf, size_t bufsz)
+{
+    if (buf) {
+        return strlcpy(buf, ifname, bufsz);
+    }
+    return false;
+}
+
+void ppp_set_ifname(const char *name)
+{
+    if (ifname) {
+        strlcpy(ifname, name, sizeof(ifname));
+    }
+}
+
+int ppp_ifunit()
+{
+    return ifunit;
+}
+
+int ppp_get_link_uptime()
+{
+    return link_connect_time;
+}
+
 /*
  * PPP Data Link Layer "protocol" table.
  * One entry per supported protocol.
@@ -305,6 +372,7 @@ main(int argc, char *argv[])
     strlcpy(path_ipv6down, PPP_PATH_IPV6DOWN, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
+    link_stats_print = 1;
     new_phase(PHASE_INITIALIZE);
 
     script_env = NULL;
@@ -312,8 +380,8 @@ main(int argc, char *argv[])
     /* Initialize syslog facilities */
     reopen_log();
 
-    if (gethostname(hostname, MAXNAMELEN) < 0 ) {
-	option_error("Couldn't get hostname: %m");
+    if (gethostname(hostname, sizeof(hostname)) < 0 ) {
+	ppp_option_error("Couldn't get hostname: %m");
 	exit(1);
     }
     hostname[MAXNAMELEN-1] = 0;
@@ -324,7 +392,7 @@ main(int argc, char *argv[])
     uid = getuid();
     privileged = uid == 0;
     slprintf(numbuf, sizeof(numbuf), "%d", uid);
-    script_setenv("ORIG_UID", numbuf, 0);
+    ppp_script_setenv("ORIG_UID", numbuf, 0);
 
     ngroups = getgroups(NGROUPS_MAX, groups);
 
@@ -351,7 +419,7 @@ main(int argc, char *argv[])
      * Parse, in order, the system options file, the user's options file,
      * and the command line arguments.
      */
-    if (!options_from_file(PPP_PATH_SYSOPTIONS, !privileged, 0, 1)
+    if (!ppp_options_from_file(PPP_PATH_SYSOPTIONS, !privileged, 0, 1)
 	|| !options_from_user()
 	|| !parse_args(argc-1, argv+1))
 	exit(EXIT_OPTION_ERROR);
@@ -376,13 +444,13 @@ main(int argc, char *argv[])
      * Check that we are running as root.
      */
     if (geteuid() != 0) {
-	option_error("must be root to run %s, since it is not setuid-root",
+	ppp_option_error("must be root to run %s, since it is not setuid-root",
 		     argv[0]);
 	exit(EXIT_NOT_ROOT);
     }
 
-    if (!ppp_available()) {
-	option_error("%s", no_ppp_msg);
+    if (!ppp_check_kernel_support()) {
+	ppp_option_error("%s", no_ppp_msg);
 	exit(EXIT_NO_KERNEL_SUPPORT);
     }
 
@@ -393,9 +461,7 @@ main(int argc, char *argv[])
     if (!sys_check_options())
 	exit(EXIT_OPTION_ERROR);
     auth_check_options();
-#ifdef PPP_WITH_MULTILINK
     mp_check_options();
-#endif
     for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	if (protp->check_options != NULL)
 	    (*protp->check_options)();
@@ -457,12 +523,12 @@ main(int argc, char *argv[])
 	    p = "(unknown)";
     }
     syslog(LOG_NOTICE, "pppd %s started by %s, uid %d", VERSION, p, uid);
-    script_setenv("PPPLOGNAME", p, 0);
+    ppp_script_setenv("PPPLOGNAME", p, 0);
 
     if (devnam[0])
-	script_setenv("DEVICE", devnam, 1);
+	ppp_script_setenv("DEVICE", devnam, 1);
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf, 1);
+    ppp_script_setenv("PPPD_PID", numbuf, 1);
 
     setup_signals();
 
@@ -493,7 +559,7 @@ main(int argc, char *argv[])
 	listen_time = 0;
 	need_holdoff = 1;
 	devfd = -1;
-	status = EXIT_OK;
+	code = EXIT_OK;
 	++unsuccess;
 	doing_callback = do_callback;
 	do_callback = 0;
@@ -523,10 +589,10 @@ main(int argc, char *argv[])
 	    info("Starting link");
 	}
 
-	get_time(&start_time);
-	script_unsetenv("CONNECT_TIME");
-	script_unsetenv("BYTES_SENT");
-	script_unsetenv("BYTES_RCVD");
+	ppp_get_time(&start_time);
+	ppp_script_unsetenv("CONNECT_TIME");
+	ppp_script_unsetenv("BYTES_SENT");
+	ppp_script_unsetenv("BYTES_RCVD");
 
 	lcp_open(0);		/* Start protocol */
 	start_link(0);
@@ -590,7 +656,7 @@ main(int argc, char *argv[])
     }
 
     PPP_crypto_deinit();
-    die(status);
+    die(code);
     return 0;
 }
 
@@ -621,15 +687,15 @@ handle_events(void)
 	info("Hangup (SIGHUP)");
 	kill_link = 1;
 	got_sighup = 0;
-	if (status != EXIT_HANGUP)
-	    status = EXIT_USER_REQUEST;
+	if (code != EXIT_HANGUP)
+	    code = EXIT_USER_REQUEST;
     }
     if (got_sigterm) {
 	info("Terminating on signal %d", got_sigterm);
 	kill_link = 1;
 	asked_to_quit = 1;
 	persist = 0;
-	status = EXIT_USER_REQUEST;
+	code = EXIT_USER_REQUEST;
 	got_sigterm = 0;
     }
     if (got_sigchld) {
@@ -747,9 +813,9 @@ set_ifunit(int iskey)
     else
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     info("Using interface %s", ifname);
-    script_setenv("IFNAME", ifname, iskey);
+    ppp_script_setenv("IFNAME", ifname, iskey);
     slprintf(ifkey, sizeof(ifkey), "%d", ifunit);
-    script_setenv("UNIT", ifkey, iskey);
+    ppp_script_setenv("UNIT", ifkey, iskey);
     if (iskey) {
 	create_pidfile(getpid());	/* write pid to file */
 	create_linkpidfile(getpid());
@@ -796,7 +862,7 @@ detach(void)
     if (log_default)
 	log_to_fd = -1;
     slprintf(numbuf, sizeof(numbuf), "%d", getpid());
-    script_setenv("PPPD_PID", numbuf, 1);
+    ppp_script_setenv("PPPD_PID", numbuf, 1);
 
     /* wait for parent to finish updating pid & lock files and die */
     close(pipefd[1]);
@@ -840,7 +906,7 @@ create_linkpidfile(int pid)
 
     if (linkname[0] == 0)
 	return;
-    script_setenv("LINKNAME", linkname, 1);
+    ppp_script_setenv("LINKNAME", linkname, 1);
     slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
 	     PPP_PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
@@ -1043,14 +1109,14 @@ get_input(void)
 	return;
 
     if (len == 0) {
-	if (bundle_eof && multilink_master) {
+	if (bundle_eof && mp_master()) {
 	    notice("Last channel has disconnected");
 	    mp_bundle_terminated();
 	    return;
 	}
 	notice("Modem hangup");
 	hungup = 1;
-	status = EXIT_HANGUP;
+	code = EXIT_HANGUP;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	link_terminated(0);
 	return;
@@ -1154,12 +1220,18 @@ ppp_recv_config(int unit, int mru, u_int32_t accm, int pcomp, int accomp)
  * new_phase - signal the start of a new phase of pppd's operation.
  */
 void
-new_phase(int p)
+new_phase(ppp_phase_t p)
 {
     phase = p;
     if (new_phase_hook)
 	(*new_phase_hook)(p);
     notify(phasechange, p);
+}
+
+bool
+in_phase(ppp_phase_t p)
+{
+    return (phase == p);
 }
 
 /*
@@ -1168,7 +1240,8 @@ new_phase(int p)
 void
 die(int status)
 {
-    if (!doing_multilink || multilink_master)
+
+    if (!mp_on() || mp_master())
 	print_link_stats();
     cleanup();
     notify(exitnotify, status);
@@ -1204,12 +1277,12 @@ print_link_stats(void)
     /*
      * Print connect time and statistics.
      */
-    if (link_stats_valid) {
+    if (link_stats_print && link_stats_valid) {
        int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
        info("Connect time %d.%d minutes.", t/10, t%10);
        info("Sent %u bytes, received %u bytes.",
 	    link_stats.bytes_out, link_stats.bytes_in);
-       link_stats_valid = 0;
+       link_stats_print = 0;
     }
 }
 
@@ -1221,7 +1294,7 @@ reset_link_stats(int u)
 {
     if (!get_ppp_stats(u, &old_link_stats))
 	return;
-    get_time(&start_time);
+    ppp_get_time(&start_time);
 }
 
 /*
@@ -1234,7 +1307,7 @@ update_link_stats(int u)
     char numbuf[32];
 
     if (!get_ppp_stats(u, &link_stats)
-	|| get_time(&now) < 0)
+	|| ppp_get_time(&now) < 0)
 	return;
     link_connect_time = now.tv_sec - start_time.tv_sec;
     link_stats_valid = 1;
@@ -1245,11 +1318,24 @@ update_link_stats(int u)
     link_stats.pkts_out  -= old_link_stats.pkts_out;
 
     slprintf(numbuf, sizeof(numbuf), "%u", link_connect_time);
-    script_setenv("CONNECT_TIME", numbuf, 0);
+    ppp_script_setenv("CONNECT_TIME", numbuf, 0);
     snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_out);
-    script_setenv("BYTES_SENT", numbuf, 0);
+    ppp_script_setenv("BYTES_SENT", numbuf, 0);
     snprintf(numbuf, sizeof(numbuf), "%" PRIu64, link_stats.bytes_in);
-    script_setenv("BYTES_RCVD", numbuf, 0);
+    ppp_script_setenv("BYTES_RCVD", numbuf, 0);
+}
+
+bool
+ppp_get_link_stats(ppp_link_stats_st *stats)
+{
+    update_link_stats(0);
+    if (stats != NULL &&
+        link_stats_valid) {
+
+        memcpy(stats, &link_stats, sizeof(*stats));
+        return true;
+    }
+    return false;
 }
 
 
@@ -1267,7 +1353,7 @@ static struct timeval timenow;		/* Current time */
  * timeout - Schedule a timeout.
  */
 void
-timeout(void (*func)(void *), void *arg, int secs, int usecs)
+ppp_timeout(void (*func)(void *), void *arg, int secs, int usecs)
 {
     struct callout *newp, *p, **pp;
 
@@ -1278,7 +1364,7 @@ timeout(void (*func)(void *), void *arg, int secs, int usecs)
 	fatal("Out of memory in timeout()!");
     newp->c_arg = arg;
     newp->c_func = func;
-    get_time(&timenow);
+    ppp_get_time(&timenow);
     newp->c_time.tv_sec = timenow.tv_sec + secs;
     newp->c_time.tv_usec = timenow.tv_usec + usecs;
     if (newp->c_time.tv_usec >= 1000000) {
@@ -1303,7 +1389,7 @@ timeout(void (*func)(void *), void *arg, int secs, int usecs)
  * untimeout - Unschedule a timeout.
  */
 void
-untimeout(void (*func)(void *), void *arg)
+ppp_untimeout(void (*func)(void *), void *arg)
 {
     struct callout **copp, *freep;
 
@@ -1330,7 +1416,7 @@ calltimeout(void)
     while (callout != NULL) {
 	p = callout;
 
-	if (get_time(&timenow) < 0)
+	if (ppp_get_time(&timenow) < 0)
 	    fatal("Failed to get time of day: %m");
 	if (!(p->c_time.tv_sec < timenow.tv_sec
 	      || (p->c_time.tv_sec == timenow.tv_sec
@@ -1354,7 +1440,7 @@ timeleft(struct timeval *tvp)
     if (callout == NULL)
 	return NULL;
 
-    get_time(&timenow);
+    ppp_get_time(&timenow);
     tvp->tv_sec = callout->c_time.tv_sec - timenow.tv_sec;
     tvp->tv_usec = callout->c_time.tv_usec - timenow.tv_usec;
     if (tvp->tv_usec < 0) {
@@ -1533,14 +1619,14 @@ bad_signal(int sig)
 }
 
 /*
- * safe_fork - Create a child process.  The child closes all the
+ * ppp_safe_fork - Create a child process.  The child closes all the
  * file descriptors that we don't want to leak to a script.
  * The parent waits for the child to do this before returning.
  * This also arranges for the specified fds to be dup'd to
  * fds 0, 1, 2 in the child.
  */
 pid_t
-safe_fork(int infd, int outfd, int errfd)
+ppp_safe_fork(int infd, int outfd, int errfd)
 {
 	pid_t pid;
 	int fd, pipefd[2];
@@ -1571,7 +1657,7 @@ safe_fork(int infd, int outfd, int errfd)
 	}
 
 	/* Executing in the child */
-	sys_close();
+	ppp_sys_close();
 #ifdef PPP_WITH_TDB
 	if (pppdb != NULL)
 		tdb_close(pppdb);
@@ -1680,7 +1766,7 @@ device_script(char *program, int in, int out, int dont_wait)
 	errfd = open(PPP_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
 
     ++conn_running;
-    pid = safe_fork(in, out, errfd);
+    pid = ppp_safe_fork(in, out, errfd);
 
     if (pid != 0 && log_to_fd < 0)
 	close(errfd);
@@ -1730,7 +1816,7 @@ device_script(char *program, int in, int out, int dont_wait)
  * and update the script environment.  Note that we intentionally do
  * not update the TDB.  These changes are layered on top right before
  * exec.  It is not possible to use script_setenv() or
- * script_unsetenv() safely after this routine is run.
+ * ppp_script_unsetenv() safely after this routine is run.
  */
 static void
 update_script_environment(void)
@@ -1774,7 +1860,7 @@ update_script_environment(void)
  * reap_kids) iff the return value is > 0.
  */
 pid_t
-run_program(char *prog, char **args, int must_exist, void (*done)(void *), void *arg, int wait)
+run_program(char *prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
     int pid, status, ret;
     struct stat sbuf;
@@ -1793,7 +1879,7 @@ run_program(char *prog, char **args, int must_exist, void (*done)(void *), void 
 	return 0;
     }
 
-    pid = safe_fork(fd_devnull, fd_devnull, fd_devnull);
+    pid = ppp_safe_fork(fd_devnull, fd_devnull, fd_devnull);
     if (pid == -1) {
 	error("Failed to create child process for %s: %m", prog);
 	return -1;
@@ -1942,21 +2028,44 @@ reap_kids(void)
     return 0;
 }
 
+
+struct notifier **get_notifier_by_type(ppp_notify_t type)
+{
+    struct notifier **list[NF_MAX_NOTIFY] = {
+        [NF_PID_CHANGE  ] = &pidchange,
+        [NF_PHASE_CHANGE] = &phasechange,
+        [NF_EXIT        ] = &exitnotify,
+        [NF_SIGNALED    ] = &sigreceived,
+        [NF_IP_UP       ] = &ip_up_notifier,
+        [NF_IP_DOWN     ] = &ip_down_notifier,
+        [NF_IPV6_UP     ] = &ipv6_up_notifier,
+        [NF_IPV6_DOWN   ] = &ipv6_down_notifier,
+        [NF_AUTH_UP     ] = &auth_up_notifier,
+        [NF_LINK_DOWN   ] = &link_down_notifier,
+        [NF_FORK        ] = &fork_notifier,
+    };
+    return list[type];
+}
+
 /*
  * add_notifier - add a new function to be called when something happens.
  */
 void
-add_notifier(struct notifier **notif, notify_func func, void *arg)
+ppp_add_notify(ppp_notify_t type, ppp_notify_fn *func, void *arg)
 {
-    struct notifier *np;
+    struct notifier **notif = get_notifier_by_type(type);
+    if (notif) {
 
-    np = malloc(sizeof(struct notifier));
-    if (np == 0)
-	novm("notifier struct");
-    np->next = *notif;
-    np->func = func;
-    np->arg = arg;
-    *notif = np;
+	struct notifier *np = malloc(sizeof(struct notifier));
+	if (np == 0)
+	    novm("notifier struct");
+	np->next = *notif;
+	np->func = func;
+	np->arg = arg;
+	*notif = np;
+    } else {
+	error("Could not find notifier function for: %d", type);
+    }
 }
 
 /*
@@ -1964,16 +2073,21 @@ add_notifier(struct notifier **notif, notify_func func, void *arg)
  * be called when something happens.
  */
 void
-remove_notifier(struct notifier **notif, notify_func func, void *arg)
+ppp_del_notify(ppp_notify_t type, ppp_notify_fn *func, void *arg)
 {
-    struct notifier *np;
+    struct notifier **notif = get_notifier_by_type(type);
+    if (notif) {
+	struct notifier *np;
 
-    for (; (np = *notif) != 0; notif = &np->next) {
-	if (np->func == func && np->arg == arg) {
-	    *notif = np->next;
-	    free(np);
-	    break;
+	for (; (np = *notif) != 0; notif = &np->next) {
+	    if (np->func == func && np->arg == arg) {
+		*notif = np->next;
+		free(np);
+		break;
+	    }
 	}
+    } else {
+	error("Could not find notifier function for: %d", type);
     }
 }
 
@@ -2001,11 +2115,11 @@ novm(char *msg)
 }
 
 /*
- * script_setenv - set an environment variable value to be used
+ * ppp_script_setenv - set an environment variable value to be used
  * for scripts that we run (e.g. ip-up, auth-up, etc.)
  */
 void
-script_setenv(char *var, char *value, int iskey)
+ppp_script_setenv(char *var, char *value, int iskey)
 {
     size_t varl = strlen(var);
     size_t vl = varl + strlen(value) + 2;
@@ -2062,11 +2176,11 @@ script_setenv(char *var, char *value, int iskey)
 }
 
 /*
- * script_unsetenv - remove a variable from the environment
+ * ppp_script_unsetenv - remove a variable from the environment
  * for scripts.
  */
 void
-script_unsetenv(char *var)
+ppp_script_unsetenv(char *var)
 {
     int vl = strlen(var);
     int i;

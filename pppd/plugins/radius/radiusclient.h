@@ -20,7 +20,10 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdbool.h>
+
 #include <pppd/pppd.h>
+#include <pppd/options.h>
 
 #ifndef _UINT4_T
 /* This works for all machines that Linux runs on... */
@@ -399,9 +402,9 @@ typedef struct env
 
 /*	avpair.c		*/
 
-VALUE_PAIR *rc_avpair_add(VALUE_PAIR **, int, void *, int, int);
-int rc_avpair_assign(VALUE_PAIR *, void *, int);
-VALUE_PAIR *rc_avpair_new(int, void *, int, int);
+VALUE_PAIR *rc_avpair_add(VALUE_PAIR **, int, const void *, int, int);
+int rc_avpair_assign(VALUE_PAIR *, const void *, int);
+VALUE_PAIR *rc_avpair_new(int, const void *, int, int);
 VALUE_PAIR *rc_avpair_gen(AUTH_HDR *);
 VALUE_PAIR *rc_avpair_get(VALUE_PAIR *, UINT4);
 VALUE_PAIR *rc_avpair_copy(VALUE_PAIR *);
@@ -427,7 +430,7 @@ int rc_check(char *, unsigned short, char *);
 /*	clientid.c		*/
 
 int rc_read_mapfile(char *);
-UINT4 rc_map2id(char *);
+UINT4 rc_map2id(const char *);
 
 /*	config.c		*/
 
@@ -449,8 +452,8 @@ VENDOR_DICT * rc_dict_getvendor(int);
 
 /*	ip_util.c		*/
 
-UINT4 rc_get_ipaddr(char *);
-int rc_good_ipaddr(char *);
+UINT4 rc_get_ipaddr(const char *);
+int rc_good_ipaddr(const char *);
 const char *rc_ip_hostname(UINT4);
 UINT4 rc_own_ipaddress(void);
 UINT4 rc_own_bind_ipaddress(void);

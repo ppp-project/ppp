@@ -89,7 +89,7 @@
 #include <utmp.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include "pppd.h"
+#include "pppd-private.h"
 #include "session.h"
 
 #ifdef PPP_WITH_PAM

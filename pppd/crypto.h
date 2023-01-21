@@ -48,20 +48,46 @@ struct _PPP_MD;
 typedef struct _PPP_MD_CTX PPP_MD_CTX;
 typedef struct _PPP_MD PPP_MD;
 
-
+/*
+ * Create a new Message Digest context object
+ */
 PPP_MD_CTX *PPP_MD_CTX_new();
+
+/*
+ * Free the Message Digest context
+ */
 void PPP_MD_CTX_free(PPP_MD_CTX*);
 
-
+/*
+ * Fetch the MD4 algorithm
+ */
 const PPP_MD *PPP_md4(void);
+
+/*
+ * Fetch the MD5 algorithm
+ */
 const PPP_MD *PPP_md5(void);
+
+/*
+ * Fetch the SHA1 algorithm
+ */
 const PPP_MD *PPP_sha1(void);
 
-
+/*
+ * Initializes a context object
+ */
 int PPP_DigestInit(PPP_MD_CTX *ctx,
         const PPP_MD *type);
+
+/*
+ * For each iteration update the context with more input
+ */
 int PPP_DigestUpdate(PPP_MD_CTX *ctx,
         const void *data, size_t cnt);
+
+/*
+ * Perform the final operation, and output the digest
+ */
 int PPP_DigestFinal(PPP_MD_CTX *ctx,
         unsigned char *out, unsigned int *outlen);
 
@@ -73,28 +99,57 @@ typedef struct _PPP_CIPHER_CTX PPP_CIPHER_CTX;
 typedef struct _PPP_CIPHER PPP_CIPHER;
 
 
+/*
+ * Create a new Cipher Context
+ */
 PPP_CIPHER_CTX *PPP_CIPHER_CTX_new(void);
+
+/*
+ * Release the Cipher Context
+ */
 void PPP_CIPHER_CTX_free(PPP_CIPHER_CTX *ctx);
 
+/*
+ * Fetch the DES in ECB mode cipher algorithm
+ */
 const PPP_CIPHER *PPP_des_ecb(void);
 
+/*
+ * Set the particular data directly
+ */
 void PPP_CIPHER_CTX_set_cipher_data(PPP_CIPHER_CTX *ctx,
         const unsigned char *key);
 
+/*
+ * Initialize the crypto operation
+ */
 int PPP_CipherInit(PPP_CIPHER_CTX *ctx,
         const PPP_CIPHER *cipher,
         const unsigned char *key,
         const unsigned char *iv,
         int encr);
 
+/*
+ * Encrypt input data, and store it in the output buffer
+ */
 int PPP_CipherUpdate(PPP_CIPHER_CTX *ctx,
         unsigned char *out, int *outl,
         const unsigned char *in, int inl);
 
+/*
+ * Finish the crypto operation, and fetch any outstanding bytes
+ */
 int PPP_CipherFinal(PPP_CIPHER_CTX *ctx,
         unsigned char *out, int *outl);
 
+/*
+ * Global initialization, must be called once per process
+ */
 int PPP_crypto_init();
+
+/*
+ * Global deinitialization
+ */
 int PPP_crypto_deinit();
 
 #endif

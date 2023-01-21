@@ -19,6 +19,10 @@ static char const RCSID[] =
 
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <pppd/pppd.h>
 
 #include "radiusclient.h"
@@ -47,11 +51,11 @@ plugin_init(void)
     /* calling cleanup() on link down is problematic because print_attributes()
        is called only after PAP or CHAP authentication, but not when the link
        should go up again for any other reason */
-    add_notifier(&link_down_notifier, cleanup, NULL);
+    ppp_add_notify(NF_LINK_DOWN, cleanup, NULL);
 #endif
 
     /* Just in case... */
-    add_notifier(&exitnotify, cleanup, NULL);
+    ppp_add_notify(NF_EXIT, cleanup, NULL);
     info("RADATTR plugin initialized.");
 }
 
@@ -75,7 +79,7 @@ print_attributes(VALUE_PAIR *vp)
     int cnt = 0;
     mode_t old_umask;
 
-    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ifname);
+    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_ifname());
     old_umask = umask(077);
     fp = fopen(fname, "w");
     umask(old_umask);
@@ -110,7 +114,7 @@ cleanup(void *opaque, int arg)
 {
     char fname[512];
 
-    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ifname);
+    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_get_ifname(NULL,0));
     (void) remove(fname);
     dbglog("RADATTR plugin removed file %s.", fname);
 }

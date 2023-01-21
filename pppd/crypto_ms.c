@@ -38,8 +38,8 @@
 
 #include <stddef.h>
 
-#include "pppcrypt.h"
-#include "ppp-crypto.h"
+#include "crypto.h"
+#include "crypto_ms.h"
 
 
 /*
@@ -182,7 +182,7 @@ DesDecrypt(unsigned char *cipher, unsigned char *key, unsigned char *clear)
 	return (retval);
 }
 
-#ifdef UNIT_TEST_PPPCRYPT
+#ifdef UNIT_TEST_MSCRYPTO
 
 #include <string.h>
 #include <stdio.h>

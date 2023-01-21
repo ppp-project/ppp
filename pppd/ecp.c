@@ -63,11 +63,12 @@
 
 #include <string.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ecp.h"
 
-static option_t ecp_option_list[] = {
+static struct option ecp_option_list[] = {
     { "noecp", o_bool, &ecp_protent.enabled_flag,
       "Disable ECP negotiation" },
     { "-ecp", o_bool, &ecp_protent.enabled_flag,

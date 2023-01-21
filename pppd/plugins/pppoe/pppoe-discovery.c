@@ -22,6 +22,8 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #include "pppoe.h"
 
@@ -122,6 +124,17 @@ int
 get_time(struct timeval *tv)
 {
     return gettimeofday(tv, NULL);
+}
+
+int signaled(int signal) {
+    if (signal == SIGTERM)
+        return got_sigterm;
+    return 0;
+}
+
+bool debug_on()
+{
+    return !!debug;
 }
 
 static void

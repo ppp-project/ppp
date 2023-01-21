@@ -92,6 +92,7 @@ extern int chap_mdtype_all;
     ((digest) == CHAP_MD5)? (mdtype) & MDTYPE_MD5: \
     0
 
+
 /*
  * The code for each digest type has to supply one of these.
  */
@@ -116,11 +117,38 @@ struct chap_digest_type {
 	struct chap_digest_type *next;
 };
 
-/* Hook for a plugin to validate CHAP challenge */
-extern int (*chap_verify_hook)(char *name, char *ourname, int id,
+/*
+ * This function will return a value of 1 to indicate that a plugin intend to supply
+ *   a username or a password to pppd through the chap_passwd_hook callback.
+ *
+ * Return a value > 0 to avoid parsing the chap-secrets file.
+ */
+typedef int (chap_check_hook_fn)(void);
+extern chap_check_hook_fn *chap_check_hook;
+
+/*
+ * A plugin can chose to supply its own user and password overriding whatever
+ *   has been provided by the configuration. Hook is only valid when pppd is
+ *   acting as a client.
+ *
+ * The maximum size of the user argument is always MAXNAMELEN
+ * The length of the password is always MAXWORDLEN, however; secrets can't be
+ *   longer than MAXSECRETLEN
+ *
+ * Return a value < 0 to fail the connection.
+ */
+typedef int (chap_passwd_hook_fn)(char *user, char *password);
+extern chap_passwd_hook_fn *chap_passwd_hook;
+
+/*
+ * A plugin can chose to replace the default chap_verify_response function with
+ *   one of their own.
+ */
+typedef int (chap_verify_hook_fn)(char *name, char *ourname, int id,
 			struct chap_digest_type *digest,
 			unsigned char *challenge, unsigned char *response,
 			char *message, int message_space);
+extern chap_verify_hook_fn *chap_verify_hook;
 
 /* Called by digest code to register a digest type */
 extern void chap_register_digest(struct chap_digest_type *);

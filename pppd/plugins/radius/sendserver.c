@@ -17,6 +17,7 @@
 #include <includes.h>
 #include <radiusclient.h>
 #include <pathnames.h>
+#include <signal.h>
 
 static void rc_random_vector (unsigned char *);
 static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned char);
@@ -303,7 +304,7 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 		FD_SET (sockfd, &readfds);
 		if (select (sockfd + 1, &readfds, NULL, NULL, &authtime) < 0)
 		{
-			if (errno == EINTR && !got_sigterm)
+			if (errno == EINTR && !ppp_signaled(SIGTERM))
 				continue;
 			error("rc_send_server: select: %m");
 			memset (secret, '\0', sizeof (secret));

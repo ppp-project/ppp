@@ -51,7 +51,7 @@
 #include <pcap-bpf.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "ipcp.h"
 #include "lcp.h"
@@ -97,7 +97,7 @@ demand_conf(void)
     flush_flag = 0;
     fcs = PPP_INITFCS;
 
-    netif_set_mtu(0, MIN(lcp_allowoptions[0].mru, PPP_MRU));
+    ppp_set_mtu(0, MIN(lcp_allowoptions[0].mru, PPP_MRU));
     if (ppp_send_config(0, PPP_MRU, (u_int32_t) 0, 0, 0) < 0
 	|| ppp_recv_config(0, PPP_MRU, (u_int32_t) 0, 0, 0) < 0)
 	    fatal("Couldn't set up demand-dialled PPP interface: %m");

@@ -93,13 +93,14 @@
 #include <linux/ppp-comp.h>
 #endif
 
-#include "pppd.h"
-#include "chap-new.h"
+#include "pppd-private.h"
+#include "options.h"
+#include "chap.h"
 #include "chap_ms.h"
 #include "magic.h"
 #include "mppe.h"
-#include "ppp-crypto.h"
-#include "pppcrypt.h"
+#include "crypto.h"
+#include "crypto_ms.h"
 
 #ifdef UNIT_TEST
 #undef PPP_WITH_MPPE
@@ -139,7 +140,7 @@ static char *mschap2_peer_challenge = NULL;
 /*
  * Command-line options.
  */
-static option_t chapms_option_list[] = {
+static struct option chapms_option_list[] = {
 #ifdef PPP_WITH_MSLANMAN
 	{ "ms-lanman", o_bool, &ms_lanman,
 	  "Use LanMan passwd when using MS-CHAP", 1 },
@@ -538,7 +539,7 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
     PPP_MD_CTX* ctx;
     u_char	hash[SHA_DIGEST_LENGTH];
     int     hash_len;
-    char	*user;
+    const char *user;
 
     /* remove domain from "domain\username" */
     if ((user = strrchr(username, '\\')) != NULL)
@@ -835,7 +836,7 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
  * Authenticator Response.
  */
 void
-ChapMS2(u_char *rchallenge, u_char *PeerChallenge,
+ChapMS2(unsigned char *rchallenge, unsigned char *PeerChallenge,
 	char *user, char *secret, int secret_len, unsigned char *response,
 	u_char authResponse[], int authenticator)
 {
@@ -894,7 +895,7 @@ chapms_init(void)
 {
 	chap_register_digest(&chapms_digest);
 	chap_register_digest(&chapms2_digest);
-	add_options(chapms_option_list);
+	ppp_add_options(chapms_option_list);
 }
 #else
 

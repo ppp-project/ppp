@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ppp-crypto-priv.h"
+#include "crypto-priv.h"
 
 
 #ifdef OPENSSL_HAVE_MD4

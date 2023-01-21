@@ -21,6 +21,11 @@ static char const RCSID[] =
 #include <string.h>
 #include <stdlib.h>
 #include <sys/param.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <sys/types.h>
+
 #include <pppd/pppd.h>
 
 #include "radiusclient.h"
@@ -69,7 +74,7 @@ lookup_realm(char const *user,
     }
     
     if ((fd = fopen(radrealms_config, "r")) == NULL) {
-	option_error("cannot open %s", radrealms_config);
+	ppp_option_error("cannot open %s", radrealms_config);
 	free(auths);
 	free(accts);
 	return;
@@ -89,7 +94,7 @@ lookup_realm(char const *user,
 	if (p == NULL || (strcmp(p, "authserver") !=0
 	    && strcmp(p, "acctserver"))) {
 	    fclose(fd);
-	    option_error("%s: invalid line %d: %s", radrealms_config,
+	    ppp_option_error("%s: invalid line %d: %s", radrealms_config,
 			 line, buffer);
 	    free(auths);
 	    free(accts);
@@ -105,7 +110,7 @@ lookup_realm(char const *user,
 
 	if ((p = strtok(NULL, "\t ")) == NULL) {
 	    fclose(fd);
-	    option_error("%s: realm name missing on line %d: %s",
+	    ppp_option_error("%s: realm name missing on line %d: %s",
 			 radrealms_config, line, buffer);
 	    free(auths);
 	    free(accts);
@@ -117,7 +122,7 @@ lookup_realm(char const *user,
 	    info(" - Matched realm %s", p);
 	    if ((p = strtok(NULL, ":")) == NULL) {
 		fclose(fd);
-		option_error("%s: server address missing on line %d: %s",
+		ppp_option_error("%s: server address missing on line %d: %s",
 			     radrealms_config, line, buffer);
 	        free(auths);
 	        free(accts);
@@ -127,7 +132,7 @@ lookup_realm(char const *user,
 	    info(" - Address is '%s'",p);
 	    if ((p = strtok(NULL, "\t ")) == NULL) {
 		fclose(fd);
-		option_error("%s: server port missing on line %d:  %s",
+		ppp_option_error("%s: server port missing on line %d:  %s",
 			     radrealms_config, line, buffer);
 		free(auths);
 		free(accts);
@@ -155,6 +160,6 @@ plugin_init(void)
 {
     radius_pre_auth_hook = lookup_realm;
 
-    add_options(Options);
+    ppp_add_options(Options);
     info("RADIUS Realms plugin initialized.");
 }

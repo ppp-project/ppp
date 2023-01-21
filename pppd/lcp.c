@@ -48,13 +48,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "eap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "magic.h"
-
+#include "multilink.h"
 
 /*
  * When the link comes up we want to be able to wait for a short while,
@@ -82,7 +83,7 @@ static int setendpoint(char **);
 static void printendpoint(option_t *, void (*)(void *, char *, ...), void *);
 #endif /* PPP_WITH_MULTILINK */
 
-static option_t lcp_option_list[] = {
+static struct option lcp_option_list[] = {
     /* LCP options */
     { "-all", o_special_noarg, (void *)noopt,
       "Don't request/allow any LCP options" },
@@ -312,7 +313,7 @@ setendpoint(char **argv)
 	lcp_wantoptions[0].neg_endpoint = 1;
 	return 1;
     }
-    option_error("Can't parse '%s' as an endpoint discriminator", *argv);
+    ppp_option_error("Can't parse '%s' as an endpoint discriminator", *argv);
     return 0;
 }
 
@@ -389,11 +390,11 @@ lcp_close(int unit, char *reason)
     fsm *f = &lcp_fsm[unit];
     int oldstate;
 
-    if (phase != PHASE_DEAD && phase != PHASE_MASTER)
+    if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
 	new_phase(PHASE_TERMINATE);
 
     if (f->flags & DELAYED_UP) {
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
 	f->state = STOPPED;
     }
     oldstate = f->state;
@@ -435,7 +436,7 @@ lcp_lowerup(int unit)
 
     if (listen_time != 0) {
 	f->flags |= DELAYED_UP;
-	timeout(lcp_delayed_up, f, 0, listen_time * 1000);
+	ppp_timeout(lcp_delayed_up, f, 0, listen_time * 1000);
     } else
 	fsm_lowerup(f);
 }
@@ -451,7 +452,7 @@ lcp_lowerdown(int unit)
 
     if (f->flags & DELAYED_UP) {
 	f->flags &= ~DELAYED_UP;
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
     } else
 	fsm_lowerdown(&lcp_fsm[unit]);
 }
@@ -482,7 +483,7 @@ lcp_input(int unit, u_char *p, int len)
 
     if (f->flags & DELAYED_UP) {
 	f->flags &= ~DELAYED_UP;
-	untimeout(lcp_delayed_up, f);
+	UNTIMEOUT(lcp_delayed_up, f);
 	fsm_lowerup(f);
     }
     fsm_input(f, p, len);
@@ -1276,7 +1277,7 @@ lcp_nakci(fsm *f, u_char *p, int len, int treat_as_reject)
 	if (looped_back) {
 	    if (++try.numloops >= lcp_loopbackfail) {
 		notice("Serial line is looped back.");
-		status = EXIT_LOOPBACK;
+		ppp_set_status(EXIT_LOOPBACK);
 		lcp_close(f->unit, "Loopback detected");
 	    }
 	} else
@@ -1872,7 +1873,7 @@ lcp_up(fsm *f)
 #ifdef PPP_WITH_MULTILINK
     if (!(multilink && go->neg_mrru && ho->neg_mrru))
 #endif /* PPP_WITH_MULTILINK */
-	netif_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
+	ppp_set_mtu(f->unit, MIN(MIN(mtu, mru), ao->mru));
     ppp_send_config(f->unit, mtu,
 		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
 		    ho->neg_pcompression, ho->neg_accompression);
@@ -2186,7 +2187,7 @@ void LcpLinkFailure (fsm *f)
     if (f->state == OPENED) {
 	info("No response to %d echo-requests", lcp_echos_pending);
         notice("Serial link appears to be disconnected.");
-	status = EXIT_PEER_DEAD;
+	ppp_set_status(EXIT_PEER_DEAD);
 	lcp_close(f->unit, "Peer not responding");
     }
 }

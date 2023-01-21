@@ -159,13 +159,16 @@
 #define IFLA_PPP_DEV_FD 1
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ipcp.h"
 
 #ifdef PPP_WITH_IPV6CP
 #include "eui64.h"
 #endif /* PPP_WITH_IPV6CP */
+
+#include "multilink.h"
 
 #ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>
@@ -547,10 +550,10 @@ void sys_cleanup(void)
 
 /********************************************************************
  *
- * sys_close - Clean up in a child process before execing.
+ * ppp_sys_close - Clean up in a child process before execing.
  */
 void
-sys_close(void)
+ppp_sys_close(void)
 {
     if (new_style_driver && ppp_dev_fd >= 0)
 	close(ppp_dev_fd);
@@ -614,7 +617,7 @@ int tty_establish_ppp (int tty_fd)
 #ifndef N_SYNC_PPP
 #define N_SYNC_PPP 14
 #endif
-    ppp_disc = (new_style_driver && sync_serial)? N_SYNC_PPP: N_PPP;
+    ppp_disc = (new_style_driver && ppp_sync_serial())? N_SYNC_PPP: N_PPP;
     if (ioctl(tty_fd, TIOCSETD, &ppp_disc) < 0) {
 	if ( ! ok_error (errno) ) {
 	    error("Couldn't set tty to PPP discipline: %m");
@@ -622,7 +625,7 @@ int tty_establish_ppp (int tty_fd)
 	}
     }
 
-    ret_fd = generic_establish_ppp(tty_fd);
+    ret_fd = ppp_generic_establish(tty_fd);
 
 #define SC_RCVB	(SC_RCV_B7_0 | SC_RCV_B7_1 | SC_RCV_EVNP | SC_RCV_ODDP)
 #define SC_LOGB	(SC_DEBUG | SC_LOG_INPKT | SC_LOG_OUTPKT | SC_LOG_RAWIN \
@@ -643,7 +646,7 @@ int tty_establish_ppp (int tty_fd)
  *
  * generic_establish_ppp - Turn the fd into a ppp interface.
  */
-int generic_establish_ppp (int fd)
+int ppp_generic_establish (int fd)
 {
     int x;
 
@@ -780,16 +783,16 @@ void tty_disestablish_ppp(int tty_fd)
 flushfailed:
     initfdflags = -1;
 
-    generic_disestablish_ppp(tty_fd);
+    ppp_generic_disestablish(tty_fd);
 }
 
 /********************************************************************
  *
- * generic_disestablish_ppp - Restore device components to normal
+ * ppp_generic_disestablish - Restore device components to normal
  * operation, and reconnect the ppp unit to the loopback if in demand
  * mode.  This shouldn't call die() because it's called from die().
  */
-void generic_disestablish_ppp(int dev_fd)
+void ppp_generic_disestablish(int dev_fd)
 {
     if (new_style_driver) {
 	close(ppp_fd);
@@ -797,7 +800,7 @@ void generic_disestablish_ppp(int dev_fd)
 	if (demand) {
 	    modify_flags(ppp_dev_fd, 0, SC_LOOP_TRAFFIC);
 	    looped = 1;
-	} else if (!doing_multilink && ppp_dev_fd >= 0) {
+	} else if (!mp_on() && ppp_dev_fd >= 0) {
 	    close(ppp_dev_fd);
 	    remove_fd(ppp_dev_fd);
 	    ppp_dev_fd = -1;
@@ -1503,7 +1506,7 @@ int read_packet (unsigned char *buf)
 	    error("read /dev/ppp: %m");
 	if (nr < 0 && errno == ENXIO)
 	    nr = 0;
-	if (nr == 0 && doing_multilink) {
+	if (nr == 0 && mp_on()) {
 	    remove_fd(ppp_dev_fd);
 	    bundle_eof = 1;
 	}
@@ -1549,7 +1552,7 @@ get_loop_output(void)
  * netif_set_mtu - set the MTU on the PPP network interface.
  */
 void
-netif_set_mtu(int unit, int mtu)
+ppp_set_mtu(int unit, int mtu)
 {
     struct ifreq ifr;
 
@@ -1565,7 +1568,7 @@ netif_set_mtu(int unit, int mtu)
  * netif_get_mtu - get the MTU on the PPP network interface.
  */
 int
-netif_get_mtu(int unit)
+ppp_get_mtu(int unit)
 {
     struct ifreq ifr;
 
@@ -1600,7 +1603,7 @@ void tty_send_config(int mtu, u_int32_t asyncmap, int pcomp, int accomp)
 	}
 
 	x = (pcomp? SC_COMP_PROT: 0) | (accomp? SC_COMP_AC: 0)
-	    | (sync_serial? SC_SYNC: 0);
+	    | (ppp_sync_serial()? SC_SYNC: 0);
 	modify_flags(ppp_fd, SC_COMP_PROT|SC_COMP_AC|SC_SYNC, x);
 }
 
@@ -2857,11 +2860,11 @@ ppp_registered(void)
 
 /********************************************************************
  *
- * ppp_available - check whether the system has any ppp interfaces
+ * ppp_check_kernel_support - check whether the system has any ppp interfaces
  * (in fact we check whether we can do an ioctl on ppp0).
  */
 
-int ppp_available(void)
+int ppp_check_kernel_support(void)
 {
     int s, ok, fd;
     struct ifreq ifr;
@@ -3674,7 +3677,7 @@ int
 get_host_seed(void)
 {
     int h;
-    char *p = hostname;
+    const char *p;
 
     h = 407;
     for (p = hostname; *p != 0; ++p)
@@ -3691,7 +3694,7 @@ int
 sys_check_options(void)
 {
     if (demand && driver_is_old) {
-	option_error("demand dialling is not supported by kernel driver "
+	ppp_option_error("demand dialling is not supported by kernel driver "
 		     "version %d.%d.%d", driver_version, driver_modification,
 		     driver_patch);
 	return 0;
@@ -3708,7 +3711,7 @@ sys_check_options(void)
  * get_time - Get current time, monotonic if possible.
  */
 int
-get_time(struct timeval *tv)
+ppp_get_time(struct timeval *tv)
 {
 /* Old glibc (< 2.3.4) does define CLOCK_MONOTONIC, but kernel may have it.
  * Runtime checking makes it safe. */

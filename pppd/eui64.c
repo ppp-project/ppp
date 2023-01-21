@@ -38,7 +38,7 @@
 #include "config.h"
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
 
 
 /*

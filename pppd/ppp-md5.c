@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ppp-crypto-priv.h"
+#include "crypto-priv.h"
 
 #ifdef OPENSSL_HAVE_MD5
 #include <openssl/evp.h>

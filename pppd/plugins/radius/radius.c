@@ -33,14 +33,18 @@ static char const RCSID[] =
 #include <string.h>
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdbool.h>
 
 #include <pppd/pppd.h>
-#include <pppd/chap-new.h>
+#include <pppd/options.h>
+#include <pppd/chap.h>
+#include <pppd/upap.h>
 #ifdef PPP_WITH_CHAPMS
 #include <pppd/chap_ms.h>
 #ifdef PPP_WITH_MPPE
 #include <pppd/mppe.h>
-#include <pppd/ppp-crypto.h>
+#include <pppd/crypto.h>
 #endif
 #endif
 #include <pppd/fsm.h>
@@ -70,28 +74,20 @@ static option_t Options[] = {
     { NULL }
 };
 
-static int radius_secret_check(void);
-static int radius_pap_auth(char *user,
-			   char *passwd,
-			   char **msgp,
-			   struct wordlist **paddrs,
-			   struct wordlist **popts);
-static int radius_chap_verify(char *user, char *ourname, int id,
-			      struct chap_digest_type *digest,
-			      unsigned char *challenge,
-			      unsigned char *response,
-			      char *message, int message_space);
+static pap_check_hook_fn radius_secret_check;
+static pap_auth_hook_fn radius_pap_auth;
+static chap_verify_hook_fn radius_chap_verify;
 
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
-static void make_username_realm(char *user);
+static void make_username_realm(const char *user);
 static int radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 			    struct chap_digest_type *digest,
 			    unsigned char *challenge,
 			    char *message, int message_space);
 static void radius_choose_ip(u_int32_t *addrp);
 static int radius_init(char *msg);
-static int get_client_port(char *ifname);
+static int get_client_port(const char *ifname);
 static int radius_allowed_address(u_int32_t addr);
 static void radius_acct_interim(void *);
 #ifdef PPP_WITH_MPPE
@@ -160,15 +156,15 @@ plugin_init(void)
     ip_choose_hook = radius_choose_ip;
     allowed_address_hook = radius_allowed_address;
 
-    add_notifier(&ip_up_notifier, radius_ip_up, NULL);
-    add_notifier(&ip_down_notifier, radius_ip_down, NULL);
+    ppp_add_notify(NF_IP_UP, radius_ip_up, NULL);
+    ppp_add_notify(NF_IP_DOWN, radius_ip_down, NULL);
 
     memset(&rstate, 0, sizeof(rstate));
 
     strlcpy(rstate.config_file, "/etc/radiusclient/radiusclient.conf",
 	    sizeof(rstate.config_file));
 
-    add_options(Options);
+    ppp_add_options(Options);
 
     info("RADIUS plugin initialized.");
 }
@@ -252,6 +248,8 @@ radius_pap_auth(char *user,
     UINT4 av_type;
     int result;
     static char radius_msg[BUF_LEN];
+    const char *remote_number;
+    const char *ipparam;
 
     radius_msg[0] = 0;
     *msgp = radius_msg;
@@ -274,7 +272,7 @@ radius_pap_auth(char *user,
 
     /* Hack... the "port" is the ppp interface number.  Should really be
        the tty */
-    rstate.client_port = get_client_port(portnummap ? devnam : ifname);
+    rstate.client_port = get_client_port(portnummap ? ppp_devnam() : ppp_ifname());
 
     av_type = PW_FRAMED;
     rc_avpair_add(&send, PW_SERVICE_TYPE, &av_type, 0, VENDOR_NONE);
@@ -284,7 +282,9 @@ radius_pap_auth(char *user,
 
     rc_avpair_add(&send, PW_USER_NAME, rstate.user , 0, VENDOR_NONE);
     rc_avpair_add(&send, PW_USER_PASSWORD, passwd, 0, VENDOR_NONE);
-    if (*remote_number) {
+    remote_number = ppp_get_remote_number();
+    ipparam = ppp_ipparam();
+    if (remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
     } else if (ipparam)
@@ -349,6 +349,8 @@ radius_chap_verify(char *user, char *ourname, int id,
 #else
     REQUEST_INFO *req_info = NULL;
 #endif
+    const char *remote_number;
+    const char *ipparam;
 
     challenge_len = *challenge++;
     response_len = *response++;
@@ -374,7 +376,7 @@ radius_chap_verify(char *user, char *ourname, int id,
     /* Put user with potentially realm added in rstate.user */
     if (!rstate.done_chap_once) {
 	make_username_realm(user);
-	rstate.client_port = get_client_port (portnummap ? devnam : ifname);
+	rstate.client_port = get_client_port (portnummap ? ppp_devnam() : ppp_ifname());
 	if (radius_pre_auth_hook) {
 	    radius_pre_auth_hook(rstate.user,
 				 &rstate.authserver,
@@ -451,7 +453,9 @@ radius_chap_verify(char *user, char *ourname, int id,
 #endif
     }
 
-    if (*remote_number) {
+    remote_number = ppp_get_remote_number();
+    ipparam = ppp_ipparam();
+    if (remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, remote_number, 0,
 		       VENDOR_NONE);
     } else if (ipparam)
@@ -504,7 +508,7 @@ radius_chap_verify(char *user, char *ourname, int id,
 * then the default realm from the radiusclient config file is added.
 ***********************************************************************/
 static void
-make_username_realm(char *user)
+make_username_realm(const char *user)
 {
     char *default_realm;
 
@@ -590,27 +594,27 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 
 	    case PW_SESSION_TIMEOUT:
 		/* Session timeout */
-		maxconnect = vp->lvalue;
+		ppp_set_max_connect_time(vp->lvalue);
 		break;
            case PW_FILTER_ID:
                /* packet filter, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FILTER_ID", (char*) vp->strvalue, 1);
+               ppp_script_setenv("RADIUS_FILTER_ID", (char*) vp->strvalue, 1);
                break;
            case PW_FRAMED_ROUTE:
                /* route, will be handled via ip-(up|down) script */
-               script_setenv("RADIUS_FRAMED_ROUTE", (char*) vp->strvalue, 1);
+               ppp_script_setenv("RADIUS_FRAMED_ROUTE", (char*) vp->strvalue, 1);
                break;
            case PW_IDLE_TIMEOUT:
                /* idle parameter */
-               idle_time_limit = vp->lvalue;
+               ppp_set_max_idle_time(vp->lvalue);
                break;
 	    case PW_SESSION_OCTETS_LIMIT:
 		/* Session traffic limit */
-		maxoctets = vp->lvalue;
+		ppp_set_session_limit(vp->lvalue);
 		break;
 	    case PW_OCTETS_DIRECTION:
 		/* Session traffic limit direction check */
-		maxoctets_dir = ( vp->lvalue > 4 ) ? 0 : vp->lvalue ;
+		ppp_set_session_limit_dir(vp->lvalue);
 		break;
 	    case PW_ACCT_INTERIM_INTERVAL:
 		/* Send accounting updates every few seconds */
@@ -631,7 +635,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		} else if (remote != 0xfffffffe) {
 		    /* 0xfffffffe means NAS should select an ip address */
 		    remote = htonl(vp->lvalue);
-		    if (bad_ip_adrs (remote)) {
+		    if (ppp_bad_ip_addr (remote)) {
 			slprintf(msg, BUF_LEN, "RADIUS: bad remote IP address %I for %s",
 				 remote, rstate.user);
 			return -1;
@@ -651,7 +655,7 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 		} /* else too big for our buffer - ignore it */
 		break;
 	    case PW_FRAMED_MTU:
-		netif_set_mtu(rstate.client_port,MIN(netif_get_mtu(rstate.client_port),vp->lvalue));
+		ppp_set_mtu(rstate.client_port,MIN(ppp_get_mtu(rstate.client_port),vp->lvalue));
 		break;
 	    }
 
@@ -986,6 +990,8 @@ radius_acct_start(void)
     VALUE_PAIR *send = NULL;
     ipcp_options *ho = &ipcp_hisoptions[0];
     u_int32_t hisaddr;
+    const char *remote_number;
+    const char *ipparam;
 
     if (!rstate.initialized) {
 	return;
@@ -1013,7 +1019,9 @@ radius_acct_start(void)
     av_type = PW_PPP;
     rc_avpair_add(&send, PW_FRAMED_PROTOCOL, &av_type, 0, VENDOR_NONE);
 
-    if (*remote_number) {
+    remote_number = ppp_get_remote_number();
+    ipparam = ppp_ipparam();
+    if (remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
     } else if (ipparam)
@@ -1023,7 +1031,7 @@ radius_acct_start(void)
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
@@ -1051,7 +1059,7 @@ radius_acct_start(void)
 
     /* Kick off periodic accounting reports */
     if (rstate.acct_interim_interval) {
-	TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
+	ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
     }
 }
 
@@ -1072,13 +1080,16 @@ radius_acct_stop(void)
     ipcp_options *ho = &ipcp_hisoptions[0];
     u_int32_t hisaddr;
     int result;
+    const char *remote_number;
+    const char *ipparam;
+    ppp_link_stats_st stats;
 
     if (!rstate.initialized) {
 	return;
     }
 
     if (rstate.acct_interim_interval)
-	UNTIMEOUT(radius_acct_interim, NULL);
+	ppp_untimeout(radius_acct_interim, NULL);
 
     rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
 		   0, VENDOR_NONE);
@@ -1101,45 +1112,47 @@ radius_acct_stop(void)
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
+    if (ppp_get_link_stats(&stats)) {
 
-    if (link_stats_valid) {
-	av_type = link_connect_time;
+	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out & 0xFFFFFFFF;
+	av_type = stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_out > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_out >> 32;
+	if (stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = stats.bytes_out >> 32;
 	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.bytes_in & 0xFFFFFFFF;
+	av_type = stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_in > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_in >> 32;
+	if (stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = stats.bytes_in >> 32;
 	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.pkts_out;
+	av_type = stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.pkts_in;
+	av_type = stats.pkts_in;
 	rc_avpair_add(&send, PW_ACCT_INPUT_PACKETS, &av_type, 0, VENDOR_NONE);
     }
 
-    if (*remote_number) {
+    remote_number = ppp_get_remote_number();
+    ipparam = ppp_ipparam();
+    if (remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
     } else if (ipparam)
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     av_type = PW_NAS_ERROR;
-    switch( status ) {
+    switch( ppp_status() ) {
 	case EXIT_OK:
 	    av_type = PW_USER_REQUEST;
 	    break;
@@ -1230,6 +1243,9 @@ radius_acct_interim(void *ignored)
     ipcp_options *ho = &ipcp_hisoptions[0];
     u_int32_t hisaddr;
     int result;
+    const char *remote_number;
+    const char *ipparam;
+    ppp_link_stats_st stats;
 
     if (!rstate.initialized) {
 	return;
@@ -1256,45 +1272,43 @@ radius_acct_interim(void *ignored)
     av_type = PW_RADIUS;
     rc_avpair_add(&send, PW_ACCT_AUTHENTIC, &av_type, 0, VENDOR_NONE);
 
-    /* Update link stats */
-    update_link_stats(0);
+    if (ppp_get_link_stats(&stats)) {
 
-    if (link_stats_valid) {
-	link_stats_valid = 0; /* Force later code to update */
-
-	av_type = link_connect_time;
+	av_type = ppp_get_link_uptime();
 	rc_avpair_add(&send, PW_ACCT_SESSION_TIME, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.bytes_out & 0xFFFFFFFF;
+	av_type = stats.bytes_out & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_out > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_out >> 32;
+	if (stats.bytes_out > 0xFFFFFFFF) {
+	    av_type = stats.bytes_out >> 32;
 	    rc_avpair_add(&send, PW_ACCT_OUTPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.bytes_in & 0xFFFFFFFF;
+	av_type = stats.bytes_in & 0xFFFFFFFF;
 	rc_avpair_add(&send, PW_ACCT_INPUT_OCTETS, &av_type, 0, VENDOR_NONE);
 
-	if (link_stats.bytes_in > 0xFFFFFFFF) {
-	    av_type = link_stats.bytes_in >> 32;
+	if (stats.bytes_in > 0xFFFFFFFF) {
+	    av_type = stats.bytes_in >> 32;
 	    rc_avpair_add(&send, PW_ACCT_INPUT_GIGAWORDS, &av_type, 0, VENDOR_NONE);
 	}
 
-	av_type = link_stats.pkts_out;
+	av_type = stats.pkts_out;
 	rc_avpair_add(&send, PW_ACCT_OUTPUT_PACKETS, &av_type, 0, VENDOR_NONE);
 
-	av_type = link_stats.pkts_in;
+	av_type = stats.pkts_in;
 	rc_avpair_add(&send, PW_ACCT_INPUT_PACKETS, &av_type, 0, VENDOR_NONE);
     }
 
-    if (*remote_number) {
+    remote_number = ppp_get_remote_number();
+    ipparam = ppp_ipparam();
+    if (remote_number) {
 	rc_avpair_add(&send, PW_CALLING_STATION_ID,
 		       remote_number, 0, VENDOR_NONE);
     } else if (ipparam)
 	rc_avpair_add(&send, PW_CALLING_STATION_ID, ipparam, 0, VENDOR_NONE);
 
-    av_type = ( using_pty ? PW_VIRTUAL : ( sync_serial ? PW_SYNC : PW_ASYNC ) );
+    av_type = ( ppp_using_pty() ? PW_VIRTUAL : ( ppp_sync_serial() ? PW_SYNC : PW_ASYNC ) );
     rc_avpair_add(&send, PW_NAS_PORT_TYPE, &av_type, 0, VENDOR_NONE);
 
     hisaddr = ho->hisaddr;
@@ -1320,7 +1334,7 @@ radius_acct_interim(void *ignored)
     rc_avpair_free(send);
 
     /* Schedule another one */
-    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
+    ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
 }
 
 /**********************************************************************
@@ -1417,7 +1431,7 @@ radius_init(char *msg)
 *  Extracts the port number from the interface name
 ***********************************************************************/
 static int
-get_client_port(char *ifname)
+get_client_port(const char *ifname)
 {
     int port;
     if (sscanf(ifname, "ppp%d", &port) == 1) {

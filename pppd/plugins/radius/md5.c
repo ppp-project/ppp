@@ -3,7 +3,7 @@
  */
 #include <stddef.h>
 
-#include <pppd/ppp-crypto.h>
+#include <pppd/crypto.h>
 
 int rc_md5_calc(unsigned char *out, const unsigned char *in, unsigned int inl)
 {

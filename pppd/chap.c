@@ -36,9 +36,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "session.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap-md5.h"
 
 #ifdef PPP_WITH_CHAPMS
@@ -51,10 +52,7 @@
 int chap_mdtype_all = MDTYPE_ALL;
 
 /* Hook for a plugin to validate CHAP challenge */
-int (*chap_verify_hook)(char *name, char *ourname, int id,
-			struct chap_digest_type *digest,
-			unsigned char *challenge, unsigned char *response,
-			char *message, int message_space) = NULL;
+chap_verify_hook_fn *chap_verify_hook = NULL;
 
 /*
  * Option variables.
@@ -68,7 +66,7 @@ int chapms_strip_domain = 0;
 /*
  * Command-line options.
  */
-static option_t chap_option_list[] = {
+static struct option chap_option_list[] = {
 	{ "chap-restart", o_int, &chap_server_timeout_time,
 	  "Set timeout for CHAP (as server)", OPT_PRIO },
 	{ "chap-max-challenge", o_int, &chap_max_transmits,
@@ -129,10 +127,7 @@ static void chap_client_timeout(void *arg);
 static void chap_generate_challenge(struct chap_server_state *ss);
 static void chap_handle_response(struct chap_server_state *ss, int code,
 		unsigned char *pkt, int len);
-static int chap_verify_response(char *name, char *ourname, int id,
-		struct chap_digest_type *digest,
-		unsigned char *challenge, unsigned char *response,
-		char *message, int message_space);
+static chap_verify_hook_fn chap_verify_response;
 static void chap_respond(struct chap_client_state *cs, int id,
 		unsigned char *pkt, int len);
 static void chap_handle_status(struct chap_client_state *cs, int code, int id,
@@ -345,9 +340,8 @@ chap_handle_response(struct chap_server_state *ss, int id,
 {
 	int response_len, ok, mlen;
 	unsigned char *response, *p;
-	char *name = NULL;	/* initialized to shut gcc up */
-	int (*verifier)(char *, char *, int, struct chap_digest_type *,
-		unsigned char *, unsigned char *, char *, int);
+	char *name = NULL;
+	chap_verify_hook_fn *verifier;
 	char rname[MAXNAMELEN+1];
 
 	if ((ss->flags & LOWERUP) == 0)

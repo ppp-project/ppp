@@ -162,7 +162,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "eui64.h"
 #include "ipcp.h"
@@ -183,11 +184,8 @@ static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
 static bool ipv6cp_noremote;
 
-/* Hook for a plugin to know when IPv6 protocol has come up */
-void (*ipv6_up_hook)(void) = NULL;
-
-/* Hook for a plugin to know when IPv6 protocol has come down */
-void (*ipv6_down_hook)(void) = NULL;
+ipv6_up_hook_fn *ipv6_up_hook = NULL;
+ipv6_down_hook_fn *ipv6_down_hook = NULL;
 
 /* Notifiers for when IPCPv6 goes up and down */
 struct notifier *ipv6_up_notifier = NULL;
@@ -231,10 +229,10 @@ static fsm_callbacks ipv6cp_callbacks = { /* IPV6CP callback routines */
  * Command-line options.
  */
 static int setifaceid (char **arg);
-static void printifaceid (option_t *,
+static void printifaceid (struct option *,
 			  void (*)(void *, char *, ...), void *);
 
-static option_t ipv6cp_option_list[] = {
+static struct option ipv6cp_option_list[] = {
     { "ipv6", o_special, (void *)setifaceid,
       "Set interface identifiers for IPV6",
       OPT_A2PRINTER, (void *)printifaceid },
@@ -373,7 +371,7 @@ setifaceid(char **argv)
 	*comma = '\0';
 
 	if (inet_pton(AF_INET6, arg, &addr) == 0 || !VALIDID(addr)) {
-	    option_error("Illegal interface identifier (local): %s", arg);
+	    ppp_option_error("Illegal interface identifier (local): %s", arg);
 	    return 0;
 	}
 
@@ -390,7 +388,7 @@ setifaceid(char **argv)
      */
     if (*comma != 0 && *++comma != '\0') {
 	if (inet_pton(AF_INET6, comma, &addr) == 0 || !VALIDID(addr)) {
-	    option_error("Illegal interface identifier (remote): %s", comma);
+	    ppp_option_error("Illegal interface identifier (remote): %s", comma);
 	    return 0;
 	}
 	if (option_priority >= prio_remote) {
@@ -408,7 +406,7 @@ setifaceid(char **argv)
 char *llv6_ntoa(eui64_t ifaceid);
 
 static void
-printifaceid(option_t *opt, void (*printer) (void *, char *, ...), void *arg)
+printifaceid(struct option *opt, void (*printer) (void *, char *, ...), void *arg)
 {
 	ipv6cp_options *wo = &ipv6cp_wantoptions[0];
 
@@ -1302,9 +1300,9 @@ ipv6cp_up(fsm *f)
 	    return;
 	}
     }
-    script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
+    ppp_script_setenv("LLLOCAL", llv6_ntoa(go->ourid), 0);
     if (!eui64_iszero(ho->hisid))
-        script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
+        ppp_script_setenv("LLREMOTE", llv6_ntoa(ho->hisid), 0);
 
 #ifdef IPV6CP_COMP
     /* set tcp compression */
@@ -1398,7 +1396,7 @@ static void
 ipv6cp_down(fsm *f)
 {
     IPV6CPDEBUG(("ipv6cp: down"));
-    update_link_stats(f->unit);
+    ppp_get_link_stats(NULL);
     notify(ipv6_down_notifier, 0);
     if (ipv6_down_hook)
        ipv6_down_hook();

@@ -42,7 +42,8 @@
 #include <linux/ppp-comp.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "ccp.h"
 
@@ -75,7 +76,7 @@ static char deflate_value[8];
 bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
 #endif
 
-static option_t ccp_option_list[] = {
+static struct option ccp_option_list[] = {
     { "noccp", o_bool, &ccp_protent.enabled_flag,
       "Disable CCP negotiation" },
     { "-ccp", o_bool, &ccp_protent.enabled_flag,
@@ -276,12 +277,12 @@ setbsdcomp(char **argv)
 	abits = strtol(str, &endp, 0);
     }
     if (*endp != 0 || endp == str) {
-	option_error("invalid parameter '%s' for bsdcomp option", *argv);
+	ppp_option_error("invalid parameter '%s' for bsdcomp option", *argv);
 	return 0;
     }
     if ((rbits != 0 && (rbits < BSD_MIN_BITS || rbits > BSD_MAX_BITS))
 	|| (abits != 0 && (abits < BSD_MIN_BITS || abits > BSD_MAX_BITS))) {
-	option_error("bsdcomp option values must be 0 or %d .. %d",
+	ppp_option_error("bsdcomp option values must be 0 or %d .. %d",
 		     BSD_MIN_BITS, BSD_MAX_BITS);
 	return 0;
     }
@@ -314,13 +315,13 @@ setdeflate(char **argv)
 	abits = strtol(str, &endp, 0);
     }
     if (*endp != 0 || endp == str) {
-	option_error("invalid parameter '%s' for deflate option", *argv);
+	ppp_option_error("invalid parameter '%s' for deflate option", *argv);
 	return 0;
     }
     if ((rbits != 0 && (rbits < DEFLATE_MIN_SIZE || rbits > DEFLATE_MAX_SIZE))
 	|| (abits != 0 && (abits < DEFLATE_MIN_SIZE
 			  || abits > DEFLATE_MAX_SIZE))) {
-	option_error("deflate option values must be 0 or %d .. %d",
+	ppp_option_error("deflate option values must be 0 or %d .. %d",
 		     DEFLATE_MIN_SIZE, DEFLATE_MAX_SIZE);
 	return 0;
     }
@@ -1175,9 +1176,9 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 		     * because MPPE frames **grow**.  The kernel [must]
 		     * allocate MPPE_PAD extra bytes in xmit buffers.
 		     */
-		    mtu = netif_get_mtu(f->unit);
+		    mtu = ppp_get_mtu(f->unit);
 		    if (mtu)
-			netif_set_mtu(f->unit, mtu - MPPE_PAD);
+			ppp_set_mtu(f->unit, mtu - MPPE_PAD);
 		    else
 			newret = CONFREJ;
 		}

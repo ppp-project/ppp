@@ -101,7 +101,7 @@ int rc_read_mapfile(char *filename)
  * Returns: port id, zero if no entry found
  */
 
-UINT4 rc_map2id(char *name)
+UINT4 rc_map2id(const char *name)
 {
 	struct map2id_s *p;
 	char ttyname[PATH_MAX];

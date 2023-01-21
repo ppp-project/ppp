@@ -47,6 +47,10 @@
  *    https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-peap
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,10 +61,10 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "eap.h"
 #include "tls.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "chap_ms.h"
 #include "mppe.h"
 #include "peap.h"
@@ -436,6 +440,7 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		}
 		case CHAP_FAILURE: {
 
+			u_char status = CHAP_FAILURE;
 			psm->chap->handle_failure(in_buf, in_len);
 			PUTCHAR(EAPT_MSCHAPV2, outp);
 			PUTCHAR(status, outp);

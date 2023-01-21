@@ -45,14 +45,20 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include <pppd/pppd.h>
-#include <pppd/chap-new.h>
+#include <pppd/options.h>
+#include <pppd/chap.h>
 #include <pppd/chap_ms.h>
+#include <pppd/upap.h>
 #include <pppd/fsm.h>
 #include <pppd/ipcp.h>
 #include <pppd/mppe.h>
-#include <pppd/ppp-crypto.h>
+#include <pppd/crypto.h>
 
 #define BUF_LEN 1024
 
@@ -67,7 +73,7 @@ static int set_ntlm_auth(char **argv)
 
 	p = argv[0];
 	if (p[0] != '/') {
-		option_error("ntlm_auth-helper argument must be full path");
+		ppp_option_error("ntlm_auth-helper argument must be full path");
 		return 0;
 	}
 	p = strdup(p);
@@ -81,26 +87,16 @@ static int set_ntlm_auth(char **argv)
 	return 1;
 }
 
-static option_t Options[] = {
+static struct option Options[] = {
 	{ "ntlm_auth-helper", o_special, (void *) &set_ntlm_auth,
 	  "Path to ntlm_auth executable", OPT_PRIV },
 	{ NULL }
 };
 
-static int
-winbind_secret_check(void);
-
-static int winbind_pap_auth(char *user,
-			   char *passwd,
-			   char **msgp,
-			   struct wordlist **paddrs,
-			   struct wordlist **popts);
-static int winbind_chap_verify(char *user, char *ourname, int id,
-			       struct chap_digest_type *digest,
-			       unsigned char *challenge,
-			       unsigned char *response,
-			       char *message, int message_space);
-static int winbind_allowed_address(u_int32_t addr); 
+static pap_check_hook_fn winbind_secret_check;
+static pap_auth_hook_fn winbind_pap_auth;
+static chap_verify_hook_fn winbind_chap_verify;
+static int winbind_allowed_address(uint32_t addr);
 
 char pppd_version[] = PPPD_VERSION;
 
@@ -127,7 +123,7 @@ plugin_init(void)
     /* Don't ask the peer for anything other than MS-CHAP or MS-CHAP V2 */
     chap_mdtype_all &= (MDTYPE_MICROSOFT_V2 | MDTYPE_MICROSOFT);
     
-    add_options(Options);
+    ppp_add_options(Options);
 
     info("WINBIND plugin initialized.");
 }
@@ -285,7 +281,7 @@ unsigned int run_ntlm_auth(const char *username,
 		return NOT_AUTHENTICATED;
         }
 
-        forkret = safe_fork(child_in[0], child_out[1], 2);
+        forkret = ppp_safe_fork(child_in[0], child_out[1], 2);
         if (forkret == -1) {
 		if (error_string) {
 			*error_string = strdup("fork failed!");
@@ -448,7 +444,7 @@ unsigned int run_ntlm_auth(const char *username,
                 return NOT_AUTHENTICATED;
         }
 
-	while ((wait(&status) == -1) && errno == EINTR && !got_sigterm)
+	while ((wait(&status) == -1) && errno == EINTR && !ppp_signaled(SIGTERM))
                 ;
 
 	if ((authenticated == AUTHENTICATED) && nt_key && !got_user_session_key) {
@@ -523,7 +519,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 	int challenge_len, response_len;
 	char domainname[256];
 	char *domain;
-	char *username;
+	const char *username;
 	char *p;
 	unsigned char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
 
@@ -669,7 +665,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 }
 
 static int 
-winbind_allowed_address(u_int32_t addr) 
+winbind_allowed_address(uint32_t addr)
 {
 	ipcp_options *wo = &ipcp_wantoptions[0];
 	if (wo->hisaddr !=0 && wo->hisaddr == addr) {

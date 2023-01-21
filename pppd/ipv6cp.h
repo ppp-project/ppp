@@ -174,4 +174,16 @@ extern ipv6cp_options ipv6cp_hisoptions[];
 
 extern struct protent ipv6cp_protent;
 
+/*
+ * Hook for a plugin to know when IPv6 protocol has come up
+ */
+typedef void (ipv6_up_hook_fn)(void);
+extern ipv6_up_hook_fn *ipv6_up_hook;
+
+/*
+ * Hook for a plugin to know when IPv6 protocol has come down
+ */
+typedef void (ipv6_down_hook_fn)(void);
+extern ipv6_down_hook_fn *ipv6_down_hook;
+
 #endif

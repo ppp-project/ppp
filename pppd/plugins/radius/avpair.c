@@ -31,7 +31,7 @@ static void rc_extract_vendor_specific_attributes(int attrlen,
  *
  */
 
-VALUE_PAIR *rc_avpair_add (VALUE_PAIR **list, int attrid, void *pval, int len,
+VALUE_PAIR *rc_avpair_add (VALUE_PAIR **list, int attrid, const void *pval, int len,
 			   int vendorcode)
 {
 	VALUE_PAIR     *vp;
@@ -57,7 +57,7 @@ VALUE_PAIR *rc_avpair_add (VALUE_PAIR **list, int attrid, void *pval, int len,
  *
  */
 
-int rc_avpair_assign (VALUE_PAIR *vp, void *pval, int len)
+int rc_avpair_assign (VALUE_PAIR *vp, const void *pval, int len)
 {
 	int	result = -1;
 
@@ -65,19 +65,19 @@ int rc_avpair_assign (VALUE_PAIR *vp, void *pval, int len)
 	{
 		case PW_TYPE_STRING:
 
-			if (((len == 0) && (strlen ((char *) pval)) > AUTH_STRING_LEN)
+			if (((len == 0) && (strlen ((const char *) pval)) > AUTH_STRING_LEN)
 			    || (len > AUTH_STRING_LEN)) {
 				error("rc_avpair_assign: bad attribute length");
 				return result;
 		    }
 
 			if (len > 0) {
-				memcpy(vp->strvalue, (char *)pval, len);
+				memcpy(vp->strvalue, (const char *)pval, len);
 				vp->strvalue[len] = '\0';
 				vp->lvalue = len;
 			} else {
-			strncpy ((char*) vp->strvalue, (char *) pval, AUTH_STRING_LEN);
-			vp->lvalue = strlen((char *) pval);
+			strncpy ((char*) vp->strvalue, (const char *) pval, AUTH_STRING_LEN);
+			vp->lvalue = strlen((const char *) pval);
 			}
 
 			result = 0;
@@ -107,7 +107,7 @@ int rc_avpair_assign (VALUE_PAIR *vp, void *pval, int len)
  *
  */
 
-VALUE_PAIR *rc_avpair_new (int attrid, void *pval, int len, int vendorcode)
+VALUE_PAIR *rc_avpair_new (int attrid, const void *pval, int len, int vendorcode)
 {
 	VALUE_PAIR     *vp = (VALUE_PAIR *) NULL;
 	DICT_ATTR      *pda;

@@ -145,11 +145,11 @@ struct eap_auth {
 	char *ea_name;		/* Our name */
 	char *ea_peer;		/* Peer's name */
 	void *ea_session;	/* Authentication library linkage */
-	u_char *ea_skey;	/* Shared encryption key */
+	unsigned char *ea_skey;	/* Shared encryption key */
 	int ea_timeout;		/* Time to wait (for retransmit/fail) */
 	int ea_maxrequests;	/* Max Requests allowed */
-	u_short ea_namelen;	/* Length of our name */
-	u_short ea_peerlen;	/* Length of peer's name */
+	unsigned short ea_namelen;	/* Length of our name */
+	unsigned short ea_peerlen;	/* Length of peer's name */
 	enum eap_state_code ea_state;
 #ifdef PPP_WITH_EAPTLS
 	enum eap_state_code ea_prev_state;
@@ -157,11 +157,11 @@ struct eap_auth {
 #ifdef PPP_WITH_CHAPMS
         struct chap_digest_type *digest;
 #endif
-	u_char ea_id;		/* Current id */
-	u_char ea_requests;	/* Number of Requests sent/received */
-	u_char ea_responses;	/* Number of Responses */
-	u_char ea_type;		/* One of EAPT_* */
-	u_int32_t ea_keyflags;	/* SRP shared key usage flags */
+	unsigned char ea_id;		/* Current id */
+	unsigned char ea_requests;	/* Number of Requests sent/received */
+	unsigned char ea_responses;	/* Number of Responses */
+	unsigned char ea_type;		/* One of EAPT_* */
+	uint32_t ea_keyflags;	/* SRP shared key usage flags */
 #ifdef PPP_WITH_EAPTLS
 	bool ea_using_eaptls;
 #endif
@@ -183,7 +183,7 @@ typedef struct eap_state {
 	bool es_usepseudo;		/* Use SRP Pseudonym if offered one */
 	int es_usedpseudo;		/* Set if we already sent PN */
 	int es_challen;			/* Length of challenge string */
-	u_char es_challenge[MAX_CHALLENGE_LENGTH];
+	unsigned char es_challenge[MAX_CHALLENGE_LENGTH];
 } eap_state;
 
 /*
@@ -205,6 +205,11 @@ void eap_authwithpeer (int unit, char *localname);
 void eap_authpeer (int unit, char *localname);
 
 extern struct protent eap_protent;
+
+#ifdef PPP_WITH_EAPTLS
+typedef int (eaptls_passwd_hook_fn)(char *user, char *passwd);
+extern eaptls_passwd_hook_fn *eaptls_passwd_hook;
+#endif
 
 #ifdef	__cplusplus
 }

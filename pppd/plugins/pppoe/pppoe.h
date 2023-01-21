@@ -322,3 +322,10 @@ do {\
 #define NOT_UNICAST(e) ((e[0] & 0x01) != 0)
 #define BROADCAST(e) ((e[0] & e[1] & e[2] & e[3] & e[4] & e[5]) == 0xFF)
 #define NOT_BROADCAST(e) ((e[0] & e[1] & e[2] & e[3] & e[4] & e[5]) != 0xFF)
+
+#ifndef MIN
+#define MIN(a, b)	((a) < (b)? (a): (b))
+#endif
+#ifndef MAX
+#define MAX(a, b)	((a) > (b)? (a): (b))
+#endif

@@ -113,14 +113,15 @@
 #include <systemd/sd-daemon.h>
 #endif
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "ccp.h"
 #include "ecp.h"
 #include "ipcp.h"
 #include "upap.h"
-#include "chap-new.h"
+#include "chap.h"
 #include "eap.h"
 #ifdef PPP_WITH_EAPTLS
 #include "eap-tls.h"
@@ -128,6 +129,7 @@
 #ifdef PPP_WITH_CBCP
 #include "cbcp.h"
 #endif
+#include "multilink.h"
 #include "pathnames.h"
 #include "session.h"
 
@@ -179,28 +181,26 @@ static bool default_auth;
 int (*idle_time_hook)(struct ppp_idle *) = NULL;
 
 /* Hook for a plugin to say whether we can possibly authenticate any peer */
-int (*pap_check_hook)(void) = NULL;
+pap_check_hook_fn *pap_check_hook = NULL;
 
 /* Hook for a plugin to check the PAP user and password */
-int (*pap_auth_hook)(char *user, char *passwd, char **msgp,
-		     struct wordlist **paddrs,
-		     struct wordlist **popts) = NULL;
+pap_auth_hook_fn *pap_auth_hook = NULL;
 
 /* Hook for a plugin to know about the PAP user logout */
-void (*pap_logout_hook)(void) = NULL;
+pap_logout_hook_fn *pap_logout_hook = NULL;
 
 /* Hook for a plugin to get the PAP password for authenticating us */
-int (*pap_passwd_hook)(char *user, char *passwd) = NULL;
+pap_passwd_hook_fn *pap_passwd_hook = NULL;
 
 /* Hook for a plugin to say if we can possibly authenticate a peer using CHAP */
-int (*chap_check_hook)(void) = NULL;
+chap_check_hook_fn *chap_check_hook = NULL;
 
 /* Hook for a plugin to get the CHAP password for authenticating us */
-int (*chap_passwd_hook)(char *user, char *passwd) = NULL;
+chap_passwd_hook_fn *chap_passwd_hook = NULL;
 
 #ifdef PPP_WITH_EAPTLS
 /* Hook for a plugin to get the EAP-TLS password for authenticating us */
-int (*eaptls_passwd_hook)(char *user, char *passwd) = NULL;
+eaptls_passwd_hook_fn *eaptls_passwd_hook = NULL;
 #endif
 
 /* Hook for a plugin to say whether it is OK if the peer
@@ -209,11 +209,6 @@ int (*null_auth_hook)(struct wordlist **paddrs,
 		      struct wordlist **popts) = NULL;
 
 int (*allowed_address_hook)(u_int32_t addr) = NULL;
-
-#ifdef PPP_WITH_MULTILINK
-/* Hook for plugin to hear when an interface joins a multilink bundle */
-void (*multilink_join_hook)(void) = NULL;
-#endif
 
 /* A notifier for when the peer has authenticated itself,
    and we are proceeding to the network phase. */
@@ -322,7 +317,7 @@ static void check_maxoctets (void *);
 /*
  * Authentication-related options.
  */
-option_t auth_options[] = {
+struct option auth_options[] = {
     { "auth", o_bool, &auth_required,
       "Require authentication from peer", OPT_PRIO | 1 },
     { "noauth", o_bool, &auth_required,
@@ -469,6 +464,36 @@ option_t auth_options[] = {
     { NULL }
 };
 
+const char *
+ppp_remote_name()
+{
+    return remote_name;
+}
+
+const char *
+ppp_get_remote_number(void)
+{
+    return remote_number;
+}
+
+void
+ppp_set_remote_number(const char *buf)
+{
+    if (buf) {
+        strlcpy(remote_number, buf, sizeof(remote_number));
+    }
+}
+
+const char *
+ppp_peer_authname(char *buf, size_t bufsz)
+{
+    if (buf && bufsz > 0) {
+        strlcpy(buf, peer_authname, bufsz);
+        return buf;
+    }
+    return peer_authname;
+}
+
 /*
  * setupapfile - specifies UPAP info for authenticating with peer.
  */
@@ -489,7 +514,7 @@ setupapfile(char **argv)
 	novm("+ua file name");
     euid = geteuid();
     if (seteuid(getuid()) == -1) {
-	option_error("unable to reset uid before opening %s: %m", fname);
+	ppp_option_error("unable to reset uid before opening %s: %m", fname);
         free(fname);
 	return 0;
     }
@@ -497,7 +522,7 @@ setupapfile(char **argv)
     if (seteuid(euid) == -1)
 	fatal("unable to regain privileges: %m");
     if (ufile == NULL) {
-	option_error("unable to open user login data file %s", fname);
+	ppp_option_error("unable to open user login data file %s", fname);
         free(fname);
 	return 0;
     }
@@ -508,7 +533,7 @@ setupapfile(char **argv)
     if (fgets(u, MAXNAMELEN - 1, ufile) == NULL
 	|| fgets(p, MAXSECRETLEN - 1, ufile) == NULL) {
 	fclose(ufile);
-	option_error("unable to read user login data file %s", fname);
+	ppp_option_error("unable to read user login data file %s", fname);
         free(fname);
 	return 0;
     }
@@ -547,7 +572,7 @@ privgroup(char **argv)
 
     g = getgrnam(*argv);
     if (g == 0) {
-	option_error("group %s is unknown", *argv);
+	ppp_option_error("group %s is unknown", *argv);
 	return 0;
     }
     for (i = 0; i < ngroups; ++i) {
@@ -616,7 +641,7 @@ link_required(int unit)
  */
 void start_link(int unit)
 {
-    status = EXIT_CONNECT_FAILED;
+    ppp_set_status(EXIT_CONNECT_FAILED);
     new_phase(PHASE_SERIALCONN);
 
     hungup = 0;
@@ -634,7 +659,7 @@ void start_link(int unit)
      */
     fd_ppp = the_channel->establish_ppp(devfd);
     if (fd_ppp < 0) {
-	status = EXIT_FATAL_ERROR;
+	ppp_set_status(EXIT_FATAL_ERROR);
 	goto disconnect;
     }
 
@@ -646,12 +671,12 @@ void start_link(int unit)
      * incoming events (reply, timeout, etc.).
      */
     if (ifunit >= 0)
-	notice("Connect: %s <--> %s", ifname, ppp_devnam);
+	notice("Connect: %s <--> %s", ifname, ppp_devname);
     else
-	notice("Starting negotiation on %s", ppp_devnam);
+	notice("Starting negotiation on %s", ppp_devname);
     add_fd(fd_ppp);
 
-    status = EXIT_NEGOTIATION_FAILED;
+    ppp_set_status(EXIT_NEGOTIATION_FAILED);
     new_phase(PHASE_ESTABLISH);
 
     lcp_lowerup(0);
@@ -675,7 +700,7 @@ void start_link(int unit)
 void
 link_terminated(int unit)
 {
-    if (phase == PHASE_DEAD || phase == PHASE_MASTER)
+    if (in_phase(PHASE_DEAD) || in_phase(PHASE_MASTER))
 	return;
     new_phase(PHASE_DISCONNECT);
 
@@ -684,7 +709,7 @@ link_terminated(int unit)
     }
     session_end(devnam);
 
-    if (!doing_multilink) {
+    if (!mp_on()) {
 	notice("Connection terminated.");
 	print_link_stats();
     } else
@@ -695,9 +720,8 @@ link_terminated(int unit)
      * can happen that another pppd gets the same unit and then
      * we delete its pid file.
      */
-    if (!doing_multilink && !demand)
+    if (!demand && !mp_on())
 	remove_pidfiles();
-
     /*
      * If we may want to bring the link up again, transfer
      * the ppp unit back to the loopback.  Set the
@@ -707,14 +731,14 @@ link_terminated(int unit)
 	remove_fd(fd_ppp);
 	clean_check();
 	the_channel->disestablish_ppp(devfd);
-	if (doing_multilink)
+	if (mp_on())
 	    mp_exit_bundle();
 	fd_ppp = -1;
     }
     if (!hungup)
 	lcp_lowerdown(0);
-    if (!doing_multilink && !demand)
-	script_unsetenv("IFNAME");
+    if (!mp_on() && !demand)
+	ppp_script_unsetenv("IFNAME");
 
     /*
      * Run disconnector script, if requested.
@@ -727,7 +751,7 @@ link_terminated(int unit)
     if (the_channel->cleanup)
 	(*the_channel->cleanup)();
 
-    if (doing_multilink && multilink_master) {
+    if (mp_on() && mp_master()) {
 	if (!bundle_terminating) {
 	    new_phase(PHASE_MASTER);
 	    if (master_detach && !detached)
@@ -748,14 +772,15 @@ link_down(int unit)
 	notify(link_down_notifier, 0);
 	auth_state = s_down;
 	if (auth_script_state == s_up && auth_script_pid == 0) {
-	    update_link_stats(unit);
+	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
 	    auth_script(PPP_PATH_AUTHDOWN);
 	}
     }
-    if (!doing_multilink) {
+    if (!mp_on())
+    {
 	upper_layers_down(unit);
-	if (phase != PHASE_DEAD && phase != PHASE_MASTER)
+	if (!in_phase(PHASE_DEAD) && !in_phase(PHASE_MASTER))
 	    new_phase(PHASE_ESTABLISH);
     }
     /* XXX if doing_multilink, should do something to stop
@@ -799,13 +824,11 @@ link_established(int unit)
     /*
      * Tell higher-level protocols that LCP is up.
      */
-    if (!doing_multilink) {
+    if (!mp_on())
 	for (i = 0; (protp = protocols[i]) != NULL; ++i)
 	    if (protp->protocol != PPP_LCP && protp->enabled_flag
 		&& protp->lowerup != NULL)
 		(*protp->lowerup)(unit);
-    }
-
     if (!auth_required && noauth_addrs != NULL)
 	set_allowed_addrs(unit, NULL, NULL);
 
@@ -821,7 +844,7 @@ link_established(int unit)
 	    set_allowed_addrs(unit, NULL, NULL);
 	} else if (!wo->neg_upap || uselogin || !null_login(unit)) {
 	    warn("peer refused to authenticate: terminating link");
-	    status = EXIT_PEER_AUTH_FAILED;
+	    ppp_set_status(EXIT_PEER_AUTH_FAILED);
 	    lcp_close(unit, "peer refused to authenticate");
 	    return;
 	}
@@ -831,14 +854,14 @@ link_established(int unit)
     if (need_peer_eap && !ao->neg_eap) {
 	warn("eap required to authenticate us but no suitable secrets");
 	lcp_close(unit, "couldn't negotiate eap");
-	status = EXIT_AUTH_TOPEER_FAILED;
+	ppp_set_status(EXIT_AUTH_TOPEER_FAILED);
 	return;
     }
 
     if (need_peer_eap && !ho->neg_eap) {
 	warn("peer doesn't want to authenticate us with eap");
 	lcp_close(unit, "couldn't negotiate eap");
-	status = EXIT_PEER_AUTH_FAILED;
+	ppp_set_status(EXIT_PEER_AUTH_FAILED);
 	return;
     }
 #endif
@@ -996,7 +1019,7 @@ auth_peer_fail(int unit, int protocol)
     /*
      * Authentication failure: take the link down
      */
-    status = EXIT_PEER_AUTH_FAILED;
+    ppp_set_status(EXIT_PEER_AUTH_FAILED);
     lcp_close(unit, "Authentication failed");
 }
 
@@ -1044,7 +1067,7 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 	namelen = sizeof(peer_authname) - 1;
     BCOPY(name, peer_authname, namelen);
     peer_authname[namelen] = 0;
-    script_setenv("PEERNAME", peer_authname, 0);
+    ppp_script_setenv("PEERNAME", peer_authname, 0);
 
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;
@@ -1071,7 +1094,7 @@ auth_withpeer_fail(int unit, int protocol)
      * is no point in persisting without any way to get updated
      * authentication secrets.
      */
-    status = EXIT_AUTH_TOPEER_FAILED;
+    ppp_set_status(EXIT_AUTH_TOPEER_FAILED);
     lcp_close(unit, "Failed to authenticate ourselves to peer");
 }
 
@@ -1143,14 +1166,14 @@ np_up(int unit, int proto)
 	/*
 	 * At this point we consider that the link has come up successfully.
 	 */
-	status = EXIT_OK;
+	ppp_set_status(EXIT_OK);
 	unsuccess = 0;
 	new_phase(PHASE_RUNNING);
 
 	if (idle_time_hook != 0)
 	    tlim = (*idle_time_hook)(NULL);
 	else
-	    tlim = idle_time_limit;
+	    tlim = ppp_get_max_idle_time();
 	if (tlim > 0)
 	    TIMEOUT(check_idle, NULL, tlim);
 
@@ -1158,9 +1181,13 @@ np_up(int unit, int proto)
 	 * Set a timeout to close the connection once the maximum
 	 * connect time has expired.
 	 */
-	if (maxconnect > 0)
-	    TIMEOUT(connect_time_expired, 0, maxconnect);
+	if (ppp_get_max_connect_time() > 0)
+	    TIMEOUT(connect_time_expired, 0, ppp_get_max_connect_time());
 
+	/*
+	 * Configure a check to see if session has outlived it's limit
+	 *   in terms of octets
+	 */
 	if (maxoctets > 0)
 	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
 
@@ -1206,33 +1233,41 @@ np_finished(int unit, int proto)
     }
 }
 
+/*
+ * Periodic callback to check if session has reached its limit. The period defaults
+ * to 1 second and is configurable by setting "mo-timeout" in configuration
+ */
 static void
 check_maxoctets(void *arg)
 {
     unsigned int used;
+    ppp_link_stats_st stats;
 
-    update_link_stats(ifunit);
-    link_stats_valid=0;
-    
-    switch(maxoctets_dir) {
-	case PPP_OCTETS_DIRECTION_IN:
-	    used = link_stats.bytes_in;
-	    break;
-	case PPP_OCTETS_DIRECTION_OUT:
-	    used = link_stats.bytes_out;
-	    break;
-	case PPP_OCTETS_DIRECTION_MAXOVERAL:
-	case PPP_OCTETS_DIRECTION_MAXSESSION:
-	    used = (link_stats.bytes_in > link_stats.bytes_out) ? link_stats.bytes_in : link_stats.bytes_out;
-	    break;
-	default:
-	    used = link_stats.bytes_in+link_stats.bytes_out;
-	    break;
+    if (ppp_get_link_stats(&stats)) {
+        switch(maxoctets_dir) {
+            case PPP_OCTETS_DIRECTION_IN:
+                used = stats.bytes_in;
+                break;
+            case PPP_OCTETS_DIRECTION_OUT:
+                used = stats.bytes_out;
+                break;
+            case PPP_OCTETS_DIRECTION_MAXOVERAL:
+            case PPP_OCTETS_DIRECTION_MAXSESSION:
+                used = (stats.bytes_in > stats.bytes_out)
+                                ? stats.bytes_in
+                                : stats.bytes_out;
+                break;
+            default:
+                used = stats.bytes_in+stats.bytes_out;
+                break;
+        }
     }
+
     if (used > maxoctets) {
 	notice("Traffic limit reached. Limit: %u Used: %u", maxoctets, used);
-	status = EXIT_TRAFFIC_LIMIT;
+	ppp_set_status(EXIT_TRAFFIC_LIMIT);
 	lcp_close(0, "Traffic limit");
+	link_stats_print = 0;
 	need_holdoff = 0;
     } else {
         TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
@@ -1256,12 +1291,12 @@ check_idle(void *arg)
 	tlim = idle_time_hook(&idle);
     } else {
 	itime = MIN(idle.xmit_idle, idle.recv_idle);
-	tlim = idle_time_limit - itime;
+	tlim = ppp_get_max_idle_time() - itime;
     }
     if (tlim <= 0) {
 	/* link is idle: shut it down. */
 	notice("Terminating connection due to lack of activity.");
-	status = EXIT_IDLE_TIMEOUT;
+	ppp_set_status(EXIT_IDLE_TIMEOUT);
 	lcp_close(0, "Link inactive");
 	need_holdoff = 0;
     } else {
@@ -1276,7 +1311,7 @@ static void
 connect_time_expired(void *arg)
 {
     info("Connect time expired");
-    status = EXIT_CONNECT_TIME;
+    ppp_set_status(EXIT_CONNECT_TIME);
     lcp_close(0, "Connect time expired");	/* Close connection */
 }
 
@@ -1292,7 +1327,8 @@ auth_check_options(void)
 
     /* Default our_name to hostname, and user to our_name */
     if (our_name[0] == 0 || usehostname)
-	strlcpy(our_name, hostname, sizeof(our_name));
+        strlcpy(our_name, hostname, sizeof(our_name));
+
     /* If a blank username was explicitly given as an option, trust
        the user and don't use our_name */
     if (user[0] == 0 && !explicit_user)
@@ -1354,21 +1390,21 @@ auth_check_options(void)
 
     if (auth_required && !can_auth && noauth_addrs == NULL) {
 	if (default_auth) {
-	    option_error(
+	    ppp_option_error(
 "By default the remote system is required to authenticate itself");
-	    option_error(
+	    ppp_option_error(
 "(because this system has a default route to the internet)");
 	} else if (explicit_remote)
-	    option_error(
+	    ppp_option_error(
 "The remote system (%s) is required to authenticate itself",
 			 remote_name);
 	else
-	    option_error(
+	    ppp_option_error(
 "The remote system is required to authenticate itself");
-	option_error(
+	ppp_option_error(
 "but I couldn't find any suitable secret (password) for it to use to do so.");
 	if (lacks_ip)
-	    option_error(
+	    ppp_option_error(
 "(None of the available passwords would let it use an IP address.)");
 
 	exit(1);
@@ -2049,7 +2085,7 @@ auth_ip_addr(int unit, u_int32_t addr)
     int ok;
 
     /* don't allow loopback or multicast address */
-    if (bad_ip_adrs(addr))
+    if (ppp_bad_ip_addr(addr))
 	return 0;
 
     if (allowed_address_hook) {
@@ -2077,12 +2113,10 @@ ip_addr_check(u_int32_t addr, struct permitted_ip *addrs)
 }
 
 /*
- * bad_ip_adrs - return 1 if the IP address is one we don't want
- * to use, such as an address in the loopback net or a multicast address.
- * addr is in network byte order.
+ * Check if given addr in network byte order is in the looback network, or a multicast address.
  */
-int
-bad_ip_adrs(u_int32_t addr)
+bool
+ppp_bad_ip_addr(u_int32_t addr)
 {
     addr = ntohl(addr);
     return (addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET

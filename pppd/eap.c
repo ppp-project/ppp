@@ -63,10 +63,11 @@
 #include <assert.h>
 #include <errno.h>
 
-#include "pppd.h"
+#include "pppd-private.h"
+#include "options.h"
 #include "pathnames.h"
-#include "ppp-crypto.h"
-#include "pppcrypt.h"
+#include "crypto.h"
+#include "crypto_ms.h"
 #include "eap.h"
 #ifdef PPP_WITH_PEAP
 #include "peap.h"
@@ -86,8 +87,8 @@
 #endif /* PPP_WITH_EAPTLS */
 
 #ifdef PPP_WITH_CHAPMS
+#include "chap.h"
 #include "chap_ms.h"
-#include "chap-new.h"
 
 extern int chapms_strip_domain;
 #endif /* PPP_WITH_CHAPMS */
@@ -100,7 +101,7 @@ static char *pn_secret = NULL;		/* Pseudonym generating secret */
 /*
  * Command-line options.
  */
-static option_t eap_option_list[] = {
+static struct option eap_option_list[] = {
     { "eap-restart", o_int, &eap_states[0].es_server.ea_timeout,
       "Set retransmit timeout for EAP Requests (server)" },
     { "eap-max-sreq", o_int, &eap_states[0].es_server.ea_maxrequests,
@@ -2344,8 +2345,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #endif /* PPP_WITH_EAPTLS */
 #ifdef PPP_WITH_CHAPMS
 	u_char opcode;
-	int (*chap_verifier)(char *, char *, int, struct chap_digest_type *,
-		unsigned char *, unsigned char *, char *, int);
+        chap_verify_hook_fn *chap_verifier;
 	char response_message[256];
 #endif /* PPP_WITH_CHAPMS */
 

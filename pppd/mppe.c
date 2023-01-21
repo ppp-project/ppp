@@ -35,12 +35,12 @@
 #include <string.h>
 
 
-#include "pppd.h"
+#include "pppd-private.h"
 #include "fsm.h"
 #include "ccp.h"
 #include "chap_ms.h"
 #include "mppe.h"
-#include "ppp-crypto.h"
+#include "crypto.h"
 
 u_char mppe_send_key[MPPE_MAX_KEY_SIZE];
 u_char mppe_recv_key[MPPE_MAX_KEY_SIZE];

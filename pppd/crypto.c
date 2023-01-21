@@ -35,8 +35,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ppp-crypto.h"
-#include "ppp-crypto-priv.h"
+#include "crypto.h"
+#include "crypto-priv.h"
 
 #ifdef PPP_WITH_OPENSSL
 #include <openssl/opensslv.h>
