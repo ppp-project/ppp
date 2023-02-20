@@ -1240,7 +1240,7 @@ np_finished(int unit, int proto)
 static void
 check_maxoctets(void *arg)
 {
-    unsigned int used;
+    unsigned int used = 0;
     ppp_link_stats_st stats;
 
     if (ppp_get_link_stats(&stats)) {
