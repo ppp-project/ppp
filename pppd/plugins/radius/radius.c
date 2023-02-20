@@ -649,7 +649,8 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
                 break;
 	    case PW_CLASS:
 		/* Save Class attribute to pass it in accounting request */
-		if (vp->lvalue <= MAXCLASSLEN) {
+		// if (vp->lvalue <= MAXCLASSLEN) { // <- Attribute could be this big, but vp->strvalue is limited to AUTH_STRING_LEN characters
+		if (vp->lvalue <= AUTH_STRING_LEN) {
 		    rstate.class_len=vp->lvalue;
 		    memcpy(rstate.class, vp->strvalue, rstate.class_len);
 		} /* else too big for our buffer - ignore it */
