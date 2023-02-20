@@ -1490,7 +1490,7 @@ ipv6cp_script_done(void *arg)
 static void
 ipv6cp_script(char *script)
 {
-    char strspeed[32], strlocal[32], strremote[32];
+    char strspeed[32], strlocal[64], strremote[64];
     char *argv[8];
 
     sprintf(strspeed, "%d", baud_rate);
