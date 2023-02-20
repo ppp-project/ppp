@@ -1133,7 +1133,7 @@ int chat_send (register char *s)
 
 	if (verbose)
 	    msgf("timeout set to %d seconds", timeout);
-
+	free(s);
 	return 0;
     }
 
