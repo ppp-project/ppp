@@ -40,10 +40,10 @@
  * This is the DES encrypt functions as described by RFC2759.
  * 
  * Parameters:
- * unsigned char *clear:
+ * const unsigned char *clear:
  *      A 8 byte input array to be encrypted
  * 
- * unsigned char *key: 
+ * const unsigned char *key:
  *      A raw 7-byte array to be expanded to 8 with odd-parity
  *
  * unsigned char *cipher:
@@ -51,17 +51,17 @@
  *
  * DesEncrypt returns 1 on success
  */
-int DesEncrypt(unsigned char *clear, unsigned char *key, 
+int DesEncrypt(const unsigned char *clear, const unsigned char *key,
         unsigned char *cipher);
 
 /**
  * This is the DES decrypt functions as described by RFC2759.
  * 
  * Parameters:
- * unsigned char *cipher:
+ * const unsigned char *cipher:
  *      A 8 byte input array to be decrypted
  *
- * unsigned char *key: 
+ * const unsigned char *key:
  *      A raw 7-byte array to be expanded to a 8-byte key with odd-parity
  *
  * unsigned char *clear:
@@ -69,7 +69,7 @@ int DesEncrypt(unsigned char *clear, unsigned char *key,
  *
  * DesDecrypt returns 1 on success
  */
-int DesDecrypt(unsigned char *cipher, unsigned char *key, 
+int DesDecrypt(const unsigned char *cipher, const unsigned char *key,
         unsigned char *clear);
 
 #endif /* PPP_PPPCRYPT_H */

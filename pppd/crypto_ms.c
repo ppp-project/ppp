@@ -125,7 +125,7 @@ MakeKey(const unsigned char *key, unsigned char *des_key)
 #include <openssl/evp.h>
 
 int
-DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
+DesEncrypt(const unsigned char *clear, const unsigned char *key, unsigned char *cipher)
 {
     int retval = 0;
     unsigned int clen = 0;
@@ -154,7 +154,7 @@ DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
 }
 
 int
-DesDecrypt(unsigned char *cipher, unsigned char *key, unsigned char *clear)
+DesDecrypt(const unsigned char *cipher, const unsigned char *key, unsigned char *clear)
 {
     int retval = 0;
     unsigned int clen = 0;
