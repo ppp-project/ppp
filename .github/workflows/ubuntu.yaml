@@ -34,7 +34,7 @@ jobs:
     env:
       configure_flags: --enable-multilink --enable-systemd --enable-cbcp
       CFLAGS: '-fsanitize=address -ggdb'
-      LDFLAGS: '-fsanitize=address -ggdb'
+      LDFLAGS: '-fsanitize=address'
 
     steps:
     - uses: actions/checkout@v2
