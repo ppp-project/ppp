@@ -5,7 +5,7 @@ jobs:
   build_and_test:
     runs-on: ubuntu-latest
     env:
-      configure_flags: --enable-multilink --enable-systemd
+      configure_flags: --enable-multilink --enable-systemd --enable-cbcp
 
     steps:
     - uses: actions/checkout@v2
@@ -15,7 +15,7 @@ jobs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq update
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
           build-essential autoconf automake pkg-config libtool m4 autoconf-archive \
-          libssl-dev libatm1-dev libpcap-dev libsystemd-dev
+          libssl-dev libatm1-dev libpcap-dev libsystemd-dev libpam0g-dev
 
     - name: configure
       run: ./autogen.sh ${{ env.configure_flags }}
@@ -23,5 +23,38 @@ jobs:
     - name: build
       run: make V=1 CFLAGS="-O2 -g -Wno-unused-result"
 
+    - name: run auto tests
+      run: VERBOSE=true make check
+
     - name: distcheck
       run: make distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
+
+  build_and_test_asan:
+    runs-on: ubuntu-latest
+    env:
+      configure_flags: --enable-multilink --enable-systemd --enable-cbcp
+      CFLAGS: '-fsanitize=address -ggdb'
+      LDFLAGS: '-fsanitize=address -ggdb'
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: install required packages
+      run: |
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
+          build-essential autoconf automake pkg-config libtool m4 autoconf-archive \
+          libssl-dev libatm1-dev libpcap-dev libsystemd-dev libpam0g-dev
+
+    - name: configure
+      run: ./autogen.sh ${{ env.configure_flags }}
+
+    - name: build
+      run: make V=1 CFLAGS="-O2 -g -Wno-unused-result"
+
+    - name: run auto tests
+      run: VERBOSE=true make check
+
+    - name: distcheck
+      run: make distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
+
