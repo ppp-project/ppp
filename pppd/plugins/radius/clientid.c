@@ -68,6 +68,7 @@ int rc_read_mapfile(char *filename)
 
 			if ((p = (struct map2id_s *)malloc(sizeof(*p))) == NULL) {
 				novm("rc_read_mapfile");
+				fclose(mapfd);
 				return (-1);
 			}
 
@@ -79,6 +80,7 @@ int rc_read_mapfile(char *filename)
 		} else {
 
 			error("rc_read_mapfile: malformed line in %s, line %d", filename, lnr);
+			fclose(mapfd);
 			return (-1);
 
 		}
