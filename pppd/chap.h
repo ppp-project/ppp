@@ -33,6 +33,10 @@
 
 #include "pppdconf.h"
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 /*
  * CHAP packets begin with a standard header with code, id, len (2 bytes).
  */
@@ -165,4 +169,8 @@ extern void chap_auth_with_peer(int unit, char *our_name, int digest_code);
 /* Represents the CHAP protocol to the main pppd code */
 extern struct protent chap_protent;
 
+#ifdef  __cplusplus
+}
 #endif
+
+#endif // PPP_CHAP_NEW_H

@@ -35,6 +35,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_NT_PASSWORD		256	/* Max (Unicode) chars in an NT pass */
 
 #define MS_CHAP_RESPONSE_LEN	49	/* Response length for MS-CHAP */
@@ -94,5 +98,9 @@ void GenerateAuthenticatorResponse(unsigned char *PasswordHashHash,
 			unsigned char *authResponse);
 
 void chapms_init(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PPP_CHAPMS_H */

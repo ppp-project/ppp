@@ -39,6 +39,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*  Original version, based on RFC2023 :
 
     Copyright (c) 1995, 1996, 1997 Francis.Dupont@inria.fr, INRIA Rocquencourt,
@@ -185,5 +189,9 @@ extern ipv6_up_hook_fn *ipv6_up_hook;
  */
 typedef void (ipv6_down_hook_fn)(void);
 extern ipv6_down_hook_fn *ipv6_down_hook;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

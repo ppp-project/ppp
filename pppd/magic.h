@@ -44,10 +44,18 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void magic_init (void);	/* Initialize the magic number generator */
 u_int32_t magic (void);	/* Returns the next magic number */
 
 /* Fill buffer with random bytes */
 void random_bytes (unsigned char *buf, int len);
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_MAGIC_H

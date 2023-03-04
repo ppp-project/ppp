@@ -33,6 +33,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * values for epdisc.class
  */
@@ -109,4 +113,9 @@ static inline bool mp_master() {
 }
 
 #endif // PPP_WITH_MULTILINK
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // PPP_MULTILINK_H

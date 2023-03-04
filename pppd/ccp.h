@@ -34,6 +34,10 @@
 
 #include "pppdconf.h"
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 typedef struct ccp_options {
     bool bsd_compress;		/* do BSD Compress? */
     bool deflate;		/* do Deflate? */
@@ -55,4 +59,8 @@ extern ccp_options ccp_hisoptions[];
 
 extern struct protent ccp_protent;
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_CCP_H

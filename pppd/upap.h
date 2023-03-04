@@ -44,6 +44,11 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /*
  * Packet header = Code, id, length.
  */
@@ -143,5 +148,9 @@ extern pap_logout_hook_fn *pap_logout_hook;
  * as a client
  */
 extern pap_passwd_hook_fn *pap_passwd_hook;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PPP_UPAP_H

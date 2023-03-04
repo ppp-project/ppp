@@ -44,6 +44,11 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /*
  * Options.
  */
@@ -144,4 +149,9 @@ extern struct protent lcp_protent;
    before deciding the link is looped-back. */
 #define DEFLOOPBACKFAIL	10
 
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_LCP_H

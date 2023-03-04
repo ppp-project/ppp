@@ -37,6 +37,11 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #define MPPE_PAD		4	/* MPPE growth per frame */
 #define MPPE_MAX_KEY_SIZE	32	/* Largest key length */
 #define MPPE_MAX_KEY_LEN       16      /* Largest key size accepted by the kernel */
@@ -175,4 +180,9 @@ void mppe_set_chapv2(unsigned char *PasswordHashHash,
 		    unsigned char *NTResponse, int IsServer);
 
 #endif  // #ifdef PPP_WITH_MPPE
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif  // #ifdef PPP_MPPE_H
