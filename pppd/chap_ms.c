@@ -509,7 +509,7 @@ ChallengeResponse(u_char *challenge,
 		  u_char *PasswordHash,
 		  u_char *response)
 {
-    u_char ZPasswordHash[21];
+    u_char ZPasswordHash[24];
     PPP_CIPHER_CTX *ctx;
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
