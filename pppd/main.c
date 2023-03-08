@@ -2038,8 +2038,10 @@ struct notifier **get_notifier_by_type(ppp_notify_t type)
         [NF_SIGNALED    ] = &sigreceived,
         [NF_IP_UP       ] = &ip_up_notifier,
         [NF_IP_DOWN     ] = &ip_down_notifier,
+#ifdef PPP_WITH_IPV6CP
         [NF_IPV6_UP     ] = &ipv6_up_notifier,
         [NF_IPV6_DOWN   ] = &ipv6_down_notifier,
+#endif
         [NF_AUTH_UP     ] = &auth_up_notifier,
         [NF_LINK_DOWN   ] = &link_down_notifier,
         [NF_FORK        ] = &fork_notifier,
