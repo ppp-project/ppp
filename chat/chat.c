@@ -182,7 +182,7 @@ int n_aborts = 0, abort_next = 0, timeout_next = 0, echo_next = 0;
 int clear_abort_next = 0;
 
 char *report_string[MAX_REPORTS] ;
-char  report_buffer[256] ;
+char  report_buffer[4096] ;
 int n_reports = 0, report_next = 0, report_gathering = 0 ; 
 int clear_report_next = 0;
 
@@ -1411,8 +1411,10 @@ int get_string(register char *string)
 	else {
 	    if (!iscntrl (c)) {
 		int rep_len = strlen (report_buffer);
-		report_buffer[rep_len]     = c;
-		report_buffer[rep_len + 1] = '\0';
+		if ((rep_len + 1) < sizeof(report_buffer)) {
+		    report_buffer[rep_len]     = c;
+		    report_buffer[rep_len + 1] = '\0';
+		}
 	    }
 	    else {
 		report_gathering = 0;
