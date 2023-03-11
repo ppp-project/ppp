@@ -1336,10 +1336,10 @@ int get_string(register char *string)
     char temp[STR_LEN];
     int c, printed = 0, len, minlen;
     register char *s = temp, *end = s + STR_LEN;
-    char *logged = temp;
+    char *s1, *logged = temp;
 
     fail_reason = (char *)0;
-    string = clean(string, 0);
+    string = s1 = clean(string, 0);
     len = strlen(string);
     minlen = (len > sizeof(fail_buffer)? len: sizeof(fail_buffer)) - 1;
 
@@ -1349,12 +1349,14 @@ int get_string(register char *string)
     if (len > STR_LEN) {
 	msgf("expect string is too long");
 	exit_code = 1;
+	free(s1);
 	return 0;
     }
 
     if (len == 0) {
 	if (verbose)
 	    msgf("got it");
+	free(s1);
 	return (1);
     }
 
@@ -1402,6 +1404,7 @@ int get_string(register char *string)
 		    strftime (report_buffer, 20, "%b %d %H:%M:%S ", tm_now);
 		    strcat (report_buffer, report_string[n]);
 
+		    free(report_string[n]);
 		    report_string[n] = (char *) NULL;
 		    report_gathering = 1;
 		    break;
@@ -1433,6 +1436,7 @@ int get_string(register char *string)
 
 	    alarm(0);
 	    alarmed = 0;
+	    free(s1);
 	    return (1);
 	}
 
@@ -1449,6 +1453,7 @@ int get_string(register char *string)
 		alarmed = 0;
 		exit_code = n + 4;
 		strcpy(fail_reason = fail_buffer, abort_string[n]);
+		free(s1);
 		return (0);
 	    }
 	}
@@ -1480,6 +1485,7 @@ int get_string(register char *string)
 
     exit_code = 3;
     alarmed   = 0;
+    free(s1);
     return (0);
 }
 
