@@ -686,7 +686,7 @@ GenerateAuthenticatorResponse(unsigned char* PasswordHashHash,
 
     int		i;
     PPP_MD_CTX *ctx;
-    u_char	Digest[SHA_DIGEST_LENGTH];
+    u_char	Digest[SHA_DIGEST_LENGTH] = {};
     int     hash_len;
     u_char	Challenge[8];
 

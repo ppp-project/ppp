@@ -2654,7 +2654,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				char tmp[MAXNAMELEN+1];
 
 				strcpy(tmp, strrchr(rhostname, '\\') + 1);
-				strcpy(rhostname, tmp);
+				strlcpy(rhostname, tmp, sizeof(rhostname));
 			}
 
 			if (chap_verify_hook)

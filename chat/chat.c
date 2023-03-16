@@ -1133,7 +1133,7 @@ int chat_send (register char *s)
 
 	if (verbose)
 	    msgf("timeout set to %d seconds", timeout);
-
+	free(s);
 	return 0;
     }
 
@@ -1247,8 +1247,11 @@ int write_char(int c)
 
 int put_string(register char *s)
 {
+    char *s1;
     quiet = 0;
+
     s = clean(s, 1);
+    s1 = s;
 
     if (verbose) {
 	if (quiet)
@@ -1263,8 +1266,10 @@ int put_string(register char *s)
 	register char c = *s++;
 
 	if (c != '\\') {
-	    if (!write_char (c))
+	    if (!write_char (c)) {
+		free(s1);
 		return 0;
+	    }
 	    continue;
 	}
 
@@ -1283,8 +1288,10 @@ int put_string(register char *s)
 	    break;
 
 	default:
-	    if (!write_char (c))
+	    if (!write_char (c)) {
+		free(s1);
 		return 0;
+	    }
 	    break;
 	}
 	checksigs();
@@ -1292,6 +1299,7 @@ int put_string(register char *s)
 
     alarm(0);
     alarmed = 0;
+    free(s1);
     return (1);
 }
 
