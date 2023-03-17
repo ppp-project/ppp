@@ -452,9 +452,11 @@ ppp_get_path(ppp_path_t type, char *buf, size_t bufsz)
         case PPP_DIR_RUNTIME:
             path = PPP_PATH_VARRUN;
             break;
+#ifdef PPP_WITH_PLUGINS
         case PPP_DIR_PLUGIN:
             path = PPP_PATH_PLUGIN;
             break;
+#endif
         case PPP_DIR_CONF:
             path = PPP_PATH_CONFDIR;
             break;
@@ -477,10 +479,12 @@ ppp_get_filepath(ppp_path_t type, const char *name, char *buf, size_t bufsz)
         case PPP_DIR_RUNTIME:
             path = PPP_PATH_VARRUN;
             break;
+#ifdef PPP_WITH_PLUGINS
         case PPP_DIR_PLUGIN:
             path = PPP_PATH_PLUGIN;
             break;
-        case PPP_DIR_CONF:
+#endif
+	case PPP_DIR_CONF:
             path = PPP_PATH_CONFDIR;
             break;
         }

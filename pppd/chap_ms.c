@@ -654,11 +654,12 @@ ChapMS_LANMan(u_char *rchallenge, char *secret, int secret_len,
     BZERO(UcasePassword, sizeof(UcasePassword));
     for (i = 0; i < secret_len; i++)
        UcasePassword[i] = (u_char)toupper(secret[i]);
-    (void) DesSetkey(UcasePassword + 0);
-    DesEncrypt( StdText, PasswordHash + 0 );
-    (void) DesSetkey(UcasePassword + 7);
-    DesEncrypt( StdText, PasswordHash + 8 );
-    ChallengeResponse(rchallenge, PasswordHash, &response[MS_CHAP_LANMANRESP]);
+
+    if (DesEncrypt(StdText, UcasePassword + 0, PasswordHash + 0) &&
+        DesEncrypt(StdText, UcasePassword + 7, PasswordHash + 8)) {
+
+        ChallengeResponse(rchallenge, PasswordHash, &response[MS_CHAP_LANMANRESP]);
+    }
 }
 #endif
 

@@ -44,9 +44,9 @@ static char const RCSID[] =
 #include <pppd/chap_ms.h>
 #ifdef PPP_WITH_MPPE
 #include <pppd/mppe.h>
+#endif
+#endif
 #include <pppd/crypto.h>
-#endif
-#endif
 #include <pppd/fsm.h>
 #include <pppd/ipcp.h>
 
