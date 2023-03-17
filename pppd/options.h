@@ -31,6 +31,10 @@
 #ifndef PPP_OPTIONS_H
 #define PPP_OPTIONS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum opt_type {
 	o_special_noarg,
 	o_special,
@@ -111,4 +115,9 @@ int ppp_int_option(char *name, int *value);
 /* Print an error message about an option */
 void ppp_option_error(char *fmt, ...);
 
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_OPTIONS_H

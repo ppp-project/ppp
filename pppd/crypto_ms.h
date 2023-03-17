@@ -36,6 +36,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * This is the DES encrypt functions as described by RFC2759.
  * 
@@ -71,5 +75,9 @@ int DesEncrypt(const unsigned char *clear, const unsigned char *key,
  */
 int DesDecrypt(const unsigned char *cipher, const unsigned char *key,
         unsigned char *clear);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PPP_PPPCRYPT_H */

@@ -44,6 +44,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Options.
  */
@@ -117,5 +121,9 @@ extern ip_down_hook_fn *ip_down_hook;
  */
 typedef void (ip_choose_hook_fn)(uint32_t *);
 extern ip_choose_hook_fn *ip_choose_hook;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PPP_IPCP_H */

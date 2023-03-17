@@ -30,6 +30,10 @@
 #ifndef PPP_CRYPTO_H
 #define PPP_CRYPTO_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef MD5_DIGEST_LENGTH
 #define MD5_DIGEST_LENGTH 16
 #endif
@@ -152,4 +156,8 @@ int PPP_crypto_init();
  */
 int PPP_crypto_deinit();
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_CRYPTO_H

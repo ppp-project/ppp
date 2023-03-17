@@ -43,27 +43,17 @@
 #ifndef PPP_PPPD_H
 #define PPP_PPPD_H
 
-#ifdef HAVE_STDARG_H
 #include <stdarg.h>
-#endif
-
-#ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
-#endif
-
-#ifdef HAVE_STDDEF_H
 #include <stddef.h>
-#endif
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
-#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
-#endif
 
 #include "pppdconf.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * Limits
@@ -573,5 +563,9 @@ extern int (*holdoff_hook)(void);
 extern int  (*allowed_address_hook)(uint32_t addr);
 extern void (*snoop_recv_hook)(unsigned char *p, int len);
 extern void (*snoop_send_hook)(unsigned char *p, int len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PPP_PPPD_H */

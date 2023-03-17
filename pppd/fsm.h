@@ -46,11 +46,14 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Packet header = Code, id, length.
  */
 #define HEADERLEN	4
-
 
 /*
  *  CP (LCP, IPCP, etc.) codes.
@@ -163,4 +166,8 @@ void fsm_sdata (fsm *, int, int, unsigned char *, int);
  */
 extern int peer_mru[];		/* currently negotiated peer MRU (per unit) */
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_FSM_H

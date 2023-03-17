@@ -30,10 +30,14 @@
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifndef CBCP_H
-#define CBCP_H
+#ifndef PPP_CBCP_H
+#define PPP_CBCP_H
 
 #include "pppdconf.h"
+
+#ifdef  __cplusplus
+extern "C" {
+#endif
 
 typedef struct cbcp_state {
     int    us_unit;	/* Interface unit number */
@@ -57,4 +61,9 @@ extern struct protent cbcp_protent;
 #define CB_CONF_USER   2
 #define CB_CONF_ADMIN  3
 #define CB_CONF_LIST   4
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif // PPP_CBCP_H

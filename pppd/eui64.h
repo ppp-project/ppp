@@ -38,6 +38,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined(SOL2)
 #include <netinet/in.h>
 
@@ -105,5 +109,9 @@ typedef union
 #define eui64_setlo32(e, l)	eui64_set32(e, l)
 
 char *eui64_ntoa(eui64_t);	/* Returns ascii representation of id */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PPP_EUI64_H */

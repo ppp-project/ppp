@@ -32,6 +32,10 @@
 
 #include "pppdconf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SESS_AUTH  1	/* Check User Authentication */
 #define SESS_ACCT  2	/* Check Account Validity */
 
@@ -88,5 +92,9 @@ session_start(const int flags, const char* user, const char* passwd, const char*
  */
 void
 session_end(const char* tty);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PPP_SESSION_H
