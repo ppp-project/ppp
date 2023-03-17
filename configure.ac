@@ -12,6 +12,7 @@ AM_MAINTAINER_MODE([enable])
 AC_LANG(C)
 AC_CONFIG_SRCDIR([pppd/main.c])
 AC_CONFIG_HEADERS([pppd/config.h pppd/pppdconf.h pppd/plugins/pppoe/config.h])
+AC_ENABLE_STATIC(no)
 
 # Checks for programs.
 AC_PROG_CC

@@ -125,7 +125,7 @@ MakeKey(const unsigned char *key, unsigned char *des_key)
 #include <openssl/evp.h>
 
 int
-DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
+DesEncrypt(const unsigned char *clear, const unsigned char *key, unsigned char *cipher)
 {
     int retval = 0;
     unsigned int clen = 0;
@@ -154,7 +154,7 @@ DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
 }
 
 int
-DesDecrypt(unsigned char *cipher, unsigned char *key, unsigned char *clear)
+DesDecrypt(const unsigned char *cipher, const unsigned char *key, unsigned char *clear)
 {
     int retval = 0;
     unsigned int clen = 0;
@@ -196,10 +196,10 @@ int test_encrypt()
         0xD0, 0x2E, 0x43, 0x86, 0xBC, 0xE9, 0x12, 0x26
     };  
 
-    unsigned char ZPasswordHash[21] = { 
+    unsigned char ZPasswordHash[24] = {
         0x44, 0xEB, 0xBA, 0x8D, 0x53, 0x12, 0xB8, 0xD6,
         0x11, 0x47, 0x44, 0x11, 0xF5, 0x69, 0x89, 0xAE
-    };  
+    };
 
     unsigned char expected[24] = { 
         0x82, 0x30, 0x9E, 0xCD, 0x8D, 0x70, 0x8B, 0x5E, 
@@ -222,7 +222,7 @@ int test_decrypt()
         0xD0, 0x2E, 0x43, 0x86, 0xBC, 0xE9, 0x12, 0x26
     };
 
-    unsigned char ZPasswordHash[21] = {
+    unsigned char ZPasswordHash[24] = {
         0x44, 0xEB, 0xBA, 0x8D, 0x53, 0x12, 0xB8, 0xD6,
         0x11, 0x47, 0x44, 0x11, 0xF5, 0x69, 0x89, 0xAE
     };

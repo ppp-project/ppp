@@ -389,7 +389,7 @@ PPPoEDevnameHook(char *cmd, char **argv, int doit)
     /* Close socket */
     close(fd);
     if (r && doit) {
-	strlcpy(devnam, cmd, MAXPATHLEN);
+	strlcpy(devnam, cmd, sizeof(devnam));
 	if (the_channel != &pppoe_channel) {
 
 	    the_channel = &pppoe_channel;

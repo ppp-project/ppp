@@ -92,7 +92,7 @@ static int setdevname_pppoatm(const char *cp, const char **argv, int doit)
 		return 1;
 
 	memcpy(&pvcaddr, &addr, sizeof pvcaddr);
-	strlcpy(devnam, cp, MAXPATHLEN);
+	strlcpy(devnam, cp, sizeof(devnam));
 	ppp_set_devnam(devnam);
 	devstat.st_mode = S_IFSOCK;
 	if (the_channel != &pppoa_channel) {

@@ -313,7 +313,7 @@ int ppp_get_ifname(char *buf, size_t bufsz)
 
 void ppp_set_ifname(const char *name)
 {
-    if (ifname) {
+    if (name) {
         strlcpy(ifname, name, sizeof(ifname));
     }
 }

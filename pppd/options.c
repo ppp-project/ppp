@@ -1795,6 +1795,8 @@ loadplugin(char **argv)
     }
     info("Plugin %s loaded.", arg);
     (*init)();
+    if (path != arg)
+	free(path);
     return 1;
 
  errclose:

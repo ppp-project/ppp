@@ -1,5 +1,3 @@
-#include "pppdconf.h"
-
 /*
  * upap.h - User/Password Authentication Protocol definitions.
  *

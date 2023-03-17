@@ -148,9 +148,13 @@ lookup_realm(char const *user,
 
     if (accts->max)
 	*acctserver = accts;
+    else
+	free(accts);
 
     if (auths->max)
 	*authserver = auths;
+    else
+	free(auths);
 
     return;
 }

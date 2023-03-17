@@ -509,7 +509,7 @@ ChallengeResponse(u_char *challenge,
 		  u_char *PasswordHash,
 		  u_char *response)
 {
-    u_char ZPasswordHash[21];
+    u_char ZPasswordHash[24];
     PPP_CIPHER_CTX *ctx;
 
     BZERO(ZPasswordHash, sizeof(ZPasswordHash));
@@ -686,7 +686,7 @@ GenerateAuthenticatorResponse(unsigned char* PasswordHashHash,
 
     int		i;
     PPP_MD_CTX *ctx;
-    u_char	Digest[SHA_DIGEST_LENGTH];
+    u_char	Digest[SHA_DIGEST_LENGTH] = {};
     int     hash_len;
     u_char	Challenge[8];
 

@@ -182,7 +182,7 @@ int n_aborts = 0, abort_next = 0, timeout_next = 0, echo_next = 0;
 int clear_abort_next = 0;
 
 char *report_string[MAX_REPORTS] ;
-char  report_buffer[256] ;
+char  report_buffer[4096] ;
 int n_reports = 0, report_next = 0, report_gathering = 0 ; 
 int clear_report_next = 0;
 
@@ -1133,7 +1133,7 @@ int chat_send (register char *s)
 
 	if (verbose)
 	    msgf("timeout set to %d seconds", timeout);
-
+	free(s);
 	return 0;
     }
 
@@ -1247,8 +1247,11 @@ int write_char(int c)
 
 int put_string(register char *s)
 {
+    char *s1;
     quiet = 0;
+
     s = clean(s, 1);
+    s1 = s;
 
     if (verbose) {
 	if (quiet)
@@ -1263,8 +1266,10 @@ int put_string(register char *s)
 	register char c = *s++;
 
 	if (c != '\\') {
-	    if (!write_char (c))
+	    if (!write_char (c)) {
+		free(s1);
 		return 0;
+	    }
 	    continue;
 	}
 
@@ -1283,8 +1288,10 @@ int put_string(register char *s)
 	    break;
 
 	default:
-	    if (!write_char (c))
+	    if (!write_char (c)) {
+		free(s1);
 		return 0;
+	    }
 	    break;
 	}
 	checksigs();
@@ -1292,6 +1299,7 @@ int put_string(register char *s)
 
     alarm(0);
     alarmed = 0;
+    free(s1);
     return (1);
 }
 
@@ -1336,10 +1344,10 @@ int get_string(register char *string)
     char temp[STR_LEN];
     int c, printed = 0, len, minlen;
     register char *s = temp, *end = s + STR_LEN;
-    char *logged = temp;
+    char *s1, *logged = temp;
 
     fail_reason = (char *)0;
-    string = clean(string, 0);
+    string = s1 = clean(string, 0);
     len = strlen(string);
     minlen = (len > sizeof(fail_buffer)? len: sizeof(fail_buffer)) - 1;
 
@@ -1349,12 +1357,14 @@ int get_string(register char *string)
     if (len > STR_LEN) {
 	msgf("expect string is too long");
 	exit_code = 1;
+	free(s1);
 	return 0;
     }
 
     if (len == 0) {
 	if (verbose)
 	    msgf("got it");
+	free(s1);
 	return (1);
     }
 
@@ -1402,6 +1412,7 @@ int get_string(register char *string)
 		    strftime (report_buffer, 20, "%b %d %H:%M:%S ", tm_now);
 		    strcat (report_buffer, report_string[n]);
 
+		    free(report_string[n]);
 		    report_string[n] = (char *) NULL;
 		    report_gathering = 1;
 		    break;
@@ -1411,8 +1422,10 @@ int get_string(register char *string)
 	else {
 	    if (!iscntrl (c)) {
 		int rep_len = strlen (report_buffer);
-		report_buffer[rep_len]     = c;
-		report_buffer[rep_len + 1] = '\0';
+		if ((rep_len + 1) < sizeof(report_buffer)) {
+		    report_buffer[rep_len]     = c;
+		    report_buffer[rep_len + 1] = '\0';
+		}
 	    }
 	    else {
 		report_gathering = 0;
@@ -1431,6 +1444,7 @@ int get_string(register char *string)
 
 	    alarm(0);
 	    alarmed = 0;
+	    free(s1);
 	    return (1);
 	}
 
@@ -1447,6 +1461,7 @@ int get_string(register char *string)
 		alarmed = 0;
 		exit_code = n + 4;
 		strcpy(fail_reason = fail_buffer, abort_string[n]);
+		free(s1);
 		return (0);
 	    }
 	}
@@ -1478,6 +1493,7 @@ int get_string(register char *string)
 
     exit_code = 3;
     alarmed   = 0;
+    free(s1);
     return (0);
 }
 

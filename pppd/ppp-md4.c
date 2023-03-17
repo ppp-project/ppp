@@ -326,7 +326,7 @@ MD4Update(MD4_CTX *MDp, unsigned char *X, unsigned int count)
   }
   else if (count > 512) /* Check for count too large */
   {
-    printf("\nError: MD4Update called with illegal count value %d.",
+    printf("\nError: MD4Update called with illegal count value %u.",
 	   count);
     return;
   }
