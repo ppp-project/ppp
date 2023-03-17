@@ -222,6 +222,28 @@ AS_IF([test -n "$with_logfile_dir"],
 AC_SUBST(PPPD_LOGFILE_DIR)
 
 #
+# System CA certificates path
+AC_ARG_WITH(system-ca-path,
+    AS_HELP_STRING([--with-system-ca-path=/path/to/ssl/certs], [path to system CA certificates]),
+    [
+       case "$withval" in
+       "" | y | ye | yes)
+            with_system_ca_path="${sysconfdir}/ssl/certs"
+            ;;
+       n | no)
+            ;;
+       *)
+            with_system_ca_path="$withval"
+            ;;
+       esac
+    ],[with_system_ca_path="${sysconfdir}/ssl/certs"])
+AM_CONDITIONAL(PPP_WITH_SYSTEM_CA_PATH, [test "$with_system_ca_path" != "no"])
+AM_COND_IF(PPP_WITH_SYSTEM_CA_PATH, [
+    SYSTEM_CA_PATH="$with_system_ca_path"
+])
+AC_SUBST(SYSTEM_CA_PATH)
+
+#
 # Check for OpenSSL
 AX_CHECK_OPENSSL
 AM_CONDITIONAL(PPP_WITH_OPENSSL, test "x${with_openssl}" != "xno")
@@ -390,6 +412,7 @@ $PACKAGE_NAME version $PACKAGE_VERSION
     Runtime Dir..........: $PPPD_RUNTIME_DIR
     Logfile Dir..........: $PPPD_LOGFILE_DIR
     Plugin Dir...........: $PPPD_PLUGIN_DIR
+    System CA Path ......: ${SYSTEM_CA_PATH:-not set}
     With OpenSSL.........: ${with_openssl:-yes}
     With libatm..........: ${with_atm:-no}
     With libpam..........: ${with_pam:-no}

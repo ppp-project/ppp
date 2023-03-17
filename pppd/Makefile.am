@@ -87,6 +87,10 @@ pppd_CPPFLAGS = -DSYSCONFDIR=\"${sysconfdir}\" -DLOCALSTATEDIR=\"${localstatedir
 pppd_LDFLAGS =
 pppd_LIBS =
 
+if PPP_WITH_SYSTEM_CA_PATH
+pppd_CPPFLAGS += -DSYSTEM_CA_PATH='"@SYSTEM_CA_PATH@"'
+endif
+
 if LINUX
 pppd_SOURCES += sys-linux.c
 noinst_HEADERS += termios_linux.h

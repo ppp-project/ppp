@@ -1334,6 +1334,13 @@ auth_check_options(void)
     if (user[0] == 0 && !explicit_user)
 	strlcpy(user, our_name, sizeof(user));
 
+#if defined(SYSTEM_CA_PATH) && (defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP))
+    /* Use system default for CA Path if not specified */
+    if (!ca_path) {
+        ca_path = SYSTEM_CA_PATH;
+    }
+#endif
+
     /*
      * If we have a default route, require the peer to authenticate
      * unless the noauth option was given or the real user is root.
