@@ -212,6 +212,7 @@ int rc_read_config(char *filename)
 
 		if ((pos = strcspn(p, "\t ")) == 0) {
 			error("%s: line %d: bogus format: %s", filename, line, p);
+			fclose(configfd);
 			return (-1);
 		}
 
@@ -224,6 +225,7 @@ int rc_read_config(char *filename)
 
 		if (option->status != ST_UNDEF) {
 			error("%s: line %d: duplicate option line: %s", filename, line, p);
+			fclose(configfd);
 			return (-1);
 		}
 
@@ -234,18 +236,22 @@ int rc_read_config(char *filename)
 		switch (option->type) {
 			case OT_STR:
 				 if (set_option_str(filename, line, option, p) < 0)
+					fclose(configfd);
 					return (-1);
 				break;
 			case OT_INT:
 				 if (set_option_int(filename, line, option, p) < 0)
+					fclose(configfd);
 					return (-1);
 				break;
 			case OT_SRV:
 				 if (set_option_srv(filename, line, option, p) < 0)
+					fclose(configfd);
 					return (-1);
 				break;
 			case OT_AUO:
 				 if (set_option_auo(filename, line, option, p) < 0)
+					fclose(configfd);
 					return (-1);
 				break;
 			default:
