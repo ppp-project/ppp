@@ -426,7 +426,7 @@ void rc_avpair_insert (VALUE_PAIR **a, VALUE_PAIR *p, VALUE_PAIR *b)
 	else /* look for the "p" entry in the "a" list (or run to end) */
 	{
 		this_node = *a;
-		while (this_node != (VALUE_PAIR *) NULL)
+		while (this_node->next != (VALUE_PAIR *) NULL)
 		{
 			if (this_node == p)
 			{
