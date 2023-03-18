@@ -69,15 +69,6 @@
 #  include <unix.h>
 #endif
 
-/* Maximum value for memLevel in deflateInit2 */
-#ifndef MAX_MEM_LEVEL
-#  ifdef MAXSEG_64K
-#    define MAX_MEM_LEVEL 8
-#  else
-#    define MAX_MEM_LEVEL 9
-#  endif
-#endif
-
 #ifndef FAR
 #  define FAR
 #endif
@@ -87,14 +78,7 @@
 #  define MAX_WBITS   15 /* 32K LZ77 window */
 #endif
 
-/* The memory requirements for deflate are (in bytes):
-            1 << (windowBits+2)   +  1 << (memLevel+9)
- that is: 128K for windowBits=15  +  128K for memLevel = 8  (default values)
- plus a few kilobytes for small objects. For example, if you want to reduce
- the default memory requirements from 256K to 128K, compile with
-     make CFLAGS="-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7"
- Of course this will generally degrade compression (there's no free lunch).
-
+/*
    The memory requirements for inflate are (in bytes) 1 << windowBits
  that is, 32K for windowBits=15 (default value) plus a few kilobytes
  for small objects.
@@ -248,114 +232,6 @@ extern char *zlib_version;
 
                         /* basic functions */
 
-extern int deflateInit OF((z_stream *strm, int level));
-/* 
-     Initializes the internal stream state for compression. The fields
-   zalloc, zfree and opaque must be initialized before by the caller.
-   If zalloc and zfree are set to Z_NULL, deflateInit updates them to
-   use default allocation functions.
-
-     The compression level must be Z_DEFAULT_COMPRESSION, or between 1 and 9:
-   1 gives best speed, 9 gives best compression. Z_DEFAULT_COMPRESSION requests
-   a default compromise between speed and compression (currently equivalent
-   to level 6).
-
-     deflateInit returns Z_OK if success, Z_MEM_ERROR if there was not
-   enough memory, Z_STREAM_ERROR if level is not a valid compression level.
-   msg is set to null if there is no error message.  deflateInit does not
-   perform any compression: this will be done by deflate().
-*/
-
-
-extern int deflate OF((z_stream *strm, int flush));
-/*
-  Performs one or both of the following actions:
-
-  - Compress more input starting at next_in and update next_in and avail_in
-    accordingly. If not all input can be processed (because there is not
-    enough room in the output buffer), next_in and avail_in are updated and
-    processing will resume at this point for the next call of deflate().
-
-  - Provide more output starting at next_out and update next_out and avail_out
-    accordingly. This action is forced if the parameter flush is non zero.
-    Forcing flush frequently degrades the compression ratio, so this parameter
-    should be set only when necessary (in interactive applications).
-    Some output may be provided even if flush is not set.
-
-  Before the call of deflate(), the application should ensure that at least
-  one of the actions is possible, by providing more input and/or consuming
-  more output, and updating avail_in or avail_out accordingly; avail_out
-  should never be zero before the call. The application can consume the
-  compressed output when it wants, for example when the output buffer is full
-  (avail_out == 0), or after each call of deflate().
-
-    If the parameter flush is set to Z_PARTIAL_FLUSH, the current compression
-  block is terminated and flushed to the output buffer so that the
-  decompressor can get all input data available so far. For method 9, a future
-  variant on method 8, the current block will be flushed but not terminated.
-  If flush is set to Z_FULL_FLUSH, the compression block is terminated, a
-  special marker is output and the compression dictionary is discarded; this
-  is useful to allow the decompressor to synchronize if one compressed block
-  has been damaged (see inflateSync below).  Flushing degrades compression and
-  so should be used only when necessary.  Using Z_FULL_FLUSH too often can
-  seriously degrade the compression. If deflate returns with avail_out == 0,
-  this function must be called again with the same value of the flush
-  parameter and more output space (updated avail_out), until the flush is
-  complete (deflate returns with non-zero avail_out).
-
-    If the parameter flush is set to Z_PACKET_FLUSH, the compression
-  block is terminated, and a zero-length stored block is output,
-  omitting the length bytes (the effect of this is that the 3-bit type
-  code 000 for a stored block is output, and the output is then
-  byte-aligned).  This is designed for use at the end of a PPP packet.
-  In addition, if the current compression block contains all the data
-  since the last Z_PACKET_FLUSH, it is never output as a stored block.
-  If the current compression block output as a static or dynamic block
-  would not be at least `minCompression' bytes smaller than the
-  original data, then nothing is output for that block.  (The type
-  code for the zero-length stored block is still output, resulting in
-  a single zero byte being output for the whole packet.)
-  `MinCompression' is a parameter to deflateInit2, or 0 if deflateInit
-  is used.
-
-    If the parameter flush is set to Z_FINISH, all pending input is processed,
-  all pending output is flushed and deflate returns with Z_STREAM_END if there
-  was enough output space; if deflate returns with Z_OK, this function must be
-  called again with Z_FINISH and more output space (updated avail_out) but no
-  more input data, until it returns with Z_STREAM_END or an error. After
-  deflate has returned Z_STREAM_END, the only possible operations on the
-  stream are deflateReset or deflateEnd.
-  
-    Z_FINISH can be used immediately after deflateInit if all the compression
-  is to be done in a single step. In this case, avail_out must be at least
-  0.1% larger than avail_in plus 12 bytes.  If deflate does not return
-  Z_STREAM_END, then it must be called again as described above.
-
-    deflate() may update data_type if it can make a good guess about
-  the input data type (Z_ASCII or Z_BINARY). In doubt, the data is considered
-  binary. This field is only for information purposes and does not affect
-  the compression algorithm in any manner.
-
-    deflate() returns Z_OK if some progress has been made (more input
-  processed or more output produced), Z_STREAM_END if all input has been
-  consumed and all output has been produced (only when flush is set to
-  Z_FINISH), Z_STREAM_ERROR if the stream state was inconsistent (for example
-  if next_in or next_out was NULL), Z_BUF_ERROR if no progress is possible.
-*/
-
-
-extern int deflateEnd OF((z_stream *strm));
-/*
-     All dynamically allocated data structures for this stream are freed.
-   This function discards any unprocessed input and does not flush any
-   pending output.
-
-     deflateEnd returns Z_OK if success, Z_STREAM_ERROR if the
-   stream state was inconsistent. In the error case, msg may be set
-   but then points to a static string (which must not be deallocated).
-*/
-
-
 extern int inflateInit OF((z_stream *strm));
 /* 
      Initializes the internal stream state for decompression. The fields
@@ -436,100 +312,6 @@ extern int inflateEnd OF((z_stream *strm));
 
 /*
     The following functions are needed only in some special applications.
-*/
-
-extern int deflateInit2 OF((z_stream *strm,
-                            int  level,
-                            int  method,
-                            int  windowBits,
-                            int  memLevel,
-                            int  strategy,
-			    int  minCompression));
-/*   
-     This is another version of deflateInit with more compression options. The
-   fields next_in, zalloc and zfree must be initialized before by the caller.
-
-     The method parameter is the compression method. It must be 8 in this
-   version of the library. (Method 9 will allow a 64K history buffer and
-   partial block flushes.)
-
-     The windowBits parameter is the base two logarithm of the window size
-   (the size of the history buffer).  It should be in the range 8..15 for this
-   version of the library (the value 16 will be allowed for method 9). Larger
-   values of this parameter result in better compression at the expense of
-   memory usage. The default value is 15 if deflateInit is used instead.
-
-    The memLevel parameter specifies how much memory should be allocated
-   for the internal compression state. memLevel=1 uses minimum memory but
-   is slow and reduces compression ratio; memLevel=9 uses maximum memory
-   for optimal speed. The default value is 8. See zconf.h for total memory
-   usage as a function of windowBits and memLevel.
-
-     The strategy parameter is used to tune the compression algorithm. Use
-   the value Z_DEFAULT_STRATEGY for normal data, Z_FILTERED for data
-   produced by a filter (or predictor), or Z_HUFFMAN_ONLY to force Huffman
-   encoding only (no string match).  Filtered data consists mostly of small
-   values with a somewhat random distribution. In this case, the
-   compression algorithm is tuned to compress them better. The strategy
-   parameter only affects the compression ratio but not the correctness of
-   the compressed output even if it is not set appropriately.
-
-     The minCompression parameter specifies the minimum reduction in size
-   required for a compressed block to be output when Z_PACKET_FLUSH is
-   used (see the description of deflate above).
-
-     If next_in is not null, the library will use this buffer to hold also
-   some history information; the buffer must either hold the entire input
-   data, or have at least 1<<(windowBits+1) bytes and be writable. If next_in
-   is null, the library will allocate its own history buffer (and leave next_in
-   null). next_out need not be provided here but must be provided by the
-   application for the next call of deflate().
-
-     If the history buffer is provided by the application, next_in must
-   must never be changed by the application since the compressor maintains
-   information inside this buffer from call to call; the application
-   must provide more input only by increasing avail_in. next_in is always
-   reset by the library in this case.
-
-      deflateInit2 returns Z_OK if success, Z_MEM_ERROR if there was
-   not enough memory, Z_STREAM_ERROR if a parameter is invalid (such as
-   an invalid method). msg is set to null if there is no error message.
-   deflateInit2 does not perform any compression: this will be done by
-   deflate().
-*/
-                            
-extern int deflateCopy OF((z_stream *dest,
-                           z_stream *source));
-/*
-     Sets the destination stream as a complete copy of the source stream.  If
-   the source stream is using an application-supplied history buffer, a new
-   buffer is allocated for the destination stream.  The compressed output
-   buffer is always application-supplied. It's the responsibility of the
-   application to provide the correct values of next_out and avail_out for the
-   next call of deflate.
-
-     This function is useful when several compression strategies will be
-   tried, for example when there are several ways of pre-processing the input
-   data with a filter. The streams that will be discarded should then be freed
-   by calling deflateEnd.  Note that deflateCopy duplicates the internal
-   compression state which can be quite large, so this strategy is slow and
-   can consume lots of memory.
-
-      deflateCopy returns Z_OK if success, Z_MEM_ERROR if there was not
-   enough memory, Z_STREAM_ERROR if the source stream state was inconsistent
-   (such as zalloc being NULL). msg is left unchanged in both source and
-   destination.
-*/
-
-extern int deflateReset OF((z_stream *strm));
-/*
-     This function is equivalent to deflateEnd followed by deflateInit,
-   but does not free and reallocate all the internal compression state.
-   The stream will keep the same compression level and any other attributes
-   that may have been set by deflateInit2.
-
-      deflateReset returns Z_OK if success, or Z_STREAM_ERROR if the source
-   stream state was inconsistent (such as zalloc or state being NULL).
 */
 
 extern int inflateInit2 OF((z_stream *strm,
