@@ -418,7 +418,7 @@ setescape(char **argv)
 	    ppp_option_error("can't escape character 0x%x", n);
 	    ret = 0;
 	} else
-	    xmit_accm[n >> 5] |= 1 << (n & 0x1F);
+	    xmit_accm[n >> 5] |= 1U << (n & 0x1F);
 	while (*p == ',' || *p == ' ')
 	    ++p;
     }
@@ -435,7 +435,7 @@ printescape(struct option *opt, void (*printer)(void *, char *, ...), void *arg)
 	for (n = 0; n < 256; ++n) {
 		if (n == 0x7d)
 			n += 2;		/* skip 7d, 7e */
-		if (xmit_accm[n >> 5] & (1 << (n & 0x1f))) {
+		if (xmit_accm[n >> 5] & (1U << (n & 0x1f))) {
 			if (!first)
 				printer(arg, ",");
 			else
@@ -454,7 +454,7 @@ void tty_init(void)
 {
     ppp_add_notify(NF_PID_CHANGE, maybe_relock, 0);
     the_channel = &tty_channel;
-    xmit_accm[3] = 0x60000000;
+    xmit_accm[3] = 0x60000000U;
 }
 
 /*
