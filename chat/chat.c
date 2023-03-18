@@ -609,7 +609,7 @@ void terminate(int status)
 	int c, rep_len;
 
 	rep_len = strlen(report_buffer);
-	while (rep_len + 1 <= sizeof(report_buffer)) {
+	while (rep_len + 1 < sizeof(report_buffer)) {
 	    alarm(1);
 	    c = get_char();
 	    alarm(0);
