@@ -615,12 +615,10 @@ log_write(int level, char *buf)
 {
     syslog(level, "%s", buf);
     if (log_to_fd >= 0 && (level != LOG_DEBUG || debug)) {
-	int n = strlen(buf);
-
-	if (n > 0 && buf[n-1] == '\n')
+    size_t n = strlen(buf);
+    if (n > 0 && buf[n - 1] == '\n')
 	    --n;
-	if (write(log_to_fd, buf, n) != n
-	    || write(log_to_fd, "\n", 1) != 1)
+    if (write(log_to_fd, buf, n) != n || write(log_to_fd, "\n", 1) != 1)
 	    log_to_fd = -1;
     }
 }
