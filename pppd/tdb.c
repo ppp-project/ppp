@@ -933,7 +933,7 @@ static int tdb_new_database(TDB_CONTEXT *tdb, int hash_size)
 
 	/* We make it up in memory, then write it out if not internal */
 	size = sizeof(struct tdb_header) + (hash_size+1)*sizeof(tdb_off);
-	if (!(newdb = calloc(size, 1)))
+	if (!(newdb = calloc(1, size)))
 		return TDB_ERRCODE(TDB_ERR_OOM, -1);
 
 	/* Fill in the header */
