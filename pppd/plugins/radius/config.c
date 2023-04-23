@@ -235,24 +235,28 @@ int rc_read_config(char *filename)
 
 		switch (option->type) {
 			case OT_STR:
-				 if (set_option_str(filename, line, option, p) < 0)
+				if (set_option_str(filename, line, option, p) < 0) {
 					fclose(configfd);
 					return (-1);
+				}
 				break;
 			case OT_INT:
-				 if (set_option_int(filename, line, option, p) < 0)
+				if (set_option_int(filename, line, option, p) < 0) {
 					fclose(configfd);
 					return (-1);
+				}
 				break;
 			case OT_SRV:
-				 if (set_option_srv(filename, line, option, p) < 0)
+				if (set_option_srv(filename, line, option, p) < 0) {
 					fclose(configfd);
 					return (-1);
+				}
 				break;
 			case OT_AUO:
-				 if (set_option_auo(filename, line, option, p) < 0)
+				if (set_option_auo(filename, line, option, p) < 0) {
 					fclose(configfd);
 					return (-1);
+				}
 				break;
 			default:
 				fatal("rc_read_config: impossible case branch!");
