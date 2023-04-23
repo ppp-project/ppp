@@ -69,3 +69,5 @@
 /* The size of `unsigned short', as computed by sizeof. */
 #undef SIZEOF_UNSIGNED_SHORT
 
+/* Define to 1 if the system has the type `struct sockaddr_ll'. */
+#undef HAVE_STRUCT_SOCKADDR_LL
