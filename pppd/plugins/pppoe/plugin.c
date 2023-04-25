@@ -332,6 +332,25 @@ PPPOEDeviceOptions(void)
 	}
 }
 
+/**********************************************************************
+ * %FUNCTION: PPPOECloseDiscoverySock
+ * %ARGUMENTS:
+ * None
+ * %RETURNS:
+ * Nothing
+ * %DESCRIPTION:
+ * Close discoverySocket
+ ***********************************************************************/
+static void
+PPPOECloseDiscoverySock(void)
+{
+  if (conn->discoverySocket > 0) {
+    close(conn->discoverySocket);
+    conn->discoverySocket = -1;
+    conn->discoveryState = STATE_SESSION;
+  }
+}
+
 struct channel pppoe_channel;
 
 /**********************************************************************
@@ -480,6 +499,7 @@ struct channel pppoe_channel = {
     .disestablish_ppp = &ppp_generic_disestablish,
     .send_config = NULL,
     .recv_config = &PPPOERecvConfig,
+    .close_discovery_sock = &PPPOECloseDiscoverySock,
     .close = NULL,
     .cleanup = NULL
 };

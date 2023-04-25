@@ -235,6 +235,8 @@ struct channel {
 	void (*send_config)(int, uint32_t, int, int);
 	/* set the receive-side PPP parameters of the channel */
 	void (*recv_config)(int, uint32_t, int, int);
+	/* close discovery sock */
+	void (*close_discovery_sock)(void);
 	/* cleanup on error or normal exit */
 	void (*cleanup)(void);
 	/* close the device, called in children after fork */

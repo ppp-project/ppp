@@ -663,6 +663,8 @@ void start_link(int unit)
 	goto disconnect;
     }
 
+    the_channel->close_discovery_sock();
+
     if (!demand && ifunit >= 0)
 	set_ifunit(1);
 
