@@ -75,7 +75,8 @@ AM_COND_IF([LINUX], [
         linux/if_ether.h        \
         linux/if_packet.h       \
         netinet/if_ether.h      \
-        netpacket/packet.h])])
+        netpacket/packet.h])
+    AC_CHECK_TYPES([struct sockaddr_ll], [], [], [#include <linux/if_packet.h>])])
 
 AC_CHECK_SIZEOF(unsigned int)
 AC_CHECK_SIZEOF(unsigned long)
