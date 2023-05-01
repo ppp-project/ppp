@@ -1,5 +1,4 @@
 noinst_PROGRAMS = pppgetpass.vt
-noinst_man8_MANS = pppgetpass.8
 
 pppgetpass_vt_SOURCES = pppgetpass.vt.c
 pppgetpass_vt_CPPFLAGS = -Wno-unused-result
@@ -14,4 +13,5 @@ pppgetpass_gtk_LDADD = $(GLIB_LIBS) $(GTK_LIBS)
 endif
 
 EXTRA_DIST = \
-    pppgetpass.sh
+    pppgetpass.sh \
+    pppgetpass.8
