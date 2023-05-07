@@ -47,6 +47,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <string.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <sys/mman.h>
 
 #include "pppd-private.h"
 #include "options.h"
@@ -68,11 +73,21 @@
 static void lcp_delayed_up(void *);
 
 /*
+ * These definitions relate to the measurement and logging of round-trip
+ * time (RTT) of LCP echo-requests implemented in lcp_rtt_update_buffer().
+ */
+#define LCP_RTT_MAGIC 0x19450425
+#define LCP_RTT_HEADER_LENGTH 4
+#define LCP_RTT_FILE_SIZE 8192
+#define LCP_RTT_ELEMENTS (LCP_RTT_FILE_SIZE / sizeof(u_int32_t) - LCP_RTT_HEADER_LENGTH) / 2
+
+/*
  * LCP-related command-line options.
  */
 int	lcp_echo_interval = 0; 	/* Interval between LCP echo-requests */
 int	lcp_echo_fails = 0;	/* Tolerance to unanswered echo-requests */
 bool	lcp_echo_adaptive = 0;	/* request echo only if the link was idle */
+char	*lcp_rtt_file = NULL;	/* measure the RTT of LCP echo-requests */
 bool	lax_recv = 0;		/* accept control chars in asyncmap */
 bool	noendpoint = 0;		/* don't send/accept endpoint discriminator */
 
@@ -152,6 +167,9 @@ static struct option lcp_option_list[] = {
       "Set time in seconds between LCP echo requests", OPT_PRIO },
     { "lcp-echo-adaptive", o_bool, &lcp_echo_adaptive,
       "Suppress LCP echo requests if traffic was received", 1 },
+    { "lcp-rtt-file", o_string, &lcp_rtt_file,
+      "Filename for logging the round-trip time of LCP echo requests",
+      OPT_PRIO | OPT_PRIV },
     { "lcp-restart", o_int, &lcp_fsm[0].timeouttime,
       "Set time in seconds between LCP retransmissions", OPT_PRIO },
     { "lcp-max-terminate", o_int, &lcp_fsm[0].maxtermtransmits,
@@ -197,6 +215,8 @@ lcp_options lcp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 static int lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static int lcp_echo_number   = 0;	/* ID number of next echo frame */
 static int lcp_echo_timer_running = 0;  /* set if a timer is running */
+static int lcp_rtt_file_fd = 0;		/* fd for the opened LCP RTT file */
+static volatile u_int32_t *lcp_rtt_buffer = NULL; /* the mmap'ed LCP RTT file */
 
 static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
 
@@ -2226,6 +2246,72 @@ LcpEchoTimeout (void *arg)
 }
 
 /*
+ * Log the round-trip time (RTT) of the received LCP echo-request.
+ *
+ * The header section at the beginning of lcp_rtt_file contains
+ * LCP_RTT_HEADER_LENGTH fields, each a u_int32_t in network byte order:
+ * [0] LCP_RTT_MAGIC
+ * [1] status (1: the file is open and is being written)
+ * [2] index of the most recently updated element
+ * [3] the value of the lcp-echo-interval parameter
+ *
+ * The header is followed by a ring buffer of LCP_RTT_ELEMENTS elements, each
+ * containing a pair of u_int32_t in network byte order with this content:
+ * [0] UNIX timestamp
+ * [1] bits 24-31: the number of lost LCP echo replies
+ *     bits 0-23:  the measured RTT in microseconds
+ *
+ * The timestamp is unsigned to support storing dates beyond 2038.
+ *
+ * Consumers of lcp_rtt_file are expected to:
+ * - read the complete file of arbitrary length
+ * - check the magic number
+ * - process the data elements starting at the index
+ * - ignore any elements with a timestamp of 0
+ */
+static void
+lcp_rtt_update_buffer (unsigned long rtt)
+{
+    volatile u_int32_t *const ring_buffer = lcp_rtt_buffer
+	+ LCP_RTT_HEADER_LENGTH;
+    unsigned int next_entry, lost;
+
+    /* choose the next entry where the data will be stored */
+    if (ntohl(lcp_rtt_buffer[2]) >= (LCP_RTT_ELEMENTS - 1) * 2)
+	next_entry = 0;				/* go back to the beginning */
+    else
+	next_entry = ntohl(lcp_rtt_buffer[2]) + 2;	/* use the next one */
+
+    /* update the data element */
+    /* storing the timestamp in an *unsigned* long allows dates up to 2106 */
+    ring_buffer[next_entry] = htonl((u_int32_t) time(NULL));
+    lost = lcp_echos_pending - 1;
+    if (lost > 0xFF)
+	lost = 0xFF;		/* truncate the lost packets count to 256 */
+    if (rtt > 0xFFFFFF)
+	rtt = 0xFFFFFF;		/* truncate the RTT to 16777216 */
+    /* use bits 24-31 for the lost packets count and bits 0-23 for the RTT */
+    ring_buffer[next_entry + 1] = htonl((u_int32_t) ((lost << 24) + rtt));
+
+    /* update the pointer to the (just updated) most current data element */
+    lcp_rtt_buffer[2] = htonl(next_entry);
+
+    /* In theory, CPUs implementing a weakly-consistent memory model do not
+     * guarantee that these three memory store operations to the buffer will
+     * be seen in the same order by the reader process.
+     * This means that a process reading the file could see the index
+     * having been updated before the element that the index points to had
+     * been written.
+     * But in practice we expect that the read(2) system call used by
+     * consumers processes is atomic with respect to the following msync(2)
+     * call, so we ignore the issue.
+     */
+
+    if (msync(lcp_rtt_buffer, LCP_RTT_FILE_SIZE, MS_ASYNC) < 0)
+	error("msync() for %s failed: %m", lcp_rtt_file);
+}
+
+/*
  * LcpEchoReply - LCP has received a reply to the echo
  */
 
@@ -2246,6 +2332,30 @@ lcp_received_echo_reply (fsm *f, int id, u_char *inp, int len)
 	return;
     }
 
+    if (lcp_rtt_file_fd && len >= 16) {
+	long lcp_rtt_magic;
+
+	/*
+	 * If the magic word is found at the beginning of the data section
+	 * of the frame then read the timestamp which follows and subtract
+	 * it from the current time to compute the round trip time.
+	 */
+	GETLONG(lcp_rtt_magic, inp);
+	if (lcp_rtt_magic == LCP_RTT_MAGIC) {
+	    struct timespec ts;
+	    unsigned long req_sec, req_nsec, rtt;
+
+	    clock_gettime(CLOCK_MONOTONIC, &ts);
+	    GETLONG(req_sec, inp);
+	    GETLONG(req_nsec, inp);
+	    /* compute the RTT in microseconds */
+	    rtt = (ts.tv_sec - req_sec) * 1000000
+		+ (ts.tv_nsec / 1000 - req_nsec / 1000);
+	    /* log the RTT */
+	    lcp_rtt_update_buffer(rtt);
+	}
+    }
+
     /* Reset the number of outstanding echo frames */
     lcp_echos_pending = 0;
 }
@@ -2258,7 +2368,7 @@ static void
 LcpSendEchoRequest (fsm *f)
 {
     u_int32_t lcp_magic;
-    u_char pkt[4], *pktp;
+    u_char pkt[16], *pktp;
 
     /*
      * Detect the failure of the peer at this point.
@@ -2293,9 +2403,66 @@ LcpSendEchoRequest (fsm *f)
         lcp_magic = lcp_gotoptions[f->unit].magicnumber;
 	pktp = pkt;
 	PUTLONG(lcp_magic, pktp);
+
+	/* Put a timestamp in the data section of the frame */
+	if (lcp_rtt_file_fd) {
+	    struct timespec ts;
+
+	    PUTLONG(LCP_RTT_MAGIC, pktp);
+	    clock_gettime(CLOCK_MONOTONIC, &ts);
+	    PUTLONG((u_int32_t)ts.tv_sec, pktp);
+	    PUTLONG((u_int32_t)ts.tv_nsec, pktp);
+	}
+
         fsm_sdata(f, ECHOREQ, lcp_echo_number++ & 0xFF, pkt, pktp - pkt);
 	++lcp_echos_pending;
     }
+}
+
+static void
+lcp_rtt_open_file (void)
+{
+    if (!lcp_rtt_file)
+	return;
+
+    lcp_rtt_file_fd = open(lcp_rtt_file, O_RDWR | O_CREAT, 0644);
+    if (lcp_rtt_file_fd < 0) {
+	error("Can't open the RTT log file %s: %m", lcp_rtt_file);
+	lcp_rtt_file_fd = 0;
+	return;
+    }
+
+    if (ftruncate(lcp_rtt_file_fd, LCP_RTT_FILE_SIZE) < 0)
+	fatal("ftruncate() of %s failed: %m", lcp_rtt_file);
+    lcp_rtt_buffer = mmap(0, LCP_RTT_FILE_SIZE, PROT_READ | PROT_WRITE,
+	    MAP_SHARED, lcp_rtt_file_fd, 0);
+    if (lcp_rtt_buffer == MAP_FAILED)
+	fatal("mmap() of %s failed: %m", lcp_rtt_file);
+
+    /* initialize the ring buffer */
+    if (lcp_rtt_buffer[0] != htonl(LCP_RTT_MAGIC)) {
+	memset(lcp_rtt_buffer, 0, LCP_RTT_FILE_SIZE);
+	lcp_rtt_buffer[0] = htonl(LCP_RTT_MAGIC);
+    }
+
+    lcp_rtt_buffer[3] = htonl(lcp_echo_interval);
+    lcp_rtt_buffer[1] = htonl(1); /* status: LCP up, file opened */
+}
+
+static void
+lcp_rtt_close_file (void)
+{
+    if (!lcp_rtt_file_fd)
+	return;
+
+    lcp_rtt_buffer[1] = htonl(0); /* status: LCP down, file closed */
+
+    if (munmap(lcp_rtt_buffer, LCP_RTT_FILE_SIZE) < 0)
+	error("munmap() of %s failed: %m", lcp_rtt_file);
+    if (close(lcp_rtt_file_fd) < 0)
+	error("close() of %s failed: %m", lcp_rtt_file);
+    lcp_rtt_buffer = NULL;
+    lcp_rtt_file_fd = 0;
 }
 
 /*
@@ -2311,6 +2478,9 @@ lcp_echo_lowerup (int unit)
     lcp_echos_pending      = 0;
     lcp_echo_number        = 0;
     lcp_echo_timer_running = 0;
+
+    /* Open the file where the LCP RTT data will be logged */
+    lcp_rtt_open_file();
   
     /* If a timeout interval is specified then start the timer */
     if (lcp_echo_interval != 0)
@@ -2330,4 +2500,7 @@ lcp_echo_lowerdown (int unit)
         UNTIMEOUT (LcpEchoTimeout, f);
         lcp_echo_timer_running = 0;
     }
+
+    /* Close the file containing the LCP RTT data */
+    lcp_rtt_close_file();
 }

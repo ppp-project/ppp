@@ -637,6 +637,10 @@ Set the maximum number of LCP terminate-request transmissions to
 Set the LCP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
 .TP
+.B lcp\-rtt\-file \fIfilename
+Sets the file where the round-trip time (RTT) of LCP echo-request frames
+will be logged.
+.TP
 .B linkname \fIname\fR
 Sets the logical name of the link to \fIname\fR.  Pppd will create a
 file named \fBppp\-\fIname\fB.pid\fR in /var/run (or /etc/ppp on some
