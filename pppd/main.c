@@ -888,7 +888,7 @@ create_pidfile(int pid)
 {
     FILE *pidfile;
 
-    slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
+    slprintf(pidfilename, sizeof(pidfilename), "%s/%s.pid",
 	     PPP_PATH_VARRUN, ifname);
     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", pid);
@@ -907,7 +907,7 @@ create_linkpidfile(int pid)
     if (linkname[0] == 0)
 	return;
     ppp_script_setenv("LINKNAME", linkname, 1);
-    slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
+    slprintf(linkpidfile, sizeof(linkpidfile), "%s/ppp-%s.pid",
 	     PPP_PATH_VARRUN, linkname);
     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
 	fprintf(pidfile, "%d\n", pid);
