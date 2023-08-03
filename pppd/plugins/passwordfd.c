@@ -24,34 +24,16 @@
 
 char pppd_version[] = PPPD_VERSION;
 
-static int passwdfd = -1;
 static char save_passwd[MAXSECRETLEN];
 
-static struct option options[] = {
-    { "passwordfd", o_int, &passwdfd,
-      "Receive password on this file descriptor" },
-    { NULL }
-};
-
-static int pwfd_check (void)
+static int pwfd_read_password(char **argv)
 {
-    return 1;
-}
+    ssize_t readgood, red;
+    int passwdfd;
+    char passwd[MAXSECRETLEN];
 
-static int pwfd_passwd (char *user, char *passwd)
-{
-    int readgood, red;
-
-    if (passwdfd == -1)
-	return -1;
-
-    if (passwd == NULL)
-	return 1;
-
-    if (passwdfd == -2) {
-	strcpy (passwd, save_passwd);
-	return 1;
-    }
+    if (!ppp_int_option(argv[0], &passwdfd))
+	return 0;
 
     readgood = 0;
     do {
@@ -73,8 +55,25 @@ static int pwfd_passwd (char *user, char *passwd)
 
     passwd[readgood] = 0;
     strcpy (save_passwd, passwd);
-    passwdfd = -2;
 
+    return 1;
+}
+
+static struct option options[] = {
+    { "passwordfd", o_special, pwfd_read_password,
+      "Receive password on this file descriptor" },
+    { NULL }
+};
+
+static int pwfd_check (void)
+{
+    return 1;
+}
+
+static int pwfd_passwd (char *user, char *passwd)
+{
+    if (passwd != NULL)
+	strcpy(passwd, save_passwd);
     return 1;
 }
 
