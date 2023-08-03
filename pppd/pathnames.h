@@ -120,12 +120,12 @@
 #define PPP_PATH_PPPDB          PPP_PATH_VARRUN  "/pppd2.tdb"
 
 #ifdef __linux__
-#define PPP_PATH_LOCKDIR        PPP_PATH_VARRUN  "/lock"
+#define PPP_PATH_LOCKDIR        "/var/lock"
 #else
 #ifdef SVR4
-#define PPP_PATH_LOCKDIR        LOCALSTATEDIR "/spool/locks"
+#define PPP_PATH_LOCKDIR        "/var/spool/locks"
 #else
-#define PPP_PATH_LOCKDIR        LOCALSTATEDIR "/spool/lock"
+#define PPP_PATH_LOCKDIR        "/var/spool/lock"
 #endif
 #endif
 

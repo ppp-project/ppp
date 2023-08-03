@@ -83,7 +83,7 @@ pppd_SOURCES = \
     upap.c \
     utils.c
 
-pppd_CPPFLAGS = -DSYSCONFDIR=\"${sysconfdir}\" -DLOCALSTATEDIR=\"${localstatedir}\" -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
+pppd_CPPFLAGS = -DSYSCONFDIR=\"${sysconfdir}\" -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
 pppd_LDFLAGS =
 pppd_LIBS =
 
