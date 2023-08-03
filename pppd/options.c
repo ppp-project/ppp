@@ -1842,6 +1842,10 @@ user_setenv(char **argv)
     /* The name never changes, so allocate it with the structure */
     if (uep == NULL) {
 	uep = malloc(sizeof (*uep) + (eqp-arg));
+	if (uep == NULL) {
+		novm("environment variable");
+		return 1;
+	}
 	strncpy(uep->ue_name, arg, eqp-arg);
 	uep->ue_name[eqp-arg] = '\0';
 	uep->ue_next = NULL;
@@ -1911,6 +1915,10 @@ user_unsetenv(char **argv)
     /* The name never changes, so allocate it with the structure */
     if (uep == NULL) {
 	uep = malloc(sizeof (*uep) + strlen(arg));
+	if (uep == NULL) {
+		novm("environment variable");
+		return 1;
+	}
 	strcpy(uep->ue_name, arg);
 	uep->ue_next = NULL;
 	insp = &userenv_list;
