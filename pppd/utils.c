@@ -781,6 +781,88 @@ complete_read(int fd, void *buf, size_t count)
 }
 #endif
 
+/*
+ * mkdir_check - helper for mkdir_recursive, creates a directory
+ * but do not error on EEXIST if and only if entry is a directory
+ * The caller must check for errno == ENOENT if appropriate.
+ */
+static int
+mkdir_check(const char *path)
+{
+    struct stat statbuf;
+
+    if (mkdir(path, 0755) >= 0)
+	return 0;
+
+    if (errno == EEXIST) {
+	if (stat(path, &statbuf) < 0)
+	    /* got raced? */
+	    return -1;
+
+	if ((statbuf.st_mode & S_IFMT) == S_IFDIR)
+	    return 0;
+
+	/* already exists but not a dir, treat as failure */
+	errno = EEXIST;
+	return -1;
+    }
+
+    return -1;
+}
+
+/*
+ * mkdir_parent - helper for mkdir_recursive, modifies the string in place
+ * Assumes mkdir(path) already failed, so it first creates the parent then
+ * full path again.
+ */
+static int
+mkdir_parent(char *path)
+{
+    char *slash;
+    int rc;
+
+    slash = strrchr(path, '/');
+    if (!slash)
+	return -1;
+
+    *slash = 0;
+    if (mkdir_check(path) < 0) {
+	if (errno != ENOENT) {
+	    *slash = '/';
+	    return -1;
+	}
+	if (mkdir_parent(path) < 0) {
+	    *slash = '/';
+	    return -1;
+	}
+    }
+    *slash = '/';
+
+    return mkdir_check(path);
+}
+
+/*
+ * mkdir_recursive - recursively create directory if it didn't exist
+ */
+int
+mkdir_recursive(const char *path)
+{
+    char *copy;
+    int rc;
+
+    // optimistically try on full path first to avoid allocation
+    if (mkdir_check(path) == 0)
+	return 0;
+
+    copy = strdup(path);
+    if (!copy)
+	return -1;
+
+    rc = mkdir_parent(copy);
+    free(copy);
+    return rc;
+}
+
 /* Procedures for locking the serial device using a lock file. */
 static char lock_file[MAXPATHLEN];
 
