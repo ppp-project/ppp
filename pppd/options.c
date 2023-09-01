@@ -601,6 +601,7 @@ ppp_options_from_file(char *filename, int must_exist, int check_prot, int priv)
 
 err:
     fclose(f);
+    free(option_source);
     privileged_option = oldpriv;
     option_source = oldsource;
     return ret;
