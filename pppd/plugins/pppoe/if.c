@@ -175,7 +175,7 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
     sa.sll_ifindex = ifr.ifr_ifindex;
 
 #else
-    strcpy(sa.sa_data, ifname);
+    strlcpy(sa.sa_data, ifname, sizeof(sa.sa_data));
 #endif
 
     /* We're only interested in packets on specified interface */
@@ -212,7 +212,7 @@ sendPacket(PPPoEConnection *conn, int sock, PPPoEPacket *pkt, int size)
 #else
     struct sockaddr sa;
 
-    strcpy(sa.sa_data, conn->ifName);
+    strlcpy(sa.sa_data, conn->ifName, sizeof(sa.sa_data));
     err = sendto(sock, pkt, size, 0, &sa, sizeof(sa));
 #endif
     if (err < 0) {
