@@ -107,6 +107,10 @@
 #define PPP_PATH_PEERFILES      PPP_PATH_CONFDIR "/peers/"
 #define PPP_PATH_RESOLV         PPP_PATH_CONFDIR "/resolv.conf"
 
+#define PPP_PATH_NET_INIT	PPP_PATH_CONFDIR "/net-init"
+#define PPP_PATH_NET_PREUP	PPP_PATH_CONFDIR "/net-pre-up"
+#define PPP_PATH_NET_DOWN	PPP_PATH_CONFDIR "/net-down"
+
 #define PPP_PATH_CONNERRS       PPP_PATH_VARLOG  "/connect-errors"
 
 #define PPP_PATH_USEROPT        ".ppprc"

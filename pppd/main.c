@@ -248,6 +248,7 @@ static void holdoff_end(void *);
 static void forget_child(int pid, int status);
 static int reap_kids(void);
 static void childwait_end(void *);
+static void run_net_script(char* script, int wait);
 
 #ifdef PPP_WITH_TDB
 static void update_db_entry(void);
@@ -800,6 +801,26 @@ setup_signals(void)
 }
 
 /*
+ * net-* scripts to be run come through here.
+ */
+void run_net_script(char* script, int wait)
+{
+    char strspeed[32];
+    char *argv[6];
+
+    slprintf(strspeed, sizeof(strspeed), "%d", baud_rate);
+
+    argv[0] = script;
+    argv[1] = ifname;
+    argv[2] = devnam;
+    argv[3] = strspeed;
+    argv[4] = ipparam;
+    argv[5] = NULL;
+
+    run_program(script, argv, 0, NULL, NULL, wait);
+}
+
+/*
  * set_ifunit - do things we need to do once we know which ppp
  * unit we are using.
  */
@@ -820,6 +841,7 @@ set_ifunit(int iskey)
 	create_pidfile(getpid());	/* write pid to file */
 	create_linkpidfile(getpid());
     }
+    run_net_script(PPP_PATH_NET_INIT, 1);
 }
 
 /*
@@ -1222,6 +1244,23 @@ ppp_recv_config(int unit, int mru, u_int32_t accm, int pcomp, int accomp)
 void
 new_phase(ppp_phase_t p)
 {
+    switch (p) {
+    case PHASE_NETWORK:
+	if (phase <= PHASE_NETWORK) {
+	    char iftmpname[IFNAMSIZ];
+	    int ifindex = if_nametoindex(ifname);
+	    run_net_script(PPP_PATH_NET_PREUP, 1);
+	    if (if_indextoname(ifindex, iftmpname) && strcmp(iftmpname, ifname)) {
+		info("Detected interface name change from %s to %s.", ifname, iftmpname);
+		strcpy(ifname, iftmpname);
+	    }
+	}
+	break;
+    case PHASE_DISCONNECT:
+	run_net_script(PPP_PATH_NET_DOWN, 0);
+	break;
+    }
+
     phase = p;
     if (new_phase_hook)
 	(*new_phase_hook)(p);

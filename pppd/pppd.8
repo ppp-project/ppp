@@ -1729,8 +1729,8 @@ We failed to authenticate ourselves to the peer.
 Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
 usually shell scripts, but could be executable code files instead.
-Pppd does not wait for the scripts to finish (except for the ip-pre-up
-script).  The scripts are
+Pppd does not wait for the scripts to finish (except for the net-init,
+net-pre-up and ip-pre-up scripts).  The scripts are
 executed as root (with the real and effective user-id set to 0), so
 that they can do things such as update routing tables or run
 privileged daemons.  Be careful that the contents of these scripts do
@@ -1840,6 +1840,14 @@ IP addresses assigned but is still down.  This can be used to
 add firewall rules before any IP traffic can pass through the
 interface.  Pppd will wait for this script to finish before bringing
 the interface up, so this script should run quickly.
+.PP
+WARNING:  Please note that on systems where a single interface carries multiple
+protocols (Linux) ip-pre-up is NOT actually guaranteed to execute prior to the
+interface moving into an up state, although IP information won't be known you
+should consider using net-pre-up instead, alternatively, disable other NCPs
+such that IPv4 is the only negotiated protocol - which will also result in a
+guarantee that ip-pre-up is called prior to the interface going into an UP
+state.
 .TP
 .B /etc/ppp/ip\-up
 A program or script which is executed when the link is available for
@@ -1868,6 +1876,27 @@ remote\-link\-local\-address ipparam\fR
 Similar to /etc/ppp/ip\-down, but it is executed when IPv6 packets can no
 longer be transmitted on the link. It is executed with the same parameters 
 as the ipv6\-up script.
+.TP
+.B /etc/ppp/net\-init
+This script will be executed the moment the ppp unit number is known.  This
+script will be waited for and should not cause significant delays.  This can be
+used to update book-keeping type systems external to ppp and provides the only
+guaranteed point where a script can be executed knowing the ppp unit number
+prior to LCP being initiated.  It is executed with the parameters
+.IP
+\fIinterface\-name tty\-device speed ipparam
+.TP
+.B /etc/ppp/net\-pre\-up
+This script will be executed just prior to NCP negotiations initiating, and is
+guaranteed to be executed whilst the interface (Linux) and/or sub-interfaces
+(Solaris) as the case may be is/are still down.  ppp will block waiting for
+this script to complete, and the interface may be safely renamed in this script
+(using for example "ip li set dev $1 name ppp-foobar".  The parameters are the
+same as for net\-init.
+.TP
+.B /etc/ppp/net\-down
+This script will be executed just prior to ppp terminating and will not be
+waited for.  The parameters are the same as for net\-init.
 .TP
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.
