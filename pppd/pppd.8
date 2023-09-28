@@ -687,7 +687,7 @@ network control protocol comes up).
 Terminate after \fIn\fR consecutive failed connection attempts.  A
 value of 0 means no limit.  The default value is 10.
 .TP
-.B max-tls-version \fIstring
+.B max\-tls-\version \fIstring
 (EAP-TLS, or PEAP) Configures the max allowed TLS version used during
 negotiation with a peer.  The default value for this is \fI1.2\fR.  Values
 allowed for this option is \fI1.0.\fR, \fI1.1\fR, \fI1.2\fR, \fI1.3\fR.
@@ -760,7 +760,7 @@ name to \fIname\fR.)
 Disable Address/Control compression in both directions (send and
 receive).
 .TP
-.B need-peer-eap
+.B need\-peer\-eap
 (EAP-TLS) Require the peer to verify our authentication credentials.
 .TP
 .B noauth
@@ -1136,13 +1136,13 @@ The device used by pppd with this option must have sync support.
 Currently supports Microgate SyncLink adapters
 under Linux and FreeBSD 2.2.8 and later.
 .TP
-.B tls-verify-method \fIstring
+.B tls\-verify\-method \fIstring
 (EAP-TLS, or PEAP) Match the value specified for \fIremotename\fR to that that
 of the X509 certificates subject name, common name, or suffix of the common
 name.  Respective values allowed for this option is: \fInone\fR, \fIsubject\fR,
 \fIname\fR, or \fIsuffix\fR.  The default value for this option is \fIname\fR.
 .TP
-.B tls-verify-key-usage
+.B tls\-verify\-key\-usage
 (EAP-TLS, or PEAP) Enables examination of peer certificate's purpose, and
 extended key usage attributes.
 .TP
@@ -1233,36 +1233,36 @@ by specifying ppp'd option \fBnic-eth0\fR. Prefix \fBnic-\fR for this
 option may be avoided if interface name is unambiguous and does not
 look like any other pppd's option.
 .TP
-.B pppoe-service \fIname
+.B pppoe\-service \fIname
 Connect to specified PPPoE service name. For backward compatibility also
 \fBrp_pppoe_service\fP option name is supported.
 .TP
-.B pppoe-ac \fIname
+.B pppoe\-ac \fIname
 Connect to specified PPPoE access concentrator name. For backward
 compatibility also \fBrp_pppoe_ac\fP option name is supported.
 .TP
-.B pppoe-sess \fIsessid\fP:\fImacaddr
+.B pppoe\-sess \fIsessid\fP:\fImacaddr
 Attach to existing PPPoE session. For backward compatibility also
 \fBrp_pppoe_sess\fP option name is supported.
 .TP
-.B pppoe-verbose \fIn
+.B pppoe\-verbose \fIn
 Be verbose about discovered access concentrators. When set to 2 or bigger
 value then dump also discovery packets. For backward compatibility also
 \fBrp_pppoe_verbose\fP option name is supported.
 .TP
-.B pppoe-mac \fImacaddr
+.B pppoe\-mac \fImacaddr
 Connect to specified MAC address.
 .TP
-.B pppoe-host-uniq \fIstring
+.B pppoe\-host\-uniq \fIstring
 Set the PPPoE Host-Uniq tag to the supplied hex string.
 By default PPPoE Host-Uniq tag is set to the pppd's process PID.
 For backward compatibility this option may be specified without
 \fBpppoe-\fP prefix.
 .TP
-.B pppoe-padi-timeout \fIn
+.B pppoe\-padi\-timeout \fIn
 Initial timeout for discovery packets in seconds (default 5).
 .TP
-.B pppoe-padi-attempts \fIn
+.B pppoe\-padi\-attempts \fIn
 Number of discovery attempts (default 3).
 .SH OPTIONS FILES
 Options can be taken from files as well as the command line.  Pppd
@@ -1729,7 +1729,7 @@ We failed to authenticate ourselves to the peer.
 Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
 usually shell scripts, but could be executable code files instead.
-Pppd does not wait for the scripts to finish (except for the ip-pre-up
+Pppd does not wait for the scripts to finish (except for the ip\-pre\-up
 script).  The scripts are
 executed as root (with the real and effective user-id set to 0), so
 that they can do things such as update routing tables or run
@@ -2075,7 +2075,7 @@ are met:
 .br
      (412) 268-4387, fax: (412) 268-7395
 .br
-     tech-transfer@andrew.cmu.edu
+     tech\-transfer@andrew.cmu.edu
 .LP
 3b. The name(s) of the authors of this software must not be used to
    endorse or promote products derived from this software without
