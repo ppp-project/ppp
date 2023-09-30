@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+# vim: shiftwidth=4 tabstop=4
+#
+# This program dumps to standard output the content of the file written
+# by pppd's lcp-rtt-file configuration option.
+#
+# Copyright (C) Marco d'Itri <md@linux.it>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
+use v5.14;
+use warnings;
+use autodie;
+
+use POSIX qw(strftime);
+
+{
+	my $data = read_data($ARGV[0] || '/run/ppp-rtt.data');
+	die "The data file is invalid!\n" if not $data;
+	dump_data($data);
+}
+
+sub dump_data {
+	my ($s) = @_;
+
+	say "status:   $s->{status}";
+	say "interval: $s->{echo_interval}";
+	say "position: $s->{position}";
+	say 'elements: ' . scalar(@{ $s->{data} });
+	say '';
+
+	foreach (my $i= 0; $i < @{ $s->{data} }; $i++) {
+		my $date = strftime('%F %T', localtime($s->{data}->[$i]->[0]));
+		print "$i\t$date\t$s->{data}->[$i]->[1]\t$s->{data}->[$i]->[2]\n";
+	}
+}
+
+sub read_data {
+	my ($file) = @_;
+
+	my $data;
+	open(my $fh, '<', $file);
+	binmode($fh);
+	my $bytes_read;
+	do {
+		$bytes_read = sysread($fh, $data, 8192, length($data));
+	} while ($bytes_read == 8192);
+	close($fh);
+
+	my ($magic, $status, $position, $echo_interval, $rest)
+		= unpack('NNNN a*', $data);
+	return undef if $magic != 0x19450425;
+
+	# the position is relative to the C array, not to the logical entries
+	$position /= 2;
+
+	my @rawdata = unpack('(N C a3)*', $rest);
+	my @data;
+	while (my ($time, $loss, $rtt) = splice(@rawdata, 0, 3)) {
+		push(@data, [ $time, unpack('N', "\000$rtt"), $loss ]);
+	}
+
+	if (0) {
+	@data =
+		# skip any "empty" (null) entries
+		grep { $_->[0] }
+		# rearrange the list in chronological order
+		(@data[$position+1 .. $#data], @data[0 .. $position]);
+	}
+
+	return {
+		status			=> $status,
+		echo_interval	=> $echo_interval,
+		position 		=> $position,
+		data			=> \@data,
+	};
+}
+

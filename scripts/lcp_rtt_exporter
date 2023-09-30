@@ -1,0 +1,108 @@
+#!/usr/bin/perl
+# vim: shiftwidth=4 tabstop=4
+#
+# This CGI program is a Prometheus exporter for pppd's lcp-rtt-file feature.
+#
+# Copyright (C) Marco d'Itri <md@linux.it>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
+use v5.14;
+use warnings;
+use autodie;
+
+use List::Util qw(sum max min);
+
+{
+	my $data = read_data('/run/ppp-rtt.data');
+	my $stats = compute_statistics($data, 60);
+
+	my $s = metrics($stats);
+
+	print "Content-type: text/plain\n\n$s";
+	exit;
+}
+
+sub metrics {
+	my ($stats) = @_;
+
+	my $s = <<END;
+# TYPE lcp_rtt_status gauge
+# HELP LCP RTT status
+lcp_rtt_status $stats->{status}
+END
+	foreach (qw(average min max loss)) {
+		next if not exists $stats->{$_};
+		$s .= <<END;
+# TYPE lcp_rtt_$_ gauge
+# HELP LCP RTT $_
+lcp_rtt_$_ $stats->{$_}
+END
+	}
+
+	return $s;
+}
+
+sub compute_statistics {
+	my ($data, $length) = @_;
+
+	my $cutoff = time() - $length;
+	my @e = grep { $_->[0] >= $cutoff } @{ $data->{data} };
+	return { status => -1 } if not @e; # no data
+
+	my $average = (sum map { $_->[1] } @e) / scalar(@e);
+	my $min = min map { $_->[1] } @e;
+	my $max = max map { $_->[1] } @e;
+	my $loss = sum map { $_->[2] } @e;
+
+	return {
+		status	=> $data->{status},
+		average	=> $average,
+		min		=> $min,
+		max		=> $max,
+		loss	=> $loss,
+	};
+}
+
+sub read_data {
+	my ($file) = @_;
+
+	my $data;
+	open(my $fh, '<', $file);
+	binmode($fh);
+	my $bytes_read;
+	do {
+		$bytes_read = sysread($fh, $data, 8192, length($data));
+	} while ($bytes_read == 8192);
+	close($fh);
+
+	my ($magic, $status, $position, $echo_interval, $rest)
+		= unpack('NNNN a*', $data);
+	return undef if $magic != 0x19450425;
+
+	# the position is relative to the C array, not to the logical entries
+	$position /= 2;
+
+	my @rawdata = unpack('(N C a3)*', $rest);
+	my @data;
+	while (my ($time, $loss, $rtt) = splice(@rawdata, 0, 3)) {
+		push(@data, [ $time, unpack('N', "\000$rtt"), $loss ]);
+	}
+
+	@data =
+		# skip any "empty" (null) entries
+		grep { $_->[0] }
+		# rearrange the list in chronological order
+		(@data[$position+1 .. $#data], @data[0 .. $position]);
+
+	return {
+		status			=> $status,
+		echo_interval	=> $echo_interval,
+		position 		=> $position,
+		data			=> \@data,
+	};
+}
+
