@@ -60,8 +60,11 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <signal.h>
+
+#include "pppd-private.h"
 #include "tdb.h"
 #include "spinlock.h"
+#include "pathnames.h"
 
 #define TDB_MAGIC_FOOD "TDB file\n"
 #define TDB_VERSION (0x26011967 + 6)
@@ -1728,7 +1731,12 @@ TDB_CONTEXT *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
 		goto internal;
 	}
 
+again:
 	if ((tdb->fd = open(name, open_flags, mode)) == -1) {
+		if ((open_flags & O_CREAT) && errno == ENOENT &&
+			mkdir_recursive(PPP_PATH_VARRUN) == 0)
+			goto again;
+
 		TDB_LOG((tdb, 5, "tdb_open_ex: could not open file %s: %s\n",
 			 name, strerror(errno)));
 		goto fail;	/* errno set by open(2) */

@@ -20,6 +20,12 @@ utest_pppcrypt_LDFLAGS =
 
 check_PROGRAMS += utest_crypto
 
+utest_utils_SOURCES = utils.c utils_utest.c
+utest_utils_CPPFLAGS = -DUNIT_TEST
+utest_utils_LDFLAGS =
+
+check_PROGRAMS += utest_utils
+
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
 dist_man8_MANS += srp-entry.8

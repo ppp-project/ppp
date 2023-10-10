@@ -437,6 +437,7 @@ int  sifproxyarp(int, u_int32_t);
 int  cifproxyarp(int, u_int32_t);
 				/* Delete proxy ARP entry for peer */
 u_int32_t GetMask(u_int32_t); /* Get appropriate netmask for address */
+int  mkdir_recursive(const char *); /* Recursively create directory */
 int  lock(char *);	/* Create lock file for device */
 int  relock(int);		/* Rewrite lock file with new pid */
 void unlock(void);	/* Delete previously-created lock file */
