@@ -114,7 +114,7 @@ cleanup(void *opaque, int arg)
 {
     char fname[512];
 
-    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_get_ifname(NULL,0));
+    slprintf(fname, sizeof(fname), "/var/run/radattr.%s", ppp_ifname());
     (void) remove(fname);
     dbglog("RADATTR plugin removed file %s.", fname);
 }
