@@ -131,16 +131,6 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_link.h>
-
-/* Attempt at retaining compile-support with older than 4.7 kernels, or kernels
- * where RTM_NEWSTATS isn't defined for whatever reason.
- */
-#ifndef RTM_NEWSTATS
-#define RTM_NEWSTATS 92
-#define RTM_GETSTATS 94
-#define IFLA_STATS_LINK_64 1
-#endif
-
 #include <linux/if_addr.h>
 
 /* glibc versions prior to 2.24 do not define SOL_NETLINK */
@@ -1776,6 +1766,7 @@ get_ppp_stats_ioctl(int u, struct pppd_stats *stats)
 static int
 get_ppp_stats_rtnetlink(int u, struct pppd_stats *stats)
 {
+#ifdef RTM_NEWSTATS
     static int fd = -1;
 
     struct {
@@ -1825,6 +1816,7 @@ get_ppp_stats_rtnetlink(int u, struct pppd_stats *stats)
 err:
     close(fd);
     fd = -1;
+#endif
     return 0;
 }
 
