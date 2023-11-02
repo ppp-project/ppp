@@ -55,6 +55,20 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
         ])
 
     AS_IF([test "${with_openssl}" != "no"], [
+        # if pkg-config is installed and openssl has installed a .pc file,
+        # then use that information and don't search ssldirs
+        AC_PATH_PROG([PKG_CONFIG], [pkg-config])
+        if test x"$PKG_CONFIG" != x""; then
+            OPENSSL_LDFLAGS=`$PKG_CONFIG openssl --libs-only-L 2>/dev/null`
+            if test $? = 0; then
+                OPENSSL_LIBS=`$PKG_CONFIG openssl --libs-only-l 2>/dev/null`
+                OPENSSL_INCLUDES=`$PKG_CONFIG openssl --cflags-only-I 2>/dev/null`
+                found=true
+            fi
+        fi
+    ])
+
+    AS_IF([test "${with_openssl}" != "no" && test ! ${found}], [
         OPENSSL_INCLUDES=
         for ssldir in $ssldirs; do
             AC_MSG_CHECKING([for openssl/ssl.h in $ssldir])
@@ -69,20 +83,6 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
                 AC_MSG_RESULT([no])
             ])
         done])
-     
-    AS_IF([test "${with_openssl}" != "no" && test ! ${found}], [ 
-        # if pkg-config is installed and openssl has installed a .pc file,
-        # then use that information and don't search ssldirs
-        AC_PATH_PROG([PKG_CONFIG], [pkg-config])
-        if test x"$PKG_CONFIG" != x""; then
-            OPENSSL_LDFLAGS=`$PKG_CONFIG openssl --libs-only-L 2>/dev/null`
-            if test $? = 0; then
-                OPENSSL_LIBS=`$PKG_CONFIG openssl --libs-only-l 2>/dev/null`
-                OPENSSL_INCLUDES=`$PKG_CONFIG openssl --cflags-only-I 2>/dev/null`
-                found=true
-            fi
-        fi
-    ])
 
     AS_IF([test "${with_openssl}" != "no" && test ${found}], [
 
