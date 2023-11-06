@@ -76,7 +76,16 @@ AM_COND_IF([LINUX], [
         linux/if_packet.h       \
         netinet/if_ether.h      \
         netpacket/packet.h])
-    AC_CHECK_TYPES([struct sockaddr_ll], [], [], [#include <linux/if_packet.h>])])
+
+    AC_MSG_CHECKING([for struct sockaddr_ll in <linux/if_packet.h>])
+    AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM([@%:@include <linux/if_packet.h>], [sizeof(struct sockaddr_ll)])],
+	[AC_MSG_RESULT([yes])
+	 AC_DEFINE(HAVE_STRUCT_SOCKADDR_LL, 1, [Struct sockaddr_ll is present on system])
+	],
+	AC_MSG_RESULT([no]))
+])
+
 
 AC_CHECK_SIZEOF(unsigned int)
 AC_CHECK_SIZEOF(unsigned long)
