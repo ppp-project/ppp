@@ -99,6 +99,7 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
     int fd;
     struct ifreq ifr;
     int domain, stype;
+    size_t maxlen;
 
 #ifdef HAVE_STRUCT_SOCKADDR_LL
     struct sockaddr_ll sa;
@@ -111,10 +112,17 @@ openInterface(char const *ifname, UINT16_t type, unsigned char *hwaddr)
 #ifdef HAVE_STRUCT_SOCKADDR_LL
     domain = PF_PACKET;
     stype = SOCK_RAW;
+    maxlen = IFNAMSIZ;
 #else
     domain = PF_INET;
     stype = SOCK_PACKET;
+    maxlen = sizeof(sa.sa_data);
 #endif
+
+    if (strlen(ifname) >= maxlen) {
+	error("Can't use interface %.16s: name is too long", ifname);
+	return -1;
+    }
 
     if ((fd = socket(domain, stype, htons(type))) < 0) {
 	/* Give a more helpful message for the common error case */
