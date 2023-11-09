@@ -72,7 +72,7 @@ static const char rcsid[] = "$Id: pppstats.c,v 1.29 2002/10/27 12:56:26 fcusack 
 #include <linux/if.h>
 #endif
 #include <linux/ppp_defs.h>
-#include <linux/if_ppp.h>
+#include <linux/ppp-ioctl.h>
 
 #endif /* __linux__ */
 
