@@ -3,7 +3,7 @@
 /*
  * ppp_defs.h - PPP definitions.
  *
- * Copyright (c) 1984 Paul Mackerras. All rights reserved.
+ * Copyright (c) 1994 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
