@@ -62,8 +62,28 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.5.0.
-************************
+What's new in ppp-2.5.1
+***********************
+
+* Pppd can now measure and log the round-trip time (RTT) of LCP
+  echo-requests and record them in a binary file structured as a
+  circular buffer.  Other programs or scripts can examine the file and
+  provide real-time statistics on link latency.  This is enabled by a
+  new "lcp-rtt-file" option.
+
+* New scripts net-init, net-pre-up and net-down are executed in the
+  process of bringing the network interface up and down.  They provide
+  additional, more deterministic ways for pppd to interact with the
+  rest of the networking configuration.
+
+* Pppd will now create the directory for the TDB connection database
+  if it doesn't already exist.
+
+* Various other bug fixes and minor enhancements.
+
+
+What was new in ppp-2.5.0.
+**************************
 
 The 2.5.0 release is a major release of pppd which contains breaking 
 changes for third-party plugins, a complete revamp of the build-system
