@@ -2150,7 +2150,7 @@ notify(struct notifier *notif, int val)
  * novm - log an error message saying we ran out of memory, and die.
  */
 void
-novm(char *msg)
+novm(const char *msg)
 {
     fatal("Virtual memory exhausted allocating %s\n", msg);
 }

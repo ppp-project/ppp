@@ -68,7 +68,7 @@
 extern char *strerror();
 #endif
 
-static void logit(int, char *, va_list);
+static void logit(int, const char *, va_list);
 static void log_write(int, char *);
 static void vslp_printer(void *, char *, ...);
 static void format_packet(u_char *, int, printer_func, void *);
@@ -120,7 +120,7 @@ strlcat(char *dest, const char *src, size_t len)
  * Returns the number of chars put into buf.
  */
 int
-slprintf(char *buf, int buflen, char *fmt, ...)
+slprintf(char *buf, int buflen, const char *fmt, ...)
 {
     va_list args;
     int n;
@@ -137,14 +137,15 @@ slprintf(char *buf, int buflen, char *fmt, ...)
 #define OUTCHAR(c)	(buflen > 0? (--buflen, *buf++ = (c)): 0)
 
 int
-vslprintf(char *buf, int buflen, char *fmt, va_list args)
+vslprintf(char *buf, int buflen, const char *fmt, va_list args)
 {
     int c, i, n;
     int width, prec, fillch;
     int base, len, neg, quoted;
     long lval = 0;
     unsigned long val = 0;
-    char *str, *f, *buf0;
+    char *str, *buf0;
+    const char *f;
     unsigned char *p;
     char num[32];
     time_t t;
@@ -600,7 +601,7 @@ print_string(char *p, int len, printer_func printer, void *arg)
  * logit - does the hard work for fatal et al.
  */
 static void
-logit(int level, char *fmt, va_list args)
+logit(int level, const char *fmt, va_list args)
 {
     char buf[1024];
 
@@ -635,7 +636,7 @@ log_write(int level, char *buf)
  * fatal - log an error message and die horribly.
  */
 void
-fatal(char *fmt, ...)
+fatal(const char *fmt, ...)
 {
     va_list pvar;
 
@@ -655,7 +656,7 @@ fatal(char *fmt, ...)
  * error - log an error message.
  */
 void
-error(char *fmt, ...)
+error(const char *fmt, ...)
 {
     va_list pvar;
 
@@ -670,7 +671,7 @@ error(char *fmt, ...)
  * warn - log a warning message.
  */
 void
-warn(char *fmt, ...)
+warn(const char *fmt, ...)
 {
     va_list pvar;
 
@@ -684,7 +685,7 @@ warn(char *fmt, ...)
  * notice - log a notice-level message.
  */
 void
-notice(char *fmt, ...)
+notice(const char *fmt, ...)
 {
     va_list pvar;
 
@@ -698,7 +699,7 @@ notice(char *fmt, ...)
  * info - log an informational message.
  */
 void
-info(char *fmt, ...)
+info(const char *fmt, ...)
 {
     va_list pvar;
 
@@ -712,7 +713,7 @@ info(char *fmt, ...)
  * dbglog - log a debug message.
  */
 void
-dbglog(char *fmt, ...)
+dbglog(const char *fmt, ...)
 {
     va_list pvar;
 

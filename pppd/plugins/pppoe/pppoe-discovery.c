@@ -33,7 +33,7 @@ int pppoe_verbose;
 static FILE *debugFile;
 
 void
-fatal(char *fmt, ...)
+fatal(const char *fmt, ...)
 {
     va_list pvar;
     va_start(pvar, fmt);
@@ -44,7 +44,7 @@ fatal(char *fmt, ...)
 }
 
 void
-error(char *fmt, ...)
+error(const char *fmt, ...)
 {
     va_list pvar;
     va_start(pvar, fmt);
@@ -54,7 +54,7 @@ error(char *fmt, ...)
 }
 
 void
-warn(char *fmt, ...)
+warn(const char *fmt, ...)
 {
     va_list pvar;
     va_start(pvar, fmt);
@@ -64,7 +64,7 @@ warn(char *fmt, ...)
 }
 
 void
-info(char *fmt, ...)
+info(const char *fmt, ...)
 {
     va_list pvar;
     va_start(pvar, fmt);
