@@ -252,10 +252,10 @@ extern struct channel *the_channel;
 bool debug_on();
 
 /* Safe sprintf++ */
-int slprintf(char *, int, char *, ...);		
+int slprintf(char *, int, const char *, ...);
 
 /* vsprintf++ */
-int vslprintf(char *, int, char *, va_list);
+int vslprintf(char *, int, const char *, va_list);
 
 /* safe strcpy */
 size_t strlcpy(char *, const char *, size_t);
@@ -264,25 +264,25 @@ size_t strlcpy(char *, const char *, size_t);
 size_t strlcat(char *, const char *, size_t);
 
 /* log a debug message */
-void dbglog(char *, ...);
+void dbglog(const char *, ...);
 
 /* log an informational message */
-void info(char *, ...);
+void info(const char *, ...);
 
 /* log a notice-level message */
-void notice(char *, ...);
+void notice(const char *, ...);
 
 /* log a warning message */
-void warn(char *, ...);
+void warn(const char *, ...);
 
 /* log an error message */
-void error(char *, ...);	
+void error(const char *, ...);
 
 /* log an error message and die(1) */
-void fatal(char *, ...);	
+void fatal(const char *, ...);
 
 /* Say we ran out of memory, and die */
-void novm(char *);
+void novm(const char *);
 
 /* Format a packet and log it with syslog */
 void log_packet(unsigned char *, int, char *, int);
