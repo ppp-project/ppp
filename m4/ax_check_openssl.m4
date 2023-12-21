@@ -68,7 +68,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
         fi
     ])
 
-    AS_IF([test "${with_openssl}" != "no" && test ! ${found}], [
+    AS_IF([test "${with_openssl}" != "no" && test "${found}" != "true"], [
         OPENSSL_INCLUDES=
         for ssldir in $ssldirs; do
             AC_MSG_CHECKING([for openssl/ssl.h in $ssldir])
@@ -84,7 +84,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
             ])
         done])
 
-    AS_IF([test "${with_openssl}" != "no" && test ${found}], [
+    AS_IF([test "${with_openssl}" != "no" && test "${found}" = "true" ], [
 
         # try the preprocessor and linker with our new flags,
         # being careful not to pollute the global LIBS, LDFLAGS, and CPPFLAGS
