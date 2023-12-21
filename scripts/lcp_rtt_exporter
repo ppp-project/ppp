@@ -21,8 +21,10 @@ use List::Util qw(sum max min);
 	my $stats = compute_statistics($data, 60);
 
 	my $s = metrics($stats);
+	my $length = length($s);
 
-	print "Content-type: text/plain\n\n$s";
+	print "Content-type: text/plain\n";
+	print "Content-length: $length\n\n$s";
 	exit;
 }
 
