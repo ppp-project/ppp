@@ -235,7 +235,7 @@ int tls_set_verify_info(SSL *ssl, const char *peer_name, const char *peer_cert,
         bool client, struct tls_info **out)
 {
     if (out != NULL) {
-        struct tls_info *tmp = calloc(sizeof(struct tls_info), 1);
+        struct tls_info *tmp = calloc(1, sizeof(struct tls_info));
         if (!tmp) {
             fatal("Allocation error");
         }
