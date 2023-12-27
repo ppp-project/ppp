@@ -216,7 +216,7 @@ static int lcp_echos_pending = 0;	/* Number of outstanding echo msgs */
 static int lcp_echo_number   = 0;	/* ID number of next echo frame */
 static int lcp_echo_timer_running = 0;  /* set if a timer is running */
 static int lcp_rtt_file_fd = 0;		/* fd for the opened LCP RTT file */
-static volatile u_int32_t *lcp_rtt_buffer = NULL; /* the mmap'ed LCP RTT file */
+static u_int32_t *lcp_rtt_buffer = NULL; /* the mmap'ed LCP RTT file */
 
 static u_char nak_buffer[PPP_MRU];	/* where we construct a nak packet */
 
@@ -2272,15 +2272,16 @@ LcpEchoTimeout (void *arg)
 static void
 lcp_rtt_update_buffer (unsigned long rtt)
 {
+    volatile u_int32_t *const ring_header = lcp_rtt_buffer;
     volatile u_int32_t *const ring_buffer = lcp_rtt_buffer
 	+ LCP_RTT_HEADER_LENGTH;
     unsigned int next_entry, lost;
 
     /* choose the next entry where the data will be stored */
-    if (ntohl(lcp_rtt_buffer[2]) >= (LCP_RTT_ELEMENTS - 1) * 2)
+    if (ntohl(ring_header[2]) >= (LCP_RTT_ELEMENTS - 1) * 2)
 	next_entry = 0;				/* go back to the beginning */
     else
-	next_entry = ntohl(lcp_rtt_buffer[2]) + 2;	/* use the next one */
+	next_entry = ntohl(ring_header[2]) + 2;	/* use the next one */
 
     /* update the data element */
     /* storing the timestamp in an *unsigned* long allows dates up to 2106 */
@@ -2294,7 +2295,7 @@ lcp_rtt_update_buffer (unsigned long rtt)
     ring_buffer[next_entry + 1] = htonl((u_int32_t) ((lost << 24) + rtt));
 
     /* update the pointer to the (just updated) most current data element */
-    lcp_rtt_buffer[2] = htonl(next_entry);
+    ring_header[2] = htonl(next_entry);
 
     /* In theory, CPUs implementing a weakly-consistent memory model do not
      * guarantee that these three memory store operations to the buffer will
@@ -2422,6 +2423,8 @@ LcpSendEchoRequest (fsm *f)
 static void
 lcp_rtt_open_file (void)
 {
+    volatile u_int32_t *ring_header;
+
     if (!lcp_rtt_file)
 	return;
 
@@ -2438,24 +2441,27 @@ lcp_rtt_open_file (void)
 	    MAP_SHARED, lcp_rtt_file_fd, 0);
     if (lcp_rtt_buffer == MAP_FAILED)
 	fatal("mmap() of %s failed: %m", lcp_rtt_file);
+    ring_header = lcp_rtt_buffer;
 
     /* initialize the ring buffer */
-    if (lcp_rtt_buffer[0] != htonl(LCP_RTT_MAGIC)) {
+    if (ring_header[0] != htonl(LCP_RTT_MAGIC)) {
 	memset(lcp_rtt_buffer, 0, LCP_RTT_FILE_SIZE);
-	lcp_rtt_buffer[0] = htonl(LCP_RTT_MAGIC);
+	ring_header[0] = htonl(LCP_RTT_MAGIC);
     }
 
-    lcp_rtt_buffer[3] = htonl(lcp_echo_interval);
-    lcp_rtt_buffer[1] = htonl(1); /* status: LCP up, file opened */
+    ring_header[3] = htonl(lcp_echo_interval);
+    ring_header[1] = htonl(1); /* status: LCP up, file opened */
 }
 
 static void
 lcp_rtt_close_file (void)
 {
+    volatile u_int32_t *const ring_header = lcp_rtt_buffer;
+
     if (!lcp_rtt_file_fd)
 	return;
 
-    lcp_rtt_buffer[1] = htonl(0); /* status: LCP down, file closed */
+    ring_header[1] = htonl(0); /* status: LCP down, file closed */
 
     if (munmap(lcp_rtt_buffer, LCP_RTT_FILE_SIZE) < 0)
 	error("munmap() of %s failed: %m", lcp_rtt_file);
