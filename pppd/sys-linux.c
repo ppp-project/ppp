@@ -2193,11 +2193,27 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway, bool replac
 	 * - this is normally only the case the doing demand: */
 	if (defaultroute_exists(&tmp_rt, -1))
 	    del_rt = &tmp_rt;
+    } else if (!replace) {
+	/*
+	 * We don't want to replace an existing route.
+	 * We may however add our route along an existing route with a different
+	 * metric.
+	 */
+	if (defaultroute_exists(&rt, dfl_route_metric) && strcmp(rt.rt_dev, ifname) != 0) {
+	   if (rt.rt_flags & RTF_GATEWAY)
+	       error("not replacing existing default route via %I with metric %d",
+		     SIN_ADDR(rt.rt_gateway), dfl_route_metric);
+	   else
+	       error("not replacing existing default route through %s with metric %d",
+		     rt.rt_dev, dfl_route_metric);
+	   return 0;
+	}
     } else if (defaultroute_exists(&old_def_rt, -1           ) &&
 			    strcmp( old_def_rt.rt_dev, ifname) != 0) {
 	/*
-	 * We did not yet replace an existing default route, let's
-	 * check if we should save and replace a default route:
+	 * We want to replace an existing route and did not replace an existing
+	 * default route yet, let's check if we should save and replace an
+	 * existing default route:
 	 */
 	u_int32_t old_gateway = SIN_ADDR(old_def_rt.rt_gateway);
 
