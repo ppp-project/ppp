@@ -136,7 +136,6 @@ bool	dryrun;			/* print out option values and exit */
 char	*domain;		/* domain name set by domain option */
 int	child_wait = 5;		/* # seconds to wait for children at exit */
 struct userenv *userenv_list;	/* user environment variables */
-int	dfl_route_metric = -1;	/* metric of the default route to set over the PPP link */
 
 #ifdef PPP_WITH_IPV6CP
 char	path_ipv6up[MAXPATHLEN];   /* pathname of ipv6-up script */
@@ -330,10 +329,6 @@ struct option general_options[] = {
     { "unset", o_special, (void *)user_unsetenv,
       "Unset user environment variable",
       OPT_A2PRINTER | OPT_NOPRINT, (void *)user_unsetprint },
-
-    { "defaultroute-metric", o_int, &dfl_route_metric,
-      "Metric to use for the default route (Linux only; -1 for default behavior)",
-      OPT_PRIV|OPT_LLIMIT|OPT_INITONLY, NULL, 0, -1 },
 
     { "net-init-script", o_string, path_net_init,
       "Set pathname of net-init script",
