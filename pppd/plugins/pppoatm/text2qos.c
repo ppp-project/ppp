@@ -129,10 +129,10 @@ int text2qos(const char *text,struct atm_qos *qos,int flags)
     traffic_class = ATM_NONE;
     aal = ATM_NO_AAL;
     do {
-	static const unsigned char aal_number[] = { ATM_AAL0, ATM_AAL5 };
-	int item;
+    static const unsigned char aal_number[] = { ATM_AAL0, ATM_AAL5 };
+    size_t item;
 
-	item = fetch(&text,"!none","ubr","cbr","vbr","abr","aal0","aal5",NULL);
+    item = fetch(&text,"!none","ubr","cbr","vbr","abr","aal0","aal5",NULL);
 	switch (item) {
 	    case 1:
 	    case 2:

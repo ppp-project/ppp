@@ -310,7 +310,7 @@ chap_client_timeout(void *arg)
 static void
 chap_generate_challenge(struct chap_server_state *ss)
 {
-	int clen = 1, nlen, len;
+	size_t clen = 1, nlen, len;
 	unsigned char *p;
 
 	p = ss->challenge;
@@ -327,8 +327,8 @@ chap_generate_challenge(struct chap_server_state *ss)
 	p = ss->challenge + PPP_HDRLEN;
 	p[0] = CHAP_CHALLENGE;
 	p[1] = ++ss->id;
-	p[2] = len >> 8;
-	p[3] = len;
+	p[2] = (len >> 8) & 0xFF;
+	p[3] = len & 0xFF;
 }
 
 /*
