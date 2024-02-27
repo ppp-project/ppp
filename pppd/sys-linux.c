@@ -3235,7 +3235,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
  *  Set the gateway address
  */
     if (his_adr != 0) {
-	SIN_ADDR(ifr.ifr_dstaddr) = his_adr;
+	SIN_ADDR(ifr.ifr_addr) = his_adr;
 	if (ioctl(sock_fd, SIOCSIFDSTADDR, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
 		error("ioctl(SIOCSIFDSTADDR): %m (line %d)", __LINE__);
@@ -3249,7 +3249,7 @@ int sifaddr (int unit, u_int32_t our_adr, u_int32_t his_adr,
     if (kernel_version >= KVERSION(2,1,16))
 	net_mask = ~0L;
     if (net_mask != 0) {
-	SIN_ADDR(ifr.ifr_netmask) = net_mask;
+	SIN_ADDR(ifr.ifr_addr) = net_mask;
 	if (ioctl(sock_fd, SIOCSIFNETMASK, (caddr_t) &ifr) < 0) {
 	    if (! ok_error (errno))
 		error("ioctl(SIOCSIFNETMASK): %m (line %d)", __LINE__);
