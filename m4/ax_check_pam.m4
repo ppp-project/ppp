@@ -26,34 +26,28 @@
 AC_DEFUN([AX_CHECK_PAM], [
     AC_ARG_WITH([pam],
         [AS_HELP_STRING([--with-pam=DIR],
-            [With libpam support, see ftp.redhat.com:/pub/pam])],
-        [
-            case "$withval" in
-            "" | y | ye | yes)
-                pamdirs="/usr/local /usr/lib /usr"  
-              ;;
-            n | no)
-                with_pam="no"
-              ;;
-            *)
-                pamdirs="$withval"
-              ;;
-            esac
-        ])
+            [With libpam support, see ftp.redhat.com:/pub/pam])])
     
-    if [ test "x${with_pam}" != "xno" ] ; then
-        PAM_LIBS="-lpam"
-        for pamdir in $pamdirs; do
-            AC_MSG_CHECKING([for pam_appl.h in $pamdir])
-            if test -f "$pamdir/include/security/pam_appl.h"; then
-                PAM_CFLAGS="-I$pamdir/include"
-                PAM_LDFLAGS="-L$pamdir/lib"
-                AC_MSG_RESULT([yes])
-                break
-            else
-                AC_MSG_RESULT([no])
-            fi
-        done
+    AS_IF([test "$with_pam" != "no"], [
+        AS_CASE(["$with_pam"],
+            [""|yes], [PKG_CHECK_MODULES([PAM], [pam], [pamdirs=],
+                        [pamdirs="/usr/local /usr/lib /usr"])],
+            [pamdirs="$with_pam"])
+
+        AS_IF([test -n "$pamdirs"], [
+            PAM_LIBS="-lpam"
+            for pamdir in $pamdirs; do
+                AC_MSG_CHECKING([for pam_appl.h in $pamdir])
+                if test -f "$pamdir/include/security/pam_appl.h"; then
+                    PAM_CFLAGS="-I$pamdir/include"
+                    PAM_LDFLAGS="-L$pamdir/lib"
+                    AC_MSG_RESULT([yes])
+                    break
+                else
+                    AC_MSG_RESULT([no])
+                fi
+            done
+        ])
 
         # try the preprocessor and linker with our new flags,
         # being careful not to pollute the global LIBS, LDFLAGS, and CPPFLAGS
@@ -87,7 +81,7 @@ AC_DEFUN([AX_CHECK_PAM], [
         AC_SUBST([PAM_CFLAGS])
         AC_SUBST([PAM_LIBS])
         AC_SUBST([PAM_LDFLAGS])
-    fi
+    ])
     AM_CONDITIONAL(WITH_LIBPAM, test "x${with_pam}" != "xno")
 ])
 
