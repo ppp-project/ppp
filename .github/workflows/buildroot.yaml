@@ -4,21 +4,33 @@ on: [push, pull_request]
 jobs:
   buildroot:
     name: Buildroot
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        defconfig_name: [qemu_x86_defconfig, qemu_x86_64_defconfig, raspberrypi4_defconfig, raspberrypi4_64_defconfig, qemu_ppc64le_pseries_defconfig, qemu_mips32r2_malta_defconfig, qemu_mips64_malta_defconfig]
-        libc_name: [glibc, uclibc, musl]
+        defconfig_name:
+          - qemu_x86_defconfig
+          - qemu_x86_64_defconfig
+          - raspberrypi4_defconfig
+          - raspberrypi4_64_defconfig
+          - qemu_ppc64le_pseries_defconfig
+          - qemu_mips32r2_malta_defconfig
+          - qemu_mips64_malta_defconfig
+          - qemu_riscv32_virt_defconfig
+          - qemu_riscv64_virt_defconfig
+        libc_name:
+          - glibc
+          - uclibc
+          - musl
     env:
-      PPP_CI_VERSION: v1.0
+      CI_VERSION: v1.1
       BUILDROOT_DIRECTORY_NAME: buildroot-${{ matrix.defconfig_name }}-${{ matrix.libc_name }}
     steps:
-      - name: Retrieve prebuilt Buildroot image...
+      - name: Retrieve the prebuilt Buildroot image
         working-directory: /home/runner
         run: |
-          wget https://github.com/ppp-project/ppp-ci/releases/download/${{ env.PPP_CI_VERSION }}/${{ env.BUILDROOT_DIRECTORY_NAME }}.tar.zst
-          tar -xf ${{ env.BUILDROOT_DIRECTORY_NAME }}.tar.zst
-      - name: Select latest PPP upstream version
+          wget https://github.com/ppp-project/ppp-ci/releases/download/${{ env.CI_VERSION }}/${{ env.BUILDROOT_DIRECTORY_NAME }}.tar.zst
+          tar --zstd --strip-components=2 -xf ${{ env.BUILDROOT_DIRECTORY_NAME }}.tar.zst
+      - name: Select the latest PPP upstream version
         working-directory: /home/runner/${{ env.BUILDROOT_DIRECTORY_NAME }}/package/pppd
         run: |
           # Get package sources from head of current branch
