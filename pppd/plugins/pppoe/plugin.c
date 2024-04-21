@@ -217,7 +217,7 @@ PPPOEConnectDevice(void)
 	    error("Failed to create PPPoE discovery socket: %m");
 	    goto errout;
 	}
-	discovery1(conn);
+	discovery1(conn, 0);
 	/* discovery1() may update conn->mtu and conn->mru */
 	lcp_allowoptions[0].mru = conn->mtu;
 	lcp_wantoptions[0].mru = conn->mru;
