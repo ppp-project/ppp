@@ -177,6 +177,8 @@ noinst_LTLIBRARIES = libppp_crypto.la
 libppp_crypto_la_SOURCES=crypto.c ppp-md5.c ppp-md4.c ppp-sha1.c ppp-des.c
 
 if PPP_WITH_OPENSSL
+pppd_CPPFLAGS += $(OPENSSL_INCLUDES)
+
 libppp_crypto_la_CPPFLAGS=$(OPENSSL_INCLUDES)
 libppp_crypto_la_LDFLAGS=$(OPENSSL_LDFLAGS)
 libppp_crypto_la_LIBADD=$(OPENSSL_LIBS)
