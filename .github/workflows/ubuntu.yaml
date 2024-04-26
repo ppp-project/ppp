@@ -8,7 +8,7 @@ jobs:
       configure_flags: --enable-multilink --enable-systemd --enable-cbcp
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: install required packages
       run: |
@@ -37,7 +37,7 @@ jobs:
       LDFLAGS: '-fsanitize=address'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: install required packages
       run: |
