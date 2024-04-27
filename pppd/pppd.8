@@ -759,6 +759,13 @@ will be used as the name to send to the peer when authenticating the
 local system to the peer.  (Note that pppd does not append the domain
 name to \fIname\fR.)
 .TP
+.B netmask \fImask
+Set the IPV4 network mask on the PPP interface to the given
+\fImask\fR, which can be given in dotted-quad notation or as a single
+hexadecimal number preceded by 0x.  This option is not normally
+needed because the PPP interface is a point-to-point connection, but
+in some specialized circumstances it can be useful.
+.TP
 .B noaccomp
 Disable Address/Control compression in both directions (send and
 receive).
