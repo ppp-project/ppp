@@ -128,8 +128,6 @@ PPPOEInitDevice(void)
     conn->ifName = devnam;
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
-    conn->discoveryTimeout = pppoe_padi_timeout;
-    conn->discoveryAttempts = pppoe_padi_attempts;
     return 1;
 }
 
@@ -471,6 +469,9 @@ void pppoe_check_options(void)
 
     ccp_allowoptions[0].bsd_compress = 0;
     ccp_wantoptions[0].bsd_compress = 0;
+
+    conn->discoveryTimeout = pppoe_padi_timeout;
+    conn->discoveryAttempts = pppoe_padi_attempts;
 }
 
 struct channel pppoe_channel = {
