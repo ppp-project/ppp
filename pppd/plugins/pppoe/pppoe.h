@@ -242,6 +242,7 @@ typedef struct PPPoEConnectionStruct {
     int storedmru;		/* Stored MRU */
     int mtu;
     int mru;
+    char *actualACname;		/* Name of AC we connected to */
 } PPPoEConnection;
 
 /* Structure used to determine acceptable PADO or PADS packet */

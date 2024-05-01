@@ -158,6 +158,10 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    !strncmp((char *) data, conn->acName, len)) {
 	    pc->acNameOK = 1;
 	}
+	/* save a copy of the AC name if we can */
+	conn->actualACname = realloc(conn->actualACname, len + 1);
+	if (conn->actualACname)
+	    strlcpy(conn->actualACname, (char *) data, len + 1);
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;

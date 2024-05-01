@@ -254,6 +254,8 @@ PPPOEConnectDevice(void)
     ppp_set_remote_number(remote_number);
 
     ppp_script_setenv("MACREMOTE", remote_number, 0);
+    if (conn->actualACname)
+	ppp_script_setenv("ACNAME", conn->actualACname, 0);
 
     if (connect(conn->sessionSocket, (struct sockaddr *) &sp,
 		sizeof(struct sockaddr_pppox)) < 0) {
@@ -315,6 +317,8 @@ PPPOEDisconnectDevice(void)
         sendPADT(conn, NULL);
 	close(conn->discoverySocket);
     }
+    free(conn->actualACname);
+    conn->actualACname = NULL;
 }
 
 static void
