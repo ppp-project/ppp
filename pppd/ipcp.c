@@ -2026,7 +2026,7 @@ ipcp_down(fsm *f)
     sifvjcomp(f->unit, 0, 0, 0);
 
     print_link_stats(); /* _after_ running the notifiers and ip_down_hook(),
-			 * because print_link_stats() sets link_stats_valid
+			 * because print_link_stats() sets link_stats_print
 			 * to 0 (zero) */
 
     /*

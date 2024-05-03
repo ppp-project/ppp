@@ -1331,9 +1331,9 @@ print_link_stats(void)
 void
 reset_link_stats(int u)
 {
-    if (!get_ppp_stats(u, &old_link_stats))
-	return;
+    get_ppp_stats(u, &old_link_stats);
     ppp_get_time(&start_time);
+    link_stats_print = 1;
 }
 
 /*
