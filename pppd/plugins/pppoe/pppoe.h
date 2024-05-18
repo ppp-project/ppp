@@ -242,6 +242,7 @@ typedef struct PPPoEConnectionStruct {
     int storedmru;		/* Stored MRU */
     int mtu;
     int mru;
+    char *actualACname;		/* Name of AC we connected to */
 } PPPoEConnection;
 
 /* Structure used to determine acceptable PADO or PADS packet */
@@ -272,7 +273,7 @@ void initPPP(void);
 void clampMSS(PPPoEPacket *packet, char const *dir, int clampMss);
 UINT16_t computeTCPChecksum(unsigned char *ipHdr, unsigned char *tcpHdr);
 UINT16_t pppFCS16(UINT16_t fcs, unsigned char *cp, int len);
-void discovery1(PPPoEConnection *conn);
+void discovery1(PPPoEConnection *conn, int waitWholeTimeoutForPADO);
 void discovery2(PPPoEConnection *conn);
 unsigned char *findTag(PPPoEPacket *packet, UINT16_t tagType,
 		       PPPoETag *tag);

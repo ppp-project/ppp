@@ -158,6 +158,10 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    !strncmp((char *) data, conn->acName, len)) {
 	    pc->acNameOK = 1;
 	}
+	/* save a copy of the AC name if we can */
+	conn->actualACname = realloc(conn->actualACname, len + 1);
+	if (conn->actualACname)
+	    strlcpy(conn->actualACname, (char *) data, len + 1);
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;
@@ -379,7 +383,7 @@ sendPADI(PPPoEConnection *conn)
 * Waits for a PADO packet and copies useful information
 ***********************************************************************/
 void
-waitForPADO(PPPoEConnection *conn, int timeout)
+waitForPADO(PPPoEConnection *conn, int timeout, int waitWholeTimeoutForPADO)
 {
     fd_set readable;
     int r;
@@ -480,7 +484,7 @@ waitForPADO(PPPoEConnection *conn, int timeout)
 		conn->discoveryState = STATE_RECEIVED_PADO;
 	    }
 	}
-    } while (pppoe_verbose >= 1 || conn->discoveryState != STATE_RECEIVED_PADO);
+    } while (waitWholeTimeoutForPADO || conn->discoveryState != STATE_RECEIVED_PADO);
 }
 
 /***********************************************************************
@@ -668,7 +672,7 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 * Performs the PPPoE discovery phase 1
 ***********************************************************************/
 void
-discovery1(PPPoEConnection *conn)
+discovery1(PPPoEConnection *conn, int waitWholeTimeoutForPADO)
 {
     int padiAttempts = 0;
     int timeout = conn->discoveryTimeout;
@@ -683,7 +687,7 @@ discovery1(PPPoEConnection *conn)
 	}
 	sendPADI(conn);
 	conn->discoveryState = STATE_SENT_PADI;
-	waitForPADO(conn, timeout);
+	waitForPADO(conn, timeout, waitWholeTimeoutForPADO);
 
 	timeout *= 2;
     } while (conn->discoveryState == STATE_SENT_PADI);

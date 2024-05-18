@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
 	exit(1);
     }
 
-    discovery1(conn);
+    discovery1(conn, 1);
 
     if (!conn->numPADOs)
 	exit(1);

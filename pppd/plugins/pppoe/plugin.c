@@ -128,8 +128,6 @@ PPPOEInitDevice(void)
     conn->ifName = devnam;
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
-    conn->discoveryTimeout = pppoe_padi_timeout;
-    conn->discoveryAttempts = pppoe_padi_attempts;
     return 1;
 }
 
@@ -217,7 +215,7 @@ PPPOEConnectDevice(void)
 	    error("Failed to create PPPoE discovery socket: %m");
 	    goto errout;
 	}
-	discovery1(conn);
+	discovery1(conn, 0);
 	/* discovery1() may update conn->mtu and conn->mru */
 	lcp_allowoptions[0].mru = conn->mtu;
 	lcp_wantoptions[0].mru = conn->mru;
@@ -256,6 +254,8 @@ PPPOEConnectDevice(void)
     ppp_set_remote_number(remote_number);
 
     ppp_script_setenv("MACREMOTE", remote_number, 0);
+    if (conn->actualACname)
+	ppp_script_setenv("ACNAME", conn->actualACname, 0);
 
     if (connect(conn->sessionSocket, (struct sockaddr *) &sp,
 		sizeof(struct sockaddr_pppox)) < 0) {
@@ -317,6 +317,8 @@ PPPOEDisconnectDevice(void)
         sendPADT(conn, NULL);
 	close(conn->discoverySocket);
     }
+    free(conn->actualACname);
+    conn->actualACname = NULL;
 }
 
 static void
@@ -471,6 +473,9 @@ void pppoe_check_options(void)
 
     ccp_allowoptions[0].bsd_compress = 0;
     ccp_wantoptions[0].bsd_compress = 0;
+
+    conn->discoveryTimeout = pppoe_padi_timeout;
+    conn->discoveryAttempts = pppoe_padi_attempts;
 }
 
 struct channel pppoe_channel = {
