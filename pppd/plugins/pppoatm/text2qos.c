@@ -51,6 +51,7 @@ int __t2q_get_rate(const char **text,int up)
 	}
 	end++;
     }
+    if (power < 0 && fract > INT_MAX / 10) return RATE_ERROR; 
     while (power && fract)
 	if (power < 0) {
 	    fract /= 10;
@@ -60,6 +61,7 @@ int __t2q_get_rate(const char **text,int up)
 	    fract *= 10;
 	    power--;
 	}
+    if (rate > INT_MAX - fract) return RATE_ERROR; 
     rate += fract;
     if (strlen(end) < 3) {
 	if (multiplier) return RATE_ERROR;
@@ -69,9 +71,9 @@ int __t2q_get_rate(const char **text,int up)
 		rate = (rate+(up ? 8*ATM_CELL_PAYLOAD-1 : 0))/8/
 		  ATM_CELL_PAYLOAD;
 		end += 3;
+		if (rate > INT_MAX) return RATE_ERROR;
 	    }
 	    else if (multiplier) return RATE_ERROR;
-    if (rate > INT_MAX) return RATE_ERROR;
     *text = end;
     return rate;
 }
