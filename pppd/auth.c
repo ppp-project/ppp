@@ -2164,6 +2164,8 @@ auth_number(void)
     while (wp) {
 	/* trailing '*' wildcard */
 	l = strlen(wp->word);
+	if (l == 0)
+	    return 1;
 	if ((wp->word)[l - 1] == '*')
 	    l--;
 	if (!strncasecmp(wp->word, remote_number, l))
