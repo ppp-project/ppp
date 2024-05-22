@@ -1863,9 +1863,9 @@ update_script_environment(void)
     struct userenv *uep;
 
     for (uep = userenv_list; uep != NULL; uep = uep->ue_next) {
-	int i;
+	size_t i;
 	char *p, *newstring;
-	int nlen = strlen(uep->ue_name);
+	size_t nlen = strlen(uep->ue_name);
 
 	for (i = 0; (p = script_env[i]) != NULL; i++) {
 	    if (strncmp(p, uep->ue_name, nlen) == 0 && p[nlen] == '=')
@@ -2164,7 +2164,7 @@ ppp_script_setenv(char *var, char *value, int iskey)
 {
     size_t varl = strlen(var);
     size_t vl = varl + strlen(value) + 2;
-    int i;
+    size_t i;
     char *p, *newstring;
 
     newstring = (char *) malloc(vl+1);
@@ -2223,8 +2223,8 @@ ppp_script_setenv(char *var, char *value, int iskey)
 void
 ppp_script_unsetenv(char *var)
 {
-    int vl = strlen(var);
-    int i;
+    size_t vl = strlen(var);
+    size_t i;
     char *p;
 
     if (script_env == 0)

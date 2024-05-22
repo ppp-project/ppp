@@ -310,7 +310,7 @@ chap_client_timeout(void *arg)
 static void
 chap_generate_challenge(struct chap_server_state *ss)
 {
-	int clen = 1, nlen, len;
+	size_t clen = 1, nlen, len;
 	unsigned char *p;
 
 	p = ss->challenge;
