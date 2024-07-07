@@ -1802,6 +1802,7 @@ loadplugin(char **argv)
     (*init)();
     if (path != arg)
 	free(path);
+    dlclose(handle);
     return 1;
 
  errclose:
