@@ -32,7 +32,13 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <asm/ioctls.h>
+#include <linux/version.h>
+
+#if defined(__sparc__) && LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+#include "sparc-termbits.h"
+#else
 #include <asm/termbits.h>
+#endif
 
 #if defined(BOTHER) && defined(TCGETS2)
 #define termios termios2
