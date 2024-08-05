@@ -72,7 +72,11 @@ int rc_read_mapfile(char *filename)
 				return (-1);
 			}
 
-			p->name = strdup(name);
+			if ((p->name = strdup(name)) == NULL) {
+				novm("rc_read_mapfile");
+				fclose(mapfd);
+				return (-1);
+			}
 			p->id = atoi(id);
 			p->next = map2id_list;
 			map2id_list = p;
