@@ -2154,7 +2154,7 @@ int
 auth_number(void)
 {
     struct wordlist *wp = permitted_numbers;
-    int l;
+    size_t l;
 
     /* Allow all if no authorization list. */
     if (!wp)
@@ -2164,9 +2164,10 @@ auth_number(void)
     while (wp) {
 	/* trailing '*' wildcard */
 	l = strlen(wp->word);
-	if ((wp->word)[l - 1] == '*')
-	    l--;
-	if (!strncasecmp(wp->word, remote_number, l))
+	if (l > 0 && (wp->word)[l - 1] == '*') {
+	    if (!strncasecmp(wp->word, remote_number, l - 1))
+		return 1;
+	} else if (strcasecmp(wp->word, remote_number) == 0)
 	    return 1;
 	wp = wp->next;
     }
