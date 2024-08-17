@@ -699,6 +699,7 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 	struct in_addr  inad;
 	unsigned char         *ptr;
 	char		*str;
+	time_t tmptime;
 
 	*name = *value = '\0';
 
@@ -752,8 +753,9 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 		break;
 
 	    case PW_TYPE_DATE:
+		tmptime = pair->lvalue;
 		strftime (buffer, sizeof (buffer), "%m/%d/%y %H:%M:%S",
-			  gmtime ((time_t *) & pair->lvalue));
+			  gmtime (&tmptime));
 		strncpy(value, buffer, lv-1);
 		break;
 
