@@ -1437,14 +1437,14 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
     ipcp_options *ho = &ipcp_hisoptions[f->unit];
     ipcp_options *ao = &ipcp_allowoptions[f->unit];
     u_char *cip, *next;		/* Pointer to current and next CIs */
-    u_short cilen, citype;	/* Parsed len, type */
+    u_int32_t cilen, citype;	/* Parsed len, type */
     u_short cishort;		/* Parsed short value */
     u_int32_t tl, ciaddr1, ciaddr2;/* Parsed address values */
     int rc = CONFACK;		/* Final packet return code */
     int orc;			/* Individual option return code */
     u_char *p;			/* Pointer to next char to parse */
     u_char *ucp = inp;		/* Pointer to current output char */
-    int l = *len;		/* Length left */
+    u_int32_t l = *len;		/* Length left */
     u_char maxslotindex, cflag;
     int d;
 
