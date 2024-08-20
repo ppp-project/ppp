@@ -46,6 +46,7 @@
 #define EVP_MD_CTX_new EVP_MD_CTX_create
 #endif
 
+#include "pppd-private.h"
 
 static int md4_init(PPP_MD_CTX *ctx)
 {
@@ -55,6 +56,12 @@ static int md4_init(PPP_MD_CTX *ctx)
             if (EVP_DigestInit(mctx, EVP_md4())) {
                 ctx->priv = mctx;
                 return 1;
+            } else {
+                char* err = PPP_crypto_get_error();
+                if (err) {
+                    error("EVP_DigestInit failed: %s", err);
+                    free(err);
+                }
             }
             EVP_MD_CTX_free(mctx);
         }

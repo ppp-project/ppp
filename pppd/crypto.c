@@ -40,6 +40,7 @@
 
 #ifdef PPP_WITH_OPENSSL
 #include <openssl/opensslv.h>
+#include <openssl/err.h>
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -177,6 +178,22 @@ int PPP_crypto_deinit()
     }
 #endif
     return 1;
+}
+
+char *PPP_crypto_get_error()
+{
+    char* ret = NULL;
+#ifdef PPP_WITH_OPENSSL
+    BIO *bio = BIO_new (BIO_s_mem ());
+    ERR_print_errors (bio);
+    char *buf = NULL;
+    size_t len = BIO_get_mem_data (bio, &buf);
+    ret = (char *) calloc (1, 1 + len);
+    if (ret)
+        memcpy (ret, buf, len);
+    BIO_free (bio);
+#endif
+    return ret;
 }
 
 #ifdef UNIT_TEST

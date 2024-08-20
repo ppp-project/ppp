@@ -156,6 +156,13 @@ int PPP_crypto_init();
  */
 int PPP_crypto_deinit();
 
+/*
+ * Get possible human readable error message from crypto
+ * return string must be freed unless NULL (which is what
+ * is returned if compilation is done without openssl)
+ */
+char *PPP_crypto_get_error();
+
 #ifdef __cplusplus
 }
 #endif
