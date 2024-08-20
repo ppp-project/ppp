@@ -129,33 +129,18 @@ TDB_CONTEXT *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
 			 tdb_log_func log_fn,
 			 tdb_hash_func hash_fn);
 
-int tdb_reopen(TDB_CONTEXT *tdb);
-int tdb_reopen_all(void);
-void tdb_logging_function(TDB_CONTEXT *tdb, tdb_log_func);
 enum TDB_ERROR tdb_error(TDB_CONTEXT *tdb);
 const char *tdb_errorstr(TDB_CONTEXT *tdb);
 TDB_DATA tdb_fetch(TDB_CONTEXT *tdb, TDB_DATA key);
 int tdb_delete(TDB_CONTEXT *tdb, TDB_DATA key);
 int tdb_store(TDB_CONTEXT *tdb, TDB_DATA key, TDB_DATA dbuf, int flag);
-int tdb_append(TDB_CONTEXT *tdb, TDB_DATA key, TDB_DATA new_dbuf);
 int tdb_close(TDB_CONTEXT *tdb);
-TDB_DATA tdb_firstkey(TDB_CONTEXT *tdb);
-TDB_DATA tdb_nextkey(TDB_CONTEXT *tdb, TDB_DATA key);
-int tdb_traverse(TDB_CONTEXT *tdb, tdb_traverse_func fn, void *);
-int tdb_exists(TDB_CONTEXT *tdb, TDB_DATA key);
 int tdb_lockkeys(TDB_CONTEXT *tdb, u32 number, TDB_DATA keys[]);
 void tdb_unlockkeys(TDB_CONTEXT *tdb);
-int tdb_lockall(TDB_CONTEXT *tdb);
-void tdb_unlockall(TDB_CONTEXT *tdb);
 
 /* Low level locking functions: use with care */
-void tdb_set_lock_alarm(sig_atomic_t *palarm);
 int tdb_chainlock(TDB_CONTEXT *tdb, TDB_DATA key);
 int tdb_chainunlock(TDB_CONTEXT *tdb, TDB_DATA key);
-
-/* Debug functions. Not used in production. */
-void tdb_dump_all(TDB_CONTEXT *tdb);
-int tdb_printfreelist(TDB_CONTEXT *tdb);
 
 extern TDB_DATA tdb_null;
 
