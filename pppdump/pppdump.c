@@ -39,12 +39,9 @@
 #include <time.h>
 #include <sys/types.h>
 
-#include "ppp-comp.h"
-
 int hexmode;
 int pppmode;
 int reverse;
-int decompress;
 int mru = 1500;
 int abs_times;
 time_t start_time;
@@ -57,7 +54,6 @@ extern char *optarg;
 void dumplog();
 void dumpppp();
 void show_time();
-void handle_ccp();
 
 int
 main(ac, av)
@@ -78,9 +74,6 @@ main(ac, av)
 	    break;
 	case 'r':
 	    reverse = 1;
-	    break;
-	case 'd':
-	    decompress = 1;
 	    break;
 	case 'm':
 	    mru = atoi(optarg);
@@ -235,6 +228,9 @@ static u_short fcstab[256] = {
 };
 #define PPP_FCS(fcs, c)	(((fcs) >> 8) ^ fcstab[((fcs) ^ (c)) & 0xff])
 
+#define PPP_INITFCS	0xffff	/* Initial FCS value */
+#define PPP_GOODFCS	0xf0b8	/* Good final FCS value */
+
 struct pkt {
     int	cnt;
     int	esc;
@@ -327,51 +323,6 @@ dumpppp(f)
 			if (endp - r > mru)
 			    printf("     ERROR: length (%zd) > MRU (%d)\n",
 				   endp - r, mru);
-			if (decompress && fcs == PPP_GOODFCS) {
-			    /* See if this is a CCP or compressed packet */
-			    d = dbuf;
-			    r = p;
-			    if (r[0] == 0xff && r[1] == 3) {
-				*d++ = *r++;
-				*d++ = *r++;
-			    }
-			    proto = r[0];
-			    if ((proto & 1) == 0)
-				proto = (proto << 8) + r[1];
-			    if (proto == PPP_CCP) {
-				handle_ccp(pkt, r + 2, endp - r - 2);
-			    } else if (proto == PPP_COMP) {
-				if ((pkt->flags & CCP_ISUP)
-				    && (pkt->flags & CCP_DECOMP_RUN)
-				    && pkt->state
-				    && (pkt->flags & CCP_ERR) == 0) {
-				    rv = pkt->comp->decompress(pkt->state, r,
-							endp - r, d, &dn);
-				    switch (rv) {
-				    case DECOMP_OK:
-					p = dbuf;
-					nb = d + dn - p;
-					if ((d[0] & 1) == 0)
-					    --dn;
-					--dn;
-					if (dn > mru)
-					    printf("     ERROR: decompressed length (%d) > MRU (%d)\n", dn, mru);
-					break;
-				    case DECOMP_ERROR:
-					printf("     DECOMPRESSION ERROR\n");
-					pkt->flags |= CCP_ERROR;
-					break;
-				    case DECOMP_FATALERROR:
-					printf("     FATAL DECOMPRESSION ERROR\n");
-					pkt->flags |= CCP_FATALERROR;
-					break;
-				    }
-				}
-			    } else if (pkt->state
-				       && (pkt->flags & CCP_DECOMP_RUN)) {
-				pkt->comp->incomp(pkt->state, r, endp - r);
-			    }
-			}
 			do {
 			    nl = nb < 16? nb: 16;
 			    printf("%s ", q);
@@ -429,75 +380,6 @@ dumpppp(f)
 	default:
 	    printf("?%.2x\n", c);
 	}
-    }
-}
-
-extern struct compressor ppp_bsd_compress, ppp_deflate;
-
-struct compressor *compressors[] = {
-#if DO_BSD_COMPRESS
-    &ppp_bsd_compress,
-#endif
-#if DO_DEFLATE
-    &ppp_deflate,
-#endif
-    NULL
-};
-
-void
-handle_ccp(cp, dp, len)
-    struct pkt *cp;
-    u_char *dp;
-    int len;
-{
-    int clen;
-    struct compressor **comp;
-
-    if (len < CCP_HDRLEN)
-	return;
-    clen = CCP_LENGTH(dp);
-    if (clen > len)
-	return;
-
-    switch (CCP_CODE(dp)) {
-    case CCP_CONFACK:
-	cp->flags &= ~(CCP_DECOMP_RUN | CCP_ISUP);
-	if (clen < CCP_HDRLEN + CCP_OPT_MINLEN
-	    || clen < CCP_HDRLEN + CCP_OPT_LENGTH(dp + CCP_HDRLEN))
-	    break;
-	dp += CCP_HDRLEN;
-	clen -= CCP_HDRLEN;
-	for (comp = compressors; *comp != NULL; ++comp) {
-	    if ((*comp)->compress_proto == dp[0]) {
-		if (cp->state != NULL) {
-		    (*cp->comp->decomp_free)(cp->state);
-		    cp->state = NULL;
-		}
-		cp->comp = *comp;
-		cp->state = (*comp)->decomp_alloc(dp, CCP_OPT_LENGTH(dp));
-		cp->flags |= CCP_ISUP;
-		if (cp->state != NULL
-		    && (*cp->comp->decomp_init)
-		        (cp->state, dp, clen, 0, 0, 8192, 1))
-		    cp->flags = (cp->flags & ~CCP_ERR) | CCP_DECOMP_RUN;
-		break;
-	    }
-	}
-	break;
-
-    case CCP_CONFNAK:
-    case CCP_CONFREJ:
-	cp->flags &= ~(CCP_DECOMP_RUN | CCP_ISUP);
-	break;
-
-    case CCP_RESETACK:
-	if (cp->flags & CCP_ISUP) {
-	    if (cp->state && (cp->flags & CCP_DECOMP_RUN)) {
-		(*cp->comp->decomp_reset)(cp->state);
-		cp->flags &= ~CCP_ERROR;
-	    }
-	}
-	break;
     }
 }
 
