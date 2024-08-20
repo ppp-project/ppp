@@ -112,6 +112,7 @@ chap_md5_make_response(unsigned char *response, int id, char *our_name,
 	int challenge_len = *challenge++;
 	int hash_len = MD5_DIGEST_LENGTH;
 
+	response[0] = 0;
 	PPP_MD_CTX* ctx = PPP_MD_CTX_new();
 	if (ctx) {
 
@@ -133,6 +134,8 @@ chap_md5_make_response(unsigned char *response, int id, char *our_name,
 		}
 		PPP_MD_CTX_free(ctx);
 	}
+	if (response[0] == 0)
+		warn("Error occurred in preparing CHAP-Response");
 }
 
 static struct chap_digest_type md5_digest = {
