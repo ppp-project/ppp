@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 ###################################################################
 #
 # These parameters control the attack dialing sequence.
