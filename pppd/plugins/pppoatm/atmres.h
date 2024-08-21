@@ -30,7 +30,5 @@
 
 int ans_byname(const char *text,struct sockaddr_atmsvc *addr,int length,
   int flags);
-int ans_byaddr(char *buffer,int length,const struct sockaddr_atmsvc *addr,
-  int flags);
 
 #endif
