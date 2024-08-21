@@ -1031,10 +1031,12 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 		  char *name, int namelen)
 {
     int bit;
+    const char *prot;
 
     switch (protocol) {
     case PPP_CHAP:
 	bit = CHAP_PEER;
+	prot = "CHAP";
 	switch (prot_flavor) {
 	case CHAP_MD5:
 	    bit |= CHAP_MD5_PEER;
@@ -1051,12 +1053,15 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
 	break;
     case PPP_PAP:
 	bit = PAP_PEER;
+	prot = "PAP";
 	break;
     case PPP_EAP:
 	bit = EAP_PEER;
+	prot = "EAP";
 	break;
     default:
 	warn("auth_peer_success: unknown protocol %x", protocol);
+	prot = "unknown protocol";
 	return;
     }
 
@@ -1068,6 +1073,7 @@ auth_peer_success(int unit, int protocol, int prot_flavor,
     BCOPY(name, peer_authname, namelen);
     peer_authname[namelen] = 0;
     ppp_script_setenv("PEERNAME", peer_authname, 0);
+    notice("Peer %q authenticated with %s", peer_authname, prot);
 
     /* Save the authentication method for later. */
     auth_done[unit] |= bit;
