@@ -363,8 +363,6 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
-    PPP_crypto_init();
-
     strlcpy(path_ipup, PPP_PATH_IPUP, MAXPATHLEN);
     strlcpy(path_ipdown, PPP_PATH_IPDOWN, MAXPATHLEN);
 
@@ -380,6 +378,11 @@ main(int argc, char *argv[])
 
     /* Initialize syslog facilities */
     reopen_log();
+
+    /* Initialize crypto libraries */
+    if (!PPP_crypto_init()) {
+        exit(1);
+    }
 
     if (gethostname(hostname, sizeof(hostname)) < 0 ) {
 	ppp_option_error("Couldn't get hostname: %m");
