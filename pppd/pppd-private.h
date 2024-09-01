@@ -210,6 +210,7 @@ extern int  option_priority;    /* priority of current options */
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */
 extern char	path_ipv6down[]; /* pathname of ipv6-down script */
+extern char	path_ipv6preup[]; /* pathname of ipv6-pre-up script */
 #endif
 
 #if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)

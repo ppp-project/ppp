@@ -524,8 +524,8 @@ seconds (default 3).
 .TP
 .B ipparam \fIstring
 Provides an extra parameter most of the notification scripts, most notably
-ip\-up, ip\-pre\-up, ip\-down, ipv6\-up, ipv6\-down, auth\-up and auth\-down
-scripts.  If this
+ip\-up, ip\-pre\-up, ip\-down, ipv6\-up, ipv6\-pre\-up, ipv6\-down,
+auth\-up and auth\-down scripts.  If this
 option is given, the \fIstring\fR supplied is given as the 6th
 parameter to those scripts.
 .TP
@@ -1740,7 +1740,7 @@ Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
 usually shell scripts, but could be executable code files instead.
 Pppd does not wait for the scripts to finish (except for the net\-init,
-net\-pre\-up and ip\-pre\-up scripts).  The scripts are
+net\-pre\-up, ip\-pre\-up and ipv6\-pre\-up scripts).  The scripts are
 executed as root (with the real and effective user-id set to 0), so
 that they can do things such as update routing tables or run
 privileged daemons.  Be careful that the contents of these scripts do
@@ -1879,6 +1879,14 @@ used for undoing the effects of the /etc/ppp/ip\-up and
 /etc/ppp/ip\-pre\-up scripts.  It is
 invoked in the same manner and with the same parameters as the ip\-up
 script.
+.TP
+.B /etc/ppp/ipv6\-pre\-up
+A program or script which is executed just before the ppp network
+interface is brought up.  It is executed with the same parameters as
+the ipv6\-up script (below).  At this point the interface exists but is
+still down.  This can be used to add firewall rules before any IPv6 traffic
+can pass through the interface.  Pppd will wait for this script to finish
+before bringing the interface up, so this script should run quickly.
 .TP
 .B /etc/ppp/ipv6\-up
 Like /etc/ppp/ip\-up, except that it is executed when the link is available 

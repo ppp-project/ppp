@@ -119,6 +119,7 @@
 #ifdef PPP_WITH_IPV6CP
 #define PPP_PATH_IPV6UP         PPP_PATH_CONFDIR "/ipv6-up"
 #define PPP_PATH_IPV6DOWN       PPP_PATH_CONFDIR "/ipv6-down"
+#define PPP_PATH_IPV6PREUP      PPP_PATH_CONFDIR "/ipv6-pre-up"
 #endif
 
 #define PPP_PATH_PPPDB          PPP_PATH_VARRUN  "/pppd2.tdb"

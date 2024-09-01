@@ -371,6 +371,7 @@ main(int argc, char *argv[])
 #ifdef PPP_WITH_IPV6CP
     strlcpy(path_ipv6up, PPP_PATH_IPV6UP, MAXPATHLEN);
     strlcpy(path_ipv6down, PPP_PATH_IPV6DOWN, MAXPATHLEN);
+    strlcpy(path_ipv6preup, PPP_PATH_IPV6PREUP, MAXPATHLEN);
 #endif
     link_stats_valid = 0;
     link_stats_print = 1;
