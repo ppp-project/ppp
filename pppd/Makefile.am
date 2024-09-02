@@ -10,7 +10,7 @@ utest_peap_SOURCES = peap.c utils.c mppe.c
 utest_peap_CPPFLAGS = -DUNIT_TEST
 utest_peap_LDFLAGS =
 
-utest_crypto_SOURCES = crypto.c
+utest_crypto_SOURCES = crypto.c utils.c
 utest_crypto_CPPFLAGS = -DUNIT_TEST
 utest_crypto_LDFLAGS =
 

@@ -35,11 +35,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "pppd.h"
 #include "crypto.h"
 #include "crypto-priv.h"
 
 #ifdef PPP_WITH_OPENSSL
 #include <openssl/opensslv.h>
+#include <openssl/err.h>
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -68,29 +70,41 @@ void PPP_MD_CTX_free(PPP_MD_CTX* ctx)
 
 int PPP_DigestInit(PPP_MD_CTX *ctx, const PPP_MD *type)
 {
+    int ret = 0;
     if (ctx) {
         ctx->md = *type;
         if (ctx->md.init_fn) {
-            return ctx->md.init_fn(ctx);
+            ret = ctx->md.init_fn(ctx);
+            if (!ret) {
+                PPP_crypto_error("Could not initialize digest");
+            }
         }
     }
-    return 0;
+    return ret;
 }
 
 int PPP_DigestUpdate(PPP_MD_CTX *ctx, const void *data, size_t length)
 {
+    int ret = 0;
     if (ctx && ctx->md.update_fn) {
-        return ctx->md.update_fn(ctx, data, length);
+        ret = ctx->md.update_fn(ctx, data, length);
+        if (!ret) {
+            PPP_crypto_error("Could not update digest");
+        }
     }
-    return 0;
+    return ret;
 }
 
 int PPP_DigestFinal(PPP_MD_CTX *ctx, unsigned char *out, unsigned int *outlen)
 {
+    int ret = 0;
     if (ctx && ctx->md.final_fn) {
-        return ctx->md.final_fn(ctx, out, outlen);
+        ret = ctx->md.final_fn(ctx, out, outlen);
+        if (!ret) {
+            PPP_crypto_error("Could not perform final digest");
+        }
     }
-    return 0;
+    return ret;
 }
 
 PPP_CIPHER_CTX *PPP_CIPHER_CTX_new(void)
@@ -112,32 +126,74 @@ void PPP_CIPHER_CTX_free(PPP_CIPHER_CTX *ctx)
 
 int PPP_CipherInit(PPP_CIPHER_CTX *ctx, const PPP_CIPHER *cipher, const unsigned char *key, const unsigned char *iv, int encr)
 {
+    int ret = 0;
     if (ctx && cipher) {
+        ret = 1;
         ctx->is_encr = encr;
         ctx->cipher = *cipher;
         if (ctx->cipher.init_fn) {
-            ctx->cipher.init_fn(ctx, key, iv);
+            ret = ctx->cipher.init_fn(ctx, key, iv);
+            if (!ret) {
+                PPP_crypto_error("Could not initialize cipher");
+            }
         }
-        return 1;
     }
-    return 0;
+    return ret;
 }
 
 int PPP_CipherUpdate(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl, const unsigned char *in, int inl)
 {
+    int ret = 0;
     if (ctx && ctx->cipher.update_fn) {
-        return ctx->cipher.update_fn(ctx, out, outl, in, inl);
+        ret = ctx->cipher.update_fn(ctx, out, outl, in, inl);
+        if (!ret) {
+            PPP_crypto_error("Could not perform crypto operation");
+        }
     }
-    return 0;
+    return ret;
 }
 
 int PPP_CipherFinal(PPP_CIPHER_CTX *ctx, unsigned char *out, int *outl)
 {
+    int ret = 0;
     if (ctx && ctx->cipher.final_fn) {
-        return ctx->cipher.final_fn(ctx, out, outl);
+        ret = ctx->cipher.final_fn(ctx, out, outl);
+        if (!ret) {
+            PPP_crypto_error("Could not perform final crypto operation");
+        }
     }
-    return 0;
+    return ret;
 }
+
+void
+PPP_crypto_error(char *fmt, ...)
+{
+    va_list args;
+    char buf[1024];
+    int len = sizeof(buf);
+    int off = 0;
+    int err = 0;
+
+    va_start(args, fmt);
+    off = vsnprintf(buf, len, fmt, args);
+    va_end(args);
+
+#ifdef PPP_WITH_OPENSSL
+    err = ERR_peek_error();
+    if (err == 0 || (len-off) < 130) {
+        error("%s", buf);
+        return;
+    }
+
+#ifdef OPENSSL_VERSION_NUMBER < 0x10100000L
+    ERR_load_crypto_strings();
+#endif
+    error("%s, %s\n", buf, ERR_reason_error_string(err));
+#else
+    error("%s", buf);
+#endif
+}
+
 
 int PPP_crypto_init()
 {
@@ -147,15 +203,18 @@ int PPP_crypto_init()
     g_crypto_ctx.legacy = OSSL_PROVIDER_load(NULL, "legacy");
     if (g_crypto_ctx.legacy == NULL)
     {
+        PPP_crypto_error("Could not load legacy provider");
         goto done;
     }
 
     g_crypto_ctx.provider = OSSL_PROVIDER_load(NULL, "default");
     if (g_crypto_ctx.provider == NULL)
     {
+        PPP_crypto_error("Could not load default provider");
         goto done;
     }
 #endif
+
     retval = 1;
 
 done:
@@ -176,11 +235,20 @@ int PPP_crypto_deinit()
         g_crypto_ctx.provider = NULL;
     }
 #endif
+
+#ifdef OPENSSL_VERSION_NUMBER < 0x10100000L
+    ERR_free_strings();
+#endif
     return 1;
 }
 
 #ifdef UNIT_TEST
 #include <stdio.h>
+
+int debug;
+int error_count;
+int unsuccess;
+
 
 int test_md4()
 {

@@ -147,6 +147,11 @@ int PPP_CipherFinal(PPP_CIPHER_CTX *ctx,
         unsigned char *out, int *outl);
 
 /*
+ * Log an error message to the log and append the crypto error
+ */
+void PPP_crypto_error(char *fmt, ...);
+
+/*
  * Global initialization, must be called once per process
  */
 int PPP_crypto_init();
