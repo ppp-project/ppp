@@ -1200,7 +1200,8 @@ by the peer (if any) are passed to the /etc/ppp/ip\-up script in the
 environment variables DNS1 and DNS2, and the environment variable
 USEPEERDNS will be set to 1.  In addition, pppd will create an
 /etc/ppp/resolv.conf file containing one or two nameserver lines with
-the address(es) supplied by the peer.
+the address(es) supplied by the peer (unless the \fInoresolvconf\fR
+option is given).
 .TP
 .B usepeerwins
 Ask the peer for up to 2 WINS server addresses.  The addresses supplied
@@ -1211,6 +1212,9 @@ USEPEERWINS will be set to 1.
 Please note that some modems (like the Huawei E220) requires this option in
 order to avoid a race condition that results in the incorrect DNS servers
 being assigned.
+.TP
+.B noresolvconf
+Do not create the /etc/ppp/resolv.conf file.
 .TP
 .B user \fIname
 Sets the name used for authenticating the local system to the peer to

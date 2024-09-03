@@ -88,6 +88,7 @@ static int default_route_set[NUM_PPP];	/* Have set up a default route */
 static int proxy_arp_set[NUM_PPP];	/* Have created proxy arp entry */
 static bool usepeerdns;			/* Ask peer for DNS addrs */
 static bool usepeerwins;		/* Ask peer for WINS addrs */
+static bool noresolvconf;		/* Do not create resolv.conf */
 static int ipcp_is_up;			/* have called np_up() */
 static int ipcp_is_open;		/* haven't called np_finished() */
 static bool ask_for_local;		/* request our address from peer */
@@ -218,6 +219,9 @@ static struct option ipcp_option_list[] = {
 
     { "usepeerwins", o_bool, &usepeerwins,
       "Ask peer for WINS address(es)", 1 },
+
+    { "noresolvconf", o_bool, &noresolvconf,
+      "Do not create resolv.conf", 1 },
 
     { "netmask", o_special, (void *)setnetmask,
       "set netmask", OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, netmask_str },
@@ -2151,6 +2155,9 @@ static void
 create_resolv(u_int32_t peerdns1, u_int32_t peerdns2)
 {
     FILE *f;
+
+    if (noresolvconf)
+	return;
 
     f = fopen(PPP_PATH_RESOLV, "w");
     if (f == NULL) {
