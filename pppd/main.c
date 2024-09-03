@@ -363,6 +363,9 @@ main(int argc, char *argv[])
     struct protent *protp;
     char numbuf[16];
 
+    strlcpy(path_upapfile, PPP_PATH_UPAPFILE, MAXPATHLEN);
+    strlcpy(path_chapfile, PPP_PATH_CHAPFILE, MAXPATHLEN);
+
     strlcpy(path_ipup, PPP_PATH_IPUP, MAXPATHLEN);
     strlcpy(path_ipdown, PPP_PATH_IPDOWN, MAXPATHLEN);
 

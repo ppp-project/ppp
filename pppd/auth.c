@@ -83,6 +83,7 @@
 #include <grp.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -253,6 +254,8 @@ bool explicit_remote = 0;	/* User specified explicit remote name */
 bool explicit_user = 0;		/* Set if "user" option supplied */
 bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
+char path_upapfile[MAXPATHLEN];	/* Pathname of pap-secrets file */
+char path_chapfile[MAXPATHLEN];	/* Pathname of chap-secrets file */
 
 #if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 char *cacert_file  = NULL;  /* CA certificate file (pem format) */
@@ -416,6 +419,14 @@ struct option auth_options[] = {
     { "remotename", o_string, remote_name,
       "Set remote name for authentication", OPT_PRIO | OPT_STATIC,
       &explicit_remote, MAXNAMELEN },
+
+    { "pap-secrets", o_string, path_upapfile,
+      "Set pathname of pap-secrets", OPT_PRIO | OPT_PRIV | OPT_STATIC,
+      NULL, MAXPATHLEN },
+
+    { "chap-secrets", o_string, path_chapfile,
+      "Set pathname of chap-secrets", OPT_PRIO | OPT_PRIV | OPT_STATIC,
+      NULL, MAXPATHLEN },
 
     { "login", o_bool, &uselogin,
       "Use system password database for PAP", OPT_A2COPY | 1 ,
@@ -1538,7 +1549,7 @@ check_passwd(int unit,
      * Open the file of pap secrets and scan for a suitable secret
      * for authenticating this user.
      */
-    filename = PPP_PATH_UPAPFILE;
+    filename = path_upapfile;
     addrs = opts = NULL;
     ret = UPAP_AUTHNAK;
     f = fopen(filename, "r");
@@ -1639,7 +1650,7 @@ null_login(int unit)
      * Open the file of pap secrets and scan for a suitable secret.
      */
     if (ret <= 0) {
-	filename = PPP_PATH_UPAPFILE;
+	filename = path_upapfile;
 	addrs = NULL;
 	f = fopen(filename, "r");
 	if (f == NULL)
@@ -1686,7 +1697,7 @@ get_pap_passwd(char *passwd)
 	    return ret;
     }
 
-    filename = PPP_PATH_UPAPFILE;
+    filename = path_upapfile;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1723,7 +1734,7 @@ have_pap_secret(int *lacks_ipp)
 	    return ret;
     }
 
-    filename = PPP_PATH_UPAPFILE;
+    filename = path_upapfile;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1765,7 +1776,7 @@ have_chap_secret(char *client, char *server,
 	}
     }
 
-    filename = PPP_PATH_CHAPFILE;
+    filename = path_chapfile;
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
@@ -1851,7 +1862,7 @@ get_secret(int unit, char *client, char *server,
 	    return 0;
 	}
     } else {
-	filename = PPP_PATH_CHAPFILE;
+	filename = path_chapfile;
 	addrs = NULL;
 	secbuf[0] = 0;
 
