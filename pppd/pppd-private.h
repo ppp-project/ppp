@@ -192,6 +192,9 @@ extern bool	tune_kernel;	/* May alter kernel settings as necessary */
 extern int	connect_delay;	/* Time to delay after connect script */
 extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
+extern char	path_net_init[]; /* pathname of net-init script */
+extern char	path_net_preup[];/* pathname of net-pre-up script */
+extern char	path_net_down[]; /* pathname of net-down script */
 extern char	path_ipup[]; 	/* pathname of ip-up script */
 extern char	path_ipdown[];	/* pathname of ip-down script */
 extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
