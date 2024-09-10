@@ -1766,7 +1766,7 @@ ip_demand_conf(int u)
     }
     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
 	return 0;
-    ipcp_script(PPP_PATH_IPPREUP, 1);
+    ipcp_script(path_ippreup, 1);
     if (!sifup(u))
 	return 0;
     if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
@@ -1932,7 +1932,7 @@ ipcp_up(fsm *f)
 	ifindex = if_nametoindex(ifname);
 
 	/* run the pre-up script, if any, and wait for it to finish */
-	ipcp_script(PPP_PATH_IPPREUP, 1);
+	ipcp_script(path_ippreup, 1);
 
 	/* check if preup script renamed the interface */
 	if (!if_indextoname(ifindex, ifname)) {

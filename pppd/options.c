@@ -123,6 +123,7 @@ int	connect_delay = 1000;	/* wait this many ms after connect script */
 int	req_unit = -1;		/* requested interface unit */
 char	path_ipup[MAXPATHLEN];	/* pathname of ip-up script */
 char	path_ipdown[MAXPATHLEN];/* pathname of ip-down script */
+char	path_ippreup[MAXPATHLEN]; /* pathname of ip-pre-up script */
 char	req_ifname[IFNAMSIZ];	/* requested interface name */
 bool	multilink = 0;		/* Enable multilink operation */
 char	*bundle_name = NULL;	/* bundle name for multilink */
@@ -336,6 +337,9 @@ struct option general_options[] = {
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
     { "ip-down-script", o_string, path_ipdown,
       "Set pathname of ip-down script",
+      OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
+    { "ip-pre-up-script", o_string, path_ippreup,
+      "Set pathname of ip-pre-up script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 
 #ifdef PPP_WITH_IPV6CP

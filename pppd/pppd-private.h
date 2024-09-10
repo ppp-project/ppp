@@ -194,6 +194,7 @@ extern int	max_data_rate;	/* max bytes/sec through charshunt */
 extern int	req_unit;	/* interface unit number to use */
 extern char	path_ipup[]; 	/* pathname of ip-up script */
 extern char	path_ipdown[];	/* pathname of ip-down script */
+extern char	path_ippreup[];	/* pathname of ip-pre-up script */
 extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
 extern bool	multilink;	/* enable multilink operation (options.c) */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
