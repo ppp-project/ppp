@@ -6,21 +6,7 @@ if PPP_WITH_PLUGINS
 SUBDIRS += pppd/plugins
 endif
 
-DIST_SUBDIRS = $(SUBDIRS) common include modules scripts
-
-#
-# *HACK*
-#   This is to work around the kernel module for PPP on Sun Solaris
-if SUNOS
-all-am:
-	(cd solaris ; $(MAKE) -f Makefile)
-
-clean-generic:
-	(cd solaris ; $(MAKE) -f Makefile clean)
-
-install-am:
-	(cd solaris ; $(MAKE) -f Makefile install)
-endif
+DIST_SUBDIRS = $(SUBDIRS) include scripts
 
 install-data-hook:
 	(cd $(DESTDIR)/$(sysconfdir)/$(PACKAGE) ; \
@@ -54,27 +40,6 @@ EXTRA_README = \
     SETUP \
     Submitting-patches.md
 
-EXTRA_SOLARIS = \
-    solaris/Makedefs \
-    solaris/Makedefs.gcc \
-    solaris/Makedefs.sol2 \
-    solaris/Makefile.sol2 \
-    solaris/Makefile.sol2-64 \
-    solaris/Makefile.sol2-64x \
-    solaris/Makefile.sol2gcc \
-    solaris/Makefile.sol2gcc-64 \
-    solaris/Makefile.sol2gcc-64x \
-    solaris/Makefile.top \
-    solaris/ppp_ahdlc.c \
-    solaris/ppp_ahdlc_mod.c \
-    solaris/ppp.c \
-    solaris/ppp_comp.c \
-    solaris/ppp_comp_mod.c \
-    solaris/ppp.conf \
-    solaris/ppp_mod.c \
-    solaris/ppp_mod.h
-
 EXTRA_DIST= \
     $(sample_DATA) \
-    $(EXTRA_README) \
-    $(EXTRA_SOLARIS)
+    $(EXTRA_README)
