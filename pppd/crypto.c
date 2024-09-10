@@ -185,7 +185,7 @@ PPP_crypto_error(char *fmt, ...)
         return;
     }
 
-#ifdef OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     ERR_load_crypto_strings();
 #endif
     error("%s, %s\n", buf, ERR_reason_error_string(err));
@@ -236,7 +236,7 @@ int PPP_crypto_deinit()
     }
 #endif
 
-#ifdef OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     ERR_free_strings();
 #endif
     return 1;
