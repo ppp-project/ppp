@@ -333,9 +333,7 @@ AC_CONFIG_FILES([
     chat/Makefile
     contrib/Makefile
     contrib/pppgetpass/Makefile
-    common/Makefile
     include/Makefile
-    modules/Makefile
     pppd/Makefile
     pppd/pppd.pc
     pppd/plugins/Makefile
@@ -349,72 +347,6 @@ AC_CONFIG_FILES([
     ])
 AC_OUTPUT
 
-
-AS_IF([test "x${build_sunos}" = "xyes" ], [[
-    echo "
-Setting up SunOS kernel module(s)"
-    mkmkf() {
-        rm -f $2
-        if [ -f $1 ]; then
-            echo "  $2 <= $1"
-            sed -e "s,@DESTDIR@,$prefix,g" \
-                -e "s,@SYSCONF@,$sysconfdir,g" \
-                -e "s,@CC@,$CC,g" \
-                -e "s|@CFLAGS@|$CFLAGS|g" $1 > $2
-        fi
-    }
-
-    release=`uname -r`
-    karch=`/usr/bin/isainfo -k`
-    makext="sol2"
-    archvariant=
-
-    case "$karch" in
-        amd64)
-            archvariant='-64x'
-            ;;
-        sparcv9)
-            archvariant='-64'
-            ;;
-        *)
-            ;;
-    esac
-
-    usegcc=$CC
-    if [ -x /opt/SUNWspro/bin/cc -a "$usegcc" != gcc ] &&
-       /opt/SUNWspro/bin/cc -flags >/dev/null 2>&1; then
-      if [ "$archvariant" = "-64x" ]; then
-        ( cd /tmp; echo "int x;" > ppp$$.c
-	  /opt/SUNWspro/bin/cc -c -errwarn -xchip=opteron -m64 ppp$$.c >/dev/null 2>&1 || (
-	    echo "WorkShop C is unable to make 64 bit modules, and your $karch system needs"
-	    echo "them.  Consider upgrading cc on this machine."
-	    rm -f ppp$$.c
-	    exit 1
-	  ) || exit 1
-	  rm -f ppp$$.c ppp$$.o
-        ) || exit 1
-      fi
-    elif gcc --version >/dev/null 2>&1; then
-      archvariant=gcc$archvariant
-      compiletype=.gcc
-      if [ "$archvariant" = "gcc-64" -o"$archvariant" = "gcc-64x" ]; then
-        ( cd /tmp; touch ppp$$.c
-	  gcc -c -m64 ppp$$.c >/dev/null 2>&1 || (
-	    echo "gcc is unable to make 64 bit modules, and your $karch system needs them."
-	    echo "Consider upgrading gcc on this machine, or switching to Sun WorkShop."
-	    rm -f ppp$$.c
-	    exit 1
-	  ) || exit 1
-	  rm -f ppp$$.c ppp$$.o
-        ) || exit 1
-      fi
-    else
-      echo "C compiler not found; hoping for the best."
-    fi
-
-    mkmkf solaris/Makedefs$compiletype Makedefs.com
-    mkmkf solaris/Makefile.sol2$archvariant solaris/Makefile
-]])
 
 echo "
 $PACKAGE_NAME version $PACKAGE_VERSION
