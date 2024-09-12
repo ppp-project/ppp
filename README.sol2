@@ -1,3 +1,5 @@
+NOTE: These instructions are out of date.
+
 This file describes the installation process for ppp-2.4 on systems
 running Solaris.  The Solaris and SVR4 ports share a lot of code but
 are not identical.  The STREAMS kernel modules and driver for Solaris

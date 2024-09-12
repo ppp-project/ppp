@@ -24,10 +24,9 @@ the link and sets up the ppp network interface.  Pppd includes support
 for authentication, so you can control which other systems may make a
 PPP connection and what IP addresses they may use.
 
-The platforms supported by this package are Linux and Solaris.  I have
-code for NeXTStep, FreeBSD, SunOS 4.x, SVR4, Tru64 (Digital Unix), AIX
-and Ultrix but no active maintainers for these platforms.  Code for
-all of these except AIX is included in the ppp-2.3.11 release.
+The platforms supported by this package are Linux and Solaris.
+(There is also code to support various old flavours of Unix in the git
+repository, but it is quite old and unmaintained.)
 
 The kernel code for Linux is no longer distributed with this package,
 since the relevant kernel code is in the official Linux kernel source
@@ -76,8 +75,21 @@ What's new in ppp-2.5.1
   additional, more deterministic ways for pppd to interact with the
   rest of the networking configuration.
 
+* New options have been added to allow the system administrator to
+  set the location of various scripts and secrets files.
+
+* A new "noresolvconf" option tells pppd not to write the
+  /etc/ppp/resolv.conf file; DNS server addresses, if obtained from
+  the peer, are still passed to scripts in the environment.
+
 * Pppd will now create the directory for the TDB connection database
   if it doesn't already exist.
+
+* Kernel module code for Solaris is no longer included.
+
+* Support for decompressing compressed packets has been removed from
+  pppdump, because the zlib code used was old and potentially
+  vulnerable.
 
 * Various other bug fixes and minor enhancements.
 

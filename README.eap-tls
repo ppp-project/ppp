@@ -17,9 +17,11 @@ EAP-TLS authentication support for PPP
     mechanism. It also provides optional encryption using the MPPE
     protocol.
 
-    This patch provide EAP-TLS support to pppd.
-    This authentication method can be used in both client or server
-    mode.
+    EAP-TLS support is included in pppd, and is enabled or disabled
+    at configure time by using the --enable-eaptls and --disable-eaptls
+    arguments to ./configure.
+
+    This authentication method can be used in both client and server mode.
 
 2. Building
 

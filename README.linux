@@ -95,8 +95,8 @@ If you obtained this package in .rpm or .deb format, you simply follow
 the usual procedure for installing the package.
 
 If you are using the .tar.gz form of this package, then cd into the
-ppp-2.4.5 directory you obtained by unpacking the archive and issue
-the following commands:
+directory you obtained by unpacking the archive and issue the
+following commands:
 
 $ ./configure
 $ make
@@ -108,8 +108,12 @@ If the /etc/ppp configuration directory doesn't exist, the `make
 install' step will create it and install some default configuration
 files.
 
+The ./configure script can take various optional arguments to control
+what features are included, what directories are used for installation,
+etc.  Type "./configure --help" to see a list of options.
 
-2.3 System setup for 2.4 kernels
+
+2.3 System setup for 2.4 (and later) kernels
 
 Under the 2.4 series kernels, pppd needs to be able to open /dev/ppp,
 character device (108,0).  If you are using udev (as most distributions
