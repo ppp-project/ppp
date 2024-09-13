@@ -10,16 +10,17 @@ DIST_SUBDIRS = $(SUBDIRS) include scripts
 
 install-data-hook:
 	(cd $(DESTDIR)/$(sysconfdir)/$(PACKAGE) ; \
-	 chmod 600 chap-secrets pap-secrets eaptls-server eaptls-client)
+	 chmod 600 chap-secrets.example pap-secrets.example \
+	 eaptls-server.example eaptls-client.example)
 
 sampledir = $(sysconfdir)/$(PACKAGE)
 sample_DATA = \
-    etc.ppp/options \
-    etc.ppp/chap-secrets \
-    etc.ppp/pap-secrets \
-    etc.ppp/eaptls-server \
-    etc.ppp/eaptls-client \
-    etc.ppp/openssl.cnf
+    etc.ppp/options.example \
+    etc.ppp/chap-secrets.example \
+    etc.ppp/pap-secrets.example \
+    etc.ppp/eaptls-server.example \
+    etc.ppp/eaptls-client.example \
+    etc.ppp/openssl.cnf.example
 
 EXTRA_README = \
     Changes-2.3 \
