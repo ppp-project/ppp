@@ -89,6 +89,10 @@ pppd_SOURCES = \
     upap.c \
     utils.c
 
+# Things produced by the build process, to be installed but not distributed
+BUILT_SOURCE = \
+    pppdconf.h
+
 pppd_CPPFLAGS = -DSYSCONFDIR=\"${sysconfdir}\" -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
 pppd_LDFLAGS =
 pppd_LIBS =
