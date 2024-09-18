@@ -64,6 +64,11 @@ authenticating itself to you, of course.)
 What's new in ppp-2.5.1
 ***********************
 
+* The files copied to /etc/ppp (or <sysconfdir>/ppp) now have
+  ".example" appended to their filenames, so as to indicate that they
+  are just examples, and to avoid overwriting existing configuration
+  files.
+
 * Pppd can now measure and log the round-trip time (RTT) of LCP
   echo-requests and record them in a binary file structured as a
   circular buffer.  Other programs or scripts can examine the file and
@@ -90,6 +95,8 @@ What's new in ppp-2.5.1
 * Support for decompressing compressed packets has been removed from
   pppdump, because the zlib code used was old and potentially
   vulnerable.
+
+* Some old code has been removed.
 
 * Various other bug fixes and minor enhancements.
 
