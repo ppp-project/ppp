@@ -1,11 +1,6 @@
-EXTRA_CHATCHAT = \
-    chatchat/chatchat.c \
-    chatchat/README
-
 EXTRA_SCRIPTS = \
     autopppd \
     callback \
-    chatchat \
     ip-down.local.add \
     ip-up.local.add \
     ipv6-down.sample \
@@ -28,5 +23,4 @@ EXTRA_SCRIPTS = \
     secure-card
 
 EXTRA_DIST= \
-    $(EXTRA_CHATCHAT) \
     $(EXTRA_SCRIPTS)
