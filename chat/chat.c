@@ -1,6 +1,31 @@
+/* SPDX-License-Identifier: MIT */
 /*
  *	Chat -- a program for automatic session establishment (i.e. dial
  *		the phone and log in).
+ *
+ * This version is Copyright 1995-2023 Paul Mackerras <paulus@ozlabs.org>
+ * based on the original public-domain version by Karl Fox.
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the “Software”), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
  *
  * Standard termination codes:
  *  0 - successful completion of the script
@@ -11,7 +36,6 @@
  *  5 - the second string declared as "ABORT"
  *  6 - ... and so on for successive ABORT strings.
  *
- *	This software is in the public domain.
  *
  * -----------------
  *	22-May-99 added environment substitutuion, enabled with -E switch.
