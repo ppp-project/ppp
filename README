@@ -35,6 +35,12 @@ Linux distributions.  The Linux kernel code supports using PPP over
 things other than serial ports, such as PPP over Ethernet and PPP over
 ATM.
 
+Similarly, the kernel code for Solaris is no longer distributed with
+this package.  See the Illumos web site for pointers to the kernel
+module source code and build environment.
+
+  https://www.illumos.org/
+
 
 Installation.
 *************
@@ -172,7 +178,7 @@ to linux-ppp@vger.kernel.org, or report them to the maintainer for the
 port for the operating system you are using:
 
 Linux			Paul Mackerras <paulus@ozlabs.org>
-Solaris			James Carlson <carlson@workingcode.com>
+Solaris			James Carlson <carlsonj@workingcode.com>
 
 
 Copyrights:

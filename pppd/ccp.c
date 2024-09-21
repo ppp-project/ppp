@@ -685,7 +685,10 @@ static int
 	+ (go->deflate && go->deflate_draft? CILEN_DEFLATE: 0)
 	+ (go->predictor_1? CILEN_PREDICTOR_1: 0)
 	+ (go->predictor_2? CILEN_PREDICTOR_2: 0)
-	+ (go->mppe? CILEN_MPPE: 0);
+#ifdef PPP_WITH_MPPE
+	+ (go->mppe? CILEN_MPPE: 0)
+#endif
+        ;
 }
 
 /*
