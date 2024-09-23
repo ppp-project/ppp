@@ -492,6 +492,7 @@ ppp_set_remote_number(const char *buf)
 {
     if (buf) {
         strlcpy(remote_number, buf, sizeof(remote_number));
+        ppp_script_setenv("REMOTENUMBER", remote_number, 0);
     }
 }
 
