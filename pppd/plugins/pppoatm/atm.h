@@ -103,6 +103,6 @@ int sap2text(char *buffer,int length,const struct atm_sap *sap,int flags);
 int sap_equal(const struct atm_sap *a,const struct atm_sap *b,int flags,...);
 
 int __t2q_get_rate(const char **text,int up);
-int __atmlib_fetch(const char **pos,...); /* internal use only */
+size_t __atmlib_fetch(const char **pos,...); /* internal use only */
 
 #endif
