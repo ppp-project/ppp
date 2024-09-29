@@ -852,6 +852,8 @@ set_ifunit(int iskey)
 	create_pidfile(getpid());	/* write pid to file */
 	create_linkpidfile(getpid());
     }
+    if (*remote_number)
+        ppp_script_setenv("REMOTENUMBER", remote_number, 0);
     run_net_script(path_net_init, 1);
 }
 
