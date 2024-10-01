@@ -34,6 +34,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "pppd.h"
 #include "crypto.h"
@@ -243,7 +244,6 @@ int PPP_crypto_deinit()
 }
 
 #ifdef UNIT_TEST
-#include <stdio.h>
 
 int debug;
 int error_count;
