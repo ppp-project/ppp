@@ -1780,6 +1780,12 @@ set when IPV6CP has come up.
 The authenticated name of the peer.  This is only set if the peer
 authenticates itself.
 .TP
+.B REMOTENUMBER
+The remote's number as provided to pppd by the remotenumber option.  The
+meaning of this varies based on the type of connection, xl2tpd for example can
+either provide the dialing number AVP or the remote's IP address.  pppoe-server
+typically provides the MAC address.
+.TP
 .B SPEED
 The baud rate of the tty device.
 .TP
