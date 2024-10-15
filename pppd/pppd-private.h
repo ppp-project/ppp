@@ -65,7 +65,11 @@
  * Where should PPP_DRV_NAME come from? Do we include it here?
  */
 #if !defined(PPP_DRV_NAME)
+#if defined(SOL2)
+#define PPP_DRV_NAME	"sppp"
+#else
 #define PPP_DRV_NAME	"ppp"
+#endif /* defined(SOL2) */
 #endif /* !defined(PPP_DRV_NAME) */
 
 

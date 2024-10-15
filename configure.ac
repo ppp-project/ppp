@@ -138,7 +138,7 @@ AM_CONDITIONAL(PPP_WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
 AM_COND_IF([PPP_WITH_CHAPMS],
     AC_DEFINE([PPP_WITH_CHAPMS], 1, [Have Microsoft CHAP support]))
 
-AM_CONDITIONAL(PPP_WITH_MPPE, test "x${enable_microsoft_extensions}" != "xno")
+AM_CONDITIONAL(PPP_WITH_MPPE, test "x${build_sunos}" != "xyes" && test "x${enable_microsoft_extensions}" != "xno")
 AM_COND_IF([PPP_WITH_MPPE],
     AC_DEFINE([PPP_WITH_MPPE], 1, [Have Microsoft MPPE support]))
 
