@@ -171,7 +171,9 @@ CONF *eaptls_ssl_load_config( void )
 #ifndef OPENSSL_NO_ENGINE
     ENGINE_load_builtin_engines();
 #endif
+#if !defined(LIBRESSL_VERSION_NUMBER) || (LIBRESSL_VERSION_NUMBER < 0x4000000fL)
     OPENSSL_load_builtin_modules();
+#endif
    
     dbglog( "Loading OpenSSL configured modules" );
     if (CONF_modules_load( config, NULL, 0 ) <= 0 )
