@@ -317,22 +317,11 @@ AM_COND_IF([PPP_WITH_FILTER], [
         ])
     ])
 
-#
-# Some contributions require GTK/GLIB
-AC_ARG_WITH([gtk], AS_HELP_STRING([--with-gtk], [Build contributions with the GTK+ interface]))
-if test "x${with_gtk}" = "xyes"; then
-    PKG_CHECK_MODULES([GTK], [gtk+-2.0])
-    PKG_CHECK_MODULES([GLIB], [glib-2.0])
-fi
-AM_CONDITIONAL([WITH_GTK], test "x${with_gtk}" = "xyes")
-
 AC_DEFINE_UNQUOTED(PPPD_VERSION, "$VERSION", [Version of pppd])
 
 AC_CONFIG_FILES([
     Makefile
     chat/Makefile
-    contrib/Makefile
-    contrib/pppgetpass/Makefile
     include/Makefile
     pppd/Makefile
     pppd/pppd.pc
