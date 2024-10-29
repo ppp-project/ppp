@@ -1332,7 +1332,7 @@ print_link_stats(void)
     if (link_stats_print && link_stats_valid) {
        int t = (link_connect_time + 5) / 6;    /* 1/10ths of minutes */
        info("Connect time %d.%d minutes.", t/10, t%10);
-       info("Sent %u bytes, received %u bytes.",
+       info("Sent %llu bytes, received %llu bytes.",
 	    link_stats.bytes_out, link_stats.bytes_in);
        link_stats_print = 0;
     }
