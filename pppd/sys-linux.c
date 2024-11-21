@@ -2280,8 +2280,6 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
     SET_SA_FAMILY (rt.rt_gateway, AF_INET);
 
     rt.rt_dev = ifname;
-
-    rt.rt_dev = ifname;
     rt.rt_metric = dfl_route_metric + 1; /* +1 for binary compatibility */
 
     if (kernel_version > KVERSION(2,1,0)) {
