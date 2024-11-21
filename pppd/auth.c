@@ -513,7 +513,7 @@ static int
 setupapfile(char **argv)
 {
     FILE *ufile;
-    int l;
+    size_t l;
     uid_t euid;
     char u[MAXNAMELEN], p[MAXSECRETLEN];
     char *fname;
@@ -605,7 +605,7 @@ static int
 set_noauth_addr(char **argv)
 {
     char *addr = *argv;
-    int l = strlen(addr) + 1;
+    size_t l = strlen(addr) + 1;
     struct wordlist *wp;
 
     wp = (struct wordlist *) malloc(sizeof(struct wordlist) + l);
@@ -626,7 +626,7 @@ static int
 set_permitted_number(char **argv)
 {
     char *number = *argv;
-    int l = strlen(number) + 1;
+    size_t l = strlen(number) + 1;
     struct wordlist *wp;
 
     wp = (struct wordlist *) malloc(sizeof(struct wordlist) + l);
@@ -1849,7 +1849,8 @@ get_secret(int unit, char *client, char *server,
 	   char *secret, int *secret_len, int am_server)
 {
     FILE *f;
-    int ret, len;
+    int ret;
+    size_t len;
     char *filename;
     struct wordlist *addrs, *opts;
     char secbuf[MAXWORDLEN];
@@ -2179,7 +2180,7 @@ auth_number(void)
 	return 1;
 
     /* Allow if we have a match in the authorization list. */
-    while (wp) {
+    do {
 	/* trailing '*' wildcard */
 	l = strlen(wp->word);
 	if (l > 0 && (wp->word)[l - 1] == '*') {
@@ -2188,7 +2189,7 @@ auth_number(void)
 	} else if (strcasecmp(wp->word, remote_number) == 0)
 	    return 1;
 	wp = wp->next;
-    }
+    } while (wp);
 
     return 0;
 }
