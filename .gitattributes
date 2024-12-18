@@ -1,0 +1,2 @@
+# Exclude .git* files from being exported.
+.git* export-ignore
