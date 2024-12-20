@@ -23,8 +23,6 @@
 * General Public License, version 2 or (at your option) any later version.
 *
 ***********************************************************************/
-static char const RCSID[] =
-"$Id: radius.c,v 1.32 2008/05/26 09:18:08 paulus Exp $";
 
 #include <syslog.h>
 #include <sys/types.h>

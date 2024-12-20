@@ -16,8 +16,6 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * Original version by James Carlson
- *
- * $Id: eap.h,v 1.2 2003/06/11 23:56:26 paulus Exp $
  */
 
 #ifndef PPP_EAP_H

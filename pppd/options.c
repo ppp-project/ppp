@@ -1177,7 +1177,7 @@ usage(void)
     FILE *fp = stderr;
     if (in_phase(PHASE_INITIALIZE)) {
         fprintf(fp, "%s v%s\n", PACKAGE_NAME, PACKAGE_VERSION);
-        fprintf(fp, "Copyright (C) 1999-2022 Paul Mackerras, and others. All rights reserved.\n\n");
+        fprintf(fp, "Copyright (C) 1999-2024 Paul Mackerras, and others. All rights reserved.\n\n");
 
 
         fprintf(fp, "License BSD: The 3 clause BSD license <https://opensource.org/licenses/BSD-3-Clause>\n");

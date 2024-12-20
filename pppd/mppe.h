@@ -15,15 +15,6 @@
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. The name(s) of the authors of this software must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
- *
- * 4. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by Paul Mackerras
- *     <paulus@ozlabs.org>".
- *
  * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
  * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
  * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY

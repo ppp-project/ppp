@@ -13,9 +13,6 @@
 *
 ***********************************************************************/
 
-static char const RCSID[] =
-"$Id: common.c,v 1.3 2008/06/09 08:34:23 paulus Exp $";
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

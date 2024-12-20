@@ -35,10 +35,6 @@
 #define const
 #endif
 
-#ifndef lint
-static const char rcsid[] = "$Id: pppstats.c,v 1.29 2002/10/27 12:56:26 fcusack Exp $";
-#endif
-
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>

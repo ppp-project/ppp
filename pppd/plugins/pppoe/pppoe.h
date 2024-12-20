@@ -9,8 +9,6 @@
 * This program may be distributed according to the terms of the GNU
 * General Public License, version 2 or (at your option) any later version.
 *
-* $Id: pppoe.h,v 1.4 2008/06/15 04:35:50 paulus Exp $
-*
 ***********************************************************************/
 
 #include <stdio.h>		/* For FILE */

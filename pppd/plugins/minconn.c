@@ -1,7 +1,7 @@
 /*
  * minconn.c - pppd plugin to implement a `minconnect' option.
  *
- * Copyright (c) 1999 Paul Mackerras. All rights reserved.
+ * Copyright (c) 1999-2024 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -14,15 +14,6 @@
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
- *
- * 3. The name(s) of the authors of this software must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
- *
- * 4. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by Paul Mackerras
- *     <paulus@ozlabs.org>".
  *
  * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
  * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY

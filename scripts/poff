@@ -1,6 +1,5 @@
 #!/bin/sh
 
-# $Id: poff,v 1.1 2002/11/24 23:30:44 etbe Exp $
 # Written by John Hasler <john@dhh.gt.org> and based on work 
 # by Phil Hands <phil@hands.com>.  Distributed under the GNU GPL
 

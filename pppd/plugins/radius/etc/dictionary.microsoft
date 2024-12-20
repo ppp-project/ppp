@@ -1,8 +1,6 @@
 #
 #	Microsoft's VSA's, from RFC 2548
 #
-#	$Id: dictionary.microsoft,v 1.1 2004/11/14 07:26:26 paulus Exp $
-#
 
 VENDOR		Microsoft	311	Microsoft
 

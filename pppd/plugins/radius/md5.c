@@ -1,6 +1,3 @@
-/*
- * $Id: md5.c,v 1.1 2004/11/14 07:26:26 paulus Exp $
- */
 #include <stddef.h>
 
 #include <pppd/crypto.h>

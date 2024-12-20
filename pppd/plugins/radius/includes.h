@@ -1,6 +1,4 @@
 /*
- * $Id: includes.h,v 1.1 2004/11/14 07:26:26 paulus Exp $
- *
  * Copyright (C) 1997 Lars Fenneberg
  *
  * Copyright 1992 Livingston Enterprises, Inc.

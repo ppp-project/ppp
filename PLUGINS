@@ -327,5 +327,3 @@ access the MPPE keys directly via the:
 variables. The 2.5.0 release prohibits the direct access of these
 variables by making them static and private in favor of using the new
 API.
-
-## $Id: PLUGINS,v 1.8 2008/06/15 07:02:18 paulus Exp $ ##

@@ -1,9 +1,7 @@
-/*	$Id: ppp_defs.h,v 1.11 2002/12/06 09:49:15 paulus Exp $	*/
-
 /*
  * ppp_defs.h - PPP definitions.
  *
- * Copyright (c) 1994-2002 Paul Mackerras. All rights reserved.
+ * Copyright (c) 1994-2024 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -17,15 +15,6 @@
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. The name(s) of the authors of this software must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
- *
- * 4. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by Paul Mackerras
- *     <paulus@ozlabs.org>".
- *
  * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
  * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
  * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
@@ -33,18 +22,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- *  ==FILEVERSION 20020521==
- *
- *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, please set the above date.
- *     ppp_defs.h is shipped with a PPP distribution as well as with the kernel;
- *     if everyone increases the FILEVERSION number above, then scripts
- *     can do the right thing when deciding whether to install a new ppp_defs.h
- *     file.  Don't change the format of that line otherwise, so the
- *     installation script can recognize it.
  */
 
 #ifndef _PPP_DEFS_H_

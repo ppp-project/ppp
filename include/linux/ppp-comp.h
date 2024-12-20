@@ -1,7 +1,7 @@
 /*
  * ppp-comp.h - Definitions for doing PPP packet compression.
  *
- * Copyright (c) 1994 Paul Mackerras. All rights reserved.
+ * Copyright (c) 1994-2024 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,15 +15,6 @@
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. The name(s) of the authors of this software must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
- *
- * 4. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by Paul Mackerras
- *     <paulus@ozlabs.org>".
- *
  * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
  * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
  * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
@@ -31,20 +22,6 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * $Id: ppp-comp.h,v 1.10 2002/12/06 09:49:15 paulus Exp $
- */
-
-/*
- *  ==FILEVERSION 20020319==
- *
- *  NOTE TO MAINTAINERS:
- *     If you modify this file at all, please set the above date.
- *     ppp-comp.h is shipped with a PPP distribution as well as with the kernel;
- *     if everyone increases the FILEVERSION number above, then scripts
- *     can do the right thing when deciding whether to install a new ppp-comp.h
- *     file.  Don't change the format of that line otherwise, so the
- *     installation script can recognize it.
  */
 
 #ifndef _NET_PPP_COMP_H
