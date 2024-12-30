@@ -1325,6 +1325,7 @@ connect_time_expired(void *arg)
     info("Connect time expired");
     ppp_set_status(EXIT_CONNECT_TIME);
     lcp_close(0, "Connect time expired");	/* Close connection */
+    need_holdoff = 0;
 }
 
 /*
