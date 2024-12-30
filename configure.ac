@@ -130,9 +130,9 @@ AM_COND_IF([PPP_WITH_CBCP],
     AC_DEFINE([PPP_WITH_CBCP], 1, [Have Callback Protocol support]))
 
 #
-# Disable Microsoft extensions will remove CHAP and MPPE support
+# Disable Microsoft extensions will remove CHAP, MPPE and PEAP support
 AC_ARG_ENABLE([microsoft-extensions],
-    AS_HELP_STRING([--disable-microsoft-extensions], [Disable Microsoft CHAP / MPPE extensions]))
+    AS_HELP_STRING([--disable-microsoft-extensions], [Disable Microsoft CHAP / MPPE / PEAP extensions]))
 
 AM_CONDITIONAL(PPP_WITH_CHAPMS, test "x${enable_microsoft_extensions}" != "xno")
 AM_COND_IF([PPP_WITH_CHAPMS],
@@ -193,9 +193,9 @@ AM_CONDITIONAL(PPP_WITH_EAPTLS, test "x${enable_eaptls}" != "xno")
 # Disable PEAP support
 AC_ARG_ENABLE([peap],
     AS_HELP_STRING([--disable-peap], [Disable PEAP authentication support]))
-AS_IF([test "x${enable_peap}" != "xno"],
+AS_IF([test "x${enable_peap}" != "xno" && test "x${enable_microsoft_extensions}" != "xno"],
     AC_DEFINE([PPP_WITH_PEAP], 1, [Have PEAP authentication support]))
-AM_CONDITIONAL([PPP_WITH_PEAP], test "x${enable_peap}" != "xno")
+AM_CONDITIONAL([PPP_WITH_PEAP], test "x${enable_peap}" != "xno" && test "x${enable_microsoft_extensions}" != "xno")
 
 #
 # Disable OpenSSL engine support
@@ -359,6 +359,5 @@ Features enabled
     CBCP.................: ${enable_cbcp:-no}
     IPV6CP...............: ${enable_ipv6cp:-yes}
     EAP-TLS..............: ${enable_eaptls:-yes}
-    PEAP.................: ${enable_peap:-yes}
     systemd notifications: ${enable_systemd:-no}
 "
