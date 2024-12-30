@@ -611,8 +611,10 @@ main(int argc, char *argv[])
 	while (phase != PHASE_DEAD) {
 	    handle_events();
 	    get_input();
-	    if (kill_link)
+	    if (kill_link) {
 		lcp_close(0, "User request");
+		need_holdoff = 0;
+	    }
 	    if (asked_to_quit) {
 		bundle_terminating = 1;
 		if (phase == PHASE_MASTER)
@@ -1153,6 +1155,7 @@ get_input(void)
 	notice("Modem hangup");
 	hungup = 1;
 	code = EXIT_HANGUP;
+	need_holdoff = 0;
 	lcp_lowerdown(0);	/* serial link is no longer available */
 	link_terminated(0);
 	return;

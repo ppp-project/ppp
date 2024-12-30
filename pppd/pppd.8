@@ -475,7 +475,8 @@ exclude the password string from the log.  This is the default.
 Specifies how many seconds to wait before re-initiating the link after
 it terminates.  This option only has any effect if the \fIpersist\fR
 or \fIdemand\fR option is used.  The holdoff period is not applied if
-the link was terminated because it was idle.
+the link was terminated because it was idle, connect time expired,
+modem hangup or user request.
 .TP
 .B idle \fIn
 Specifies that pppd should disconnect if the link is idle for \fIn\fR
