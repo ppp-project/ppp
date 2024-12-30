@@ -3,7 +3,7 @@
  *	Chat -- a program for automatic session establishment (i.e. dial
  *		the phone and log in).
  *
- * This version is Copyright 1995-2023 Paul Mackerras <paulus@ozlabs.org>
+ * This version is Copyright 1995-2024 Paul Mackerras <paulus@ozlabs.org>
  * based on the original public-domain version by Karl Fox.
  *
  * Permission is hereby granted, free of charge, to any person

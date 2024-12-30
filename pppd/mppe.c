@@ -1,7 +1,7 @@
 /* mppe.c - MPPE key implementation
  *
  * Copyright (c) 2020 Eivind Naess. All rights reserved.
- * Copyright (c) 2008 Paul Mackerras. All rights reserved.
+ * Copyright (c) 2008-2024 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions

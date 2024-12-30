@@ -7,9 +7,10 @@
 * 
 * Based on the structure of the radius module.
 *
+* Copyright 1999-2024 Paul Mackerras <paulus@ozlabs.org>
 * Copyright (C) 2003 Andrew Bartlet <abartlet@samba.org>
 *
-* Copyright 1999 Paul Mackerras, Alan Curry. 
+* Copyright 1999 Alan Curry.
 * (pipe read code from passpromt.c)
 *
 * Copyright (C) 2002 Roaring Penguin Software Inc.
