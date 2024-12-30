@@ -67,8 +67,24 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.5.1
+What's new in ppp-2.5.2
 ***********************
+
+* Some old and probably unused code has been removed, notably the
+  pppgetpass program and the passprompt plugin, and some of the files
+  in the sample and scripts directories.
+
+* If a remote number has been set, it is available to scripts in the
+  REMOTENUMBER environment variable.
+
+* The Solaris port has been updated, including updated installation
+  instructions in README.sol2.
+
+* Various other bug fixes and minor enhancements.
+
+
+What was new in ppp-2.5.1
+*************************
 
 * The files copied to /etc/ppp (or <sysconfdir>/ppp) now have
   ".example" appended to their filenames, so as to indicate that they
