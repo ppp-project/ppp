@@ -24,7 +24,10 @@ sample_DATA = \
 
 EXTRA_README = \
     Changes-2.3 \
+    Changes-2.4 \
     FAQ \
+    LICENSE.BSD \
+    LICENSE.GPL-2 \
     README \
     README.cbcp \
     README.eap-srp \
@@ -38,9 +41,12 @@ EXTRA_README = \
     README.pwfd \
     README.sol2 \
     PLUGINS \
+    SECURITY.md \
     SETUP \
-    Submitting-patches.md
+    Submitting-patches.md \
+    autogen.sh
 
 EXTRA_DIST= \
     $(sample_DATA) \
-    $(EXTRA_README)
+    $(EXTRA_README) \
+    sample

@@ -28,7 +28,6 @@ check_PROGRAMS += utest_utils
 
 if WITH_SRP
 sbin_PROGRAMS += srp-entry
-dist_man8_MANS += srp-entry.8
 endif
 
 pkgconfigdir   = $(libdir)/pkgconfig
@@ -205,6 +204,7 @@ srp_entry_SOURCES = srp-entry.c
 srp_entry_CPPFLAGS = $(OPENSSL_INCLUDES) $(SRP_CFLAGS)
 srp_entry_LDADD = $(SRP_LIBS) $(OPENSSL_LIBS)
 srp_entry_LDFLAGS = $(OPENSSL_LDFLAGS) $(SRP_LDFLAGS)
+dist_srp_entry_MANS = srp-entry.8
 
 pppd_CPPFLAGS += $(SRP_CFLAGS)
 pppd_LDFLAGS += $(SRP_LDFLAGS)
@@ -214,7 +214,8 @@ endif
 pppd_LDADD = $(pppd_LIBS)
 
 EXTRA_DIST = \
-    ppp.pam
+    ppp.pam \
+    srp-entry.8
 
 TESTS = $(check_PROGRAMS)
 

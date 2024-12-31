@@ -5,7 +5,9 @@ EXTRA_SCRIPTS = \
     plog \
     poff \
     pon \
-    pon.1
+    pon.1 \
+    lcp_rtt_dump \
+    lcp_rtt_exporter
 
 EXTRA_DIST= \
     $(EXTRA_SCRIPTS)
