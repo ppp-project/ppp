@@ -1,6 +1,6 @@
 AC_PREREQ([2.69])
 AC_INIT([ppp],
-        [2.5.2],
+        [2.5.3-dev],
         [https://github.com/ppp-project/ppp])
 
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
