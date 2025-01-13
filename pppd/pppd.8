@@ -1021,6 +1021,11 @@ pseudo-tty master as its standard input and output.  An explicit
 device name may not be given if this option is used.  (Note: if the
 \fIrecord\fR option is used in conjunction with the \fIpty\fR option,
 the child process will have pipes on its standard input and output.)
+
+It is important to note that script will be executed by passing it to /bin/sh
+using -c, such that if script contains arguments /bin/sh may attempt to
+interpret that, and thus any arguments should be escaped to avoid shell
+expansion.
 .TP
 .B receive\-all
 With this option, pppd will accept all control characters from the
