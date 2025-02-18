@@ -179,6 +179,8 @@ ipv6cp_options ipv6cp_allowoptions[NUM_PPP];	/* Options we allow peer to request
 ipv6cp_options ipv6cp_hisoptions[NUM_PPP];	/* Options that we ack'd */
 int no_ifaceid_neg = 0;
 
+unsigned dfl_route6_metric = 0;	/* metric of the default route to set over the PPP link */
+
 /* local vars */
 static int default_route_set[NUM_PPP];		/* Have set up a default route */
 static int ipv6cp_is_up;
@@ -257,6 +259,10 @@ static struct option ipv6cp_option_list[] = {
     { "-defaultroute6", o_bool, &ipv6cp_allowoptions[0].default_route,
       "disable defaultroute6 option", OPT_ALIAS | OPT_A2CLR,
       &ipv6cp_wantoptions[0].default_route },
+
+    { "defaultroute6-metric", o_int, &dfl_route6_metric,
+      "Metric to use for the default route (Linux only; default 0)",
+      OPT_PRIV|OPT_LLIMIT|OPT_INITONLY, NULL, 0, -1 },
 
     { "ipv6cp-use-ipaddr", o_bool, &ipv6cp_allowoptions[0].use_ip,
       "Use (default) IPv4 addresses for both local and remote interface identifiers", 1 },
