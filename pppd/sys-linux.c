@@ -2176,12 +2176,15 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
     nlreq.metric.val = metric;
 
     resp = rtnetlink_msg(op_fam, NULL, &nlreq, sizeof(nlreq), NULL, NULL, 0);
-    if (resp == 0)
+    /* In some cases the interface could be down already from kernel perspective,
+     * and routes already removed resulting in errno=ESRCH, treat as success */
+    if (resp == 0 || operation == RTM_DELROUTE && -resp == ESRCH)
 	return 1; /* success */
 
     error("Unable to %s %s default route: %s", operation == RTM_NEWROUTE ? "add" : "remove",
 	    family == AF_INET ? "IPv4" : "IPv6",
 	    resp < 0 ? strerror(-resp) : "Netlink error");
+
     return 0;
 }
 #define route_netlink(operation, family, metric) _route_netlink(#operation "/" #family, operation, family, metric)
