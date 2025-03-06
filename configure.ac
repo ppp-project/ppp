@@ -330,6 +330,7 @@ AC_CONFIG_FILES([
     pppd/plugins/pppoatm/Makefile
     pppd/plugins/pppol2tp/Makefile
     pppd/plugins/radius/Makefile
+    pppd/plugins/dhcpv6relay/Makefile
     pppdump/Makefile
     pppstats/Makefile
     scripts/Makefile
