@@ -564,6 +564,11 @@ extern int  (*allowed_address_hook)(uint32_t addr);
 extern void (*snoop_recv_hook)(unsigned char *p, int len);
 extern void (*snoop_send_hook)(unsigned char *p, int len);
 
+/* mechanism to setup event handlers */
+typedef void (*event_cb)(int fd, void* ctx); /* callback signature */
+void add_fd_callback(int, event_cb, void*); /* add fd with callback */
+void remove_fd(int);	/* Remove fd from set to wait for */
+
 #ifdef __cplusplus
 }
 #endif

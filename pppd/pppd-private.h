@@ -374,6 +374,12 @@ void demand_rexmit(int);	/* retransmit saved frames for an NP */
 int  loop_chars(unsigned char *, int); /* process chars from loopback */
 int  loop_frame(unsigned char *, int); /* should we bring link up? */
 
+/* internal-only event handler procedures */
+void event_handler_init(void);	/* initialize the event handler */
+void wait_input(struct timeval *);
+				/* Wait for input, with timeout */
+void add_fd(int);		/* Add fd to set to wait for */
+
 /* Procedures exported from sys-*.c */
 void sys_init(void);	/* Do system-dependent initialization */
 void sys_cleanup(void);	/* Restore system state before exiting */
@@ -391,10 +397,6 @@ void set_up_tty(int, int); /* Set up port's speed, parameters, etc. */
 void restore_tty(int);	/* Restore port's original parameters */
 void setdtr(int, int);	/* Raise or lower port's DTR line */
 void output(int, unsigned char *, int); /* Output a PPP packet */
-void wait_input(struct timeval *);
-				/* Wait for input, with timeout */
-void add_fd(int);		/* Add fd to set to wait for */
-void remove_fd(int);	/* Remove fd from set to wait for */
 int  read_packet(unsigned char *); /* Read PPP packet */
 int  get_loop_output(void); /* Read pkts from loopback */
 void tty_send_config(int, u_int32_t, int, int);

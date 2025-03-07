@@ -95,7 +95,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <limits.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -215,9 +214,6 @@ static int sock6_fd = -1;
 int ppp_dev_fd = -1;		/* fd for /dev/ppp (new style driver) */
 
 static int chindex;		/* channel index (new style driver) */
-
-static fd_set in_fds;		/* set of fds that wait_input waits for */
-static int max_in_fd;		/* highest fd set in in_fds */
 
 static int has_proxy_arp       = 0;
 static int driver_version      = 0;
@@ -491,9 +487,6 @@ void sys_init(void)
     if (sock6_fd < 0)
 	sock6_fd = -errno;	/* save errno for later */
 #endif
-
-    FD_ZERO(&in_fds);
-    max_in_fd = 0;
 }
 
 /********************************************************************
@@ -1415,45 +1408,6 @@ void output (int unit, unsigned char *p, int len)
 	else
 	    error("write: %m (%d)", errno);
     }
-}
-
-/********************************************************************
- *
- * wait_input - wait until there is data available,
- * for the length of time specified by *timo (indefinite
- * if timo is NULL).
- */
-
-void wait_input(struct timeval *timo)
-{
-    fd_set ready, exc;
-    int n;
-
-    ready = in_fds;
-    exc = in_fds;
-    n = select(max_in_fd + 1, &ready, NULL, &exc, timo);
-    if (n < 0 && errno != EINTR)
-	fatal("select: %m");
-}
-
-/*
- * add_fd - add an fd to the set that wait_input waits for.
- */
-void add_fd(int fd)
-{
-    if (fd >= FD_SETSIZE)
-	fatal("internal error: file descriptor too large (%d)", fd);
-    FD_SET(fd, &in_fds);
-    if (fd > max_in_fd)
-	max_in_fd = fd;
-}
-
-/*
- * remove_fd - remove an fd from the set that wait_input waits for.
- */
-void remove_fd(int fd)
-{
-    FD_CLR(fd, &in_fds);
 }
 
 
