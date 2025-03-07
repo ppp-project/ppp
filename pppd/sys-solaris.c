@@ -203,10 +203,6 @@ static pid_t	tty_sid;	/* original session ID for terminal */
 
 extern u_char	inpacket_buf[];	/* borrowed from main.c */
 
-#define MAX_POLLFDS	32
-static struct pollfd pollfds[MAX_POLLFDS];
-static int n_pollfds;
-
 static int	link_mtu, link_mru;
 
 #define NMODULES	32
@@ -548,8 +544,6 @@ sys_init(void)
 	ioctl(ip6fd, I_PUNLINK, ip6muxid);
 	fatal("Can't link PPP device to IP (2): %m");
     }
-
-    n_pollfds = 0;
 }
 
 /*
@@ -1065,56 +1059,6 @@ output(int unit, u_char *p, int len)
     }
 }
 
-
-/*
- * wait_input - wait until there is data available,
- * for the length of time specified by *timo (indefinite
- * if timo is NULL).
- */
-void
-wait_input(struct timeval *timo)
-{
-    int t;
-
-    t = timo == NULL? -1: timo->tv_sec * 1000 + timo->tv_usec / 1000;
-    if (poll(pollfds, n_pollfds, t) < 0 && errno != EINTR)
-	fatal("poll: %m");
-}
-
-/*
- * add_fd - add an fd to the set that wait_input waits for.
- */
-void add_fd(int fd)
-{
-    int n;
-
-    for (n = 0; n < n_pollfds; ++n)
-	if (pollfds[n].fd == fd)
-	    return;
-    if (n_pollfds < MAX_POLLFDS) {
-	pollfds[n_pollfds].fd = fd;
-	pollfds[n_pollfds].events = POLLIN | POLLPRI | POLLHUP;
-	++n_pollfds;
-    } else
-	error("Too many inputs!");
-}
-
-/*
- * remove_fd - remove an fd from the set that wait_input waits for.
- */
-void remove_fd(int fd)
-{
-    int n;
-
-    for (n = 0; n < n_pollfds; ++n) {
-	if (pollfds[n].fd == fd) {
-	    while (++n < n_pollfds)
-		pollfds[n-1] = pollfds[n];
-	    --n_pollfds;
-	    break;
-	}
-    }
-}
 
 /*
  * read_packet - get a PPP packet from the serial device.
