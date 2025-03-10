@@ -1664,6 +1664,30 @@ cifaddr(int u, u_int32_t o, u_int32_t h)
     return 1;
 }
 
+/********************************************************************
+ * sifaddroute - add a non-default route to the system through the ppp interface.
+ * It's the caller responsiblity to ensure that prefix points to a buffer of appriate size:
+ * AF_INET => 4 bytes
+ * AF_INET6 => 16 bytes
+ */
+int sifaddroute(int family, const void* prefix, uint8_t len, unsigned metric)
+{
+    error("Implementation on sifaddroute for solaris is lacking.");
+    return 0;
+}
+
+/********************************************************************
+ * sifdelroute - remove a non-default route to the system through the ppp interface.
+ * It's the caller responsiblity to ensure that prefix points to a buffer of appriate size:
+ * AF_INET => 4 bytes
+ * AF_INET6 => 16 bytes
+ */
+int sifdelroute(int family, const void* prefix, uint8_t len, unsigned metric)
+{
+    error("Implementation on sifaddroute for solaris is lacking.");
+    return 0;
+}
+
 /*
  * sifdefaultroute - assign a default route through the address given.
  */
