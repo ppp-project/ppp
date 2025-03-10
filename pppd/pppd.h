@@ -569,6 +569,10 @@ typedef void (*event_cb)(int fd, void* ctx); /* callback signature */
 void add_fd_callback(int, event_cb, void*); /* add fd with callback */
 void remove_fd(int);	/* Remove fd from set to wait for */
 
+/* route management, be sure that prefix points to a correct buffer */
+int sifaddroute(int family, const void* prefix, uint8_t len, unsigned metric);
+int sifdelroute(int family, const void* prefix, uint8_t len, unsigned metric);
+
 #ifdef __cplusplus
 }
 #endif
