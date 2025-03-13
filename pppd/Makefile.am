@@ -82,6 +82,7 @@ pppd_SOURCES = \
     lcp.c \
     magic.c \
     main.c \
+    event-handler.c \
     options.c \
     session.c \
     tty.c \

@@ -95,7 +95,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <limits.h>
 
 /* This is in netdevice.h. However, this compile will fail miserably if
    you attempt to include netdevice.h because it has so many references
@@ -215,9 +214,6 @@ static int sock6_fd = -1;
 int ppp_dev_fd = -1;		/* fd for /dev/ppp (new style driver) */
 
 static int chindex;		/* channel index (new style driver) */
-
-static fd_set in_fds;		/* set of fds that wait_input waits for */
-static int max_in_fd;		/* highest fd set in in_fds */
 
 static int has_proxy_arp       = 0;
 static int driver_version      = 0;
@@ -491,9 +487,6 @@ void sys_init(void)
     if (sock6_fd < 0)
 	sock6_fd = -errno;	/* save errno for later */
 #endif
-
-    FD_ZERO(&in_fds);
-    max_in_fd = 0;
 }
 
 /********************************************************************
@@ -1417,45 +1410,6 @@ void output (int unit, unsigned char *p, int len)
     }
 }
 
-/********************************************************************
- *
- * wait_input - wait until there is data available,
- * for the length of time specified by *timo (indefinite
- * if timo is NULL).
- */
-
-void wait_input(struct timeval *timo)
-{
-    fd_set ready, exc;
-    int n;
-
-    ready = in_fds;
-    exc = in_fds;
-    n = select(max_in_fd + 1, &ready, NULL, &exc, timo);
-    if (n < 0 && errno != EINTR)
-	fatal("select: %m");
-}
-
-/*
- * add_fd - add an fd to the set that wait_input waits for.
- */
-void add_fd(int fd)
-{
-    if (fd >= FD_SETSIZE)
-	fatal("internal error: file descriptor too large (%d)", fd);
-    FD_SET(fd, &in_fds);
-    if (fd > max_in_fd)
-	max_in_fd = fd;
-}
-
-/*
- * remove_fd - remove an fd from the set that wait_input waits for.
- */
-void remove_fd(int fd)
-{
-    FD_CLR(fd, &in_fds);
-}
-
 
 /********************************************************************
  *
@@ -2137,7 +2091,7 @@ int have_route_to(u_int32_t addr)
  * Try using netlink to add/remove routes.
  */
 static
-int _route_netlink(const char* op_fam, int operation, int family, unsigned metric)
+int _route_netlink(const char* op_fam, int operation, int family, unsigned metric, const void* prefix, uint8_t len)
 {
     struct {
 	struct nlmsghdr nlh;
@@ -2150,12 +2104,17 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
 	    struct rtattr rta;
 	    unsigned val;
 	} metric;
+	struct {
+	    struct rtattr rta;
+	    unsigned char ipdata[16]; /* IPv6 MAX */
+	} prefix;
     } nlreq;
     int resp;
+    size_t txsz = sizeof(nlreq) - sizeof(nlreq.prefix);
+    char in6addr[INET6_ADDRSTRLEN];
 
     memset(&nlreq, 0, sizeof(nlreq));
 
-    nlreq.nlh.nlmsg_len = sizeof(nlreq);
     nlreq.nlh.nlmsg_type = operation;
     nlreq.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE;
     if (operation == RTM_NEWROUTE)
@@ -2175,19 +2134,59 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
     nlreq.metric.rta.rta_type = RTA_PRIORITY;
     nlreq.metric.val = metric;
 
-    resp = rtnetlink_msg(op_fam, NULL, &nlreq, sizeof(nlreq), NULL, NULL, 0);
+    if (prefix) {
+	char nbytes;
+	switch (family) {
+	case AF_INET: nbytes = 4; break;
+	case AF_INET6: nbytes = 16; break;
+	default: error("Unable to add route given that address family isn't known and prefix was specified."); return 0;
+	}
+	nlreq.rtmsg.rtm_dst_len = len;
+	nlreq.prefix.rta.rta_type = RTA_DST;
+	nlreq.prefix.rta.rta_len = sizeof(nlreq.prefix.rta) + nbytes;
+	memcpy(nlreq.prefix.ipdata, prefix, nbytes);
+
+	txsz += nlreq.prefix.rta.rta_len;
+    }
+
+    nlreq.nlh.nlmsg_len = txsz;
+    resp = rtnetlink_msg(op_fam, NULL, &nlreq, txsz, NULL, NULL, 0);
+
     /* In some cases the interface could be down already from kernel perspective,
      * and routes already removed resulting in errno=ESRCH, treat as success */
     if (resp == 0 || operation == RTM_DELROUTE && -resp == ESRCH)
 	return 1; /* success */
 
-    error("Unable to %s %s default route: %s", operation == RTM_NEWROUTE ? "add" : "remove",
+    error("Unable to %s %s %s route: %s", operation == RTM_NEWROUTE ? "add" : "remove",
 	    family == AF_INET ? "IPv4" : "IPv6",
+	    prefix ? inet_ntop(family, prefix, in6addr, sizeof(in6addr)) : "default",
 	    resp < 0 ? strerror(-resp) : "Netlink error");
 
     return 0;
 }
-#define route_netlink(operation, family, metric) _route_netlink(#operation "/" #family, operation, family, metric)
+#define route_netlink(operation, family, metric, prefix, length) _route_netlink(#operation "/" #family, operation, family, metric, prefix, length)
+
+/********************************************************************
+ * sifaddroute - add a non-default route to the system through the ppp interface.
+ * It's the caller responsiblity to ensure that prefix points to a buffer of appriate size:
+ * AF_INET => 4 bytes
+ * AF_INET6 => 16 bytes
+ */
+int sifaddroute(int family, const void* prefix, uint8_t len, unsigned metric)
+{
+    return route_netlink(RTM_NEWROUTE, family, metric, prefix, len);
+}
+
+/********************************************************************
+ * sifdelroute - remove a non-default route to the system through the ppp interface.
+ * It's the caller responsiblity to ensure that prefix points to a buffer of appriate size:
+ * AF_INET => 4 bytes
+ * AF_INET6 => 16 bytes
+ */
+int sifdelroute(int family, const void* prefix, uint8_t len, unsigned metric)
+{
+    return route_netlink(RTM_DELROUTE, family, metric, prefix, len);
+}
 
 /********************************************************************
  *
@@ -2196,7 +2195,7 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
 int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 {
     /* try appending using netlink first */
-    if (route_netlink(RTM_NEWROUTE, AF_INET, dfl_route_metric))
+    if (route_netlink(RTM_NEWROUTE, AF_INET, dfl_route_metric, NULL, 0))
 	return 1;
 
     /* ok, that failed, let's see if we can use ioctl */
@@ -2232,7 +2231,7 @@ int sifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 {
     /* try removing using netlink first */
-    if (route_netlink(RTM_DELROUTE, AF_INET, dfl_route_metric))
+    if (route_netlink(RTM_DELROUTE, AF_INET, dfl_route_metric, NULL, 0))
 	return 1;
 
     /* ok, that failed, let's see if we can use ioctl */
@@ -2273,7 +2272,7 @@ int cifdefaultroute (int unit, u_int32_t ouraddr, u_int32_t gateway)
 int sif6defaultroute (int unit, eui64_t ouraddr, eui64_t gateway)
 {
     /* try appending using netlink first */
-    if (route_netlink(RTM_NEWROUTE, AF_INET6, dfl_route6_metric))
+    if (route_netlink(RTM_NEWROUTE, AF_INET6, dfl_route6_metric, NULL, 0))
 	return 1;
 
     /* ok, that failed, let's see if we can use ioctl */
@@ -2304,7 +2303,7 @@ int sif6defaultroute (int unit, eui64_t ouraddr, eui64_t gateway)
 int cif6defaultroute (int unit, eui64_t ouraddr, eui64_t gateway)
 {
     /* try removing using netlink first */
-    if (route_netlink(RTM_DELROUTE, AF_INET6, dfl_route6_metric))
+    if (route_netlink(RTM_DELROUTE, AF_INET6, dfl_route6_metric, NULL, 0))
 	return 1;
 
     /* ok, that failed, let's see if we can use ioctl */
