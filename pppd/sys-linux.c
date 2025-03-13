@@ -122,8 +122,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <linux/ppp-ioctl.h>
-
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <linux/if_link.h>
@@ -155,6 +153,8 @@
 #endif /* PPP_WITH_IPV6CP */
 
 #include "multilink.h"
+
+#include <linux/ppp-ioctl.h>
 
 #ifdef PPP_WITH_FILTER
 #include <pcap-bpf.h>
