@@ -2278,10 +2278,11 @@ lcp_rtt_update_buffer (unsigned long rtt)
     unsigned int next_entry, lost;
 
     /* choose the next entry where the data will be stored */
-    if (ntohl(ring_header[2]) >= (LCP_RTT_ELEMENTS - 1) * 2)
+    next_entry = ntohl(ring_header[2]);
+    if (next_entry >= (LCP_RTT_ELEMENTS - 1) * 2)
 	next_entry = 0;				/* go back to the beginning */
     else
-	next_entry = ntohl(ring_header[2]) + 2;	/* use the next one */
+	next_entry += 2;			/* use the next one */
 
     /* update the data element */
     /* storing the timestamp in an *unsigned* long allows dates up to 2106 */
