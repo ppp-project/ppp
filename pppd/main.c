@@ -497,6 +497,8 @@ main(int argc, char *argv[])
 	fd_devnull = i;
     }
 
+    event_handler_init();
+
     /*
      * Initialize system-dependent stuff.
      */
