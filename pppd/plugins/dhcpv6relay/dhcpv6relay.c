@@ -40,6 +40,8 @@
 #include <net/if.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netinet/icmp6.h>
+#include <stdio.h>
 
 char pppd_version[] = PPPD_VERSION;
 
@@ -47,6 +49,7 @@ static int dhcpv6relay_setserver(const char** argv);
 
 static bool dhcpv6relay_trusted = false;
 static unsigned dhcpv6relay_metric = 0;
+static unsigned dhcpv6relay_ra_interval = 0;
 
 static struct option options[] = {
     { "dhcpv6-server", o_special, (void*) &dhcpv6relay_setserver,
@@ -61,6 +64,9 @@ static struct option options[] = {
     { "dhcpv6-metric", o_int, &dhcpv6relay_metric,
       "Metric to use DHCPv6 supplied routes",
       OPT_PRIV|OPT_LLIMIT, NULL, 0, 0 },
+    { "dhcpv6-ra-intvl", o_int, &dhcpv6relay_ra_interval,
+      "How frequently to send unsolicited Router Advertisement frames (default off)",
+      OPT_PRIV|OPT_LLIMIT, NULL, 0, 0 },
     { NULL }
 };
 
@@ -68,6 +74,7 @@ static char* dhcpv6relay_server = NULL;
 static int dhcpv6relay_sock_ll = -1;
 static int dhcpv6relay_sock_mc = -1;
 static int dhcpv6relay_upstream = -1;
+static int dhcpv6relay_sock_rsra = -1;
 static struct sockaddr_storage dhcpv6relay_sa;
 static struct dhcpv6relay_route_entry *dhcpv6relay_delegations = NULL;
 
@@ -200,6 +207,11 @@ void dhcpv6relay_down(void*, int)
 	remove_fd(dhcpv6relay_upstream);
 	close(dhcpv6relay_upstream);
 	dhcpv6relay_upstream = -1;
+    }
+    if (dhcpv6relay_sock_rsra >= 0) {
+	remove_fd(dhcpv6relay_sock_rsra);
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
     }
 }
 
@@ -689,6 +701,60 @@ void dhcpv6relay_client_event(int fd, void*)
 }
 
 static
+void dhcpv6relay_send_router_advertisement()
+{
+    static char ra[] = {
+	134, 0, /* type and code */
+	0, 0, /* checksum, kernel fills */
+	0, /* hop limit, unspecified */
+	0xC0, /* Managed + Other, rest unset */
+	0xFF, 0xFF, /* Router lifetime, ~18.2h */
+	0, 0, 0, 0, /* Reachable Time, unspecified */
+	0, 0, 0, 0, /* Retrans Timer, unspecified */
+    };
+    struct sockaddr_in6 sa;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sin6_family = AF_INET6;
+    /* just multicast it and move on ... for timed cases this is the only
+     * option, for solicited responses it might be needed to send to the peer's
+     * LL, but the spec is unclear and at least Mikrotik does multicast in
+     * response to solicitation */
+    sa.sin6_scope_id = if_nametoindex(ppp_ifname());
+    if (inet_pton(AF_INET6, "ff02::1", &sa.sin6_addr) < 0) {
+	error("DHCPv6 relay: Unable to prepare multicast address for sending router advertisement: %s",
+		strerror(errno));
+	return;
+    }
+
+    if (sendto(dhcpv6relay_sock_rsra, ra, sizeof(ra), 0, (const struct sockaddr*)&sa, sizeof(sa)) < 0) {
+	error("DHCPv6 relay: Failed to send router advertisement: %s", strerror(errno));
+    }
+}
+
+static
+void dhcpv6relay_send_router_advertisement_timed(void*)
+{
+    dhcpv6relay_send_router_advertisement();
+    ppp_timeout(dhcpv6relay_send_router_advertisement_timed, NULL, dhcpv6relay_ra_interval, 0);
+}
+
+static
+void dhcpv6relay_router_solicitation(int fd, void*)
+{
+    unsigned char bfr[1]; /* kernel will truncate packets in case of overflow,
+			     and we don't care about the content.  Will
+			     typically be 8 bytes, with an additional 8
+			     optional bytes. */
+    int r = read(fd, bfr, sizeof(bfr));
+    if (r < 0) {
+	error("Failure to receive router solicitation: %s", strerror(errno));
+    } else {
+	dhcpv6relay_send_router_advertisement();
+    }
+}
+
+static
 int dhcpv6relay_populate_ll(struct sockaddr_in6* res)
 {
     /* can we rather shortcut to get the address directly from ipv6cp? */
@@ -729,6 +795,9 @@ void dhcpv6relay_up(void*, int)
     struct sockaddr_in6 sa;
     struct ipv6_mreq mreq;
     struct servent *se;
+    struct icmp6_filter filter;
+    struct ifreq ifr;
+    int v;
 
     /* no relay configured, so we can't work, simply don't listen
      * for DHCP solicitations */
@@ -782,6 +851,53 @@ void dhcpv6relay_up(void*, int)
     if (bind(dhcpv6relay_sock_mc, (const struct sockaddr*)&sa, sizeof(sa)) < 0) {
 	error("DHCPv6 relay: Unable to bind MC socket: %s", strerror(errno));
 	return dhcpv6relay_down(NULL, 0);
+    }
+
+    ICMP6_FILTER_SETBLOCKALL(&filter);
+    ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
+
+    memset(&ifr, 0, sizeof(ifr));
+    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", ppp_ifname());
+
+    dhcpv6relay_sock_rsra = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+    if (dhcpv6relay_sock_rsra < 0) {
+	warn("DHCPv6 relay: Unable to create raw socket for receiving router solicitations, this is non-fatal.");
+    } else if (setsockopt(dhcpv6relay_sock_rsra, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
+	warn("DHCPv6 relay: Unable to bind router solicitation to interface: %s", strerror(errno));
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
+    } else if (inet_pton(AF_INET6, "ff02::2", &mreq.ipv6mr_multiaddr) < 0) {
+	warn("DHCPv6 relay: Unable to prepare multicast binding for router solicitations: %s", strerror(errno));
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
+    } else if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) < 0) {
+	warn("DHCPv6 relay: Unable to join multicast binding for receiving routing solicitations: %s", strerror(errno));
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
+    } else if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_ICMPV6, ICMP6_FILTER, &filter, sizeof(filter)) < 0) {
+	warn("DHCPv6 relay: Failed to set ICMPv6 filter to only permit router solicitations: %s",
+		strerror(errno));
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
+    } else if (bind(dhcpv6relay_sock_rsra, (const struct sockaddr*)&sa, sizeof(sa)) < 0) {
+	warn("DHCPv6 relay: Unable to bind socket to link-local for sending router advertisement: %s",
+		strerror(errno));
+	close(dhcpv6relay_sock_rsra);
+	dhcpv6relay_sock_rsra = -1;
+    } else {
+	v = 1;
+	if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_IPV6, IPV6_RECVHOPLIMIT, &v, sizeof(v)) < 0) {
+	    warn("DHCPv6 relay: Unable to set hop limit for receiving router solicitations: %s", strerror(errno));
+	}
+	v = 255;
+	if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &v, sizeof(v)) < 0) {
+	    warn("DHCPv6 relay: Unable to set hop limit for sending router advertisements: %s", strerror(errno));
+	}
+	add_fd_callback(dhcpv6relay_sock_rsra, dhcpv6relay_router_solicitation, NULL);
+
+	if (dhcpv6relay_ra_interval) {
+	    ppp_timeout(dhcpv6relay_send_router_advertisement_timed, NULL, 1, 0);
+	}
     }
 
     add_fd_callback(dhcpv6relay_sock_ll, dhcpv6relay_client_event, NULL);
