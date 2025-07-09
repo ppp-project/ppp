@@ -1914,10 +1914,52 @@ update_script_environment(void)
  * reap_kids) iff the return value is > 0.
  */
 pid_t
-run_program(char *prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
+run_program(char *_prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
     int pid, status, ret;
     struct stat sbuf;
+    char prog[PATH_MAX];
+    char *slash;
+
+    /*
+     * Resolve symlinks such that we eliminate a few potential ToCToU
+     * attack avenues (eg, changing symlinks).
+     */
+    if (!realpath(_prog, prog)) {
+	if (must_exist || errno != ENOENT)
+	    warn("Can't execute %s: %m", prog);
+	return 0;
+    }
+
+    /*
+     * full check the entire path, must be root: owned, and NOT be writable
+     * to group/other (which incorporates FACL bits somehow, so we can ignore
+     * explicit FACL checks).
+     */
+    do {
+	bool ok = false;
+	if (fstatat(AT_FDCWD, slash ? prog : "/", &sbuf, AT_SYMLINK_NOFOLLOW) != 0) {
+	    warn("Script path check failure: %s: %m", slash ? prog : "/");
+	} else if (sbuf.st_uid != 0 /* getuid() ? */) {
+	    warn("Script path %s is not root owned.", slash ? prog : "/");
+	} else if (0 != (sbuf.st_mode & (S_IWGRP | S_IWOTH))) {
+	    warn("Script path %s is group or other writable.", slash ? prog : "/");
+	} else {
+	    ok = true;
+	}
+
+	if (slash)
+	    *slash = '/';
+
+	if (!ok) {
+	    warn("Can't execute %s: error checking path as per above");
+	    return 0;
+	}
+
+	slash = strchr((slash ? slash : prog) + 1, '/');
+	if (slash)
+	    *slash = 0;
+    } while (slash);
 
     /*
      * First check if the file exists and is executable.
@@ -1926,10 +1968,24 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
      * might be accessible only to root.
      */
     errno = EINVAL;
-    if (stat(prog, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)
-	|| (sbuf.st_mode & (S_IXUSR|S_IXGRP|S_IXOTH)) == 0) {
+    if (fstatat(AT_FDCWD, prog, &sbuf, AT_SYMLINK_NOFOLLOW) != 0) {
 	if (must_exist || errno != ENOENT)
 	    warn("Can't execute %s: %m", prog);
+	return 0;
+    }
+
+    if (sbuf.st_uid != 0 /* getuid() ? */) {
+	warn("Can't execute %s: Not root owned.", prog);
+	return 0;
+    }
+
+    if (0 != (sbuf.st_mode & (S_IWGRP | S_IWOTH))) {
+	warn("Can't execute %s: Writable by group or other.", prog);
+	return 0;
+    }
+
+    if (!S_ISREG(sbuf.st_mode) || (sbuf.st_mode & (S_IXUSR)) == 0) {
+	warn("Can't execute %s: Not a regular executable (for root) file.");
 	return 0;
     }
 
