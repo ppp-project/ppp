@@ -613,9 +613,13 @@ ppp_options_from_file(char *filename, int must_exist, int check_prot, int priv)
 
 err:
     fclose(f);
-    free(option_source);
     privileged_option = oldpriv;
     option_source = oldsource;
+
+    /* Note that we usually leak option_source here.  This is OK
+     * since this code is only run during startup.  Other places
+     * makes copies of the pointer (shallow copy), and as such we
+     * have no choice but to leak that here */
     return ret;
 }
 
