@@ -202,12 +202,14 @@ struct termios saved_tty_parameters;
 
 char *abort_string[MAX_ABORTS], *fail_reason = (char *)0,
 	fail_buffer[50];
-int n_aborts = 0, abort_next = 0, timeout_next = 0, echo_next = 0;
+unsigned long  n_aborts = 0;
+int abort_next = 0, timeout_next = 0, echo_next = 0;
 int clear_abort_next = 0;
 
 char *report_string[MAX_REPORTS] ;
 char  report_buffer[4096] ;
-int n_reports = 0, report_next = 0, report_gathering = 0 ; 
+unsigned long  n_reports = 0;
+int report_next = 0, report_gathering = 0;
 int clear_report_next = 0;
 
 int say_next = 0, hup_next = 0;
@@ -630,9 +632,9 @@ void terminate(int status)
  * Allow the last of the report string to be gathered before we terminate.
  */
     if (report_gathering) {
-	int c, rep_len;
+	int c;
 
-	rep_len = strlen(report_buffer);
+	size_t rep_len = strlen(report_buffer);
 	while (rep_len + 1 < sizeof(report_buffer)) {
 	    alarm(1);
 	    c = get_char();
@@ -1366,7 +1368,8 @@ int echo_stderr(int n)
 int get_string(register char *string)
 {
     char temp[STR_LEN];
-    int c, printed = 0, len, minlen;
+    int c, printed = 0;
+    size_t len, minlen;
     register char *s = temp, *end = s + STR_LEN;
     char *s1, *logged = temp;
 
@@ -1396,7 +1399,7 @@ int get_string(register char *string)
     alarmed = 0;
 
     while ( ! alarmed && (c = get_char()) >= 0) {
-	int n, abort_len, report_len;
+	size_t n, abort_len, report_len;
 
 	if (echo) {
 	    if (echo_stderr(c) != 0) {
@@ -1445,8 +1448,8 @@ int get_string(register char *string)
 	}
 	else {
 	    if (!iscntrl (c)) {
-		int rep_len = strlen (report_buffer);
-		if ((rep_len + 1) < sizeof(report_buffer)) {
+		size_t rep_len = strlen (report_buffer);
+		if (rep_len < sizeof(report_buffer) - 1) {
 		    report_buffer[rep_len]     = c;
 		    report_buffer[rep_len + 1] = '\0';
 		}
