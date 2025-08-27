@@ -1165,6 +1165,12 @@ Set the ppp interface name for outbound connections.  If the interface name is
 already in use, or if the name cannot be used for any other reason, pppd will
 terminate.
 .TP
+.B vrf \fIname
+Bind the ppp interface to the existing VRF (Virtual Routing and Forwarding)
+instance \fIname\fR on Linux.  Routes installed by pppd will go into the
+routing table of VRF \fIname\fR instead of the default table.  This option
+is only available on Linux systems that support VRF.
+.TP
 .B unset \fIname
 Remove a variable from the environment variable for scripts that are
 invoked by pppd.  When specified by a privileged source, the variable
@@ -1758,6 +1764,10 @@ The name of the serial tty device being used.
 .TP
 .B IFNAME
 The name of the network interface being used.
+.TP
+.B VRF
+The name of the VRF to which the ppp interface is bound.  This is only set if
+the ppp interface has been bound to a VRF using the \fIvrf\fR option.
 .TP
 .B IPLOCAL
 The IP address for the local end of the link.  This is only set when

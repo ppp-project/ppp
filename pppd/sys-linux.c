@@ -215,6 +215,8 @@ int ppp_dev_fd = -1;		/* fd for /dev/ppp (new style driver) */
 
 static int chindex;		/* channel index (new style driver) */
 
+static unsigned routing_table_id = RT_TABLE_MAIN;
+
 static int has_proxy_arp       = 0;
 static int driver_version      = 0;
 static int driver_modification = 0;
@@ -790,12 +792,93 @@ void ppp_generic_disestablish(int dev_fd)
     }
 }
 
+/********************************************************************
+ *
+ * get_vrf_table_id - get the routing table id of a VRF from its ifindex.
+ * 
+ * Returns 0 (unspec table id) on failure.
+ */
+static unsigned get_vrf_table_id(unsigned vrf_ifindex)
+{
+    struct {
+        struct nlmsghdr nlh;
+        struct ifinfomsg ifm;
+    } nlreq;
+    struct {
+        struct ifinfomsg ifm;
+        char buf[4096];
+    } nlresp;
+    struct rtattr *vrf_table = NULL;
+    struct rtattr *info_data = NULL;
+    struct rtattr *linkinfo = NULL;
+    struct rtattr *kind = NULL;
+    struct rtattr *rta;
+    size_t nlresp_size;
+    int vrf_len;
+    int li_len;
+    int resp;
+    int len;
+
+    memset(&nlreq, 0, sizeof(nlreq));
+    nlreq.nlh.nlmsg_len = sizeof(nlreq);
+    nlreq.nlh.nlmsg_type = RTM_GETLINK;
+    nlreq.nlh.nlmsg_flags = NLM_F_REQUEST;
+    nlreq.ifm.ifi_family = AF_UNSPEC;
+    nlreq.ifm.ifi_index = vrf_ifindex;
+
+    nlresp_size = sizeof(nlresp);
+    resp = rtnetlink_msg("RTM_GETLINK/NLM_F_REQUEST", NULL, &nlreq, sizeof(nlreq), &nlresp, &nlresp_size, RTM_NEWLINK);
+    if (resp) {
+        errno = (resp < 0) ? -resp : EINVAL;
+        error("Couldn't collect vrf info: %m");
+        return 0;
+    }
+
+    len = nlresp_size - sizeof(nlresp.ifm);
+
+    /* Walk on top-level attributes */
+    for (rta = IFLA_RTA(&nlresp.ifm); RTA_OK(rta, len); rta = RTA_NEXT(rta, len)) {
+        if (rta->rta_type == IFLA_LINKINFO) {
+            linkinfo = rta;
+            break;
+        }
+    }
+    if (!linkinfo)
+        return 0;
+
+    /* Walk in IFLA_LINKINFO */
+    li_len = RTA_PAYLOAD(linkinfo);
+    for (rta = (struct rtattr *)RTA_DATA(linkinfo); RTA_OK(rta, li_len); rta = RTA_NEXT(rta, li_len)) {
+        if (rta->rta_type == IFLA_INFO_KIND)
+            kind = rta;
+        else if (rta->rta_type == IFLA_INFO_DATA)
+            info_data = rta;
+    }
+    if (!kind || strcmp((char *)RTA_DATA(kind), "vrf") != 0)
+        return 0;
+    if (!info_data)
+        return 0;
+
+    /* Walk in IFLA_INFO_DATA */
+    vrf_len = RTA_PAYLOAD(info_data);
+    for (rta = (struct rtattr *)RTA_DATA(info_data); RTA_OK(rta, vrf_len); rta = RTA_NEXT(rta, vrf_len)) {
+        if (rta->rta_type == IFLA_VRF_TABLE) {
+            vrf_table = rta;
+            break;
+        }
+    }
+    if (!vrf_table)
+        return 0;
+
+    return *(unsigned *)RTA_DATA(vrf_table);
+}
+
 /*
  * make_ppp_unit_rtnetlink - register a new ppp network interface for ppp_dev_fd
  * with specified req_ifname via rtnetlink. Interface name req_ifname must not
  * be empty. Custom ppp unit id req_unit is ignored and kernel choose some free.
  */
-static int make_ppp_unit_rtnetlink(void)
+static int make_ppp_unit_rtnetlink(unsigned vrf_ifindex)
 {
     struct {
         struct nlmsghdr nlh;
@@ -804,6 +887,10 @@ static int make_ppp_unit_rtnetlink(void)
             struct rtattr rta;
             char ifname[IFNAMSIZ];
         } ifn;
+        struct {
+            struct rtattr rta;
+            unsigned ifindex;
+        } ifp;
         struct {
             struct rtattr rta;
             struct {
@@ -832,6 +919,9 @@ static int make_ppp_unit_rtnetlink(void)
     nlreq.ifn.rta.rta_len = sizeof(nlreq.ifn);
     nlreq.ifn.rta.rta_type = IFLA_IFNAME;
     strlcpy(nlreq.ifn.ifname, req_ifname, sizeof(nlreq.ifn.ifname));
+    nlreq.ifp.rta.rta_len = sizeof(nlreq.ifp);
+    nlreq.ifp.rta.rta_type = IFLA_MASTER;
+    nlreq.ifp.ifindex = vrf_ifindex;
     nlreq.ifli.rta.rta_len = sizeof(nlreq.ifli);
     nlreq.ifli.rta.rta_type = IFLA_LINKINFO;
     nlreq.ifli.ifik.rta.rta_len = sizeof(nlreq.ifli.ifik);
@@ -874,6 +964,7 @@ static int make_ppp_unit_rtnetlink(void)
  */
 static int make_ppp_unit(void)
 {
+	unsigned vrf_ifindex = 0;
 	int x, flags;
 
 	if (ppp_dev_fd >= 0) {
@@ -887,6 +978,20 @@ static int make_ppp_unit(void)
 	if (flags == -1
 	    || fcntl(ppp_dev_fd, F_SETFL, flags | O_NONBLOCK) == -1)
 		warn("Couldn't set /dev/ppp to nonblock: %m");
+
+	if (req_vrf[0] != '\0') {
+		vrf_ifindex = if_nametoindex(req_vrf);
+		if (vrf_ifindex == 0) {
+			error("Requested vrf %s does not exist", req_vrf);
+			return -1;
+		}
+
+		routing_table_id = get_vrf_table_id(vrf_ifindex);
+		if (routing_table_id == 0) {
+			error("Couldn't get the routing table id of vrf %s", req_vrf);
+			return -1;
+		}
+	}
 
 	/*
 	 * Via rtnetlink it is possible to create ppp network interface with
@@ -902,7 +1007,7 @@ static int make_ppp_unit(void)
 	 * avoid system issues with interface renaming.
 	 */
 	if (req_unit == -1 && req_ifname[0] != '\0' && kernel_version >= KVERSION(2,1,16)) {
-	    if (make_ppp_unit_rtnetlink()) {
+	    if (make_ppp_unit_rtnetlink(vrf_ifindex)) {
 		if (ioctl(ppp_dev_fd, PPPIOCGUNIT, &ifunit))
 		    fatal("Couldn't retrieve PPP unit id: %m");
 		return 0;
@@ -929,6 +1034,42 @@ static int make_ppp_unit(void)
 	}
 	if (x < 0)
 		error("Couldn't create new ppp unit: %m");
+
+	if (x == 0 && req_vrf[0] != '\0') {
+		struct {
+			struct nlmsghdr nlh;
+			struct ifinfomsg ifm;
+			struct {
+				struct rtattr rta;
+				unsigned ifindex;
+			} ifp;
+		} nlreq;
+		char ppp_iface[IFNAMSIZ];
+		int resp;
+
+		memset(&nlreq, 0, sizeof(nlreq));
+
+		slprintf(ppp_iface, sizeof(ppp_iface), "%s%d", PPP_DRV_NAME, ifunit);
+
+		nlreq.nlh.nlmsg_len = sizeof(nlreq);
+		nlreq.nlh.nlmsg_type = RTM_SETLINK;
+		nlreq.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+		nlreq.ifm.ifi_family = AF_UNSPEC;
+		nlreq.ifm.ifi_index = if_nametoindex(ppp_iface);
+
+		nlreq.ifp.rta.rta_type = IFLA_MASTER;
+		nlreq.ifp.rta.rta_len = sizeof(nlreq.ifp);
+		nlreq.ifp.ifindex = vrf_ifindex;
+
+		resp = rtnetlink_msg("RTM_SETLINK/NLM_F_REQUEST", NULL, &nlreq, sizeof(nlreq), NULL, NULL, 0);
+		if (resp) {
+			x = -1;
+			error("Couldn't move interface %s in vrf %s", ppp_iface, req_vrf);
+		} else {
+			info("Moved interface %s in vrf %s", ppp_iface, req_vrf);
+		}
+	}
 
 	if (x == 0 && req_ifname[0] != '\0') {
 		struct ifreq ifr;
@@ -2106,6 +2247,10 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
 	} metric;
 	struct {
 	    struct rtattr rta;
+	    unsigned id;
+	} table;
+	struct {
+	    struct rtattr rta;
 	    unsigned char ipdata[16]; /* IPv6 MAX */
 	} prefix;
     } nlreq;
@@ -2121,7 +2266,7 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
 	nlreq.nlh.nlmsg_flags |= NLM_F_APPEND;
 
     nlreq.rtmsg.rtm_family = family;
-    nlreq.rtmsg.rtm_table = RT_TABLE_MAIN;
+    nlreq.rtmsg.rtm_table = RT_TABLE_UNSPEC;
     nlreq.rtmsg.rtm_protocol = RTPROT_BOOT;
     nlreq.rtmsg.rtm_scope = RT_SCOPE_LINK;
     nlreq.rtmsg.rtm_type = RTN_UNICAST;
@@ -2133,6 +2278,10 @@ int _route_netlink(const char* op_fam, int operation, int family, unsigned metri
     nlreq.metric.rta.rta_len = sizeof(nlreq.metric);
     nlreq.metric.rta.rta_type = RTA_PRIORITY;
     nlreq.metric.val = metric;
+
+    nlreq.table.rta.rta_len = sizeof(nlreq.table);
+    nlreq.table.rta.rta_type = RTA_TABLE;
+    nlreq.table.id = routing_table_id;
 
     if (prefix) {
 	char nbytes;

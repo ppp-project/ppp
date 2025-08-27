@@ -128,6 +128,9 @@ char	path_ipup[MAXPATHLEN];	/* pathname of ip-up script */
 char	path_ipdown[MAXPATHLEN];/* pathname of ip-down script */
 char	path_ippreup[MAXPATHLEN]; /* pathname of ip-pre-up script */
 char	req_ifname[IFNAMSIZ];	/* requested interface name */
+#ifdef __linux__
+char	req_vrf[IFNAMSIZ];	/* VRF name to bind with PPP interface */
+#endif
 bool	multilink = 0;		/* Enable multilink operation */
 char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
@@ -313,6 +316,12 @@ struct option general_options[] = {
     { "ifname", o_string, req_ifname,
       "Set PPP interface name",
       OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, IFNAMSIZ },
+
+#ifdef __linux__
+    { "vrf", o_string, req_vrf,
+      "Bind PPP interface to the specified VRF and install routes in its routing table",
+      OPT_PRIO | OPT_PRIV | OPT_STATIC, NULL, IFNAMSIZ },
+#endif
 
     { "dump", o_bool, &dump_options,
       "Print out option values after parsing all options", 1 },

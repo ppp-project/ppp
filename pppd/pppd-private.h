@@ -203,6 +203,9 @@ extern char	path_ipup[]; 	/* pathname of ip-up script */
 extern char	path_ipdown[];	/* pathname of ip-down script */
 extern char	path_ippreup[];	/* pathname of ip-pre-up script */
 extern char	req_ifname[]; /* interface name to use (IFNAMSIZ) */
+#ifdef __linux__
+extern char	req_vrf[];	/* VRF name to bind with PPP interface */
+#endif
 extern bool	multilink;	/* enable multilink operation (options.c) */
 extern bool	noendpoint;	/* don't send or accept endpt. discrim. */
 extern char	*bundle_name;	/* bundle name for multilink */

@@ -846,6 +846,10 @@ set_ifunit(int iskey)
 	slprintf(ifname, sizeof(ifname), "%s%d", PPP_DRV_NAME, ifunit);
     info("Using interface %s", ifname);
     ppp_script_setenv("IFNAME", ifname, iskey);
+#ifdef __linux__
+    if (req_vrf[0] != '\0')
+        ppp_script_setenv("VRF", req_vrf, iskey);
+#endif
     slprintf(ifkey, sizeof(ifkey), "%d", ifunit);
     ppp_script_setenv("UNIT", ifkey, iskey);
     if (iskey) {
