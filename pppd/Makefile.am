@@ -53,7 +53,6 @@ pppd_include_HEADERS = \
     multilink.h \
     pppd.h \
     options.h \
-    pppdconf.h \
     session.h \
     upap.h 
 
@@ -90,7 +89,7 @@ pppd_SOURCES = \
     utils.c
 
 # Things produced by the build process, to be installed but not distributed
-BUILT_SOURCE = \
+nodist_pppd_include_HEADERS = \
     pppdconf.h
 
 pppd_CPPFLAGS = -DSYSCONFDIR=\"${sysconfdir}\" -DPPPD_RUNTIME_DIR='"@PPPD_RUNTIME_DIR@"' -DPPPD_LOGFILE_DIR='"@PPPD_LOGFILE_DIR@"'
