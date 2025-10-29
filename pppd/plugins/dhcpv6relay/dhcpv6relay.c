@@ -701,7 +701,7 @@ void dhcpv6relay_client_event(int fd, void*)
 }
 
 static
-void dhcpv6relay_send_router_advertisement()
+void dhcpv6relay_send_router_advertisement(const struct sockaddr* da)
 {
     static char ra[] = {
 	134, 0, /* type and code */
@@ -712,22 +712,26 @@ void dhcpv6relay_send_router_advertisement()
 	0, 0, 0, 0, /* Reachable Time, unspecified */
 	0, 0, 0, 0, /* Retrans Timer, unspecified */
     };
-    struct sockaddr_in6 sa;
+    struct sockaddr_in6 tda;
 
-    memset(&sa, 0, sizeof(sa));
-    sa.sin6_family = AF_INET6;
-    /* just multicast it and move on ... for timed cases this is the only
-     * option, for solicited responses it might be needed to send to the peer's
-     * LL, but the spec is unclear and at least Mikrotik does multicast in
-     * response to solicitation */
-    sa.sin6_scope_id = if_nametoindex(ppp_ifname());
-    if (inet_pton(AF_INET6, "ff02::1", &sa.sin6_addr) < 0) {
-	error("DHCPv6 relay: Unable to prepare multicast address for sending router advertisement: %s",
-		strerror(errno));
-	return;
+    if (!da) {
+	memset(&tda, 0, sizeof(tda));
+	tda.sin6_family = AF_INET6;
+	/* just multicast it and move on ... for timed cases this is the only
+	 * option, for solicited responses it might be needed to send to the peer's
+	 * LL, but the spec is unclear and at least Mikrotik does multicast in
+	 * response to solicitation */
+	tda.sin6_scope_id = if_nametoindex(ppp_ifname());
+	if (inet_pton(AF_INET6, "ff02::1", &tda.sin6_addr) < 0) {
+	    error("DHCPv6 relay: Unable to prepare multicast address for sending router advertisement: %s",
+		    strerror(errno));
+	    return;
+	}
+
+	da = (const struct sockaddr*)&tda;
     }
 
-    if (sendto(dhcpv6relay_sock_rsra, ra, sizeof(ra), 0, (const struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    if (sendto(dhcpv6relay_sock_rsra, ra, sizeof(ra), 0, da, sizeof(tda)) < 0) {
 	error("DHCPv6 relay: Failed to send router advertisement: %s", strerror(errno));
     }
 }
@@ -735,7 +739,7 @@ void dhcpv6relay_send_router_advertisement()
 static
 void dhcpv6relay_send_router_advertisement_timed(void*)
 {
-    dhcpv6relay_send_router_advertisement();
+    dhcpv6relay_send_router_advertisement(NULL);
     ppp_timeout(dhcpv6relay_send_router_advertisement_timed, NULL, dhcpv6relay_ra_interval, 0);
 }
 
@@ -746,11 +750,14 @@ void dhcpv6relay_router_solicitation(int fd, void*)
 			     and we don't care about the content.  Will
 			     typically be 8 bytes, with an additional 8
 			     optional bytes. */
-    int r = read(fd, bfr, sizeof(bfr));
-    if (r < 0) {
+    struct sockaddr_in6 sa;
+    socklen_t slen = sizeof(sa);
+    int r = recvfrom(fd, bfr, sizeof(bfr), MSG_DONTWAIT | MSG_TRUNC,
+	    (struct sockaddr*)&sa, &slen);
+    if (r < 0 && errno != EWOULDBLOCK && errno != EAGAIN) {
 	error("Failure to receive router solicitation: %s", strerror(errno));
     } else {
-	dhcpv6relay_send_router_advertisement();
+	dhcpv6relay_send_router_advertisement(r < 0 ? NULL : (struct sockaddr*)&sa);
     }
 }
 
@@ -891,7 +898,10 @@ void dhcpv6relay_up(void*, int)
 	}
 	v = 255;
 	if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &v, sizeof(v)) < 0) {
-	    warn("DHCPv6 relay: Unable to set hop limit for sending router advertisements: %s", strerror(errno));
+	    warn("DHCPv6 relay: Unable to set multicast hop limit for sending router advertisements: %s", strerror(errno));
+	}
+	if (setsockopt(dhcpv6relay_sock_rsra, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &v, sizeof(v)) < 0) {
+	    warn("DHCPv6 relay: Unable to set unicast hop limit for sending router advertisements: %s", strerror(errno));
 	}
 	add_fd_callback(dhcpv6relay_sock_rsra, dhcpv6relay_router_solicitation, NULL);
 
