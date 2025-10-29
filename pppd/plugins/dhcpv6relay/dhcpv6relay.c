@@ -416,7 +416,7 @@ void dhcpv6relay_server_event(int fd, void*)
     socklen_t slen = sizeof(sa);
     bool valid_source = true;
     int hlim = 0;
-    ssize_t r = recvfrom(fd, buffer, sizeof(buffer), MSG_DONTWAIT,
+    ssize_t r = recvfrom(fd, buffer, sizeof(buffer), MSG_DONTWAIT | MSG_TRUNC,
 	    (struct sockaddr*)&sa, &slen);
     if (r < 0) {
 	error("DHCPv6 relay: Failed to read from %s socket: %s",
@@ -424,8 +424,8 @@ void dhcpv6relay_server_event(int fd, void*)
 		strerror(errno));
 	return;
     }
-    if (r >= sizeof(buffer)) {
-	error("DHCPv6 buffer overrun, recvfrom returned %d, max %u",
+    if (r > sizeof(buffer)) {
+	error("DHCPv6 relay: buffer overrun receiving packet of length %db received with a buffer of size %ub from the DHCP server",
 		r, sizeof(buffer));
 	return;
     }
@@ -590,7 +590,7 @@ void dhcpv6relay_client_event(int fd, void*)
     struct sockaddr_in6 sa;
     uint16_t sport;
     socklen_t slen = sizeof(sa);
-    ssize_t r = recvfrom(fd, buffer, sizeof(buffer), MSG_DONTWAIT,
+    ssize_t r = recvfrom(fd, buffer, sizeof(buffer), MSG_DONTWAIT | MSG_TRUNC,
 	    (struct sockaddr*)&sa, &slen);
     if (r < 0) {
 	if (errno != EAGAIN)
@@ -599,8 +599,8 @@ void dhcpv6relay_client_event(int fd, void*)
 		    strerror(errno));
 	return;
     }
-    if (r >= sizeof(buffer)) {
-	error("DHCPv6 relay: buffer overrun, recvfrom returned %d, max %u (%s socket)",
+    if (r > sizeof(buffer)) {
+	error("DHCPv6 relay: buffer overrun receiving packet of length %db received with a buffer of size %ub from the DHCP client",
 		r, sizeof(buffer), fd == dhcpv6relay_sock_ll ? "LL" : "MC");
 	return;
     }
