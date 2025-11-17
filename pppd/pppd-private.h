@@ -309,7 +309,7 @@ void die(int);		/* Cleanup and exit */
 void quit(void);		/* like die(1) */
 
 void record_child(int, char *, void (*) (void *), void *, int);
-int  device_script(char *cmd, int in, int out, int dont_wait);
+int  device_script(char *cmd, int in, int out, int dont_wait, const char* logfile);
 				/* Run `cmd' with given stdin and stdout */
 pid_t run_program(char *prog, char * const * args, int must_exist,
 		  void (*done)(void *), void *arg, int wait);

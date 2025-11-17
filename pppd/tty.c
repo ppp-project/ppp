@@ -142,6 +142,7 @@ int	inspeed = 0;		/* Input/Output speed requested */
 bool	lockflag = 0;		/* Create lock file to lock the serial dev */
 char	*initializer = NULL;	/* Script to initialize physical link */
 char	*connect_script = NULL;	/* Script to establish physical link */
+char	*connect_errlog = NULL;	/* Log path for stderr for connect/disconnect scripts */
 char	*disconnect_script = NULL; /* Script to disestablish physical link */
 char	*welcomer = NULL;	/* Script to run after phys link estab. */
 char	*ptycommand = NULL;	/* Command to run on other side of pty */
@@ -184,6 +185,8 @@ static struct option tty_options[] = {
 
     { "connect", o_string, &connect_script,
       "A program to set up a connection", OPT_PRIO | OPT_PRIVFIX },
+    { "connecterrlog", o_string, &connect_errlog,
+      "Log path to redirect stderr for connect script to", OPT_PRIO | OPT_PRIVFIX },
 
     { "disconnect", o_string, &disconnect_script,
       "Program to disconnect serial device", OPT_PRIO | OPT_PRIVFIX },
@@ -377,7 +380,7 @@ setdevname(char *cp, char **argv, int doit)
 		devstat = statbuf;
 		default_device = 0;
 	}
-  
+
 	return 1;
 }
 
@@ -681,7 +684,7 @@ int connect_tty(void)
 			(void) fcntl(ipipe[0], F_SETFD, FD_CLOEXEC);
 			(void) fcntl(opipe[1], F_SETFD, FD_CLOEXEC);
 
-			ok = device_script(ptycommand, opipe[0], ipipe[1], 1) == 0
+			ok = device_script(ptycommand, opipe[0], ipipe[1], 1, connect_errlog) == 0
 				&& start_charshunt(ipipe[0], opipe[1]);
 			close(ipipe[0]);
 			close(ipipe[1]);
@@ -690,7 +693,7 @@ int connect_tty(void)
 			if (!ok)
 				goto errret;
 		} else {
-			if (device_script(ptycommand, pty_master, pty_master, 1) < 0)
+			if (device_script(ptycommand, pty_master, pty_master, 1, connect_errlog) < 0)
 				goto errret;
 		}
 	} else if (pty_socket != NULL) {
@@ -733,7 +736,7 @@ int connect_tty(void)
 		}
 
 		if (initializer && initializer[0]) {
-			if (device_script(initializer, ttyfd, ttyfd, 0) < 0) {
+			if (device_script(initializer, ttyfd, ttyfd, 0, connect_errlog) < 0) {
 				error("Initializer script failed");
 				ppp_set_status(EXIT_INIT_FAILED);
 				goto errretf;
@@ -746,7 +749,7 @@ int connect_tty(void)
 		}
 
 		if (connector && connector[0]) {
-			if (device_script(connector, ttyfd, ttyfd, 0) < 0) {
+			if (device_script(connector, ttyfd, ttyfd, 0, connect_errlog) < 0) {
 				error("Connect script failed");
 				ppp_set_status(EXIT_CONNECT_FAILED);
 				goto errretf;
@@ -788,7 +791,7 @@ int connect_tty(void)
 
 	/* run welcome script, if any */
 	if (welcomer && welcomer[0]) {
-		if (device_script(welcomer, ttyfd, ttyfd, 0) < 0)
+		if (device_script(welcomer, ttyfd, ttyfd, 0, connect_errlog) < 0)
 			warn("Welcome script failed");
 	}
 
@@ -823,7 +826,7 @@ void disconnect_tty(void)
 		return;
 	if (real_ttyfd >= 0)
 		set_up_tty(real_ttyfd, 1);
-	if (device_script(disconnect_script, ttyfd, ttyfd, 0) < 0) {
+	if (device_script(disconnect_script, ttyfd, ttyfd, 0, connect_errlog) < 0) {
 		warn("disconnect script failed");
 	} else {
 		info("Serial link disconnected.");

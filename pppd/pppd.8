@@ -99,6 +99,13 @@ A value
 for this option from a privileged source cannot be overridden by a
 non-privileged user.
 .TP
+.B connecterrlog \fIfilename
+Usually stderr for the connect script is logged to the fdlog file, or to
+\fIconnect-errors fR in the logfile dir (/var/log/ppp by default).  This option
+allows you to override that.
+A value for this option from a privileged source cannot be overridden by a
+non-privileged user.
+.TP
 .B crtscts
 Specifies that pppd should set the serial port to use hardware flow
 control using the RTS and CTS signals in the RS-232 interface.
