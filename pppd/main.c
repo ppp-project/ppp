@@ -1811,14 +1811,16 @@ update_system_environment(void)
  * stderr gets connected to the log fd or to the PPP_PATH_CONNERRS file.
  */
 int
-device_script(char *program, int in, int out, int dont_wait)
+device_script(char *program, int in, int out, int dont_wait, const char* logfile)
 {
     int pid;
     int status = -1;
     int errfd;
     int ret;
 
-    if (log_to_fd >= 0)
+    if (logfile)
+	errfd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644);
+    else if (log_to_fd >= 0)
 	errfd = log_to_fd;
     else
 	errfd = open(PPP_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0644);
@@ -1826,7 +1828,7 @@ device_script(char *program, int in, int out, int dont_wait)
     ++conn_running;
     pid = ppp_safe_fork(in, out, errfd);
 
-    if (pid != 0 && log_to_fd < 0)
+    if (pid != 0 && errfd >= 0 && log_to_fd != errfd)
 	close(errfd);
 
     if (pid < 0) {
