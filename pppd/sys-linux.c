@@ -164,6 +164,11 @@
 #include <sys/locks.h>
 #endif
 
+#ifdef USE_CAP
+#include <sys/types.h>
+#include <sys/capability.h>
+#endif /* USE_CAP */
+
 /*
  * Instead of system header file <termios.h> use local "termios_linux.h" header
  * file as it provides additional support for arbitrary baud rates via BOTHER.
@@ -2840,6 +2845,47 @@ ppp_registered(void)
     close(local_fd);
     close(mfd);
     return ret;
+}
+
+/***********************************************************
+ *
+ * net_capable - check for any access to the net management
+ */
+
+int net_capable(void)
+{
+	/*
+	 * Check if we are running as root first, as this is the most common case.
+	 */
+	if (geteuid() == 0)
+		return 1;
+
+#ifdef USE_CAP
+	/*
+	 * If not root, check for CAP_NET_ADMIN capability.
+	 */
+	cap_t cap;
+	cap_flag_value_t cap_flag_value;
+	int ok = 0;
+
+	cap = cap_get_pid(getpid());
+	if (cap != NULL) {
+		if (cap_get_flag(cap, CAP_NET_ADMIN, CAP_EFFECTIVE, &cap_flag_value) == 0) {
+			if (cap_flag_value == CAP_SET) {
+				cap_free(cap);
+				return 1;
+			}
+		}
+		if (cap_get_flag(cap, CAP_NET_ADMIN, CAP_PERMITTED, &cap_flag_value) == 0) {
+			if (cap_flag_value == CAP_SET)
+				ok = 1;
+		}
+		cap_free(cap);
+	}
+	return ok;
+#else
+	return 0;
+#endif /* USE_CAP */
 }
 
 /********************************************************************
