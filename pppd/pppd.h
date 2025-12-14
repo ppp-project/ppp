@@ -436,6 +436,11 @@ void ppp_script_setenv(char *, char *, int);
 void ppp_script_unsetenv(char *);
 
 /*
+ * Test for network management capability
+ */
+int net_capable(void);
+
+/*
  * Test whether ppp kernel support exists
  */
 int ppp_check_kernel_support(void);
