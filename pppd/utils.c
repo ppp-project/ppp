@@ -75,6 +75,102 @@ struct buffer_info {
 };
 
 /*
+ * Check that a file is owned by root, not writable by group or other,
+ * and that all the directories in the path leading to it is likewise
+ * owned by root and not writable by group or other.  The real path to
+ * the file is returned in *path_to_use, which should be freed after
+ * use (real meaning not containing any symlinks or ".." components).
+ * If exec is true, check for execute permission, otherwise for read
+ * permission.
+ * Returns 1 if OK; if not, prints an error message and returns 0.
+ */
+int
+ppp_check_access(const char *path, char **path_to_use, int must_exist, int exec)
+{
+    char *rpath, *slash, *part;
+    struct stat sbuf;
+    int perm;
+
+    /*
+     * Resolve symlinks such that we eliminate a few potential ToCToU
+     * attack avenues (eg, changing symlinks).
+     */
+    rpath = realpath(path, NULL);
+    if (!rpath) {
+	if (errno == ENOMEM)
+	    fatal("Insufficient memory for real path");
+	if (must_exist || errno != ENOENT)
+	    error("Can't access %s: %m", path);
+	return 0;
+    }
+
+    /*
+     * full check the entire path, must be root: owned, and NOT be writable
+     * to group/other (which incorporates FACL bits somehow, so we can ignore
+     * explicit FACL checks).
+     */
+    part = "/";
+    slash = rpath;
+    for (;;) {
+	bool ok = false;
+	const char *pname = (slash? part: "it");
+
+	if (lstat(part, &sbuf) != 0) {
+	    if (must_exist || errno != ENOENT) {
+		if (!slash) {
+		    error("Can't access %v: %m", rpath);
+		} else {
+		    error("Can't use %v, because of error accessing", path);
+		    error("path component %v: %m");
+		}
+	    }
+	    goto err;
+	}
+
+	if (sbuf.st_uid != 0) {
+	    error("Can't safely use %v because %v is not owned by root",
+		  path, pname);
+	    goto err;
+	}
+
+	if (0 != (sbuf.st_mode & (S_IWGRP | S_IWOTH))) {
+	    error("Can't safely use %v because %v is group or other writable",
+		  path, pname);
+	    goto err;
+	}
+
+	if (!slash)
+	    break;
+
+	*slash = '/';
+	part = rpath;
+
+	slash = strchr(slash + 1, '/');
+	if (slash)
+	    *slash = 0;
+    }
+
+    if (!S_ISREG(sbuf.st_mode)) {
+	error("Can't use %v: not a regular file", rpath);
+	goto err;
+    }
+
+    perm = exec? S_IXUSR : S_IRUSR;
+    if ((sbuf.st_mode & perm) == 0) {
+	error("Can't use %v: not %sable by root", rpath,
+	      exec? "execut": "read");
+	goto err;
+    }
+
+    *path_to_use = rpath;
+    return 1;
+
+ err:
+    free(rpath);
+    return 0;
+}
+
+/*
  * strlcpy - like strcpy/strncpy, doesn't overflow destination buffer,
  * always leaves destination null-terminated (for len > 0).
  */
