@@ -2008,6 +2008,15 @@ int get_ppp_stats(int u, struct pppd_stats *stats)
     static int (*func)(int, struct pppd_stats*) = NULL;
 
     if (!func) {
+	if (kernel_version < KVERSION(3, 8, 0)) {
+	    /* In kernel versions prior to 3.8 pppstat in kernel was
+	     * forced to __u32, so just use the IOCTL mechanism which
+	     * will track wrap-around */
+	    func = get_ppp_stats_ioctl;
+	    TIMEOUT(ppp_stats_poller, (void*)(long)u, 25);
+	    return func(u, stats);
+	}
+
 	if (get_ppp_stats_rtnetlink(u, stats)) {
 	    func = get_ppp_stats_rtnetlink;
 	    return 1;
