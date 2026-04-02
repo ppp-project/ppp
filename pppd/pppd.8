@@ -74,11 +74,11 @@ so pppd will ask the peer not to escape any control characters.
 To escape transmitted characters, use the \fIescape\fR option.
 .TP
 .B auth
-Require the peer to authenticate itself before allowing network
-packets to be sent or received.  This option is the default if the
-system has a default route.  If neither this option nor the
-\fInoauth\fR option is specified, pppd will only allow the peer to use
-IP addresses to which the system does not already have a route.
+Require the peer to authenticate itself before allowing network packets to be
+sent or received.  For security reasons this option is the default if pppd is
+executed as a non-privileged user.  If neither this option nor the \fInoauth\fR
+option is specified, pppd will only allow the peer to use IP addresses to which
+the system does not already have a route.
 .TP
 .B call \fIname
 Read additional options from the file /etc/ppp/peers/\fIname\fR.  This

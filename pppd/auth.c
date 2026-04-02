@@ -1358,7 +1358,7 @@ auth_check_options(void)
      * If we have a default route, require the peer to authenticate
      * unless the noauth option was given or the real user is root.
      */
-    if (!auth_required && !allow_any_ip && have_route_to(0) && !privileged) {
+    if (!auth_required && !allow_any_ip && !privileged) {
 	auth_required = 1;
 	default_auth = 1;
     }
