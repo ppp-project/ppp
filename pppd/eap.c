@@ -1954,14 +1954,14 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			/* No session key just yet */
 			esp->es_client.ea_skey = NULL;
 			if (tc == NULL) {
-				GETCHAR(vallen, inp);
-				len--;
-				if (vallen >= len) {
+				if (len < 1 || len < inp[0] + 1) {
 					error("EAP: badly-formed SRP Challenge"
 					    " (name)");
 					/* Ignore badly-formed messages */
 					return;
 				}
+				GETCHAR(vallen, inp);
+				len--;
 				BCOPY(inp, rhostname, vallen);
 				rhostname[vallen] = '\0';
 				INCPTR(vallen, inp);
@@ -1982,27 +1982,27 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				esp->es_client.ea_peer = strdup(rhostname);
 				esp->es_client.ea_peerlen = strlen(rhostname);
 
-				GETCHAR(vallen, inp);
-				len--;
-				if (vallen >= len) {
+				if (len < 1 || len < inp[0] + 1) {
 					error("EAP: badly-formed SRP Challenge"
 					    " (s)");
 					/* Ignore badly-formed messages */
 					return;
 				}
+				GETCHAR(vallen, inp);
+				len--;
 				sval.data = inp;
 				sval.len = vallen;
 				INCPTR(vallen, inp);
 				len -= vallen;
 
-				GETCHAR(vallen, inp);
-				len--;
-				if (vallen > len) {
+				if (len < 1 || len < inp[0] + 1) {
 					error("EAP: badly-formed SRP Challenge"
 					    " (g)");
 					/* Ignore badly-formed messages */
 					return;
 				}
+				GETCHAR(vallen, inp);
+				len--;
 				/* If no generator present, then use value 2 */
 				if (vallen == 0) {
 					gval.data = (u_char *)"\002";
@@ -2196,11 +2196,16 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		u_char *challenge = inp;
 
 		unsigned char vsize;
+
+		if (len < 1 + MS_CHAP2_PEER_CHAL_LEN) {
+		    error("EAP: received invalid MSCHAPv2 packet, invalid length: %d", len);
+		    return;
+		}
 		GETCHAR(vsize, inp);
                 len -= 1;
 
 		/* Validate the VALUE field */
-                if (vsize != MS_CHAP2_PEER_CHAL_LEN || len < MS_CHAP2_PEER_CHAL_LEN) {
+                if (vsize != MS_CHAP2_PEER_CHAL_LEN) {
                     error("EAP: received invalid MSCHAPv2 packet, invalid value-length: %d", vsize);
                     return;
                 }
@@ -2622,17 +2627,17 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				eap_figure_next_state(esp, 1);
 				break;
 			}
-			/* skip MS ID + len */
-			INCPTR(3, inp);
-			GETCHAR(vallen, inp);
-			len -= 4;
 
-			if (vallen != MS_CHAP2_RESPONSE_LEN || vallen > len) {
-				error("EAP: Invalid MSCHAPv2-Response "
-						"length %d", vallen);
+			/* skip MS ID + len */
+			if (len < 4 + MS_CHAP2_RESPONSE_LEN || inp[3] != MS_CHAP2_RESPONSE_LEN) {
+				error("EAP: Invalid/short MSCHAPv2-Response, "
+						"length %d", len);
 				eap_figure_next_state(esp, 1);
 				break;
 			}
+			INCPTR(3, inp);
+			GETCHAR(vallen, inp);
+			len -= 4;
 
 			/* Not so likely to happen. */
 			if (len - vallen >= sizeof (rhostname)) {
@@ -3010,14 +3015,16 @@ eap_printpkt(u_char *inp, int inlen,
 	GETCHAR(code, inp);
 	GETCHAR(id, inp);
 	GETSHORT(len, inp);
-	if (len < EAP_HEADERLEN || len > inlen)
-		return (0);
 
 	if (code >= 1 && code <= sizeof(eap_codenames) / sizeof(char *))
 		printer(arg, " %s", eap_codenames[code-1]);
 	else
 		printer(arg, " code=0x%x", code);
 	printer(arg, " id=0x%x", id);
+	if (len < EAP_HEADERLEN || len > inlen) {
+		printer(arg, " <bad length=%d>", len);
+		return (0);
+	}
 	len -= EAP_HEADERLEN;
 	switch (code) {
 	case EAP_REQUEST:
@@ -3075,6 +3082,8 @@ eap_printpkt(u_char *inp, int inlen,
 			len--;
 			switch (opcode) {
 			case CHAP_CHALLENGE:
+				if (len < 4)
+					goto truncated;
 				INCPTR(3, inp);
 				len -= 3;
 				GETCHAR(vallen, inp);
@@ -3100,6 +3109,8 @@ eap_printpkt(u_char *inp, int inlen,
 				}
 				break;
 			case CHAP_SUCCESS:
+				if (len < 3)
+					goto truncated;
 				INCPTR(3, inp);
 				len -= 3;
 				printer(arg, " Success <Message ");
@@ -3107,6 +3118,8 @@ eap_printpkt(u_char *inp, int inlen,
 				printer(arg, ">");
 				break;
 			case CHAP_FAILURE:
+				if (len < 3)
+					goto truncated;
 				INCPTR(3, inp);
 				len -= 3;
 				printer(arg, " Failure <Message ");
@@ -3114,6 +3127,8 @@ eap_printpkt(u_char *inp, int inlen,
 				printer(arg, ">");
 				break;
 			default:
+				if (len < 3)
+					goto truncated;
 				INCPTR(3, inp);
 				len -= 3;
 				printer(arg, " opcode=0x%x <%.*B>", opcode, len, inp);
@@ -3317,6 +3332,8 @@ eap_printpkt(u_char *inp, int inlen,
 			len--;
 			switch (opcode) {
 			case CHAP_RESPONSE:
+				if (len < 4)
+					goto truncated;
 				INCPTR(3, inp);
 				len -= 3;
 				GETCHAR(vallen, inp);
