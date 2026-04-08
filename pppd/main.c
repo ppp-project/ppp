@@ -1921,21 +1921,14 @@ pid_t
 run_program(char *prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
     int pid, status, ret;
-    struct stat sbuf;
+    char *rpath;
 
     /*
-     * First check if the file exists and is executable.
-     * We don't use access() because that would use the
-     * real user-id, which might not be root, and the script
-     * might be accessible only to root.
+     * First check if the file exists and is executable by root,
+     * and couldn't have been modified by a non-root process.
      */
-    errno = EINVAL;
-    if (stat(prog, &sbuf) < 0 || !S_ISREG(sbuf.st_mode)
-	|| (sbuf.st_mode & (S_IXUSR|S_IXGRP|S_IXOTH)) == 0) {
-	if (must_exist || errno != ENOENT)
-	    warn("Can't execute %s: %m", prog);
+    if (!ppp_check_access(prog, &rpath, must_exist, 1))
 	return 0;
-    }
 
     pid = ppp_safe_fork(fd_devnull, fd_devnull, fd_devnull);
     if (pid == -1) {
@@ -1954,6 +1947,7 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 	    }
 	    forget_child(pid, status);
 	}
+	free(rpath);
 	return pid;
     }
 
@@ -1981,12 +1975,12 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 
     /* run the program */
     update_script_environment();
-    execve(prog, args, script_env);
+    execve(rpath, args, script_env);
     if (must_exist || errno != ENOENT) {
 	/* have to reopen the log, there's nowhere else
 	   for the message to go. */
 	reopen_log();
-	syslog(LOG_ERR, "Can't execute %s: %m", prog);
+	syslog(LOG_ERR, "Can't execute %s: %m", rpath);
 	closelog();
     }
     _exit(99);

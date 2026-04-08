@@ -1640,6 +1640,7 @@ callfile(char **argv)
 {
     char *fname, *arg, *p;
     int l, ok;
+    char *realname;
 
     arg = *argv;
     ok = 1;
@@ -1668,9 +1669,15 @@ callfile(char **argv)
     slprintf(fname, l, "%s%s", PPP_PATH_PEERFILES, arg);
     ppp_script_setenv("CALL_FILE", arg, 0);
 
-    ok = ppp_options_from_file(fname, 1, 1, 1);
+    if (!ppp_check_access(fname, &realname, 1, 0)) {
+	free(fname);
+	return 0;
+    }
+
+    ok = ppp_options_from_file(realname, 1, 1, 1);
 
     free(fname);
+    free(realname);
     return ok;
 }
 

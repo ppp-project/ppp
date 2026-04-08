@@ -1545,7 +1545,8 @@ check_passwd(int unit,
      * Open the file of pap secrets and scan for a suitable secret
      * for authenticating this user.
      */
-    filename = path_upapfile;
+    if (!ppp_check_access(path_upapfile, &filename, 0, 0))
+	    return UPAP_AUTHNAK;
     addrs = opts = NULL;
     ret = UPAP_AUTHNAK;
     f = fopen(filename, "r");
@@ -1587,6 +1588,7 @@ check_passwd(int unit,
 	}
 	fclose(f);
     }
+    free(filename);
 
     if (ret == UPAP_AUTHNAK) {
         if (**msg == 0)
@@ -1646,17 +1648,21 @@ null_login(int unit)
      * Open the file of pap secrets and scan for a suitable secret.
      */
     if (ret <= 0) {
-	filename = path_upapfile;
+	if (!ppp_check_access(path_upapfile, &filename, 0, 0))
+	    return 0;
 	addrs = NULL;
 	f = fopen(filename, "r");
-	if (f == NULL)
+	if (f == NULL) {
+	    free(filename);
 	    return 0;
+	}
 	check_access(f, filename);
 
 	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename, 0);
 	ret = i >= 0 && secret[0] == 0;
 	BZERO(secret, sizeof(secret));
 	fclose(f);
+	free(filename);
     }
 
     if (ret)
@@ -1730,14 +1736,18 @@ have_pap_secret(int *lacks_ipp)
 	    return ret;
     }
 
-    filename = path_upapfile;
-    f = fopen(filename, "r");
-    if (f == NULL)
+    if (!ppp_check_access(path_upapfile, &filename, 0, 0))
 	return 0;
+    f = fopen(filename, "r");
+    if (f == NULL) {
+	free(filename);
+	return 0;
+    }
 
     ret = scan_authfile(f, (explicit_remote? remote_name: NULL), our_name,
 			NULL, &addrs, NULL, filename, 0);
     fclose(f);
+    free(filename);
     if (ret >= 0 && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
 	    *lacks_ipp = 1;
@@ -1772,10 +1782,13 @@ have_chap_secret(char *client, char *server,
 	}
     }
 
-    filename = path_chapfile;
+    if (!ppp_check_access(path_chapfile, &filename, 0, 0))
+	    return 0;
     f = fopen(filename, "r");
-    if (f == NULL)
+    if (f == NULL) {
+	free(filename);
 	return 0;
+    }
 
     if (client != NULL && client[0] == 0)
 	client = NULL;
@@ -1784,6 +1797,7 @@ have_chap_secret(char *client, char *server,
 
     ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
     fclose(f);
+    free(filename);
     if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
 	    *lacks_ipp = 1;
@@ -1810,10 +1824,13 @@ have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
     char *filename;
     struct wordlist *addrs;
 
-    filename = PPP_PATH_SRPFILE;
-    f = fopen(filename, "r");
-    if (f == NULL)
+    if (!ppp_check_access(PPP_PATH_SRPFILE, &filename, 0, 0))
 	return 0;
+    f = fopen(filename, "r");
+    if (f == NULL) {
+	free(filename);
+	return 0;
+    }
 
     if (client != NULL && client[0] == 0)
 	client = NULL;
@@ -1822,6 +1839,7 @@ have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
 
     ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
     fclose(f);
+    free(filename);
     if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
 	    *lacks_ipp = 1;
@@ -1858,19 +1876,22 @@ get_secret(int unit, char *client, char *server,
 	    return 0;
 	}
     } else {
-	filename = path_chapfile;
+	if (!ppp_check_access(path_chapfile, &filename, 0, 0))
+	    return 0;
 	addrs = NULL;
 	secbuf[0] = 0;
 
 	f = fopen(filename, "r");
 	if (f == NULL) {
 	    error("Can't open chap secret file %s: %m", filename);
+	    free(filename);
 	    return 0;
 	}
 	check_access(f, filename);
 
 	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename, 0);
 	fclose(f);
+	free(filename);
 	if (ret < 0)
 	    return 0;
 
@@ -1912,12 +1933,14 @@ get_srp_secret(int unit, char *client, char *server,
     if (!am_server && passwd[0] != '\0') {
 	strlcpy(secret, passwd, MAXWORDLEN);
     } else {
-	filename = PPP_PATH_SRPFILE;
+	if (!ppp_check_access(PPP_PATH_SRPFILE, &filename, 0, 0))
+	    return 0;
 	addrs = NULL;
 
 	fp = fopen(filename, "r");
 	if (fp == NULL) {
 	    error("Can't open srp secret file %s: %m", filename);
+	    free(filename);
 	    return 0;
 	}
 	check_access(fp, filename);
@@ -1926,6 +1949,7 @@ get_srp_secret(int unit, char *client, char *server,
 	ret = scan_authfile(fp, client, server, secret, &addrs, &opts,
 	    filename, am_server);
 	fclose(fp);
+	free(filename);
 	if (ret < 0)
 	    return 0;
 
@@ -2304,18 +2328,25 @@ scan_authfile(FILE *f, char *client, char *server,
 	     * Special syntax: @/pathname means read secret from file.
 	     */
 	    if (word[0] == '@' && word[1] == '/') {
+		char *realname;
+
 		strlcpy(atfile, word+1, sizeof(atfile));
-		if ((sf = fopen(atfile, "r")) == NULL) {
+		if (!ppp_check_access(atfile, &realname, 0, 0))
+		    continue;
+		if ((sf = fopen(realname, "r")) == NULL) {
 		    warn("can't open indirect secret file %s", atfile);
+		    free(realname);
 		    continue;
 		}
 		check_access(sf, atfile);
 		if (!getword(sf, word, &xxx, atfile)) {
 		    warn("no secret in indirect secret file %s", atfile);
 		    fclose(sf);
+		    free(realname);
 		    continue;
 		}
 		fclose(sf);
+		free(realname);
 	    }
 	    strlcpy(lsecret, word, sizeof(lsecret));
 	}
@@ -2474,10 +2505,13 @@ have_eaptls_secret_server(char *client, char *server,
     char cacertfile[MAXWORDLEN];
     char pkfile[MAXWORDLEN];
 
-    filename = PPP_PATH_EAPTLSSERVFILE;
+    if (!ppp_check_access(PPP_PATH_EAPTLSSERVFILE, &filename, 0, 0))
+	return 0;
     f = fopen(filename, "r");
-    if (f == NULL)
-		return 0;
+    if (f == NULL) {
+	free(filename);
+	return 0;
+    }
 
     if (client != NULL && client[0] == 0)
 		client = NULL;
@@ -2490,6 +2524,7 @@ have_eaptls_secret_server(char *client, char *server,
 			     0);
 
     fclose(f);
+    free(filename);
 
 /*
     if (ret >= 0 && !eaptls_init_ssl(1, cacertfile, servcertfile,
@@ -2752,10 +2787,13 @@ get_eaptls_secret(int unit, char *client, char *server,
 		filename = (am_server ? PPP_PATH_EAPTLSSERVFILE : PPP_PATH_EAPTLSCLIFILE);
 		addrs = NULL;
 
+		if (!ppp_check_access(filename, &filename, 0, 0))
+			return 0;
 		fp = fopen(filename, "r");
 		if (fp == NULL)
 		{
 			error("Can't open eap-tls secret file %s: %m", filename);
+			free(filename);
 			return 0;
 		}
 
@@ -2765,6 +2803,7 @@ get_eaptls_secret(int unit, char *client, char *server,
 				cacertfile, pkfile, &addrs, &opts, filename, 0);
 
 		fclose(fp);
+		free(filename);
 
 		if (ret < 0) return 0;
 	}
