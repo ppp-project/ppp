@@ -334,10 +334,10 @@ struct option general_options[] = {
 
     { "set", o_special, (void *)user_setenv,
       "Set user environment variable",
-      OPT_A2PRINTER | OPT_NOPRINT, (void *)user_setprint },
+      OPT_A2PRINTER | OPT_NOPRINT | OPT_PRIV, (void *)user_setprint },
     { "unset", o_special, (void *)user_unsetenv,
       "Unset user environment variable",
-      OPT_A2PRINTER | OPT_NOPRINT, (void *)user_unsetprint },
+      OPT_A2PRINTER | OPT_NOPRINT | OPT_PRIV, (void *)user_unsetprint },
 
     { "net-init-script", o_string, path_net_init,
       "Set pathname of net-init script",
