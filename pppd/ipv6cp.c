@@ -252,7 +252,7 @@ static struct option ipv6cp_option_list[] = {
       "Accept peer's interface identifier for itself", 1 },
 
     { "defaultroute6", o_bool, &ipv6cp_wantoptions[0].default_route,
-      "Add default IPv6 route", OPT_ENABLE|1, &ipv6cp_allowoptions[0].default_route },
+      "Add default IPv6 route", OPT_PRIV|OPT_ENABLE|1, &ipv6cp_allowoptions[0].default_route },
     { "nodefaultroute6", o_bool, &ipv6cp_allowoptions[0].default_route,
       "disable defaultroute6 option", OPT_A2CLR,
       &ipv6cp_wantoptions[0].default_route },

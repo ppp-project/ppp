@@ -192,7 +192,7 @@ static struct option ipcp_option_list[] = {
       "Set max #conf-naks for IPCP", OPT_PRIO },
 
     { "defaultroute", o_bool, &ipcp_wantoptions[0].default_route,
-      "Add default route", OPT_ENABLE|1, &ipcp_allowoptions[0].default_route },
+      "Add default route", OPT_PRIV|OPT_ENABLE|1, &ipcp_allowoptions[0].default_route },
     { "nodefaultroute", o_bool, &ipcp_allowoptions[0].default_route,
       "disable defaultroute option", OPT_A2CLR,
       &ipcp_wantoptions[0].default_route },
