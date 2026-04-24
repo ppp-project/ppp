@@ -303,6 +303,15 @@ AX_CHECK_PAM(AC_DEFINE([PPP_WITH_PAM], 1, [Support for Pluggable Authentication 
 AM_CONDITIONAL(PPP_WITH_PAM, test "x${with_pam}" = "xyes")
 
 #
+# With libcap support for capability-based privilege management (Linux only, Solaris uses geteuid check)
+AM_COND_IF([LINUX], [
+    AX_CHECK_CAP(AC_DEFINE([USE_CAP], 1, [Use libcap for capability checking]))
+    AM_CONDITIONAL(WITH_LIBCAP, test "x${with_libcap}" = "xyes")
+], [
+    AM_CONDITIONAL(WITH_LIBCAP, false)
+])
+
+#
 # With libpcap support, activate pppd on network activity
 AX_CHECK_PCAP
 
@@ -347,6 +356,7 @@ $PACKAGE_NAME version $PACKAGE_VERSION
     System CA Path ......: ${SYSTEM_CA_PATH:-not set}
     With OpenSSL.........: ${with_openssl:-yes}
     With libatm..........: ${with_atm:-no}
+    With libcap..........: ${with_libcap:-no}
     With libpam..........: ${with_pam:-no}
     With libpcap.........: ${with_pcap:-no}
     With libsrp..........: ${with_srp:-no}

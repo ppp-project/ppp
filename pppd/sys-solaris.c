@@ -635,6 +635,19 @@ sys_check_options(void)
     return 1;
 }
 
+/***********************************************************
+ *
+ * net_capable - check for any access to the net management
+ */
+
+int net_capable(void)
+{
+    /*
+     * On Solaris, always check that we are running as root.
+     */
+    return (geteuid() == 0);
+}
+
 /*
  * ppp_check_kernel_support - check whether the system has any ppp interfaces
  */
