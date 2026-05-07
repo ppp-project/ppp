@@ -169,7 +169,7 @@ static int num_np_up;
 /* Set if we got the contents of passwd[] from the pap-secrets file. */
 static int passwd_from_file;
 
-/* Set if we require authentication only because we have a default route. */
+/* Set if we require authentication only because the user is not root. */
 static bool default_auth;
 
 /* Hook to enable a plugin to control the idle time limit */
@@ -1355,7 +1355,7 @@ auth_check_options(void)
 #endif
 
     /*
-     * If we have a default route, require the peer to authenticate
+     * Require the peer to authenticate
      * unless the noauth option was given or the real user is root.
      */
     if (!auth_required && !allow_any_ip && !privileged) {
@@ -1412,8 +1412,6 @@ auth_check_options(void)
 	if (default_auth) {
 	    ppp_option_error(
 "By default the remote system is required to authenticate itself");
-	    ppp_option_error(
-"(because this system has a default route to the internet)");
 	} else if (explicit_remote)
 	    ppp_option_error(
 "The remote system (%s) is required to authenticate itself",
