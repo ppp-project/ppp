@@ -76,9 +76,9 @@ To escape transmitted characters, use the \fIescape\fR option.
 .B auth
 Require the peer to authenticate itself before allowing network packets to be
 sent or received.  For security reasons this option is the default if pppd is
-executed as a non-privileged user.  If neither this option nor the \fInoauth\fR
-option is specified, pppd will only allow the peer to use IP addresses to which
-the system does not already have a route.
+executed as a non-privileged user, unless the \fInoauth\fR option is
+in effect (since \fInoauth\fR is a privileged option, it would
+need to come from a privileged options file, not the command line).
 .TP
 .B call \fIname
 Read additional options from the file /etc/ppp/peers/\fIname\fR.  This
@@ -118,7 +118,7 @@ a modem control line.
 Add a default route to the system routing tables, using the peer as
 the gateway, when IPCP negotiation is successfully completed.
 This entry is removed when the PPP connection is broken.  This option
-is privileged if the \fInodefaultroute\fR option has been specified.
+is privileged.
 .TP
 .B defaultroute-metric
 Define the metric of the \fIdefaultroute\fR.  By default the default route will
@@ -353,10 +353,10 @@ transmit and receive direction.
 Add a default IPv6 route to the system routing tables, using the peer as
 the gateway, when IPv6CP negotiation is successfully completed.
 This entry is removed when the PPP connection is broken.  This option
-is privileged if the \fInodefaultroute6\fR option has been specified.
+is privileged.
 \fBWARNING: Do not enable this option by default\fR.  IPv6 routing tables
-are managed by kernel (as apposite to IPv4) and IPv6 default route is
-configured by kernel automatically too based on ICMPv6 Router Advertisement
+are managed by kernel (as opposed to IPv4) and IPv6 default route is
+configured by kernel automatically based on ICMPv6 Router Advertisement
 packets.  This option may conflict with kernel IPv6 route setup and should
 be used only for broken IPv6 networks.
 .TP
@@ -795,14 +795,10 @@ This option is a synonym for \fInocrtscts\fR. Either of these options will
 disable both forms of hardware flow control.
 .TP
 .B nodefaultroute
-Disable the \fIdefaultroute\fR option.  The system administrator who
-wishes to prevent users from adding a default route with pppd
-can do so by placing this option in the /etc/ppp/options file.
+Disable the \fIdefaultroute\fR option.
 .TP
 .B nodefaultroute6
-Disable the \fIdefaultroute6\fR option.  The system administrator who
-wishes to prevent users from adding a default route with pppd
-can do so by placing this option in the /etc/ppp/options file.
+Disable the \fIdefaultroute6\fR option.
 .TP
 .B nodeflate
 Disables Deflate compression; pppd will not request or agree to
@@ -1312,16 +1308,12 @@ those which permit potentially insecure configurations; these options
 are only accepted in files which are under the control of the system
 administrator, or if pppd is being run by root.
 .PP
-The default behaviour of pppd is to allow an unauthenticated peer to
-use a given IP address only if the system does not already have a
-route to that IP address.  For example, a system with a
-permanent connection to the wider internet will normally have a
-default route, and thus all peers will have to authenticate themselves
-in order to set up a connection.  On such a system, the \fIauth\fR
-option is the default.  On the other hand, a system where the
-PPP link is the only connection to the internet will not normally have
-a default route, so the peer will be able to use almost any IP address
-without authenticating itself.
+If pppd is run by a non-privileged user, by default the peer must
+authenticate itself, and the IP address(es) it may use are controlled
+by the secrets file entry used to authenticate it.  For the peer not
+to be required to authenticate itself, either pppd must be run by root
+or a privileged options file containing the \fInoauth\fR option must
+be invoked.
 .PP
 As indicated above, some security-sensitive options are privileged,
 which means that they may not be used by an ordinary non-privileged
@@ -1342,6 +1334,16 @@ file under /etc/ppp/peers, the system administrator can allow users to
 establish a ppp connection via a device which they would not normally
 have permission to access.  Otherwise pppd uses the invoking user's
 real UID when opening the device.
+.PP
+To avoid the possibility of privileged options files, secrets files,
+and other files which contain sensitive information being compromised,
+\fIpppd\fR performs a path check on these files before opening them.
+This involves first translating the file path into a real absolute path
+containing no symlinks or ".." components.  Then each component from
+the root down is checked to ensure that it is owned by root and that
+its permissions do not permit writing by group or other.  Failure to
+conform to these requirements will cause \fIpppd\fR to exit with a
+suitable error message.
 .SH AUTHENTICATION
 Authentication is the process whereby one peer convinces the other of
 its identity.  This involves the first peer sending its name to the
@@ -1376,7 +1378,7 @@ could use different authentication protocols, and in principle,
 different names could be used in the two exchanges.
 .LP
 The default behaviour of pppd is to agree to authenticate if
-requested, and to not require authentication from the peer.  However,
+requested.  However,
 pppd will not agree to authenticate itself with a particular protocol
 if it has no secrets which could be used to do so.
 .LP
