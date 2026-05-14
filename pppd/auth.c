@@ -2143,7 +2143,7 @@ auth_ip_addr(int unit, u_int32_t addr)
 
     if (auth_required)
 	return 0;		/* no addresses authorized */
-    return allow_any_ip || privileged || !have_route_to(addr);
+    return allow_any_ip || privileged;
 }
 
 static int
