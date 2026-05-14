@@ -1876,14 +1876,16 @@ IP addresses assigned but is still down.  This can be used to
 add firewall rules before any IP traffic can pass through the
 interface.  Pppd will wait for this script to finish before bringing
 the interface up, so this script should run quickly.
-.PP
-WARNING:  Please note that on systems where a single interface carries multiple
+.IP
+\fBWARNING\fR:  Please note that on systems where a single interface carries multiple
 protocols (Linux) ip-pre-up is NOT actually guaranteed to execute prior to the
 interface moving into an up state, although IP information won't be known you
 should consider using net-pre-up instead, alternatively, disable other NCPs
 such that IPv4 is the only negotiated protocol - which will also result in a
 guarantee that ip-pre-up is called prior to the interface going into an UP
 state.
+.IP
+\fIOverride option\fR: ip\-pre\-up\-script /alternative/path
 .TP
 .B /etc/ppp/ip\-up
 A program or script which is executed when the link is available for
@@ -1892,6 +1894,8 @@ executed with the parameters
 .IP
 \fIinterface\-name tty\-device speed local\-IP\-address
 remote\-IP\-address ipparam\fR
+.IP
+\fIOverride option\fR: ip\-up\-script /alternative/path
 .TP
 .B /etc/ppp/ip\-down
 A program or script which is executed when the link is no longer
@@ -1900,6 +1904,8 @@ used for undoing the effects of the /etc/ppp/ip\-up and
 /etc/ppp/ip\-pre\-up scripts.  It is
 invoked in the same manner and with the same parameters as the ip\-up
 script.
+.IP
+\fIOverride option\fR: ip\-down\-script /alternative/path
 .TP
 .B /etc/ppp/ipv6\-up
 Like /etc/ppp/ip\-up, except that it is executed when the link is available 
@@ -1907,11 +1913,16 @@ for sending and receiving IPv6 packets. It is executed with the parameters
 .IP
 \fIinterface\-name tty\-device speed local\-link\-local\-address
 remote\-link\-local\-address ipparam\fR
+.IP
+\fIOverride option\fR: ipv6\-up\-script /alternative/path
 .TP
 .B /etc/ppp/ipv6\-down
 Similar to /etc/ppp/ip\-down, but it is executed when IPv6 packets can no
 longer be transmitted on the link. It is executed with the same parameters 
 as the ipv6\-up script.
+.IP
+\fIOverride option\fR: ipv6\-down\-script /alternative/path
+.TP
 .TP
 .B /etc/ppp/net\-init
 This script will be executed the moment the ppp unit number is known.  This
@@ -1921,6 +1932,8 @@ guaranteed point where a script can be executed knowing the ppp unit number
 prior to LCP being initiated.  It is executed with the parameters
 .IP
 \fIinterface\-name tty\-device speed ipparam
+.IP
+\fIOverride option\fR: net\-init\-script /alternative/path
 .TP
 .B /etc/ppp/net\-pre\-up
 This script will be executed just prior to NCP negotiations initiating, and is
@@ -1929,11 +1942,16 @@ guaranteed to be executed whilst the interface (Linux) and/or sub-interfaces
 this script to complete, and the interface may be safely renamed in this script
 (using for example "ip li set dev $1 name ppp-foobar".  The parameters are the
 same as for net\-init.
+.IP
+\fIOverride option\fR: net\-pre\-up\-script /alternative/path
 .TP
 .B /etc/ppp/net\-down
 This script will be executed just prior to ppp terminating and will not be
 waited for.  The parameters are the same as for net\-init.
+.IP
+\fIOverride option\fR: net\-down\-script /alternative/path
 .TP
+.SH OTHER FILES
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.
 .TP
