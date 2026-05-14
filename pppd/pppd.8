@@ -1862,11 +1862,15 @@ successfully authenticates itself.  It is executed with the parameters
 .IP
 Note that this script is not executed if the peer doesn't authenticate
 itself, for example when the \fInoauth\fR option is used.
+.IP
+\fIOverride option\fR: auth\-up\-script /alternative/path
 .TP
 .B /etc/ppp/auth\-down
 A program or script which is executed when the link goes down, if
 /etc/ppp/auth\-up was previously executed.  It is executed in the same
 manner with the same parameters as /etc/ppp/auth\-up.
+.IP
+\fIOverride option\fR: auth\-down\-script /alternative/path
 .TP
 .B /etc/ppp/ip\-pre\-up
 A program or script which is executed just before the ppp network

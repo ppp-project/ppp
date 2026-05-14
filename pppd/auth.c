@@ -780,7 +780,7 @@ link_down(int unit)
 	if (auth_script_state == s_up && auth_script_pid == 0) {
 	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
-	    auth_script(PPP_PATH_AUTHDOWN);
+	    auth_script(path_auth_down);
 	}
     }
     if (!mp_on())
@@ -928,7 +928,7 @@ network_phase(int unit)
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
-	    auth_script(PPP_PATH_AUTHUP);
+	    auth_script(path_auth_up);
 	}
     }
 
@@ -2443,13 +2443,13 @@ auth_script_done(void *arg)
     case s_up:
 	if (auth_state == s_down) {
 	    auth_script_state = s_down;
-	    auth_script(PPP_PATH_AUTHDOWN);
+	    auth_script(path_auth_down);
 	}
 	break;
     case s_down:
 	if (auth_state == s_up) {
 	    auth_script_state = s_up;
-	    auth_script(PPP_PATH_AUTHUP);
+	    auth_script(path_auth_up);
 	}
 	break;
     }
