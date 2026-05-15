@@ -366,6 +366,9 @@ main(int argc, char *argv[])
     strlcpy(path_net_preup, PPP_PATH_NET_PREUP, MAXPATHLEN);
     strlcpy(path_net_down, PPP_PATH_NET_DOWN, MAXPATHLEN);
 
+    strlcpy(path_auth_up, PPP_PATH_AUTHUP, MAXPATHLEN);
+    strlcpy(path_auth_down, PPP_PATH_AUTHDOWN, MAXPATHLEN);
+
     strlcpy(path_ipup, PPP_PATH_IPUP, MAXPATHLEN);
     strlcpy(path_ipdown, PPP_PATH_IPDOWN, MAXPATHLEN);
     strlcpy(path_ippreup, PPP_PATH_IPPREUP, MAXPATHLEN);

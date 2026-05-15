@@ -199,6 +199,8 @@ extern int	req_unit;	/* interface unit number to use */
 extern char	path_net_init[]; /* pathname of net-init script */
 extern char	path_net_preup[];/* pathname of net-pre-up script */
 extern char	path_net_down[]; /* pathname of net-down script */
+extern char	path_auth_up[]; /* pathname of auth-up script */
+extern char	path_auth_down[]; /* pathname of auth-down script */
 extern char	path_ipup[]; 	/* pathname of ip-up script */
 extern char	path_ipdown[];	/* pathname of ip-down script */
 extern char	path_ippreup[];	/* pathname of ip-pre-up script */

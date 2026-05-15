@@ -124,6 +124,8 @@ int	req_unit = -1;		/* requested interface unit */
 char	path_net_init[MAXPATHLEN]; /* pathname of net-init script */
 char	path_net_preup[MAXPATHLEN];/* pathname of net-pre-up script */
 char	path_net_down[MAXPATHLEN]; /* pathname of net-down script */
+char	path_auth_up[MAXPATHLEN]; /* pathname of auth-up script */
+char	path_auth_down[MAXPATHLEN]; /* pathname of auth-down script */
 char	path_ipup[MAXPATHLEN];	/* pathname of ip-up script */
 char	path_ipdown[MAXPATHLEN];/* pathname of ip-down script */
 char	path_ippreup[MAXPATHLEN]; /* pathname of ip-pre-up script */
@@ -347,6 +349,13 @@ struct option general_options[] = {
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
     { "net-down-script", o_string, path_net_down,
       "Set pathname of net-down script",
+      OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
+
+    { "auth-up-script", o_string, path_auth_up,
+      "Set pathname of auth-up script",
+      OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
+    { "auth-down-script", o_string, path_auth_down,
+      "Set pathname of auth-down script",
       OPT_PRIV|OPT_STATIC, NULL, MAXPATHLEN },
 
     { "ip-up-script", o_string, path_ipup,
