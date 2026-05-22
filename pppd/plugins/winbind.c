@@ -168,7 +168,7 @@ size_t strhex_to_str(unsigned char *p, size_t len, const char *strhex)
 	size_t num_chars = 0;
 	unsigned char   lonybble, hinybble;
 	const char     *hexchars = "0123456789ABCDEF";
-	char           *p1 = NULL, *p2 = NULL;
+	const char     *p1 = NULL, *p2 = NULL;
 
 	for (i = 0; i < len && strhex[i] != 0; i++) {
 		if (strncmp(hexchars, "0x", 2) == 0) {

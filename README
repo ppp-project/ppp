@@ -67,8 +67,61 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.5.2
+What's new in ppp-2.5.3
 ***********************
+
+* Several security improvements:
+  - Some options are now privileged: 'set', 'unset',
+    'defaultroute', and 'defaultroute6'.  If a non-root user
+    running a setuid-root pppd needs to use these options,
+    the system administrator will have to make a 'call' file
+    in /etc/ppp/peers containing the required option(s) for
+    the user's use.
+
+  - Scripts, privileged options files and secrets files now are
+    subject to a path check, which checks that the file and each
+    directory in the real path to the file are owned by root and
+    not writable by non-root.
+
+  - If pppd is installed setuid-root and run by a non-root user,
+    the peer will be required to authenticate itself; previously
+    this requirement only applied if the system had a default
+    IPv4 route.
+
+* Default route handling has changed; pppd no longer checks for
+  an existing default route before adding its default route.  The
+  defaultroute and defaultroute6 options are now privileged, and
+  if used, the default route will always be added.  The metric of
+  the default route can be controlled with new defaultroute-metric
+  and defaultroute6-metric options, which are privileged.
+  The replacedefaultroute and noreplacedefaultroute options
+  are no longer functional, and just cause an error message to
+  be printed.
+
+* There is now a dhcpv6relay plugin, which provides a DHCPv6
+  relay for the local system inside pppd.
+
+* VRF (Virtual Routing and Forwarding) support has been added
+  to pppd on Linux.  There is now a 'vrf' option which tells
+  pppd to bind the PPP interface to a specific VRF, so that
+  routes are installed in the VRF's routing table rather than
+  the main routing table.
+
+* The pppoe (PPP over ethernet) plugin now supports maximum
+  packet sizes greater than 1492 bytes if configured to do so
+  and the server agrees.
+
+* CBCP (Callback control protocol) support can still be selected
+  at configuration time, but now a warning message will be
+  printed, warning that CBCP support will be removed in a
+  future version.  If you use CBCP in pppd, let the maintainer
+  know.
+
+* Various other bug fixes and minor enhancements.
+
+
+What was new in ppp-2.5.2
+*************************
 
 * Some old and probably unused code has been removed, notably the
   pppgetpass program and the passprompt plugin, and some of the files

@@ -362,3 +362,6 @@ Features enabled
     EAP-TLS..............: ${enable_eaptls:-yes}
     systemd notifications: ${enable_systemd:-no}
 "
+
+AM_COND_IF([PPP_WITH_CBCP],
+    AC_MSG_WARN([CBCP support is likely to be removed in future]))
