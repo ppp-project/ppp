@@ -98,8 +98,13 @@ What's new in ppp-2.5.3
   are no longer functional, and just cause an error message to
   be printed.
 
-* There is now a dhcpv6relay plugin, which provides a DHCPv6
-  relay for the local system inside pppd.
+* There is now a dhcpv6relay plugin, which can be used to provide
+  IPv6 RAs to the remote side and relay the subsequent incoming
+  DHCPv6 requests to a DHCPv6 server.  Note: This is to delegate
+  IPv6 to the remote side, not to configure IPv6 locally; in other
+  words, this is generally only useful for service providers.
+  For configuring IPv6 at an endpoint, projects like dhcpcd
+  and/or radvd may be useful.
 
 * VRF (Virtual Routing and Forwarding) support has been added
   to pppd on Linux.  There is now a 'vrf' option which tells
@@ -108,14 +113,16 @@ What's new in ppp-2.5.3
   the main routing table.
 
 * The pppoe (PPP over ethernet) plugin now supports maximum
-  packet sizes greater than 1492 bytes if configured to do so
-  and the server agrees.
+  packet sizes greater than 1492 bytes if configured to do so,
+  a larger size is agreed upon during the PPPoE negotiation,
+  and the peer agrees.
 
 * CBCP (Callback control protocol) support can still be selected
   at configuration time, but now a warning message will be
   printed, warning that CBCP support will be removed in a
   future version.  If you use CBCP in pppd, let the maintainer
-  know.
+  know, for example by adding to the issue at:
+	https://github.com/ppp-project/ppp/issues/530
 
 * Various other bug fixes and minor enhancements.
 
