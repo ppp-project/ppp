@@ -1709,13 +1709,14 @@ endswitch:
     /*
      * If we aren't rejecting this packet, and we want to negotiate
      * their address, and they didn't send their address, then we
-     * send a NAK with a CI_ADDR option appended.  We assume the
+     * send a NAK with a CI_ADDR option appended.  We check that the
      * input buffer is long enough that we can append the extra
      * option safely.
      */
     if (rc != CONFREJ && !ho->neg_addr && !ho->old_addrs &&
 	wo->req_addr && !reject_if_disagree &&
-	((wo->hisaddr && !wo->accept_remote) || !noremoteip)) {
+	((wo->hisaddr && !wo->accept_remote) || !noremoteip) &&
+	(rc == CONFACK || ucp + CILEN_ADDR <= inp + PPP_MRU - HEADERLEN)) {
 	if (rc == CONFACK) {
 	    rc = CONFNAK;
 	    ucp = inp;			/* reset pointer */
