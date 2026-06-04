@@ -259,6 +259,8 @@ static int open_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int w
                 }
                 default: /* parent */
                     waitpid(pid, &status, 0);
+                    if (WIFEXITED(status))
+                        status = WEXITSTATUS(status);
                     if (status!= 0)
 		    {
 			close(fd);
