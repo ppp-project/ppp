@@ -177,18 +177,21 @@ static int pptp_start_client(void)
 	getsockname(pptp_fd,(struct sockaddr*)&src_addr,&len);
 	call_ID=src_addr.sa_addr.pptp.call_id;
 
-  do {
         /*
          * Open connection to call manager (Launch call manager if necessary.)
          */
-        callmgr_sock = open_callmgr(src_addr.sa_addr.pptp.call_id,dst_addr.sa_addr.pptp.sin_addr, pptp_phone,50);
-	if (callmgr_sock<0)
-	{
-		close(pptp_fd);
-		return -1;
-        }
-        /* Exchange PIDs, get call ID */
-    } while (get_call_id(callmgr_sock, getpid(), getpid(), &dst_addr.sa_addr.pptp.call_id) < 0);
+	callmgr_sock = -1;
+	do {
+		if (callmgr_sock >= 0)
+    			close(callmgr_sock);
+		callmgr_sock = open_callmgr(src_addr.sa_addr.pptp.call_id, dst_addr.sa_addr.pptp.sin_addr, pptp_phone, 50);
+		if (callmgr_sock < 0)
+		{
+			close(pptp_fd);
+			return -1;
+		}
+	/* Exchange PIDs, get call ID */
+	} while (get_call_id(callmgr_sock, getpid(), getpid(), &dst_addr.sa_addr.pptp.call_id) < 0);
 
 	if (connect(pptp_fd,(struct sockaddr*)&dst_addr,sizeof(dst_addr)))
 	{
