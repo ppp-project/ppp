@@ -28,6 +28,7 @@ PPTP_CONN * pptp_conn_open(int inet_sock, int isclient,
 PPTP_CALL * pptp_call_open(PPTP_CONN * conn, int call_id,
 			   pptp_call_cb callback, char *phonenr,int window);
 int pptp_conn_established(PPTP_CONN * conn);
+int pptp_conn_dead(PPTP_CONN *conn);
 /* soft close.  Will callback on completion. */
 void pptp_call_close(PPTP_CONN * conn, PPTP_CALL * call);
 /* hard close. */
@@ -36,6 +37,7 @@ void pptp_call_destroy(PPTP_CONN *conn, PPTP_CALL *call);
 void pptp_conn_close(PPTP_CONN * conn, u_int8_t close_reason);
 /* hard close */
 void pptp_conn_destroy(PPTP_CONN * conn);
+void pptp_conn_free(PPTP_CONN * conn);
 
 /* Add file descriptors used by pptp to fd_set. */
 void pptp_fd_set(PPTP_CONN * conn, fd_set * read_set, fd_set * write_set, int *max_fd);

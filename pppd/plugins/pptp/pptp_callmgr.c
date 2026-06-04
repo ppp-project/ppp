@@ -178,6 +178,8 @@ int callmgr_main(int argc, char **argv, char **envp)
     do {
         int rc;
         fd_set read_set = call_set, write_set;
+        if (pptp_conn_dead(conn))
+            break;
         FD_ZERO (&write_set);
         if (pptp_conn_established(conn)) {
 	  FD_SET (unix_sock, &read_set);
@@ -305,6 +307,7 @@ shutdown:
 	}
         /* with extreme prejudice */
         pptp_conn_destroy(conn);
+        pptp_conn_free(conn);
         vector_destroy(call_list);
     }
 cleanup:
