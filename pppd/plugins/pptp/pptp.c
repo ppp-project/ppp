@@ -122,6 +122,7 @@ static int pptp_start_client(void)
 	socklen_t len;
 	struct sockaddr_pppox src_addr,dst_addr;
 	struct hostent *hostinfo;
+	u_int16_t new_call_id;
 
 	hostinfo=gethostbyname(pptp_server);
   if (!hostinfo)
@@ -159,7 +160,6 @@ static int pptp_start_client(void)
 
 	dst_addr.sa_family=AF_PPPOX;
 	dst_addr.sa_protocol=PX_PROTO_PPTP;
-	dst_addr.sa_addr.pptp.call_id=0;
 
 	pptp_fd=socket(AF_PPPOX,SOCK_STREAM,PX_PROTO_PPTP);
 	if (pptp_fd<0)
@@ -191,7 +191,9 @@ static int pptp_start_client(void)
 			return -1;
 		}
 	/* Exchange PIDs, get call ID */
-	} while (get_call_id(callmgr_sock, getpid(), getpid(), &dst_addr.sa_addr.pptp.call_id) < 0);
+	} while (get_call_id(callmgr_sock, getpid(), getpid(), &new_call_id) < 0);
+
+	dst_addr.sa_addr.pptp.call_id = new_call_id;
 
 	if (connect(pptp_fd,(struct sockaddr*)&dst_addr,sizeof(dst_addr)))
 	{
