@@ -38,17 +38,16 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 
-#include "pppd/pppd.h"
-#include "pppd/fsm.h"
-#include "pppd/lcp.h"
-#include "pppd/ipcp.h"
-#include "pppd/ccp.h"
-#include "pppd/pathnames.h"
+#include <pppd/pppd.h>
+#include <pppd/fsm.h>
+#include <pppd/lcp.h>
+#include <pppd/ipcp.h>
+#include <pppd/ccp.h>
 
 #include "pptp_callmgr.h"
 #include <net/if.h>
 #include <net/ethernet.h>
-#include "if_pppox.h"
+#include <linux/if_pppox.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,7 +73,7 @@ int call_ID;
 
 //static struct in_addr get_ip_address(char *name);
 static int open_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int window);
-static void launch_callmgr(int call_is,struct in_addr inetaddr, char *phonenr,int window);
+static void launch_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int window);
 static int get_call_id(int sock, pid_t gre, pid_t pppd, u_int16_t *peer_call_id);
 
 //static int pptp_devname_hook(char *cmd, char **argv, int doit);
@@ -102,8 +101,8 @@ struct channel pptp_channel = {
     check_options: NULL,
     connect: &pptp_connect,
     disconnect: &pptp_disconnect,
-    establish_ppp: &generic_establish_ppp,
-    disestablish_ppp: &generic_disestablish_ppp,
+    establish_ppp: &ppp_generic_establish,
+    disestablish_ppp: &ppp_generic_disestablish,
     //send_config: &pptp_send_config,
     //recv_config: &pptp_recv_config,
     close: NULL,
@@ -113,7 +112,10 @@ struct channel pptp_channel = {
 static int pptp_start_server(void)
 {
 	pptp_fd=pptp_sock;
-	sprintf(ppp_devnam,"pptp (%s)",pptp_client);
+
+        char _tmp_buf[64];
+        snprintf(_tmp_buf, sizeof(_tmp_buf), "pptp (%s)", pptp_client);
+        ppp_set_devnam(_tmp_buf);
 
 	return pptp_fd;
 }
@@ -203,7 +205,9 @@ static int pptp_start_client(void)
 		return -1;
 	}
 
-	sprintf(ppp_devnam,"pptp (%s)",pptp_server);
+        char _tmp_buf[64];
+        snprintf(_tmp_buf, sizeof(_tmp_buf), "pptp (%s)", pptp_server);
+        ppp_set_devnam(_tmp_buf);
 
 	return pptp_fd;
 }
@@ -335,17 +339,13 @@ static int get_call_id(int sock, pid_t gre, pid_t pppd,
 
 void plugin_init(void)
 {
-    /*if (!ppp_available() && !new_style_driver)
-    {
-				fatal("Linux kernel does not support PPP -- are you running 2.4.x?");
-    }*/
+#if !defined(__linux__)
+    fatal("No PPTP support on this OS");
+#endif
 
-    add_options(Options);
-
-    info("PPTP plugin version %s compiled for pppd-%s, linux-%s",
-	 VERSION, PPPD_VERSION,KERNELVERSION);
+    ppp_add_options(Options);
 
     the_channel = &pptp_channel;
-    modem = 0;
+    ppp_set_modem(0);
 }
 
