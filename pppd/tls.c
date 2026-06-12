@@ -321,7 +321,7 @@ int tls_set_version(SSL_CTX *ctx, const char *max_version)
         }
     }
 
-    dbglog("Setting max protocol version to 0x%X", tls_version);
+    dbglog("Setting max protocol version to 0x%lX", tls_version);
     if (!SSL_CTX_set_max_proto_version(ctx, tls_version)) {
         error("Could not set max protocol version");
         return -1;
