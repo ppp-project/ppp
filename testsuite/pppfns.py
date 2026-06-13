@@ -75,10 +75,27 @@ EXIT_PEER_DEAD = 15
 EXIT_HANGUP = 16
 EXIT_AUTH_TOPEER_FAILED = 19
 
-# The IP addresses used by every link test. Each pppd lives in its own
-# network namespace, so these never collide between tests, even with -j.
-IP_A = '10.0.0.1'
-IP_B = '10.0.0.2'
+# Linux runs each pppd in its own network namespace; elsewhere (Solaris)
+# there are no namespaces, so both pppds share the host IP stack and only
+# the protocol-level tests can run (see require_link_env).
+IS_LINUX = sys.platform.startswith('linux')
+IS_SUNOS = os.uname().sysname == 'SunOS'
+
+# The kernel ppp device pppd opens differs per platform: /dev/ppp on Linux
+# (the ppp_generic driver), /dev/sppp on Solaris/illumos (the sppp STREAMS
+# driver -- see PPP_DRV_NAME in pppd/pppd-private.h).
+PPP_DEV = '/dev/sppp' if IS_SUNOS else '/dev/ppp'
+
+# The IP addresses used by every link test. With namespaces these never
+# collide between tests, even with -j; without them, derive a per-process
+# subnet (avoiding 10.0.2.x, which qemu user networking uses).
+if IS_LINUX:
+    IP_A = '10.0.0.1'
+    IP_B = '10.0.0.2'
+else:
+    _n = os.getpid()
+    IP_A = f'10.{100 + (_n >> 8) % 64}.{_n % 256}.1'
+    IP_B = f'10.{100 + (_n >> 8) % 64}.{_n % 256}.2'
 
 
 # --- result reporting ------------------------------------------------------
@@ -124,17 +141,35 @@ def sudo_prefix() -> list:
     return _sudo
 
 
-def require_link_env() -> 'None':
+def require_link_env(routing: bool = False) -> 'None':
     """Skip unless this host can run a pppd pair: root/sudo, the namespace
-    tools, and kernel ppp support."""
+    tools (Linux), and kernel ppp support.
+
+    routing=True marks tests that send IP traffic across the link; those
+    need per-pppd network namespaces (otherwise both negotiated addresses
+    are local to one stack and traffic short-circuits via loopback), so
+    they are Linux-only. Protocol-level tests run elsewhere too, but in a
+    mode that writes secrets into the binary's real configuration
+    directory -- only allowed when PPPD_TEST_GLOBAL_CONF=1 says the host
+    is disposable (e.g. a CI VM)."""
     sudo = sudo_prefix()
-    for tool in ('unshare', 'nsenter', 'ip', 'timeout', 'pkill'):
+    if IS_LINUX:
+        tools = ('unshare', 'nsenter', 'ip', 'timeout', 'pkill')
+    else:
+        if routing:
+            test_skipped('IP routing tests need Linux network namespaces')
+        if os.environ.get('PPPD_TEST_GLOBAL_CONF') != '1':
+            test_skipped('non-Linux link tests write to the real pppd '
+                         'config directory; set PPPD_TEST_GLOBAL_CONF=1 '
+                         'on a disposable host to allow')
+        tools = ('pkill',)
+    for tool in tools:
         if shutil.which(tool) is None:
             test_skipped(f'{tool} not found')
-    if not os.path.exists('/dev/ppp'):
+    if IS_LINUX and not os.path.exists(PPP_DEV):
         subprocess.run(sudo + ['modprobe', 'ppp_generic'], capture_output=True)
-    if not os.path.exists('/dev/ppp'):
-        test_skipped('no kernel ppp support (/dev/ppp missing)')
+    if not os.path.exists(PPP_DEV):
+        test_skipped(f'no kernel ppp support ({PPP_DEV} missing)')
 
 
 def pppd_confdir(binary: str) -> str:
@@ -157,8 +192,10 @@ def pppd_confdir(binary: str) -> str:
 # --- pppd instances ---------------------------------------------------------
 
 class PppPeer:
-    """One pppd instance in its own network + mount namespace, with its link
-    on stdin/stdout (one end of a socketpair)."""
+    """One pppd instance with its link on stdin/stdout (one end of a
+    socketpair). On Linux it runs in its own network + mount namespace;
+    elsewhere it shares the host stack and real configuration directory
+    (see require_link_env)."""
 
     def __init__(self, name: str, binary: str, local_ip: str, remote_ip: str,
                  options=None, noauth: bool = True,
@@ -171,33 +208,44 @@ class PppPeer:
         self.pid = None
         self.ifname = None
         self.exitcode = None
+        self.netns = None
+        self.conf_cleanup = []
         self.dir = SCRATCHDIR / name
         self.logfile = self.dir / 'pppd.log'
         self.pidfile = self.dir / 'pppd.pid'
         self.errfile = self.dir / 'spawn.err'
 
+        confdir = pppd_confdir(binary)
         etc_ppp = self.dir / 'etc.ppp'
         etc_ppp.mkdir(parents=True)
-        # The bind-mounted confdir replaces the host's, so provide the files
-        # pppd reads from it. An empty options file keeps the run hermetic.
-        (etc_ppp / 'options').write_text('')
-        # pppd refuses a secrets file unless its resolved path consists
-        # entirely of root-owned, non-group/other-writable components, which
-        # a scratch dir under $HOME can never satisfy. The check walks the
-        # realpath, so symlink the secrets into a root-owned tmpfs dir that
-        # launch.sh populates inside the mount namespace.
         secrets = []
         for fname, text in (('pap-secrets', pap_secrets),
                             ('chap-secrets', chap_secrets)):
             if text is not None:
                 (self.dir / fname).write_text(text)
-                (etc_ppp / fname).symlink_to(f'/run/ppp-conf/{fname}')
+                if IS_LINUX:
+                    # pppd refuses a secrets file unless its resolved path
+                    # consists entirely of root-owned, non-group/other-
+                    # writable components, which a scratch dir under $HOME
+                    # can never satisfy. The check walks the realpath, so
+                    # symlink the secrets into a root-owned tmpfs dir that
+                    # launch.sh populates inside the mount namespace.
+                    (etc_ppp / fname).symlink_to(f'/run/ppp-conf/{fname}')
+                else:
+                    # No mount namespace: launch.sh copies the file into the
+                    # real confdir (PPPD_TEST_GLOBAL_CONF gate); remove it
+                    # again in stop().
+                    self.conf_cleanup.append(f'{confdir}/{fname}')
                 secrets.append(fname)
+        if IS_LINUX:
+            # The bind-mounted confdir replaces the host's, so provide the
+            # files pppd reads from it. An empty options file keeps the run
+            # hermetic.
+            (etc_ppp / 'options').write_text('')
         # Pre-create the log as the invoking user: pppd appends (O_APPEND),
         # so the file stays user-owned and scratch cleanup works unprivileged.
         self.logfile.touch()
 
-        confdir = pppd_confdir(binary)
         argv = [binary, 'notty', 'nodetach', 'local', 'debug',
                 'logfile', str(self.logfile),
                 # Belt-and-braces lifetime bounds: no persist, dead-peer
@@ -214,41 +262,60 @@ class PppPeer:
         # the link comes up and the test runner was SIGKILLed (which can't
         # reap root processes). timeout(1) forwards SIGTERM and propagates
         # pppd's exit status, so clean-shutdown tests are unaffected.
-        argv = ['timeout', '--kill-after=10', str(2 * TESTRUN_TIMEOUT)] + argv
+        # Required on Linux; used elsewhere when available.
+        self.has_watchdog = shutil.which('timeout') is not None
+        if self.has_watchdog:
+            argv = ['timeout', '--kill-after=10', str(2 * TESTRUN_TIMEOUT)] + argv
 
         q = shlex.quote
-        # mkdir -p of a missing compiled-in confdir (e.g. /usr/local/etc/ppp
-        # for a fresh build) is the one tolerated host-side effect; the bind
-        # mount itself is private to this mount namespace, as is the tmpfs
-        # hiding the pidfile/tdb directory under /run.
-        script = ['#!/bin/sh', 'set -e',
-                  # mode=755: the default tmpfs 1777 would itself trip pppd's
-                  # secrets-path safety check on /run.
-                  'mount -t tmpfs -o mode=755 tmpfs /run',
-                  '[ ! -d /var/run ] || [ -L /var/run ] || mount -t tmpfs -o mode=755 tmpfs /var/run',
-                  f"mkdir -p {q(confdir)}",
-                  f"mount --bind {q(str(etc_ppp))} {q(confdir)}",
-                  'mkdir -m 755 /run/ppp-conf']
-        for fname in secrets:
-            script += [f"cp {q(str(self.dir / fname))} /run/ppp-conf/{fname}",
-                       f"chmod 600 /run/ppp-conf/{fname}"]
-        script += ['ip link set lo up',
-                  # $$ survives the exec, so this records the watchdog's pid,
-                  # which shares pppd's network namespace
-                  # (/proc/<pid>/ns/net) and forwards our signals to it.
-                  f"echo $$ > {q(str(self.pidfile))}",
-                  'exec ' + ' '.join(q(a) for a in argv)]
+        script = ['#!/bin/sh', 'set -e']
+        if IS_LINUX:
+            # mkdir -p of a missing compiled-in confdir (e.g.
+            # /usr/local/etc/ppp for a fresh build) is the one tolerated
+            # host-side effect; the bind mount itself is private to this
+            # mount namespace, as is the tmpfs hiding the pidfile/tdb
+            # directory under /run.
+            script += [
+                # mode=755: the default tmpfs 1777 would itself trip pppd's
+                # secrets-path safety check on /run.
+                'mount -t tmpfs -o mode=755 tmpfs /run',
+                '[ ! -d /var/run ] || [ -L /var/run ] || mount -t tmpfs -o mode=755 tmpfs /var/run',
+                f"mkdir -p {q(confdir)}",
+                f"mount --bind {q(str(etc_ppp))} {q(confdir)}",
+                'mkdir -m 755 /run/ppp-conf']
+            for fname in secrets:
+                script += [f"cp {q(str(self.dir / fname))} /run/ppp-conf/{fname}",
+                           f"chmod 600 /run/ppp-conf/{fname}"]
+            script += ['ip link set lo up']
+        else:
+            script += [f"mkdir -p {q(confdir)}"]
+            for fname in secrets:
+                dst = f'{confdir}/{fname}'
+                # Never clobber a real secrets file, even on an opted-in
+                # host.
+                script += [f"if [ -e {q(dst)} ]; then echo {q(dst)} already exists >&2; exit 1; fi",
+                           f"cp {q(str(self.dir / fname))} {q(dst)}",
+                           f"chmod 600 {q(dst)}"]
+        script += [
+            # $$ survives the exec, so this records the watchdog's (or
+            # pppd's) pid; on Linux it also names the network namespace
+            # via /proc/<pid>/ns/net.
+            f"echo $$ > {q(str(self.pidfile))}",
+            'exec ' + ' '.join(q(a) for a in argv)]
         launch = self.dir / 'launch.sh'
         launch.write_text('\n'.join(script) + '\n')
         self.launch = launch
 
     def start(self, sock) -> 'None':
         """Start pppd with its link on the given socket (one socketpair end)."""
+        if IS_LINUX:
+            wrapper = ['unshare', '--mount', '--net',
+                       '--propagation', 'private']
+        else:
+            wrapper = []
         with open(self.errfile, 'w') as errfh:
             self.proc = subprocess.Popen(
-                sudo_prefix() + ['unshare', '--mount', '--net',
-                                 '--propagation', 'private',
-                                 'sh', str(self.launch)],
+                sudo_prefix() + wrapper + ['sh', str(self.launch)],
                 stdin=sock, stdout=sock, stderr=errfh)
         atexit.register(self.stop)
         deadline = time.time() + 10
@@ -275,7 +342,8 @@ class PppPeer:
             time.sleep(0.05)
         if self.pid is None:
             test_fail(f'pppd {self.name} did not write its pid file')
-        self.netns = f'/proc/{self.pid}/ns/net'
+        if IS_LINUX:
+            self.netns = f'/proc/{self.pid}/ns/net'
 
     def log_text(self) -> str:
         try:
@@ -303,12 +371,17 @@ class PppPeer:
         m = self.wait_for_text(r'Using interface (\S+)', timeout)
         self.ifname = m.group(1)
 
+    def _ns_argv(self, argv) -> list:
+        if self.netns is None:
+            return sudo_prefix() + list(argv)
+        return sudo_prefix() + ['nsenter', f'--net={self.netns}', '--'] + list(argv)
+
     def run_in_ns(self, argv, check: bool = True, **kwargs) -> 'subprocess.CompletedProcess':
-        """Run a command inside this pppd's network namespace."""
+        """Run a command inside this pppd's network namespace (or on the
+        host when there is no namespace)."""
         kwargs.setdefault('capture_output', True)
         kwargs.setdefault('text', True)
-        r = subprocess.run(sudo_prefix() + ['nsenter', f'--net={self.netns}', '--']
-                           + list(argv), **kwargs)
+        r = subprocess.run(self._ns_argv(argv), **kwargs)
         if check and r.returncode != 0:
             test_fail(f'pppd {self.name}: command {argv} failed '
                       f'(exit {r.returncode}):\n{r.stdout}\n{r.stderr}')
@@ -316,8 +389,7 @@ class PppPeer:
 
     def popen_in_ns(self, argv, **kwargs) -> 'subprocess.Popen':
         """Start a background command inside this pppd's network namespace."""
-        return subprocess.Popen(sudo_prefix() + ['nsenter', f'--net={self.netns}', '--']
-                                + list(argv), **kwargs)
+        return subprocess.Popen(self._ns_argv(argv), **kwargs)
 
     def ping(self, target_ip: str, count: int = 3, size: int = None) -> int:
         """Ping target_ip from inside this peer's namespace; returns the
@@ -330,10 +402,16 @@ class PppPeer:
         return int(m.group(1)) if m else 0
 
     def ip_addr(self) -> str:
-        return self.run_in_ns(['ip', '-o', 'addr', 'show', 'dev', self.ifname]).stdout
+        if shutil.which('ip'):
+            return self.run_in_ns(['ip', '-o', 'addr', 'show', 'dev', self.ifname]).stdout
+        # Solaris: ifconfig prints "inet <local> --> <remote> ..."
+        return self.run_in_ns(['ifconfig', self.ifname]).stdout
 
     def link_mtu(self) -> int:
-        out = self.run_in_ns(['ip', '-o', 'link', 'show', 'dev', self.ifname]).stdout
+        if shutil.which('ip'):
+            out = self.run_in_ns(['ip', '-o', 'link', 'show', 'dev', self.ifname]).stdout
+        else:
+            out = self.run_in_ns(['ifconfig', self.ifname]).stdout
         m = re.search(r'mtu (\d+)', out)
         if not m:
             test_fail(f'pppd {self.name}: no mtu in: {out}')
@@ -359,19 +437,27 @@ class PppPeer:
         record its exit code."""
         if self.proc is None or self.exitcode is not None:
             return self.exitcode
+
+        def signal_pppd(sig):
+            # pppd runs as root; signal it via sudo when unprivileged. When
+            # a timeout watchdog wraps pppd, the recorded pid is the
+            # watchdog's, so signal its child (pppd itself, via pkill -P):
+            # TERMing the wrapper would make it exit 124 and lose pppd's
+            # exit status.
+            if self.has_watchdog:
+                subprocess.run(sudo_prefix() + ['pkill', f'-{sig}', '-P', str(self.pid)],
+                               capture_output=True)
+            else:
+                subprocess.run(sudo_prefix() + ['kill', f'-{sig}', str(self.pid)],
+                               capture_output=True)
+
         if self.proc.poll() is None and self.pid is not None:
-            # pppd runs as root; signal it via sudo when unprivileged. The
-            # recorded pid is the timeout watchdog; signal its child (pppd
-            # itself, via -P) so pppd's exit status is what propagates --
-            # TERMing the wrapper would make it exit 124 instead.
-            subprocess.run(sudo_prefix() + ['pkill', '-TERM', '-P', str(self.pid)],
-                           capture_output=True)
+            signal_pppd('TERM')
         try:
             self.exitcode = self.proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             if self.pid is not None:
-                subprocess.run(sudo_prefix() + ['pkill', '-KILL', '-P', str(self.pid)],
-                               capture_output=True)
+                signal_pppd('KILL')
                 subprocess.run(sudo_prefix() + ['kill', '-KILL', str(self.pid)],
                                capture_output=True)
             try:
@@ -383,6 +469,10 @@ class PppPeer:
                 sys.stderr.write(f'pppd {self.name}: could not reap '
                                  f'(left to its watchdog)\n')
                 self.exitcode = -1
+        for path in self.conf_cleanup:
+            subprocess.run(sudo_prefix() + ['rm', '-f', path],
+                           capture_output=True)
+        self.conf_cleanup = []
         return self.exitcode
 
 

@@ -3,7 +3,7 @@
 # what it sends, which shows up as MTU 512 on the peer's ppp interface.
 # A large ping (forced through the small MTU) must still get through.
 
-from pppfns import IP_A, PppPair, require_link_env, test_fail
+from pppfns import IP_A, IS_LINUX, PppPair, require_link_env, test_fail
 
 require_link_env()
 
@@ -18,5 +18,7 @@ with PppPair(a_options=['mru', str(MRU)]) as pair:
         test_fail(f'peer MTU is {mtu_b}, expected negotiated MRU {MRU}')
 
     # ICMP payload larger than the MTU still arrives (IP fragmentation).
-    if pair.b.ping(IP_A, count=2, size=1000) < 1:
+    # Only meaningful with namespaces: without them the ping would
+    # short-circuit via loopback.
+    if IS_LINUX and pair.b.ping(IP_A, count=2, size=1000) < 1:
         test_fail('MTU-exceeding ping failed across the link')

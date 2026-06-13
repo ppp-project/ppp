@@ -13,7 +13,7 @@ from pppfns import (
     IP_A, IP_B, SCRATCHDIR, PppPair, require_link_env, test_fail, test_skipped,
 )
 
-require_link_env()
+require_link_env(routing=True)
 if shutil.which('python3') is None:
     test_skipped('python3 not found')
 

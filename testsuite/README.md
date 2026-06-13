@@ -36,6 +36,18 @@ pppd must run as root. When the suite is not run as root, every privileged
 command is prefixed with `sudo -n`; if neither root nor passwordless sudo
 is available (or the kernel lacks ppp support), the link tests report SKIP.
 
+## Non-Linux hosts (Solaris)
+
+Network namespaces are Linux-only, so on other platforms the IP routing
+tests (ping, data-transfer) skip: without namespaces both negotiated
+addresses are local to one stack and traffic would short-circuit via
+loopback. The protocol-level tests (link-up, auth, MRU negotiation) still
+run, but in a mode that temporarily writes the test secrets into the
+binary's real configuration directory; because that touches host state,
+it must be enabled explicitly with PPPD_TEST_GLOBAL_CONF=1 on a disposable
+host (the Solaris CI VM does this). Existing secrets files are never
+overwritten. This mode is not parallel-safe; don't combine it with -j.
+
 ## Testing two pppd versions against each other
 
 ```

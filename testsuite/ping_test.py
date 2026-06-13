@@ -7,7 +7,7 @@ import shutil
 
 from pppfns import IP_A, IP_B, PppPair, require_link_env, test_fail, test_skipped
 
-require_link_env()
+require_link_env(routing=True)
 if shutil.which('ping') is None:
     test_skipped('ping not found')
 
