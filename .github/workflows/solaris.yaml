@@ -15,3 +15,23 @@ jobs:
           ./autogen.sh CFLAGS="-Wno-deprecated-declarations"
           make
           make install
+    # The vmactions VM can only be booted by one step per job, but it
+    # stays up and reachable as "ssh solaris" with the workspace shared
+    # at the same path, so the tests run as their own step over ssh.
+    - name: Test
+      shell: bash
+      run: |
+        # shellcheck disable=SC2029  # client-side $GITHUB_WORKSPACE expansion is intended
+        ssh solaris "cd $GITHUB_WORKSPACE && /bin/sh -es" <<'EOF'
+        # The sppp STREAMS kernel driver (/dev/ppp) ships in the OS ppp
+        # package; without it the link tests skip. The package is
+        # present in the VM image but the device node may not have been
+        # created yet, so attach the driver with devfsadm if needed.
+        # Integration tests run as root in this disposable VM
+        # (PPPD_TEST_GLOBAL_CONF=1 allows staging test secrets in the
+        # real confdir). Oracle removed kernel PPP from Solaris 11.4
+        # (the sppp driver packages are obsolete stubs since SRU 24),
+        # so /dev/ppp cannot exist and the link tests skip; this still
+        # verifies the build and that the pppd binary runs.
+        PPPD_TEST_GLOBAL_CONF=1 python3 ./runtests.py --always-log
+        EOF
