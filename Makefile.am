@@ -49,4 +49,23 @@ EXTRA_README = \
 EXTRA_DIST= \
     $(sample_DATA) \
     $(EXTRA_README) \
-    sample
+    sample \
+    runtests.py \
+    testsuite/README.md \
+    testsuite/exitcodes.py \
+    testsuite/pppfns.py \
+    testsuite/00-version_test.py \
+    testsuite/auth-chap_test.py \
+    testsuite/auth-pap_test.py \
+    testsuite/data-transfer_test.py \
+    testsuite/link-up_test.py \
+    testsuite/mtu-negotiation_test.py \
+    testsuite/ping_test.py
+
+# Integration tests: bring up pairs of pppd instances and verify link
+# negotiation, IP routing, authentication etc. Needs root or passwordless
+# sudo plus kernel ppp support, so it is not part of "make check".
+check-integration: all
+	python3 $(top_srcdir)/runtests.py --tooldir $(abs_top_builddir) --srcdir $(abs_top_srcdir)
+
+.PHONY: check-integration
