@@ -802,6 +802,7 @@ void eaptls_free_session(struct eaptls_session *ets)
     if (ets->info)
         tls_free_verify_info(&ets->info);
 
+    free(ets->data);
     free(ets);
 }
 
@@ -888,11 +889,15 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
 
     if (len < 0) {
         warn("EAP-TLS: received malformed data");
+        free(ets->data);
+        ets->data = NULL;
         return 1;
     }
 
     if (len + ets->datalen > ets->tlslen) {
         warn("EAP-TLS: received data > TLS message length");
+        free(ets->data);
+        ets->data = NULL;
         return 1;
     }
 
@@ -907,6 +912,8 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
 
         if (ets->datalen != ets->tlslen) {
             warn("EAP-TLS: received data != TLS message length");
+            free(ets->data);
+            ets->data = NULL;
             return 1;
         }
 
