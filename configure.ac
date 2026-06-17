@@ -2,6 +2,7 @@ AC_PREREQ([2.69])
 AC_INIT([ppp],
         [2.5.3],
         [https://github.com/ppp-project/ppp])
+AC_USE_SYSTEM_EXTENSIONS
 
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
@@ -93,6 +94,7 @@ AC_CHECK_SIZEOF(unsigned short)
 
 # Checks for library functions.
 AC_CHECK_FUNCS([    \
+    fexecve         \
     mmap            \
     logwtmp         \
     strerror])

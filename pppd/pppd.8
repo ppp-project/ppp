@@ -1334,16 +1334,6 @@ file under /etc/ppp/peers, the system administrator can allow users to
 establish a ppp connection via a device which they would not normally
 have permission to access.  Otherwise pppd uses the invoking user's
 real UID when opening the device.
-.PP
-To avoid the possibility of privileged options files, secrets files,
-and other files which contain sensitive information being compromised,
-\fIpppd\fR performs a path check on these files before opening them.
-This involves first translating the file path into a real absolute path
-containing no symlinks or ".." components.  Then each component from
-the root down is checked to ensure that it is owned by root and that
-its permissions do not permit writing by group or other.  Failure to
-conform to these requirements will cause \fIpppd\fR to exit with a
-suitable error message.
 .SH AUTHENTICATION
 Authentication is the process whereby one peer convinces the other of
 its identity.  This involves the first peer sending its name to the
