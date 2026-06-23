@@ -199,6 +199,12 @@ pppd_CPPFLAGS += $(SYSTEMD_CFLAGS)
 pppd_LIBS += $(SYSTEMD_LIBS)
 endif
 
+if WITH_LIBCAP
+pppd_CPPFLAGS += $(CAP_CFLAGS)
+pppd_LIBS += $(CAP_LIBS)
+pppd_LDFLAGS += $(CAP_LDFLAGS)
+endif
+
 if WITH_SRP
 srp_entry_SOURCES = srp-entry.c
 srp_entry_CPPFLAGS = $(OPENSSL_INCLUDES) $(SRP_CFLAGS)
