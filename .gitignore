@@ -59,3 +59,7 @@ test-suite.log
 
 # Distfiles
 /ppp-*.tar.gz
+
+# integration testsuite (runtests.py)
+/testtmp/
+__pycache__/
