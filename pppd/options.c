@@ -1839,7 +1839,7 @@ loadplugin(char **argv)
 		     arg, vers, VERSION);
 	goto errclose;
     }
-    info("Plugin %s loaded.", arg);
+    dbglog("Plugin %s loaded.", arg);
     (*init)();
     if (path != arg)
 	free(path);
