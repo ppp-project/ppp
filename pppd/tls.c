@@ -186,12 +186,13 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
 
         /* Match the suffix of common name */
         if (!strcmp(TLS_VERIFY_SUFFIX, tls_verify_method)) {
-            int len = strlen(ptr1);
-            int off = strlen(cn_str) - len;
+            size_t len1, len2;
             ptr2 = cn_str;
-            if (off > 0) {
-                ptr2 = cn_str + off;
-            }
+
+            len1 = strlen(ptr1);
+            len2 = strlen(ptr2);
+            if (len2 > len1)
+                ptr2 += len2 - len1;
         }
 
         if (strcmp(ptr1, ptr2)) {

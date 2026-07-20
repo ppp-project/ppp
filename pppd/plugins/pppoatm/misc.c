@@ -20,7 +20,7 @@
 int __atmlib_fetch(const char **pos,...)
 {
     const char *value;
-    int ref_len,best_len,len;
+    size_t ref_len,best_len,len;
     int i,best;
     va_list ap;
 
