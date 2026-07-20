@@ -36,10 +36,4 @@
 #define AREQUIPA_HLT_VS_ID	EPFL_OUI "\x01\x00\x00\x01"	/* Arequipa  */
 #define TTCP_HLT_VS_ID		EPFL_OUI "\x01\x00\x00\x03"	/* ttcp_atm */
 
-
-/* Mapping of "well-known" TCP, UDP, etc. port numbers to ATM BHLIs.
-   btd-saa-api-bhli-01.02 */
-
-void atm_tcpip_port_mapping(char *vs_id,uint8_t protocol,uint16_t port);
-
 #endif
