@@ -94,8 +94,8 @@ static inline int SSL_CTX_set_max_proto_version(SSL_CTX *ctx, long tls_ver_max)
  */
 static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
 {
-    char subject[256];
-    char cn_str[256];
+    char subject[256] = {0};
+    char cn_str[256] = {0};
     X509 *peer_cert;
     int err, depth;
     SSL *ssl;
@@ -193,6 +193,11 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
             len2 = strlen(ptr2);
             if (len2 > len1)
                 ptr2 += len2 - len1;
+        }
+
+        if (ptr2 == NULL) {
+            error("Certificate verification error: unknown tls-verify-method: %s", tls_verify_method);
+            return 0;
         }
 
         if (strcmp(ptr1, ptr2)) {
