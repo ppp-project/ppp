@@ -2501,7 +2501,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			/* If MSCHAPv2 digest was not found, NAK the packet */
 			if (!esp->es_server.digest) {
 				error("EAP MSCHAPv2 not supported");
-				eap_send_nak(esp, id, EAPT_SRP);
+				esp->es_server.ea_state = eapIdentify;
+				eap_figure_next_state(esp, 0);
 				break;
 			}
 			esp->es_server.ea_state = eapMSCHAPv2Chall;
@@ -2709,7 +2710,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		default:
 			error("EAP: Unhandled MSCHAPv2 opcode %d", opcode);
-			eap_send_nak(esp, id, EAPT_SRP);
+			eap_send_failure(esp);
 		}
 
 		break;
