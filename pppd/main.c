@@ -1887,7 +1887,7 @@ update_script_environment(void)
     for (uep = userenv_list; uep != NULL; uep = uep->ue_next) {
 	int i;
 	char *p, *newstring;
-	int nlen = strlen(uep->ue_name);
+	size_t nlen = strlen(uep->ue_name);
 
 	for (i = 0; (p = script_env[i]) != NULL; i++) {
 	    if (strncmp(p, uep->ue_name, nlen) == 0 && p[nlen] == '=')
@@ -2263,7 +2263,7 @@ ppp_script_setenv(char *var, char *value, int iskey)
 void
 ppp_script_unsetenv(char *var)
 {
-    int vl = strlen(var);
+    size_t vl = strlen(var);
     int i;
     char *p;
 

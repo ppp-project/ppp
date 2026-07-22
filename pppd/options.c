@@ -1676,9 +1676,9 @@ static int
 callfile(char **argv)
 {
     char *fname, *arg, *p;
-    int l, ok;
+    size_t l;
+    int ok;
     FILE *f;
-
     arg = *argv;
     ok = 1;
     if (arg[0] == '/' || arg[0] == 0)
@@ -1842,7 +1842,7 @@ loadplugin(char **argv)
 
     if (strchr(arg, '/') == 0) {
 	const char *base = PPP_PATH_PLUGIN;
-	int l = strlen(base) + strlen(arg) + 2;
+	size_t l = strlen(base) + strlen(arg) + 2;
 	path = malloc(l);
 	if (path == 0)
 	    novm("plugin file path");
@@ -1871,7 +1871,7 @@ loadplugin(char **argv)
 		     arg, vers, VERSION);
 	goto errclose;
     }
-    info("Plugin %s loaded.", arg);
+    dbglog("Plugin %s loaded.", arg);
     (*init)();
     if (path != arg)
 	free(path);
@@ -1905,7 +1905,7 @@ user_setenv(char **argv)
 	return 0;
     }
     for (uep = userenv_list; uep != NULL; uep = uep->ue_next) {
-	int nlen = strlen(uep->ue_name);
+	size_t nlen = strlen(uep->ue_name);
 	if (nlen == (eqp - arg) &&
 	    strncmp(arg, uep->ue_name, nlen) == 0)
 	    break;

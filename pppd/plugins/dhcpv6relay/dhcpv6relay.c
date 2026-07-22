@@ -190,7 +190,7 @@ void routes_remove_all()
 }
 
 static
-void dhcpv6relay_down(void*, int)
+void dhcpv6relay_down(__attribute__((unused)) void* unused, __attribute__((unused)) int unusedint)
 {
     routes_remove_all();
     if (dhcpv6relay_sock_ll >= 0) {
@@ -262,7 +262,7 @@ void dhcpv6relay_route_timeout(void* _r)
 }
 
 static
-void dhcpv6relay_release_route(const struct in6_addr* addr, uint8_t prefixlen, uint32_t /* lifetime */)
+void dhcpv6relay_release_route(const struct in6_addr* addr, uint8_t prefixlen, __attribute__((unused)) uint32_t lifetime)
 {
     char in6addr[INET6_ADDRSTRLEN];
 
@@ -341,7 +341,7 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 	    routefunc((const struct in6_addr*)(bfr + 9), bfr[8], ntohl(*(const uint32_t*)(bfr+4)));
 	    break;
 	default:
-	    /* nothing */
+	    break;
 	}
 
 	bfr += optlen;
@@ -378,7 +378,7 @@ void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6rel
 	    routefunc((const struct in6_addr*)bfr, 128, ntohl(*(const uint32_t*)(bfr+20)));
 	    break;
 	default:
-	    /* nothing */
+	    break;
 	}
 
 	bfr += optlen;
@@ -392,6 +392,7 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
     if (len < 1)
 	return;
     uint8_t pkttype = *bfr;
+    dhcpv6relay_route_func func;
 
     switch (pkttype) {
     case DHCPv6_MSGTYPE_RELAY_FORW:
@@ -419,7 +420,6 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 	break;
     case DHCPv6_MSGTYPE_REPLY:
     case DHCPv6_MSGTYPE_RELEASE:
-	dhcpv6relay_route_func func;
 	if (pkttype == DHCPv6_MSGTYPE_RELEASE)
 	    func = dhcpv6relay_release_route;
 	else
@@ -447,6 +447,7 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 		dhcpv6relay_process_ia_na(bfr, optlen, func);
 		break;
 	    default:
+		break;
 	    }
 	    bfr += optlen;
 
@@ -460,7 +461,7 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 }
 
 static
-void dhcpv6relay_server_event(int fd, void*)
+void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 {
     unsigned char buffer[1024];
     unsigned char *options = buffer + 34; /* skip fixed header */
@@ -558,6 +559,7 @@ void dhcpv6relay_server_event(int fd, void*)
 	default:
 	    /* notice("DHCPv6 relay: Skipping processing of option %u of length %u.",
 		    type, len); */
+	    break;
 	}
 	options += len;
 	r -= len;
@@ -616,7 +618,7 @@ int dhcpv6relay_init_upstream()
 }
 
 static
-void dhcpv6relay_client_event(int fd, void*)
+void dhcpv6relay_client_event(int fd, __attribute__((unused)) void* unused)
 {
     unsigned char buffer[1024];
     unsigned char fwd_head[256];
@@ -792,14 +794,14 @@ void dhcpv6relay_send_router_advertisement(const struct sockaddr* da)
 }
 
 static
-void dhcpv6relay_send_router_advertisement_timed(void*)
+void dhcpv6relay_send_router_advertisement_timed(__attribute__((unused)) void* unused)
 {
     dhcpv6relay_send_router_advertisement(NULL);
     ppp_timeout(dhcpv6relay_send_router_advertisement_timed, NULL, dhcpv6relay_ra_interval, 0);
 }
 
 static
-void dhcpv6relay_router_solicitation(int fd, void*)
+void dhcpv6relay_router_solicitation(int fd, __attribute__((unused)) void* unused)
 {
     unsigned char bfr[1]; /* kernel will truncate packets in case of overflow,
 			     and we don't care about the content.  Will
@@ -852,7 +854,7 @@ int dhcpv6relay_populate_ll(struct sockaddr_in6* res)
 }
 
 static
-void dhcpv6relay_up(void*, int)
+void dhcpv6relay_up(__attribute__((unused)) void* unused, __attribute__((unused)) int unusedint)
 {
     struct sockaddr_in6 sa;
     struct ipv6_mreq mreq;
