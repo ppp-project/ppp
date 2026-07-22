@@ -22,10 +22,10 @@
 #include "pptp_callmgr.h"
 #include "pptp_ctrl.h"
 #include "pptp_msg.h"
-#include "dirutil.h"
 #include "vector.h"
 #include "util.h"
 #include <pppd/pppd.h>
+#include <pppd/pppd-private.h>
 
 extern struct in_addr localbind; /* from pptp.c */
 extern int call_ID;
@@ -352,7 +352,6 @@ int open_unixsock(struct in_addr inetaddr)
 {
     struct sockaddr_un where;
     struct stat st;
-    char *dir;
     int s;
     if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         warn("socket: %s", strerror(errno));
@@ -365,10 +364,9 @@ int open_unixsock(struct in_addr inetaddr)
         close(s); return -1;
     }
    /* Make sure path is valid. */
-    dir = dirnamex(where.sun_path);
-    if (!make_valid_path(dir, 0770))
+    if (!mkdir_recursive(PPTP_SOCKET_PREFIX))
         fatal("Could not make path to %s: %s", where.sun_path, strerror(errno));
-    free(dir);
+    chmod(PPTP_SOCKET_PREFIX, 0770);
     if (bind(s, (struct sockaddr *) &where, sizeof(where)) < 0) {
         warn("bind: %s", strerror(errno));
         close(s); return -1;
@@ -403,5 +401,5 @@ void callmgr_name_unixsock(struct sockaddr_un *where,
     strncpy(localaddr,  inet_ntoa(localbind), 16);
     strncpy(remoteaddr, inet_ntoa(inetaddr),  16);
     snprintf(where->sun_path, sizeof(where->sun_path),
-            PPTP_SOCKET_PREFIX "%s:%i", remoteaddr,call_ID);
+            PPTP_SOCKET_PREFIX "/" "%s:%i", remoteaddr,call_ID);
 }

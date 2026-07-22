@@ -5,7 +5,7 @@
  * $Id: pptp_callmgr.h,v 1.3 2003/02/17 00:22:17 quozl Exp $
  */
 
-#define PPTP_SOCKET_PREFIX "/var/run/pptp/"
+#define PPTP_SOCKET_PREFIX "/var/run/pptp"
 
 int callmgr_main(int argc, char**argv, char**envp);
 void callmgr_name_unixsock(struct sockaddr_un *where,
