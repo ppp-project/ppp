@@ -10,9 +10,6 @@
 #include "pptp_msg.h"
 #include "pptp_options.h"
 #include "pptp_ctrl.h"
-#include "util.h"
-
-
 
 /* return 0 on success, non zero otherwise */
 int
