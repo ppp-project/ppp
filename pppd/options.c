@@ -202,6 +202,8 @@ static struct option *find_option(char *name);
 static int process_option(struct option *, char *, char **);
 static int n_arguments(struct option *);
 static int number_option(char *, u_int32_t *, int);
+static int ppp_options_open(const char *, int, int, FILE **);
+static int ppp_options_from_fp(FILE *, const char *, int);
 
 /*
  * Structure to store extra lists of options.
@@ -571,14 +573,23 @@ int
 ppp_options_from_file(char *filename, int must_exist, int check_prot, int priv)
 {
     FILE *f;
-    int i, newline, ret, err;
-    struct option *opt;
-    int oldpriv, n;
-    char *oldsource;
+
+    if (!ppp_options_open(filename, must_exist, check_prot, &f))
+	return 0;
+    if (f == NULL)
+	return 1;
+    return ppp_options_from_fp(f, filename, priv);
+}
+
+/*
+ * ppp_options_open - Open a file for options
+ */
+static int
+ppp_options_open(const char *filename, int must_exist, int check_prot, FILE **fp)
+{
     uid_t euid;
-    char *argv[MAXARGS];
-    char args[MAXARGS][MAXWORDLEN];
-    char cmd[MAXWORDLEN];
+    FILE *f;
+    int err;
 
     euid = geteuid();
     if (check_prot && seteuid(getuid()) == -1) {
@@ -589,6 +600,7 @@ ppp_options_from_file(char *filename, int must_exist, int check_prot, int priv)
     err = errno;
     if (check_prot && seteuid(euid) == -1)
 	fatal("unable to regain privileges");
+    *fp = f;
     if (f == NULL) {
 	errno = err;
 	if (!must_exist) {
@@ -599,6 +611,22 @@ ppp_options_from_file(char *filename, int must_exist, int check_prot, int priv)
 	ppp_option_error("Can't open options file %s: %m", filename);
 	return 0;
     }
+    return 1;
+}
+
+/*
+ * Parse options from an open FILE pointer.
+ */
+static int
+ppp_options_from_fp(FILE *f, const char *filename, int priv)
+{
+    int i, newline, ret;
+    struct option *opt;
+    int oldpriv, n;
+    char *oldsource;
+    char *argv[MAXARGS];
+    char args[MAXARGS][MAXWORDLEN];
+    char cmd[MAXWORDLEN];
 
     oldpriv = privileged_option;
     privileged_option = priv;
@@ -1354,7 +1382,7 @@ readable(int fd)
  * \<newline> is ignored.
  */
 int
-getword(FILE *f, char *word, int *newlinep, char *filename)
+getword(FILE *f, char *word, int *newlinep, const char *filename)
 {
     int c, len, escape;
     int quoted, comment;
@@ -1650,8 +1678,7 @@ callfile(char **argv)
     char *fname, *arg, *p;
     size_t l;
     int ok;
-    char *realname;
-
+    FILE *f;
     arg = *argv;
     ok = 1;
     if (arg[0] == '/' || arg[0] == 0)
@@ -1679,15 +1706,19 @@ callfile(char **argv)
     slprintf(fname, l, "%s%s", PPP_PATH_PEERFILES, arg);
     ppp_script_setenv("CALL_FILE", arg, 0);
 
-    if (!ppp_check_access(fname, &realname, 1, 0)) {
+    if (!ppp_options_open(fname, 1, 1, &f)) {
 	free(fname);
 	return 0;
     }
+    if (!ppp_check_access(fileno(f), fname, 0)) {
+	free(fname);
+	fclose(f);
+	return 0;
+    }
 
-    ok = ppp_options_from_file(realname, 1, 1, 1);
+    ok = ppp_options_from_fp(f, fname, 1);
 
     free(fname);
-    free(realname);
     return ok;
 }
 

@@ -471,7 +471,7 @@ int  get_first_ether_hwaddr(unsigned char *addr);
 int setipaddr(char *, char **, int); /* Set local/remote ip addresses */
 int  parse_args(int argc, char **argv);
 				/* Parse options from arguments given */
-int  getword(FILE *f, char *word, int *newlinep, char *filename);
+int  getword(FILE *f, char *word, int *newlinep, const char *filename);
 				/* Read a word from a file */
 int  options_from_user(void); /* Parse options from user's .ppprc */
 int  options_for_tty(void); /* Parse options from /etc/ppp/options.tty */

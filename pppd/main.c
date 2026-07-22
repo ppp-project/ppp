@@ -1923,22 +1923,37 @@ update_script_environment(void)
 pid_t
 run_program(char *prog, char * const *args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
-    int pid, status, ret;
-    char *rpath;
+    int fd, pid, status, ret;
 
     /*
      * First check if the file exists and is executable by root,
      * and couldn't have been modified by a non-root process.
      */
-    if (!ppp_check_access(prog, &rpath, must_exist, 1))
+#if defined(O_PATH)
+    fd = open(prog, O_PATH);
+#elif defined(O_EXEC)
+    fd = open(prog, O_EXEC);
+#else
+    fd = open(prog, O_RDONLY);
+#endif
+    if (fd < 0) {
+	if (errno != ENOENT || must_exist)
+	    error("Can't access %s: %m", prog);
 	return 0;
+    }
+    if (!ppp_check_access(fd, prog, 1)) {
+	close(fd);
+	return 0;
+    }
 
     pid = ppp_safe_fork(fd_devnull, fd_devnull, fd_devnull);
     if (pid == -1) {
 	error("Failed to create child process for %s: %m", prog);
+	close(fd);
 	return -1;
     }
     if (pid != 0) {
+	close(fd);
 	if (debug)
 	    dbglog("Script %s started (pid %d)", prog, pid);
 	record_child(pid, prog, done, arg, 0);
@@ -1950,7 +1965,6 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 	    }
 	    forget_child(pid, status);
 	}
-	free(rpath);
 	return pid;
     }
 
@@ -1978,14 +1992,24 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
 
     /* run the program */
     update_script_environment();
-    execve(rpath, args, script_env);
-    if (must_exist || errno != ENOENT) {
-	/* have to reopen the log, there's nowhere else
-	   for the message to go. */
-	reopen_log();
-	syslog(LOG_ERR, "Can't execute %s: %m", rpath);
-	closelog();
+#ifdef HAVE_FEXECVE
+    fexecve(fd, args, script_env);
+#else
+    {
+	char fdpath[32];
+
+	snprintf(fdpath, sizeof(fdpath), "/dev/fd/%d", fd);
+	execve(fdpath, args, script_env);
+	if (errno == ENOENT) {
+	    snprintf(fdpath, sizeof(fdpath), "/proc/self/fd/%d", fd);
+	    execve(fdpath, args, script_env);
+	}
     }
+#endif
+    /* have to reopen the log, there's nowhere else for the message to go. */
+    reopen_log();
+    syslog(LOG_ERR, "Can't execute %s: %m", prog);
+    closelog();
     _exit(99);
 }
 
