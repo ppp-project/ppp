@@ -279,8 +279,6 @@ static int  null_login (int);
 static int  get_pap_passwd (char *);
 static int  have_pap_secret (int *);
 static int  have_chap_secret (char *, char *, int, int *);
-static int  have_srp_secret(char *client, char *server, int need_ip,
-    int *lacks_ipp);
 
 #ifdef PPP_WITH_EAPTLS
 static int  have_eaptls_secret_server
@@ -291,13 +289,13 @@ static int  scan_authfile_eaptls(FILE * f, char *client, char *server,
 			       char *ca_cert, char *pk,
 			       struct wordlist ** addrs,
 			       struct wordlist ** opts,
-			       char *filename, int flags);
+			       char *filename);
 #endif
 
 static int  ip_addr_check (u_int32_t, struct permitted_ip *);
 static int  scan_authfile(FILE *, char *, char *, char *,
 			  struct wordlist **, struct wordlist **,
-			  char *, int);
+			  char *);
 static void free_wordlist (struct wordlist *);
 static void auth_script (char *);
 static void auth_script_done (void *);
@@ -1386,16 +1384,12 @@ auth_check_options(void)
     /*
      * Check whether we have appropriate secrets to use
      * to authenticate the peer.  Note that EAP can authenticate by way
-     * of a CHAP-like exchanges as well as SRP.
+     * of a CHAP-like exchanges as well as TLS.
      */
     lacks_ip = 0;
     can_auth = wo->neg_upap && (uselogin || have_pap_secret(&lacks_ip));
     if (!can_auth && (wo->neg_chap || wo->neg_eap)) {
 	can_auth = have_chap_secret((explicit_remote? remote_name: NULL),
-				    our_name, 1, &lacks_ip);
-    }
-    if (!can_auth && wo->neg_eap) {
-	can_auth = have_srp_secret((explicit_remote? remote_name: NULL),
 				    our_name, 1, &lacks_ip);
     }
 
@@ -1458,8 +1452,7 @@ auth_reset(int unit)
     ao->neg_eap = !refuse_eap && (
 	passwd[0] != 0 ||
 	(hadchap == 1 || (hadchap == -1 && have_chap_secret(user,
-	    (explicit_remote? remote_name: NULL), 0, NULL))) ||
-	have_srp_secret(user, (explicit_remote? remote_name: NULL), 0, NULL)
+	    (explicit_remote? remote_name: NULL), 0, NULL)))
 #ifdef PPP_WITH_EAPTLS
 		|| have_eaptls_secret_client(user, (explicit_remote? remote_name: NULL))
 #endif
@@ -1476,9 +1469,7 @@ auth_reset(int unit)
     if (go->neg_eap &&
 	(hadchap == 0 || (hadchap == -1 &&
 	    !have_chap_secret((explicit_remote? remote_name: NULL), our_name,
-		1, NULL))) &&
-	!have_srp_secret((explicit_remote? remote_name: NULL), our_name, 1,
-	    NULL)
+		1, NULL)))
 #ifdef PPP_WITH_EAPTLS
 	 && !have_eaptls_secret_server((explicit_remote? remote_name: NULL),
 				   our_name, 1, NULL)
@@ -1558,7 +1549,7 @@ check_passwd(int unit,
 	    return UPAP_AUTHNAK;
 	}
 	check_access(fd, filename);
-	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename, 0) < 0) {
+	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename) < 0) {
 	    warn("no PAP secret found for %s", user);
 	} else {
 	    /*
@@ -1664,7 +1655,7 @@ null_login(int unit)
 	}
 	check_access(fd, filename);
 
-	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename, 0);
+	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
 	ret = i >= 0 && secret[0] == 0;
 	BZERO(secret, sizeof(secret));
 	fclose(f);
@@ -1711,7 +1702,7 @@ get_pap_passwd(char *passwd)
     check_access(fileno(f), filename);
     ret = scan_authfile(f, user,
 			(remote_name[0]? remote_name: NULL),
-			secret, NULL, NULL, filename, 0);
+			secret, NULL, NULL, filename);
     fclose(f);
     if (ret < 0)
 	return 0;
@@ -1751,7 +1742,7 @@ have_pap_secret(int *lacks_ipp)
 	return 0;
     }
     ret = scan_authfile(f, (explicit_remote? remote_name: NULL), our_name,
-			NULL, &addrs, NULL, filename, 0);
+			NULL, &addrs, NULL, filename);
     fclose(f);
     if (ret >= 0 && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
@@ -1802,50 +1793,7 @@ have_chap_secret(char *client, char *server,
     else if (server != NULL && server[0] == 0)
 	server = NULL;
 
-    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
-    fclose(f);
-    if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
-	if (lacks_ipp != 0)
-	    *lacks_ipp = 1;
-	ret = -1;
-    }
-    if (addrs != 0)
-	free_wordlist(addrs);
-
-    return ret >= 0;
-}
-
-
-/*
- * have_srp_secret - check whether we have a SRP file with a
- * secret that we could possibly use for authenticating `client'
- * on `server'.  Either can be the null string, meaning we don't
- * know the identity yet.
- */
-static int
-have_srp_secret(char *client, char *server, int need_ip, int *lacks_ipp)
-{
-    FILE *f;
-    int ret;
-    char *filename;
-    struct wordlist *addrs;
-
-    filename = PPP_PATH_SRPFILE;
-    f = fopen(filename, "r");
-    if (f == NULL)
-	return 0;
-
-    if (!ppp_check_access(fileno(f), filename, 0)) {
-	fclose(f);
-	return 0;
-    }
-
-    if (client != NULL && client[0] == 0)
-	client = NULL;
-    else if (server != NULL && server[0] == 0)
-	server = NULL;
-
-    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename, 0);
+    ret = scan_authfile(f, client, server, NULL, &addrs, NULL, filename);
     fclose(f);
     if (ret >= 0 && need_ip && !some_ip_ok(addrs)) {
 	if (lacks_ipp != 0)
@@ -1903,7 +1851,7 @@ get_secret(int unit, char *client, char *server,
 	}
 	check_access(fd, filename);
 
-	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename, 0);
+	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename);
 	fclose(f);
 	if (ret < 0)
 	    return 0;
@@ -1928,58 +1876,6 @@ get_secret(int unit, char *client, char *server,
     return 1;
 }
 
-
-/*
- * get_srp_secret - open the SRP secret file and return the secret
- * for authenticating the given client on the given server.
- * (We could be either client or server).
- */
-int
-get_srp_secret(int unit, char *client, char *server,
-	       char *secret, int am_server)
-{
-    FILE *fp;
-    int ret;
-    char *filename;
-    struct wordlist *addrs, *opts;
-
-    if (!am_server && passwd[0] != '\0') {
-	strlcpy(secret, passwd, MAXWORDLEN);
-    } else {
-	int fd;
-
-	filename = PPP_PATH_SRPFILE;
-	addrs = NULL;
-	fp = fopen(filename, "r");
-	if (fp == NULL) {
-	    error("Can't open srp secret file %s: %m", filename);
-	    return 0;
-	}
-
-	fd = fileno(fp);
-	if (!ppp_check_access(fd, filename, 0)) {
-	    fclose(fp);
-	    return 0;
-	}
-	check_access(fd, filename);
-
-	secret[0] = '\0';
-	ret = scan_authfile(fp, client, server, secret, &addrs, &opts,
-	    filename, am_server);
-	fclose(fp);
-	if (ret < 0)
-	    return 0;
-
-	if (am_server)
-	    set_allowed_addrs(unit, addrs, opts);
-	else if (opts != NULL)
-	    free_wordlist(opts);
-	if (addrs != NULL)
-	    free_wordlist(addrs);
-    }
-
-    return 1;
-}
 
 /*
  * set_allowed_addrs() - set the list of allowed addresses.
@@ -2257,14 +2153,11 @@ check_access(int fd, const char *filename)
  * following words (extra options) are placed in a wordlist and
  * returned in *opts.
  * We assume secret is NULL or points to MAXWORDLEN bytes of space.
- * Flags are non-zero if we need two colons in the secret in order to
- * match.
  */
 static int
 scan_authfile(FILE *f, char *client, char *server,
 	      char *secret, struct wordlist **addrs,
-	      struct wordlist **opts, char *filename,
-	      int flags)
+	      struct wordlist **opts, char *filename)
 {
     int newline, xxx;
     int got_flag, best_flag;
@@ -2330,14 +2223,6 @@ scan_authfile(FILE *f, char *client, char *server,
 	if (!getword(f, word, &newline, filename))
 	    break;
 	if (newline)
-	    continue;
-
-	/*
-	 * SRP-SHA1 authenticator should never be reading secrets from
-	 * a file.  (Authenticatee may, though.)
-	 */
-	if (flags && ((cp = strchr(word, ':')) == NULL ||
-	    strchr(cp + 1, ':') == NULL))
 	    continue;
 
 	if (secret != NULL) {
@@ -2538,8 +2423,7 @@ have_eaptls_secret_server(char *client, char *server,
 
     ret =
 	scan_authfile_eaptls(f, client, server, clicertfile, servcertfile,
-			     cacertfile, pkfile, &addrs, NULL, filename,
-			     0);
+			     cacertfile, pkfile, &addrs, NULL, filename);
 
     fclose(f);
 
@@ -2590,8 +2474,7 @@ have_eaptls_secret_client(char *client, char *server)
 
     ret =
 	scan_authfile_eaptls(f, client, server, clicertfile, servcertfile,
-			     cacertfile, pkfile, &addrs, NULL, filename,
-			     0);
+			     cacertfile, pkfile, &addrs, NULL, filename);
     fclose(f);
 
 /*
@@ -2612,7 +2495,7 @@ scan_authfile_eaptls(FILE *f, char *client, char *server,
 		     char *cli_cert, char *serv_cert, char *ca_cert,
 		     char *pk, struct wordlist **addrs,
 		     struct wordlist **opts,
-		     char *filename, int flags)
+		     char *filename)
 {
     int newline;
     int got_flag, best_flag;
@@ -2820,7 +2703,7 @@ get_eaptls_secret(int unit, char *client, char *server,
 		check_access(fd, filename);
 
 		ret = scan_authfile_eaptls(fp, client, server, clicertfile, servcertfile,
-				cacertfile, pkfile, &addrs, &opts, filename, 0);
+				cacertfile, pkfile, &addrs, &opts, filename);
 
 		fclose(fp);
 
