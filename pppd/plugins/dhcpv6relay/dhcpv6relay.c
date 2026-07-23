@@ -310,8 +310,29 @@ void dhcpv6relay_add_route(const struct in6_addr* addr, uint8_t prefixlen, uint3
 }
 
 static
+bool dhcpv6relay_valid_prefix(const struct in6_addr* addr, uint8_t prefixlen)
+{
+    int octet = prefixlen / 8;
+    uint8_t mask = 0xff >> (prefixlen % 8);
+    if (prefixlen > 128)
+	return false;
+
+    /* Can be done more efficiently but would require more complexity */
+    while (octet < 16) {
+	if (addr->s6_addr[octet] & mask)
+	    return false;
+	++octet;
+	mask = 0xff;
+    }
+
+    return true;
+}
+
+static
 void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
 {
+    char in6addr[INET6_ADDRSTRLEN];
+
     if (len < 12)
 	return; /* IAID, T1, T2, 4 octets each, we don't care */
     bfr += 12;
@@ -329,17 +350,17 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 
 	switch (opttype) {
 	case DHCPv6_OPTION_IAPREFIX:
-	    if (optlen < 9) {
-		error("DHCPv6 relay: IA_PD option from server needs at least 9 "
+	    /* 4 octets preferred, 4 octets valid lifetime, 1 octet length, 16 octets prefix, we discard IAprefix-options regardless. */
+	    if (optlen < 25) {
+		error("DHCPv6 relay: IA_PD option from server needs at least 25 "
 			"bytes, %u available, cannot process IA_PD.", optlen);
 		break;
-	    } else if (optlen < 9 + (bfr[8] + 7) / 8) {
-		error("DHCPv6 relay: IA_PD option from server needs %u bytes "
-			"(prefix len=%u, thus 9+%u), only %u available, cannot process IA_PD.",
-			9 + (bfr[8] + 7) / 8, bfr[8], (bfr[8] + 7) / 8, optlen);
+	    }
+	    if (!dhcpv6relay_valid_prefix((const struct in6_addr*)(bfr + 9), bfr[8])) {
+		error("DHCPv6 relay: IA_PD option from server contains an illegal prefix %s/%u.",
+			inet_ntop(AF_INET6, bfr + 9, in6addr, sizeof(in6addr)), bfr[8]);
 		break;
 	    }
-	    /* 4 octets preferred, 4 octets valid lifetime, 1 octet length, 16 octets prefix */
 	    routefunc((const struct in6_addr*)(bfr + 9), bfr[8], ntohl(*(const uint32_t*)(bfr+4)));
 	    break;
 	default:
