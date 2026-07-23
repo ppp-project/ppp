@@ -593,10 +593,15 @@ void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 	return;
     }
 
+    if (!fwd_len) {
+	error("DHCPv6 relay: relay-repl message from the server had a zero length relay-msg option.");
+	return;
+    }
+
     memset(&sa, 0, sizeof(sa));
     sa.sin6_family = AF_INET6;
     if (fwd_packet[0] == DHCPv6_MSGTYPE_RELAY_REPL) {
-	/* this should only ever happen towards "trusted" ports, wich is not the default. */
+	/* this should only ever happen towards "trusted" ports, which is not the default. */
 	/* TODO: Honour option 135 towards downstream, would need to see an example, spec
 	 * is unclear and observed behaviour from KEA doesn't make sense. */
 	sa.sin6_port = getservbyname("dhcpv6-server", "udp")->s_port;
