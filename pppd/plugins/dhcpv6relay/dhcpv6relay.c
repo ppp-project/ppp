@@ -573,6 +573,8 @@ void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 	}
 	switch (type) {
 	case DHCPv6_OPTION_RELAY_MSG:
+	    if (fwd_packet)
+		warn("DHCPv6 relay: relay-repl message with multiple relay-msg options.");
 	    fwd_packet = options;
 	    fwd_len = len;
 	    break;
