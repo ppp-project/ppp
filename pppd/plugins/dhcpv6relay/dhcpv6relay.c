@@ -1,7 +1,7 @@
 /*
  * dhcpv6relay.c - DHCPv6 relay plugin.
  *
- * Copyright (c) 2025 Ultimate Linux Solutions (Pty) Ltd represented by
+ * Copyright (c) 2025-2026 Ultimate Linux Solutions (Pty) Ltd represented by
  * Jaco Kroon <jaco@uls.co.za>. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,6 +23,8 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * When in doubt: https://datatracker.ietf.org/doc/html/rfc9915
  */
 #include "dhcpv6relay.h"
 
