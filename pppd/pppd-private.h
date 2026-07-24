@@ -364,8 +364,6 @@ int  check_passwd(int, char *, int, char *, int, char **);
 				/* Check peer-supplied username/password */
 int  get_secret(int, char *, char *, char *, int *, int);
 				/* get "secret" for chap */
-int  get_srp_secret(int unit, char *client, char *server, char *secret,
-    int am_server);
 int  auth_ip_addr(int, u_int32_t);
 				/* check if IP address is authorized */
 int  auth_number(void);	/* check if remote number is authorized */

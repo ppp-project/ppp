@@ -291,11 +291,6 @@ AM_COND_IF([OPENSSL_HAVE_DES],
     AC_DEFINE([OPENSSL_HAVE_DES], 1, [Use DES included with openssl]))
 
 #
-# With libsrp support
-AX_CHECK_SRP([
-    AC_DEFINE([PPP_WITH_SRP], 1, [Support for libsrp authentication module])])
-
-#
 # With libatm support
 AX_CHECK_ATM
 
@@ -351,7 +346,6 @@ $PACKAGE_NAME version $PACKAGE_VERSION
     With libatm..........: ${with_atm:-no}
     With libpam..........: ${with_pam:-no}
     With libpcap.........: ${with_pcap:-no}
-    With libsrp..........: ${with_srp:-no}
     C Compiler...........: $CC $CFLAGS
     Linker...............: $LD $LDFLAGS $LIBS
 

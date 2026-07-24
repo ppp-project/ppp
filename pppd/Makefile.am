@@ -26,10 +26,6 @@ utest_utils_LDFLAGS =
 
 check_PROGRAMS += utest_utils
 
-if WITH_SRP
-sbin_PROGRAMS += srp-entry
-endif
-
 pkgconfigdir   = $(libdir)/pkgconfig
 pkgconfig_DATA = pppd.pc
 
@@ -116,11 +112,6 @@ if PPP_WITH_CHAPMS
 pppd_SOURCES += chap_ms.c crypto_ms.c
 check_PROGRAMS += utest_chap
 check_PROGRAMS += utest_pppcrypt
-else
-if WITH_SRP
-pppd_SOURCES += crypto_ms.c
-check_PROGRAMS += utest_pppcrypt
-endif
 endif
 
 if PPP_WITH_CBCP
@@ -199,23 +190,10 @@ pppd_CPPFLAGS += $(SYSTEMD_CFLAGS)
 pppd_LIBS += $(SYSTEMD_LIBS)
 endif
 
-if WITH_SRP
-srp_entry_SOURCES = srp-entry.c
-srp_entry_CPPFLAGS = $(OPENSSL_INCLUDES) $(SRP_CFLAGS)
-srp_entry_LDADD = $(SRP_LIBS) $(OPENSSL_LIBS)
-srp_entry_LDFLAGS = $(OPENSSL_LDFLAGS) $(SRP_LDFLAGS)
-dist_srp_entry_MANS = srp-entry.8
-
-pppd_CPPFLAGS += $(SRP_CFLAGS)
-pppd_LDFLAGS += $(SRP_LDFLAGS)
-pppd_LIBS += $(SRP_LIBS)
-endif
-
 pppd_LDADD = $(pppd_LIBS)
 
 EXTRA_DIST = \
-    ppp.pam \
-    srp-entry.8
+    ppp.pam
 
 TESTS = $(check_PROGRAMS)
 
