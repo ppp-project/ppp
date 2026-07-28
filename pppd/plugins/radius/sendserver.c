@@ -21,6 +21,39 @@ static void rc_random_vector (unsigned char *);
 static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned char);
 
 /*
+ * Calculate length occupied by an AVP in the send buffer
+ */
+static int rc_pack_length(VALUE_PAIR *vp)
+{
+    int total_length = 1;	/* attribute */
+    int length;
+
+    if (vp->vendorcode != VENDOR_NONE)
+	total_length += 6;	/* length, vendor code, attribute */
+
+    if (vp->vendorcode == VENDOR_NONE && vp->attribute == PW_USER_PASSWORD) {
+	length = vp->lvalue;
+	if (length > AUTH_PASS_LEN)
+	    length = AUTH_PASS_LEN;
+	length = (length + (AUTH_VECTOR_LEN-1)) & ~(AUTH_VECTOR_LEN-1);
+	total_length += length + 1;
+    } else {
+	switch (vp->type) {
+	case PW_TYPE_STRING:
+	    total_length += vp->lvalue + 1;
+	    break;
+	case PW_TYPE_INTEGER:
+	case PW_TYPE_IPADDR:
+	    total_length += sizeof(UINT4) + 1;
+	default:
+	    break;
+	}
+    }
+
+    return total_length;
+}
+
+/*
  * Function: rc_pack_list
  *
  * Purpose: Packs an attribute value pair list into a buffer.
@@ -29,10 +62,10 @@ static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned ch
  *
  */
 
-static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
+static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth, int datalen)
 {
     int             length, i, pc, secretlen, padded_length;
-    int             total_length = 0;
+    int             vplen;
     UINT4           lvalue;
     unsigned char   passbuf[MAX(AUTH_PASS_LEN, CHAP_VALUE_LENGTH)];
     unsigned char   md5buf[256];
@@ -42,6 +75,12 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 
     while (vp != (VALUE_PAIR *) NULL)
 	{
+	    vplen = rc_pack_length(vp);
+	    if ((int)(buf - auth->data) + vplen > datalen) {
+		error("radius: send data would overflow buffer (%d > %d)",
+		      (int)(buf - auth->data) + vplen, datalen);
+		break;
+	    }
 
 	    if (vp->vendorcode != VENDOR_NONE) {
 		*buf++ = PW_VENDOR_SPECIFIC;
@@ -66,7 +105,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 		    *buf++ = length+2;
 		    memcpy(buf, vp->strvalue, (size_t) length);
 		    buf += length;
-		    total_length += length+8;
 		    break;
 		case PW_TYPE_INTEGER:
 		case PW_TYPE_IPADDR:
@@ -76,7 +114,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 		    lvalue = htonl(vp->lvalue);
 		    memcpy(buf, (char *) &lvalue, sizeof(UINT4));
 		    buf += length;
-		    total_length += length+8;
 		    break;
 		default:
 		    break;
@@ -120,8 +157,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 			}
 		    }
 
-		    total_length += padded_length + 2;
-
 		    break;
 #if 0
 		case PW_CHAP_PASSWORD:
@@ -147,7 +182,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 		    for (i = 0; i < CHAP_VALUE_LENGTH; i++) {
 			*buf++ ^= passbuf[i];
 		    }
-		    total_length += CHAP_VALUE_LENGTH + 2;
 
 		    break;
 #endif
@@ -158,7 +192,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 			*buf++ = length + 2;
 			memcpy (buf, vp->strvalue, (size_t) length);
 			buf += length;
-			total_length += length + 2;
 			break;
 
 		    case PW_TYPE_INTEGER:
@@ -167,7 +200,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 			lvalue = htonl (vp->lvalue);
 			memcpy (buf, (char *) &lvalue, sizeof (UINT4));
 			buf += sizeof (UINT4);
-			total_length += sizeof (UINT4) + 2;
 			break;
 
 		    default:
@@ -176,9 +208,15 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth)
 		    break;
 		}
 	    }
+
 	    vp = vp->next;
 	}
-    return total_length;
+
+    /* Should never happen unless rc_pack_length is buggy */
+    if ((int)(buf - auth->data) > datalen)
+	fatal("radius: BUG! send data buffer overflowed!");
+
+    return buf - auth->data;
 }
 
 /*
@@ -265,12 +303,13 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 
 	if (data->code == PW_ACCOUNTING_REQUEST)
 	{
-		total_length = rc_pack_list(data->send_pairs, secret, auth) + AUTH_HDR_LEN;
+		secretlen = strlen (secret);
+		total_length = rc_pack_list(data->send_pairs, secret, auth,
+					    BUFFER_LEN - AUTH_HDR_LEN - secretlen) + AUTH_HDR_LEN;
 
 		auth->length = htons ((unsigned short) total_length);
 
 		memset((char *) auth->vector, 0, AUTH_VECTOR_LEN);
-		secretlen = strlen (secret);
 		memcpy ((char *) auth + total_length, secret, secretlen);
 		rc_md5_calc (vector, (unsigned char *) auth, total_length + secretlen);
 		memcpy ((char *) auth->vector, (char *) vector, AUTH_VECTOR_LEN);
@@ -280,7 +319,8 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 		rc_random_vector (vector);
 		memcpy (auth->vector, vector, AUTH_VECTOR_LEN);
 
-		total_length = rc_pack_list(data->send_pairs, secret, auth) + AUTH_HDR_LEN;
+		total_length = rc_pack_list(data->send_pairs, secret, auth,
+					    BUFFER_LEN - AUTH_HDR_LEN) + AUTH_HDR_LEN;
 
 		auth->length = htons ((unsigned short) total_length);
 	}
