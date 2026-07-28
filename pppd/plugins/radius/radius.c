@@ -63,12 +63,16 @@ static struct avpopt {
 static bool portnummap = 0;
 
 static option_t Options[] = {
-    { "radius-config-file", o_string, &config_file },
-    { "avpair", o_special, add_avp },
+    { "radius-config-file", o_string, &config_file,
+      "Set RADIUS configuration file name", OPT_PRIV },
+    { "avpair", o_special, add_avp,
+      "Add an attribute-value pair to be sent to the RADIUS server", OPT_PRIV },
     { "map-to-ttyname", o_bool, &portnummap,
-	"Set Radius NAS-Port attribute value via libradiusclient library", OPT_PRIO | 1 },
+      "Set Radius NAS-Port attribute value via libradiusclient library",
+      OPT_PRIV | OPT_PRIO | 1 },
     { "map-to-ifname", o_bool, &portnummap,
-	"Set Radius NAS-Port attribute to number as in interface name (Default)", OPT_PRIOSUB | 0 },
+      "Set Radius NAS-Port attribute to number as in interface name (Default)",
+      OPT_PRIV | OPT_PRIOSUB | 0 },
     { NULL }
 };
 
