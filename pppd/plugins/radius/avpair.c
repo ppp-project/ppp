@@ -471,11 +471,13 @@ void rc_avpair_free (VALUE_PAIR *pair)
  * Purpose: Copy a data field from the buffer.  Advance the buffer
  *          past the data field.
  *
+ * 'string' is assumed to have space for AUTH_ID_LEN characters.
  */
 
 static void rc_fieldcpy (char *string, char **uptr)
 {
 	char           *ptr;
+	char *stringstart = string;
 
 	ptr = *uptr;
 	if (*ptr == '"')
@@ -483,6 +485,8 @@ static void rc_fieldcpy (char *string, char **uptr)
 		ptr++;
 		while (*ptr != '"' && *ptr != '\0' && *ptr != '\n')
 		{
+			if (string - stringstart >= AUTH_ID_LEN - 1)
+				goto bad;
 			*string++ = *ptr++;
 		}
 		*string = '\0';
@@ -497,11 +501,17 @@ static void rc_fieldcpy (char *string, char **uptr)
 	while (*ptr != ' ' && *ptr != '\t' && *ptr != '\0' && *ptr != '\n' &&
 			*ptr != '=' && *ptr != ',')
 	{
+		if (string - stringstart >= AUTH_ID_LEN - 1)
+			goto bad;
 		*string++ = *ptr++;
 	}
 	*string = '\0';
 	*uptr = ptr;
 	return;
+
+ bad:
+	fatal("radius: A-V pair name or value is too long (max %d chars)",
+	      AUTH_ID_LEN - 1);
 }
 
 
@@ -589,7 +599,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 				}
 				return (-1);
 			}
-			strcpy (pair->name, attr->name);
+			strlcpy (pair->name, attr->name, sizeof(pair->name));
 			pair->attribute = attr->value;
 			pair->type = attr->type;
 			pair->vendorcode = attr->vendorcode;
@@ -598,7 +608,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 			{
 
 			    case PW_TYPE_STRING:
-				strcpy ((char*) pair->strvalue, valstr);
+				strlcpy ((char*) pair->strvalue, valstr, sizeof(pair->strvalue));
 				pair->lvalue = strlen(valstr);
 				break;
 
