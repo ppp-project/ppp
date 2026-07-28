@@ -98,6 +98,11 @@ static int set_option_srv(char *filename, int line, OPTION *option, char *p)
 	serv->max = 0;
 
 	while ((p = strtok(p, ", \t")) != NULL) {
+		if (serv->max >= SERVER_MAX) {
+			error("%s: line %d: too many servers listed (max %d)",
+			      filename, line, SERVER_MAX);
+			return -1;
+		}
 
 		if ((q = strchr(p,':')) != NULL) {
 			*q = '\0';
