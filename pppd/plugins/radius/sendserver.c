@@ -18,7 +18,7 @@
 #include <signal.h>
 
 static void rc_random_vector (unsigned char *);
-static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned char);
+static int rc_check_reply (AUTH_HDR *, int, int, char *, unsigned char *, unsigned char);
 
 /*
  * Calculate length occupied by an AVP in the send buffer
@@ -381,9 +381,7 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 
 	recv_auth = (AUTH_HDR *)recv_buffer;
 
-	result = rc_check_reply (recv_auth, BUFFER_LEN, secret, vector, data->seq_nbr);
-
-	data->receive_pairs = rc_avpair_gen(recv_auth);
+	result = rc_check_reply (recv_auth, length, BUFFER_LEN, secret, vector, data->seq_nbr);
 
 	close (sockfd);
 	if (info)
@@ -395,6 +393,8 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 	memset (secret, '\0', sizeof (secret));
 
 	if (result != OK_RC) return (result);
+
+	data->receive_pairs = rc_avpair_gen(recv_auth);
 
 	*msg = '\0';
 	vp = data->receive_pairs;
@@ -432,7 +432,7 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
  *
  */
 
-static int rc_check_reply (AUTH_HDR *auth, int bufferlen, char *secret,
+static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *secret,
 			   unsigned char *vector, unsigned char seq_nbr)
 {
 	int             secretlen;
@@ -440,12 +440,17 @@ static int rc_check_reply (AUTH_HDR *auth, int bufferlen, char *secret,
 	unsigned char   calc_digest[AUTH_VECTOR_LEN];
 	unsigned char   reply_digest[AUTH_VECTOR_LEN];
 
+	if (datalen < sizeof(AUTH_HDR)) {
+		error("rc_check_reply: received short RADIUS server response");
+		return BADRESP_RC;
+	}
+
 	totallen = ntohs (auth->length);
 
 	secretlen = strlen (secret);
 
 	/* Do sanity checks on packet length */
-	if ((totallen < 20) || (totallen > 4096))
+	if ((totallen < 20) || totallen > bufferlen || totallen > datalen)
 	{
 		error("rc_check_reply: received RADIUS server response with invalid length");
 		return (BADRESP_RC);
