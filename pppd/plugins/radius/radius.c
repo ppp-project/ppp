@@ -299,9 +299,10 @@ radius_pap_auth(char *user,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg, NULL);
+				      &received, radius_msg, sizeof(radius_msg), NULL);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg, NULL);
+	result = rc_auth(rstate.client_port, send, &received,
+			 radius_msg, sizeof(radius_msg), NULL);
     }
 
     if (result == OK_RC) {
@@ -474,10 +475,10 @@ radius_chap_verify(char *user, char *ourname, int id,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg, req_info);
+				      &received, radius_msg, sizeof(radius_msg), req_info);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg,
-			 req_info);
+	result = rc_auth(rstate.client_port, send, &received,
+			 radius_msg, sizeof(radius_msg), req_info);
     }
 
     strlcpy(message, radius_msg, message_space);

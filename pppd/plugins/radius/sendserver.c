@@ -226,7 +226,7 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth, int datal
  *
  */
 
-int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
+int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *info)
 {
 	int             sockfd;
 	struct sockaddr salocal;
@@ -402,8 +402,8 @@ int rc_send_server (SEND_DATA *data, char *msg, REQUEST_INFO *info)
 	{
 		if ((vp = rc_avpair_get(vp, PW_REPLY_MESSAGE)))
 		{
-			strcat(msg, (char*) vp->strvalue);
-			strcat(msg, "\n");
+			strlcat(msg, (char*) vp->strvalue, msgspace);
+			strlcat(msg, "\n", msgspace);
 			vp = vp->next;
 		}
 	}

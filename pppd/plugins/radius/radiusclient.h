@@ -416,14 +416,14 @@ VALUE_PAIR *rc_avpair_readin(FILE *);
 
 void rc_buildreq(SEND_DATA *, int, char *, unsigned short, int, int);
 unsigned char rc_get_seqnbr(void);
-int rc_auth(UINT4, VALUE_PAIR *, VALUE_PAIR **, char *, REQUEST_INFO *);
+int rc_auth(UINT4, VALUE_PAIR *, VALUE_PAIR **, char *, size_t, REQUEST_INFO *);
 int rc_auth_using_server(SERVER *, UINT4, VALUE_PAIR *, VALUE_PAIR **,
-			 char *, REQUEST_INFO *);
-int rc_auth_proxy(VALUE_PAIR *, VALUE_PAIR **, char *);
+			 char *, size_t, REQUEST_INFO *);
+int rc_auth_proxy(VALUE_PAIR *, VALUE_PAIR **, char *, size_t);
 int rc_acct(UINT4, VALUE_PAIR *);
 int rc_acct_using_server(SERVER *, UINT4, VALUE_PAIR *);
 int rc_acct_proxy(VALUE_PAIR *);
-int rc_check(char *, unsigned short, char *);
+int rc_check(char *, unsigned short, char *, size_t);
 
 /*	clientid.c		*/
 
@@ -459,7 +459,7 @@ UINT4 rc_own_bind_ipaddress(void);
 
 /*	sendserver.c		*/
 
-int rc_send_server(SEND_DATA *, char *, REQUEST_INFO *);
+int rc_send_server(SEND_DATA *, char *, size_t, REQUEST_INFO *);
 
 /*	util.c			*/
 
