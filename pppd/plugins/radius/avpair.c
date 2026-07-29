@@ -210,7 +210,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 				rc_avpair_free(vp);
 				return NULL;
 			}
-			strcpy (pair->name, attr->name);
+			strlcpy (pair->name, attr->name, sizeof(pair->name));
 			pair->attribute = attr->value;
 			pair->vendorcode = VENDOR_NONE;
 			pair->type = attr->type;
@@ -223,6 +223,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 			    case PW_TYPE_IFID:
 			    case PW_TYPE_IPV6ADDR:
 			    case PW_TYPE_IPV6PREFIX:
+				/* Note attrlen is at most 253 here */
 				memcpy (pair->strvalue, (char *) ptr, (size_t) attrlen);
 				pair->strvalue[attrlen] = '\0';
 				pair->lvalue = attrlen;
@@ -231,6 +232,12 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 
 			    case PW_TYPE_INTEGER:
 			    case PW_TYPE_IPADDR:
+				if (attrlen < sizeof(UINT4)) {
+				    error("rc_avpair_gen: %s has short value (%d bytes)",
+					  attr->name, attrlen);
+				    free(pair);
+				    break;
+				}
 				memcpy ((char *) &lvalue, (char *) ptr,
 					sizeof (UINT4));
 				pair->lvalue = ntohl (lvalue);
