@@ -298,7 +298,7 @@ static void rc_extract_vendor_specific_attributes(int attrlen,
 
     /* Set attrlen to length of data */
     attrlen -= 4;
-    for (; attrlen; attrlen -= vlen+2, ptr += vlen) {
+    for (; attrlen >= 2; attrlen -= vlen+2, ptr += vlen) {
 	vtype = *ptr++;
 	vlen = *ptr++;
 	vlen -= 2;
@@ -333,6 +333,10 @@ static void rc_extract_vendor_specific_attributes(int attrlen,
 
 	case PW_TYPE_INTEGER:
 	case PW_TYPE_IPADDR:
+	    if (vlen < sizeof(UINT4)) {
+		free(pair);
+		break;
+	    }
 	    memcpy ((char *) &lvalue, (char *) ptr,
 		    sizeof (UINT4));
 	    pair->lvalue = ntohl (lvalue);
