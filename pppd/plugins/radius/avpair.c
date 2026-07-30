@@ -776,21 +776,30 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 
 	    case PW_TYPE_IFID:
 		ptr = pair->strvalue;
-		snprintf(buffer, sizeof (buffer), "%x:%x:%x:%x",
-			 (ptr[0] << 8) + ptr[1], (ptr[2] << 8) + ptr[3],
-			 (ptr[4] << 8) + ptr[5], (ptr[6] << 8) + ptr[7]);
+		if (pair->lvalue >= 8)
+		    snprintf(buffer, sizeof (buffer), "%x:%x:%x:%x",
+			     (ptr[0] << 8) + ptr[1], (ptr[2] << 8) + ptr[3],
+			     (ptr[4] << 8) + ptr[5], (ptr[6] << 8) + ptr[7]);
+		else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 
 	    case PW_TYPE_IPV6ADDR:
-		inet_ntop(AF_INET6, pair->strvalue, buffer, sizeof (buffer));
+		if (pair->lvalue >= sizeof(struct in6_addr))
+		    inet_ntop(AF_INET6, pair->strvalue, buffer, sizeof (buffer));
+		else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 
 	    case PW_TYPE_IPV6PREFIX:
-		inet_ntop(AF_INET6, pair->strvalue + 2, buffer, sizeof (buffer));
-		str = buffer + strlen(buffer);
-		snprintf(str, sizeof (buffer) - (str - buffer), "/%d", *(pair->strvalue + 1));
+		if (pair->lvalue >= sizeof(struct in6_addr) + 2) {
+		    inet_ntop(AF_INET6, pair->strvalue + 2, buffer, sizeof (buffer));
+		    str = buffer + strlen(buffer);
+		    snprintf(str, sizeof (buffer) - (str - buffer), "/%d", *(pair->strvalue + 1));
+		} else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 
