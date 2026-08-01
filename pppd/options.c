@@ -311,11 +311,11 @@ struct option general_options[] = {
 
     { "connect-delay", o_int, &connect_delay,
       "Maximum time (in ms) to wait after connect script finishes",
-      OPT_PRIO },
+      OPT_PRIO | OPT_LLIMIT, NULL, 0, 0 },
 
     { "unit", o_int, &req_unit,
       "PPP interface unit number to use if possible",
-      OPT_PRIO | OPT_LLIMIT, 0, 0 },
+      OPT_PRIO | OPT_LLIMIT, NULL, 0, 0 },
 
     { "ifname", o_string, req_ifname,
       "Set PPP interface name",

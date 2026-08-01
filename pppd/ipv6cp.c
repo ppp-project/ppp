@@ -279,7 +279,7 @@ static struct option ipv6cp_option_list[] = {
       "Don't send local interface identifier to peer", OPT_A2CLR },
 
     { "ipv6cp-restart", o_int, &ipv6cp_fsm[0].timeouttime,
-      "Set timeout for IPv6CP", OPT_PRIO },
+      "Set timeout for IPv6CP", OPT_PRIO | OPT_LLIMIT, NULL, 0, 1 },
     { "ipv6cp-max-terminate", o_int, &ipv6cp_fsm[0].maxtermtransmits,
       "Set max #xmits for term-reqs", OPT_PRIO },
     { "ipv6cp-max-configure", o_int, &ipv6cp_fsm[0].maxconfreqtransmits,

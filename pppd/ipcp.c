@@ -183,7 +183,7 @@ static struct option ipcp_option_list[] = {
       "Nameserver for SMB over TCP/IP for peer", OPT_A2LIST },
 
     { "ipcp-restart", o_int, &ipcp_fsm[0].timeouttime,
-      "Set timeout for IPCP", OPT_PRIO },
+      "Set timeout for IPCP", OPT_PRIO | OPT_LLIMIT, NULL, 0, 1 },
     { "ipcp-max-terminate", o_int, &ipcp_fsm[0].maxtermtransmits,
       "Set max #xmits for term-reqs", OPT_PRIO },
     { "ipcp-max-configure", o_int, &ipcp_fsm[0].maxconfreqtransmits,
