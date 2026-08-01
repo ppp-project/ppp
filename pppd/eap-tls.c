@@ -41,7 +41,7 @@
 #include <fcntl.h>
 
 #include <openssl/conf.h>
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
 #include <openssl/engine.h>
 #endif
 #include <openssl/ssl.h>
@@ -71,7 +71,7 @@ typedef struct pw_cb_data
     const char *prompt_info;
 } PW_CB_DATA;
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
 /* The openssl configuration file and engines can be loaded only once */
 static CONF   *ssl_config  = NULL;
 static ENGINE *cert_engine = NULL;
@@ -168,7 +168,7 @@ CONF *eaptls_ssl_load_config( void )
     }
 
     dbglog( "Loading OpenSSL built-ins" );
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     ENGINE_load_builtin_engines();
 #endif
 #if !defined(LIBRESSL_VERSION_NUMBER) || (LIBRESSL_VERSION_NUMBER < 0x4000000fL)
@@ -186,7 +186,7 @@ CONF *eaptls_ssl_load_config( void )
     return config;
 }
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
 ENGINE *eaptls_ssl_load_engine( char *engine_name )
 {
     ENGINE      *e = NULL;
@@ -234,7 +234,7 @@ ENGINE *eaptls_ssl_load_engine( char *engine_name )
 #endif
 
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
 static int eaptls_UI_writer(UI *ui, UI_STRING *uis)
 {
     PW_CB_DATA* cb_data = (PW_CB_DATA*)UI_get0_user_data(ui);
@@ -258,7 +258,7 @@ static int eaptls_UI_reader(UI *ui, UI_STRING *uis) {
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
             char *certfile, char *privkeyfile, char *pkcs12)
 {
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     char        *cert_engine_name = NULL;
     char        *pkey_engine_name = NULL;
     char        *idx;
@@ -300,7 +300,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 
     tls_init();
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     /* load the openssl config file only once and load it before triggering
        the loading of a global openssl config file via SSL_CTX_new()
      */
@@ -314,7 +314,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         goto fail;
     }
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     /* if the certificate filename is of the form engine:id. e.g.
         pkcs11:12345
        then we try to load and use this engine.
@@ -396,7 +396,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     if (init_server)
         SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(cacertfile));
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     if (cert_engine)
     {
         struct
@@ -514,7 +514,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     }
     SSL_free(ssl);
 
-#ifndef OPENSSL_NO_ENGINE
+#ifdef OPENSSL_ENGINE
     if (pkey_engine)
     {
         PW_CB_DATA  cb_data;

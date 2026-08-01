@@ -200,11 +200,11 @@ AS_IF([test "x${enable_peap}" != "xno" && test "x${enable_microsoft_extensions}"
 AM_CONDITIONAL([PPP_WITH_PEAP], test "x${enable_peap}" != "xno" && test "x${enable_microsoft_extensions}" != "xno")
 
 #
-# Disable OpenSSL engine support
+# Enable OpenSSL engine support
 AC_ARG_ENABLE([openssl-engine],
-    AS_HELP_STRING([--disable-openssl-engine], [Disable OpenSSL engine support]))
-AS_IF([test "x$enable_openssl_engine" != "xno"], [],
-    AC_DEFINE([OPENSSL_NO_ENGINE], 1, [OpenSSL engine support]))
+    AS_HELP_STRING([--enable-openssl-engine], [Enable OpenSSL engine support]))
+AS_IF([test "x$enable_openssl_engine" = "xyes"],
+    AC_DEFINE([OPENSSL_ENGINE], 1, [Include OpenSSL engine support]))
 
 #
 # Specify runtime directory
