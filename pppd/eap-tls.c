@@ -621,21 +621,18 @@ fail:
 }
 
 /*
- * Determine the maximum packet size by looking at the LCP handshake
+ * Determine the maximum amount of TLS data in a packet
  */
 
 int eaptls_get_mtu(int unit)
 {
-    int mtu, mru;
+    int mtu;
 
-    lcp_options *wo = &lcp_wantoptions[unit];
-    lcp_options *go = &lcp_gotoptions[unit];
-    lcp_options *ho = &lcp_hisoptions[unit];
-    lcp_options *ao = &lcp_allowoptions[unit];
-
-    mtu = ho->neg_mru? ho->mru: PPP_MRU;
-    mru = go->neg_mru? MAX(wo->mru, go->mru): PPP_MRU;
-    mtu = MIN(MIN(mtu, mru), ao->mru)- PPP_HDRLEN - 10;
+    /*
+     * 10 bytes is the size of the EAP-TLS header including length field:
+     * code, ID, EAP-length (2 bytes), type, flags, TLS-length (4 bytes).
+     */
+    mtu = peer_mru[unit] - 10;
 
     dbglog("MTU = %d", mtu);
     return mtu;

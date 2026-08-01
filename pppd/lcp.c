@@ -1901,8 +1901,13 @@ lcp_up(fsm *f)
 		    (lax_recv? 0: go->neg_asyncmap? go->asyncmap: 0xffffffff),
 		    go->neg_pcompression, go->neg_accompression);
 
-    if (ho->neg_mru)
-	peer_mru[f->unit] = ho->mru;
+    /*
+     * Make it explicit that peer_mru[] is between MINMRU and PPP_MRU.
+     * We wouldn't have accepted a proposed MRU from the peer that is
+     * less than MINMRU, but we might have accepted one greater than PPP_MRU.
+     */
+    if (ho->neg_mru && ho->mru < PPP_MRU)
+	peer_mru[f->unit] = MAX(ho->mru, MINMRU);
 
     lcp_echo_lowerup(f->unit);  /* Enable echo messages */
 
