@@ -68,6 +68,7 @@
 #include "chap_ms.h"
 #include "mppe.h"
 #include "peap.h"
+#include "fsm.h"
 
 #ifdef UNIT_TEST
 #define novm(x)
@@ -260,6 +261,14 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 		peap_len = PEAP_HEADERLEN + PEAP_FRAGMENT_LENGTH_FIELD + len;
 	else
 		peap_len = PEAP_HEADERLEN + len;
+
+	/*
+	 * XXX Dying here is better (just) than overflowing outpacket_buf[].
+	 * There's not much point trying to continue, since the negotiation
+	 * will stall at this point and never complete.
+	 */
+	if (peap_len > MIN(peer_mru[esp->es_unit], PPP_MRU))
+		fatal("BUG! PEAP Response fragmentation not implemented!");
 
 	PUTSHORT(peap_len, outp);
 	PUTCHAR(EAPT_PEAP, outp);
