@@ -22,7 +22,6 @@
 #include "pptp_options.h"
 #include "vector.h"
 #include "util.h"
-#include "pptp_quirks.h"
 #include <pppd/pppd.h>
 
 /* BECAUSE OF SIGNAL LIMITATIONS, EACH PROCESS CAN ONLY MANAGE ONE
@@ -185,11 +184,6 @@ int pptp_send_ctrl_packet(PPTP_CONN * conn, void * buffer, size_t size);
 int pptp_dispatch_packet(PPTP_CONN * conn, void * buffer, size_t size);
 /* Dispatch packets (control messages) */
 int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size);
-/* Set link info, for pptp servers that need it.
-   this is a noop, unless the user specified a quirk and
-   there's a set_link hook defined in the quirks table
-   for that quirk */
-void pptp_set_link(PPTP_CONN * conn, int peer_call_id);
 
 /*** log error information in control packets *********************************/
 static void ctrlp_error( int result, int error, int cause,
@@ -297,13 +291,6 @@ PPTP_CONN * pptp_conn_open(int inet_sock, int isclient, pptp_conn_cb callback)
             hton16(PPTP_MAX_CHANNELS), hton16(PPTP_FIRMWARE_VERSION),
             PPTP_HOSTNAME, PPTP_VENDOR
         };
-        /* fix this packet, if necessary */
-        int idx, rc;
-        idx = get_quirk_index();
-        if (idx != -1 && pptp_fixups[idx].start_ctrl_conn) {
-            if ((rc = pptp_fixups[idx].start_ctrl_conn(&packet)))
-                warn("calling the start_ctrl_conn hook failed (%d)", rc);
-        }
         if (pptp_send_ctrl_packet(conn, &packet, sizeof(packet)))
             conn->conn_state = CONN_WAIT_CTL_REPLY;
         else
@@ -335,7 +322,6 @@ PPTP_CALL * pptp_call_open(PPTP_CONN * conn, int call_id,pptp_call_cb callback,
         char *phonenr,int window)
 {
     PPTP_CALL * call;
-    int idx, rc;
     /* Send off the call request */
     struct pptp_out_call_rqst packet = {
         PPTP_HEADER_CTRL(PPTP_OUT_CALL_RQST),
@@ -361,12 +347,6 @@ PPTP_CALL * pptp_call_open(PPTP_CONN * conn, int call_id,pptp_call_cb callback,
     call->closure   = NULL;
     packet.call_id = htons(call->call_id);
     packet.call_sernum = htons(call->sernum);
-    /* if we have a quirk, build a new packet to fit it */
-    idx = get_quirk_index();
-    if (idx != -1 && pptp_fixups[idx].out_call_rqst_hook) {
-        if ((rc = pptp_fixups[idx].out_call_rqst_hook(&packet)))
-            warn("calling the out_call_rqst hook failed (%d)", rc);
-    }
     /* fill in the phone number if it was specified */
     if (phonenr) {
         strncpy(packet.phone_num, phonenr, sizeof(packet.phone_num));
@@ -725,12 +705,6 @@ int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size)
                 PPTP_HOSTNAME, PPTP_VENDOR };
             int idx, rc;
             dbglog("Received Start Control Connection Request");
-            /* fix this packet, if necessary */
-            idx = get_quirk_index();
-            if (idx != -1 && pptp_fixups[idx].start_ctrl_conn) {
-                if ((rc = pptp_fixups[idx].start_ctrl_conn(&reply)))
-                    warn("calling the start_ctrl_conn hook failed (%d)", rc);
-            }
             if (conn->conn_state == CONN_IDLE) {
                 if (ntoh16(packet->version) < PPTP_VERSION) {
                     /* Can't support this (earlier) PPTP_VERSION */
@@ -905,9 +879,6 @@ int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size)
                 call->peer_call_id = ntoh16(packet->call_id);
                 call->speed        = ntoh32(packet->speed);
                 pptp_reset_timer();
-                /* call pptp_set_link. unless the user specified a quirk
-                   and this quirk has a set_link hook, this is a noop */
-                pptp_set_link(conn, call->peer_call_id);
                 if (call->callback != NULL)
                     call->callback(conn, call, CALL_OPEN_DONE);
                 dbglog("Outgoing call established (call ID %u, peer's "
@@ -985,22 +956,6 @@ pptp_conn_close:
     warn("pptp_conn_close(%d)", (int) close_reason);
     pptp_conn_close(conn, close_reason);
     return 0;
-}
-
-/*** pptp_set_link **************************************************************/
-void pptp_set_link(PPTP_CONN* conn, int peer_call_id)
-{
-    int idx, rc;
-    /* if we need to send a set_link packet because of buggy
-       hardware or pptp server, do it now */
-    if ((idx = get_quirk_index()) != -1 && pptp_fixups[idx].set_link_hook) {
-        struct pptp_set_link_info packet;
-        if ((rc = pptp_fixups[idx].set_link_hook(&packet, peer_call_id)))
-            warn("calling the set_link hook failed (%d)", rc);
-        if (pptp_send_ctrl_packet(conn, &packet, sizeof(packet))) {
-            pptp_reset_timer();
-        }
-    }
 }
 
 /*** Get info from call structure *********************************************/
