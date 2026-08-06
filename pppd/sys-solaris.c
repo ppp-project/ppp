@@ -636,6 +636,26 @@ sys_check_options(void)
 }
 
 /*
+ * ppp_privileged - check whether we have the privileges needed to open
+ * the ppp device and configure interfaces.
+ */
+int
+ppp_privileged(void)
+{
+    return geteuid() == 0;
+}
+
+/*
+ * ppp_secure_exec - Solaris has no AT_SECURE; the euid check in main.c
+ * covers setuid.
+ */
+int
+ppp_secure_exec(void)
+{
+    return 0;
+}
+
+/*
  * ppp_check_kernel_support - check whether the system has any ppp interfaces
  */
 int
