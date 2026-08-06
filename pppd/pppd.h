@@ -300,7 +300,7 @@ void pr_log(void *, char *, ...);
 void end_pr_log(void);
 
 /* Check that a file can safely be used */
-int ppp_check_access(const char *path, char **path_to_use, int must_exist, int exec);
+int ppp_check_access(int fd, const char *path, int exec);
 
 /*
  * Get the current exist status of pppd

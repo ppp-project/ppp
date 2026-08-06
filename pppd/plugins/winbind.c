@@ -593,7 +593,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 			
 		} else {
 			if (error_string) {
-				notice(error_string);
+				notice("%s", error_string);
 				free(error_string);
 			}
 			slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0",
@@ -646,7 +646,7 @@ winbind_chap_verify(char *user, char *ourname, int id,
 			
 		} else {
 			if (error_string) {
-				notice(error_string);
+				notice("%s", error_string);
 				slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0 M=%s",
 					 challenge_len, challenge, error_string);
 				free(error_string);

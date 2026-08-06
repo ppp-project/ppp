@@ -1,0 +1,57 @@
+name: OmniOS
+on: [push, pull_request]
+
+# OmniOS (illumos) still ships the sppp kernel driver that Oracle removed
+# from Solaris 11.4, so this is where the Solaris-family code paths get
+# real link-level testing.
+
+jobs:
+  omnios:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout PPP sources
+      uses: actions/checkout@v4
+    - name: Build
+      uses: vmactions/omnios-vm@v1
+      with:
+        prepare: |
+          pkg install build-essential developer/build/autoconf developer/build/automake developer/build/libtool || true
+        run: |
+          PATH=/usr/gnu/bin:$PATH
+          export PATH
+          ./autogen.sh CFLAGS="-Wno-deprecated-declarations"
+          gmake
+          gmake install
+    # The vmactions VM can only be booted by one step per job, but it
+    # stays up and reachable as "ssh omnios" with the workspace shared
+    # at the same path, so the tests run as their own step over ssh.
+    - name: Test
+      shell: bash
+      run: |
+        # shellcheck disable=SC2029  # client-side $GITHUB_WORKSPACE expansion is intended
+        ssh omnios "cd $GITHUB_WORKSPACE && /bin/sh -es" <<'EOF'
+        # Integration tests run as root in this disposable VM
+        # (PPPD_TEST_GLOBAL_CONF=1 allows staging test secrets in the
+        # real confdir). The IP routing tests skip (no network
+        # namespaces on illumos); the protocol-level tests drive a real
+        # ppp link, which on illumos needs the sppp STREAMS driver and
+        # its /dev/sppp node (pppd opens /dev/sppp here, not /dev/ppp).
+        if [ ! -e /dev/sppp ]; then
+          # The sppp driver ships in system/network/ppp, which the VM
+          # image doesn't install by default. Install it, register the
+          # driver, and create the device node.
+          pkg install system/network/ppp || true
+          grep -w sppp /etc/name_to_major >/dev/null 2>&1 || /usr/sbin/add_drv sppp || true
+          /usr/sbin/devfsadm -i sppp || true
+        fi
+        if [ ! -e /dev/sppp ]; then
+          # Fail loudly rather than letting every protocol test skip to a
+          # green run -- the whole point of this job is real link testing.
+          echo "ERROR: sppp driver did not attach (/dev/sppp missing)" >&2
+          ls -l /kernel/drv/sppp* /kernel/drv/amd64/sppp* 2>/dev/null || true
+          grep ppp /etc/name_to_major || true
+          pkg list '*ppp*' || true
+          exit 1
+        fi
+        PPPD_TEST_GLOBAL_CONF=1 python3 ./runtests.py --always-log
+        EOF

@@ -85,7 +85,7 @@ static int do_try_nsap(const char *text,struct sockaddr_atmsvc *addr,int flags)
 	    if (count++ == 15) break;
 	    dot = 1;
 	}
-	else if (*text != '.') break;
+	else if (*walk != '.') break;
 	    else if (!dot) return FATAL; /* two dots in a row */
 		else dot = 0;
     if (*walk != ':') {

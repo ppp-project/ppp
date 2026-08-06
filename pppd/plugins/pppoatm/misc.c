@@ -20,7 +20,7 @@
 int __atmlib_fetch(const char **pos,...)
 {
     const char *value;
-    int ref_len,best_len,len;
+    size_t ref_len,best_len,len;
     int i,best;
     va_list ap;
 
@@ -39,13 +39,4 @@ int __atmlib_fetch(const char **pos,...)
     va_end(ap);
     if (best > -1) (*pos) += best_len;
     return best;
-}
-
-
-void atm_tcpip_port_mapping(char *vs_id,uint8_t protocol,uint16_t port)
-{
-    memcpy(vs_id,ATM_FORUM_OUI "\x01",4);
-    vs_id[4] = protocol; /* e.g. IP_TCP or IP_UDP; from netinet/protocols.h */
-    vs_id[5] = (htons(port) >> 8) & 255;
-    vs_id[6] = htons(port) & 255;
 }
