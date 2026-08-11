@@ -7,16 +7,6 @@
 #ifndef INC_PPTP_H
 #define INC_PPTP_H
 
-/* Grab definitions of int16, int32, etc. */
-#include <sys/types.h>
-/* define "portable" htons, etc. */
-#define hton8(x)  (x)
-#define ntoh8(x)  (x)
-#define hton16(x) htons(x)
-#define ntoh16(x) ntohs(x)
-#define hton32(x) htonl(x)
-#define ntoh32(x) ntohl(x)
-
 /* PPTP magic numbers: ----------------------------------------- */
 
 #define PPTP_MAGIC 0x1A2B3C4D /* Magic cookie for PPTP datagrams */
@@ -226,18 +216,11 @@ struct pptp_set_link_info {   /* for control message type 15 */
 };
 
 /* helpful #defines: -------------------------------------------- */
-#define pptp_isvalid_ctrl(header, type, length) \
- (!( ( ntoh16(((struct pptp_header *)header)->length)    < (length)  ) ||   \
-     ( ntoh16(((struct pptp_header *)header)->pptp_type) !=(type)    ) ||   \
-     ( ntoh32(((struct pptp_header *)header)->magic)     !=PPTP_MAGIC) ||   \
-     ( ntoh16(((struct pptp_header *)header)->ctrl_type) > PPTP_SET_LINK_INFO) || \
-     ( ntoh16(((struct pptp_header *)header)->reserved0) !=0         ) ))
-
 #define PPTP_HEADER_CTRL(type)  \
-{ hton16(PPTP_CTRL_SIZE(type)), \
-  hton16(PPTP_MESSAGE_CONTROL), \
-  hton32(PPTP_MAGIC),           \
-  hton16(type), 0 }             
+{ htons(PPTP_CTRL_SIZE(type)), \
+  htons(PPTP_MESSAGE_CONTROL), \
+  htonl(PPTP_MAGIC),           \
+  htons(type), 0 }
 
 #define PPTP_CTRL_SIZE(type) ( \
 (type==PPTP_START_CTRL_CONN_RQST)?sizeof(struct pptp_start_ctrl_conn):	\
@@ -270,34 +253,5 @@ max(sizeof(struct pptp_call_clear_rqst),	\
 max(sizeof(struct pptp_call_clear_ntfy),	\
 max(sizeof(struct pptp_wan_err_ntfy),		\
 max(sizeof(struct pptp_set_link_info), 0)))))))))))))
-
-
-/* gre header structure: -------------------------------------------- */
-
-#define PPTP_GRE_PROTO  0x880B
-#define PPTP_GRE_VER    0x1
-
-#define PPTP_GRE_FLAG_C	0x80
-#define PPTP_GRE_FLAG_R	0x40
-#define PPTP_GRE_FLAG_K	0x20
-#define PPTP_GRE_FLAG_S	0x10
-#define PPTP_GRE_FLAG_A	0x80
-
-#define PPTP_GRE_IS_C(f) ((f)&PPTP_GRE_FLAG_C)
-#define PPTP_GRE_IS_R(f) ((f)&PPTP_GRE_FLAG_R)
-#define PPTP_GRE_IS_K(f) ((f)&PPTP_GRE_FLAG_K)
-#define PPTP_GRE_IS_S(f) ((f)&PPTP_GRE_FLAG_S)
-#define PPTP_GRE_IS_A(f) ((f)&PPTP_GRE_FLAG_A)
-
-struct pptp_gre_header {
-  u_int8_t flags;		/* bitfield */
-  u_int8_t ver;			/* should be PPTP_GRE_VER (enhanced GRE) */
-  u_int16_t protocol;		/* should be PPTP_GRE_PROTO (ppp-encaps) */
-  u_int16_t payload_len;	/* size of ppp payload, not inc. gre header */
-  u_int16_t call_id;		/* peer's call_id for this session */
-  u_int32_t seq;		/* sequence number.  Present if S==1 */
-  u_int32_t ack;		/* seq number of highest packet recieved by */
-  				/*  sender in this session */
-};
 
 #endif /* INC_PPTP_H */
