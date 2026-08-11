@@ -104,9 +104,8 @@ void call_callback(PPTP_CONN *conn, PPTP_CALL *call, enum call_state state)
  *****************************************************************************/
 
 /*** Call Manager *************************************************************/
-int callmgr_main(int argc, char **argv, char **envp)
+int callmgr_main(int pcallid, struct in_addr inetaddr, char phonenr[], int window)
 {
-    struct in_addr inetaddr;
     int inet_sock, unix_sock;
     fd_set call_set;
     PPTP_CONN * conn;
@@ -115,29 +114,19 @@ int callmgr_main(int argc, char **argv, char **envp)
     volatile int first = 1;
     int retval;
     int i;
-    char * volatile phonenr=NULL;
-    int volatile window=10;
-    //int volatile call_id=0;
-    /* Step 0: Check arguments */
-    if (argc < 2)
-        fatal("Usage: %s ip.add.ress.here [--phone <phone number>]", argv[0]);
-    //phonenr = argc == 3 ? argv[2] : NULL;
-    for(i=2; i<argc; i++)
-    {
-    	//dbglog("%s",argv[i]);
-    	if (strcmp(argv[i],"--phone")==0 && i+1<argc) phonenr=argv[++i];
-    	else if (strcmp(argv[i],"--window")==0 && i+1<argc) window=atoi(argv[++i]);
-    	else if (strcmp(argv[i],"--call_id")==0 && i+1<argc) call_ID=atoi(argv[++i]);
-    }
-    if (inet_aton(argv[1], &inetaddr) == 0)
-        fatal("Invalid IP address: %s", argv[1]);
-     dbglog("IP: %s\n",inet_ntoa(inetaddr));
+
+    if (pcallid > 0) call_ID = pcallid;
+
+    dbglog("pptp: call manager for %s\n", inet_ntoa(inetaddr));
+    dbglog("window: %d, call_id: %d\n", window, call_ID);
+    if (phonenr) dbglog("phone number:\t'%s'\n", phonenr);
+
     /* Step 1: Open sockets. */
     if ((inet_sock = open_inetsock(inetaddr)) < 0)
-        fatal("Could not open control connection to %s", argv[1]);
+        fatal("Could not open control connection to %s", inet_ntoa(inetaddr));
     dbglog("control connection");
     if ((unix_sock = open_unixsock(inetaddr)) < 0)
-        fatal("Could not open unix socket for %s", argv[1]);
+        fatal("Could not open unix socket for %s", inet_ntoa(inetaddr));
     /* Step 1b: FORK and return status to calling process. */
     dbglog("unix_sock");
 
@@ -317,7 +306,7 @@ cleanup:
     signal(SIGTERM, callmgr_do_nothing);
     close_inetsock(inet_sock, inetaddr);
     close_unixsock(unix_sock, inetaddr);
-    return 0;
+    exit(0); // work done, terminate fork
 }
 
 /*** open_inetsock ************************************************************/

@@ -44,6 +44,7 @@
 #include <pppd/lcp.h>
 #include <pppd/ipcp.h>
 #include <pppd/ccp.h>
+#include <pppd/pppd-private.h>
 
 #include "pptp_callmgr.h"
 #include <net/if.h>
@@ -114,9 +115,7 @@ static int pptp_start_server(void)
 {
 	pptp_fd=pptp_sock;
 
-        char _tmp_buf[64];
-        snprintf(_tmp_buf, sizeof(_tmp_buf), "pptp (%s)", pptp_client);
-        ppp_set_devnam(_tmp_buf);
+	sprintf(ppp_devname,"pptp (%s)",pptp_client);
 
 	return pptp_fd;
 }
@@ -206,9 +205,7 @@ static int pptp_start_client(void)
 		return -1;
 	}
 
-        char _tmp_buf[64];
-        snprintf(_tmp_buf, sizeof(_tmp_buf), "pptp (%s)", pptp_server);
-        ppp_set_devnam(_tmp_buf);
+	sprintf(ppp_devname,"pptp (%s)",pptp_server);
 
 	return pptp_fd;
 }
@@ -265,7 +262,7 @@ static int open_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int w
                     /* close the pty and gre in the call manager */
                    // close(pty_fd);
                     //close(gre_fd);
-                    launch_callmgr(call_id,inetaddr, phonenr,window);
+                    callmgr_main(call_id, inetaddr, phonenr, window);
                 }
                 default: /* parent */
                     waitpid(pid, &status, 0);
@@ -286,20 +283,6 @@ static int open_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int w
     close(fd);
     error("Could not launch call manager after %d tries.", i);
     return -1;   /* make gcc happy */
-}
-
-/*** call the call manager main ***********************************************/
-static void launch_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int window)
-{
-			char win[10];
-			char call[10];
-      char *my_argv[9] = { "pptp", inet_ntoa(inetaddr), "--call_id",call,"--phone",phonenr,"--window",win,NULL };
-      char buf[128];
-      sprintf(win,"%u",window);
-      sprintf(call,"%u",call_id);
-      snprintf(buf, sizeof(buf), "pptp: call manager for %s", my_argv[1]);
-      //inststr(argc, argv, envp, buf);
-      exit(callmgr_main(8, my_argv, environ));
 }
 
 /*** exchange data with the call manager  *************************************/
