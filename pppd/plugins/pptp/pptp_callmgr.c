@@ -26,6 +26,7 @@
 #include "util.h"
 #include <pppd/pppd.h>
 #include <pppd/pppd-private.h>
+#include <pppd/pathnames.h>
 
 extern struct in_addr localbind; /* from pptp.c */
 extern int call_ID;
@@ -363,15 +364,10 @@ int open_unixsock(struct in_addr inetaddr)
         warn("Call manager for %s is already running.", inet_ntoa(inetaddr));
         close(s); return -1;
     }
-   /* Make sure path is valid. */
-    if (!mkdir_recursive(PPTP_SOCKET_PREFIX))
-        fatal("Could not make path to %s: %s", where.sun_path, strerror(errno));
-    chmod(PPTP_SOCKET_PREFIX, 0770);
     if (bind(s, (struct sockaddr *) &where, sizeof(where)) < 0) {
         warn("bind: %s", strerror(errno));
         close(s); return -1;
     }
-    chmod(where.sun_path, 0777);
     listen(s, 127);
     return s;
 }
@@ -401,5 +397,5 @@ void callmgr_name_unixsock(struct sockaddr_un *where,
     strncpy(localaddr,  inet_ntoa(localbind), 16);
     strncpy(remoteaddr, inet_ntoa(inetaddr),  16);
     snprintf(where->sun_path, sizeof(where->sun_path),
-            PPTP_SOCKET_PREFIX "/" "%s:%i", remoteaddr,call_ID);
+            PPP_PATH_VARRUN "/pptp_socket_%s:%i", remoteaddr,call_ID);
 }
