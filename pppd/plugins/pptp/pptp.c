@@ -93,20 +93,15 @@ static option_t Options[] =
 };
 
 static int pptp_connect(void);
-//static void pptp_send_config(int mtu,u_int32_t asyncmap,int pcomp,int accomp);
-//static void pptp_recv_config(int mru,u_int32_t asyncmap,int pcomp,int accomp);
 static void pptp_disconnect(void);
 
 struct channel pptp_channel = {
     options: Options,
-    //process_extra_options: &PPPOEDeviceOptions,
     check_options: NULL,
     connect: &pptp_connect,
     disconnect: &pptp_disconnect,
     establish_ppp: &ppp_generic_establish,
     disestablish_ppp: &ppp_generic_disestablish,
-    //send_config: &pptp_send_config,
-    //recv_config: &pptp_recv_config,
     close: NULL,
     cleanup: NULL
 };
@@ -151,10 +146,6 @@ static int pptp_start_client(void)
 		src_addr.sa_addr.pptp.sin_addr=addr.sin_addr;
 		close(sock);
 	}
-	//info("PPTP: connect server=%s\n",inet_ntoa(conn.sin_addr));
-	//conn.loc_addr.s_addr=INADDR_NONE;
-	//conn.timeout=1;
-	//conn.window=pptp_window;
 
 	src_addr.sa_family=AF_PPPOX;
 	src_addr.sa_protocol=PX_PROTO_PPTP;
@@ -259,9 +250,6 @@ static int open_callmgr(int call_id,struct in_addr inetaddr, char *phonenr,int w
                 {
                     close (fd);
                     close(pptp_fd);
-                    /* close the pty and gre in the call manager */
-                   // close(pty_fd);
-                    //close(gre_fd);
                     callmgr_main(call_id, inetaddr, phonenr, window);
                 }
                 default: /* parent */
@@ -332,4 +320,3 @@ void plugin_init(void)
     the_channel = &pptp_channel;
     ppp_set_modem(0);
 }
-

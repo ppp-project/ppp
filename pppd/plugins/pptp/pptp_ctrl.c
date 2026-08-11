@@ -703,7 +703,6 @@ int ctrlp_disp(PPTP_CONN * conn, void * buffer, size_t size)
                 htonl(PPTP_FRAME_CAP), htonl(PPTP_BEARER_CAP),
                 htons(PPTP_MAX_CHANNELS), htons(PPTP_FIRMWARE_VERSION),
                 PPTP_HOSTNAME, PPTP_VENDOR };
-            int idx, rc;
             dbglog("Received Start Control Connection Request");
             if (conn->conn_state == CONN_IDLE) {
                 if (ntohs(packet->version) < PPTP_VERSION) {

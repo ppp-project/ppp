@@ -86,8 +86,6 @@ void call_callback(PPTP_CONN *conn, PPTP_CALL *call, enum call_state state)
                 vector_remove(conninfo->call_list, lci->unix_sock);
                 close(lci->unix_sock);
                 FD_CLR(lci->unix_sock, conninfo->call_set);
-                //if(lci->pid[0] > 1) kill(lci->pid[0], SIGTERM);
-                //if(lci->pid[1] > 1) kill(lci->pid[1], SIGTERM);
             }
             break;
         default:
@@ -236,8 +234,6 @@ skip_accept: /* Step 5c: Handle socket close */
                     struct local_callinfo *lci =
                         pptp_call_closure_get(conn, call);
                     dbglog("Closing connection (unhandled)");
-                    //if(lci->pid[0] > 1) kill(lci->pid[0], SIGTERM);
-                    //if(lci->pid[1] > 1) kill(lci->pid[1], SIGTERM);
                     free(lci);
                     /* soft shutdown.  Callback will do hard shutdown later */
                     pptp_call_close(conn, call);
@@ -258,11 +254,8 @@ shutdown:
         /* kill all open calls */
         for (i = 0; i < vector_size(call_list); i++) {
             PPTP_CALL *call = vector_get_Nth(call_list, i);
-            //struct local_callinfo *lci = pptp_call_closure_get(conn, call);
             dbglog("Closing connection (shutdown)");
             pptp_call_close(conn, call);
-            //if(lci->pid[0] > 1) kill(lci->pid[0], SIGTERM);
-            //if(lci->pid[1] > 1) kill(lci->pid[1], SIGTERM);
         }
         /* attempt to dispatch these messages */
         FD_ZERO(&read_set);
