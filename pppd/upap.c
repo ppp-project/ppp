@@ -68,11 +68,11 @@ static struct option pap_option_list[] = {
       "Show password string in debug log messages", OPT_PRIOSUB | 0 },
 
     { "pap-restart", o_int, &upap[0].us_timeouttime,
-      "Set retransmit timeout for PAP", OPT_PRIO },
+      "Set retransmit timeout for PAP", OPT_PRIO | OPT_LLIMIT, NULL, 0, 1 },
     { "pap-max-authreq", o_int, &upap[0].us_maxtransmits,
       "Set max number of transmissions for auth-reqs", OPT_PRIO },
     { "pap-timeout", o_int, &upap[0].us_reqtimeout,
-      "Set time limit for peer PAP authentication", OPT_PRIO },
+      "Set time limit for peer PAP authentication", OPT_PRIO | OPT_LLIMIT, 0, 0 },
 
     { NULL }
 };
