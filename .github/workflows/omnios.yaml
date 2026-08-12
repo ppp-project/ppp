@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout PPP sources
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Build
       uses: vmactions/omnios-vm@v1
       with:

@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     name: actionlint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install actionlint
         # Pin a version so this job is reproducible; bump deliberately.
         # The download script verifies a SHA256 of the release tarball.
