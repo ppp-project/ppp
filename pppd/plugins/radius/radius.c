@@ -63,12 +63,16 @@ static struct avpopt {
 static bool portnummap = 0;
 
 static option_t Options[] = {
-    { "radius-config-file", o_string, &config_file },
-    { "avpair", o_special, add_avp },
+    { "radius-config-file", o_string, &config_file,
+      "Set RADIUS configuration file name", OPT_PRIV },
+    { "avpair", o_special, add_avp,
+      "Add an attribute-value pair to be sent to the RADIUS server", OPT_PRIV },
     { "map-to-ttyname", o_bool, &portnummap,
-	"Set Radius NAS-Port attribute value via libradiusclient library", OPT_PRIO | 1 },
+      "Set Radius NAS-Port attribute value via libradiusclient library",
+      OPT_PRIV | OPT_PRIO | 1 },
     { "map-to-ifname", o_bool, &portnummap,
-	"Set Radius NAS-Port attribute to number as in interface name (Default)", OPT_PRIOSUB | 0 },
+      "Set Radius NAS-Port attribute to number as in interface name (Default)",
+      OPT_PRIV | OPT_PRIOSUB | 0 },
     { NULL }
 };
 
@@ -295,9 +299,10 @@ radius_pap_auth(char *user,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg, NULL);
+				      &received, radius_msg, sizeof(radius_msg), NULL);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg, NULL);
+	result = rc_auth(rstate.client_port, send, &received,
+			 radius_msg, sizeof(radius_msg), NULL);
     }
 
     if (result == OK_RC) {
@@ -470,10 +475,10 @@ radius_chap_verify(char *user, char *ourname, int id,
     if (rstate.authserver) {
 	result = rc_auth_using_server(rstate.authserver,
 				      rstate.client_port, send,
-				      &received, radius_msg, req_info);
+				      &received, radius_msg, sizeof(radius_msg), req_info);
     } else {
-	result = rc_auth(rstate.client_port, send, &received, radius_msg,
-			 req_info);
+	result = rc_auth(rstate.client_port, send, &received,
+			 radius_msg, sizeof(radius_msg), req_info);
     }
 
     strlcpy(message, radius_msg, message_space);
