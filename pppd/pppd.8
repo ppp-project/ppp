@@ -260,11 +260,12 @@ compression in the corresponding direction.  Use \fInobsdcomp\fR or
 This option is used on the client-side in conjunction with the \fBcert\fR
 and \fBkey\fR options.  Either \fIca\fR, or \fIcapath\fR options are required
 for PEAP. EAP-TLS may also use the entry in eaptls-client or eaptls-server
-for a CA certificate associated with a particular peer.
+for a CA certificate associated with a particular peer. This option is privileged.
 .TP
 .B capath \fIpath
 (EAP-TLS, or PEAP) Specify a location that contains public CA certificates.
 Either \fIca\fR, or \fIcapath\fR options are required for PEAP.
+This option is privileged.
 .TP
 .B cdtrcts
 Use a non-standard hardware flow control (i.e. DTR/CTS) to control
@@ -281,7 +282,7 @@ control mode does not permit using DTR as a modem control line.
 (EAP-TLS) Use the file \fIcertfile\fR as the X.509 certificate (in PEM
 format), needed for setting up an EAP-TLS connection. This option is
 used on the client-side in conjunction with the \fBca\fR and 
-\fBkey\fR options.
+\fBkey\fR options. This option is privileged.
 .TP
 .B chap\-interval \fIn
 If this option is given, pppd will rechallenge the peer every \fIn\fR
@@ -324,13 +325,13 @@ or \fBpty\fR option is used.
 (EAP-TLS, or PEAP) Use the file \fIfilename\fR as the Certificate Revocation List
 to check for the validity of the peer's certificate. This option is not
 mandatory for setting up a TLS connection. Also see the \fBcrl-dir\fR
-option.
+option. This option is privileged.
 .TP
 .B crl-dir \fIdirectory
 (EAP-TLS, or PEAP) Use the directory \fIdirectory\fR to scan for CRL files in
 has format ($hash.r0) to check for the validity of the peer's certificate.
 This option is not mandatory for setting up a TLS connection.
-Also see the \fBcrl\fR option.
+Also see the \fBcrl\fR option. This option is privileged.
 .TP
 .B debug
 Enables connection debugging facilities.
@@ -587,7 +588,7 @@ the kernel are logged by syslog(1) to a file as directed in the
 (EAP-TLS) Use the file \fIkeyfile\fR as the private key file (in PEM
 format), needed for setting up an EAP-TLS connection. This option is
 used on the client-side in conjunction with the \fBca\fR and 
-\fBcert\fR options.
+\fBcert\fR options. This option is privileged.
 .TP
 .B ktune
 Enables pppd to alter kernel settings as appropriate.  Under Linux,
@@ -692,6 +693,7 @@ value of 0 means no limit.  The default value is 10.
 (EAP-TLS, or PEAP) Configures the max allowed TLS version used during
 negotiation with a peer.  The default value for this is \fI1.2\fR.  Values
 allowed for this option is \fI1.0.\fR, \fI1.1\fR, \fI1.2\fR, \fI1.3\fR.
+This option is privileged.
 .TP
 .B modem
 Use the modem control lines.  This option is the default.  With this
@@ -975,6 +977,12 @@ Do not exit after a connection is terminated; instead try to reopen
 the connection. The \fBmaxfail\fR option still has an effect on
 persistent connections.
 .TP
+.B pkcs12 \fIpkcs12file
+(EAP-TLS) Read credentials for client-side EAP-TLS authentication
+from the file \fIpkcs12file\fR in PKCS12 format. This option is
+an alternative to the \fBcert\fR and \fBkey\fR options.
+This option is privileged.
+.TP
 .B plugin \fIfilename
 Load the shared library object file \fIfilename\fR as a plugin.  This
 is a privileged option.  If \fIfilename\fR does not contain a slash
@@ -1146,10 +1154,11 @@ under Linux and FreeBSD 2.2.8 and later.
 of the X509 certificates subject name, common name, or suffix of the common
 name.  Respective values allowed for this option is: \fInone\fR, \fIsubject\fR,
 \fIname\fR, or \fIsuffix\fR.  The default value for this option is \fIname\fR.
+This option is privileged.
 .TP
 .B tls\-verify\-key\-usage
 (EAP-TLS, or PEAP) Enables examination of peer certificate's purpose, and
-extended key usage attributes.
+extended key usage attributes. This option is privileged.
 .TP
 .B unit \fInum
 Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
