@@ -1153,12 +1153,16 @@ under Linux and FreeBSD 2.2.8 and later.
 (EAP-TLS, or PEAP) Match the value specified for \fIremotename\fR to that that
 of the X509 certificates subject name, common name, or suffix of the common
 name.  Respective values allowed for this option is: \fInone\fR, \fIsubject\fR,
-\fIname\fR, or \fIsuffix\fR.  The default value for this option is \fIname\fR.
+\fIname\fR, or \fIsuffix\fR.  The default value for this option is \fInone\fR.
 This option is privileged.
 .TP
 .B tls\-verify\-key\-usage
-(EAP-TLS, or PEAP) Enables examination of peer certificate's purpose, and
-extended key usage attributes. This option is privileged.
+(EAP-TLS, or PEAP) Enables examination of peer certificate's purpose,
+and extended key usage attributes. If this option is given, pppd will
+require that the peer's certificate is suitable for use for TLS
+authentication as a client (regardless of whether pppd is
+authenticating the peer, or being authenticated).
+This option is privileged.
 .TP
 .B unit \fInum
 Sets the ppp unit number (for a ppp0 or ppp1 etc interface name) for outbound
