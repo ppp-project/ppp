@@ -1468,11 +1468,15 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
     u_int32_t l = *len;		/* Length left */
     u_char maxslotindex, cflag;
     int d;
+    int dup, warned = 0;
+    int seendns[2], seenwins[2];
 
     /*
      * Reset all his options.
      */
     BZERO(ho, sizeof(*ho));
+    seendns[0] = seendns[1] = 0;
+    seenwins[0] = seenwins[1] = 0;
 
     /*
      * Process all his options.
@@ -1480,6 +1484,7 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
     next = inp;
     while (l) {
 	orc = CONFACK;			/* Assume success */
+	dup = 0;
 	cip = p = next;			/* Remember begining of CI */
 	if (l < 2 ||			/* Not enough data for CI header or */
 	    p[1] < 2 ||			/*  CI length too small or */
@@ -1497,6 +1502,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 
 	switch (citype) {		/* Check CI type */
 	case CI_ADDRS:
+	    if (ho->old_addrs) {
+		dup = 1;
+		break;
+	    }
+	    ho->old_addrs = 1;
 	    if (!ao->old_addrs || ho->neg_addr ||
 		cilen != CILEN_ADDRS) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1547,12 +1557,16 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		}
 	    }
 
-	    ho->old_addrs = 1;
 	    ho->hisaddr = ciaddr1;
 	    ho->ouraddr = ciaddr2;
 	    break;
 
 	case CI_ADDR:
+	    if (ho->neg_addr) {
+		dup = 1;
+		break;
+	    }
+	    ho->neg_addr = 1;
 	    if (!ao->neg_addr || ho->old_addrs ||
 		cilen != CILEN_ADDR) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1584,7 +1598,6 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		break;
 	    }
 
-	    ho->neg_addr = 1;
 	    ho->hisaddr = ciaddr1;
 	    break;
 
@@ -1592,6 +1605,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	case CI_MS_DNS2:
 	    /* Microsoft primary or secondary DNS request */
 	    d = citype == CI_MS_DNS2;
+	    if (seendns[d]) {
+		dup = 1;
+		break;
+	    }
+	    seendns[d] = 1;
 
 	    /* If we do not have a DNS address then we cannot send it */
 	    if (ao->dnsaddr[d] == 0 ||
@@ -1612,6 +1630,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	case CI_MS_WINS2:
 	    /* Microsoft primary or secondary WINS request */
 	    d = citype == CI_MS_WINS2;
+	    if (seenwins[d]) {
+		dup = 1;
+		break;
+	    }
+	    seenwins[d] = 1;
 
 	    /* If we do not have a WINS address then we cannot send it */
 	    if (ao->winsaddr[d] == 0 ||
@@ -1629,6 +1652,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
             break;
 
 	case CI_COMPRESSTYPE:
+	    if (ho->neg_vj) {
+		dup = 1;
+		break;
+	    }
+	    ho->neg_vj = 1;
 	    if (!ao->neg_vj ||
 		(cilen != CILEN_VJ && cilen != CILEN_COMPRESS)) {
 		orc = CONFREJ;
@@ -1642,7 +1670,6 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		break;
 	    }
 
-	    ho->neg_vj = 1;
 	    ho->vj_protocol = cishort;
 	    if (cilen == CILEN_VJ) {
 		GETCHAR(maxslotindex, p);
@@ -1673,6 +1700,13 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	default:
 	    orc = CONFREJ;
 	    break;
+	}
+	if (dup) {
+	    if (!warned) {
+		warn("IPCP: ignoring duplicate configuration option(s)");
+		warned = 1;
+	    }
+	    continue;
 	}
 endswitch:
 	if (orc == CONFACK &&		/* Good CI */
