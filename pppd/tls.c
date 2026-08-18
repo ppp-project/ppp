@@ -155,14 +155,18 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
 
         /*
          * If acting as client and the name of the server wasn't specified
-         * explicitely, we can't verify the server authenticity 
+         * explicitly, we can't verify the server authenticity.
          */
         if (!tls_verify_method)
             tls_verify_method = TLS_VERIFY_NONE;
+	if (!strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
+	    info("No certificate verification was requested");
+	    return ok;
+	}
 
-        if (!inf->peer_name || !strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
-            warn("Certificate verication disabled or no peer name was specified");
-            return ok;
+        if (!inf->peer_name) {
+            error("Certificate verification could not be performed as no peer name was specified");
+            return 0;
         }
 
         /* This is the peer certificate */
@@ -295,11 +299,11 @@ const SSL_METHOD* tls_method() {
 int tls_set_version(SSL_CTX *ctx, const char *max_version)
 {
 #if defined(TLS1_2_VERSION)
-    long tls_version = TLS1_2_VERSION; 
+    long tls_version = TLS1_2_VERSION;
 #elif defined(TLS1_1_VERSION)
-    long tls_version = TLS1_1_VERSION; 
+    long tls_version = TLS1_1_VERSION;
 #else
-    long tls_version = TLS1_VERSION; 
+    long tls_version = TLS1_VERSION;
 #endif
 
     /* As EAP-TLS+TLSv1.3 is highly experimental we offer the user a chance to override */
