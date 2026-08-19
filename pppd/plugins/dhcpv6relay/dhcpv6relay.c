@@ -328,8 +328,9 @@ bool dhcpv6relay_valid_prefix(const struct in6_addr* addr, uint8_t prefixlen)
     return true;
 }
 
+#define from_where_str(x)  ((x) ? "server" : "client")
 static
-void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
+void dhcpv6relay_process_ia_pd(bool from_server, const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
 {
     char in6addr[INET6_ADDRSTRLEN];
 
@@ -352,12 +353,12 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 	case DHCPv6_OPTION_IAPREFIX:
 	    /* 4 octets preferred, 4 octets valid lifetime, 1 octet length, 16 octets prefix, we discard IAprefix-options regardless. */
 	    if (optlen < 25) {
-		error("DHCPv6 relay: IA_PD option from server needs at least 25 "
-			"bytes, %u available, cannot process IA_PD.", optlen);
+		error("DHCPv6 relay: IA_PD option from %s needs at least 25 "
+			"bytes, %u available, cannot process IA_PD.", from_where_str(from_server), optlen);
 		break;
 	    }
 	    if (!dhcpv6relay_valid_prefix((const struct in6_addr*)(bfr + 9), bfr[8])) {
-		error("DHCPv6 relay: IA_PD option from server contains an illegal prefix %s/%u.",
+		error("DHCPv6 relay: IA_PD option from %s contains an illegal prefix %s/%u.", from_where_str(from_server),
 			inet_ntop(AF_INET6, bfr + 9, in6addr, sizeof(in6addr)), bfr[8]);
 		break;
 	    }
@@ -373,7 +374,7 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 }
 
 static
-void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
+void dhcpv6relay_process_ia_na(bool from_server, const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
 {
     if (len < 12)
 	return; /* IAID, T1, T2, 4 octets each, we don't care */
@@ -386,15 +387,15 @@ void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6rel
 	len -= 4;
 
 	if (optlen > len) {
-	    error("DHCPv6 relay: IA_NA sub-option overflows IA_NA option length. Corrupt packet?");
+	    error("DHCPv6 relay: IA_NA sub-option from %s overflows IA_NA option length. Corrupt packet?", from_where_str(from_server));
 	    break;
 	}
 
 	switch (opttype) {
 	case DHCPv6_OPTION_IAADDR:
 	    if (optlen < 24) {
-		error("DHCPv6 relay: IA_NA option from server needs at least 24 "
-			"bytes, only %u available, cannot process IA_NA.", optlen);
+		error("DHCPv6 relay: IA_NA option from %s needs at least 24 "
+			"bytes, only %u available, cannot process IA_NA.", from_where_str(from_server), optlen);
 		break;
 	    }
 	    /* 16 octets address, 4 octets preferred lifetime, 4 octets valid lifetime */
@@ -484,10 +485,10 @@ void dhcpv6relay_process_packet_for_routes(bool from_server, const unsigned char
 
 	    switch (opttype) {
 	    case DHCPv6_OPTION_IA_PD:
-		dhcpv6relay_process_ia_pd(bfr, optlen, func);
+		dhcpv6relay_process_ia_pd(from_server, bfr, optlen, func);
 		break;
 	    case DHCPv6_OPTION_IA_NA:
-		dhcpv6relay_process_ia_na(bfr, optlen, func);
+		dhcpv6relay_process_ia_na(from_server, bfr, optlen, func);
 		break;
 	    default:
 		break;
