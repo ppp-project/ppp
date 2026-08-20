@@ -94,6 +94,7 @@ AC_CHECK_SIZEOF(unsigned short)
 
 # Checks for library functions.
 AC_CHECK_FUNCS([    \
+    explicit_bzero  \
     fexecve         \
     mmap            \
     logwtmp         \

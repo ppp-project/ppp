@@ -1532,7 +1532,7 @@ check_passwd(int unit,
 		free_wordlist(opts);
 	    if (addrs != 0)
 		free_wordlist(addrs);
-	    BZERO(passwd, sizeof(passwd));
+	    ppp_explicit_bzero(passwd, sizeof(passwd));
 	    return ret? UPAP_AUTHACK: UPAP_AUTHNAK;
 	}
     }
@@ -1553,6 +1553,7 @@ check_passwd(int unit,
 
 	if (!ppp_check_access(fd, filename, 0)) {
 	    fclose(f);
+	    ppp_explicit_bzero(passwd, sizeof(passwd));
 	    return UPAP_AUTHNAK;
 	}
 	check_access(fd, filename);
@@ -1617,8 +1618,8 @@ check_passwd(int unit,
 
     if (addrs != NULL)
 	free_wordlist(addrs);
-    BZERO(passwd, sizeof(passwd));
-    BZERO(secret, sizeof(secret));
+    ppp_explicit_bzero(passwd, sizeof(passwd));
+    ppp_explicit_bzero(secret, sizeof(secret));
 
     return ret;
 }
@@ -2310,6 +2311,9 @@ scan_authfile(FILE *f, char *client, char *server,
 	*addrs = addr_list;
     else if (addr_list != NULL)
 	free_wordlist(addr_list);
+
+    ppp_explicit_bzero(word, sizeof(word));
+    ppp_explicit_bzero(lsecret, sizeof(lsecret));
 
     return best_flag;
 }

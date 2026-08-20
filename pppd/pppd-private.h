@@ -336,6 +336,8 @@ void print_string(char *, int,  printer_func, void *);
 				/* Format a string for output */
 ssize_t complete_read(int, void *, size_t);
 				/* read a complete buffer */
+void ppp_explicit_bzero(void *, size_t);
+				/* securely erase a buffer */
 
 /* Procedures exported from auth.c */
 void link_required(int);	  /* we are starting to use the link */

@@ -75,6 +75,25 @@ struct buffer_info {
 };
 
 /*
+ * ppp_explicit_bzero - Erase a buffer without allowing the compiler to
+ * optimize the operation away.
+ */
+void
+ppp_explicit_bzero(void *buf, size_t len)
+{
+#ifdef HAVE_EXPLICIT_BZERO
+    explicit_bzero(buf, len);
+#else
+    volatile unsigned char *p = buf;
+
+    while (len != 0) {
+	*p++ = 0;
+	--len;
+    }
+#endif
+}
+
+/*
  * Check that a file descriptor is owned by root, not writable by group or
  * other.
  * If exec is true, check for execute permission, otherwise for read
@@ -1123,4 +1142,3 @@ unlock(void)
 	lock_file[0] = 0;
     }
 }
-
