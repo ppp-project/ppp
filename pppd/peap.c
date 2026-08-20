@@ -549,6 +549,8 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 {
 	int ret;
 	int out_len;
+	int hlen;
+	int flags;
 
 	struct peap_state *psm = esp->ea_peap;
 
@@ -556,67 +558,65 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 		info("PEAP: retransmits are not supported..");
 		return -1;
 	}
+	if (len < 1) {
+		error("PEAP received empty packet, discarding");
+		return 0;
+	}
+	flags = *inp;
+	dbglog("PEAP: flags=%c%c%c%c len=%d",
+	       (flags & PEAP_L_FLAG_SET? 'L': '-'),
+	       (flags & PEAP_M_FLAG_SET? 'M': '-'),
+	       (flags & PEAP_S_FLAG_SET? 'S': '-'),
+	       (flags & PEAP_T_FLAG_SET? 'T': '-'), len);
+	hlen = 1;
+	if (flags & PEAP_L_FLAG_SET) {
+		hlen += PEAP_FRAGMENT_LENGTH_FIELD;
+		if (len < hlen) {
+			error("PEAP received short packet (%d bytes), discarding", len);
+			return 0;
+		}
+	}
+	inp += hlen;
+	len -= hlen;
 
-	switch (*inp) {
-	case PEAP_S_FLAG_SET:
-		dbglog("PEAP: S bit is set, starting PEAP phase 1");
+	if (flags & PEAP_S_FLAG_SET) {
+		dbglog("PEAP: starting PEAP phase 1");
+		psm->phase = PEAP_PHASE_1;
+		if (len > 0)
+			warn("PEAP: Unexpected data in PEAP Start packet (%d bytes)", len);
+	} else if (len > 0) {
+		psm->written = BIO_write(psm->in_bio, inp, len);
+	}
+
+	if (flags & PEAP_M_FLAG_SET) {
+		peap_ack(esp, id);
+		return 0;
+	}
+
+	if (psm->phase == PEAP_PHASE_1) {
+		if (!(flags & PEAP_S_FLAG_SET))
+			dbglog("PEAP TLS: continue handshake");
 		ret = SSL_do_handshake(psm->ssl);
 		if (ret != 1) {
 			ret = SSL_get_error(psm->ssl, ret);
-			if (ret != SSL_ERROR_WANT_READ && ret != SSL_ERROR_WANT_WRITE)
-				fatal("SSL_do_handshake(): %s", ERR_error_string(ret, NULL));
-
-		}
-		psm->read = BIO_read(psm->out_bio, psm->out_buf, TLS_RECORD_MAX_SIZE);
-		peap_response(esp, id, psm->out_buf, psm->read);
-		break;
-
-	case PEAP_LM_FLAG_SET:
-		dbglog("PEAP TLS: LM bits are set, need to get more TLS fragments");
-		inp = inp + PEAP_FRAGMENT_LENGTH_FIELD + PEAP_FLAGS_FIELD;
-		psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FRAGMENT_LENGTH_FIELD - PEAP_FLAGS_FIELD);
-		peap_ack(esp, id);
-		break;
-
-	case PEAP_M_FLAG_SET:
-		dbglog("PEAP TLS: M bit is set, need to get more TLS fragments");
-		inp = inp + PEAP_FLAGS_FIELD;
-		psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FLAGS_FIELD);
-		peap_ack(esp, id);
-		break;
-
-	case PEAP_L_FLAG_SET:
-	case PEAP_NO_FLAGS:
-		if (*inp == PEAP_L_FLAG_SET) {
-			dbglog("PEAP TLS: L bit is set");
-			inp = inp + PEAP_FRAGMENT_LENGTH_FIELD + PEAP_FLAGS_FIELD;
-			psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FRAGMENT_LENGTH_FIELD - PEAP_FLAGS_FIELD);
-		} else {
-			dbglog("PEAP TLS: all bits are off");
-			inp = inp + PEAP_FLAGS_FIELD;
-			psm->written = BIO_write(psm->in_bio, inp, len - PEAP_FLAGS_FIELD);
-		}
-
-		if (psm->phase == PEAP_PHASE_1) {
-			dbglog("PEAP TLS: continue handshake");
-			ret = SSL_do_handshake(psm->ssl);
-			if (ret != 1) {
-				ret = SSL_get_error(psm->ssl, ret);
-				if (ret != SSL_ERROR_WANT_READ && ret != SSL_ERROR_WANT_WRITE)
-					fatal("SSL_do_handshake(): %s", ERR_error_string(ret, NULL));
+			if (ret != SSL_ERROR_WANT_READ && ret != SSL_ERROR_WANT_WRITE) {
+				error("SSL_do_handshake(): %s", ERR_error_string(ret, NULL));
+				return -1;
 			}
+		}
+		// if condition is for equivalence with previous code
+		if (!(flags & PEAP_S_FLAG_SET)) {
 			if (SSL_is_init_finished(psm->ssl))
 				psm->phase = PEAP_PHASE_2;
 			if (BIO_ctrl_pending(psm->out_bio) == 0) {
 				peap_ack(esp, id);
-				break;
+				return 0;
 			}
-			psm->read = 0;
-			psm->read = BIO_read(psm->out_bio, psm->out_buf,
-					TLS_RECORD_MAX_SIZE);
-			peap_response(esp, id, psm->out_buf, psm->read);
-			break;
 		}
+		psm->read = BIO_read(psm->out_bio, psm->out_buf,
+				     TLS_RECORD_MAX_SIZE);
+		peap_response(esp, id, psm->out_buf, psm->read);
+	} else {
 		psm->read = SSL_read(psm->ssl, psm->in_buf,
 				TLS_RECORD_MAX_SIZE);
 		out_len = TLS_RECORD_MAX_SIZE;
@@ -628,7 +628,6 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 				TLS_RECORD_MAX_SIZE);
 			peap_response(esp, id, psm->out_buf, psm->read);
 		}
-		break;
 	}
 	return 0;
 }
