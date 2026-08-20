@@ -919,11 +919,13 @@ ipv6cp_reqci(fsm *f, u_char *inp, int *len, int reject_if_disagree)
     u_char *p;			/* Pointer to next char to parse */
     u_char *ucp = inp;		/* Pointer to current output char */
     int l = *len;		/* Length left */
+    bool warned = 0, seenci[CI_COMPRESSTYPE+1];
 
     /*
      * Reset all his options.
      */
     BZERO(ho, sizeof(*ho));
+    BZERO(seenci, sizeof(seenci));
     
     /*
      * Process all his options.
@@ -945,6 +947,17 @@ ipv6cp_reqci(fsm *f, u_char *inp, int *len, int reject_if_disagree)
 	GETCHAR(cilen, p);		/* Parse CI length */
 	l -= cilen;			/* Adjust remaining length */
 	next += cilen;			/* Step to next CI */
+
+	if (citype <= CI_COMPRESSTYPE) {
+	    if (seenci[citype]) {
+		if (!warned) {
+		    warn("IPV6CP: ignoring duplicate configuration option(s)");
+		    warned = 1;
+		}
+		continue;
+	    }
+	    seenci[citype] = 1;
+	}
 
 	switch (citype) {		/* Check CI type */
 	case CI_IFACEID:

@@ -1497,11 +1497,13 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
     u_char *rejp;		/* Pointer to next char in reject frame */
     u_char *nakp;		/* Pointer to next char in Nak frame */
     int l = *lenp;		/* Length left */
+    bool warned, seenci[CI_LCP_LAST+1];
 
     /*
      * Reset all his options.
      */
     BZERO(ho, sizeof(*ho));
+    BZERO(seenci, sizeof(seenci));
 
     /*
      * Process all his options.
@@ -1526,6 +1528,17 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 	GETCHAR(cilen, p);		/* Parse CI length */
 	l -= cilen;			/* Adjust remaining length */
 	next += cilen;			/* Step to next CI */
+
+	if (citype <= CI_LCP_LAST) {
+	    if (seenci[citype]) {
+		if (!warned) {
+		    warn("LCP: ignoring duplicate configuration option(s)");
+		    warned = 1;
+		}
+		continue;
+	    }
+	    seenci[citype] = 1;
+	}
 
 	switch (citype) {		/* Check CI type */
 	case CI_MRU:
@@ -1593,19 +1606,13 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 	     * Note: if more than one of ao->neg_upap, ao->neg_chap, and
 	     * ao->neg_eap are set, and the peer sends a Configure-Request
 	     * with two or more authenticate-protocol requests, then we will
-	     * reject the second request.
-	     * Whether we end up doing CHAP, UPAP, or EAP depends then on
-	     * the ordering of the CIs in the peer's Configure-Request.
+	     * simply ignore the second and following requests, because
+	     * RFC1661 says "An implementation MUST NOT include multiple
+	     * Authentication-Protocol Configuration Options in its
+	     * Configure-Request packets".
              */
 
 	    if (cishort == PPP_PAP) {
-		/* we've already accepted CHAP or EAP */
-		if (ho->neg_chap || ho->neg_eap ||
-		    cilen != CILEN_SHORT) {
-		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE PAP, rejecting..."));
-		    orc = CONFREJ;
-		    break;
-		}
 		if (!ao->neg_upap) {	/* we don't want to do PAP */
 		    orc = CONFNAK;	/* NAK it and suggest CHAP or EAP */
 		    PUTCHAR(CI_AUTHTYPE, nakp);
@@ -1623,13 +1630,6 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 		break;
 	    }
 	    if (cishort == PPP_CHAP) {
-		/* we've already accepted PAP or EAP */
-		if (ho->neg_upap || ho->neg_eap ||
-		    cilen != CILEN_CHAP) {
-		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE CHAP, rejecting..."));
-		    orc = CONFREJ;
-		    break;
-		}
 		if (!ao->neg_chap) {	/* we don't want to do CHAP */
 		    orc = CONFNAK;	/* NAK it and suggest EAP or PAP */
 		    PUTCHAR(CI_AUTHTYPE, nakp);
@@ -1659,12 +1659,6 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 		break;
 	    }
 	    if (cishort == PPP_EAP) {
-		/* we've already accepted CHAP or PAP */
-		if (ho->neg_chap || ho->neg_upap || cilen != CILEN_SHORT) {
-		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE EAP, rejecting..."));
-		    orc = CONFREJ;
-		    break;
-		}
 		if (!ao->neg_eap) {	/* we don't want to do EAP */
 		    orc = CONFNAK;	/* NAK it and suggest CHAP or PAP */
 		    PUTCHAR(CI_AUTHTYPE, nakp);
