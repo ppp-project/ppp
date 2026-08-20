@@ -1333,6 +1333,17 @@ an options file read using the \fIcall\fR option.  If pppd is being
 run by the root user, privileged options can be used without
 restriction.
 .PP
+On Linux, pppd does not have to be run by root: it will also run when
+it has the CAP_NET_ADMIN capability, which is what the kernel requires
+in order to open /dev/ppp and to configure network interfaces.  Pppd
+can thus be run unprivileged under a service manager or in a container
+which grants it that capability, and privileged options can then be
+used without restriction, as for root.  This does not apply to a pppd
+which is setuid-root or setgid, or which has file capabilities set on
+it, and is invoked by a non-privileged user, since there the privilege
+comes from the way the binary is installed rather than from the user
+running it; such a pppd is restricted as described above.
+.PP
 When opening the device, pppd uses either the invoking user's user ID
 or the root UID (that is, 0), depending on whether the device name was
 specified by the user or the system administrator.  If the device name
@@ -1689,7 +1700,9 @@ An error was detected in processing the options given, such as two
 mutually exclusive options being used.
 .TP
 .B 3
-Pppd is not setuid-root and the invoking user is not root.
+Pppd does not have the privileges required to run; that is, it is not
+being run by root, and (on Linux) does not have the CAP_NET_ADMIN
+capability.
 .TP
 .B 4
 The kernel does not support PPP, for example, the PPP kernel driver is
@@ -1750,11 +1763,13 @@ Pppd invokes scripts at various stages in its processing which can be
 used to perform site-specific ancillary processing.  These scripts are
 usually shell scripts, but could be executable code files instead.
 Pppd does not wait for the scripts to finish (except for the net\-init,
-net\-pre\-up and ip\-pre\-up scripts).  The scripts are
-executed as root (with the real and effective user-id set to 0), so
-that they can do things such as update routing tables or run
-privileged daemons.  Be careful that the contents of these scripts do
-not compromise your system's security.  Pppd runs the scripts with
+net\-pre\-up and ip\-pre\-up scripts).  When pppd is running as root,
+the scripts are executed as root (with the real and effective user-id
+set to 0), so that they can do things such as update routing tables or
+run privileged daemons; otherwise they are executed with pppd's own
+user-id and inherit any ambient capabilities it has.  Be careful that
+the contents of these scripts do not compromise your system's
+security.  Pppd runs the scripts with
 standard input, output and error redirected to /dev/null, and with an
 environment that is empty except for some environment variables that
 give information about the link.  The environment variables that pppd

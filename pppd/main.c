@@ -401,7 +401,11 @@ main(int argc, char *argv[])
     umask(umask(0777) | 022);
 
     uid = getuid();
-    privileged = uid == 0;
+    /* Privileged options come from the invoking user's own authority, so a
+     * pppd that gained privileges from the exec itself must not hand them
+     * to whoever ran it. */
+    privileged = uid == 0 || (uid == geteuid() && !ppp_secure_exec() &&
+                              ppp_privileged());
     slprintf(numbuf, sizeof(numbuf), "%d", uid);
     ppp_script_setenv("ORIG_UID", numbuf, 0);
 
@@ -452,10 +456,11 @@ main(int argc, char *argv[])
     }
 
     /*
-     * Check that we are running as root.
+     * Check that we have the privileges needed to open the ppp device
+     * and configure interfaces.
      */
-    if (geteuid() != 0) {
-	ppp_option_error("must be root to run %s, since it is not setuid-root",
+    if (!ppp_privileged()) {
+	ppp_option_error("%s must be run as root or with CAP_NET_ADMIN",
 		     argv[0]);
 	exit(EXIT_NOT_ROOT);
     }
@@ -1975,9 +1980,11 @@ run_program(char *prog, char * const *args, int must_exist, void (*done)(void *)
     if (ret != 0) {
         fatal("Failed to change directory to '/', %m");
     }
-    ret = setuid(0);		/* set real UID = root */
-    if (ret != 0) {
-        fatal("Failed to set uid, %m");
+    if (geteuid() == 0) {
+	ret = setuid(0);	/* set real UID = root */
+	if (ret != 0) {
+	    fatal("Failed to set uid, %m");
+	}
     }
     ret = setgid(getegid());
     if (ret != 0) {

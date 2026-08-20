@@ -444,6 +444,19 @@ void ppp_script_unsetenv(char *);
 int ppp_check_kernel_support(void);
 
 /*
+ * Test whether we have the privileges needed to open the ppp device
+ * and configure interfaces.
+ */
+int ppp_privileged(void);
+
+/*
+ * Test whether this exec raised our privileges - a setuid or setgid bit
+ * on the binary, or file capabilities - which the kernel grants to
+ * whoever runs it, and not to us on their behalf.
+ */
+int ppp_secure_exec(void);
+
+/*
  * Restore device setting
  */
 void ppp_generic_disestablish(int dev_fd);
