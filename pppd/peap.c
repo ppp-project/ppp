@@ -287,8 +287,8 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 
 	dbglog("PEAP: EAP (in): %.*B", in_len, in_buf);
 
-	if (*(in_buf + EAP_HEADERLEN) == PEAP_CAPABILITIES_TYPE &&
-			in_len  == (EAP_HEADERLEN + PEAP_CAPABILITIES_LEN)) {
+	if (in_len == (EAP_HEADERLEN + PEAP_CAPABILITIES_LEN) &&
+	    *(in_buf + EAP_HEADERLEN) == PEAP_CAPABILITIES_TYPE) {
 		/* use original packet as template for response */
 		BCOPY(in_buf, outp, EAP_HEADERLEN + PEAP_CAPABILITIES_LEN);
 		PUTCHAR(EAP_RESPONSE, outp);
@@ -298,8 +298,8 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		used = EAP_HEADERLEN + PEAP_CAPABILITIES_LEN;
 		goto done;
 	}
-	if (*(in_buf + EAP_HEADERLEN + PEAP_TLV_HEADERLEN) == PEAP_TLV_TYPE &&
-			in_len == PEAP_TLV_LEN) {
+	if (in_len == PEAP_TLV_LEN &&
+	    *(in_buf + EAP_HEADERLEN + PEAP_TLV_HEADERLEN) == PEAP_TLV_TYPE) {
 		/* PEAP TLV message, do cryptobinding */
 		SSL_export_keying_material(psm->ssl, psm->tk, PEAP_TLV_TK_LEN,
 				PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL), NULL, 0, 0);
@@ -321,6 +321,10 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		goto done;
 	}
 
+	if (in_len < 1) {
+		dbglog("PEAP inner: dropping 0-length message");
+		goto done;
+	}
 	GETCHAR(typenum, in_buf);
 	in_len--;
 
@@ -371,6 +375,10 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 			u_char *challenge = in_buf;	// VLEN + VALUE
 			u_char vsize;
 
+			if (in_len < 1) {
+				error("PEAP inner: received empty CHAP_CHALLENGE");
+				goto done;
+			}
 			GETCHAR(vsize, in_buf);
 			in_len -= 1;
 
