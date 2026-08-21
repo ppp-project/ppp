@@ -410,7 +410,7 @@ upap_rauthreq(upap_state *u, u_char *inp, int id, int len)
      */
     retcode = check_passwd(u->us_unit, ruser, ruserlen, rpasswd,
 			   rpasswdlen, &msg);
-    BZERO(rpasswd, rpasswdlen);
+    ppp_explicit_bzero(rpasswd, rpasswdlen);
 
     /*
      * Check remote number authorization.  A plugin may have filled in
