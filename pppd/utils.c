@@ -287,6 +287,11 @@ vslprintf(char *buf, int buflen, const char *fmt, va_list args)
 		    val = va_arg(args, unsigned long long);
 		    base = 10;
 		    break;
+		case 'x':
+		case 'X':
+		    val = va_arg(args, unsigned long);
+		    base = 16;
+		    break;
 		default:
 		    OUTCHAR('%');
 		    OUTCHAR('l');
@@ -307,6 +312,11 @@ vslprintf(char *buf, int buflen, const char *fmt, va_list args)
 	    case 'u':
 		val = va_arg(args, unsigned long);
 		base = 10;
+		break;
+	    case 'x':
+	    case 'X':
+		val = va_arg(args, unsigned long);
+		base = 16;
 		break;
 	    default:
 		OUTCHAR('%');

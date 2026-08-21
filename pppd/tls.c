@@ -101,6 +101,7 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
     SSL *ssl;
     struct tls_info *inf;
     char *ptr1 = NULL, *ptr2 = NULL;
+    int nlen;
 
     peer_cert = X509_STORE_CTX_get_current_cert(ctx);
     err = X509_STORE_CTX_get_error(ctx);
@@ -155,28 +156,37 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
 
         /*
          * If acting as client and the name of the server wasn't specified
-         * explicitely, we can't verify the server authenticity 
+         * explicitly, we can't verify the server authenticity.
          */
         if (!tls_verify_method)
             tls_verify_method = TLS_VERIFY_NONE;
+	if (!strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
+	    info("No certificate verification was requested");
+	    return ok;
+	}
 
-        if (!inf->peer_name || !strcmp(TLS_VERIFY_NONE, tls_verify_method)) {
-            warn("Certificate verication disabled or no peer name was specified");
-            return ok;
+        if (!inf->peer_name) {
+            error("Certificate verification could not be performed as no peer name was specified");
+            return 0;
         }
 
         /* This is the peer certificate */
         X509_NAME_oneline(X509_get_subject_name(peer_cert),
                   subject, 256);
 
-        X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert),
+        nlen = X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert),
                       NID_commonName, cn_str, 256);
 
         /* Verify based on subject name */
         ptr1 = inf->peer_name;
         if (!strcmp(TLS_VERIFY_SUBJECT, tls_verify_method)) {
             ptr2 = subject;
-        }
+	    nlen = strlen(subject);
+
+        } else if (nlen < 0) {
+	    error("Certificate verification error: could not read commonName");
+	    return 0;
+	}
 
         /* Verify based on common name (default) */
         if (strlen(tls_verify_method) == 0 ||
@@ -186,13 +196,15 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
 
         /* Match the suffix of common name */
         if (!strcmp(TLS_VERIFY_SUFFIX, tls_verify_method)) {
-            size_t len1, len2;
+            size_t len1;
             ptr2 = cn_str;
 
             len1 = strlen(ptr1);
-            len2 = strlen(ptr2);
-            if (len2 > len1)
-                ptr2 += len2 - len1;
+            if (nlen > len1) {
+		/* XXX should we require cn_str[nlen-len1-1] == '.' ? */
+                ptr2 += nlen - len1;
+		nlen = len1;
+	    }
         }
 
         if (ptr2 == NULL) {
@@ -200,8 +212,8 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
             return 0;
         }
 
-        if (strcmp(ptr1, ptr2)) {
-            error("Certificate verification error: CN (%s) != %s", ptr1, ptr2);
+        if (strlen(ptr1) != nlen || memcmp(ptr1, ptr2, nlen)) {
+            error("Certificate verification error: CN (%v) != %.*v", ptr1, nlen, ptr2);
             return 0;
         }
 
@@ -212,7 +224,7 @@ static int tls_verify_callback(int ok, X509_STORE_CTX *ctx)
             }
         }
 
-        info("Certificate CN: %s, peer name %s", cn_str, inf->peer_name);
+        info("Certificate CN: %.*v, peer name %v", nlen, cn_str, inf->peer_name);
     }
 
     return ok;
@@ -295,11 +307,11 @@ const SSL_METHOD* tls_method() {
 int tls_set_version(SSL_CTX *ctx, const char *max_version)
 {
 #if defined(TLS1_2_VERSION)
-    long tls_version = TLS1_2_VERSION; 
+    long tls_version = TLS1_2_VERSION;
 #elif defined(TLS1_1_VERSION)
-    long tls_version = TLS1_1_VERSION; 
+    long tls_version = TLS1_1_VERSION;
 #else
-    long tls_version = TLS1_VERSION; 
+    long tls_version = TLS1_VERSION;
 #endif
 
     /* As EAP-TLS+TLSv1.3 is highly experimental we offer the user a chance to override */

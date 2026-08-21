@@ -456,7 +456,7 @@ struct option auth_options[] = {
     { "max-tls-version", o_string, &max_tls_version,
       "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)", OPT_PRIV },
     { "tls-verify-key-usage", o_bool, &tls_verify_key_usage,
-      "Verify certificate type and extended key usage", OPT_PRIV },
+      "Verify certificate type and extended key usage", OPT_PRIV | 1 },
     { "tls-verify-method", o_string, &tls_verify_method,
       "Verify peer by method (none|subject|name|suffix)", OPT_PRIV },
 #endif
