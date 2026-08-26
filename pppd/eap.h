@@ -128,6 +128,8 @@ struct eap_auth {
 	unsigned char *ea_skey;	/* Shared encryption key */
 	int ea_timeout;		/* Time to wait (for retransmit/fail) */
 	int ea_maxrequests;	/* Max Requests allowed */
+	short ea_authtype;	/* EAP type we're using */
+	short ea_typeacked;	/* set when peer agreed to authtype */
 	unsigned short ea_namelen;	/* Length of our name */
 	unsigned short ea_peerlen;	/* Length of peer's name */
 	enum eap_state_code ea_state;

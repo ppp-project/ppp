@@ -156,6 +156,7 @@ eap_init(int unit)
 	esp->es_server.ea_timeout = EAP_DEFTIMEOUT;
 	esp->es_server.ea_maxrequests = EAP_DEFTRANSMITS;
 	esp->es_server.ea_id = (u_char)(drand48() * 0x100);
+	esp->es_server.ea_typeacked = 0;
 	esp->es_client.ea_timeout = EAP_DEFREQTIME;
 	esp->es_client.ea_maxrequests = EAP_DEFALLOWREQ;
 #ifdef PPP_WITH_EAPTLS
@@ -283,19 +284,23 @@ eap_figure_next_state(eap_state *esp, int status)
 
 	case eapIdentify:
 		if (status != 0) {
+			/* received a Nak */
 			esp->es_server.ea_state = eapBadAuth;
 			break;
 		}
 #ifdef PPP_WITH_EAPTLS
+		/* Do EAP-TLS if we don't have a CHAP secret for the peer */
                 if (!get_secret(esp->es_unit, esp->es_server.ea_peer,
                     esp->es_server.ea_name, secret, &secret_len, 1)) {
 
 			esp->es_server.ea_state = eapTlsStart;
+			esp->es_server.ea_authtype = EAPT_TLS;
 			break;
 		}
 #endif /* PPP_WITH_EAPTLS */
 
 		esp->es_server.ea_state = eapMD5Chall;
+		esp->es_server.ea_authtype = EAPT_MD5CHAP;
 		break;
 
 #ifdef PPP_WITH_EAPTLS
@@ -1395,6 +1400,22 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	GETCHAR(typenum, inp);
 	len--;
 
+	/* Check that the peer replied with the type we expect */
+	if (typenum > EAPT_NAK && typenum != esp->es_server.ea_authtype) {
+		dbglog("EAP: discarding response with wrong auth type %d != %d",
+		       typenum, esp->es_server.ea_authtype);
+		return;
+	}
+	if (typenum > EAPT_NAK && (esp->es_server.ea_state <= eapClosed ||
+				   esp->es_server.ea_state >= eapOpen)) {
+		dbglog("EAP: discarding response with auth type %d in state %s (%d)",
+		       typenum, eap_state_name(esp->es_server.ea_state),
+		       esp->es_server.ea_state);
+		return;
+	}
+	if (typenum > EAPT_NAK)
+		esp->es_server.ea_typeacked = 1;
+
 	switch (typenum) {
 	case EAPT_IDENTITY:
 		if (esp->es_server.ea_state != eapIdentify) {
@@ -1436,9 +1457,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 
 		case eapTlsRecvAck:
-			if(len > 1) {
-				dbglog("EAP-TLS ACK with extra data");
-			}
+			if (len > 1)
+				error("EAP-TLS ACK with extra data (%d bytes)", len-1);
 			eap_figure_next_state(esp, 0);
 			break;
 
@@ -1469,6 +1489,11 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			eap_send_failure(esp);
 			break;
 
+		case eapOpen:
+		case eapBadAuth:
+			dbglog("EAP-TLS dropping spurious client response");
+			break;
+
 		default:
 			eap_figure_next_state(esp, 1);
 			break;
@@ -1481,6 +1506,16 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 		break;
 
 	case EAPT_NAK:
+		if (esp->es_server.ea_state >= eapOpen) {
+			dbglog("EAP ignoring spurious Nak after auth finished");
+			return;
+		}
+		if (esp->es_server.ea_typeacked) {
+			/* Peer cannot Nak after sending Response to our auth */
+			dbglog("EAP ignoring bogus Nak, peer agreed to %d",
+			       esp->es_server.ea_authtype);
+			return;
+		}
 		if (len < 1 || inp[0] == 0) {
 			info("EAP: Nak Response with no suggested protocol");
 			eap_figure_next_state(esp, 1);
@@ -1490,8 +1525,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 		GETCHAR(vallen, inp);
 		len--;
 
-		if (!explicit_remote && esp->es_server.ea_state == eapIdentify){
-			/* Peer cannot Nak Identify Request */
+		if (esp->es_server.ea_state == eapIdentify){
+			/* Peer cannot Nak Identity Request */
 			eap_figure_next_state(esp, 1);
 			break;
 		}
@@ -1499,12 +1534,14 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 		switch (vallen) {
 		case EAPT_MD5CHAP:
 			esp->es_server.ea_state = eapMD5Chall;
+			esp->es_server.ea_authtype = EAPT_MD5CHAP;
 			break;
 
 #ifdef PPP_WITH_EAPTLS
 			/* Send EAP-TLS start packet */
 		case EAPT_TLS:
 			esp->es_server.ea_state = eapTlsStart;
+			esp->es_server.ea_authtype = EAPT_TLS;
 			break;
 #endif /* PPP_WITH_EAPTLS */
 
@@ -1519,6 +1556,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				break;
 			}
 			esp->es_server.ea_state = eapMSCHAPv2Chall;
+			esp->es_server.ea_authtype = EAPT_MSCHAPV2;
 			break;
 #endif /* PPP_WITH_CHAPMS */
 
@@ -1921,6 +1959,8 @@ eap_printpkt(u_char *inp, int inlen,
 	if (len < EAP_HEADERLEN || len > inlen) {
 		printer(arg, " <bad length=%d>", len);
 		return (0);
+	} else {
+		printer(arg, " len=%d", len);
 	}
 	len -= EAP_HEADERLEN;
 	switch (code) {
