@@ -345,6 +345,13 @@ int tls_set_version(SSL_CTX *ctx, const char *max_version)
         return -1;
     }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    /* OpenSSL v3 disables TLS 1.0 and 1.1 by default unless we do this... */
+    if (tls_version <= TLS1_1_VERSION) {
+	dbglog("setting security level 0");
+	SSL_CTX_set_security_level(ctx, 0);
+    }
+#endif
     return 0;
 }
 
