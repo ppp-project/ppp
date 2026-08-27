@@ -684,6 +684,18 @@ int eaptls_init_ssl_server(eap_state * esp)
     if (!ets->ctx)
         goto fail;
 
+#ifdef TLS1_3_VERSION
+    /*
+     * RFC9190 says that EAP-TLS with TLS v1.3 requires the server
+     * to send at least one session ticket.  In fact OpenSSL defaults
+     * to sending two, so this reduces it to one.
+     */
+    if (max_tls_version && strcmp(max_tls_version, "1.3") == 0 &&
+	!SSL_CTX_set_num_tickets(ets->ctx, 1)) {
+	warn("EAP-TLS server could not request 1 session ticket");
+    }
+#endif
+
     if (!(ets->ssl = SSL_new(ets->ctx)))
         goto fail;
 
@@ -709,6 +721,7 @@ int eaptls_init_ssl_server(eap_state * esp)
     SSL_set_accept_state(ets->ssl);
 
     ets->tls_v13 = 0;
+    ets->sbyte_sent = 0;
 
     ets->data = NULL;
     ets->datalen = 0;
@@ -778,6 +791,7 @@ int eaptls_init_ssl_client(eap_state * esp)
     SSL_set_connect_state(ets->ssl);
 
     ets->tls_v13 = 0;
+    ets->sbyte_rcvd = 0;
 
     ets->data = NULL;
     ets->datalen = 0;
@@ -810,10 +824,14 @@ void eaptls_free_session(struct eaptls_session *ets)
 
 int eaptls_is_init_finished(struct eaptls_session *ets)
 {
-    if (ets->ssl && SSL_is_init_finished(ets->ssl))
-    {
-        if (ets->tls_v13) 
-            return have_session_ticket;
+    if (ets->ssl && SSL_is_init_finished(ets->ssl)) {
+	/* don't return finished if there is still data to send */
+	if (BIO_pending(ets->from_ssl) > 0) {
+	    dbglog("SSL init finished but data pending");
+	    return 0;
+	}
+        if (ets->tls_v13)
+            return ets->sbyte_rcvd;
         else
             return 1;
     }
@@ -829,7 +847,8 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
 {
     u_char flags;
     u_int tlslen = 0;
-    u_char dummy[65536];
+    u_char dummy[1024];
+    int res;
 
     if (len < 1) {
         warn("EAP-TLS: received no or invalid data");
@@ -839,14 +858,21 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
     GETCHAR(flags, inp);
     len--;
 
-    if (flags & EAP_TLS_FLAGS_LI && len > 4) {
+    if (flags & EAP_TLS_FLAGS_LI) {
         /*
-         * LenghtIncluded flag set -> this is the first packet of a message
+         * LengthIncluded flag set -> this is the first packet of a message
         */
 
         /*
          * the first 4 octets are the length of the EAP-TLS message
          */
+	if (len < 4) {
+	    warn("EAP-TLS: received malformed data, len=%d", len);
+	    free(ets->data);
+	    ets->data = NULL;
+	    return 1;
+	}
+
         GETLONG(tlslen, inp);
         len -= 4;
 
@@ -888,13 +914,6 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
     else
         ets->frag = 0;
 
-    if (len < 0) {
-        warn("EAP-TLS: received malformed data");
-        free(ets->data);
-        ets->data = NULL;
-        return 1;
-    }
-
     if (len + ets->datalen > ets->tlslen) {
         warn("EAP-TLS: received data > TLS message length");
         free(ets->data);
@@ -921,7 +940,20 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         if (BIO_write(ets->into_ssl, ets->data, ets->datalen) == -1)
             tls_log_sslerr();
 
-        SSL_read(ets->ssl, dummy, 65536);
+	/*
+	 * This serves mainly to advance the TLS handshake process,
+	 * but also gives us the 0x00 byte for the protected success
+	 * indication with TLS 1.3.
+	 */
+        res = SSL_read(ets->ssl, dummy, sizeof(dummy));
+	if (res > 0) {
+	    dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
+		   res, MIN(res, 20), dummy);
+	    if (dummy[0] == 0 && !ets->sbyte_rcvd) {
+		dbglog("EAP-TLS received protected success indication");
+		ets->sbyte_rcvd = true;
+	    }
+	}
 
         free(ets->data);
         ets->data = NULL;
@@ -937,7 +969,7 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
  * At each call we control if there is buffered data and send a 
  * packet of mtu bytes.
  */
-int eaptls_send(struct eaptls_session *ets, u_char ** outp)
+int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
 {
     bool first = 0;
     int size;
@@ -949,10 +981,29 @@ int eaptls_send(struct eaptls_session *ets, u_char ** outp)
 
     if (!ets->data)
     {
-        if(!ets->alert_sent)
-        {
-            res = SSL_read(ets->ssl, fromtls, 65536);
+        if (!ets->alert_sent) {
+	    /* This serves mainly to advance the TLS handshake process. */
+            res = SSL_read(ets->ssl, fromtls, sizeof(fromtls));
+	    if (res >= 0)
+		dbglog("got %d bytes from SSL_read: %.*B", MIN(res, 20), fromtls);
         }
+
+	/*
+	 * With TLS v1.3, the server has to send a single 0x00 byte
+	 * through the encrypted channel (i.e. as application data)
+	 * as a success indication once the TLS handshaking is complete.
+	 */
+	if (is_server && ets->tls_v13 && !ets->sbyte_sent &&
+	    SSL_is_init_finished(ets->ssl)) {
+	    char success = 0;
+	    dbglog("SSL init finished in eaptls_send, sending success byte");
+	    res = SSL_write(ets->ssl, &success, 1);
+	    if (res <= 0)
+		error("EAP-TLS: Failed to send protected success indication (err=%d)",
+		      SSL_get_error(ets->ssl, res));
+	    else
+		ets->sbyte_sent = true;
+	}
 
         /*
          * Read from ssl 
@@ -1003,7 +1054,7 @@ int eaptls_send(struct eaptls_session *ets, u_char ** outp)
     INCPTR(size, *outp);
 
     /*
-     * Copy the packet in retransmission buffer 
+     * Copy the packet into retransmission buffer 
      */
     BCOPY(start, &ets->rtx[0], *outp - start);
     ets->rtx_len = *outp - start;
@@ -1128,7 +1179,7 @@ ssl_msg_callback(int write_p, int version, int content_type,
 #endif
 #ifdef SSL3_MT_ENCRYPTED_EXTENSIONS
             case SSL3_MT_ENCRYPTED_EXTENSIONS:
-                strcat(string,"Encryped Extensions");
+                strcat(string,"Encrypted Extensions");
                 break;
 #endif
             case SSL3_MT_CERTIFICATE:
@@ -1175,6 +1226,11 @@ ssl_msg_callback(int write_p, int version, int content_type,
                         strcat(string, "Unknown version");
                 }
                 break;
+#ifdef SSL3_MT_COMPRESSED_CERTIFICATE
+	    case SSL3_MT_COMPRESSED_CERTIFICATE:
+		strcat(string, "Compressed Certificate");
+		break;
+#endif
             default:
                 sprintf( string, "Handshake: Unknown SSL3 code received: %d", code );
         }

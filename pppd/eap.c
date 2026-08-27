@@ -337,14 +337,13 @@ eap_figure_next_state(eap_state *esp, int status)
 	case eapTlsSend:
 		ets = (struct eaptls_session *) esp->es_server.ea_session;
 
-		if(ets->frag)
+		if (ets->frag)
 			esp->es_server.ea_state = eapTlsRecvAck;
-		else
-			if(SSL_is_init_finished(ets->ssl))
-				esp->es_server.ea_state = eapTlsRecvClient;
-			else
-				/* JJK Add "TLS empty record" message here ??? */
-				esp->es_server.ea_state = eapTlsRecv;
+		else if (SSL_is_init_finished(ets->ssl)) {
+			dbglog("SSL init finished in next_state");
+			esp->es_server.ea_state = eapTlsRecvClient;
+		} else
+			esp->es_server.ea_state = eapTlsRecv;
 		break;
 
 	case eapTlsSendAck:
@@ -568,18 +567,15 @@ eap_send_request(eap_state *esp)
 		break;
 
 	case eapTlsSend:
-		eaptls_send(esp->es_server.ea_session, &outp);
+	case eapTlsSendAlert:
+		if (eaptls_send(esp->es_server.ea_session, true, &outp))
+			return;
 		eap_figure_next_state(esp, 0);
 		break;
 
 	case eapTlsSendAck:
 		PUTCHAR(EAPT_TLS, outp);
 		PUTCHAR(0, outp);
-		eap_figure_next_state(esp, 0);
-		break;
-
-	case eapTlsSendAlert:
-		eaptls_send(esp->es_server.ea_session, &outp);
 		eap_figure_next_state(esp, 0);
 		break;
 #endif /* PPP_WITH_EAPTLS */
@@ -872,8 +868,10 @@ eap_tls_response(eap_state *esp, u_char id)
 	*/
 	if(id == esp->es_client.ea_id)
 		eaptls_retransmit(esp->es_client.ea_session, &outp);
-	else
-		eaptls_send(esp->es_client.ea_session, &outp);
+	else {
+		if (eaptls_send(esp->es_client.ea_session, false, &outp))
+			return;
+	}
 
 	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
 	PUTSHORT(outlen, lenloc);
@@ -1167,6 +1165,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			}
 
 			if(ets->alert_recv) {
+				dbglog("EAP-TLS got alert, acking");
 				eap_tls_sendack(esp, id);
 				esp->es_client.ea_state = eapTlsRecvFailure;
 				break;
