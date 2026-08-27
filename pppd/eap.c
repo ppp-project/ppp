@@ -972,15 +972,14 @@ eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, 
 static void
 eap_request(eap_state *esp, u_char *inp, int id, int len)
 {
-	u_char typenum;
+	u_char typenum, idbyte;
 	u_char vallen;
 	int secret_len;
 	char secret[MAXWORDLEN];
 	char rhostname[256];
-	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
 	int hashlen = MD5_DIGEST_LENGTH;
-	bool ok;
+	int ret;
 #ifdef PPP_WITH_EAPTLS
 	u_char flags;
 	struct eaptls_session *ets = esp->es_client.ea_session;
@@ -1091,24 +1090,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-		ok = false;
-		mdctx = PPP_MD_CTX_new();
-		if (mdctx != NULL) {
-			if (PPP_DigestInit(mdctx, PPP_md5())) {
-				typenum = id;
-				if (PPP_DigestUpdate(mdctx, &typenum, 1)) {
-					if (PPP_DigestUpdate(mdctx, secret, secret_len)) {
-						BZERO(secret, sizeof(secret));
-						if (PPP_DigestUpdate(mdctx, inp, vallen)) {
-							if (PPP_DigestFinal(mdctx, hash, &hashlen))
-								ok = true;
-						}
-					}
-				}
-			}
-			PPP_MD_CTX_free(mdctx);
-		}
-		if (ok) {
+		idbyte = id;
+		ret = PPP_calc_digest(PPP_md5(), hash, &hashlen,
+				      &idbyte, 1,
+				      secret, secret_len,
+				      inp, vallen, NULL);
+		BZERO(secret, sizeof(secret));
+		if (ret) {
 			eap_chap_response(esp, id, hash, esp->es_client.ea_name,
 					  esp->es_client.ea_namelen);
 			esp->es_client.ea_state = eapAuthRecv;
@@ -1383,9 +1371,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	int secret_len;
 	char secret[MAXSECRETLEN];
 	char rhostname[256];
-	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
 	int hashlen = MD5_DIGEST_LENGTH;
+	int ret;
 
 #ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
@@ -1638,41 +1626,19 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-		mdctx = PPP_MD_CTX_new();
-		if (mdctx != NULL) {
-
-			if (PPP_DigestInit(mdctx, PPP_md5())) {
-
-				if (PPP_DigestUpdate(mdctx, &esp->es_server.ea_id, 1)) {
-
-					if (PPP_DigestUpdate(mdctx, &secret, secret_len)) {
-
-						BZERO(secret, sizeof(secret));
-						if (PPP_DigestUpdate(mdctx, esp->es_challenge, esp->es_challen)) {
-
-							if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
-
-								if (BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
-									esp->es_server.ea_type = EAPT_MD5CHAP;
-									eap_send_success(esp);
-									eap_figure_next_state(esp, 0);
-
-									if (esp->es_rechallenge != 0) {
-										TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
-									}
-									PPP_MD_CTX_free(mdctx);
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
-
-			PPP_MD_CTX_free(mdctx);
-		}
-
-		eap_send_failure(esp);
+		ret = PPP_calc_digest(PPP_md5(), hash, &hashlen,
+				      &esp->es_server.ea_id, 1,
+				      &secret, secret_len,
+				      esp->es_challenge, esp->es_challen, NULL);
+		BZERO(secret, sizeof(secret));
+		if (ret && BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
+			esp->es_server.ea_type = EAPT_MD5CHAP;
+			eap_send_success(esp);
+			eap_figure_next_state(esp, 0);
+			if (esp->es_rechallenge != 0)
+				TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
+		} else
+			eap_send_failure(esp);
 		break;
 
 #ifdef PPP_WITH_CHAPMS

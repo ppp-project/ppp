@@ -542,7 +542,6 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 	      char *username, u_char Challenge[8])
     
 {
-    PPP_MD_CTX* ctx;
     u_char	hash[SHA_DIGEST_LENGTH];
     int     hash_len;
     const char *user;
@@ -552,30 +551,13 @@ ChallengeHash(u_char PeerChallenge[16], u_char *rchallenge,
 	++user;
     else
 	user = username;
-    
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
 
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, PeerChallenge, 16)) {
-
-                if (PPP_DigestUpdate(ctx, rchallenge, 16)) {
-
-                    if (PPP_DigestUpdate(ctx, user, strlen(user))) {
-                        
-                        hash_len = SHA_DIGEST_LENGTH;
-                        if (PPP_DigestFinal(ctx, hash, &hash_len)) {
-
-                            BCOPY(hash, Challenge, 8);
-                        }
-                    }
-                }
-            }
-        }
-
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = SHA_DIGEST_LENGTH;
+    if (PPP_calc_digest(PPP_sha1(), hash, &hash_len,
+			PeerChallenge, 16,
+			rchallenge, 16,
+			user, strlen(user), NULL))
+	BCOPY(hash, Challenge, 8);
 }
 
 /*
@@ -608,20 +590,10 @@ ascii2unicode(char ascii[], int ascii_len, u_char unicode[])
 static void
 NTPasswordHash(u_char *secret, int secret_len, unsigned char* hash)
 {
-    PPP_MD_CTX* ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
+    int hash_len = MD4_DIGEST_LENGTH;
 
-        if (PPP_DigestInit(ctx, PPP_md4())) {
-
-            if (PPP_DigestUpdate(ctx, secret, secret_len)) {
-
-                int hash_len = MD4_DIGEST_LENGTH;
-                PPP_DigestFinal(ctx, hash, &hash_len);
-            }
-        }
-        
-        PPP_MD_CTX_free(ctx);
-    }
+    if (!PPP_calc_digest(PPP_md4(), hash, &hash_len, secret, secret_len, NULL))
+	error("MD4 digest calculation failed");
 }
 
 static void
@@ -702,53 +674,25 @@ GenerateAuthenticatorResponse(unsigned char* PasswordHashHash,
 	  0x6E };
 
     int		i;
-    PPP_MD_CTX *ctx;
     u_char	Digest[SHA_DIGEST_LENGTH] = {};
     int     hash_len;
     u_char	Challenge[8];
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
-
-                if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
-
-                    if (PPP_DigestUpdate(ctx, Magic1, sizeof(Magic1))) {
-                        
-                        hash_len = sizeof(Digest);
-                        PPP_DigestFinal(ctx, Digest, &hash_len);
-                    }
-                }
-            }
-        }
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = sizeof(Digest);
+    if (!PPP_calc_digest(PPP_sha1(), Digest, &hash_len,
+			 PasswordHashHash, MD4_DIGEST_LENGTH,
+			 NTResponse, 24,
+			 Magic1, sizeof(Magic1), NULL))
+	error("Authenticator response SHA1 calculation failed");
     
     ChallengeHash(PeerChallenge, rchallenge, username, Challenge);
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, Digest, sizeof(Digest))) {
-
-                if (PPP_DigestUpdate(ctx, Challenge, sizeof(Challenge))) {
-
-                    if (PPP_DigestUpdate(ctx, Magic2, sizeof(Magic2))) {
-                        
-                        hash_len = sizeof(Digest);
-                        PPP_DigestFinal(ctx, Digest, &hash_len);
-                    }
-                }
-            }
-        }
-
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = sizeof(Digest);
+    if (!PPP_calc_digest(PPP_sha1(), Digest, &hash_len,
+			 Digest, sizeof(Digest),
+			 Challenge, sizeof(Challenge),
+			 Magic2, sizeof(Magic2), NULL))
+	error("Authenticator response SHA1 calculation failed (2)");
 
     /* Convert to ASCII hex string. */
     for (i = 0; i < MAX((MS_AUTH_RESPONSE_LENGTH / 2), sizeof(Digest)); i++) {

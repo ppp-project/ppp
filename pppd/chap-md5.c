@@ -65,29 +65,11 @@ chap_md5_verify_response(int id, char *name,
 	challenge_len = *challenge++;
 	response_len = *response++;
 	if (response_len == MD5_DIGEST_LENGTH) {
-
 		/* Generate hash of ID, secret, challenge */
-		PPP_MD_CTX* ctx = PPP_MD_CTX_new();
-		if (ctx) {
-
-			if (PPP_DigestInit(ctx, PPP_md5())) {
-
-				if (PPP_DigestUpdate(ctx, &idbyte, 1)) {
-
-					if (PPP_DigestUpdate(ctx, secret, secret_len)) {
-
-						if (PPP_DigestUpdate(ctx, challenge, challenge_len)) {
-
-							if (PPP_DigestFinal(ctx, hash, &hash_len)) {
-
-								success = 1;
-							}
-						}
-					}
-				}
-			}
-			PPP_MD_CTX_free(ctx);
-		}
+		success = PPP_calc_digest(PPP_md5(), hash, &hash_len,
+					  &idbyte, 1,
+					  secret, secret_len,
+					  challenge, challenge_len, NULL);
 	}
 	if (success && memcmp(hash, response, hash_len) == 0) {
 		slprintf(message, message_space, "Access granted");
@@ -106,30 +88,12 @@ chap_md5_make_response(unsigned char *response, int id, char *our_name,
 	int challenge_len = *challenge++;
 	int hash_len = MD5_DIGEST_LENGTH;
 
-	response[0] = 0;
-	PPP_MD_CTX* ctx = PPP_MD_CTX_new();
-	if (ctx) {
-
-		if (PPP_DigestInit(ctx, PPP_md5())) {
-
-			if (PPP_DigestUpdate(ctx, &idbyte, 1)) {
-
-				if (PPP_DigestUpdate(ctx, secret, secret_len)) {
-
-					if (PPP_DigestUpdate(ctx, challenge, challenge_len)) {
-
-						if (PPP_DigestFinal(ctx, &response[1], &hash_len)) {
-
-							response[0] = hash_len;
-						}
-					}
-				}
-			}
-		}
-		PPP_MD_CTX_free(ctx);
-	}
-	if (response[0] == 0)
+	if (!PPP_calc_digest(PPP_md5(), &response[1], &hash_len,
+			     &idbyte, 1,
+			     secret, secret_len,
+			     challenge, challenge_len, NULL))
 		warn("Error occurred in preparing CHAP-Response");
+	response[0] = hash_len;
 }
 
 static struct chap_digest_type md5_digest = {
