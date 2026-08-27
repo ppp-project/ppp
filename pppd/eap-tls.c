@@ -973,7 +973,7 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
 {
     bool first = 0;
     int size;
-    u_char fromtls[65536];
+    u_char dummy[256];
     int res;
     u_char *start;
 
@@ -983,9 +983,9 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     {
         if (!ets->alert_sent) {
 	    /* This serves mainly to advance the TLS handshake process. */
-            res = SSL_read(ets->ssl, fromtls, sizeof(fromtls));
+            res = SSL_read(ets->ssl, dummy, sizeof(dummy));
 	    if (res >= 0)
-		dbglog("got %d bytes from SSL_read: %.*B", MIN(res, 20), fromtls);
+		dbglog("got %d bytes from SSL_read: %.*B", MIN(res, 20), dummy);
         }
 
 	/*
@@ -1008,9 +1008,9 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
         /*
          * Read from ssl 
          */
-        if ((res = BIO_read(ets->from_ssl, fromtls, 65536)) == -1)
-        {
-            warn("EAP-TLS send: No data from BIO_read");
+	res = BIO_pending(ets->from_ssl);
+	if (res <= 0) {
+            warn("EAP-TLS send: No data available");
             return 1;
         }
 
@@ -1020,7 +1020,14 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
         if (!ets->data)
             fatal("EAP-TLS: memory allocation error in eaptls_send\n");
 
-        BCOPY(fromtls, ets->data, ets->datalen);
+        if ((res = BIO_read(ets->from_ssl, ets->data, ets->datalen)) != ets->datalen) {
+	    if (res < 0)
+		error("EAP-TLS send: error in BIO_read");
+	    else
+		error("EAP-TLS send: short read from SSL BIO (%d != %d)",
+		      res, ets->datalen);
+            return 1;
+        }
 
         ets->offset = 0;
         first = 1;
