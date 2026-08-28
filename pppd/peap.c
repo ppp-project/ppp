@@ -597,8 +597,11 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 	len -= hlen;
 
 	if (flags & PEAP_S_FLAG_SET) {
+		if (psm->phase == PEAP_PHASE_2) {
+			warn("PEAP: Discarding spurious PEAP Start packet in phase 2");
+			return 0;
+		}
 		dbglog("PEAP: starting PEAP phase 1");
-		psm->phase = PEAP_PHASE_1;
 		if (len > 0)
 			warn("PEAP: Unexpected data in PEAP Start packet (%d bytes)", len);
 	} else if (len > 0) {
@@ -621,21 +624,26 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 				return -1;
 			}
 		}
-		// if condition is for equivalence with previous code
-		if (!(flags & PEAP_S_FLAG_SET)) {
-			if (SSL_is_init_finished(psm->ssl))
-				psm->phase = PEAP_PHASE_2;
-			if (BIO_ctrl_pending(psm->out_bio) == 0) {
-				peap_ack(esp, id);
-				return 0;
-			}
+		if (SSL_is_init_finished(psm->ssl))
+			psm->phase = PEAP_PHASE_2;
+		if (BIO_ctrl_pending(psm->out_bio) == 0) {
+			peap_ack(esp, id);
+			return 0;
 		}
 		psm->read = BIO_read(psm->out_bio, psm->out_buf,
 				     TLS_RECORD_MAX_SIZE);
+		if (psm->read <= 0) {
+			error("PEAP: error reading TLS data to send (phase 1)");
+			return 0;
+		}
 		peap_response(esp, id, psm->out_buf, psm->read);
 	} else {
 		psm->read = SSL_read(psm->ssl, psm->in_buf,
 				TLS_RECORD_MAX_SIZE);
+		if (psm->read <= 0) {
+			error("PEAP: error reading tunneled data (phase 2)");
+			return 0;
+		}
 		out_len = TLS_RECORD_MAX_SIZE;
 		peap_do_inner_eap(psm->in_buf, psm->read, esp, id,
 				psm->out_buf, &out_len);
@@ -643,6 +651,10 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 			psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
 			psm->read = BIO_read(psm->out_bio, psm->out_buf,
 				TLS_RECORD_MAX_SIZE);
+			if (psm->read <= 0) {
+				error("PEAP: error reading TLS data to send (phase 2)");
+				return 0;
+			}
 			peap_response(esp, id, psm->out_buf, psm->read);
 		}
 	}
