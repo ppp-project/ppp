@@ -110,17 +110,12 @@ enum eap_state_code {
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
 	"MD5Chall", "MSCHAPv2Chall", "Open", "BadAuth"
 
-#ifdef PPP_WITH_EAPTLS
-#define	eap_client_active(esp)	((esp)->es_client.ea_state != eapInitial &&\
-				 (esp)->es_client.ea_state != eapPending &&\
-				 (esp)->es_client.ea_state != eapClosed)
-#else
-#define eap_client_active(esp)	((esp)->es_client.ea_state == eapListen)
-#endif /* PPP_WITH_EAPTLS */
+#define eap_client_active(esp)	((esp)->es_client.ea_state > eapClosed &&\
+				 (esp)->es_client.ea_state < eapOpen)
 
 #define	eap_server_active(esp)	\
 	((esp)->es_server.ea_state >= eapIdentify && \
-	 (esp)->es_server.ea_state <= eapMD5Chall)
+	 (esp)->es_server.ea_state <= eapMSCHAPv2Chall)
 
 struct eap_auth {
 	char *ea_name;		/* Our name */

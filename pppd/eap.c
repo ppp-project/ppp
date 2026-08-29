@@ -1804,11 +1804,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 static void
 eap_success(eap_state *esp, u_char *inp, int id, int len)
 {
-	if (esp->es_client.ea_state != eapOpen && !eap_client_active(esp)
-#ifdef PPP_WITH_EAPTLS
-		&& esp->es_client.ea_state != eapTlsRecvSuccess
-#endif /* PPP_WITH_EAPTLS */
-		) {
+	if (esp->es_client.ea_state == eapOpen)
+		return;
+	if (!eap_client_active(esp)) {
 		dbglog("EAP unexpected success message in state %s (%d)",
 		    eap_state_name(esp->es_client.ea_state),
 		    esp->es_client.ea_state);
@@ -1851,7 +1849,7 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 	/*
 	 * Ignore failure messages if we're not open
 	 */
-	if (esp->es_client.ea_state <= eapClosed)
+	if (esp->es_client.ea_state <= eapClosed || esp->es_client.ea_state == eapBadAuth)
 		return;
 
 	if (!eap_client_active(esp)) {
