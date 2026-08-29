@@ -269,11 +269,8 @@ eap_send_success(eap_state *esp)
 static void
 eap_figure_next_state(eap_state *esp, int status)
 {
-#ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
-	int secret_len;
-	char secret[MAXWORDLEN];
-#endif /* PPP_WITH_EAPTLS */
+	int type;
 
 	esp->es_server.ea_timeout = esp->es_savedtime;
 #ifdef PPP_WITH_EAPTLS
@@ -290,18 +287,20 @@ eap_figure_next_state(eap_state *esp, int status)
 			break;
 		}
 #ifdef PPP_WITH_EAPTLS
-		/* Do EAP-TLS if we don't have a CHAP secret for the peer */
-                if (!get_secret(esp->es_unit, esp->es_server.ea_peer,
-                    esp->es_server.ea_name, secret, &secret_len, 1)) {
-
+                if (eap_type == EAPT_TLS) {
 			esp->es_server.ea_state = eapTlsStart;
 			esp->es_server.ea_authtype = EAPT_TLS;
 			break;
 		}
 #endif /* PPP_WITH_EAPTLS */
 
-		esp->es_server.ea_state = eapMD5Chall;
-		esp->es_server.ea_authtype = EAPT_MD5CHAP;
+		if (eap_type == EAPT_MSCHAPV2) {
+			esp->es_server.ea_state = eapMSCHAPv2Chall;
+			esp->es_server.ea_authtype = EAPT_MSCHAPV2;
+		} else {
+			esp->es_server.ea_state = eapMD5Chall;
+			esp->es_server.ea_authtype = EAPT_MD5CHAP;
+		}
 		break;
 
 #ifdef PPP_WITH_EAPTLS

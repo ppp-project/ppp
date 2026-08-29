@@ -250,6 +250,7 @@ bool explicit_passwd = 0;	/* Set if "password" option supplied */
 char remote_name[MAXNAMELEN];	/* Peer's name for authentication */
 char path_upapfile[MAXPATHLEN];	/* Pathname of pap-secrets file */
 char path_chapfile[MAXPATHLEN];	/* Pathname of chap-secrets file */
+int  eap_type;
 
 #if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
 char *cacert_file  = NULL;  /* CA certificate file (pem format) */
@@ -302,6 +303,7 @@ static void auth_script_done (void *);
 static void set_allowed_addrs (int, struct wordlist *, struct wordlist *);
 static int  some_ip_ok (struct wordlist *);
 static int  setupapfile (char **);
+static int  set_eap_type(char **);
 static int  privgroup (char **);
 static int  set_noauth_addr (char **);
 static int  set_permitted_number (char **);
@@ -386,6 +388,8 @@ struct option auth_options[] = {
       &auth_required },
     { "refuse-eap", o_bool, &refuse_eap,
       "Don't agree to authenticate to peer with EAP", 1 },
+    { "eap-type", o_special, &set_eap_type,
+      "EAP type for authenticating the peer" },
 
     { "name", o_string, our_name,
       "Set local name for authentication",
@@ -576,6 +580,28 @@ setupapfile(char **argv)
     return (1);
 }
 
+/*
+ * Select type of EAP authentication to use on the peer
+ */
+static int
+set_eap_type(char **argv)
+{
+    char *type = *argv;
+
+    if (strcmp(type, "chap") == 0)
+	eap_type = EAPT_MD5CHAP;
+    else if (strcmp(type, "mschapv2") == 0)
+	eap_type = EAPT_MSCHAPV2;
+#ifdef PPP_WITH_EAPTLS
+    else if (strcmp(type, "tls") == 0)
+	eap_type = EAPT_TLS;
+#endif
+    else {
+	ppp_option_error("unknown EAP type in eap-type option");
+	return 0;
+    }
+    return 1;
+}
 
 /*
  * privgroup - allow members of the group to have privileged access.
@@ -1406,11 +1432,12 @@ auth_check_options(void)
     }
 
 #ifdef PPP_WITH_EAPTLS
-    if (!can_auth && wo->neg_eap) {
+    if (!can_auth && wo->neg_eap && (eap_type == 0 || eap_type == EAPT_TLS)) {
 	can_auth =
 	    have_eaptls_secret_server((explicit_remote ? remote_name :
 				       NULL), our_name, 1, &lacks_ip);
-
+	if (can_auth)
+	    eap_type = EAPT_TLS;
     }
 #endif
 
