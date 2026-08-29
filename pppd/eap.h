@@ -86,6 +86,7 @@ enum eap_state_code {
 	eapPending,	/* Waiting for LCP (no timer) */
 	eapClosed,	/* Authentication not in use */
 	eapListen,	/* Client ready (and timer running) */
+	eapAuthRecv,	/* Receive further requests in a sequence */
 	eapIdentify,	/* EAP Identify sent */
 	eapTlsStart,	/* Send EAP-TLS start packet */
 	eapTlsRecv,	/* Receive EAP-TLS tls data */
@@ -104,7 +105,7 @@ enum eap_state_code {
 };
 
 #define	EAP_STATES	\
-	"Initial", "Pending", "Closed", "Listen", "Identify", \
+	"Initial", "Pending", "Closed", "Listen", "AuthRecv", "Identify", \
 	"TlsStart", "TlsRecv", "TlsSendAck", "TlsSend", "TlsRecvAck", "TlsRecvClient",\
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
 	"MD5Chall", "MSCHAPv2Chall", "Open", "BadAuth"

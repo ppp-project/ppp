@@ -130,6 +130,7 @@ struct protent eap_protent = {
 
 /* Local forward declarations. */
 static void eap_server_timeout (void *arg);
+static void eap_failure(eap_state *esp, u_char *inp, int id, int len);
 
 /*
  * Convert EAP state code to printable string for debug.
@@ -980,15 +981,16 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
 	int hashlen = MD5_DIGEST_LENGTH;
+	bool ok;
 #ifdef PPP_WITH_EAPTLS
 	u_char flags;
 	struct eaptls_session *ets = esp->es_client.ea_session;
 #endif /* PPP_WITH_EAPTLS */
 
 	/*
-	 * Ignore requests if we're not open
+	 * Ignore requests if we're not active
 	 */
-	if (esp->es_client.ea_state <= eapClosed)
+	if (!eap_client_active(esp))
 		return;
 
 	/*
@@ -1015,6 +1017,16 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 	GETCHAR(typenum, inp);
 	len--;
+
+	if (typenum > EAPT_NAK) {
+		if (esp->es_client.ea_state == eapListen)
+			esp->es_client.ea_authtype = typenum;
+		else if (typenum != esp->es_client.ea_authtype) {
+			warn("EAP: dropping EAP-Request for type %d after seeing %d",
+			     typenum, esp->es_client.ea_authtype);
+			return;
+		}
+	}
 
 	switch (typenum) {
 	case EAPT_IDENTITY:
@@ -1080,6 +1092,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
+		ok = false;
 		mdctx = PPP_MD_CTX_new();
 		if (mdctx != NULL) {
 			if (PPP_DigestInit(mdctx, PPP_md5())) {
@@ -1088,20 +1101,22 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 					if (PPP_DigestUpdate(mdctx, secret, secret_len)) {
 						BZERO(secret, sizeof(secret));
 						if (PPP_DigestUpdate(mdctx, inp, vallen)) {
-							if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
-								eap_chap_response(esp, id, hash, esp->es_client.ea_name,
-										esp->es_client.ea_namelen);
-								PPP_MD_CTX_free(mdctx);
-								break;
-							}
+							if (PPP_DigestFinal(mdctx, hash, &hashlen))
+								ok = true;
 						}
 					}
 				}
 			}
 			PPP_MD_CTX_free(mdctx);
 		}
-		dbglog("EAP: MD5 checksum calculation failed");
-		eap_send_nak(esp, id, 0);
+		if (ok) {
+			eap_chap_response(esp, id, hash, esp->es_client.ea_name,
+					  esp->es_client.ea_namelen);
+			esp->es_client.ea_state = eapAuthRecv;
+		} else {
+			error("EAP: MD5 checksum calculation failed");
+			eap_send_nak(esp, id, 0);
+		}
 		break;
 
 #ifdef PPP_WITH_EAPTLS
@@ -1219,7 +1234,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	    /* If MSCHAPv2 digest was not found, NAK the packet */
 	    if (!esp->es_client.digest) {
 		error("EAP MSCHAPv2 not supported");
-		eap_send_nak(esp, id, EAPT_SRP);
+		eap_send_nak(esp, id, EAPT_MD5CHAP);
 		return;
 	    }
 
@@ -1267,7 +1282,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		if (!get_secret(esp->es_unit, esp->es_client.ea_name,
 		    rhostname, secret, &secret_len, 0)) {
 		    dbglog("EAP: no CHAP secret for auth to %q", rhostname);
-		    eap_send_nak(esp, id, EAPT_SRP);
+		    eap_send_nak(esp, id, 0);
 		    break;
 		}
 		esp->es_client.ea_namelen = strlen(esp->es_client.ea_name);
@@ -1278,12 +1293,17 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			challenge, secret, secret_len, NULL);
 
 		eap_chapv2_response(esp, id, chapid, response, esp->es_client.ea_name, esp->es_client.ea_namelen);
+		esp->es_client.ea_state = eapAuthRecv;
 		break;
 	    }
 	    case CHAP_SUCCESS: {
 
 		/* Check response for mutual authentication */
 		u_char status = CHAP_FAILURE;
+		if (esp->es_client.ea_state == eapListen) {
+			warn("EAP-MSCHAPv2 discarding Success without Challenge first");
+			break;
+		}
 		if (esp->es_client.digest->check_success(chapid, inp, len) == 1) {
 		     info("Chap authentication succeeded! %.*v", len, inp);
 		     status = CHAP_SUCCESS;
@@ -1298,12 +1318,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 		u_char status = CHAP_FAILURE;
 		eap_send_response(esp, id, EAPT_MSCHAPV2, &status, sizeof(status));
-		goto client_failure; /* force termination */
+		/* force termination */
+		eap_failure(esp, inp, id, 0);
 	    }
 	    default:
 
                 error("EAP: received invalid MSCHAPv2 packet, invalid or unsupported opcode: %d", opcode);
-		eap_send_nak(esp, id, EAPT_SRP);
+		eap_send_nak(esp, id, 0);
 	    }
 
 	    break;
@@ -1325,15 +1346,23 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 		/* Process the PEAP packet */
 		if (peap_process(esp, id, inp, len)) {
-			eap_send_nak(esp, id, EAPT_TLS);
-		}
+			if (esp->es_client.ea_state = eapListen)
+				eap_send_nak(esp, id, EAPT_TLS);
+			else {
+				/* If we've responded to PEAP requests, we can't
+				   ask for something different now, so just fail. */
+				eap_failure(esp, inp, id, 0);
+			}
+			peap_finish(&esp->ea_peap);
+		} else
+			esp->es_client.ea_state = eapAuthRecv;
 
 		break;
 #endif // PPP_WITH_PEAP
 
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
-		eap_send_nak(esp, id, EAPT_SRP);
+		eap_send_nak(esp, id, EAPT_MD5CHAP);
 		break;
 	}
 
@@ -1342,14 +1371,6 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		TIMEOUT(eap_client_timeout, (void *)esp,
 		    esp->es_client.ea_timeout);
 	}
-	return;
-
-client_failure:
-	esp->es_client.ea_state = eapBadAuth;
-	if (esp->es_client.ea_timeout > 0) {
-		UNTIMEOUT(eap_client_timeout, (void *)esp);
-	}
-	esp->es_client.ea_session = NULL;
 }
 
 /*
