@@ -2002,10 +2002,11 @@ run_program(const char *prog, char * const *args, int must_exist, void (*done)(v
 
     /* run the program */
     update_script_environment();
+
+    if (strict_script_checks) {
 #ifdef HAVE_FEXECVE
-    fexecve(fd, args, script_env);
+	fexecve(fd, args, script_env);
 #else
-    {
 	char fdpath[32];
 
 	snprintf(fdpath, sizeof(fdpath), "/dev/fd/%d", fd);
@@ -2014,8 +2015,11 @@ run_program(const char *prog, char * const *args, int must_exist, void (*done)(v
 	    snprintf(fdpath, sizeof(fdpath), "/proc/self/fd/%d", fd);
 	    execve(fdpath, args, script_env);
 	}
-    }
 #endif
+    } else {
+	/* This is risky.  Allows for certain TOCTAU issues, but usually we should be OKay */
+	execve(prog, args, script_env);
+    }
     /* have to reopen the log, there's nowhere else for the message to go. */
     reopen_log();
     syslog(LOG_ERR, "Can't execute %s: %m", prog);
