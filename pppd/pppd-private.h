@@ -219,6 +219,7 @@ extern char *current_option;    /* the name of the option being parsed */
 extern int  privileged_option;  /* set iff the current option came from root */
 extern char *option_source;     /* string saying where the option came from */
 extern int  option_priority;    /* priority of current options */
+extern bool strict_script_checks; /* Whether to enforce strict checking on scripts */
 
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */

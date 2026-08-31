@@ -909,6 +909,9 @@ traffic.
 .B nosendip
 Don't send our local IP address to peer during IP address negotiation.
 .TP
+.B nostrict\-script\-checks
+Disabled strict\-script\-checks.  This option is privileged.
+.TP
 .B notty
 Normally, pppd requires a terminal device.  With this option, pppd
 will allocate itself a pseudo-tty master/slave pair and use the slave
@@ -1142,6 +1145,18 @@ file any pseudonym offered by the peer during authentication.
 .B stop\-bits \fIn
 Set the number of stop bits for the serial port. Valid values are 1 or 2.
 The default value is 1.
+.TP
+.B strict\-script\-checks
+This option will enforce stricter rules on scripts, specifically they must be
+owned by root (or the effective id), and not be writable by either group or
+other.  The option is not privileged.  The inverse nostrict\-script\-checks to
+disable the checks however are.  This switches from using execve() when
+invocing scripts to using execveat() - which means we perform the relevant
+checks on the file we are guaranteed to exec to, with the caveat that if these
+are scripts with shebangs (#!) then $0 (argv[0]) will be lost - your scripts
+should either know who/what they are - or rely on PPP_SCRIPT_INSTANCE environment
+variable.
+.B It's intended that this option becomes the default in future versions.
 .TP
 .B sync
 Use synchronous HDLC serial encoding instead of asynchronous.
