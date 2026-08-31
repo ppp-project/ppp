@@ -1529,6 +1529,9 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 	l -= cilen;			/* Adjust remaining length */
 	next += cilen;			/* Step to next CI */
 
+	if (rc == CONFREJ)
+	    nakp = nak_buffer;
+
 	if (citype <= CI_LCP_LAST) {
 	    if (seenci[citype]) {
 		if (!warned) {
@@ -1814,7 +1817,11 @@ endswitch:
 	    continue;			/* Don't send this one */
 
 	if (orc == CONFNAK) {		/* Nak this CI? */
-	    if (reject_if_disagree	/* Getting fed up with sending NAKs? */
+	    /* If we get too many NAK'd CIs, reject instead. */
+	    /* Shouldn't be able to happen */
+	    if (nakp - nak_buffer > PPP_MRU - 8)
+		orc = CONFREJ;
+	    else if (reject_if_disagree	/* Getting fed up with sending NAKs? */
 		&& citype != CI_MAGICNUMBER) {
 		orc = CONFREJ;		/* Get tough if so */
 	    } else {
