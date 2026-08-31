@@ -560,7 +560,7 @@ eap_send_request(eap_state *esp)
 
 #ifdef PPP_WITH_EAPTLS
 	case eapTlsStart:
-		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(esp->es_server.ea_authtype, outp);
 		PUTCHAR(EAP_TLS_FLAGS_START, outp);
 		eap_figure_next_state(esp, 0);
 		break;
@@ -573,7 +573,7 @@ eap_send_request(eap_state *esp)
 		break;
 
 	case eapTlsSendAck:
-		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(esp->es_server.ea_authtype, outp);
 		PUTCHAR(0, outp);
 		eap_figure_next_state(esp, 0);
 		break;
@@ -870,7 +870,7 @@ eap_tls_response(eap_state *esp, u_char id)
 }
 
 /*
- * Send an EAP-TLS ack
+ * Send an EAP-TLS ack as client
  */
 static void
 eap_tls_sendack(eap_state *esp, u_char id)
@@ -889,7 +889,7 @@ eap_tls_sendack(eap_state *esp, u_char id)
 	lenloc = outp;
 	INCPTR(2, outp);
 
-	PUTCHAR(EAPT_TLS, outp);
+	PUTCHAR(esp->es_client.ea_authtype, outp);
 	PUTCHAR(0, outp);
 
 	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
@@ -1145,6 +1145,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 
 		case eapTlsRecvAck:
+			/* XXX should check request has len=1, flags=0 */
 			eap_tls_response(esp, id);
 			esp->es_client.ea_state = (ets->frag ? eapTlsRecvAck : eapTlsRecv);
 			break;
@@ -1155,7 +1156,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				/* Bogus request; wait for something real. */
 				return;
 			}
-			eaptls_receive(ets, inp, len);
+			eaptls_receive(esp, EAP_REQUEST, id, inp, len);
 
 			if(ets->frag) {
 				eap_tls_sendack(esp, id);
@@ -1170,8 +1171,12 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				break;
 			}
 
-			/* Check if TLS handshake is finished */
-			if(eaptls_is_init_finished(ets)) {
+			/*
+			 * Check if TLS handshake is finished, the data is all sent,
+			 * and if we're using TLS 1.3, we've received the success byte.
+			 */
+			if (eaptls_is_init_finished(ets) && BIO_pending(ets->from_ssl) == 0 &&
+			    !(ets->tls_v13 && !ets->sbyte_rcvd)) {
 #ifdef PPP_WITH_MPPE
 				eaptls_gen_mppe_keys(ets, 1);
 #endif
@@ -1318,12 +1323,12 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	case EAPT_PEAP:
 
 		/* Initialize the PEAP context (if not already initialized) */
-		if (!esp->ea_peap) {
+		if (!esp->es_client.ea_peap) {
 			rhostname[0] = '\0';
 			if (explicit_remote || (remote_name[0] != '\0')) {
 				strlcpy(rhostname, remote_name, sizeof (rhostname));
 			}
-			if (peap_init(&esp->ea_peap, rhostname)) {
+			if (peap_init(&esp->es_client.ea_peap, rhostname)) {
 				eap_send_nak(esp, id, EAPT_TLS);
 				break;
 			}
@@ -1338,7 +1343,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				   ask for something different now, so just fail. */
 				eap_failure(esp, inp, id, 0);
 			}
-			peap_finish(&esp->ea_peap);
+			peap_finish(&esp->es_client.ea_peap);
 		} else
 			esp->es_client.ea_state = eapAuthRecv;
 
@@ -1447,6 +1452,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 #ifdef PPP_WITH_EAPTLS
 	case EAPT_TLS:
+	case EAPT_PEAP:
 		switch(esp->es_server.ea_state) {
 
 		case eapTlsRecv:
@@ -1454,12 +1460,31 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			ets = (struct eaptls_session *) esp->es_server.ea_session;
 
 			eap_figure_next_state(esp,
-				eaptls_receive(esp->es_server.ea_session, inp, len));
+				eaptls_receive(esp, EAP_RESPONSE, id, inp, len));
 
 			if(ets->alert_recv) {
 				eap_send_failure(esp);
 				break;
 			}
+
+			/*
+			 * With TLS v1.3, the server has to send a single 0x00 byte
+			 * through the encrypted channel (i.e. as application data)
+			 * as a success indication once the TLS handshaking is complete.
+			 */
+			if (esp->es_server.ea_state == eapTlsSend && ets->handshake_done &&
+			    esp->es_server.ea_authtype == EAPT_TLS && ets->tls_v13 && !ets->sbyte_sent) {
+				char success = 0;
+				int res = SSL_write(ets->ssl, &success, 1);
+				if (res <= 0)
+					error("EAP-TLS: Failed to send protected success indication (err=%d)",
+					      SSL_get_error(ets->ssl, res));
+				else
+					ets->sbyte_sent = true;
+			}
+			if (esp->es_server.ea_authtype == EAPT_PEAP && ets->handshake_done &&
+			    esp->es_server.ea_state == eapTlsSend)
+				peap_phase2_send(esp, true);
 			break;
 
 		case eapTlsRecvAck:
@@ -1546,8 +1571,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #ifdef PPP_WITH_EAPTLS
 			/* Send EAP-TLS start packet */
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			esp->es_server.ea_state = eapTlsStart;
-			esp->es_server.ea_authtype = EAPT_TLS;
+			esp->es_server.ea_authtype = vallen;
 			break;
 #endif /* PPP_WITH_EAPTLS */
 
@@ -1799,7 +1825,7 @@ eap_success(eap_state *esp, u_char *inp, int id, int len)
 	}
 
 #ifdef PPP_WITH_PEAP
-	peap_finish(&esp->ea_peap);
+	peap_finish(&esp->es_client.ea_peap);
 #endif
 
 	esp->es_client.ea_state = eapOpen;
@@ -1838,7 +1864,7 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 	error("EAP: peer reports authentication failure");
 
 #ifdef PPP_WITH_PEAP
-	peap_finish(&esp->ea_peap);
+	peap_finish(&esp->es_client.ea_peap);
 #endif
 
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
@@ -2049,6 +2075,7 @@ eap_printpkt(u_char *inp, int inlen,
 
 #ifdef PPP_WITH_EAPTLS
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			if (len < 1)
 				break;
 			GETCHAR(flags, inp);
@@ -2090,6 +2117,7 @@ eap_printpkt(u_char *inp, int inlen,
 
 #ifdef PPP_WITH_EAPTLS
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			if (len < 1)
 				break;
 			GETCHAR(flags, inp);

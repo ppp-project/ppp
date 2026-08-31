@@ -55,6 +55,7 @@ struct eaptls_session
     bool tls_v13;               /* whether we've negotiated TLSv1.3 */
     bool sbyte_sent;		/* whether the 0x00 success byte has been sent */
     bool sbyte_rcvd;		/* whether the 0x00 success byte has been received */
+    bool handshake_done;	/* whether the SSL tunnel has been set up */
     SSL_CTX *ctx;
     SSL *ssl;                   /* ssl connection */
     BIO *from_ssl;
@@ -77,7 +78,7 @@ void eaptls_free_session(struct eaptls_session *ets);
 
 int eaptls_is_init_finished(struct eaptls_session *ets);
 
-int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len);
+int eaptls_receive(eap_state *esp, int code, int id, u_char *inp, int len);
 int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp);
 void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp);
 

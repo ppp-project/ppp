@@ -97,4 +97,18 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len);
  */
 void peap_finish(struct peap_state **psm);
 
+/* Receive an outer TLV */
+void peap_receive_outer_tlv(eap_state *esp, int code, int id,
+			    u_char *inp, int len);
+
+/* Called when PEAP phase 2 starts */
+void peap_phase2_start(eap_state *esp, int code);
+
+/* Receive PEAP phase 2 decrypted data */
+void peap_phase2_receive(eap_state *esp, int code, int id,
+			 u_char *inp, int len);
+
+/* Send PEAP phase 2 data to SSL */
+void peap_phase2_send(eap_state *esp, bool is_server);
+
 #endif /* PPP_PEAP_H */

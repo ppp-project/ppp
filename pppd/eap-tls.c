@@ -55,6 +55,7 @@
 #include "tls.h"
 #include "eap.h"
 #include "eap-tls.h"
+#include "peap.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "chap_ms.h"
@@ -727,6 +728,7 @@ int eaptls_init_ssl_server(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
+    ets->handshake_done = 0;
     return 1;
 
 fail:
@@ -740,6 +742,7 @@ fail:
 int eaptls_init_ssl_client(eap_state * esp)
 {
     struct eaptls_session *ets;
+    int res;
     char servcertfile[MAXWORDLEN];
     char clicertfile[MAXWORDLEN];
     char cacertfile[MAXWORDLEN];
@@ -797,6 +800,18 @@ int eaptls_init_ssl_client(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
+    ets->handshake_done = 0;
+
+    /* Advance the TLS handshake process. */
+    res = SSL_do_handshake(ets->ssl);
+    if (res > 0)
+	ets->handshake_done = true;	/* unlikely */
+    else if (res < 0) {
+	res = SSL_get_error(ets->ssl, res);
+	if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
+	    error("EAP: SSL handshake error: %s", ERR_error_string(res, NULL));
+    }
+
     return 1;
 
 fail:
@@ -824,16 +839,23 @@ void eaptls_free_session(struct eaptls_session *ets)
 
 int eaptls_is_init_finished(struct eaptls_session *ets)
 {
-    if (ets->ssl && SSL_is_init_finished(ets->ssl)) {
-	/* don't return finished if there is still data to send */
-	if (BIO_pending(ets->from_ssl) > 0) {
-	    dbglog("SSL init finished but data pending");
-	    return 0;
-	}
-        if (ets->tls_v13)
-            return ets->sbyte_rcvd;
-        else
-            return 1;
+    int res;
+
+    if (!ets->ssl)
+	return 0;
+    if (ets->handshake_done)
+	return 1;
+
+    /* Advance the TLS handshake process. */
+    res = SSL_do_handshake(ets->ssl);
+    if (res > 0) {
+	ets->handshake_done = true;
+	return 1;
+    }
+    if (res < 0) {
+	res = SSL_get_error(ets->ssl, res);
+	if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
+	    error("EAP: SSL handshake error: %s", ERR_error_string(res, NULL));
     }
 
     return 0;
@@ -843,11 +865,13 @@ int eaptls_is_init_finished(struct eaptls_session *ets)
  * Handle a received packet, reassembling fragmented messages and
  * passing them to the ssl engine
  */
-int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
+int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
 {
+    struct eap_auth *eap = (code == EAP_REQUEST? &esp->es_client: &esp->es_server);
+    struct eaptls_session *ets = eap->ea_session;
     u_char flags;
     u_int tlslen = 0;
-    u_char dummy[1024];
+    static u_char tdata[PPP_MRU];
     int res;
 
     if (len < 1) {
@@ -909,10 +933,17 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         ets->frag = 0;
 
     if (len + ets->datalen > ets->tlslen) {
-        warn("EAP-TLS: received data > TLS message length");
-        free(ets->data);
-        ets->data = NULL;
-        return 1;
+	if (eap->ea_authtype == EAPT_PEAP && !ets->frag && code == EAP_RESPONSE) {
+	    /* Outer TLV on EAP_RESPONSE packet */
+	    peap_receive_outer_tlv(esp, code, id, inp + ets->tlslen - ets->datalen,
+				   len + ets->datalen - ets->tlslen);
+	    len = ets->tlslen - ets->datalen;
+	} else {
+	    warn("EAP-TLS: received data > TLS message length");
+	    free(ets->data);
+	    ets->data = NULL;
+	    return 1;
+	}
     }
 
     BCOPY(inp, ets->data + ets->datalen, len);
@@ -934,24 +965,44 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         if (BIO_write(ets->into_ssl, ets->data, ets->datalen) == -1)
             tls_log_sslerr();
 
-	/*
-	 * This serves mainly to advance the TLS handshake process,
-	 * but also gives us the 0x00 byte for the protected success
-	 * indication with TLS 1.3.
-	 */
-        res = SSL_read(ets->ssl, dummy, sizeof(dummy));
-	if (res > 0) {
-	    dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
-		   res, MIN(res, 20), dummy);
-	    if (dummy[0] == 0 && !ets->sbyte_rcvd) {
-		dbglog("EAP-TLS received protected success indication");
-		ets->sbyte_rcvd = true;
-	    }
-	}
-
         free(ets->data);
         ets->data = NULL;
         ets->datalen = 0;
+
+	/*
+	 * For EAP-TLS, this gives us the 0x00 byte for the protected
+	 * success indication with TLS 1.3.  For PEAP, this gives
+	 * us the phase 2 PEAP packets sent through the tunnel.
+	 * It also serves to advance the TLS negotiation process.
+	 */
+        res = SSL_read(ets->ssl, tdata, sizeof(tdata));
+	if (!ets->handshake_done && SSL_is_init_finished(ets->ssl)) {
+	    ets->handshake_done = true;
+	    if (eap->ea_authtype == EAPT_PEAP)
+		peap_phase2_start(esp, code);
+	}
+
+	if (res > 0) {
+	    dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
+		   res, MIN(res, 20), tdata);
+	    switch (eap->ea_authtype) {
+	    case EAPT_TLS:
+		if (tdata[0] == 0 && !ets->sbyte_rcvd) {
+		    dbglog("EAP-TLS received protected success indication");
+		    ets->sbyte_rcvd = true;
+		}
+		break;
+	    case EAPT_PEAP:
+		peap_phase2_receive(esp, code, id, tdata, res);
+		ppp_explicit_bzero(tdata, res);
+		break;
+	    }
+	} else if (res < 0) {
+	    res = SSL_get_error(ets->ssl, res);
+	    if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
+		error("EAP: SSL read error: %s", ERR_error_string(res, NULL));
+	}
+
     }
 
     return 0;
@@ -967,7 +1018,6 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
 {
     bool first = 0;
     int size;
-    u_char dummy[256];
     int res;
     u_char *start;
 
@@ -975,31 +1025,6 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
 
     if (!ets->data)
     {
-        if (!ets->alert_sent) {
-	    /* This serves mainly to advance the TLS handshake process. */
-            res = SSL_read(ets->ssl, dummy, sizeof(dummy));
-	    if (res >= 0)
-		dbglog("got %d bytes from SSL_read: %.*B",
-		       res, MIN(res, 20), dummy);
-        }
-
-	/*
-	 * With TLS v1.3, the server has to send a single 0x00 byte
-	 * through the encrypted channel (i.e. as application data)
-	 * as a success indication once the TLS handshaking is complete.
-	 */
-	if (is_server && ets->tls_v13 && !ets->sbyte_sent &&
-	    SSL_is_init_finished(ets->ssl)) {
-	    char success = 0;
-	    dbglog("SSL init finished in eaptls_send, sending success byte");
-	    res = SSL_write(ets->ssl, &success, 1);
-	    if (res <= 0)
-		error("EAP-TLS: Failed to send protected success indication (err=%d)",
-		      SSL_get_error(ets->ssl, res));
-	    else
-		ets->sbyte_sent = true;
-	}
-
         /*
          * Read from ssl 
          */

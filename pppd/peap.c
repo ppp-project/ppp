@@ -247,7 +247,7 @@ static void peap_ack(eap_state *esp, u_char id)
 
 static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 {
-	struct peap_state *psm = esp->ea_peap;
+	struct peap_state *psm = esp->es_client.ea_peap;
 	u_char *outp;
 	int peap_len;
 
@@ -286,7 +286,7 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		u_char *out_buf, int *out_len)
 {
-	struct peap_state *psm = esp->ea_peap;
+	struct peap_state *psm = esp->es_client.ea_peap;
 	int used = 0;
 	int typenum;
 	int secret_len;
@@ -569,7 +569,7 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 	int hlen;
 	int flags;
 
-	struct peap_state *psm = esp->ea_peap;
+	struct peap_state *psm = esp->es_client.ea_peap;
 
 	if (esp->es_client.ea_id == id) {
 		info("PEAP: retransmits are not supported..");
@@ -659,6 +659,26 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 		}
 	}
 	return 0;
+}
+
+/* Receive an outer TLV */
+void peap_receive_outer_tlv(eap_state *esp, int code, int id, u_char *inp, int len)
+{
+}
+
+/* Phase 2 is starting */
+void peap_phase2_start(eap_state *esp, int code)
+{
+}
+
+/* Receive PEAP phase 2 decrypted data */
+void peap_phase2_receive(eap_state *esp, int code, int id, u_char *inp, int len)
+{
+}
+
+/* Send PEAP phase 2 data to SSL */
+void peap_phase2_send(eap_state *esp, bool is_server)
+{
 }
 
 #else
