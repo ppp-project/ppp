@@ -431,7 +431,7 @@ bool ppp_bad_ip_addr(uint32_t);
 /*
  * Expose an environment variable to scripts
  */
-void ppp_script_setenv(char *, char *, int);
+void ppp_script_setenv(const char *, const char *, int);
 
 /*
  * Unexpose an environment variable to scripts
