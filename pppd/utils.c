@@ -94,8 +94,8 @@ ppp_explicit_bzero(void *buf, size_t len)
 }
 
 /*
- * Check that a file descriptor is owned by root, not writable by group or
- * other.
+ * Check that a file descriptor is owned by root (Or the effective user), not
+ * writable by group or other.
  * If exec is true, check for execute permission, otherwise for read
  * permission.
  * Note: the path argument is only used for log messages.
@@ -117,8 +117,9 @@ ppp_check_access(int fd, const char *path, int exec)
 	goto err;
     }
 
-    if (sbuf.st_uid != 0) {
-	error("Can't safely use %v because it is not owned by root", path);
+    if (sbuf.st_uid != 0 && sbuf.st_uid == geteuid()) {
+
+	error("Can't safely use %v because it is not owned by root (or the effective uid).", path);
 	goto err;
     }
 
