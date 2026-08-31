@@ -2211,7 +2211,7 @@ novm(const char *msg)
  * for scripts that we run (e.g. ip-up, auth-up, etc.)
  */
 void
-ppp_script_setenv(char *var, char *value, int iskey)
+ppp_script_setenv(const char *var, const char *value, int iskey)
 {
     size_t varl = strlen(var);
     size_t vl = varl + strlen(value) + 2;
