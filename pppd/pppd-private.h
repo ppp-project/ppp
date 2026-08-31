@@ -311,11 +311,11 @@ void detach(void);	/* Detach from controlling tty */
 void die(int);		/* Cleanup and exit */
 void quit(void);		/* like die(1) */
 
-void record_child(int, char *, void (*) (void *), void *, int);
+void record_child(int, const char *, void (*) (void *), void *, int);
 int  device_script(char *cmd, int in, int out, int dont_wait);
 				/* Run `cmd' with given stdin and stdout */
-pid_t run_program(char *prog, char * const * args, int must_exist,
-		  void (*done)(void *), void *arg, int wait);
+pid_t run_program(const char *prog, char * const * args, int must_exist,
+		  void (*done)(void *), void *arg, int wait, const char * name);
 				/* Run program prog with args in child */
 void reopen_log(void);	/* (re)open the connection to syslog */
 void print_link_stats(void); /* Print stats, if available */

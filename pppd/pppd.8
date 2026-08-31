@@ -1794,6 +1794,10 @@ environment that is empty except for some environment variables that
 give information about the link.  The environment variables that pppd
 sets are:
 .TP
+.B PPP_SCRIPT_INSTANCE
+The name of the intended script, as documented, not as referenced.  For
+example, even if you set ip\-up\-script /some/other/path this variable will
+still be ip-up.
 .B DEVICE
 The name of the serial tty device being used.
 .TP

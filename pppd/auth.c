@@ -297,7 +297,7 @@ static int  scan_authfile(FILE *, char *, char *, char *,
 			  struct wordlist **, struct wordlist **,
 			  char *);
 static void free_wordlist (struct wordlist *);
-static void auth_script (char *);
+static void auth_script (char *, const char*);
 static void auth_script_done (void *);
 static void set_allowed_addrs (int, struct wordlist *, struct wordlist *);
 static int  some_ip_ok (struct wordlist *);
@@ -785,7 +785,7 @@ link_down(int unit)
 	if (auth_script_state == s_up && auth_script_pid == 0) {
 	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
-	    auth_script(path_auth_down);
+	    auth_script(path_auth_down, "auth-up");
 	}
     }
     if (!mp_on())
@@ -933,7 +933,7 @@ network_phase(int unit)
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
-	    auth_script(path_auth_up);
+	    auth_script(path_auth_up, "auth-up");
 	}
     }
 
@@ -2358,13 +2358,13 @@ auth_script_done(void *arg)
     case s_up:
 	if (auth_state == s_down) {
 	    auth_script_state = s_down;
-	    auth_script(path_auth_down);
+	    auth_script(path_auth_down, "auth-down");
 	}
 	break;
     case s_down:
 	if (auth_state == s_up) {
 	    auth_script_state = s_up;
-	    auth_script(path_auth_up);
+	    auth_script(path_auth_up, "auth-up");
 	}
 	break;
     }
@@ -2375,7 +2375,7 @@ auth_script_done(void *arg)
  * interface-name peer-name real-user tty speed
  */
 static void
-auth_script(char *script)
+auth_script(char *script, const char* name)
 {
     char strspeed[32];
     struct passwd *pw;
@@ -2400,7 +2400,7 @@ auth_script(char *script)
     argv[6] = ipparam;
     argv[7] = NULL;
 
-    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);
+    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0, name);
 }
 
 
