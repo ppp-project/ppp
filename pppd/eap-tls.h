@@ -43,8 +43,6 @@
 #define EAP_TLS_FLAGS_MF        64     /* more fragments flag */
 #define EAP_TLS_FLAGS_START     32     /* start flag */
 
-#define EAP_TLS_MAX_LEN         65536  /* max eap tls packet size */
-
 struct tls_info;
 
 struct eaptls_session
@@ -66,8 +64,6 @@ struct eaptls_session
     u_char alert_sent_desc;
     bool alert_recv;
     u_char alert_recv_desc;
-    char rtx[EAP_TLS_MAX_LEN];  /* retransmission buffer */
-    int rtx_len;
     int mtu;                    /* unit mtu */
     struct tls_info *info;
 };

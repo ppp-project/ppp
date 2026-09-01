@@ -129,13 +129,10 @@ struct eap_auth {
 	unsigned short ea_namelen;	/* Length of our name */
 	unsigned short ea_peerlen;	/* Length of peer's name */
 	enum eap_state_code ea_state;
-#ifdef PPP_WITH_EAPTLS
-	enum eap_state_code ea_prev_state;
-#endif
 #ifdef PPP_WITH_CHAPMS
         struct chap_digest_type *digest;
 #endif
-	unsigned char ea_id;		/* Current id */
+	short ea_id;		/* Current id */
 	unsigned char ea_requests;	/* Number of Requests sent/received */
 	unsigned char ea_responses;	/* Number of Responses */
 	unsigned char ea_type;		/* One of EAPT_* */
@@ -143,6 +140,8 @@ struct eap_auth {
 #ifdef PPP_WITH_EAPTLS
 	bool ea_using_eaptls;
 #endif
+	int ea_rexlen;		/* Length of last packet transmitted */
+	char *ea_rexmit;	/* Content of last packet transmitted */
 };
 
 /*

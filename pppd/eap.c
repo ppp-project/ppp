@@ -80,6 +80,10 @@ extern int chapms_strip_domain;
 
 eap_state eap_states[NUM_PPP];		/* EAP state; one for each unit */
 
+/* Retransmission buffers */
+static char eap_server_rexmit[PPP_MRU];
+static char eap_client_rexmit[PPP_MRU];
+
 /*
  * Command-line options.
  */
@@ -146,6 +150,7 @@ eap_state_name(enum eap_state_code esc)
 /*
  * eap_init - Initialize state for an EAP user.  This is currently
  * called once by main() during start-up.
+ * Note that unit is always 0.
  */
 static void
 eap_init(int unit)
@@ -158,8 +163,11 @@ eap_init(int unit)
 	esp->es_server.ea_maxrequests = EAP_DEFTRANSMITS;
 	esp->es_server.ea_id = (u_char)(drand48() * 0x100);
 	esp->es_server.ea_typeacked = 0;
+	esp->es_server.ea_rexmit = eap_server_rexmit;
 	esp->es_client.ea_timeout = EAP_DEFREQTIME;
 	esp->es_client.ea_maxrequests = EAP_DEFALLOWREQ;
+	esp->es_client.ea_id = -1;
+	esp->es_client.ea_rexmit = eap_client_rexmit;
 #ifdef PPP_WITH_EAPTLS
 	esp->es_client.ea_using_eaptls = 0;
 #endif /* PPP_WITH_EAPTLS */
@@ -226,11 +234,12 @@ eap_send_failure(eap_state *esp)
 	MAKEHEADER(outp, PPP_EAP);
 
 	PUTCHAR(EAP_FAILURE, outp);
-	esp->es_server.ea_id++;
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	PUTCHAR(esp->es_server.ea_id, outp);
 	PUTSHORT(EAP_HEADERLEN, outp);
 
 	output(esp->es_unit, outpacket_buf, EAP_HEADERLEN + PPP_HDRLEN);
+	esp->es_server.ea_rexlen = 0;	/* EAP Failure is never retransmitted */
 
 	esp->es_server.ea_state = eapBadAuth;
 	auth_peer_fail(esp->es_unit, PPP_EAP);
@@ -250,11 +259,12 @@ eap_send_success(eap_state *esp)
 	MAKEHEADER(outp, PPP_EAP);
 
 	PUTCHAR(EAP_SUCCESS, outp);
-	esp->es_server.ea_id++;
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	PUTCHAR(esp->es_server.ea_id, outp);
 	PUTSHORT(EAP_HEADERLEN, outp);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + EAP_HEADERLEN);
+	esp->es_server.ea_rexlen = 0;	/* EAP Success is never retransmitted */
 
 	auth_peer_success(esp->es_unit, PPP_EAP, 0,
 	    esp->es_server.ea_peer, esp->es_server.ea_peerlen);
@@ -271,11 +281,10 @@ eap_figure_next_state(eap_state *esp, int status)
 {
 	struct eaptls_session *ets;
 	int type;
+	enum eap_state_code prev_state;
 
 	esp->es_server.ea_timeout = esp->es_savedtime;
-#ifdef PPP_WITH_EAPTLS
-	esp->es_server.ea_prev_state = esp->es_server.ea_state;
-#endif /* PPP_WITH_EAPTLS */
+	prev_state = esp->es_server.ea_state;
 	switch (esp->es_server.ea_state) {
 	case eapBadAuth:
 		return;
@@ -383,9 +392,8 @@ eap_figure_next_state(eap_state *esp, int status)
 	if (esp->es_server.ea_state == eapBadAuth)
 		eap_send_failure(esp);
 
-#ifdef PPP_WITH_EAPTLS
-	dbglog("EAP id=0x%2x '%s' -> '%s'", esp->es_server.ea_id, eap_state_name(esp->es_server.ea_prev_state), eap_state_name(esp->es_server.ea_state));
-#endif /* PPP_WITH_EAPTLS */
+	dbglog("EAP id=0x%2x '%s' -> '%s'", esp->es_server.ea_id,
+	       eap_state_name(prev_state), eap_state_name(esp->es_server.ea_state));
 }
 
 #if PPP_WITH_CHAPMS
@@ -446,6 +454,8 @@ eap_chapms2_send_request(eap_state *esp, u_char id,
 	BCOPY(message, outp, message_len);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	esp->es_server.ea_rexlen = msglen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_server.ea_rexmit, msglen);
 
 	if (opcode == CHAP_SUCCESS) {
 		auth_peer_success(esp->es_unit, PPP_EAP, 0,
@@ -588,6 +598,8 @@ eap_send_request(eap_state *esp)
 	PUTSHORT(outlen, lenloc);
 
 	output(esp->es_unit, outpacket_buf, outlen + PPP_HDRLEN);
+	esp->es_server.ea_rexlen = outlen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_server.ea_rexmit, outlen);
 
 	esp->es_server.ea_requests++;
 
@@ -632,59 +644,32 @@ eap_authpeer(int unit, char *localname)
 static void
 eap_server_timeout(void *arg)
 {
-#ifdef PPP_WITH_EAPTLS
 	u_char *outp;
-	u_char *lenloc;
-	int outlen;
-#endif /* PPP_WITH_EAPTLS */
-
 	eap_state *esp = (eap_state *) arg;
 
-	if (!eap_server_active(esp))
+	if (!eap_server_active(esp) || esp->es_server.ea_rexlen == 0)
 		return;
 
-#ifdef PPP_WITH_EAPTLS
-	switch(esp->es_server.ea_prev_state) {
-
-	/*
-	 *  In eap-tls the state changes after a request, so we return to
-	 *  previous state ...
-	 */
-	case(eapTlsStart):
-	case(eapTlsSendAck):
-		esp->es_server.ea_state = esp->es_server.ea_prev_state;
-		break;
-
-	/*
-	 *  ... or resend the stored data
-	 */
-	case(eapTlsSend):
-	case(eapTlsSendAlert):
-		outp = outpacket_buf;
-		MAKEHEADER(outp, PPP_EAP);
-		PUTCHAR(EAP_REQUEST, outp);
-		PUTCHAR(esp->es_server.ea_id, outp);
-		lenloc = outp;
-		INCPTR(2, outp);
-
-		eaptls_retransmit(esp->es_server.ea_session, &outp);
-
-		outlen = (outp - outpacket_buf) - PPP_HDRLEN;
-		PUTSHORT(outlen, lenloc);
-		output(esp->es_unit, outpacket_buf, outlen + PPP_HDRLEN);
-		esp->es_server.ea_requests++;
-
-		if (esp->es_server.ea_timeout > 0)
-			TIMEOUT(eap_server_timeout, esp, esp->es_server.ea_timeout);
-
+	esp->es_server.ea_requests++;
+	if (esp->es_server.ea_maxrequests > 0 &&
+	    esp->es_server.ea_requests > esp->es_server.ea_maxrequests) {
+		if (esp->es_server.ea_responses > 0)
+			error("EAP: too many Requests sent");
+		else
+			error("EAP: no response to Requests");
+		eap_send_failure(esp);
 		return;
-	default:
-		break;
 	}
-#endif /* PPP_WITH_EAPTLS */
 
-	/* EAP ID number must not change on timeout. */
-	eap_send_request(esp);
+	outp = outpacket_buf;
+	MAKEHEADER(outp, PPP_EAP);
+	BCOPY(esp->es_server.ea_rexmit, outp, esp->es_server.ea_rexlen);
+	dbglog("EAP retransmit req len=%d <%.*B>", esp->es_server.ea_rexlen,
+	       MIN(esp->es_server.ea_rexlen, 32), esp->es_server.ea_rexmit);
+	output(esp->es_unit, outpacket_buf, esp->es_server.ea_rexlen + PPP_HDRLEN);
+
+	if (esp->es_server.ea_timeout > 0)
+		TIMEOUT(eap_server_timeout, esp, esp->es_server.ea_timeout);
 }
 
 /*
@@ -703,7 +688,7 @@ eap_rechallenge(void *arg)
 	esp->es_server.ea_requests = 0;
 	esp->es_server.ea_state = eapIdentify;
 	eap_figure_next_state(esp, 0);
-	esp->es_server.ea_id++;
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	eap_send_request(esp);
 }
 
@@ -799,7 +784,6 @@ eap_send_response(eap_state *esp, u_char id, u_char typenum,
 
 	PUTCHAR(EAP_RESPONSE, outp);
 	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
 	msglen = EAP_HEADERLEN + sizeof (u_char) + lenstr;
 	PUTSHORT(msglen, outp);
 	PUTCHAR(typenum, outp);
@@ -808,6 +792,28 @@ eap_send_response(eap_state *esp, u_char id, u_char typenum,
 	}
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	esp->es_client.ea_rexlen = msglen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, msglen);
+}
+
+/*
+ * Retransmit the last EAP-Response
+ */
+static void
+eap_retransmit_response(eap_state *esp)
+{
+	u_char *outp;
+
+	if (esp->es_client.ea_rexlen == 0) {
+		error("EAP client: nothing to retransmit");
+		return;
+	}
+	outp = outpacket_buf;
+	MAKEHEADER(outp, PPP_EAP);
+	BCOPY(esp->es_client.ea_rexmit, outp, esp->es_client.ea_rexlen);
+	dbglog("EAP retransmit resp len=%d <%.*B>", esp->es_server.ea_rexlen,
+	       MIN(esp->es_server.ea_rexlen, 32), esp->es_server.ea_rexmit);
+	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + esp->es_client.ea_rexlen);
 }
 
 /*
@@ -826,7 +832,6 @@ eap_chap_response(eap_state *esp, u_char id, u_char *hash,
 
 	PUTCHAR(EAP_RESPONSE, outp);
 	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
 	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + MD5_DIGEST_LENGTH +
 	    namelen;
 	PUTSHORT(msglen, outp);
@@ -839,6 +844,8 @@ eap_chap_response(eap_state *esp, u_char id, u_char *hash,
 	}
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	esp->es_client.ea_rexlen = msglen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, msglen);
 }
 
 #ifdef PPP_WITH_EAPTLS
@@ -862,23 +869,15 @@ eap_tls_response(eap_state *esp, u_char id)
 	lenloc = outp;
 	INCPTR(2, outp);
 
-	/*
-	   If the id in the request is unchanged, we must retransmit
-	   the old data
-	*/
-	if(id == esp->es_client.ea_id)
-		eaptls_retransmit(esp->es_client.ea_session, &outp);
-	else {
-		if (eaptls_send(esp->es_client.ea_session, false, &outp))
-			return;
-	}
+	if (eaptls_send(esp->es_client.ea_session, false, &outp))
+		return;
 
 	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
 	PUTSHORT(outlen, lenloc);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
-
-	esp->es_client.ea_id = id;
+	esp->es_client.ea_rexlen = outlen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, outlen);
 }
 
 /*
@@ -897,7 +896,6 @@ eap_tls_sendack(eap_state *esp, u_char id)
 
 	PUTCHAR(EAP_RESPONSE, outp);
 	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
 
 	lenloc = outp;
 	INCPTR(2, outp);
@@ -909,6 +907,8 @@ eap_tls_sendack(eap_state *esp, u_char id)
 	PUTSHORT(outlen, lenloc);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
+	esp->es_client.ea_rexlen = outlen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, outlen);
 }
 #endif /* PPP_WITH_EAPTLS */
 
@@ -924,13 +924,14 @@ eap_send_nak(eap_state *esp, u_char id, u_char type)
 
 	PUTCHAR(EAP_RESPONSE, outp);
 	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
 	msglen = EAP_HEADERLEN + 2 * sizeof (u_char);
 	PUTSHORT(msglen, outp);
 	PUTCHAR(EAPT_NAK, outp);
 	PUTCHAR(type, outp);
 
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	esp->es_client.ea_rexlen = msglen;
+	BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, msglen);
 }
 
 #if PPP_WITH_CHAPMS
@@ -949,7 +950,6 @@ eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, 
 
     PUTCHAR(EAP_RESPONSE, outp);
     PUTCHAR(id, outp);
-    esp->es_client.ea_id = id;
     msglen = EAP_HEADERLEN + 6 * sizeof (u_char) + MS_CHAP2_RESPONSE_LEN + user_len;
     PUTSHORT(msglen, outp);
     PUTCHAR(EAPT_MSCHAPV2, outp);
@@ -963,6 +963,8 @@ eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, 
     BCOPY(user, outp, user_len);
 
     output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+    esp->es_client.ea_rexlen = msglen;
+    BCOPY(outpacket_buf + PPP_HDRLEN, esp->es_client.ea_rexmit, msglen);
 }
 #endif
 
@@ -986,16 +988,20 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 #endif /* PPP_WITH_EAPTLS */
 
 	/*
+	 * If the ID is the same as the previous request,
+	 * we have to retransmit the response without updating
+	 * any other state.
+	 */
+	if (id == esp->es_client.ea_id) {
+		eap_retransmit_response(esp);
+		return;
+	}
+
+	/*
 	 * Ignore requests if we're not active
 	 */
 	if (!eap_client_active(esp))
 		return;
-
-	/*
-	 * Note: we update es_client.ea_id *only if* a Response
-	 * message is being generated.  Otherwise, we leave it the
-	 * same for duplicate detection purposes.
-	 */
 
 	esp->es_client.ea_requests++;
 	if (esp->es_client.ea_maxrequests != 0 &&
@@ -1007,6 +1013,8 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		auth_withpeer_fail(esp->es_unit, PPP_EAP);
 		return;
 	}
+	esp->es_client.ea_id = id;
+	esp->es_client.ea_rexlen = 0;
 
 	if (len <= 0) {
 		error("EAP: empty Request message discarded");
@@ -1398,6 +1406,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	}
 
 	esp->es_server.ea_responses++;
+	esp->es_server.ea_rexlen = 0;
 
 	if (len <= 0) {
 		error("EAP: empty Response message discarded");
@@ -1626,8 +1635,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
+		u_char idbyte = esp->es_server.ea_id;
 		ret = PPP_calc_digest(PPP_md5(), hash, &hashlen,
-				      &esp->es_server.ea_id, 1,
+				      &idbyte, 1,
 				      &secret, secret_len,
 				      esp->es_challenge, esp->es_challen, NULL);
 		BZERO(secret, sizeof(secret));
@@ -1698,7 +1708,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			else
 				chap_verifier = eap_chap_verify_response;
 
-			esp->es_server.ea_id += 1;
+			esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 			if ((*chap_verifier)(rhostname,
 						esp->es_server.ea_name,
 						id,
@@ -1758,7 +1768,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 	if (esp->es_server.ea_state != eapBadAuth &&
 	    esp->es_server.ea_state != eapOpen) {
-		esp->es_server.ea_id++;
+		esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 		eap_send_request(esp);
 	}
 }

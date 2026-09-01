@@ -877,12 +877,6 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         len -= 4;
 
         if (!ets->data) {
-
-            if (tlslen > EAP_TLS_MAX_LEN) {
-                error("EAP-TLS: TLS message length > %d, truncated", EAP_TLS_MAX_LEN);
-                tlslen = EAP_TLS_MAX_LEN;
-            }
-
             /*
              * Allocate memory for the whole message
             */
@@ -1061,14 +1055,7 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     BCOPY(ets->data + ets->offset, *outp, size);
     INCPTR(size, *outp);
 
-    /*
-     * Copy the packet into retransmission buffer 
-     */
-    BCOPY(start, &ets->rtx[0], *outp - start);
-    ets->rtx_len = *outp - start;
-
     ets->offset += size;
-
     if (ets->offset >= ets->datalen) {
 
         /*
@@ -1082,15 +1069,6 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     }
 
     return 0;
-}
-
-/*
- * Get the sent packet from the retransmission buffer
- */
-void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp)
-{
-    BCOPY(ets->rtx, *outp, ets->rtx_len);
-    INCPTR(ets->rtx_len, *outp);
 }
 
 /*
