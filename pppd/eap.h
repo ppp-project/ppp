@@ -100,6 +100,8 @@ enum eap_state_code {
 	eapTlsRecvFailure,	/* Receive EAP failure */
 	eapMD5Chall,	/* Sent MD5-Challenge */
 	eapMSCHAPv2Chall,	/* Sent MSCHAPv2-Challenge */
+	eapMSCHAPv2Success,	/* Send MSCHAPv2-Success */
+	eapMSCHAPv2Failure,	/* Send MSCHAPv2-Failure */
 	eapOpen,	/* Completed authentication */
 	eapBadAuth	/* Failed authentication */
 };
@@ -108,14 +110,15 @@ enum eap_state_code {
 	"Initial", "Pending", "Closed", "Listen", "AuthRecv", "Identify", \
 	"TlsStart", "TlsRecv", "TlsSendAck", "TlsSend", "TlsRecvAck", "TlsRecvClient",\
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
-	"MD5Chall", "MSCHAPv2Chall", "Open", "BadAuth"
+	"MD5Chall", "MSCHAPv2Chall", "MSCHAPv2Success", "MSCHAPv2Failure", \
+	"Open", "BadAuth"
 
 #define eap_client_active(esp)	((esp)->es_client.ea_state > eapClosed &&\
 				 (esp)->es_client.ea_state < eapOpen)
 
 #define	eap_server_active(esp)	\
 	((esp)->es_server.ea_state >= eapIdentify && \
-	 (esp)->es_server.ea_state <= eapMSCHAPv2Chall)
+	 (esp)->es_server.ea_state <= eapMSCHAPv2Failure)
 
 struct eap_auth {
 	char *ea_name;		/* Our name */
@@ -131,12 +134,11 @@ struct eap_auth {
 	enum eap_state_code ea_state;
 #ifdef PPP_WITH_CHAPMS
         struct chap_digest_type *digest;
+	unsigned char ea_chapid;
 #endif
 	short ea_id;		/* Current id */
 	unsigned char ea_requests;	/* Number of Requests sent/received */
 	unsigned char ea_responses;	/* Number of Responses */
-	unsigned char ea_type;		/* One of EAPT_* */
-	uint32_t ea_keyflags;	/* SRP shared key usage flags */
 #ifdef PPP_WITH_EAPTLS
 	bool ea_using_eaptls;
 #endif
@@ -159,6 +161,8 @@ typedef struct eap_state {
 	int es_usedpseudo;		/* Set if we already sent PN */
 	int es_challen;			/* Length of challenge string */
 	unsigned char es_challenge[MAX_CHALLENGE_LENGTH];
+	unsigned char es_chapid;	/* ID of MSCHAPv2 challenge request */
+	char es_response_msg[80];
 } eap_state;
 
 /*
