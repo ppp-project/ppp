@@ -261,7 +261,7 @@ static int eaptls_UI_reader(UI *ui, UI_STRING *uis) {
  * for client or server use can be loaded.
  */
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *privkeyfile, char *pkcs12)
+			 char *certfile, char *privkeyfile, char *pkcs12, bool verify)
 {
 #ifdef OPENSSL_ENGINE
     char        *cert_engine_name = NULL;
@@ -598,7 +598,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     tls_set_version(ctx, max_tls_version);
 
     /* Configure the callback */
-    if (tls_set_verify(ctx, 5)) {
+    if (verify && tls_set_verify(ctx, 5)) {
         goto fail;
     }
 
@@ -681,7 +681,8 @@ int eaptls_init_ssl_server(eap_state * esp)
 
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, pkfile, pkcs12);
+    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, pkfile, pkcs12,
+			       esp->es_server.ea_authtype == EAPT_TLS);
     if (!ets->ctx)
         goto fail;
 
@@ -700,7 +701,8 @@ int eaptls_init_ssl_server(eap_state * esp)
     if (!(ets->ssl = SSL_new(ets->ctx)))
         goto fail;
 
-    if (tls_set_verify_info(ets->ssl, esp->es_server.ea_peer,
+    if (esp->es_server.ea_authtype == EAPT_TLS &&
+	tls_set_verify_info(ets->ssl, esp->es_server.ea_peer,
             clicertfile, 0, &ets->info))
         goto fail;
 
@@ -769,7 +771,7 @@ int eaptls_init_ssl_client(eap_state * esp)
     }
 
     dbglog( "calling eaptls_init_ssl" );
-    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12);
+    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12, true);
     if (!ets->ctx)
         goto fail;
 
@@ -873,6 +875,7 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
     u_int tlslen = 0;
     static u_char tdata[PPP_MRU];
     int res;
+    unsigned long err;
 
     if (len < 1) {
         warn("EAP-TLS: received no or invalid data");
@@ -969,38 +972,49 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
         ets->data = NULL;
         ets->datalen = 0;
 
+	if (!ets->handshake_done) {
+	    res = SSL_do_handshake(ets->ssl);
+	    if (res > 0) {
+		dbglog("TLS handshake done");
+		ets->handshake_done = true;
+	    } else {
+		err = SSL_get_error(ets->ssl, res);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
+		    error("TLS handshake error %lx, %s", err, ERR_error_string(err, NULL));
+		    return 1;
+		}
+	    }
+	}
+
 	/*
 	 * For EAP-TLS, this gives us the 0x00 byte for the protected
 	 * success indication with TLS 1.3.  For PEAP, this gives
 	 * us the phase 2 PEAP packets sent through the tunnel.
-	 * It also serves to advance the TLS negotiation process.
 	 */
-        res = SSL_read(ets->ssl, tdata, sizeof(tdata));
-	if (!ets->handshake_done && SSL_is_init_finished(ets->ssl)) {
-	    ets->handshake_done = true;
-	    if (eap->ea_authtype == EAPT_PEAP)
-		peap_phase2_start(esp, code);
-	}
-
-	if (res > 0) {
-	    dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
-		   res, MIN(res, 20), tdata);
-	    switch (eap->ea_authtype) {
-	    case EAPT_TLS:
-		if (tdata[0] == 0 && !ets->sbyte_rcvd) {
-		    dbglog("EAP-TLS received protected success indication");
-		    ets->sbyte_rcvd = true;
+	if (ets->handshake_done) {
+	    res = SSL_read(ets->ssl, tdata, sizeof(tdata));
+	    dbglog("SSL_read returned %d", res);
+	    if (res > 0) {
+		dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
+		       res, MIN(res, 20), tdata);
+		switch (eap->ea_authtype) {
+		case EAPT_TLS:
+		    if (tdata[0] == 0 && !ets->sbyte_rcvd) {
+			dbglog("EAP-TLS received protected success indication");
+			ets->sbyte_rcvd = true;
+		    }
+		    break;
+		case EAPT_PEAP:
+		    peap_phase2_receive(esp, code, id, tdata, res);
+		    ppp_explicit_bzero(tdata, res);
+		    break;
 		}
-		break;
-	    case EAPT_PEAP:
-		peap_phase2_receive(esp, code, id, tdata, res);
-		ppp_explicit_bzero(tdata, res);
-		break;
+	    } else {
+		err = SSL_get_error(ets->ssl, res);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE)
+		    error("EAP: SSL read error: %lx, %s (%m)", err, ERR_error_string(err, NULL));
 	    }
-	} else if (res < 0) {
-	    res = SSL_get_error(ets->ssl, res);
-	    if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
-		error("EAP: SSL read error: %s", ERR_error_string(res, NULL));
+
 	}
 
     }
@@ -1014,7 +1028,7 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
  * At each call we control if there is buffered data and send a 
  * packet of mtu bytes.
  */
-int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
+int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char ** outp)
 {
     bool first = 0;
     int size;
@@ -1061,7 +1075,7 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     } else
         ets->frag = 0;
 
-    PUTCHAR(EAPT_TLS, *outp);
+    PUTCHAR(authtype, *outp);
 
     /*
      * Set right flags and length if necessary 

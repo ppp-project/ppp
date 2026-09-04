@@ -596,6 +596,10 @@ set_eap_type(char **argv)
     else if (strcmp(type, "tls") == 0)
 	eap_type = EAPT_TLS;
 #endif
+#ifdef PPP_WITH_PEAP
+    else if (strcmp(type, "peap") == 0)
+	eap_type = EAPT_PEAP;
+#endif
     else {
 	ppp_option_error("unknown EAP type in eap-type option");
 	return 0;

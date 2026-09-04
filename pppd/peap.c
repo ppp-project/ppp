@@ -63,6 +63,7 @@
 
 #include "pppd-private.h"
 #include "eap.h"
+#include "eap-tls.h"
 #include "tls.h"
 #include "chap.h"
 #include "chap_ms.h"
@@ -666,19 +667,144 @@ void peap_receive_outer_tlv(eap_state *esp, int code, int id, u_char *inp, int l
 {
 }
 
-/* Phase 2 is starting */
-void peap_phase2_start(eap_state *esp, int code)
+eap_state peap_inner_eap;
+
+/* Phase 2 is starting. code is from the outer PEAP packet. */
+void peap_phase2_start_server(eap_state *esp)
 {
+	eap_state *eip = &peap_inner_eap;
+
+	dbglog("peap_phase2_start");
+	eip->outer_eap = esp;
+	eip->es_server.ea_id = (u_char)(drand48() * 0x100);
+	/* timeouts are left at zero; the outer PEAP makes a reliable transport */
+#ifdef PPP_WITH_CHAPMS
+	eip->es_client.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+	eip->es_server.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+#endif
+	eip->es_server.ea_state = eapPending;
+	eip->es_server.ea_session = esp->es_server.ea_session;
+	eip->es_server.ea_name = esp->es_server.ea_name;
+	eip->es_server.ea_namelen = esp->es_server.ea_namelen;
+
+	eap_send_request(eip);
 }
 
-/* Receive PEAP phase 2 decrypted data */
+/*
+ * Receive PEAP phase 2 decrypted data.
+ * code and id are from the outer PEAP packet.
+ * inp[0..len-1] is the decrypted inner packet.
+ */
 void peap_phase2_receive(eap_state *esp, int code, int id, u_char *inp, int len)
 {
+	eap_state *eip = &peap_inner_eap;
+	int type, comp;
+	int iid, ilen, itype, ivend, ivtype;
+	u_char *p;
+	static u_char dbuf[1504];
+	u_char *outp = dbuf;
+
+	dbglog("peap_phase2_receive code=%d id=%d len=%d inp=<%.*B>",
+	       code, id, len, MIN(len, 16), inp);
+	MAKEHEADER(outp, PPP_EAP);
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	PUTSHORT(len + EAP_HEADERLEN, outp);
+	if (len > 0)
+		BCOPY(inp, outp, len);
+	dump_packet("inner recv", dbuf, len + EAP_HEADERLEN + PPP_HDRLEN);
+
+	if (!eap_server_active(eip)) {
+		warn("PEAP/inner: dropping packet when not active (state=%d)",
+		     eip->es_server.ea_state);
+		return;
+	}
+
+	if (len < 1) {
+		dbglog("PEAP/inner: dropping short packet (len=%d)", len);
+		return;
+	}
+	type = *inp;
+
+	/*
+	 * The EAP packet could be "compressed", meaning that
+	 * its EAP code, id and len fields are omitted.
+	 * Only EAP TLV Extensions method (type = 33), capabilities
+	 * negotiation method (type = 254, vendor/vtype = 311/34) and
+	 * SoH EAP Extensions method (type = 254, vendor/vtype = 311/33)
+	 * packets are NOT compressed (and they are never compressed).
+	 */
+	comp = 1;
+	if (len >= 9 && type == code) {
+		p = inp + 1;
+		GETCHAR(iid, p);
+		GETSHORT(ilen, p);
+		GETCHAR(itype, p);
+		if (type == code && ilen <= len) {
+			if (itype == EAPT_EXPANDED && len >= 13 &&
+			    p[0] == 0 && p[1] == 1 && p[2] == 0x37) {
+				INCPTR(3, p);
+				GETLONG(ivtype, p);
+				if (ivtype == 33 || ivtype == 34) {
+					/* use inner values */
+					id = iid;
+					len = ilen;
+					type = ivtype + 1000;
+					dbglog("rcv expanded MS type=%d", ivtype);
+				}
+			} else if (itype == EAPT_TLV_EXT) {
+				/* use inner values */
+				id = iid;
+				len = ilen;
+				type = itype;
+				dbglog("rcv tlv ext");
+			}
+		}
+	}
+	switch(code) {
+	case EAP_RESPONSE:
+		peap_inner_response(eip, id, inp, len);
+		break;
+	default:
+		error("PEAP/inner: received unknown code %d, ignoring", code);
+	}
 }
 
-/* Send PEAP phase 2 data to SSL */
-void peap_phase2_send(eap_state *esp, bool is_server)
+/*
+ * Send PEAP phase 2 data to SSL.
+ * This is data from the generic EAP implementation,
+ * which always gets "compressed" by leaving off the EAP header.
+ */
+void peap_phase2_send(eap_state *esp, int code, int id, u_char *data, int datalen)
 {
+	struct eaptls_session *ets = esp->es_server.ea_session;
+	int res;
+	size_t written;
+	static u_char dbuf[1504];
+	u_char *outp = dbuf;
+
+	dbglog("peap_phase2_send code=%d id=%d len=%d data=<%.*B>",
+	       code, id, datalen, MIN(datalen, 32), data);
+	MAKEHEADER(outp, PPP_EAP);
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	PUTSHORT(datalen + EAP_HEADERLEN, outp);
+	if (datalen > 0)
+		BCOPY(data, outp, datalen);
+	dump_packet("inner sent", dbuf, datalen + EAP_HEADERLEN + PPP_HDRLEN);
+
+	if (datalen <= 0) {
+		error("PEAP/inner: can't send zero-length packet");
+		return;
+	}
+	written = SSL_write(ets->ssl, data, datalen);
+	if (written <= 0) {
+		res = SSL_get_error(ets->ssl, 0);
+		if (res == SSL_ERROR_WANT_READ || res == SSL_ERROR_WANT_WRITE)
+			error("PEAP-server failed to write all data (len=%d)", datalen);
+		else
+			error("PEAP-server write error: %s", ERR_error_string(res, NULL));
+	}
 }
 
 #else

@@ -71,6 +71,8 @@ extern "C" {
 #define	EAPT_3COM		24	/* EAP-3Com Wireless */
 #define	EAPT_PEAP		25	/* Protected EAP */
 #define	EAPT_MSCHAPV2		26	/* EAP-MSCHAPv2 RFC-draft-kamath-pppext-eap-mschapv2-02 */
+#define EAPT_TLV_EXT		33	/* TLV extension EAP type */
+#define EAPT_EXPANDED		254	/* Expanded types, followed by vendor/vtype */
 
 /* OpCodes for MSCHAPv2 */
 #define CHAP_CHALLENGE		1
@@ -144,6 +146,9 @@ struct eap_auth {
 	unsigned char ea_responses;	/* Number of Responses */
 #ifdef PPP_WITH_EAPTLS
 	bool ea_using_eaptls;
+	bool ea_tunnel_active;
+	bool ea_inner_done;
+	bool ea_inner_fail;
 #endif
 	int ea_rexlen;		/* Length of last packet transmitted */
 	char *ea_rexmit;	/* Content of last packet transmitted */
@@ -163,6 +168,7 @@ typedef struct eap_state {
 	unsigned char es_challenge[MAX_CHALLENGE_LENGTH];
 	unsigned char es_chapid;	/* ID of MSCHAPv2 challenge request */
 	char es_response_msg[80];
+	struct eap_state *outer_eap;	/* for PEAP inner instance, points to outer */
 } eap_state;
 
 /*
@@ -182,6 +188,9 @@ extern eap_state eap_states[];
 
 void eap_authwithpeer (int unit, char *localname);
 void eap_authpeer (int unit, char *localname);
+void eap_send_request(eap_state *esp);
+
+void peap_inner_response(eap_state *esp, int id, u_char *data, int datalen);
 
 extern struct protent eap_protent;
 

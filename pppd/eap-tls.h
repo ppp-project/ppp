@@ -71,7 +71,7 @@ struct eaptls_session
 
 
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *privkeyfile, char *pkcs12);
+			 char *certfile, char *privkeyfile, char *pkcs12, bool verify);
 int eaptls_init_ssl_server(eap_state * esp);
 int eaptls_init_ssl_client(eap_state * esp);
 void eaptls_free_session(struct eaptls_session *ets);
@@ -79,7 +79,7 @@ void eaptls_free_session(struct eaptls_session *ets);
 int eaptls_is_init_finished(struct eaptls_session *ets);
 
 int eaptls_receive(eap_state *esp, int code, int id, u_char *inp, int len);
-int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp);
+int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char ** outp);
 void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp);
 
 int get_eaptls_secret(int unit, char *client, char *server,
