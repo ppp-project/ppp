@@ -53,8 +53,13 @@ lookup_realm(char const *user,
     int line = 0;
     
     auths = (SERVER *) malloc(sizeof(SERVER));
-    auths->max = 0;
     accts = (SERVER *) malloc(sizeof(SERVER));
+    if (auths == NULL || accts == NULL) {
+	free(auths);
+	free(accts);
+	novm("RADIUS realm server lists");
+    }
+    auths->max = 0;
     accts->max = 0;
     
     realm = strrchr(user, '@');
