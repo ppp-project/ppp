@@ -1173,6 +1173,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				eaptls_gen_mppe_keys(ets, 1);
 #endif
 				eaptls_free_session(ets);
+				esp->es_client.ea_session = NULL;
 				eap_tls_sendack(esp, id);
 				esp->es_client.ea_state = eapTlsRecvSuccess;
 				break;
@@ -1443,24 +1444,24 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 		case eapTlsRecvClient:
 			/* Receive authentication response from client */
-			if (len > 0) {
-				GETCHAR(flags, inp);
-
-				if(len == 1 && !flags) {	/* Ack = ok */
-#ifdef PPP_WITH_MPPE
-					eaptls_gen_mppe_keys( esp->es_server.ea_session, 0 );
-#endif
-					eap_send_success(esp);
-				}
-				else {			/* failure */
-					warn("Server authentication failed");
-					eap_send_failure(esp);
-				}
-			}
-			else
+			if (len <= 0) {
 				warn("Bogus EAP-TLS packet received from client");
+				break;
+			}
+			GETCHAR(flags, inp);
+			if(len == 1 && !flags) {	/* Ack = ok */
+#ifdef PPP_WITH_MPPE
+				eaptls_gen_mppe_keys( esp->es_server.ea_session, 0 );
+#endif
+				eap_send_success(esp);
+				esp->es_server.ea_state = eapOpen;
+			} else {			/* failure */
+				warn("EAP-TLS Server authentication failed");
+				eap_send_failure(esp);
+			}
 
 			eaptls_free_session(esp->es_server.ea_session);
+			esp->es_server.ea_session = NULL;
 
 			break;
 
