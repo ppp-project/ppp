@@ -219,6 +219,7 @@ extern char *current_option;    /* the name of the option being parsed */
 extern int  privileged_option;  /* set iff the current option came from root */
 extern char *option_source;     /* string saying where the option came from */
 extern int  option_priority;    /* priority of current options */
+extern bool strict_script_checks; /* Whether to enforce strict checking on scripts */
 
 #ifdef PPP_WITH_IPV6CP
 extern char	path_ipv6up[]; /* pathname of ipv6-up script */
@@ -310,11 +311,11 @@ void detach(void);	/* Detach from controlling tty */
 void die(int);		/* Cleanup and exit */
 void quit(void);		/* like die(1) */
 
-void record_child(int, char *, void (*) (void *), void *, int);
+void record_child(int, const char *, void (*) (void *), void *, int);
 int  device_script(char *cmd, int in, int out, int dont_wait);
 				/* Run `cmd' with given stdin and stdout */
-pid_t run_program(char *prog, char * const * args, int must_exist,
-		  void (*done)(void *), void *arg, int wait);
+pid_t run_program(const char *prog, char * const * args, int must_exist,
+		  void (*done)(void *), void *arg, int wait, const char * name);
 				/* Run program prog with args in child */
 void reopen_log(void);	/* (re)open the connection to syslog */
 void print_link_stats(void); /* Print stats, if available */

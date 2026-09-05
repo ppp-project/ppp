@@ -134,6 +134,7 @@ char	req_ifname[IFNAMSIZ];	/* requested interface name */
 char	req_vrf[IFNAMSIZ];	/* VRF name to bind with PPP interface */
 #endif
 bool	multilink = 0;		/* Enable multilink operation */
+bool	strict_script_checks = 0; /* Whether strict script checks are enabled. */
 char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
 bool	show_options;		/* print all supported options and exit */
@@ -416,6 +417,11 @@ struct option general_options[] = {
       "Set direction for limit traffic (sum,in,out,max)" },
     { "mo-timeout", o_int, &maxoctets_timeout,
       "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
+
+    { "strict-script-checks", o_bool, &strict_script_checks,
+      "Enforce strict script TOCTAU checks.", OPT_PRIO | 1 },
+    { "nostrict-script-checks", o_bool, &strict_script_checks,
+      "disables strict script TOCTAU checks.", OPT_PRIV|OPT_PRIO | 0 },
 
     /* Dummy option, does nothing */
     { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
