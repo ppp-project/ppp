@@ -100,6 +100,7 @@ enum eap_state_code {
 	eapTlsRecvAlertAck,	/* Receive EAP-TLS ack after sending alert */
 	eapTlsRecvSuccess,	/* Receive EAP success */
 	eapTlsRecvFailure,	/* Receive EAP failure */
+	eapPeap2SentResult,	/* PEAP phase 2 result sent */
 	eapMD5Chall,	/* Sent MD5-Challenge */
 	eapMSCHAPv2Chall,	/* Sent MSCHAPv2-Challenge */
 	eapMSCHAPv2Success,	/* Send MSCHAPv2-Success */
@@ -112,6 +113,7 @@ enum eap_state_code {
 	"Initial", "Pending", "Closed", "Listen", "AuthRecv", "Identify", \
 	"TlsStart", "TlsRecv", "TlsSendAck", "TlsSend", "TlsRecvAck", "TlsRecvClient",\
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
+	"PEAP2SentResult", \
 	"MD5Chall", "MSCHAPv2Chall", "MSCHAPv2Success", "MSCHAPv2Failure", \
 	"Open", "BadAuth"
 

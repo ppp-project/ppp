@@ -80,7 +80,9 @@
 #define	EAP_TLS_KEY_LEN			0x40
 #define	TLS_RECORD_MAX_SIZE		0x4000
 
-#define EAPT_TLV_EXT			33	/* TLV extension EAP type */
+/* TLV types */
+#define TLV_RESULT_TYPE		0x8003
+#define TLV_CRYPTOBINDING_TYPE	0x000c
 
 struct peap_state;
 
@@ -111,6 +113,10 @@ void peap_phase2_receive(eap_state *esp, int code, int id,
 			 u_char *inp, int len);
 
 /* Send PEAP phase 2 data to SSL */
-void peap_phase2_send(eap_state *esp, int code, int id, u_char *data, int datalen);
+void peap_phase2_send(eap_state *esp, int code, int id, u_char *data,
+		      int datalen, bool compressed);
+
+/* Send a success or failure Result TLV to the peer */
+void peap_phase2_send_result(eap_state *esp, int code, bool success);
 
 #endif /* PPP_PEAP_H */

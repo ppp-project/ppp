@@ -242,7 +242,7 @@ void eap_output(eap_state *esp, int code, int id, u_char *data, int datalen, boo
 			 */
 			eap->ea_id = id = esp->outer_eap->es_server.ea_id;
 		}
-		peap_phase2_send(esp, code, id, data, datalen);
+		peap_phase2_send(esp, code, id, data, datalen, true);
 		return;
 	}
 #endif
@@ -273,13 +273,13 @@ eap_send_failure(eap_state *esp)
 {
 	esp->es_server.ea_state = eapBadAuth;
 
+#ifdef PPP_WITH_PEAP
 	if (esp->outer_eap) {
-		/* no inner message to peer; outer EAP will now fail */
-		dbglog("Inner EAP send failure");
-		esp->outer_eap->es_server.ea_inner_done = true;
-		esp->outer_eap->es_server.ea_inner_fail = true;
+		/* send Result-TLV to peer via inner EAP-TLV-Extensions method */
+		peap_phase2_send_result(esp, EAP_REQUEST, false);
 		return;
 	}
+#endif
 
 	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	eap_output(esp, EAP_FAILURE, esp->es_server.ea_id, NULL, 0, false);
@@ -296,12 +296,13 @@ eap_send_success(eap_state *esp)
 {
 	esp->es_server.ea_state = eapOpen;
 
+#ifdef PPP_WITH_PEAP
 	if (esp->outer_eap) {
-		/* no inner message to peer; outer EAP will now succeed */
-		dbglog("Inner EAP send success");
-		esp->outer_eap->es_server.ea_inner_done = true;
+		/* send Result-TLV to peer via inner EAP-TLV-Extensions method */
+		peap_phase2_send_result(esp, EAP_REQUEST, true);
 		return;
 	}
+#endif
 
 	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	eap_output(esp, EAP_SUCCESS, esp->es_server.ea_id, NULL, 0, false);
