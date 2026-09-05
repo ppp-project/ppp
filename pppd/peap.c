@@ -707,7 +707,18 @@ void peap_phase2_start_server(eap_state *esp)
 /* received EAP capabilities negotiation method */
 static void peap_receive_cap_neg(eap_state *esp, int code, int id, u_char *inp, int len)
 {
-	dbglog("peap_receive_cap_neg");
+	int caps;
+
+	if (esp->es_server.ea_state != eapPeap2SendCaps) {
+		warn("PEAP/inner: dropping unexpected capabilities message");
+		return;
+	}
+	GETLONG(caps, inp);
+	/* Not much we can do if they don't support fragmentation? */
+
+	/* Inner EAP can only be MS-CHAPv2 for now */
+	eap_figure_next_state(esp, 0);
+	eap_send_request(esp);
 }
 
 /* receive EAP TLV extensions method packet */
@@ -836,8 +847,8 @@ void peap_phase2_receive(eap_state *esp, int code, int id, u_char *inp, int len)
 			INCPTR(3, p);
 			GETLONG(ivtype, p);
 			switch (ivtype) {
-			case 34:
-				peap_receive_cap_neg(eip, code, iid, p, ilen - 5);
+			case EAP_VTYPE_MS_CAPS:
+				peap_receive_cap_neg(eip, code, iid, p, ilen - 12);
 				break;
 			default:
 				error("PEAP phase 2 received unknown MS vendor method 0x%x",
@@ -917,6 +928,28 @@ void peap_phase2_send(eap_state *esp, int code, int id, u_char *data, int datale
 		else
 			error("PEAP-server write error: %s", ERR_error_string(res, NULL));
 	}
+}
+
+/*
+ * Send an EAP Capabilities Negotiation Method packet to the peer
+ */
+void peap_phase2_send_capabilities(eap_state *esp, int code)
+{
+	u_char *outp = outpacket_buf;
+	int id, len;
+
+	/* Capabilities Negotiation method is never compressed */
+	esp->es_server.ea_id = id = (esp->outer_eap->es_server.ea_id + 1) & 0xff;
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	PUTSHORT(16, outp);	/* length */
+	PUTCHAR(EAPT_EXPANDED, outp);
+	PUTCHAR(0, outp);
+	PUTSHORT(EAP_VENDOR_MS, outp);
+	PUTLONG(EAP_VTYPE_MS_CAPS, outp);
+	PUTLONG(1, outp);	/* capabilities = 1, phase 2 fragmentation allowed */
+
+	peap_phase2_send(esp, code, id, outpacket_buf, 16, false);
 }
 
 /*

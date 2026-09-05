@@ -116,6 +116,9 @@ void peap_phase2_receive(eap_state *esp, int code, int id,
 void peap_phase2_send(eap_state *esp, int code, int id, u_char *data,
 		      int datalen, bool compressed);
 
+/* Send a capabilities method packet */
+void peap_phase2_send_capabilities(eap_state *esp, int code);
+
 /* Send a success or failure Result TLV to the peer */
 void peap_phase2_send_result(eap_state *esp, int code, bool success);
 

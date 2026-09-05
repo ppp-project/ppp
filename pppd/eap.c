@@ -317,7 +317,7 @@ eap_send_success(eap_state *esp)
  * indicates if there was an error in handling the last query.  It is
  * 0 for success and non-zero for failure.
  */
-static void
+void
 eap_figure_next_state(eap_state *esp, int status)
 {
 	struct eaptls_session *ets;
@@ -337,10 +337,10 @@ eap_figure_next_state(eap_state *esp, int status)
 			break;
 		}
 #ifdef PPP_WITH_PEAP
-		/* Inner EAP is always MS-CHAPv2 */
+		/* Inner EAP does capabilities exchange after identity */
 		if (esp->outer_eap != NULL) {
-			esp->es_server.ea_state = eapMSCHAPv2Chall;
-			esp->es_server.ea_authtype = EAPT_MSCHAPV2;
+			esp->es_server.ea_state = eapPeap2SendCaps;
+			
 			break;
 		}
 #endif /* PPP_WITH_PEAP */
@@ -359,6 +359,12 @@ eap_figure_next_state(eap_state *esp, int status)
 			esp->es_server.ea_state = eapMD5Chall;
 			esp->es_server.ea_authtype = EAPT_MD5CHAP;
 		}
+		break;
+
+	case eapPeap2SendCaps:
+		/* Inner EAP can only be MS-CHAPv2 for now */
+		esp->es_server.ea_state = eapMSCHAPv2Chall;
+		esp->es_server.ea_authtype = EAPT_MSCHAPV2;
 		break;
 
 #ifdef PPP_WITH_EAPTLS
@@ -619,6 +625,10 @@ void eap_send_request(eap_state *esp)
 		eap_figure_next_state(esp, 0);
 		break;
 #endif /* PPP_WITH_EAPTLS */
+
+	case eapPeap2SendCaps:
+		peap_phase2_send_capabilities(esp, EAP_REQUEST);
+		return;
 
 	default:
 		return;
@@ -1539,6 +1549,11 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 		if (esp->es_server.ea_state == eapIdentify){
 			/* Peer cannot Nak Identity Request */
 			eap_figure_next_state(esp, 1);
+			break;
+		}
+		if (esp->es_server.ea_state == eapPeap2SendCaps) {
+			/* peer doesn't want to send its capabilities */
+			eap_figure_next_state(esp, 0);
 			break;
 		}
 

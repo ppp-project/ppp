@@ -74,6 +74,12 @@ extern "C" {
 #define EAPT_TLV_EXT		33	/* TLV extension EAP type */
 #define EAPT_EXPANDED		254	/* Expanded types, followed by vendor/vtype */
 
+/* Vendor codes */
+#define	EAP_VENDOR_MS		311
+
+/* Vendor-specific expanded type codes */
+#define EAP_VTYPE_MS_CAPS	34
+
 /* OpCodes for MSCHAPv2 */
 #define CHAP_CHALLENGE		1
 #define CHAP_RESPONSE		2
@@ -100,6 +106,7 @@ enum eap_state_code {
 	eapTlsRecvAlertAck,	/* Receive EAP-TLS ack after sending alert */
 	eapTlsRecvSuccess,	/* Receive EAP success */
 	eapTlsRecvFailure,	/* Receive EAP failure */
+	eapPeap2SendCaps,	/* PEAP phase 2 capabilities sent */
 	eapPeap2SentResult,	/* PEAP phase 2 result sent */
 	eapMD5Chall,	/* Sent MD5-Challenge */
 	eapMSCHAPv2Chall,	/* Sent MSCHAPv2-Challenge */
@@ -113,7 +120,7 @@ enum eap_state_code {
 	"Initial", "Pending", "Closed", "Listen", "AuthRecv", "Identify", \
 	"TlsStart", "TlsRecv", "TlsSendAck", "TlsSend", "TlsRecvAck", "TlsRecvClient",\
 	"TlsSendAlert", "TlsRecvAlertAck" , "TlsRecvSuccess", "TlsRecvFailure", \
-	"PEAP2SentResult", \
+	"PEAP2SendCaps", "PEAP2SentResult", \
 	"MD5Chall", "MSCHAPv2Chall", "MSCHAPv2Success", "MSCHAPv2Failure", \
 	"Open", "BadAuth"
 
@@ -191,6 +198,7 @@ extern eap_state eap_states[];
 void eap_authwithpeer (int unit, char *localname);
 void eap_authpeer (int unit, char *localname);
 void eap_send_request(eap_state *esp);
+void eap_figure_next_state(eap_state *esp, int status);
 
 void peap_inner_response(eap_state *esp, int id, u_char *data, int datalen);
 
