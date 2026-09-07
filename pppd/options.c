@@ -423,6 +423,11 @@ struct option general_options[] = {
     { "nostrict-script-checks", o_bool, &strict_script_checks,
       "disables strict script TOCTAU checks.", OPT_PRIV|OPT_PRIO | 0 },
 
+    { "strict-secrets-files", o_bool, &strict_secrets_files,
+      "Enforce strict read checks on secrets files.", OPT_PRIO | 1 },
+    { "nostrict-secrets-files", o_bool, &strict_secrets_files,
+      "Disabled strict read checks on secrets files.", OPT_PRIV|OPT_PRIO | 0 },
+
     /* Dummy option, does nothing */
     { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
 
@@ -1716,7 +1721,7 @@ callfile(char **argv)
 	free(fname);
 	return 0;
     }
-    if (!ppp_check_access(fileno(f), fname, 0)) {
+    if (!ppp_check_access(fileno(f), fname, PPP_FT_DEFAULT)) {
 	free(fname);
 	fclose(f);
 	return 0;

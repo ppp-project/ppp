@@ -305,7 +305,6 @@ static int  setupapfile (char **);
 static int  privgroup (char **);
 static int  set_noauth_addr (char **);
 static int  set_permitted_number (char **);
-static void check_access (int, const char *);
 static int  wordlist_count (struct wordlist *);
 static void check_maxoctets (void *);
 
@@ -537,7 +536,11 @@ setupapfile(char **argv)
         free(fname);
 	return 0;
     }
-    check_access(fileno(ufile), fname);
+    if (!ppp_check_access(fileno(ufile), fname, PPP_FT_SECRET)) {
+	fclose(ufile);
+	free(fname);
+	return 0;
+    }
     uafname = fname;
 
     /* get username */
@@ -1551,12 +1554,11 @@ check_passwd(int unit,
     } else {
 	int fd = fileno(f);
 
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
 	    ppp_explicit_bzero(passwd, sizeof(passwd));
 	    return UPAP_AUTHNAK;
 	}
-	check_access(fd, filename);
 	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename) < 0) {
 	    warn("no PAP secret found for %s", user);
 	} else {
@@ -1657,11 +1659,10 @@ null_login(int unit)
 	if (f == NULL)
 	    return 0;
 	fd = fileno(f);
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
 	    return 0;
 	}
-	check_access(fd, filename);
 
 	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
 	ret = i >= 0 && secret[0] == 0;
@@ -1707,7 +1708,10 @@ get_pap_passwd(char *passwd)
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
-    check_access(fileno(f), filename);
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
+	fclose(f);
+	return 0;
+    }
     ret = scan_authfile(f, user,
 			(remote_name[0]? remote_name: NULL),
 			secret, NULL, NULL, filename);
@@ -1745,7 +1749,7 @@ have_pap_secret(int *lacks_ipp)
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -1791,7 +1795,7 @@ have_chap_secret(char *client, char *server,
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -1853,11 +1857,10 @@ get_secret(int unit, char *client, char *server,
 	}
 
 	fd = fileno(f);
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
 	    return 0;
 	}
-	check_access(fd, filename);
 
 	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename);
 	fclose(f);
@@ -2134,23 +2137,6 @@ auth_number(void)
 }
 
 /*
- * check_access - complain if a secret file has too-liberal permissions.
- */
-static void
-check_access(int fd, const char *filename)
-{
-    struct stat sbuf;
-
-    if (fstat(fd, &sbuf) < 0) {
-	warn("cannot stat secret file %s: %m", filename);
-    } else if ((sbuf.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
-	warn("Warning - secret file %s has world and/or group access",
-	     filename);
-    }
-}
-
-
-/*
  * scan_authfile - Scan an authorization file for a secret suitable
  * for authenticating `client' on `server'.  The return value is -1
  * if no secret is found, otherwise >= 0.  The return value has
@@ -2246,11 +2232,10 @@ scan_authfile(FILE *f, char *client, char *server,
 		    continue;
 		}
 		fd = fileno(sf);
-		if (!ppp_check_access(fd, atfile, 0)) {
+		if (!ppp_check_access(fd, atfile, PPP_FT_SECRET)) {
 		    fclose(sf);
 		    continue;
 		}
-		check_access(fd, atfile);
 		if (!getword(sf, word, &xxx, atfile)) {
 		    warn("no secret in indirect secret file %s", atfile);
 		    fclose(sf);
@@ -2423,7 +2408,7 @@ have_eaptls_secret_server(char *client, char *server,
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -2707,11 +2692,10 @@ get_eaptls_secret(int unit, char *client, char *server,
 		}
 
 		fd = fileno(fp);
-		if (!ppp_check_access(fd, filename, 0)) {
+		if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 			fclose(fp);
 			return 0;
 		}
-		check_access(fd, filename);
 
 		ret = scan_authfile_eaptls(fp, client, server, clicertfile, servcertfile,
 				cacertfile, pkfile, &addrs, &opts, filename);

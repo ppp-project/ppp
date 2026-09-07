@@ -912,6 +912,9 @@ Don't send our local IP address to peer during IP address negotiation.
 .B nostrict\-script\-checks
 Disabled strict\-script\-checks.  This option is privileged.
 .TP
+.B nostrict\-secrets\-files
+Disabled strict\-secrets\-files.  This option is privileged.
+.TP
 .B notty
 Normally, pppd requires a terminal device.  With this option, pppd
 will allocate itself a pseudo-tty master/slave pair and use the slave
@@ -1156,6 +1159,11 @@ perform the relevant checks on the file we are guaranteed to exec to, with the
 caveat that if these are scripts with shebangs (#!) then $0 (argv[0]) will be
 lost - your scripts should either know who/what they are - or rely on
 PPP_SCRIPT_INSTANCE environment variable.
+.TP
+.B strict\-secrets\-files
+This option (which is on be default) will refuse to operate using secrets files
+that are group or world readable.  This option is not privileged, but it's
+inverse (nostrict\-secrets\-files) is.
 .TP
 .B sync
 Use synchronous HDLC serial encoding instead of asynchronous.

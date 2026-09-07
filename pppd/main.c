@@ -1947,7 +1947,7 @@ run_program(const char *prog, char * const *args, int must_exist, void (*done)(v
 	    error("Can't access %s: %m", prog);
 	return 0;
     }
-    if (!ppp_check_access(fd, prog, 1)) {
+    if (!ppp_check_access(fd, prog, PPP_FT_EXEC)) {
 	close(fd);
 	return 0;
     }
