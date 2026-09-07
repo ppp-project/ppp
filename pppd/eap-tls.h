@@ -82,6 +82,9 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char *inp, int len);
 int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char ** outp);
 void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp);
 
+void eaptls_get_tunnel_key(struct eaptls_session *ets, void *out, size_t outlen,
+			   int authtype);
+
 int get_eaptls_secret(int unit, char *client, char *server,
               char *clicertfile, char *servcertfile, char *cacertfile,
               char *capath, char *pkfile, char *pkcs12, int am_server);

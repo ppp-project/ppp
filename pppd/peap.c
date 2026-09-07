@@ -361,12 +361,9 @@ static void peap_receive_tlv_ext(eap_state *esp, int code, int id, u_char *inp, 
 			crypto_status = 1;
 
 			/* psm->tk should be set already for server */
-			if (!is_server) {
-				struct eaptls_session *ets = esp->es_client.ea_session;
-				SSL_export_keying_material(ets->ssl, psm->tk, PEAP_TLV_TK_LEN,
-						PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL),
-						NULL, 0, 0);
-			}
+			if (!is_server)
+				eaptls_get_tunnel_key(esp->es_client.ea_session, psm->tk, PEAP_TLV_TK_LEN,
+						      EAPT_PEAP);
 
 			/* inp is pointing to the peer's nonce */
 			generate_cmk(psm->ipmk, psm->tk, inp, result_tlv, is_server, is_server);
@@ -593,7 +590,6 @@ void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
 	eap_state *eop = esp->outer_eap;
 	struct eap_auth *eoa;
 	struct peap_state *psm;
-	struct eaptls_session *ets;
 
 	if (code == EAP_REQUEST) {
 		is_server = 1;
@@ -603,7 +599,6 @@ void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
 		eoa = &eop->es_client;
 	}
 	psm = eoa->ea_peap;
-	ets = eoa->ea_session;
 
 	outp = outpacket_buf;
 
@@ -622,9 +617,7 @@ void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
 	if (success) {
 		/* Cryptobinding TLV */
 		if (is_server)
-			SSL_export_keying_material(ets->ssl, psm->tk, PEAP_TLV_TK_LEN,
-					PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL),
-					NULL, 0, 0);
+			eaptls_get_tunnel_key(eoa->ea_session, psm->tk, PEAP_TLV_TK_LEN, EAPT_PEAP);
 		/* create nonce */
 		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
 		generate_cmk(psm->ipmk, psm->tk, psm->nonce, outp, !is_server, is_server);

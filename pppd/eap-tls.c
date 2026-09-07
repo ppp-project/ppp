@@ -94,51 +94,55 @@ int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
  */
 void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
 {
-    unsigned char  out[4*EAPTLS_MPPE_KEY_LEN];
-    const char    *prf_label;
-    size_t         prf_size;
-    unsigned char  eap_tls13_context[] = { EAPT_TLS };
-    unsigned char *context = NULL;
-    size_t         context_len = 0;
-    unsigned char *p;
+    u_char key[2 * EAPTLS_MPPE_KEY_LEN];
 
     dbglog("EAP-TLS generating MPPE keys");
-    if (ets->tls_v13)
-    {
-        prf_label = "EXPORTER_EAP_TLS_Key_Material";
-        context   = eap_tls13_context;
-        context_len = 1;
-    }
-    else
-    {
-        prf_label = "client EAP encryption";
-    }
+    eaptls_get_tunnel_key(ets, key, sizeof(key), EAPT_TLS);
 
-    dbglog("EAP-TLS PRF label = %s", prf_label);
-    prf_size = strlen(prf_label);
-    if (SSL_export_keying_material(ets->ssl, out, sizeof(out), prf_label, prf_size, 
-                                   context, context_len, ets->tls_v13) != 1)
-    {
-        warn( "EAP-TLS: Failed generating keying material" );
-        return;
-    }   
-
-    /* 
+    /*
      * We now have the master send and receive keys.
      * From these, generate the session send and receive keys.
      * (see RFC3079 / draft-ietf-pppext-mppe-keys-03.txt for details)
      */
     if (client)
-    {
-        mppe_set_keys(out, out + EAPTLS_MPPE_KEY_LEN, EAPTLS_MPPE_KEY_LEN);
-    }
+        mppe_set_keys(key, key + EAPTLS_MPPE_KEY_LEN, EAPTLS_MPPE_KEY_LEN);
     else
-    {
-        mppe_set_keys(out + EAPTLS_MPPE_KEY_LEN, out, EAPTLS_MPPE_KEY_LEN);
-    }
+        mppe_set_keys(key + EAPTLS_MPPE_KEY_LEN, key, EAPTLS_MPPE_KEY_LEN);
 }
-
 #endif /* PPP_WITH_MPPE */
+
+void eaptls_get_tunnel_key(struct eaptls_session *ets, void *buf, size_t buflen, int authtype)
+{
+    unsigned char  out[128];
+    const char    *prf_label;
+    size_t         prf_size;
+    unsigned char  eap_tls13_context = authtype;
+    unsigned char *context = NULL;
+    size_t         context_len = 0;
+    size_t	   len;
+
+    BZERO(buf, buflen);
+
+    if (ets->tls_v13) {
+        prf_label = "EXPORTER_EAP_TLS_Key_Material";
+        context = &eap_tls13_context;
+        context_len = 1;
+	len = sizeof(out);
+    } else {
+        prf_label = "client EAP encryption";
+	len = MIN(buflen, sizeof(out));
+    }
+
+    dbglog("EAP-TLS PRF label = %s", prf_label);
+    prf_size = strlen(prf_label);
+    if (SSL_export_keying_material(ets->ssl, out, len, prf_label, prf_size,
+                                   context, context_len, ets->tls_v13) != 1) {
+        warn( "EAP-TLS: Failed generating keying material" );
+        return;
+    }
+
+    BCOPY(out, buf, MIN(buflen, sizeof(out)));
+}
 
 int password_callback (char *buf, int size, int rwflag, void *u)
 {

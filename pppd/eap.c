@@ -1439,6 +1439,18 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				else
 					ets->sbyte_sent = true;
 			}
+#ifdef PPP_WITH_PEAP
+			/*
+			 * PEAP with TLS v1.3 can start sending inner requests at this point
+			 * if handshaking is complete.
+			 */
+			if (esp->es_server.ea_state == eapTlsSend && ets->handshake_done &&
+			    esp->es_server.ea_authtype == EAPT_PEAP && ets->tls_v13 &&
+			    !esp->es_server.ea_tunnel_active) {
+				peap_phase2_start_server(esp);
+				esp->es_server.ea_tunnel_active = true;
+			}
+#endif
 
 			if (esp->es_server.ea_inner_done) {
 				/* PEAP inner auth has finished */
@@ -1475,7 +1487,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 				eap_send_success(esp);
 				eaptls_free_session(esp->es_server.ea_session);
 				esp->es_server.ea_session = NULL;
-			} else {
+			} else if (!esp->es_server.ea_tunnel_active) {
 #ifdef PPP_WITH_PEAP
 				/* PEAP proceeds to phase 2 */
 				peap_phase2_start_server(esp);
