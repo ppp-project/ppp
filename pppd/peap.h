@@ -107,6 +107,7 @@ void peap_receive_outer_tlv(eap_state *esp, int code, int id,
 
 /* Called when PEAP phase 2 starts */
 void peap_phase2_start_server(eap_state *esp);
+void peap_phase2_start_client(eap_state *esp);
 
 /* Receive PEAP phase 2 decrypted data */
 void peap_phase2_receive(eap_state *esp, int code, int id,
@@ -117,9 +118,9 @@ void peap_phase2_send(eap_state *esp, int code, int id, u_char *data,
 		      int datalen, bool compressed);
 
 /* Send a capabilities method packet */
-void peap_phase2_send_capabilities(eap_state *esp, int code);
+void peap_phase2_send_capabilities(eap_state *esp, int code, int id);
 
 /* Send a success or failure Result TLV to the peer */
-void peap_phase2_send_result(eap_state *esp, int code, bool success);
+void peap_phase2_send_result(eap_state *esp, int code, int id, bool success);
 
 #endif /* PPP_PEAP_H */

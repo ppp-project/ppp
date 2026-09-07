@@ -626,6 +626,47 @@ fail:
 }
 
 /*
+ * Initialize the SSL stack for a PEAP client.
+ */
+SSL_CTX *peap_init_ssl_client(void)
+{
+    SSL_CTX     *ctx;
+
+    tls_init();
+
+    ctx = SSL_CTX_new(tls_method());
+    if (!ctx) {
+        error("EAP-TLS: Cannot initialize SSL CTX context");
+        goto fail;
+    }
+
+    if (tls_set_ca(ctx, ca_path, cacert_file) != 0)
+        goto fail;
+
+    /* Configure the default options */
+    tls_set_opts(ctx);
+
+    /* Configure the maximum SSL version */
+    tls_set_version(ctx, max_tls_version);
+
+    /* Configure the callback */
+    if (tls_set_verify(ctx, 5))
+        goto fail;
+
+    /* Configure CRL check (if any) */
+    if (tls_set_crl(ctx, crl_dir, crl_file))
+        goto fail;
+
+    return ctx;
+
+fail:
+
+    tls_log_sslerr();
+    SSL_CTX_free(ctx);
+    return NULL;
+}
+
+/*
  * Determine the maximum amount of TLS data in a packet
  */
 
@@ -750,21 +791,26 @@ int eaptls_init_ssl_client(eap_state * esp)
      */
     esp->es_client.ea_session = malloc(sizeof(struct eaptls_session));
     if (!esp->es_client.ea_session)
-        fatal("Allocation error");
+        novm("EAP TLS session");
     ets = esp->es_client.ea_session;
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    dbglog( "calling get_eaptls_secret" );
-    if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
-                   esp->es_client.ea_peer, clicertfile,
-                   servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
-        error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
-                esp->es_client.ea_name, esp->es_client.ea_peer);
-        return 0;
-    }
+    if (esp->es_client.ea_authtype == EAPT_TLS) {
+	dbglog( "calling get_eaptls_secret" );
+	if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
+			       esp->es_client.ea_peer, clicertfile,
+			       servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
+	    error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
+		   esp->es_client.ea_name, esp->es_client.ea_peer);
+	    return 0;
+	}
 
-    dbglog( "calling eaptls_init_ssl" );
-    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12, true);
+	dbglog( "calling eaptls_init_ssl" );
+	ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12, true);
+    } else {
+	ets->ctx = peap_init_ssl_client();
+	servcertfile[0] = 0;
+    }
     if (!ets->ctx)
         goto fail;
 
@@ -979,6 +1025,12 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
 	    }
 	}
 
+	if (ets->handshake_done && eap->ea_authtype == EAPT_PEAP &&
+	    code == EAP_REQUEST && !eap->ea_tunnel_active) {
+	    peap_phase2_start_client(esp);
+	    eap->ea_tunnel_active = true;
+	}
+
 	/*
 	 * For EAP-TLS, this gives us the 0x00 byte for the protected
 	 * success indication with TLS 1.3.  For PEAP, this gives
@@ -1026,6 +1078,7 @@ int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char
     bool first = 0;
     int size;
     int res;
+    int flags = 0;
     u_char *start;
 
     start = *outp;
@@ -1037,8 +1090,10 @@ int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char
          */
 	res = BIO_pending(ets->from_ssl);
 	if (res <= 0) {
-            warn("EAP-TLS send: No data available");
-            return 1;
+	    /* This can happen with PEAP; just send an ack */
+	    PUTCHAR(authtype, *outp);
+	    PUTCHAR(0, *outp);
+            return 0;
         }
 
         ets->datalen = res;
@@ -1063,26 +1118,35 @@ int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char
     size = ets->datalen - ets->offset;
 
     /* 2 = type byte and flags byte */
+    ets->frag = 0;
     if (size + EAP_HEADERLEN + 2 > ets->mtu) {
+	flags = EAP_TLS_FLAGS_MF;
         size = ets->mtu - EAP_HEADERLEN - 2;
-	if (first)
+	if (first) {
 	    size -= 4;	/* account for length field */
+	    flags |= EAP_TLS_FLAGS_LI;
+	}
         ets->frag = 1;
-    } else
-        ets->frag = 0;
+    } else if (first && authtype == EAPT_PEAP && !ets->handshake_done) {
+	/*
+	 * PEAP phase 1 packets seem to need to have the L flag set
+	 * even if they're not fragmented, or at least the first packet
+	 * sent does, presumably so the peer knows there are no outer
+	 * TLVs.  If we don't do this we get cryptobinding failures with
+	 * windows servers.
+	 */
+	flags = EAP_TLS_FLAGS_LI;
+	if (size + EAP_HEADERLEN + 6 > ets->mtu) {
+	    flags = EAP_TLS_FLAGS_MF;
+	    size = ets->mtu - EAP_HEADERLEN - 6;
+	    ets->frag = 1;
+	}
+    }
 
     PUTCHAR(authtype, *outp);
-
-    /*
-     * Set right flags and length if necessary 
-     */
-    if (ets->frag && first) {
-        PUTCHAR(EAP_TLS_FLAGS_LI | EAP_TLS_FLAGS_MF, *outp);
+    PUTCHAR(flags, *outp);
+    if (flags & EAP_TLS_FLAGS_LI)
         PUTLONG(ets->datalen, *outp);
-    } else if (ets->frag) {
-        PUTCHAR(EAP_TLS_FLAGS_MF, *outp);
-    } else
-        PUTCHAR(0, *outp);
 
     /*
      * Copy the data in outp 

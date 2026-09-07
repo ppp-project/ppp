@@ -154,7 +154,7 @@ struct eap_auth {
 	unsigned char ea_requests;	/* Number of Requests sent/received */
 	unsigned char ea_responses;	/* Number of Responses */
 #ifdef PPP_WITH_EAPTLS
-	bool ea_using_eaptls;
+	bool ea_using_eaptls;	/* Set if using EAP-TLS or PEAP */
 	bool ea_tunnel_active;
 	bool ea_inner_done;
 	bool ea_inner_fail;
@@ -200,7 +200,8 @@ void eap_authpeer (int unit, char *localname);
 void eap_send_request(eap_state *esp);
 void eap_figure_next_state(eap_state *esp, int status);
 
-void peap_inner_response(eap_state *esp, int id, u_char *data, int datalen);
+void eap_request(eap_state *esp, u_char *inp, int id, int len);
+void eap_response(eap_state *esp, u_char *inp, int id, int len);
 
 extern struct protent eap_protent;
 
