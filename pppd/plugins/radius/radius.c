@@ -183,10 +183,18 @@ plugin_init(void)
 static int
 add_avp(char **argv)
 {
-    struct avpopt *p = malloc(sizeof(struct avpopt));
+    struct avpopt *p = malloc(sizeof(*p));
+
+    if (p == NULL) {
+	novm("RADIUS avpair option");
+    }
 
     /* Append to a list of vp's for later parsing */
     p->vpstr = strdup(*argv);
+    if (p->vpstr == NULL) {
+	free(p);
+	novm("RADIUS avpair option value");
+    }
     p->next = avpopt;
     avpopt = p;
 
