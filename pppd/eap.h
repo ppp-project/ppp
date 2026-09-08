@@ -143,13 +143,9 @@ struct eap_auth {
 	unsigned short ea_namelen;	/* Length of our name */
 	unsigned short ea_peerlen;	/* Length of peer's name */
 	enum eap_state_code ea_state;
-#ifdef PPP_WITH_CHAPMS
+	int ea_rexlen;		/* Length of last packet transmitted */
+	char *ea_rexmit;	/* Content of last packet transmitted */
         struct chap_digest_type *digest;
-	unsigned char ea_chapid;
-#endif
-#ifdef PPP_WITH_PEAP
-	struct peap_state *ea_peap;	/* PEAP state data */
-#endif
 	short ea_id;		/* Current id */
 	unsigned char ea_requests;	/* Number of Requests sent/received */
 	unsigned char ea_responses;	/* Number of Responses */
@@ -159,8 +155,6 @@ struct eap_auth {
 	bool ea_inner_done;
 	bool ea_inner_fail;
 #endif
-	int ea_rexlen;		/* Length of last packet transmitted */
-	char *ea_rexmit;	/* Content of last packet transmitted */
 };
 
 /*
@@ -170,14 +164,15 @@ typedef struct eap_state {
 	int es_unit;			/* Interface unit number */
 	struct eap_auth es_client;	/* Client (authenticatee) data */
 	struct eap_auth es_server;	/* Server (authenticator) data */
+	struct eap_state *outer_eap;	/* for PEAP inner instance, points to outer */
 	int es_savedtime;		/* Saved timeout */
 	int es_rechallenge;		/* EAP rechallenge interval */
-	int es_usedpseudo;		/* Set if we already sent PN */
 	int es_challen;			/* Length of challenge string */
+#ifdef PPP_WITH_CHAPMS
 	unsigned char es_challenge[MAX_CHALLENGE_LENGTH];
 	unsigned char es_chapid;	/* ID of MSCHAPv2 challenge request */
 	char es_response_msg[80];
-	struct eap_state *outer_eap;	/* for PEAP inner instance, points to outer */
+#endif
 } eap_state;
 
 /*

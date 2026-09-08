@@ -45,6 +45,14 @@
  *
  * For details on the PEAP protocol, look to Microsoft:
  *    https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-peap
+ *
+ * Note that although PEAP can be used in either direction,
+ * using it in both directions at once won't work properly because
+ * of the way the MPPE keys are used in the cryptobinding process.
+ * The same holds if PEAP is used in one direction and MS-CHAPv2
+ * or EAP-MSCHAPv2 in the other.  Note that MS-CHAPv2 does mutual
+ * authentication, and it is the only inner EAP type supported so
+ * far, so there is no real point to using PEAP in both directions.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -55,6 +63,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
 #include <openssl/opensslv.h>
 #include <openssl/ssl.h>
 #include <openssl/hmac.h>
@@ -75,13 +84,6 @@
 #define novm(x)
 #endif
 
-struct peap_state {
-	u_char ipmk[PEAP_TLV_IPMK_LEN];
-	u_char tk[PEAP_TLV_TK_LEN];
-	u_char nonce[PEAP_TLV_NONCE_LEN];
-	struct chap_digest_type *chap;
-};
-
 /*
  * K = Key, S = Seed, LEN = output length
  * PRF+(K, S, LEN) = T1 | T2 | ... |Tn
@@ -93,7 +95,8 @@ struct peap_state {
  * As shown, PRF+ is computed in iterations. The number of iterations (n)
  * depends on the output length (LEN).
  */
-static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_len, u_char *out_buf, size_t pfr_len)
+static void peap_prfplus(const u_char *seed, size_t seed_len, const u_char *key, size_t key_len,
+			 u_char *out_buf, size_t pfr_len)
 {
 	int pos;
 	u_char *buf, *hash;
@@ -133,27 +136,36 @@ static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_
 	free(buf);
 }
 
-static void generate_cmk(u_char *ipmk, u_char *tempkey, u_char *nonce, u_char *tlv_response_out,
-			 int client, int swap_isk)
-{
-	const char *label = PEAP_TLV_IPMK_SEED_LABEL;
-	u_char data_tlv[PEAP_TLV_DATA_LEN] = {0};
-	u_char isk[PEAP_TLV_ISK_LEN] = {0};
-	u_char ipmkseed[PEAP_TLV_IPMKSEED_LEN] = {0};
-	u_char cmk[PEAP_TLV_CMK_LEN] = {0};
-	u_char buf[PEAP_TLV_CMK_LEN + PEAP_TLV_IPMK_LEN] = {0};
-	u_char compound_mac[PEAP_TLV_COMP_MAC_LEN] = {0};
-	u_int len;
+/*
+ * Generate cryptobinding TLV structure.
+ * Primarily this involves computing the compound MAC field,
+ * which is a HMAC-SHA1-160 function of a block of data and a key.
+ * The data is the TLV with the compound MAC field set to zero
+ * plus one byte which contains EAPT_PEAP.
+ * The key is computed using the PRF+ algorithm from the first 40
+ * bytes of the tunnel key (obtained from TLS) and the intermediate
+ * PEAP MAC key seed (IPMK seed).  That generates 60 bytes of which
+ * the first 40 are the IPMK and the last 20 are the compound MAC
+ * key (CMK).  The IPMK is used later for generating MPPE keys.
+ * The IPMK seed is the concatenation of the string "Inner Methods
+ * Compound Keys" with an Inner Session Key (ISK) which is basically
+ * the MPPE keys computed by the inner authentication method.
+ */
+#define	PEAP_CB_TK_LEN			60	/* length of tunnel key used in cryptobinding */
+#define	PEAP_CB_ISK_LEN			32	/* length of inner session key ditto */
+#define	PEAP_CB_NONCE_LEN		32	/* length of random nonce */
+#define	PEAP_CB_IPMK_LEN		40	/* length of intermediate PEAP MAC key */
+#define	PEAP_CB_TEMPKEY_LEN		40	/* length of key used to generate IPMK and CMK */
+#define	PEAP_CB_CMK_LEN			20	/* length of compound MAC key */
+#define	PEAP_CB_IPMKSEED_LABEL		"Inner Methods Compound Keys"
+#define	PEAP_CB_IPMKSEED_LEN		59	/* = strlen(IPMKseed) + ISK_LEN */
 
-	/* format outgoing CB TLV response packet */
-	data_tlv[1] = PEAP_TLV_TYPE;
-	data_tlv[3] = PEAP_TLV_LENGTH_FIELD;
-	if (client)
-		data_tlv[7] = PEAP_TLV_SUBTYPE_RESPONSE;
-	else
-		data_tlv[7] = PEAP_TLV_SUBTYPE_REQUEST;
-	BCOPY(nonce, (data_tlv + PEAP_TLV_HEADERLEN), PEAP_TLV_NONCE_LEN);
-	data_tlv[60] = EAPT_PEAP;
+static void generate_cmk(u_char *ipmk, u_char *cmk, const u_char *tempkey, int swap_isk)
+{
+	const char *label = PEAP_CB_IPMKSEED_LABEL;
+	u_char isk[PEAP_CB_ISK_LEN] = {0};
+	u_char ipmkseed[PEAP_CB_IPMKSEED_LEN] = {0};
+	u_char buf[PEAP_CB_CMK_LEN + PEAP_CB_IPMK_LEN] = {0};
 
 #ifdef PPP_WITH_MPPE
 	if (!swap_isk) {
@@ -166,32 +178,50 @@ static void generate_cmk(u_char *ipmk, u_char *tempkey, u_char *nonce, u_char *t
 #endif
 
 	BCOPY(label, ipmkseed, strlen(label));
-	BCOPY(isk, ipmkseed + strlen(label), PEAP_TLV_ISK_LEN);
-	peap_prfplus(ipmkseed, PEAP_TLV_IPMKSEED_LEN,
-			tempkey, PEAP_TLV_TEMPKEY_LEN, buf, PEAP_TLV_CMK_LEN + PEAP_TLV_IPMK_LEN);
+	BCOPY(isk, ipmkseed + strlen(label), PEAP_CB_ISK_LEN);
+	peap_prfplus(ipmkseed, PEAP_CB_IPMKSEED_LEN,
+			tempkey, PEAP_CB_TEMPKEY_LEN, buf, PEAP_CB_CMK_LEN + PEAP_CB_IPMK_LEN);
 
-	BCOPY(buf, ipmk, PEAP_TLV_IPMK_LEN);
-	BCOPY(buf + PEAP_TLV_IPMK_LEN, cmk, PEAP_TLV_CMK_LEN);
-	if (!HMAC(EVP_sha1(), cmk, PEAP_TLV_CMK_LEN, data_tlv, PEAP_TLV_DATA_LEN, compound_mac, &len))
+	BCOPY(buf, ipmk, PEAP_CB_IPMK_LEN);
+	BCOPY(buf + PEAP_CB_IPMK_LEN, cmk, PEAP_CB_CMK_LEN);
+}
+
+static void generate_cb_tlv(u_char *tlv_out, const u_char *cmk, const u_char *nonce,
+			    int subtype)
+{
+	u_char data_tlv[TLV_CB_TLV_LEN + 1] = {0};
+	u_char compound_mac[TLV_CB_COMP_MAC_LEN] = {0};
+	u_int len;
+
+	/* format outgoing CB TLV response packet */
+	data_tlv[1] = TLV_CRYPTOBINDING_TYPE;
+	data_tlv[3] = TLV_CRYPTOBINDING_LEN;
+	data_tlv[TLV_CB_SUBTYPE_OFF] = subtype;
+	BCOPY(nonce, data_tlv + TLV_CB_NONCE_OFF, PEAP_CB_NONCE_LEN);
+	data_tlv[TLV_CB_TLV_LEN] = EAPT_PEAP;
+
+	if (!HMAC(EVP_sha1(), cmk, PEAP_CB_CMK_LEN, data_tlv, TLV_CB_TLV_LEN + 1,
+		  compound_mac, &len))
 		fatal("HMAC() failed");
-	BCOPY(compound_mac, data_tlv + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN, PEAP_TLV_COMP_MAC_LEN);
-	/* do not copy last byte to response packet */
-	BCOPY(data_tlv, tlv_response_out, PEAP_TLV_DATA_LEN - 1);
+	BCOPY(compound_mac, data_tlv + TLV_CB_COMP_MAC_OFF, TLV_CB_COMP_MAC_LEN);
+	BCOPY(data_tlv, tlv_out, TLV_CB_TLV_LEN);
 }
 
 #ifdef PPP_WITH_MPPE
-#define PEAP_MPPE_KEY_LEN 32
+#define PEAP_MPPE_KEY_LEN 		32
+#define	PEAP_CB_CSK_LEN			128
+#define	PEAP_CB_CSK_SEED_LABEL		"Session Key Generating Function"
 
 static void generate_mppe_keys(u_char *ipmk, int client)
 {
-	const char *label = PEAP_TLV_CSK_SEED_LABEL;
-	u_char csk[PEAP_TLV_CSK_LEN] = {0};
+	const char *label = PEAP_CB_CSK_SEED_LABEL;
+	u_char csk[PEAP_CB_CSK_LEN] = {0};
 	size_t len;
 
 	dbglog("PEAP CB: generate mppe keys");
 	len = strlen(label);
 	len++; /* CSK requires NULL byte in seed */
-	peap_prfplus((u_char *)label, len, ipmk, PEAP_TLV_IPMK_LEN, csk, PEAP_TLV_CSK_LEN);
+	peap_prfplus((u_char *)label, len, ipmk, PEAP_CB_IPMK_LEN, csk, PEAP_CB_CSK_LEN);
 
 	/*
 	 * The first 64 bytes of the CSK are split into two MPPE keys, as follows.
@@ -213,12 +243,24 @@ static void generate_mppe_keys(u_char *ipmk, int client)
 
 #ifndef UNIT_TEST
 
-/* Receive an outer TLV */
+/*
+ * Receive an outer TLV.
+ * Microsoft PEAP client/server never exchange
+ * outer TLVs during PEAP authentication
+ * and neither do we.
+ */
 void peap_receive_outer_tlv(eap_state *esp, int code, int id, u_char *inp, int len)
 {
 }
 
 eap_state peap_inner_eap;
+
+struct peap_state {
+	u_char ipmk[PEAP_CB_IPMK_LEN];
+	u_char cmk[PEAP_CB_CMK_LEN];
+};
+
+static struct peap_state server_peap, client_peap;
 
 bool cryptobinding_reqd = true;
 
@@ -226,7 +268,6 @@ bool cryptobinding_reqd = true;
 void peap_phase2_start_server(eap_state *esp)
 {
 	eap_state *eip = &peap_inner_eap;
-	struct peap_state *psm;
 
 	eip->outer_eap = esp;
 	eip->es_server.ea_id = (u_char)(drand48() * 0x100);
@@ -239,12 +280,6 @@ void peap_phase2_start_server(eap_state *esp)
 	eip->es_server.ea_name = esp->es_server.ea_name;
 	eip->es_server.ea_namelen = esp->es_server.ea_namelen;
 
-	/* Allocate a peap_state so we can use the crypto fields */
-	esp->es_server.ea_peap = psm = malloc(sizeof(*psm));
-	if (psm == NULL)
-		novm("peap server psm struct");
-	BZERO(psm, sizeof(*psm));
-
 	eap_send_request(eip);
 }
 
@@ -252,7 +287,6 @@ void peap_phase2_start_server(eap_state *esp)
 void peap_phase2_start_client(eap_state *esp)
 {
 	eap_state *eip = &peap_inner_eap;
-	struct peap_state *psm;
 
 	dbglog("peap_phase2_start_client");
 	eip->outer_eap = esp;
@@ -265,20 +299,6 @@ void peap_phase2_start_client(eap_state *esp)
 	eip->es_client.ea_name = esp->es_client.ea_name;
 	eip->es_client.ea_namelen = esp->es_client.ea_namelen;
 	eip->es_client.ea_state = eapListen;
-
-	/* Allocate a peap_state so we can use the crypto fields */
-	esp->es_client.ea_peap = psm = malloc(sizeof(*psm));
-	if (psm == NULL)
-		novm("peap client psm struct");
-	BZERO(psm, sizeof(*psm));
-}
-
-void peap_finish(struct peap_state **psm)
-{
-	if (psm && *psm) {
-		free(*psm);
-		*psm = NULL;
-	}
 }
 
 /* received EAP capabilities negotiation method */
@@ -319,10 +339,12 @@ static void peap_receive_tlv_ext(eap_state *esp, int code, int id, u_char *inp, 
 	int crypto_status = -1;
 	u_char *next_tlv;
 	int is_server = 0;
+	int subtype;
 	eap_state *eop = esp->outer_eap;
 	struct eap_auth *eoa;
 	struct peap_state *psm;
-	u_char result_tlv[60];
+	u_char result_tlv[TLV_CB_TLV_LEN];
+	u_char cmk[PEAP_CB_CMK_LEN];
 
 	if (code == EAP_RESPONSE) {
 		is_server = 1;
@@ -331,10 +353,13 @@ static void peap_receive_tlv_ext(eap_state *esp, int code, int id, u_char *inp, 
 			warn("PEAP-server phase 2 dropping unexpected TLV extensions packet");
 			return;
 		}
+		psm = &server_peap;
+		subtype = TLV_CB_SUBTYPE_RESPONSE;
 	} else {
 		eoa = &eop->es_client;
+		psm = &client_peap;
+		subtype = TLV_CB_SUBTYPE_REQUEST;
 	}
-	psm = eoa->ea_peap;
 	while (len >= 4) {
 		GETSHORT(ttype, inp);
 		GETSHORT(tlen, inp);
@@ -346,29 +371,32 @@ static void peap_receive_tlv_ext(eap_state *esp, int code, int id, u_char *inp, 
 		}
 		next_tlv = inp + tlen;
 		len -= tlen;
-		if (ttype == TLV_RESULT_TYPE && tlen == 2) {
+		if (ttype == TLV_RESULT_TYPE && tlen == TLV_RESULT_LEN) {
 			GETSHORT(status, inp);
 			/* 1 = success, 2 = failure */
 			if (status != 1 && status != 2)
 				error("PEAP: bad status value %d in result TLV", status);
-		} else if (ttype == TLV_CRYPTOBINDING_TYPE && tlen == 56) {
+		} else if (ttype == TLV_CRYPTOBINDING_TYPE && tlen == TLV_CRYPTOBINDING_LEN) {
 			/* check subtype */
-			if (inp[3] != code - 1) {
+			if (inp[3] != subtype) {
 				error("PEAP: cryptobinding TLV subtype doesn't match (%d)",
 				      inp[3]);
 			}
 			INCPTR(4, inp);
 			crypto_status = 1;
 
-			/* psm->tk should be set already for server */
-			if (!is_server)
-				eaptls_get_tunnel_key(esp->es_client.ea_session, psm->tk, PEAP_TLV_TK_LEN,
+			/* if server, psm->cmk should be set already */
+			if (!is_server) {
+				u_char tk[PEAP_CB_TK_LEN];
+				eaptls_get_tunnel_key(eoa->ea_session, tk, PEAP_CB_TK_LEN,
 						      EAPT_PEAP);
+				generate_cmk(psm->ipmk, psm->cmk, tk, 0);
+			}
 
 			/* inp is pointing to the peer's nonce */
-			generate_cmk(psm->ipmk, psm->tk, inp, result_tlv, is_server, is_server);
-			if (memcmp(inp + PEAP_TLV_NONCE_LEN, result_tlv + 8 + PEAP_TLV_NONCE_LEN,
-				   PEAP_TLV_COMP_MAC_LEN) != 0)
+			generate_cb_tlv(result_tlv, psm->cmk, inp, subtype);
+			if (memcmp(inp + PEAP_CB_NONCE_LEN, result_tlv + TLV_CB_COMP_MAC_OFF,
+				   TLV_CB_COMP_MAC_LEN) != 0)
 				crypto_status = 2;
 		} else {
 			warn("PEAP: TLV extensions method with unknown TLV 0x%x len %d",
@@ -587,18 +615,23 @@ void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
 	u_char *outp, *lenp;
 	int len;
 	int is_server = 0;
+	int subtype;
 	eap_state *eop = esp->outer_eap;
 	struct eap_auth *eoa;
 	struct peap_state *psm;
+	u_char nonce[PEAP_CB_NONCE_LEN];
 
 	if (code == EAP_REQUEST) {
 		is_server = 1;
 		eoa = &eop->es_server;
+		psm = &server_peap;
 		esp->es_server.ea_id = id = (eoa->ea_id + 1) & 0xff;
+		subtype = TLV_CB_SUBTYPE_REQUEST;
 	} else {
 		eoa = &eop->es_client;
+		psm = &client_peap;
+		subtype = TLV_CB_SUBTYPE_RESPONSE;
 	}
-	psm = eoa->ea_peap;
 
 	outp = outpacket_buf;
 
@@ -616,11 +649,14 @@ void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
 
 	if (success) {
 		/* Cryptobinding TLV */
-		if (is_server)
-			eaptls_get_tunnel_key(eoa->ea_session, psm->tk, PEAP_TLV_TK_LEN, EAPT_PEAP);
+		if (is_server) {
+			u_char tk[PEAP_CB_TK_LEN];
+			eaptls_get_tunnel_key(eoa->ea_session, tk, PEAP_CB_TK_LEN, EAPT_PEAP);
+			generate_cmk(psm->ipmk, psm->cmk, tk, 1);
+		}
 		/* create nonce */
-		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
-		generate_cmk(psm->ipmk, psm->tk, psm->nonce, outp, !is_server, is_server);
+		RAND_bytes(nonce, PEAP_CB_NONCE_LEN);
+		generate_cb_tlv(outp, psm->cmk, nonce, subtype);
 		INCPTR(60, outp);
 	} else
 		eop->es_server.ea_inner_fail = true;
@@ -649,14 +685,14 @@ int unsuccess = 0;
  *	see https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-peap/5308642b-90c9-4cc4-beec-fb367325c0f9
  */
 int test_cmk(u_char *ipmk) {
-	u_char nonce[PEAP_TLV_NONCE_LEN] = {
+	u_char nonce[PEAP_CB_NONCE_LEN] = {
 		0x6C, 0x6B, 0xA3, 0x87, 0x84, 0x23, 0x74, 0x57,
 		0xCC, 0xC9, 0x0B, 0x1A, 0x90, 0x8C, 0xBD, 0xF4,
 		0x71, 0x1B, 0x69, 0x99, 0x4D, 0x0C, 0xFE, 0x8D,
 		0x3D, 0xB4, 0x4E, 0xCB, 0xCD, 0xAD, 0x37, 0xE9
 	};
 
-	u_char tmpkey[PEAP_TLV_TEMPKEY_LEN] = {
+	u_char tmpkey[PEAP_CB_TEMPKEY_LEN] = {
 		0x73, 0x8B, 0xB5, 0xF4, 0x62, 0xD5, 0x8E, 0x7E,
 		0xD8, 0x44, 0xE1, 0xF0, 0x0D, 0x0E, 0xBE, 0x50,
 		0xC5, 0x0A, 0x20, 0x50, 0xDE, 0x11, 0x99, 0x77,
@@ -685,13 +721,16 @@ int test_cmk(u_char *ipmk) {
 		0xFC, 0x71, 0x16, 0x3B, 0xDF, 0xF2, 0xFA, 0x95
 	};
 
+	u_char cmk[PEAP_CB_CMK_LEN];
 	u_char response[60] = {};
 
 	// Set the inner MPPE keys (e.g. from CHAPv2)
 	mppe_set_keys(inner_mppe_keys, inner_mppe_keys + 16, 16);
 
 	// Generate and compare the response
-	generate_cmk(ipmk, tmpkey, nonce, response, 1, 0);
+	generate_cmk(ipmk, cmk, tmpkey, 0);
+	generate_cb_tlv(response, cmk, nonce, TLV_CB_SUBTYPE_RESPONSE);
+
 	if (memcmp(expected, response, sizeof(response)) != 0) {
 		dbglog("Failed CMK key generation\n");
 		dbglog("%.*B", sizeof(response), response);
@@ -751,7 +790,7 @@ int test_mppe(u_char *ipmk) {
 
 int main(int argc, char *argv[])
 {
-	 u_char ipmk[PEAP_TLV_IPMK_LEN] = {
+	 u_char ipmk[PEAP_CB_IPMK_LEN] = {
 		0x3A, 0x91, 0x1C, 0x25, 0x54, 0x73, 0xE8, 0x3E,
 		0x9A, 0x0C, 0xC3, 0x33, 0xAE, 0x1F, 0x8A, 0x35,
 		0xCD, 0xC7, 0x41, 0x63, 0xE7, 0xF6, 0x0F, 0x6C,

@@ -1831,10 +1831,6 @@ eap_success(eap_state *esp, u_char *inp, int id, int len)
 	}
 
 	auth_withpeer_success(esp->es_unit, PPP_EAP, 0);
-
-#ifdef PPP_WITH_PEAP
-	peap_finish(&esp->es_client.ea_peap);
-#endif
 }
 
 /*
@@ -1871,10 +1867,6 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 	/* If the inner EAP fails (when using PEAP), wait for result handshake */
 	if (esp->outer_eap) 
 		return;
-
-#ifdef PPP_WITH_PEAP
-	peap_finish(&esp->es_client.ea_peap);
-#endif
 
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 }
