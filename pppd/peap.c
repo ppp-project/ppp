@@ -288,7 +288,6 @@ void peap_phase2_start_client(eap_state *esp)
 {
 	eap_state *eip = &peap_inner_eap;
 
-	dbglog("peap_phase2_start_client");
 	eip->outer_eap = esp;
 	BZERO(&eip->es_client, sizeof(eip->es_client));
 	/* timeouts are left at zero; the outer PEAP makes a reliable transport */

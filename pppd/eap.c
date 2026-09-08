@@ -703,8 +703,6 @@ eap_server_timeout(void *arg)
 	outp = outpacket_buf;
 	MAKEHEADER(outp, PPP_EAP);
 	BCOPY(esp->es_server.ea_rexmit, outp, esp->es_server.ea_rexlen);
-	dbglog("EAP retransmit req len=%d <%.*B>", esp->es_server.ea_rexlen,
-	       MIN(esp->es_server.ea_rexlen, 32), esp->es_server.ea_rexmit);
 	output(esp->es_unit, outpacket_buf, esp->es_server.ea_rexlen + PPP_HDRLEN);
 
 	if (esp->es_server.ea_timeout > 0)
@@ -840,8 +838,6 @@ eap_retransmit_response(eap_state *esp)
 	outp = outpacket_buf;
 	MAKEHEADER(outp, PPP_EAP);
 	BCOPY(esp->es_client.ea_rexmit, outp, esp->es_client.ea_rexlen);
-	dbglog("EAP retransmit resp len=%d <%.*B>", esp->es_server.ea_rexlen,
-	       MIN(esp->es_server.ea_rexlen, 32), esp->es_server.ea_rexmit);
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + esp->es_client.ea_rexlen);
 }
 

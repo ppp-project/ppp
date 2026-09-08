@@ -133,7 +133,6 @@ void eaptls_get_tunnel_key(struct eaptls_session *ets, void *buf, size_t buflen,
 	len = MIN(buflen, sizeof(out));
     }
 
-    dbglog("EAP-TLS PRF label = %s", prf_label);
     prf_size = strlen(prf_label);
     if (SSL_export_keying_material(ets->ssl, out, len, prf_label, prf_size,
                                    context, context_len, ets->tls_v13) != 1) {
@@ -708,7 +707,6 @@ int eaptls_init_ssl_server(eap_state * esp)
         return 0;
     }
 
-    dbglog( "getting eaptls secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_server.ea_peer,
                    esp->es_server.ea_name, clicertfile,
                    servcertfile, cacertfile, capath, pkfile, pkcs12, 1)) {
@@ -800,7 +798,6 @@ int eaptls_init_ssl_client(eap_state * esp)
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
     if (esp->es_client.ea_authtype == EAPT_TLS) {
-	dbglog( "calling get_eaptls_secret" );
 	if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
 			       esp->es_client.ea_peer, clicertfile,
 			       servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
@@ -809,7 +806,6 @@ int eaptls_init_ssl_client(eap_state * esp)
 	    return 0;
 	}
 
-	dbglog( "calling eaptls_init_ssl" );
 	ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12, true);
     } else {
 	ets->ctx = peap_init_ssl_client();
@@ -829,7 +825,6 @@ int eaptls_init_ssl_client(eap_state * esp)
     /*
      * Initialize the BIOs we use to read/write to ssl engine 
      */
-    dbglog( "Initializing SSL BIOs" );
     ets->into_ssl = BIO_new(BIO_s_mem());
     ets->from_ssl = BIO_new(BIO_s_mem());
     SSL_set_bio(ets->ssl, ets->into_ssl, ets->from_ssl);
@@ -860,7 +855,6 @@ int eaptls_init_ssl_client(eap_state * esp)
     return 1;
 
 fail:
-    dbglog( "eaptls_init_ssl_client: fail" );
     SSL_CTX_free(ets->ctx);
     return 0;
 
@@ -1042,10 +1036,7 @@ int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
 	 */
 	if (ets->handshake_done) {
 	    res = SSL_read(ets->ssl, tdata, sizeof(tdata));
-	    dbglog("SSL_read returned %d", res);
 	    if (res > 0) {
-		dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
-		       res, MIN(res, 20), tdata);
 		switch (eap->ea_authtype) {
 		case EAPT_TLS:
 		    if (tdata[0] == 0 && !ets->sbyte_rcvd) {
