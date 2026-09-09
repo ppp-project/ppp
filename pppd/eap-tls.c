@@ -631,16 +631,9 @@ fail:
 
 int eaptls_get_mtu(int unit)
 {
-    int mtu;
 
-    /*
-     * 10 bytes is the size of the EAP-TLS header including length field:
-     * code, ID, EAP-length (2 bytes), type, flags, TLS-length (4 bytes).
-     */
-    mtu = peer_mru[unit] - 10;
-
-    dbglog("MTU = %d", mtu);
-    return mtu;
+    dbglog("MTU = %d", peer_mru[unit]);
+    return peer_mru[unit];
 }
 
 
@@ -1068,9 +1061,12 @@ int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char
     }
 
     size = ets->datalen - ets->offset;
-    
-    if (size > ets->mtu) {
-        size = ets->mtu;
+
+    /* 2 = type byte and flags byte */
+    if (size + EAP_HEADERLEN + 2 > ets->mtu) {
+        size = ets->mtu - EAP_HEADERLEN - 2;
+	if (first)
+	    size -= 4;	/* account for length field */
         ets->frag = 1;
     } else
         ets->frag = 0;
