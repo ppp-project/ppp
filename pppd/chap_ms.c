@@ -96,6 +96,7 @@
 #include "chap.h"
 #include "chap_ms.h"
 #include "magic.h"
+#include "auth-random.h"
 #include "mppe.h"
 #include "crypto.h"
 #include "crypto_ms.h"
@@ -161,25 +162,29 @@ static struct option chapms_option_list[] = {
 static void
 chapms_generate_challenge(unsigned char *challenge)
 {
-	*challenge++ = 8;
+	*challenge = 0;
 #ifdef DEBUGMPPEKEY
 	if (mschap_challenge && strlen(mschap_challenge) == 8)
-		memcpy(challenge, mschap_challenge, 8);
+		memcpy(challenge + 1, mschap_challenge, 8);
 	else
 #endif
-		random_bytes(challenge, 8);
+		if (!auth_random_bytes(challenge + 1, 8))
+			return;
+	*challenge = 8;
 }
 
 static void
 chapms2_generate_challenge(unsigned char *challenge)
 {
-	*challenge++ = 16;
+	*challenge = 0;
 #ifdef DEBUGMPPEKEY
 	if (mschap_challenge && strlen(mschap_challenge) == 16)
-		memcpy(challenge, mschap_challenge, 16);
+		memcpy(challenge + 1, mschap_challenge, 16);
 	else
 #endif
-		random_bytes(challenge, 16);
+		if (!auth_random_bytes(challenge + 1, 16))
+			return;
+	*challenge = 16;
 }
 
 static int
@@ -246,9 +251,10 @@ chapms2_verify_response(int id, char *name,
 		goto bad;	/* not even the right length */
 
 	/* Generate the expected response and our mutual auth. */
-	ChapMS2(challenge, &response[MS_CHAP2_PEER_CHALLENGE], name,
+	if (!ChapMS2(challenge, &response[MS_CHAP2_PEER_CHALLENGE], name,
 		(char *)secret, secret_len, md,
-		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR);
+		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR))
+		goto bad;
 
 	/* compare MDs and send the appropriate status */
 	/*
@@ -380,6 +386,7 @@ chapms2_make_response(unsigned char *response, int id, char *our_name,
 {
 	const struct chapms2_response_cache_entry *cache_entry;
 	unsigned char auth_response[MS_AUTH_RESPONSE_LENGTH+1];
+	unsigned char *lenp = response;
 
 	challenge++;	/* skip length, should be 16 */
 	*response++ = MS_CHAP2_RESPONSE_LEN;
@@ -388,14 +395,17 @@ chapms2_make_response(unsigned char *response, int id, char *our_name,
 		memcpy(response, cache_entry->response, MS_CHAP2_RESPONSE_LEN);
 		return;
 	}
-	ChapMS2(challenge,
+	if (!ChapMS2(challenge,
 #ifdef DEBUGMPPEKEY
 		mschap2_peer_challenge,
 #else
 		NULL,
 #endif
 		our_name, secret, secret_len, response, auth_response,
-		MS_CHAP2_AUTHENTICATEE);
+		MS_CHAP2_AUTHENTICATEE)) {
+		*lenp = 0;
+		return;
+	}
 	chapms2_add_to_response_cache(id, challenge, response, auth_response);
 }
 
@@ -830,26 +840,28 @@ ChapMS(u_char *rchallenge, char *secret, int secret_len,
  * If PeerChallenge is supplied, it is copied into the PeerChallenge field.
  * Call this way when verifying a response (or debugging).
  * Do not call with PeerChallenge = response.
+ * Returns 0 if generating a Peer-Challenge fails, otherwise 1.
  *
  * The PeerChallenge field of response is then used for calculation of the
  * Authenticator Response.
  */
-void
+int
 ChapMS2(unsigned char *rchallenge, unsigned char *PeerChallenge,
 	char *user, char *secret, int secret_len, unsigned char *response,
 	u_char authResponse[], int authenticator)
 {
     /* ARGSUSED */
     u_char *p = &response[MS_CHAP2_PEER_CHALLENGE];
-    int i;
 
     BZERO(response, MS_CHAP2_RESPONSE_LEN);
 
     /* Generate the Peer-Challenge if requested, or copy it if supplied. */
-    if (!PeerChallenge)
-	for (i = 0; i < MS_CHAP2_PEER_CHAL_LEN; i++)
-	    *p++ = (u_char) (drand48() * 0xff);
-    else
+    if (!PeerChallenge) {
+	if (!auth_random_bytes(p, MS_CHAP2_PEER_CHAL_LEN)) {
+	    BZERO(authResponse, MS_AUTH_RESPONSE_LENGTH + 1);
+	    return 0;
+	}
+    } else
 	BCOPY(PeerChallenge, &response[MS_CHAP2_PEER_CHALLENGE],
 	      MS_CHAP2_PEER_CHAL_LEN);
 
@@ -867,6 +879,7 @@ ChapMS2(unsigned char *rchallenge, unsigned char *PeerChallenge,
     SetMasterKeys(secret, secret_len,
 		  &response[MS_CHAP2_NTRESP], authenticator);
 #endif
+    return 1;
 }
 
 
@@ -904,13 +917,14 @@ int debug = 1;
 int error_count = 0;
 int unsuccess = 0;
 
-void random_bytes(unsigned char *bytes, int len)
+int auth_random_bytes(unsigned char *bytes, int len)
 {
     int i = 0;
     srand(time(NULL));
     while (i < len) {
         bytes[i++] = (unsigned char) rand();
     }
+    return 1;
 }
 
 

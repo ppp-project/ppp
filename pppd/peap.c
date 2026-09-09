@@ -418,12 +418,18 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 			if (get_secret(esp->es_unit, esp->es_client.ea_name,
 						rhostname, secret, &secret_len, 0)) {
 
-				u_char response[MS_CHAP2_RESPONSE_LEN+1];
+				u_char response[MS_CHAP2_RESPONSE_LEN+1] = { 0 };
 				u_char user_len = esp->es_client.ea_namelen;
 				char *user = esp->es_client.ea_name;
 
 				psm->chap->make_response(response, chap_id, user,
 						challenge, secret, secret_len, NULL);
+				ppp_explicit_bzero(secret, secret_len);
+				if (response[0] == 0) {
+					error("PEAP: could not generate MS-CHAPv2 response");
+					*out_len = -1;
+					return;
+				}
 
 				PUTCHAR(EAPT_MSCHAPV2, outp);
 				PUTCHAR(CHAP_RESPONSE, outp);
@@ -647,6 +653,8 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 		out_len = TLS_RECORD_MAX_SIZE;
 		peap_do_inner_eap(psm->in_buf, psm->read, esp, id,
 				psm->out_buf, &out_len);
+		if (out_len < 0)
+			return PEAP_AUTH_FAILED;
 		if (out_len > 0) {
 			psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
 			psm->read = BIO_read(psm->out_bio, psm->out_buf,

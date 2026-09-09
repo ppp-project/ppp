@@ -102,6 +102,7 @@ struct chap_digest_type {
 	/*
 	 * Note: challenge and response arguments below are formatted as
 	 * a length byte followed by the actual challenge/response data.
+	 * Generation callbacks must set the length to zero on failure.
 	 */
 	void (*generate_challenge)(unsigned char *challenge);
 	int (*verify_response)(int id, char *name,

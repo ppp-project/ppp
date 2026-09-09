@@ -121,7 +121,7 @@ static void chap_lowerup(int unit);
 static void chap_lowerdown(int unit);
 static void chap_server_timeout(void *arg);
 static void chap_client_timeout(void *arg);
-static void chap_generate_challenge(struct chap_server_state *ss);
+static int chap_generate_challenge(struct chap_server_state *ss);
 static void chap_handle_response(struct chap_server_state *ss, int code,
 		unsigned char *pkt, int len);
 static chap_verify_hook_fn chap_verify_response;
@@ -271,9 +271,16 @@ chap_server_timeout(void *arg)
 	struct chap_server_state *ss = arg;
 
 	ss->flags &= ~TIMEOUT_PENDING;
+	if (ss->flags & AUTH_FAILED)
+		return;
 	if ((ss->flags & CHALLENGE_VALID) == 0) {
 		ss->challenge_xmits = 0;
-		chap_generate_challenge(ss);
+		if (!chap_generate_challenge(ss)) {
+			error("CHAP: could not generate challenge");
+			ss->flags |= AUTH_DONE | AUTH_FAILED;
+			auth_peer_fail(0, PPP_CHAP);
+			return;
+		}
 		ss->flags |= CHALLENGE_VALID;
 	} else if (ss->challenge_xmits >= chap_max_transmits) {
 		ss->flags &= ~CHALLENGE_VALID;
@@ -304,7 +311,7 @@ chap_client_timeout(void *arg)
  * chap_generate_challenge - generate a challenge string and format
  * the challenge packet in ss->challenge_pkt.
  */
-static void
+static int
 chap_generate_challenge(struct chap_server_state *ss)
 {
 	size_t clen = 1, nlen, len;
@@ -313,8 +320,11 @@ chap_generate_challenge(struct chap_server_state *ss)
 	p = ss->challenge;
 	MAKEHEADER(p, PPP_CHAP);
 	p += CHAP_HDRLEN;
+	*p = 0;
 	ss->digest->generate_challenge(p);
 	clen = *p;
+	if (clen == 0)
+		return 0;
 	nlen = strlen(ss->name);
 	memcpy(p + 1 + clen, ss->name, nlen);
 
@@ -326,6 +336,7 @@ chap_generate_challenge(struct chap_server_state *ss)
 	p[1] = ++ss->id;
 	p[2] = len >> 8;
 	p[3] = len;
+	return 1;
 }
 
 /*
@@ -480,6 +491,8 @@ chap_respond(struct chap_client_state *cs, int id,
 
 	if ((cs->flags & (LOWERUP | AUTH_STARTED)) != (LOWERUP | AUTH_STARTED))
 		return;		/* not ready */
+	if (cs->flags & AUTH_FAILED)
+		return;
 	if (len < 2 || len < pkt[0] + 1)
 		return;		/* too short */
 	clen = pkt[0];
@@ -502,11 +515,20 @@ chap_respond(struct chap_client_state *cs, int id,
 	MAKEHEADER(p, PPP_CHAP);
 	p += CHAP_HDRLEN;
 
+	*p = 0;
 	cs->digest->make_response(p, id, cs->name, pkt,
 				  secret, secret_len, cs->priv);
 	memset(secret, 0, secret_len);
 
 	clen = *p;
+	if (clen == 0) {
+		error("CHAP: could not generate response");
+		UNTIMEOUT(chap_client_timeout, cs);
+		cs->flags &= ~TIMEOUT_PENDING;
+		cs->flags |= AUTH_DONE | AUTH_FAILED;
+		auth_withpeer_fail(0, PPP_CHAP);
+		return;
+	}
 	nlen = strlen(cs->name);
 	memcpy(p + clen + 1, cs->name, nlen);
 

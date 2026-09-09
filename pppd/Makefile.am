@@ -54,6 +54,7 @@ pppd_include_HEADERS = \
 
 # Headers to be distributed, but not installed in /usr/include/pppd
 noinst_HEADERS = \
+    auth-random.h \
     chap-md5.h \
     crypto-priv.h \
     eap-tls.h \
@@ -66,6 +67,7 @@ noinst_HEADERS = \
 
 pppd_SOURCES = \
     auth.c \
+    auth-random.c \
     ccp.c \
     chap-md5.c \
     chap.c \

@@ -232,6 +232,22 @@ Note that it
 is possible to apply different constraints to incoming and outgoing
 packets using the \fBinbound\fR and \fBoutbound\fR qualifiers.
 .TP
+.B allow\-insecure\-random
+Allow authentication challenges to use the legacy, predictable random number
+generator if the operating system random source fails.  This privileged option
+is disabled by default and should only be used on trusted transports.  A warning
+is logged whenever the fallback is used.  It does not affect TLS randomness.
+.IP
+By default, CHAP and EAP authentication challenges use operating system
+cryptographic randomness, with or without OpenSSL support.  Where available,
+getrandom with GRND_NONBLOCK is used; an uninitialized source fails the current
+authentication attempt without waiting or falling back to /dev/urandom.
+When that interface is unavailable, /dev/urandom is used instead.  On older
+Linux systems this device can return data before RNG initialization is complete;
+the compatibility fallback does not detect this early-boot condition.
+If random bytes cannot be obtained, the authentication attempt fails unless
+allow-insecure-random is enabled.
+.TP
 .B allow\-ip \fIaddress(es)
 Allow peers to use the given IP address or subnet without
 authenticating themselves.  The parameter is parsed as for each

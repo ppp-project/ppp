@@ -109,6 +109,7 @@
 #endif
 
 #include "pppd-private.h"
+#include "auth-random.h"
 #include "options.h"
 #include "fsm.h"
 #include "lcp.h"
@@ -313,6 +314,9 @@ static void check_maxoctets (void *);
  * Authentication-related options.
  */
 struct option auth_options[] = {
+    { "allow-insecure-random", o_bool, &allow_insecure_random,
+      "Allow insecure authentication randomness if the OS source fails",
+      OPT_PRIV | 1 },
     { "auth", o_bool, &auth_required,
       "Require authentication from peer", OPT_PRIO | 1 },
     { "noauth", o_bool, &auth_required,

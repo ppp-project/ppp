@@ -34,6 +34,7 @@
 #include "chap.h"
 #include "chap-md5.h"
 #include "magic.h"
+#include "auth-random.h"
 #include "crypto.h"
 
 #define MD5_MIN_CHALLENGE	16
@@ -46,8 +47,9 @@ chap_md5_generate_challenge(unsigned char *cp)
 
 	clen = (int)(drand48() * (MD5_MAX_CHALLENGE - MD5_MIN_CHALLENGE))
 		+ MD5_MIN_CHALLENGE;
-	*cp++ = clen;
-	random_bytes(cp, clen);
+	*cp = 0;
+	if (auth_random_bytes(cp + 1, clen))
+		*cp = clen;
 }
 
 static int
