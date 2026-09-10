@@ -464,7 +464,7 @@ static int find_match (UINT4 *ip_addr, char *hostname)
 
 int rc_find_server (char *server_name, UINT4 *ip_addr, char *secret)
 {
-	UINT4	myipaddr = 0;
+	UINT4	myipaddr = 0xFFFFFFFF;
 	int             len;
 	int             result;
 	FILE           *clientfd;
@@ -483,8 +483,6 @@ int rc_find_server (char *server_name, UINT4 *ip_addr, char *secret)
 		error("rc_find_server: couldn't open file: %m: %s", rc_conf_str("servers"));
 		return (-1);
 	}
-
-	myipaddr = rc_own_ipaddress();
 
 	result = 0;
 	while (fgets (buffer, sizeof (buffer), clientfd) != (char *) NULL)
@@ -512,8 +510,11 @@ int rc_find_server (char *server_name, UINT4 *ip_addr, char *secret)
 				break;
 			}
 		}
-		else /* <name1>/<name2> "paired" form */
+		else if (myipaddr) /* <name1>/<name2> "paired" form */
 		{
+			if (myipaddr == 0xFFFFFFFF) myipaddr = rc_own_ipaddress();
+			if (myipaddr == 0) continue;
+
 			strtok (hostnm, "/");
 			if (find_match (&myipaddr, hostnm) == 0)
 			{	     /* If we're the 1st name, target is 2nd */
