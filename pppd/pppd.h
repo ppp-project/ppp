@@ -115,6 +115,16 @@ typedef enum ppp_exit_code
 } ppp_exit_code_t;
 
 /*
+ * Values for file types to be checked in pppd_check_access
+ */
+typedef enum
+{
+    PPP_FT_DEFAULT	    = 0,
+    PPP_FT_EXEC		    = 1,
+    PPP_FT_SECRET	    = 2,
+} ppp_file_type_t;
+
+/*
  * Type of notifier callbacks
  */
 typedef enum
@@ -300,7 +310,7 @@ void pr_log(void *, char *, ...);
 void end_pr_log(void);
 
 /* Check that a file can safely be used */
-int ppp_check_access(int fd, const char *path, int exec);
+int ppp_check_access(int fd, const char *path, ppp_file_type_t filetype);
 
 /*
  * Get the current exist status of pppd
@@ -431,7 +441,7 @@ bool ppp_bad_ip_addr(uint32_t);
 /*
  * Expose an environment variable to scripts
  */
-void ppp_script_setenv(char *, char *, int);
+void ppp_script_setenv(const char *, const char *, int);
 
 /*
  * Unexpose an environment variable to scripts

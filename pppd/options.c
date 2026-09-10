@@ -134,6 +134,7 @@ char	req_ifname[IFNAMSIZ];	/* requested interface name */
 char	req_vrf[IFNAMSIZ];	/* VRF name to bind with PPP interface */
 #endif
 bool	multilink = 0;		/* Enable multilink operation */
+bool	strict_script_checks = 1; /* Whether strict script checks are enabled. */
 char	*bundle_name = NULL;	/* bundle name for multilink */
 bool	dump_options;		/* print out option values */
 bool	show_options;		/* print all supported options and exit */
@@ -149,7 +150,7 @@ char	path_ipv6down[MAXPATHLEN]; /* pathname of ipv6-down script */
 
 unsigned int  maxoctets = 0;    /* default - no limit */
 session_limit_dir_t maxoctets_dir = PPP_OCTETS_DIRECTION_SUM; /* default - sum of traffic */
-int maxoctets_timeout = 1;   /* default 1 second */ 
+int maxoctets_timeout = 1;   /* default 1 second */
 
 
 extern struct option auth_options[];
@@ -416,6 +417,16 @@ struct option general_options[] = {
       "Set direction for limit traffic (sum,in,out,max)" },
     { "mo-timeout", o_int, &maxoctets_timeout,
       "Check for traffic limit every N seconds", OPT_PRIO | OPT_LLIMIT | 1 },
+
+    { "strict-script-checks", o_bool, &strict_script_checks,
+      "Enforce strict script TOCTAU checks.", OPT_PRIO | 1 },
+    { "nostrict-script-checks", o_bool, &strict_script_checks,
+      "disables strict script TOCTAU checks.", OPT_PRIV|OPT_PRIO | 0 },
+
+    { "strict-secrets-files", o_bool, &strict_secrets_files,
+      "Enforce strict read checks on secrets files.", OPT_PRIO | 1 },
+    { "nostrict-secrets-files", o_bool, &strict_secrets_files,
+      "Disabled strict read checks on secrets files.", OPT_PRIV|OPT_PRIO | 0 },
 
     /* Dummy option, does nothing */
     { "noipx", o_bool, &noipx_opt, NULL, OPT_NOPRINT | 1 },
@@ -1710,7 +1721,7 @@ callfile(char **argv)
 	free(fname);
 	return 0;
     }
-    if (!ppp_check_access(fileno(f), fname, 0)) {
+    if (!ppp_check_access(fileno(f), fname, PPP_FT_DEFAULT)) {
 	free(fname);
 	fclose(f);
 	return 0;
@@ -1765,7 +1776,7 @@ setactivefilter(char **argv)
 #endif
 
 /*
- * setdomain - Set domain name to append to hostname 
+ * setdomain - Set domain name to append to hostname
  */
 static int
 setdomain(char **argv)

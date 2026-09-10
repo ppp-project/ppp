@@ -64,6 +64,9 @@
 extern char *strerror();
 #endif
 
+/* check options.c for details */
+bool strict_secrets_files = 1; /* Whether strict checks are enabled on secrets files. */
+
 static void logit(int, const char *, va_list);
 static void log_write(int, char *);
 static void vslp_printer(void *, char *, ...);
@@ -94,15 +97,13 @@ ppp_explicit_bzero(void *buf, size_t len)
 }
 
 /*
- * Check that a file descriptor is owned by root, not writable by group or
- * other.
- * If exec is true, check for execute permission, otherwise for read
- * permission.
+ * Check that a file descriptor is owned by root (Or the effective user), not
+ * writable by group or other.
  * Note: the path argument is only used for log messages.
  * Returns 1 if OK; if not, prints an error message and returns 0.
  */
 int
-ppp_check_access(int fd, const char *path, int exec)
+ppp_check_access(int fd, const char *path, ppp_file_type_t filetype)
 {
     struct stat sbuf;
     int perm;
@@ -117,8 +118,9 @@ ppp_check_access(int fd, const char *path, int exec)
 	goto err;
     }
 
-    if (sbuf.st_uid != 0) {
-	error("Can't safely use %v because it is not owned by root", path);
+    if (sbuf.st_uid != 0 && sbuf.st_uid != geteuid()) {
+
+	error("Can't safely use %v because it is not owned by root (or the effective uid).", path);
 	goto err;
     }
 
@@ -128,11 +130,20 @@ ppp_check_access(int fd, const char *path, int exec)
 	goto err;
     }
 
-    perm = exec? S_IXUSR : S_IRUSR;
+    perm = (filetype == PPP_FT_EXEC) ? S_IXUSR : S_IRUSR;
     if ((sbuf.st_mode & perm) == 0) {
 	error("Can't use %v: not %sable by root", path,
-	      exec? "execut": "read");
+	      (filetype == PPP_FT_EXEC) ? "execute": "read");
 	goto err;
+    }
+
+    if ((filetype == PPP_FT_SECRET) && (sbuf.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+	if (strict_secrets_files) {
+	    error("Warning - secret file %s has world and/or group access", path);
+	    goto err;
+	} else {
+	    warn("Warning - secret file %s has world and/or group access", path);
+	}
     }
 
     return 1;
