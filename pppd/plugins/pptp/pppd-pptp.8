@@ -1,0 +1,82 @@
+.\" manual page [] for ACCEL-PPTP plugin for pppd 2.4
+.\" $Id: pppd-pptp.8,v 1.0 2007/10/17 13:27:17 kad Exp $
+.\" SH section heading
+.\" SS subsection heading
+.\" LP paragraph
+.\" IP indented paragraph
+.\" TP hanging label
+.TH PPPD-PPTP 8
+.SH NAME
+pptp.so \- PPTP VPN plugin for
+.BR pppd (8)
+.SH SYNOPSIS
+.B pppd
+[
+.I options
+]
+plugin pptp.so
+.SH DESCRIPTION
+.LP
+The PPTP plugin for pppd performs interaction with the pptp kernel module
+and has built-in call manager (client part of PPTP).
+It passes necessary parameters from \fIoptions\fR into the kernel module 
+to configure ppp-pptp channel. If it runs in client mode, then additionally 
+call manager starts up. PPTPD daemon automaticaly invokes this plugin
+in server mode and passes necessary options, so additional configuration
+is not needed.
+
+.SH OPTIONS for client mode
+The PPTP plugin introduces additional pppd options:
+.TP
+.BI "pptp_server " server " (required)"
+Specifies IP address or hostname of the pptp server.
+.TP
+.BI "pptp_window " packets " (optional)"
+The size of the sliding window.
+Set to 0 to turn off sliding window.
+    to 3-10 for low speed connections.
+    to >10 for hi speed connections.
+.TP
+.BI "pptp_phone " phone " (optional)"
+The phone string sent to the pptp server.
+.TP
+.BI "pptp_timeout " milliseconds " (optional)"
+Specifies timeout for waiting for an "ack" packet from server.
+
+.SH OPTIONS for server mode (intended to be run by pptpd)
+.TP
+.BI "pptp_client " client " (required)"
+Specifies the IP address or hostname of the pptp client.
+.TP
+.BI "pptp_sock " socket " (required)"
+The socket to communicate with the client.
+
+
+.SH USAGE
+Sample client configuration file:
+.nf
+plugin "pptp.so"
+pptp_server 192.168.0.1
+pptp_window 50
+name myname
+remotename pptp
+noauth
+refuse-eap
+refuse-chap
+refuse-mschap
+nobsdcomp
+nodeflate
+novj
+novjccomp
+require-mppe-128
+lcp-echo-interval 20
+lcp-echo-failure  3
+.fi
+
+.SH SEE ALSO
+.BR pppd (8) "  " pptpd (8) "  " pptpd.conf (5)
+
+.SH AUTHORS
+xeb xeb@mail.ru
+
+[anp/hsw] sysop@880.ru
