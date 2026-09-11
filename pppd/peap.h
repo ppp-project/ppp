@@ -82,6 +82,9 @@
 
 struct peap_state;
 
+/* Local authentication failure; do not negotiate another EAP method. */
+#define PEAP_AUTH_FAILED (-2)
+
 /**
  * Initialize the PEAP structure
  */
