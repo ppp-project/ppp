@@ -1346,7 +1346,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 		/* Process the PEAP packet */
 		if (peap_process(esp, id, inp, len)) {
-			if (esp->es_client.ea_state = eapListen)
+			if (esp->es_client.ea_state == eapListen)
 				eap_send_nak(esp, id, EAPT_TLS);
 			else {
 				/* If we've responded to PEAP requests, we can't
