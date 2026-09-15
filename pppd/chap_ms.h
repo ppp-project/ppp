@@ -77,7 +77,8 @@ extern "C" {
 #define MS_CHAP2_AUTHENTICATOR 1
 
 void ChapMS (u_char *, char *, int, u_char *);
-void ChapMS2 (u_char *, u_char *, char *, char *, int,
+/* Returns 0 if Peer-Challenge generation fails, otherwise 1. */
+int ChapMS2 (u_char *, u_char *, char *, char *, int,
 	      u_char *, u_char[MS_AUTH_RESPONSE_LENGTH+1], int);
 
 void ChallengeHash (u_char[16], u_char *, char *, u_char[8]);

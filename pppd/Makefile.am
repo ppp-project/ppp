@@ -26,6 +26,26 @@ utest_utils_LDFLAGS =
 
 check_PROGRAMS += utest_utils
 
+utest_auth_random_SOURCES = auth_random_utest.c
+utest_auth_random_CPPFLAGS = -I$(srcdir)
+utest_auth_random_device_SOURCES = auth_random_utest.c
+utest_auth_random_device_CPPFLAGS = -I$(srcdir) -DTEST_NO_GETRANDOM
+check_PROGRAMS += utest_auth_random utest_auth_random_device
+
+utest_auth_protocol_SOURCES = auth_protocol_utest.c utils.c crypto_ms.c
+utest_auth_protocol_CPPFLAGS = -I$(srcdir) -DUNIT_TEST $(OPENSSL_INCLUDES)
+utest_auth_protocol_LDADD = libppp_crypto.la
+check_PROGRAMS += utest_auth_protocol
+
+if LINUX
+utest_auth_random_syscall_SOURCES = auth_random_utest.c
+utest_auth_random_syscall_CPPFLAGS = -I$(srcdir) -DTEST_RAW_GETRANDOM
+check_PROGRAMS += utest_auth_random_syscall
+utest_auth_random_no_header_SOURCES = auth_random_utest.c
+utest_auth_random_no_header_CPPFLAGS = -I$(srcdir) -DTEST_NO_RANDOM_H
+check_PROGRAMS += utest_auth_random_no_header
+endif
+
 pkgconfigdir   = $(libdir)/pkgconfig
 pkgconfig_DATA = pppd.pc
 
@@ -54,6 +74,7 @@ pppd_include_HEADERS = \
 
 # Headers to be distributed, but not installed in /usr/include/pppd
 noinst_HEADERS = \
+    auth-random.h \
     chap-md5.h \
     crypto-priv.h \
     eap-tls.h \
@@ -66,6 +87,7 @@ noinst_HEADERS = \
 
 pppd_SOURCES = \
     auth.c \
+    auth-random.c \
     ccp.c \
     chap-md5.c \
     chap.c \
@@ -191,6 +213,13 @@ pppd_LIBS += $(SYSTEMD_LIBS)
 endif
 
 pppd_LDADD = $(pppd_LIBS)
+
+# Use the daemon's actual option tables and parser without starting a link.
+utest_auth_options_SOURCES = $(pppd_SOURCES) auth_options_utest.c
+utest_auth_options_CPPFLAGS = $(pppd_CPPFLAGS) -Dmain=pppd_main
+utest_auth_options_LDFLAGS = $(pppd_LDFLAGS)
+utest_auth_options_LDADD = $(pppd_LDADD)
+check_PROGRAMS += utest_auth_options
 
 EXTRA_DIST = \
     ppp.pam

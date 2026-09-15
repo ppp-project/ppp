@@ -58,6 +58,7 @@
 #include <errno.h>
 
 #include "pppd-private.h"
+#include "auth-random.h"
 #include "options.h"
 #include "pathnames.h"
 #include "crypto.h"
@@ -184,6 +185,15 @@ eap_client_timeout(void *arg)
 	error("EAP: timeout waiting for Request from peer");
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 	esp->es_client.ea_state = eapBadAuth;
+}
+
+/* A local generation failure must not negotiate another method or send data. */
+static void
+eap_client_fail(eap_state *esp)
+{
+	UNTIMEOUT(eap_client_timeout, esp);
+	esp->es_client.ea_state = eapBadAuth;
+	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 }
 
 /*
@@ -468,7 +478,6 @@ eap_send_request(eap_state *esp)
 {
 	u_char *outp;
 	u_char *lenloc;
-	u_char *ptr;
 	int outlen;
 	int challen;
 	char *str;
@@ -528,9 +537,12 @@ eap_send_request(eap_state *esp)
 			    MIN_CHALLENGE_LENGTH;
 		PUTCHAR(challen, outp);
 		esp->es_challen = challen;
-		ptr = esp->es_challenge;
-		while (--challen >= 0)
-			*ptr++ = (u_char) (drand48() * 0x100);
+		if (!auth_random_bytes(esp->es_challenge, challen)) {
+			esp->es_challen = 0;
+			UNTIMEOUT(eap_server_timeout, esp);
+			eap_send_failure(esp);
+			return;
+		}
 		BCOPY(esp->es_challenge, outp, esp->es_challen);
 		INCPTR(esp->es_challen, outp);
 		BCOPY(esp->es_server.ea_name, outp, esp->es_server.ea_namelen);
@@ -539,9 +551,16 @@ eap_send_request(eap_state *esp)
 
 #ifdef PPP_WITH_CHAPMS
 	case eapMSCHAPv2Chall:
+		esp->es_challenge[0] = 0;
 		esp->es_server.digest->generate_challenge(esp->es_challenge);
 		challen = esp->es_challenge[0];
 		esp->es_challen = challen;
+		if (challen == 0) {
+			error("EAP: could not generate MS-CHAPv2 challenge");
+			UNTIMEOUT(eap_server_timeout, esp);
+			eap_send_failure(esp);
+			return;
+		}
 
 		PUTCHAR(EAPT_MSCHAPV2, outp);
 		PUTCHAR(CHAP_CHALLENGE, outp);
@@ -1288,9 +1307,15 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		esp->es_client.ea_namelen = strlen(esp->es_client.ea_name);
 
 		/* Create the MSCHAPv2 response (and add to cache) */
-		unsigned char response[MS_CHAP2_RESPONSE_LEN+1]; // VLEN + VALUE
+		unsigned char response[MS_CHAP2_RESPONSE_LEN+1] = { 0 }; // VLEN + VALUE
 		esp->es_client.digest->make_response(response, chapid, esp->es_client.ea_name,
 			challenge, secret, secret_len, NULL);
+		ppp_explicit_bzero(secret, secret_len);
+		if (response[0] == 0) {
+			error("EAP: could not generate MS-CHAPv2 response");
+			eap_client_fail(esp);
+			return;
+		}
 
 		eap_chapv2_response(esp, id, chapid, response, esp->es_client.ea_name, esp->es_client.ea_namelen);
 		esp->es_client.ea_state = eapAuthRecv;
@@ -1330,7 +1355,8 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 	    break;
 #endif /* PPP_WITH_CHAPMS */
 #ifdef PPP_WITH_PEAP
-	case EAPT_PEAP:
+	case EAPT_PEAP: {
+		int result;
 
 		/* Initialize the PEAP context (if not already initialized) */
 		if (!esp->ea_peap) {
@@ -1345,7 +1371,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		}
 
 		/* Process the PEAP packet */
-		if (peap_process(esp, id, inp, len)) {
+		result = peap_process(esp, id, inp, len);
+		if (result == PEAP_AUTH_FAILED) {
+			peap_finish(&esp->ea_peap);
+			eap_client_fail(esp);
+			return;
+		}
+		if (result) {
 			if (esp->es_client.ea_state = eapListen)
 				eap_send_nak(esp, id, EAPT_TLS);
 			else {
@@ -1358,6 +1390,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			esp->es_client.ea_state = eapAuthRecv;
 
 		break;
+	}
 #endif // PPP_WITH_PEAP
 
 	default:

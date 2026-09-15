@@ -57,7 +57,9 @@ AC_CHECK_HEADERS([  \
     stdarg.h        \
     sys/dlpi.h      \
     sys/ioctl.h     \
+    sys/random.h    \
     sys/socket.h    \
+    sys/syscall.h   \
     sys/time.h      \
     sys/uio.h       \
     time.h          \
@@ -96,6 +98,7 @@ AC_CHECK_SIZEOF(unsigned short)
 AC_CHECK_FUNCS([    \
     explicit_bzero  \
     fexecve         \
+    getrandom       \
     mmap            \
     logwtmp         \
     strerror])
