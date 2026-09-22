@@ -20,7 +20,7 @@
 #include "pppd/crypto.h"
 
 static void rc_random_vector (unsigned char *);
-static int rc_check_reply (AUTH_HDR *, int, int, char *, unsigned char *, unsigned char);
+static int rc_check_reply (AUTH_HDR *, int, char *, unsigned char *, unsigned char);
 
 /*
  * Calculate length occupied by an AVP in the send buffer
@@ -360,7 +360,13 @@ int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *i
 	salen = sizeof (saremote);
 	length = recvfrom (sockfd, (char *) recv_buffer,
 			   (int) sizeof (recv_buffer),
-			   (int) 0, &saremote, &salen);
+			   (int) MSG_TRUNC, &saremote, &salen);
+
+	if (length > sizeof(recv_buffer)) {
+	    error("rc_send_server: recvfrom: %s:%s: Response size %d greater than buffer size %d.",
+		    server_name, data->svc_port, length, sizeof(recv_buffer));
+	    return (ERROR_RC);
+	}
 
 	if (length <= 0)
 	{
@@ -373,7 +379,7 @@ int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *i
 
 	recv_auth = (AUTH_HDR *)recv_buffer;
 
-	result = rc_check_reply (recv_auth, length, BUFFER_LEN, secret, vector, data->seq_nbr);
+	result = rc_check_reply (recv_auth, length, secret, vector, data->seq_nbr);
 
 	close (sockfd);
 	if (info)
@@ -419,12 +425,15 @@ int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *i
  *
  * Purpose: verify items in returned packet.
  *
+ * datalen will always be <= buffer size, and should be specified as the number of bytes
+ * received in the datagram.
+ *
  * Returns:	OK_RC       -- upon success,
  *		BADRESP_RC  -- if anything looks funny.
  *
  */
 
-static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *secret,
+static int rc_check_reply (AUTH_HDR *auth, int datalen, char *secret,
 			   unsigned char *vector, unsigned char seq_nbr)
 {
 	int             secretlen;
@@ -444,18 +453,12 @@ static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *sec
 	secretlen = strlen (secret);
 
 	/* Do sanity checks on packet length */
-	if ((totallen < 20) || totallen > bufferlen || totallen > datalen)
+	if (totallen != datalen)
 	{
 		error("rc_check_reply: received RADIUS server response with invalid length");
 		return (BADRESP_RC);
 	}
 
-	/* Verify buffer space, should never trigger with current buffer size and check above */
-	if ((totallen + secretlen) > bufferlen)
-	{
-		error("rc_check_reply: not enough buffer space to verify RADIUS server response");
-		return (BADRESP_RC);
-	}
 	/* Verify that id (seq. number) matches what we sent */
 	if (auth->id != seq_nbr)
 	{

@@ -64,10 +64,10 @@ typedef struct pw_auth_hdr
 	u_char          id;
 	u_short         length;
 	u_char          vector[AUTH_VECTOR_LEN];
-	u_char          data[2];
+	u_char          data[0];
 } AUTH_HDR;
 
-#define AUTH_HDR_LEN			20
+#define AUTH_HDR_LEN			(sizeof(AUTH_HDR))
 #define MAX_SECRET_LENGTH		(3 * 16) /* MUST be multiple of 16 */
 
 #define PW_AUTH_UDP_PORT		1812
