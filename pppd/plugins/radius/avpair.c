@@ -169,7 +169,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 	length = ntohs ((unsigned short) auth->length) - AUTH_HDR_LEN;
 	vp = (VALUE_PAIR *) NULL;
 
-	while (length > 0)
+	while (length > 2)
 	{
 		attribute = *ptr++;
 		attrlen = *ptr++;
@@ -254,6 +254,8 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 		ptr += attrlen;
 		length -= attrlen + 2;
 	}
+	if (length > 0)
+	    warn("rc_avpair_gen: There is %d bytes left after processing, which is unexpected, truncated packet?", length);
 	return (vp);
 }
 
