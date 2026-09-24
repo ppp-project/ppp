@@ -107,6 +107,9 @@
 
 #if !defined(__GLIBC__) || __GLIBC__ >= 2
 #include <asm/types.h>		/* glibc 2 conflicts with linux/types.h */
+#include <sys/syscall.h>
+#include <sys/auxv.h>
+#include <linux/capability.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/route.h>
@@ -2849,6 +2852,37 @@ ppp_registered(void)
     close(local_fd);
     close(mfd);
     return ret;
+}
+
+/*
+ * Check whether we have the privileges needed to open the ppp device
+ * and configure interfaces.  The kernel requires CAP_NET_ADMIN to open
+ * /dev/ppp (ppp_open in drivers/net/ppp/ppp_generic.c).
+ */
+int ppp_privileged(void)
+{
+    struct __user_cap_header_struct hdr;
+    struct __user_cap_data_struct data[2];
+
+    if (geteuid() == 0)
+	return 1;
+
+    hdr.version = _LINUX_CAPABILITY_VERSION_3;
+    hdr.pid = 0;
+    if (syscall(SYS_capget, &hdr, data) < 0)
+	return 0;
+
+    return !!(data[CAP_TO_INDEX(CAP_NET_ADMIN)].effective & CAP_TO_MASK(CAP_NET_ADMIN));
+}
+
+/*
+ * Test whether this exec raised our privileges.  The kernel sets AT_SECURE
+ * when a setuid or setgid bit or file capabilities did so, granting them
+ * to whoever runs the binary rather than to us on their behalf.
+ */
+int ppp_secure_exec(void)
+{
+    return getauxval(AT_SECURE) != 0;
 }
 
 /********************************************************************

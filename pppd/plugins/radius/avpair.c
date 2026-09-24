@@ -210,7 +210,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 				rc_avpair_free(vp);
 				return NULL;
 			}
-			strcpy (pair->name, attr->name);
+			strlcpy (pair->name, attr->name, sizeof(pair->name));
 			pair->attribute = attr->value;
 			pair->vendorcode = VENDOR_NONE;
 			pair->type = attr->type;
@@ -223,6 +223,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 			    case PW_TYPE_IFID:
 			    case PW_TYPE_IPV6ADDR:
 			    case PW_TYPE_IPV6PREFIX:
+				/* Note attrlen is at most 253 here */
 				memcpy (pair->strvalue, (char *) ptr, (size_t) attrlen);
 				pair->strvalue[attrlen] = '\0';
 				pair->lvalue = attrlen;
@@ -231,6 +232,12 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 
 			    case PW_TYPE_INTEGER:
 			    case PW_TYPE_IPADDR:
+				if (attrlen < sizeof(UINT4)) {
+				    error("rc_avpair_gen: %s has short value (%d bytes)",
+					  attr->name, attrlen);
+				    free(pair);
+				    break;
+				}
 				memcpy ((char *) &lvalue, (char *) ptr,
 					sizeof (UINT4));
 				pair->lvalue = ntohl (lvalue);
@@ -291,7 +298,7 @@ static void rc_extract_vendor_specific_attributes(int attrlen,
 
     /* Set attrlen to length of data */
     attrlen -= 4;
-    for (; attrlen; attrlen -= vlen+2, ptr += vlen) {
+    for (; attrlen >= 2; attrlen -= vlen+2, ptr += vlen) {
 	vtype = *ptr++;
 	vlen = *ptr++;
 	vlen -= 2;
@@ -326,6 +333,10 @@ static void rc_extract_vendor_specific_attributes(int attrlen,
 
 	case PW_TYPE_INTEGER:
 	case PW_TYPE_IPADDR:
+	    if (vlen < sizeof(UINT4)) {
+		free(pair);
+		break;
+	    }
 	    memcpy ((char *) &lvalue, (char *) ptr,
 		    sizeof (UINT4));
 	    pair->lvalue = ntohl (lvalue);
@@ -471,11 +482,13 @@ void rc_avpair_free (VALUE_PAIR *pair)
  * Purpose: Copy a data field from the buffer.  Advance the buffer
  *          past the data field.
  *
+ * 'string' is assumed to have space for AUTH_ID_LEN characters.
  */
 
 static void rc_fieldcpy (char *string, char **uptr)
 {
 	char           *ptr;
+	char *stringstart = string;
 
 	ptr = *uptr;
 	if (*ptr == '"')
@@ -483,6 +496,8 @@ static void rc_fieldcpy (char *string, char **uptr)
 		ptr++;
 		while (*ptr != '"' && *ptr != '\0' && *ptr != '\n')
 		{
+			if (string - stringstart >= AUTH_ID_LEN - 1)
+				goto bad;
 			*string++ = *ptr++;
 		}
 		*string = '\0';
@@ -497,11 +512,17 @@ static void rc_fieldcpy (char *string, char **uptr)
 	while (*ptr != ' ' && *ptr != '\t' && *ptr != '\0' && *ptr != '\n' &&
 			*ptr != '=' && *ptr != ',')
 	{
+		if (string - stringstart >= AUTH_ID_LEN - 1)
+			goto bad;
 		*string++ = *ptr++;
 	}
 	*string = '\0';
 	*uptr = ptr;
 	return;
+
+ bad:
+	fatal("radius: A-V pair name or value is too long (max %d chars)",
+	      AUTH_ID_LEN - 1);
 }
 
 
@@ -589,7 +610,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 				}
 				return (-1);
 			}
-			strcpy (pair->name, attr->name);
+			strlcpy (pair->name, attr->name, sizeof(pair->name));
 			pair->attribute = attr->value;
 			pair->type = attr->type;
 			pair->vendorcode = attr->vendorcode;
@@ -598,7 +619,7 @@ int rc_avpair_parse (char *buffer, VALUE_PAIR **first_pair)
 			{
 
 			    case PW_TYPE_STRING:
-				strcpy ((char*) pair->strvalue, valstr);
+				strlcpy ((char*) pair->strvalue, valstr, sizeof(pair->strvalue));
 				pair->lvalue = strlen(valstr);
 				break;
 
@@ -759,21 +780,30 @@ int rc_avpair_tostr (VALUE_PAIR *pair, char *name, int ln, char *value, int lv)
 
 	    case PW_TYPE_IFID:
 		ptr = pair->strvalue;
-		snprintf(buffer, sizeof (buffer), "%x:%x:%x:%x",
-			 (ptr[0] << 8) + ptr[1], (ptr[2] << 8) + ptr[3],
-			 (ptr[4] << 8) + ptr[5], (ptr[6] << 8) + ptr[7]);
+		if (pair->lvalue >= 8)
+		    snprintf(buffer, sizeof (buffer), "%x:%x:%x:%x",
+			     (ptr[0] << 8) + ptr[1], (ptr[2] << 8) + ptr[3],
+			     (ptr[4] << 8) + ptr[5], (ptr[6] << 8) + ptr[7]);
+		else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 
 	    case PW_TYPE_IPV6ADDR:
-		inet_ntop(AF_INET6, pair->strvalue, buffer, sizeof (buffer));
+		if (pair->lvalue >= sizeof(struct in6_addr))
+		    inet_ntop(AF_INET6, pair->strvalue, buffer, sizeof (buffer));
+		else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 
 	    case PW_TYPE_IPV6PREFIX:
-		inet_ntop(AF_INET6, pair->strvalue + 2, buffer, sizeof (buffer));
-		str = buffer + strlen(buffer);
-		snprintf(str, sizeof (buffer) - (str - buffer), "/%d", *(pair->strvalue + 1));
+		if (pair->lvalue >= sizeof(struct in6_addr) + 2) {
+		    inet_ntop(AF_INET6, pair->strvalue + 2, buffer, sizeof (buffer));
+		    str = buffer + strlen(buffer);
+		    snprintf(str, sizeof (buffer) - (str - buffer), "/%d", *(pair->strvalue + 1));
+		} else
+		    slprintf(buffer, sizeof(buffer), "[%.*B]", pair->lvalue, pair->strvalue);
 		strncpy(value, buffer, lv-1);
 		break;
 

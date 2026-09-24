@@ -297,7 +297,7 @@ static int  scan_authfile(FILE *, char *, char *, char *,
 			  struct wordlist **, struct wordlist **,
 			  char *);
 static void free_wordlist (struct wordlist *);
-static void auth_script (char *);
+static void auth_script (char *, const char*);
 static void auth_script_done (void *);
 static void set_allowed_addrs (int, struct wordlist *, struct wordlist *);
 static int  some_ip_ok (struct wordlist *);
@@ -305,7 +305,6 @@ static int  setupapfile (char **);
 static int  privgroup (char **);
 static int  set_noauth_addr (char **);
 static int  set_permitted_number (char **);
-static void check_access (int, const char *);
 static int  wordlist_count (struct wordlist *);
 static void check_maxoctets (void *);
 
@@ -445,22 +444,29 @@ struct option auth_options[] = {
       OPT_PRIV | OPT_A2LIST },
 
 #if defined(PPP_WITH_EAPTLS) || defined(PPP_WITH_PEAP)
-    { "ca", o_string, &cacert_file,     "CA certificate in PEM format" },
-    { "capath", o_string, &ca_path,     "TLS CA certificate directory" },
-    { "crl-dir", o_string, &crl_dir,    "Use CRLs in directory" },
-    { "crl", o_string, &crl_file,       "Use specific CRL file" },
+    { "ca", o_string, &cacert_file,
+      "CA certificate in PEM format", OPT_PRIV },
+    { "capath", o_string, &ca_path,
+      "TLS CA certificate directory", OPT_PRIV },
+    { "crl-dir", o_string, &crl_dir,
+      "Use CRLs in directory", OPT_PRIV },
+    { "crl", o_string, &crl_file,
+      "Use specific CRL file", OPT_PRIV },
     { "max-tls-version", o_string, &max_tls_version,
-      "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)" },
+      "Maximum TLS version (1.0/1.1/1.2 (default)/1.3)", OPT_PRIV },
     { "tls-verify-key-usage", o_bool, &tls_verify_key_usage,
-      "Verify certificate type and extended key usage" },
+      "Verify certificate type and extended key usage", OPT_PRIV | 1 },
     { "tls-verify-method", o_string, &tls_verify_method,
-      "Verify peer by method (none|subject|name|suffix)" },
+      "Verify peer by method (none|subject|name|suffix)", OPT_PRIV },
 #endif
 
 #if defined(PPP_WITH_EAPTLS)
-    { "cert", o_string, &cert_file,     "client certificate in PEM format" },
-    { "key", o_string, &privkey_file,   "client private key in PEM format" },
-    { "pkcs12", o_string, &pkcs12_file, "EAP-TLS client credentials in PKCS12 format" },
+    { "cert", o_string, &cert_file,
+      "client certificate in PEM format", OPT_PRIV },
+    { "key", o_string, &privkey_file,
+      "client private key in PEM format", OPT_PRIV },
+    { "pkcs12", o_string, &pkcs12_file,
+      "EAP-TLS client credentials in PKCS12 format", OPT_PRIV },
     { "need-peer-eap", o_bool, &need_peer_eap,
       "Require the peer to authenticate us", 1 },
 #endif /* PPP_WITH_EAPTLS */
@@ -509,6 +515,7 @@ setupapfile(char **argv)
     uid_t euid;
     char u[MAXNAMELEN], p[MAXSECRETLEN];
     char *fname;
+    int check_res;
 
     lcp_allowoptions[0].neg_upap = 1;
 
@@ -523,6 +530,7 @@ setupapfile(char **argv)
 	return 0;
     }
     ufile = fopen(fname, "r");
+    check_res = ufile && ppp_check_access(fileno(ufile), fname, PPP_FT_SECRET);
     if (seteuid(euid) == -1)
 	fatal("unable to regain privileges: %m");
     if (ufile == NULL) {
@@ -530,7 +538,11 @@ setupapfile(char **argv)
         free(fname);
 	return 0;
     }
-    check_access(fileno(ufile), fname);
+    if (!check_res) {
+	fclose(ufile);
+	free(fname);
+	return 0;
+    }
     uafname = fname;
 
     /* get username */
@@ -778,7 +790,7 @@ link_down(int unit)
 	if (auth_script_state == s_up && auth_script_pid == 0) {
 	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
-	    auth_script(path_auth_down);
+	    auth_script(path_auth_down, "auth-up");
 	}
     }
     if (!mp_on())
@@ -926,7 +938,7 @@ network_phase(int unit)
 	auth_state = s_up;
 	if (auth_script_state == s_down && auth_script_pid == 0) {
 	    auth_script_state = s_up;
-	    auth_script(path_auth_up);
+	    auth_script(path_auth_up, "auth-up");
 	}
     }
 
@@ -1525,7 +1537,7 @@ check_passwd(int unit,
 		free_wordlist(opts);
 	    if (addrs != 0)
 		free_wordlist(addrs);
-	    BZERO(passwd, sizeof(passwd));
+	    ppp_explicit_bzero(passwd, sizeof(passwd));
 	    return ret? UPAP_AUTHACK: UPAP_AUTHNAK;
 	}
     }
@@ -1544,11 +1556,11 @@ check_passwd(int unit,
     } else {
 	int fd = fileno(f);
 
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
+	    ppp_explicit_bzero(passwd, sizeof(passwd));
 	    return UPAP_AUTHNAK;
 	}
-	check_access(fd, filename);
 	if (scan_authfile(f, user, our_name, secret, &addrs, &opts, filename) < 0) {
 	    warn("no PAP secret found for %s", user);
 	} else {
@@ -1610,8 +1622,8 @@ check_passwd(int unit,
 
     if (addrs != NULL)
 	free_wordlist(addrs);
-    BZERO(passwd, sizeof(passwd));
-    BZERO(secret, sizeof(secret));
+    ppp_explicit_bzero(passwd, sizeof(passwd));
+    ppp_explicit_bzero(secret, sizeof(secret));
 
     return ret;
 }
@@ -1649,11 +1661,10 @@ null_login(int unit)
 	if (f == NULL)
 	    return 0;
 	fd = fileno(f);
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
 	    return 0;
 	}
-	check_access(fd, filename);
 
 	i = scan_authfile(f, "", our_name, secret, &addrs, &opts, filename);
 	ret = i >= 0 && secret[0] == 0;
@@ -1699,7 +1710,10 @@ get_pap_passwd(char *passwd)
     f = fopen(filename, "r");
     if (f == NULL)
 	return 0;
-    check_access(fileno(f), filename);
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
+	fclose(f);
+	return 0;
+    }
     ret = scan_authfile(f, user,
 			(remote_name[0]? remote_name: NULL),
 			secret, NULL, NULL, filename);
@@ -1737,7 +1751,7 @@ have_pap_secret(int *lacks_ipp)
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -1783,7 +1797,7 @@ have_chap_secret(char *client, char *server,
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -1845,11 +1859,10 @@ get_secret(int unit, char *client, char *server,
 	}
 
 	fd = fileno(f);
-	if (!ppp_check_access(fd, filename, 0)) {
+	if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 	    fclose(f);
 	    return 0;
 	}
-	check_access(fd, filename);
 
 	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename);
 	fclose(f);
@@ -2126,23 +2139,6 @@ auth_number(void)
 }
 
 /*
- * check_access - complain if a secret file has too-liberal permissions.
- */
-static void
-check_access(int fd, const char *filename)
-{
-    struct stat sbuf;
-
-    if (fstat(fd, &sbuf) < 0) {
-	warn("cannot stat secret file %s: %m", filename);
-    } else if ((sbuf.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
-	warn("Warning - secret file %s has world and/or group access",
-	     filename);
-    }
-}
-
-
-/*
  * scan_authfile - Scan an authorization file for a secret suitable
  * for authenticating `client' on `server'.  The return value is -1
  * if no secret is found, otherwise >= 0.  The return value has
@@ -2238,11 +2234,10 @@ scan_authfile(FILE *f, char *client, char *server,
 		    continue;
 		}
 		fd = fileno(sf);
-		if (!ppp_check_access(fd, atfile, 0)) {
+		if (!ppp_check_access(fd, atfile, PPP_FT_SECRET)) {
 		    fclose(sf);
 		    continue;
 		}
-		check_access(fd, atfile);
 		if (!getword(sf, word, &xxx, atfile)) {
 		    warn("no secret in indirect secret file %s", atfile);
 		    fclose(sf);
@@ -2304,6 +2299,9 @@ scan_authfile(FILE *f, char *client, char *server,
     else if (addr_list != NULL)
 	free_wordlist(addr_list);
 
+    ppp_explicit_bzero(word, sizeof(word));
+    ppp_explicit_bzero(lsecret, sizeof(lsecret));
+
     return best_flag;
 }
 
@@ -2347,13 +2345,13 @@ auth_script_done(void *arg)
     case s_up:
 	if (auth_state == s_down) {
 	    auth_script_state = s_down;
-	    auth_script(path_auth_down);
+	    auth_script(path_auth_down, "auth-down");
 	}
 	break;
     case s_down:
 	if (auth_state == s_up) {
 	    auth_script_state = s_up;
-	    auth_script(path_auth_up);
+	    auth_script(path_auth_up, "auth-up");
 	}
 	break;
     }
@@ -2364,7 +2362,7 @@ auth_script_done(void *arg)
  * interface-name peer-name real-user tty speed
  */
 static void
-auth_script(char *script)
+auth_script(char *script, const char* name)
 {
     char strspeed[32];
     struct passwd *pw;
@@ -2389,7 +2387,7 @@ auth_script(char *script)
     argv[6] = ipparam;
     argv[7] = NULL;
 
-    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0);
+    auth_script_pid = run_program(script, argv, 0, auth_script_done, NULL, 0, name);
 }
 
 
@@ -2412,7 +2410,7 @@ have_eaptls_secret_server(char *client, char *server,
     if (f == NULL)
 	return 0;
 
-    if (!ppp_check_access(fileno(f), filename, 0)) {
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
 	fclose(f);
 	return 0;
     }
@@ -2696,11 +2694,10 @@ get_eaptls_secret(int unit, char *client, char *server,
 		}
 
 		fd = fileno(fp);
-		if (!ppp_check_access(fd, filename, 0)) {
+		if (!ppp_check_access(fd, filename, PPP_FT_SECRET)) {
 			fclose(fp);
 			return 0;
 		}
-		check_access(fd, filename);
 
 		ret = scan_authfile_eaptls(fp, client, server, clicertfile, servcertfile,
 				cacertfile, pkfile, &addrs, &opts, filename);

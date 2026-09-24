@@ -183,7 +183,7 @@ static struct option ipcp_option_list[] = {
       "Nameserver for SMB over TCP/IP for peer", OPT_A2LIST },
 
     { "ipcp-restart", o_int, &ipcp_fsm[0].timeouttime,
-      "Set timeout for IPCP", OPT_PRIO },
+      "Set timeout for IPCP", OPT_PRIO | OPT_LLIMIT, NULL, 0, 1 },
     { "ipcp-max-terminate", o_int, &ipcp_fsm[0].maxtermtransmits,
       "Set max #xmits for term-reqs", OPT_PRIO },
     { "ipcp-max-configure", o_int, &ipcp_fsm[0].maxconfreqtransmits,
@@ -294,7 +294,7 @@ struct protent ipcp_protent = {
 };
 
 static void ipcp_clear_addrs (int, u_int32_t, u_int32_t);
-static void ipcp_script (char *, int);	/* Run an up/down script */
+static void ipcp_script (char *, int, const char *);	/* Run an up/down script */
 static void ipcp_script_done (void *);
 
 /*
@@ -1468,11 +1468,15 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
     u_int32_t l = *len;		/* Length left */
     u_char maxslotindex, cflag;
     int d;
+    int dup, warned = 0;
+    int seendns[2], seenwins[2];
 
     /*
      * Reset all his options.
      */
     BZERO(ho, sizeof(*ho));
+    seendns[0] = seendns[1] = 0;
+    seenwins[0] = seenwins[1] = 0;
 
     /*
      * Process all his options.
@@ -1480,6 +1484,7 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
     next = inp;
     while (l) {
 	orc = CONFACK;			/* Assume success */
+	dup = 0;
 	cip = p = next;			/* Remember begining of CI */
 	if (l < 2 ||			/* Not enough data for CI header or */
 	    p[1] < 2 ||			/*  CI length too small or */
@@ -1497,6 +1502,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 
 	switch (citype) {		/* Check CI type */
 	case CI_ADDRS:
+	    if (ho->old_addrs) {
+		dup = 1;
+		break;
+	    }
+	    ho->old_addrs = 1;
 	    if (!ao->old_addrs || ho->neg_addr ||
 		cilen != CILEN_ADDRS) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1547,12 +1557,16 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		}
 	    }
 
-	    ho->old_addrs = 1;
 	    ho->hisaddr = ciaddr1;
 	    ho->ouraddr = ciaddr2;
 	    break;
 
 	case CI_ADDR:
+	    if (ho->neg_addr) {
+		dup = 1;
+		break;
+	    }
+	    ho->neg_addr = 1;
 	    if (!ao->neg_addr || ho->old_addrs ||
 		cilen != CILEN_ADDR) {	/* Check CI length */
 		orc = CONFREJ;		/* Reject CI */
@@ -1584,7 +1598,6 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		break;
 	    }
 
-	    ho->neg_addr = 1;
 	    ho->hisaddr = ciaddr1;
 	    break;
 
@@ -1592,6 +1605,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	case CI_MS_DNS2:
 	    /* Microsoft primary or secondary DNS request */
 	    d = citype == CI_MS_DNS2;
+	    if (seendns[d]) {
+		dup = 1;
+		break;
+	    }
+	    seendns[d] = 1;
 
 	    /* If we do not have a DNS address then we cannot send it */
 	    if (ao->dnsaddr[d] == 0 ||
@@ -1612,6 +1630,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	case CI_MS_WINS2:
 	    /* Microsoft primary or secondary WINS request */
 	    d = citype == CI_MS_WINS2;
+	    if (seenwins[d]) {
+		dup = 1;
+		break;
+	    }
+	    seenwins[d] = 1;
 
 	    /* If we do not have a WINS address then we cannot send it */
 	    if (ao->winsaddr[d] == 0 ||
@@ -1629,6 +1652,11 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
             break;
 
 	case CI_COMPRESSTYPE:
+	    if (ho->neg_vj) {
+		dup = 1;
+		break;
+	    }
+	    ho->neg_vj = 1;
 	    if (!ao->neg_vj ||
 		(cilen != CILEN_VJ && cilen != CILEN_COMPRESS)) {
 		orc = CONFREJ;
@@ -1642,7 +1670,6 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 		break;
 	    }
 
-	    ho->neg_vj = 1;
 	    ho->vj_protocol = cishort;
 	    if (cilen == CILEN_VJ) {
 		GETCHAR(maxslotindex, p);
@@ -1673,6 +1700,13 @@ ipcp_reqci(fsm *f, u_char *inp,	int *len, int reject_if_disagree)
 	default:
 	    orc = CONFREJ;
 	    break;
+	}
+	if (dup) {
+	    if (!warned) {
+		warn("IPCP: ignoring duplicate configuration option(s)");
+		warned = 1;
+	    }
+	    continue;
 	}
 endswitch:
 	if (orc == CONFACK &&		/* Good CI */
@@ -1788,7 +1822,7 @@ ip_demand_conf(int u)
     }
     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
 	return 0;
-    ipcp_script(path_ippreup, 1);
+    ipcp_script(path_ippreup, 1, "ip-pre-up");
     if (!sifup(u))
 	return 0;
     if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
@@ -1828,7 +1862,8 @@ ipcp_up(fsm *f)
      * We must have a non-zero IP address for both ends of the link.
      */
 
-    if (wo->hisaddr && !wo->accept_remote && (!(ho->neg_addr || ho->old_addrs) || ho->hisaddr != wo->hisaddr)) {
+    if (wo->hisaddr && !wo->accept_remote && !noremoteip &&
+	(!(ho->neg_addr || ho->old_addrs) || ho->hisaddr != wo->hisaddr)) {
 	error("Peer refused to agree to his IP address");
 	ipcp_close(f->unit, "Refused his IP address");
 	return;
@@ -1951,7 +1986,7 @@ ipcp_up(fsm *f)
 	ifindex = if_nametoindex(ifname);
 
 	/* run the pre-up script, if any, and wait for it to finish */
-	ipcp_script(path_ippreup, 1);
+	ipcp_script(path_ippreup, 1, "ip-pre-up");
 
 	/* check if preup script renamed the interface */
 	if (!if_indextoname(ifindex, ifname)) {
@@ -2014,7 +2049,7 @@ ipcp_up(fsm *f)
      */
     if (ipcp_script_state == s_down && ipcp_script_pid == 0) {
 	ipcp_script_state = s_up;
-	ipcp_script(path_ipup, 0);
+	ipcp_script(path_ipup, 0, "ip-up");
     }
 }
 
@@ -2063,7 +2098,7 @@ ipcp_down(fsm *f)
     /* Execute the ip-down script */
     if (ipcp_script_state == s_up && ipcp_script_pid == 0) {
 	ipcp_script_state = s_down;
-	ipcp_script(path_ipdown, 0);
+	ipcp_script(path_ipdown, 0, "ip-down");
     }
 }
 
@@ -2112,13 +2147,13 @@ ipcp_script_done(void *arg)
     case s_up:
 	if (ipcp_fsm[0].state != OPENED) {
 	    ipcp_script_state = s_down;
-	    ipcp_script(path_ipdown, 0);
+	    ipcp_script(path_ipdown, 0, "ip-down");
 	}
 	break;
     case s_down:
 	if (ipcp_fsm[0].state == OPENED) {
 	    ipcp_script_state = s_up;
-	    ipcp_script(path_ipup, 0);
+	    ipcp_script(path_ipup, 0, "ip-down");
 	}
 	break;
     }
@@ -2130,7 +2165,7 @@ ipcp_script_done(void *arg)
  * interface-name tty-name speed local-IP remote-IP.
  */
 static void
-ipcp_script(char *script, int wait)
+ipcp_script(char *script, int wait, const char* name)
 {
     char strspeed[32], strlocal[32], strremote[32];
     char *argv[8];
@@ -2148,10 +2183,10 @@ ipcp_script(char *script, int wait)
     argv[6] = ipparam;
     argv[7] = NULL;
     if (wait)
-	run_program(script, argv, 0, NULL, NULL, 1);
+	run_program(script, argv, 0, NULL, NULL, 1, name);
     else
 	ipcp_script_pid = run_program(script, argv, 0, ipcp_script_done,
-				      NULL, 0);
+				      NULL, 0, name);
 }
 
 /*

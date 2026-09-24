@@ -1,7 +1,7 @@
 /*
  * dhcpv6relay.c - DHCPv6 relay plugin.
  *
- * Copyright (c) 2025 Ultimate Linux Solutions (Pty) Ltd represented by
+ * Copyright (c) 2025-2026 Ultimate Linux Solutions (Pty) Ltd represented by
  * Jaco Kroon <jaco@uls.co.za>. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,6 +23,8 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
  * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * When in doubt: https://datatracker.ietf.org/doc/html/rfc9915
  */
 #include "dhcpv6relay.h"
 
@@ -308,8 +310,30 @@ void dhcpv6relay_add_route(const struct in6_addr* addr, uint8_t prefixlen, uint3
 }
 
 static
-void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
+bool dhcpv6relay_valid_prefix(const struct in6_addr* addr, uint8_t prefixlen)
 {
+    int octet = prefixlen / 8;
+    uint8_t mask = 0xff >> (prefixlen % 8);
+    if (prefixlen > 128)
+	return false;
+
+    /* Can be done more efficiently but would require more complexity */
+    while (octet < 16) {
+	if (addr->s6_addr[octet] & mask)
+	    return false;
+	++octet;
+	mask = 0xff;
+    }
+
+    return true;
+}
+
+#define from_where_str(x)  ((x) ? "server" : "client")
+static
+void dhcpv6relay_process_ia_pd(bool from_server, const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
+{
+    char in6addr[INET6_ADDRSTRLEN];
+
     if (len < 12)
 	return; /* IAID, T1, T2, 4 octets each, we don't care */
     bfr += 12;
@@ -327,17 +351,17 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 
 	switch (opttype) {
 	case DHCPv6_OPTION_IAPREFIX:
-	    if (optlen < 9) {
-		error("DHCPv6 relay: IA_PD option from server needs at least 9 "
-			"bytes, %u available, cannot process IA_PD.", optlen);
-		break;
-	    } else if (optlen < 9 + (bfr[8] + 7) / 8) {
-		error("DHCPv6 relay: IA_PD option from server needs %u bytes "
-			"(prefix len=%u, thus 9+%u), only %u available, cannot process IA_PD.",
-			9 + (bfr[8] + 7) / 8, bfr[8], (bfr[8] + 7) / 8, optlen);
+	    /* 4 octets preferred, 4 octets valid lifetime, 1 octet length, 16 octets prefix, we discard IAprefix-options regardless. */
+	    if (optlen < 25) {
+		error("DHCPv6 relay: IA_PD option from %s needs at least 25 "
+			"bytes, %u available, cannot process IA_PD.", from_where_str(from_server), optlen);
 		break;
 	    }
-	    /* 4 octets preferred, 4 octets valid lifetime, 1 octet length, 16 octets prefix */
+	    if (!dhcpv6relay_valid_prefix((const struct in6_addr*)(bfr + 9), bfr[8])) {
+		error("DHCPv6 relay: IA_PD option from %s contains an illegal prefix %s/%u.", from_where_str(from_server),
+			inet_ntop(AF_INET6, bfr + 9, in6addr, sizeof(in6addr)), bfr[8]);
+		break;
+	    }
 	    routefunc((const struct in6_addr*)(bfr + 9), bfr[8], ntohl(*(const uint32_t*)(bfr+4)));
 	    break;
 	default:
@@ -350,7 +374,7 @@ void dhcpv6relay_process_ia_pd(const unsigned char *bfr, uint16_t len, dhcpv6rel
 }
 
 static
-void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
+void dhcpv6relay_process_ia_na(bool from_server, const unsigned char *bfr, uint16_t len, dhcpv6relay_route_func routefunc)
 {
     if (len < 12)
 	return; /* IAID, T1, T2, 4 octets each, we don't care */
@@ -363,15 +387,15 @@ void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6rel
 	len -= 4;
 
 	if (optlen > len) {
-	    error("DHCPv6 relay: IA_NA sub-option overflows IA_NA option length. Corrupt packet?");
+	    error("DHCPv6 relay: IA_NA sub-option from %s overflows IA_NA option length. Corrupt packet?", from_where_str(from_server));
 	    break;
 	}
 
 	switch (opttype) {
 	case DHCPv6_OPTION_IAADDR:
 	    if (optlen < 24) {
-		error("DHCPv6 relay: IA_NA option from server needs at least 24 "
-			"bytes, only %u available, cannot process IA_NA.", optlen);
+		error("DHCPv6 relay: IA_NA option from %s needs at least 24 "
+			"bytes, only %u available, cannot process IA_NA.", from_where_str(from_server), optlen);
 		break;
 	    }
 	    /* 16 octets address, 4 octets preferred lifetime, 4 octets valid lifetime */
@@ -387,7 +411,7 @@ void dhcpv6relay_process_ia_na(const unsigned char *bfr, uint16_t len, dhcpv6rel
 }
 
 static
-void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t len)
+void dhcpv6relay_process_packet_for_routes(bool from_server, const unsigned char *bfr, uint16_t len)
 {
     if (len < 1)
 	return;
@@ -397,6 +421,17 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
     switch (pkttype) {
     case DHCPv6_MSGTYPE_RELAY_FORW:
     case DHCPv6_MSGTYPE_RELAY_REPL:
+	if (pkttype == DHCPv6_MSGTYPE_RELAY_FORW) {
+	    if (from_server) {
+		error("DHCPv6 relay: Relay-Fwd message received from the server!  This is a message that only the client should send.");
+		return;
+	    }
+	} else {
+	    if (!from_server) {
+		error("DHCPv6 relay: Relay-Reply message received from the client!  This is a message that only the server should send.");
+		return;
+	    }
+	}
 	/* these have 34 byte headers, so we can jump over that, then look for the relay message option
 	 * and recurse on that as we really don't care about anything else. */
 	if (len < 34)
@@ -411,7 +446,7 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 	    if (optlen > len)
 		return;
 	    if (opttype == DHCPv6_OPTION_RELAY_MSG) {
-		dhcpv6relay_process_packet_for_routes(bfr, optlen);
+		dhcpv6relay_process_packet_for_routes(from_server, bfr, optlen);
 		return; /* there may be only one */
 	    }
 	    bfr += optlen;
@@ -420,10 +455,19 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 	break;
     case DHCPv6_MSGTYPE_REPLY:
     case DHCPv6_MSGTYPE_RELEASE:
-	if (pkttype == DHCPv6_MSGTYPE_RELEASE)
+	if (pkttype == DHCPv6_MSGTYPE_RELEASE) {
+	    if (from_server) {
+		error("DHCPv6 relay: Release message received from the server!  This is a message that only the client should send.");
+		return;
+	    }
 	    func = dhcpv6relay_release_route;
-	else
+	} else {
+	    if (!from_server) {
+		error("DHCPv6 relay: Reply message received from the client!  This is a message that only the server should send.");
+		return;
+	    }
 	    func = dhcpv6relay_add_route;
+	}
 
 	/* everything else has a 4 byte header, the packet type (1 octet) and a transaction id (3 octets)
 	 * which we don't care about, so just skip ahead to the options that we do care about */
@@ -441,10 +485,10 @@ void dhcpv6relay_process_packet_for_routes(const unsigned char *bfr, uint16_t le
 
 	    switch (opttype) {
 	    case DHCPv6_OPTION_IA_PD:
-		dhcpv6relay_process_ia_pd(bfr, optlen, func);
+		dhcpv6relay_process_ia_pd(from_server, bfr, optlen, func);
 		break;
 	    case DHCPv6_OPTION_IA_NA:
-		dhcpv6relay_process_ia_na(bfr, optlen, func);
+		dhcpv6relay_process_ia_na(from_server, bfr, optlen, func);
 		break;
 	    default:
 		break;
@@ -550,6 +594,8 @@ void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 	}
 	switch (type) {
 	case DHCPv6_OPTION_RELAY_MSG:
+	    if (fwd_packet)
+		warn("DHCPv6 relay: relay-repl message with multiple relay-msg options.");
 	    fwd_packet = options;
 	    fwd_len = len;
 	    break;
@@ -570,10 +616,15 @@ void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 	return;
     }
 
+    if (!fwd_len) {
+	error("DHCPv6 relay: relay-repl message from the server had a zero length relay-msg option.");
+	return;
+    }
+
     memset(&sa, 0, sizeof(sa));
     sa.sin6_family = AF_INET6;
     if (fwd_packet[0] == DHCPv6_MSGTYPE_RELAY_REPL) {
-	/* this should only ever happen towards "trusted" ports, wich is not the default. */
+	/* this should only ever happen towards "trusted" ports, which is not the default. */
 	/* TODO: Honour option 135 towards downstream, would need to see an example, spec
 	 * is unclear and observed behaviour from KEA doesn't make sense. */
 	sa.sin6_port = getservbyname("dhcpv6-server", "udp")->s_port;
@@ -592,7 +643,7 @@ void dhcpv6relay_server_event(int fd, __attribute__((unused)) void* unused)
 		strerror(errno));
     }
 
-    dhcpv6relay_process_packet_for_routes(fwd_packet, fwd_len);
+    dhcpv6relay_process_packet_for_routes(true, fwd_packet, fwd_len);
 }
 
 static
@@ -689,7 +740,7 @@ void dhcpv6relay_client_event(int fd, __attribute__((unused)) void* unused)
     if (dhcpv6relay_upstream < 0 && !dhcpv6relay_init_upstream())
 	return;
 
-    dhcpv6relay_process_packet_for_routes(buffer, r);
+    dhcpv6relay_process_packet_for_routes(false, buffer, r);
 
     /* populate the forward header */
     fwd_head[0] = DHCPv6_MSGTYPE_RELAY_FORW; /* msg-type */

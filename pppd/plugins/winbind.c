@@ -213,6 +213,10 @@ char * base64_encode(const char *data)
 	char *result = malloc(output_len); /* get us plenty of space */
 	unsigned int bits;
 
+	if (result == NULL) {
+		novm("base64 output buffer");
+	}
+
 	for (; len >= 3; len -= 3) {
 		bits = (ptr[0] << 16) + (ptr[1] << 8) + ptr[2];
 		ptr += 3;

@@ -1067,10 +1067,13 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
     bool rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
 				/* CI_MPPE, or due to other options?       */
 #endif
+    int warned = 0;
+    bool seenci[CI_DEFLATE+1];
 
     ret = CONFACK;
     retp = p0 = p;
     len = *lenp;
+    BZERO(seenci, sizeof(seenci));
 
     memset(ho, 0, sizeof(ccp_options));
     ho->method = (len > 0)? p[0]: -1;
@@ -1085,6 +1088,19 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	} else {
 	    type = p[0];
 	    clen = p[1];
+
+	    if (type <= CI_DEFLATE) {
+		if (seenci[type]) {
+		    if (!warned) {
+			warn("CCP: ignoring duplicate configuration option(s)");
+			warned = 1;
+		    }
+		    p += clen;
+		    len -= clen;
+		    continue;
+		}
+		seenci[type] = 1;
+	    }
 
 	    switch (type) {
 #ifdef PPP_WITH_MPPE

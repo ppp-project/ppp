@@ -161,7 +161,7 @@ unsigned char rc_get_seqnbr(void)
  */
 
 int rc_auth(UINT4 client_port, VALUE_PAIR *send, VALUE_PAIR **received,
-	    char *msg, REQUEST_INFO *info)
+	    char *msg, size_t msgspace, REQUEST_INFO *info)
 {
     SERVER *authserver = rc_conf_srv("authserver");
 
@@ -169,7 +169,7 @@ int rc_auth(UINT4 client_port, VALUE_PAIR *send, VALUE_PAIR **received,
 	return (ERROR_RC);
     }
     return rc_auth_using_server(authserver, client_port, send, received,
-				msg, info);
+				msg, msgspace, info);
 }
 
 /*
@@ -188,7 +188,7 @@ int rc_auth_using_server(SERVER *authserver,
 			 UINT4 client_port,
 			 VALUE_PAIR *send,
 			 VALUE_PAIR **received,
-			 char *msg, REQUEST_INFO *info)
+			 char *msg, size_t msgspace, REQUEST_INFO *info)
 {
 	SEND_DATA       data;
 	int		result;
@@ -224,7 +224,7 @@ int rc_auth_using_server(SERVER *authserver,
 		rc_buildreq(&data, PW_ACCESS_REQUEST, authserver->name[i],
 			    authserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg, info);
+		result = rc_send_server (&data, msg, msgspace, info);
 	}
 
 	*received = data.receive_pairs;
@@ -245,7 +245,7 @@ int rc_auth_using_server(SERVER *authserver,
  *
  */
 
-int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg)
+int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg, size_t msgspace)
 {
 	SEND_DATA       data;
 	int		result;
@@ -268,7 +268,7 @@ int rc_auth_proxy(VALUE_PAIR *send, VALUE_PAIR **received, char *msg)
 		rc_buildreq(&data, PW_ACCESS_REQUEST, authserver->name[i],
 			    authserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg, NULL);
+		result = rc_send_server (&data, msg, msgspace, NULL);
 	}
 
 	*received = data.receive_pairs;
@@ -341,7 +341,7 @@ int rc_acct_using_server(SERVER *acctserver,
 		dtime.tv_sec -= start_time.tv_sec;
 		rc_avpair_assign(adt_vp, &dtime.tv_sec, 0);
 
-		result = rc_send_server (&data, msg, NULL);
+		result = rc_send_server (&data, msg, sizeof(msg), NULL);
 	}
 
 	rc_avpair_free(data.receive_pairs);
@@ -398,7 +398,7 @@ int rc_acct_proxy(VALUE_PAIR *send)
 		rc_buildreq(&data, PW_ACCOUNTING_REQUEST, acctserver->name[i],
 			    acctserver->port[i], timeout, retries);
 
-		result = rc_send_server (&data, msg, NULL);
+		result = rc_send_server (&data, msg, sizeof(msg), NULL);
 	}
 
 	rc_avpair_free(data.receive_pairs);
@@ -414,7 +414,7 @@ int rc_acct_proxy(VALUE_PAIR *send)
  *
  */
 
-int rc_check(char *host, unsigned short port, char *msg)
+int rc_check(char *host, unsigned short port, char *msg, size_t msgspace)
 {
 	SEND_DATA       data;
 	int		result;
@@ -440,7 +440,7 @@ int rc_check(char *host, unsigned short port, char *msg)
 	rc_avpair_add(&(data.send_pairs), PW_SERVICE_TYPE, &service_type, 0, VENDOR_NONE);
 
 	rc_buildreq(&data, PW_STATUS_SERVER, host, port, timeout, retries);
-	result = rc_send_server (&data, msg, NULL);
+	result = rc_send_server (&data, msg, msgspace, NULL);
 
 	rc_avpair_free(data.receive_pairs);
 
