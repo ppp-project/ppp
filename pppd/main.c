@@ -1728,6 +1728,7 @@ ppp_safe_fork(int infd, int outfd, int errfd)
 #ifdef PPP_WITH_TDB
 	if (pppdb != NULL)
 		tdb_close(pppdb);
+	pppdb = NULL;
 #endif
 
 	/* make sure infd, outfd and errfd won't get tromped on below */
