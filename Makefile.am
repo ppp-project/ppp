@@ -60,7 +60,8 @@ EXTRA_DIST= \
     testsuite/data-transfer_test.py \
     testsuite/link-up_test.py \
     testsuite/mtu-negotiation_test.py \
-    testsuite/ping_test.py
+    testsuite/ping_test.py \
+    testsuite/script-run_test.py
 
 # Integration tests: bring up pairs of pppd instances and verify link
 # negotiation, IP routing, authentication etc. Needs root or passwordless
