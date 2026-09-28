@@ -158,33 +158,6 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth, int datal
 		    }
 
 		    break;
-#if 0
-		case PW_CHAP_PASSWORD:
-
-		    *buf++ = CHAP_VALUE_LENGTH + 2;
-
-		    /* Encrypt the Password */
-		    length = vp->lvalue;
-		    if (length > CHAP_VALUE_LENGTH) {
-			length = CHAP_VALUE_LENGTH;
-		    }
-		    memset ((char *) passbuf, '\0', CHAP_VALUE_LENGTH);
-		    memcpy ((char *) passbuf, vp->strvalue, (size_t) length);
-
-		    /* Calculate the MD5 Digest */
-		    secretlen = strlen (secret);
-		    strcpy ((char *) md5buf, secret);
-		    memcpy ((char *) md5buf + secretlen, (char *) auth->vector,
-			    AUTH_VECTOR_LEN);
-		    rc_md5_calc (buf, md5buf, secretlen + AUTH_VECTOR_LEN);
-
-		    /* Xor the password into the MD5 digest */
-		    for (i = 0; i < CHAP_VALUE_LENGTH; i++) {
-			*buf++ ^= passbuf[i];
-		    }
-
-		    break;
-#endif
 		default:
 		    switch (vp->type) {
 		    case PW_TYPE_STRING:
@@ -496,18 +469,6 @@ static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *sec
 	if (memcmp ((char *) reply_digest, (char *) calc_digest,
 		    AUTH_VECTOR_LEN) != 0)
 	{
-#ifdef RADIUS_116
-		/* the original Livingston radiusd v1.16 seems to have
-		   a bug in digest calculation with accounting requests,
-		   authentication request are ok. i looked at the code
-		   but couldn't find any bugs. any help to get this
-		   kludge out are welcome. preferably i want to
-		   reproduce the calculation bug here to be compatible
-		   to stock Livingston radiusd v1.16.	-lf, 03/14/96
-		 */
-		if (auth->code == PW_ACCOUNTING_RESPONSE)
-			return (OK_RC);
-#endif
 		error("rc_check_reply: received invalid reply digest from RADIUS server");
 		return (BADRESP_RC);
 	}
