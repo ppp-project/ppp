@@ -13,9 +13,11 @@
  */
 
 #include <includes.h>
-#include <radiusclient.h>
-#include <pathnames.h>
 #include <signal.h>
+
+#include "radiusclient.h"
+#include "pathnames.h"
+#include "pppd/crypto.h"
 
 static void rc_random_vector (unsigned char *);
 static int rc_check_reply (AUTH_HDR *, int, int, char *, unsigned char *, unsigned char);
@@ -32,10 +34,7 @@ static int rc_pack_length(VALUE_PAIR *vp)
 	total_length += 6;	/* length, vendor code, attribute */
 
     if (vp->vendorcode == VENDOR_NONE && vp->attribute == PW_USER_PASSWORD) {
-	length = vp->lvalue;
-	if (length > AUTH_PASS_LEN)
-	    length = AUTH_PASS_LEN;
-	length = (length + (AUTH_VECTOR_LEN-1)) & ~(AUTH_VECTOR_LEN-1);
+	length = (vp->lvalue + (AUTH_VECTOR_LEN-1)) & ~(AUTH_VECTOR_LEN-1);
 	total_length += length + 1;
     } else {
 	switch (vp->type) {
@@ -45,8 +44,9 @@ static int rc_pack_length(VALUE_PAIR *vp)
 	case PW_TYPE_INTEGER:
 	case PW_TYPE_IPADDR:
 	    total_length += sizeof(UINT4) + 1;
-	default:
 	    break;
+	default:
+	    fatal("rc_pack_length: Unable to calculate pack length for unknown attribute type %d", vp->type);
 	}
     }
 
@@ -67,9 +67,10 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth, int datal
     int             length, i, pc, secretlen, padded_length;
     int             vplen;
     UINT4           lvalue;
-    unsigned char   passbuf[MAX(AUTH_PASS_LEN, CHAP_VALUE_LENGTH)];
-    unsigned char   md5buf[256];
+    unsigned char   md5buf[MD5_DIGEST_LENGTH];
     unsigned char   *buf, *vector, *lenptr;
+    PPP_MD_CTX	    *md5ctx;
+    unsigned	    md5len;
 
     buf = auth->data;
 
@@ -122,40 +123,42 @@ static int rc_pack_list (VALUE_PAIR *vp, char *secret, AUTH_HDR *auth, int datal
 		*buf++ = vp->attribute;
 		switch (vp->attribute) {
 		case PW_USER_PASSWORD:
+		    length = vp->lvalue;
 
 		    /* Encrypt the password */
 
-		    /* Chop off password at AUTH_PASS_LEN */
-		    length = vp->lvalue;
-		    if (length > AUTH_PASS_LEN) length = AUTH_PASS_LEN;
-
 		    /* Calculate the padded length */
 		    padded_length = (length+(AUTH_VECTOR_LEN-1)) & ~(AUTH_VECTOR_LEN-1);
-
-		    /* Record the attribute length */
 		    *buf++ = padded_length + 2;
-
-		    /* Pad the password with zeros */
-		    memset ((char *) passbuf, '\0', AUTH_PASS_LEN);
-		    memcpy ((char *) passbuf, vp->strvalue, (size_t) length);
 
 		    secretlen = strlen (secret);
 		    vector = auth->vector;
+		    md5ctx = PPP_MD_CTX_new();
+		    md5len = sizeof(md5buf);
+		    if (!md5ctx)
+			novm("radius: error allocating MD5 data structures for encrypting the password.");
+
 		    for(i = 0; i < padded_length; i += AUTH_VECTOR_LEN) {
 			/* Calculate the MD5 digest*/
-			strcpy ((char *) md5buf, secret);
-			memcpy ((char *) md5buf + secretlen, vector,
-				AUTH_VECTOR_LEN);
-			rc_md5_calc (buf, md5buf, secretlen + AUTH_VECTOR_LEN);
+			if (!PPP_DigestInit(md5ctx, PPP_md5()) ||
+				!PPP_DigestUpdate(md5ctx, secret, secretlen) ||
+				!PPP_DigestUpdate(md5ctx, vector, md5len) ||
+				!PPP_DigestFinal(md5ctx, md5buf, &md5len) ||
+				md5len != sizeof(md5buf))
+			{
+			    PPP_MD_CTX_free(md5ctx);
+			    fatal("radius: Error calculating password mixing material");
+			}
 
-			/* Remeber the start of the digest */
+			/* Use the target output as the vector for the next round. */
 			vector = buf;
 
 			/* Xor the password into the MD5 digest */
 			for (pc = i; pc < (i + AUTH_VECTOR_LEN); pc++) {
-			    *buf++ ^= passbuf[pc];
+			    *buf++ = md5buf[pc & (AUTH_VECTOR_LEN-1)] ^ (pc < length ? vp->strvalue[pc] : 0);
 			}
 		    }
+		    PPP_MD_CTX_free(md5ctx);
 
 		    break;
 		default:
@@ -222,6 +225,8 @@ int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *i
 	char            send_buffer[BUFFER_LEN];
 	int		retries;
 	VALUE_PAIR	*vp;
+	PPP_MD_CTX      *md5ctx;
+	unsigned	md5len;
 
 	server_name = data->server;
 	if (server_name == (char *) NULL || server_name[0] == '\0')
@@ -283,8 +288,22 @@ int rc_send_server (SEND_DATA *data, char *msg, size_t msgspace, REQUEST_INFO *i
 		auth->length = htons ((unsigned short) total_length);
 
 		memset((char *) auth->vector, 0, AUTH_VECTOR_LEN);
-		memcpy ((char *) auth + total_length, secret, secretlen);
-		rc_md5_calc (vector, (unsigned char *) auth, total_length + secretlen);
+		md5ctx = PPP_MD_CTX_new();
+		md5len = sizeof(vector);
+		if (!md5ctx ||
+			!PPP_DigestInit(md5ctx, PPP_md5()) ||
+			!PPP_DigestUpdate(md5ctx, (unsigned char*)auth, total_length) ||
+			!PPP_DigestUpdate(md5ctx, secret, secretlen) ||
+			!PPP_DigestFinal(md5ctx, vector, &md5len) ||
+			md5len != sizeof(vector))
+		{
+		    error("rc_send_server: Error calculating accounting message digest.");
+		    if (md5ctx)
+			PPP_MD_CTX_free(md5ctx);
+		    return (ERROR_RC);
+		}
+		PPP_MD_CTX_free(md5ctx);
+
 		memcpy ((char *) auth->vector, (char *) vector, AUTH_VECTOR_LEN);
 	}
 	else
@@ -412,6 +431,8 @@ static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *sec
 	int             totallen;
 	unsigned char   calc_digest[AUTH_VECTOR_LEN];
 	unsigned char   reply_digest[AUTH_VECTOR_LEN];
+	PPP_MD_CTX	*md5ctx;
+	unsigned	md5len;
 
 	if (datalen < sizeof(AUTH_HDR)) {
 		error("rc_check_reply: received short RADIUS server response");
@@ -445,8 +466,21 @@ static int rc_check_reply (AUTH_HDR *auth, int datalen, int bufferlen, char *sec
 	/* Verify the reply digest */
 	memcpy ((char *) reply_digest, (char *) auth->vector, AUTH_VECTOR_LEN);
 	memcpy ((char *) auth->vector, (char *) vector, AUTH_VECTOR_LEN);
-	memcpy ((char *) auth + totallen, secret, secretlen);
-	rc_md5_calc (calc_digest, (unsigned char *) auth, totallen + secretlen);
+	md5ctx = PPP_MD_CTX_new();
+	md5len = sizeof(calc_digest);
+	if (!md5ctx ||
+		!PPP_DigestInit(md5ctx, PPP_md5()) ||
+		!PPP_DigestUpdate(md5ctx, (unsigned char*)auth, totallen) ||
+		!PPP_DigestUpdate(md5ctx, secret, secretlen) ||
+		!PPP_DigestFinal(md5ctx, calc_digest, &md5len) ||
+		md5len != sizeof(calc_digest))
+	{
+	    error("rc_check_reply: Error calculating response MD5 digest");
+	    if (md5ctx)
+		PPP_MD_CTX_free(md5ctx);
+	    return (ERROR_RC);
+	}
+	PPP_MD_CTX_free(md5ctx);
 
 #ifdef DIGEST_DEBUG
 	{
