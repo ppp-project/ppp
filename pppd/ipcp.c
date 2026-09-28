@@ -2153,7 +2153,7 @@ ipcp_script_done(void *arg)
     case s_down:
 	if (ipcp_fsm[0].state == OPENED) {
 	    ipcp_script_state = s_up;
-	    ipcp_script(path_ipup, 0, "ip-down");
+	    ipcp_script(path_ipup, 0, "ip-up");
 	}
 	break;
     }
