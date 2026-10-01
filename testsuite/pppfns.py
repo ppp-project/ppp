@@ -199,7 +199,8 @@ class PppPeer:
 
     def __init__(self, name: str, binary: str, local_ip: str, remote_ip: str,
                  options=None, noauth: bool = True,
-                 pap_secrets: str = None, chap_secrets: str = None):
+                 pap_secrets: str = None, chap_secrets: str = None,
+                 scripts: dict = None):
         self.name = name
         self.binary = binary
         self.local_ip = local_ip
@@ -218,25 +219,34 @@ class PppPeer:
         confdir = pppd_confdir(binary)
         etc_ppp = self.dir / 'etc.ppp'
         etc_ppp.mkdir(parents=True)
-        secrets = []
+        conf_files = []         # (name, mode) pairs staged by launch.sh below
+
+        def stage(fname, text, mode):
+            (self.dir / fname).write_text(text)
+            if IS_LINUX:
+                # pppd refuses a secrets file unless its resolved path
+                # consists entirely of root-owned, non-group/other-
+                # writable components, which a scratch dir under $HOME
+                # can never satisfy. The check walks the realpath, so
+                # symlink the file into a root-owned tmpfs dir that
+                # launch.sh populates inside the mount namespace.
+                (etc_ppp / fname).symlink_to(f'/run/ppp-conf/{fname}')
+            else:
+                # No mount namespace: launch.sh copies the file into the
+                # real confdir (PPPD_TEST_GLOBAL_CONF gate); remove it
+                # again in stop().
+                self.conf_cleanup.append(f'{confdir}/{fname}')
+            conf_files.append((fname, mode))
+
         for fname, text in (('pap-secrets', pap_secrets),
                             ('chap-secrets', chap_secrets)):
             if text is not None:
-                (self.dir / fname).write_text(text)
-                if IS_LINUX:
-                    # pppd refuses a secrets file unless its resolved path
-                    # consists entirely of root-owned, non-group/other-
-                    # writable components, which a scratch dir under $HOME
-                    # can never satisfy. The check walks the realpath, so
-                    # symlink the secrets into a root-owned tmpfs dir that
-                    # launch.sh populates inside the mount namespace.
-                    (etc_ppp / fname).symlink_to(f'/run/ppp-conf/{fname}')
-                else:
-                    # No mount namespace: launch.sh copies the file into the
-                    # real confdir (PPPD_TEST_GLOBAL_CONF gate); remove it
-                    # again in stop().
-                    self.conf_cleanup.append(f'{confdir}/{fname}')
-                secrets.append(fname)
+                stage(fname, text, '600')
+        # Hook scripts pppd execs itself (ip-up, ip-down, ...). They must be
+        # root-owned, non-group/other-writable and executable or
+        # ppp_check_access() refuses to run them.
+        for fname, text in (scripts or {}).items():
+            stage(fname, text, '755')
         if IS_LINUX:
             # The bind-mounted confdir replaces the host's, so provide the
             # files pppd reads from it. An empty options file keeps the run
@@ -283,19 +293,19 @@ class PppPeer:
                 f"mkdir -p {q(confdir)}",
                 f"mount --bind {q(str(etc_ppp))} {q(confdir)}",
                 'mkdir -m 755 /run/ppp-conf']
-            for fname in secrets:
+            for fname, mode in conf_files:
                 script += [f"cp {q(str(self.dir / fname))} /run/ppp-conf/{fname}",
-                           f"chmod 600 /run/ppp-conf/{fname}"]
+                           f"chmod {mode} /run/ppp-conf/{fname}"]
             script += ['ip link set lo up']
         else:
             script += [f"mkdir -p {q(confdir)}"]
-            for fname in secrets:
+            for fname, mode in conf_files:
                 dst = f'{confdir}/{fname}'
-                # Never clobber a real secrets file, even on an opted-in
-                # host.
+                # Never clobber a real secrets file or hook script, even on
+                # an opted-in host.
                 script += [f"if [ -e {q(dst)} ]; then echo {q(dst)} already exists >&2; exit 1; fi",
                            f"cp {q(str(self.dir / fname))} {q(dst)}",
-                           f"chmod 600 {q(dst)}"]
+                           f"chmod {mode} {q(dst)}"]
         script += [
             # $$ survives the exec, so this records the watchdog's (or
             # pppd's) pid; on Linux it also names the network namespace

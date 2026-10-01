@@ -1400,7 +1400,7 @@ ipv6cp_up(fsm *f)
      */
     if (ipv6cp_script_state == s_down && ipv6cp_script_pid == 0) {
 	ipv6cp_script_state = s_up;
-	ipv6cp_script(path_ipv6up, "ipv6-ip");
+	ipv6cp_script(path_ipv6up, "ipv6-up");
     }
 }
 

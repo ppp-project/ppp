@@ -1726,8 +1726,10 @@ ppp_safe_fork(int infd, int outfd, int errfd)
 	/* Executing in the child */
 	ppp_sys_close();
 #ifdef PPP_WITH_TDB
-	if (pppdb != NULL)
+	if (pppdb != NULL) {
 		tdb_close(pppdb);
+		pppdb = NULL;	/* tdb_close() can't null the caller's pointer */
+	}
 #endif
 
 	/* make sure infd, outfd and errfd won't get tromped on below */

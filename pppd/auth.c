@@ -790,7 +790,7 @@ link_down(int unit)
 	if (auth_script_state == s_up && auth_script_pid == 0) {
 	    ppp_get_link_stats(NULL);
 	    auth_script_state = s_down;
-	    auth_script(path_auth_down, "auth-up");
+	    auth_script(path_auth_down, "auth-down");
 	}
     }
     if (!mp_on())

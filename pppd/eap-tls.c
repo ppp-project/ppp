@@ -985,7 +985,8 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
 	    /* This serves mainly to advance the TLS handshake process. */
             res = SSL_read(ets->ssl, dummy, sizeof(dummy));
 	    if (res >= 0)
-		dbglog("got %d bytes from SSL_read: %.*B", MIN(res, 20), dummy);
+		dbglog("got %d bytes from SSL_read: %.*B",
+		       res, MIN(res, 20), dummy);
         }
 
 	/*
