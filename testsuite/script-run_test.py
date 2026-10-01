@@ -14,17 +14,14 @@
 #
 # Builds without TDB still run the test: the scripts must run and be
 # labelled correctly there too, only the pppdb crash can't happen.
-#
-# On illumos the hooks currently fail to exec (see HOOK_EXEC_FAILED below);
-# that exact failure is reported as XFAIL, anything else still fails.
 
 import os
 import shlex
 import time
 
 from pppfns import (
-    IS_LINUX, IS_SUNOS, PPPD, SCRATCHDIR, PppPair, pppd_confdir,
-    require_link_env, test_fail, test_skipped, test_xfail,
+    IS_LINUX, PPPD, SCRATCHDIR, PppPair, pppd_confdir,
+    require_link_env, test_fail, test_skipped,
 )
 
 require_link_env()
@@ -81,24 +78,13 @@ def wait_for_hook(peer, marker, name, timeout=30):
     # from "the forked child crashed before execve".
     path = f'{CONFDIR}/{name}'
     detail = ''
-    exec_failed = False
     for line in peer.log_text().splitlines():
         if 'terminated with signal' in line:
             detail = f'\npppd reported a dying script child: {line.strip()}'
-            exec_failed = False     # a crash is never the known issue
             break
         if f'Script {path} finished' in line and HOOK_EXEC_FAILED in line:
-            exec_failed = True
             detail = f'\npppd could not exec the script: {line.strip()}'
-    msg = f'{path} did not run within {timeout}s{detail}'
-    if IS_SUNOS and exec_failed:
-        # Known 2.5.4 regression, not what this test guards: run_program()
-        # now fexecve()s an O_EXEC descriptor under strict-script-checks
-        # (the default), which fails for #! scripts on illumos. 2.5.3 and
-        # earlier exec'd by path.
-        test_xfail(f'{msg}\nknown issue: hook scripts are not executed on '
-                   'illumos under strict-script-checks (fexecve on O_EXEC fd)')
-    test_fail(msg)
+    test_fail(f'{path} did not run within {timeout}s{detail}')
 
 
 def check_hook(peer, marker, name):
