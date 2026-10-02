@@ -29,15 +29,15 @@ typedef unsigned int UINT4;
 typedef int          INT4;
 #endif
 
-#define AUTH_VECTOR_LEN		16
-#define AUTH_PASS_LEN		(3 * 16) /* multiple of 16 */
-#define AUTH_ID_LEN		64
 #define AUTH_STRING_LEN		253	 /* maximum of 253 */
+#define AUTH_VECTOR_LEN		16
+/* largest multiple of AUTH_VECTOR_LEN that will fit the AUTH_STRING_LEN byte value limit */
+#define AUTH_PASS_LEN		(AUTH_VECTOR_LEN * (AUTH_STRING_LEN / AUTH_VECTOR_LEN))
+#define AUTH_ID_LEN		64
 
 #define	BUFFER_LEN		8192
 
 #define NAME_LENGTH		32
-#define	GETSTR_LENGTH		128	/* must be bigger than AUTH_PASS_LEN */
 
 /* codes for radius_buildreq, radius_getport, etc. */
 #define AUTH			0
@@ -64,12 +64,11 @@ typedef struct pw_auth_hdr
 	u_char          id;
 	u_short         length;
 	u_char          vector[AUTH_VECTOR_LEN];
-	u_char          data[2];
+	u_char          data[0];
 } AUTH_HDR;
 
-#define AUTH_HDR_LEN			20
+#define AUTH_HDR_LEN			(sizeof(AUTH_HDR))
 #define MAX_SECRET_LENGTH		(3 * 16) /* MUST be multiple of 16 */
-#define CHAP_VALUE_LENGTH		16
 
 #define PW_AUTH_UDP_PORT		1812
 #define PW_ACCT_UDP_PORT		1813
@@ -466,9 +465,5 @@ int rc_send_server(SEND_DATA *, char *, size_t, REQUEST_INFO *);
 void rc_str2tm(char *, struct tm *);
 char *rc_mksid(void);
 void rc_mdelay(int);
-
-/* md5.c			*/
-
-int rc_md5_calc(unsigned char *out, const unsigned char *in, unsigned int inl);
 
 #endif /* RADIUSCLIENT_H */

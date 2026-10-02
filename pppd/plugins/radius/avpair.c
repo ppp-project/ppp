@@ -62,21 +62,21 @@ int rc_avpair_assign (VALUE_PAIR *vp, const void *pval, int len)
 	switch (vp->type)
 	{
 		case PW_TYPE_STRING:
-
-			if (((len == 0) && (strlen ((const char *) pval)) > AUTH_STRING_LEN)
-			    || (len > AUTH_STRING_LEN)) {
+			if (len == 0)
+				len = strlen(pval);
+			if (vp->vendorcode == VENDOR_NONE && vp->attribute == PW_USER_PASSWORD) {
+				if (len > AUTH_PASS_LEN) {
+					error("rc_avpair_assign: bad attribute (User-Password) length");
+					return result;
+				}
+			} else if (len > AUTH_STRING_LEN) {
 				error("rc_avpair_assign: bad attribute length");
 				return result;
 		    }
 
-			if (len > 0) {
-				memcpy(vp->strvalue, (const char *)pval, len);
-				vp->strvalue[len] = '\0';
-				vp->lvalue = len;
-			} else {
-			strncpy ((char*) vp->strvalue, (const char *) pval, AUTH_STRING_LEN);
-			vp->lvalue = strlen((const char *) pval);
-			}
+			memcpy(vp->strvalue, (const char *)pval, len);
+			vp->strvalue[len] = '\0';
+			vp->lvalue = len;
 
 			result = 0;
 			break;
@@ -169,7 +169,7 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 	length = ntohs ((unsigned short) auth->length) - AUTH_HDR_LEN;
 	vp = (VALUE_PAIR *) NULL;
 
-	while (length > 0)
+	while (length > 2)
 	{
 		attribute = *ptr++;
 		attrlen = *ptr++;
@@ -254,6 +254,8 @@ VALUE_PAIR *rc_avpair_gen (AUTH_HDR *auth)
 		ptr += attrlen;
 		length -= attrlen + 2;
 	}
+	if (length > 0)
+	    warn("rc_avpair_gen: There is %d bytes left after processing, which is unexpected, truncated packet?", length);
 	return (vp);
 }
 
