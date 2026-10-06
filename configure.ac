@@ -1,6 +1,6 @@
 AC_PREREQ([2.69])
 AC_INIT([ppp],
-        [2.5.5-dev],
+        [2.6.0-dev],
         [https://github.com/ppp-project/ppp])
 AC_USE_SYSTEM_EXTENSIONS
 
