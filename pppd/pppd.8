@@ -1158,7 +1158,10 @@ using execve() when invoking scripts to using execveat() - which means we
 perform the relevant checks on the file we are guaranteed to exec to, with the
 caveat that if these are scripts with shebangs (#!) then $0 (argv[0]) will be
 lost - your scripts should either know who/what they are - or rely on
-PPP_SCRIPT_INSTANCE environment variable.
+PPP_SCRIPT_INSTANCE environment variable.  On Solaris and illumos, which
+cannot execute a #! script through a file descriptor, scripts are executed by
+path instead, after checking that the path still refers to the file that was
+checked.
 .TP
 .B strict\-secrets\-files
 This option (which is on be default) will refuse to operate using secrets files
