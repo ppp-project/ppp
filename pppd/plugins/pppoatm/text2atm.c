@@ -242,8 +242,6 @@ int text2atm(const char *text,struct sockaddr *addr,int length,int flags)
     }
     if (!(flags & T2A_NAME)) return -1;
     result = try_name(text,addr,length,flags & ~T2A_NAME);
-    if (result == TRY_OTHER && !(flags & T2A_LOCAL))
-	result = ans_byname(text,(struct sockaddr_atmsvc *) addr,length,flags);
     if (result != TRY_OTHER) return result;
     return -1;
 }

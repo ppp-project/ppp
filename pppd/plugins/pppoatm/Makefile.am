@@ -13,6 +13,5 @@ pppoatm_la_SOURCES = pppoatm.c
 if WITH_LIBATM
 pppoatm_la_LIBADD = -latm
 else
-pppoatm_la_SOURCES += text2qos.c text2atm.c misc.c ans.c
-pppoatm_la_LIBADD = -lresolv
+pppoatm_la_SOURCES += text2qos.c text2atm.c misc.c
 endif
