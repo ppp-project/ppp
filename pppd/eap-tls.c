@@ -116,7 +116,7 @@ void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
     dbglog("EAP-TLS PRF label = %s", prf_label);
     prf_size = strlen(prf_label);
     if (SSL_export_keying_material(ets->ssl, out, sizeof(out), prf_label, prf_size, 
-                                   context, context_len, 0) != 1)
+                                   context, context_len, ets->tls_v13) != 1)
     {
         warn( "EAP-TLS: Failed generating keying material" );
         return;
