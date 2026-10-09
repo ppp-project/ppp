@@ -292,10 +292,6 @@ AM_COND_IF([OPENSSL_HAVE_DES],
     AC_DEFINE([OPENSSL_HAVE_DES], 1, [Use DES included with openssl]))
 
 #
-# With libatm support
-AX_CHECK_ATM
-
-#
 # With libpam support
 AX_CHECK_PAM(AC_DEFINE([PPP_WITH_PAM], 1, [Support for Pluggable Authentication Modules]))
 AM_CONDITIONAL(PPP_WITH_PAM, test "x${with_pam}" = "xyes")
@@ -344,7 +340,6 @@ $PACKAGE_NAME version $PACKAGE_VERSION
     Plugin Dir...........: $PPPD_PLUGIN_DIR
     System CA Path ......: ${SYSTEM_CA_PATH:-not set}
     With OpenSSL.........: ${with_openssl:-yes}
-    With libatm..........: ${with_atm:-no}
     With libpam..........: ${with_pam:-no}
     With libpcap.........: ${with_pcap:-no}
     C Compiler...........: $CC $CFLAGS
