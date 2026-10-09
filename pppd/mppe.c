@@ -111,31 +111,14 @@ mppe_clear_keys(void)
 void
 mppe_set_chapv1(unsigned char *rchallenge, unsigned char *PasswordHashHash)
 {
-    PPP_MD_CTX *ctx;
     u_char Digest[SHA_DIGEST_LENGTH];
     int DigestLen;
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
-
-                if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
-
-                    if (PPP_DigestUpdate(ctx, rchallenge, 8)) {
-                        
-                        DigestLen = SHA_DIGEST_LENGTH;
-                        PPP_DigestFinal(ctx, Digest, &DigestLen);
-                    }
-                }
-            }
-        }
-        
-        PPP_MD_CTX_free(ctx);
-    }
-
+    DigestLen = SHA_DIGEST_LENGTH;
+    if (!PPP_calc_digest(PPP_sha1(), Digest, &DigestLen,
+			 PasswordHashHash, MD4_DIGEST_LENGTH,
+			 PasswordHashHash, MD4_DIGEST_LENGTH, NULL))
+	error("MPPE MS-CHAPv1 digest calculation failed");
 
     /* Same key in both directions. */
     mppe_set_keys(Digest, Digest, sizeof(Digest));
@@ -151,8 +134,6 @@ void
 mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
         int IsServer)
 {
-    PPP_MD_CTX *ctx;
-    
     u_char	MasterKey[SHA_DIGEST_LENGTH];
     u_char	SendKey[SHA_DIGEST_LENGTH];
     u_char	RecvKey[SHA_DIGEST_LENGTH];
@@ -200,26 +181,12 @@ mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
 	  0x6b, 0x65, 0x79, 0x2e };
     u_char *s;
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, PasswordHashHash, MD4_DIGEST_LENGTH)) {
-
-                if (PPP_DigestUpdate(ctx, NTResponse, 24)) {
-
-                    if (PPP_DigestUpdate(ctx, Magic1, sizeof(Magic1))) {
-                        
-                        KeyLen = SHA_DIGEST_LENGTH;
-                        PPP_DigestFinal(ctx, MasterKey, &KeyLen);
-                    }
-                }
-            }
-        }
-        
-        PPP_MD_CTX_free(ctx);
-    }
+    KeyLen = SHA_DIGEST_LENGTH;
+    if (!PPP_calc_digest(PPP_sha1(), MasterKey, &KeyLen,
+			 PasswordHashHash, MD4_DIGEST_LENGTH,
+			 NTResponse, 24,
+			 Magic1, sizeof(Magic1), NULL))
+	error("MPPE MS-CHAPv2 digest calculation failed");
 
     /*
      * generate send key
@@ -229,30 +196,13 @@ mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
     else
 	s = Magic2;
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, MasterKey, 16)) {
-
-                if (PPP_DigestUpdate(ctx, SHApad1, sizeof(SHApad1))) {
-
-                    if (PPP_DigestUpdate(ctx, s, 84)) {
-
-                        if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
-                        
-                            KeyLen = SHA_DIGEST_LENGTH;
-                            PPP_DigestFinal(ctx, SendKey, &KeyLen);
-                        }
-                    }
-                }
-            }
-        }
-        
-        PPP_MD_CTX_free(ctx);
-    }
-
+    KeyLen = SHA_DIGEST_LENGTH;
+    if (!PPP_calc_digest(PPP_sha1(), SendKey, &KeyLen,
+			 MasterKey, 16,
+			 SHApad1, sizeof(SHApad1),
+			 s, 84,
+			 SHApad2, sizeof(SHApad2), NULL))
+	error("MPPE MS-CHAPv2 digest calculation (2) failed");
 
     /*
      * generate recv key
@@ -262,29 +212,13 @@ mppe_set_chapv2(unsigned char *PasswordHashHash, unsigned char *NTResponse,
     else
 	s = Magic3;
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx != NULL) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, MasterKey, 16)) {
-
-                if (PPP_DigestUpdate(ctx, SHApad1, sizeof(SHApad1))) {
-
-                    if (PPP_DigestUpdate(ctx, s, 84)) {
-
-                        if (PPP_DigestUpdate(ctx, SHApad2, sizeof(SHApad2))) {
-                        
-                            KeyLen = SHA_DIGEST_LENGTH;
-                            PPP_DigestFinal(ctx, RecvKey, &KeyLen);
-                        }
-                    }
-                }
-            }
-        }
-        
-        PPP_MD_CTX_free(ctx);
-    }
+    KeyLen = SHA_DIGEST_LENGTH;
+    if (!PPP_calc_digest(PPP_sha1(), RecvKey, &KeyLen,
+			 MasterKey, 16,
+			 SHApad1, sizeof(SHApad1),
+			 s, 84,
+			 SHApad2, sizeof(SHApad2), NULL))
+	error("MPPE MS-CHAPv2 digest calculation (3) failed");
 
     mppe_set_keys(SendKey, RecvKey, SHA_DIGEST_LENGTH);
 }
