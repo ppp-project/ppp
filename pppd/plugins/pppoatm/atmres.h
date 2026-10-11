@@ -28,7 +28,4 @@
 #define FATAL	  -1 /* must be -1 */
 
 
-int ans_byname(const char *text,struct sockaddr_atmsvc *addr,int length,
-  int flags);
-
 #endif

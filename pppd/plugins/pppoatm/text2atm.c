@@ -13,7 +13,6 @@
 #include <limits.h>
 
 #include "atm.h"
-#include "atmsap.h"
 #include "atmres.h"
 
 
@@ -72,124 +71,6 @@ static int try_pvc(const char *text,struct sockaddr_atmpvc *addr,int flags)
 }
 
 
-static int do_try_nsap(const char *text,struct sockaddr_atmsvc *addr,int flags)
-{
-    const char *walk;
-    int count,pos,dot;
-    int offset,len;
-    char value;
-
-    count = dot = 0;
-    for (walk = text; *walk; walk++)
-	if (isdigit(*walk)) {
-	    if (count++ == 15) break;
-	    dot = 1;
-	}
-	else if (*walk != '.') break;
-	    else if (!dot) return FATAL; /* two dots in a row */
-		else dot = 0;
-    if (*walk != ':') {
-	pos = 0;
-	offset = 0;
-    }
-    else {
-	if (!dot || *text == '0') return FATAL;
-	addr->sas_addr.prv[0] = ATM_AFI_E164;
-	addr->sas_addr.prv[1] = 0;
-	memset(addr->sas_addr.prv+1,0,8);
-	for (pos = 18-count-1; *text; text++) {
-	    if (*text == '.') continue;
-	    if (*text == ':') break;
-	    else {
-		if (pos & 1) addr->sas_addr.prv[pos >> 1] |= *text-'0';
-		else addr->sas_addr.prv[pos >> 1] = (*text-'0') << 4;
-		pos++;
-	    }
- 	}
-	addr->sas_addr.prv[8] |= 0xf;
-	text++;
-	pos++;
-	offset = 72;
-    }
-    for (dot = 0; *text; text++)
-	if (isxdigit(*text)) {
-	    if (pos == ATM_ESA_LEN*2) return TRY_OTHER; /* too long */
-	    value = isdigit(*text) ? *text-'0' : (islower(*text) ?
-	      toupper(*text) : *text)-'A'+10;
-	    if (pos & 1) addr->sas_addr.prv[pos >> 1] |= value;
-	    else addr->sas_addr.prv[pos >> 1] = value << 4;
-	    pos++;
-	    dot = 1;
-	}
-	else 
-	    if (*text == '/' && (flags & T2A_WILDCARD)) break;
-	    else if (*text != '.') return TRY_OTHER;
-		else {
-		    if (!dot) return FATAL; /* two dots in a row */
-		    dot = 0;
-		}
-    if (!dot) return FATAL;
-    if (pos > 1 && !*addr->sas_addr.prv)
-	return TRY_OTHER; /* no leading zeroes */
-    if (!*text)
-	return pos != ATM_ESA_LEN*2 ? TRY_OTHER : ATM_ESA_LEN*2;
-	  /* handle bad length */
-    len = 0;
-    while (*++text) {
-	if (!isdigit(*text)) return -1; /* non-digit in length */
-	if (len >= pos*4) return -1; /* too long */
-	len = len*10+*text-'0';
-    }
-    if (len > 7 && addr->sas_addr.prv[0] != ATM_AFI_E164) offset = 72;
-    if (len < offset) return FATAL;
-    return len > pos*4 ? TRY_OTHER : len;
-}
-
-
-static int try_nsap(const char *text,struct sockaddr_atmsvc *addr,int flags)
-{
-    int result;
-
-    result = do_try_nsap(text,addr,flags);
-    if (result < 0) return result;
-    addr->sas_family = AF_ATMSVC;
-    *addr->sas_addr.pub = 0;
-    return result;
-}
-
-
-static int try_e164(const char *text,struct sockaddr_atmsvc *addr,int flags)
-{
-    int i,dot,result;
-
-    if (*text == ':' || *text == '+') text++;
-    for (i = dot = 0; *text; text++)
-	if (isdigit(*text)) {
-	    if (i == ATM_E164_LEN) return TRY_OTHER; /* too long */
-	    addr->sas_addr.pub[i++] = *text;
-	    dot = 1;
-	}
-	else if (*text != '.') break;
-	    else {
-		if (!dot) return TRY_OTHER; /* two dots in a row */
-		dot = 0;
-	    }
-    if (!dot) return TRY_OTHER;
-    addr->sas_addr.pub[i] = 0;
-    *addr->sas_addr.prv = 0;
-    result = 0;
-    if (*text) {
-	if (*text++ != '+') return TRY_OTHER;
-	else {
-	    result = do_try_nsap(text,addr,flags);
-	    if (result < 0) return FATAL;
-	}
-    }
-    addr->sas_family = AF_ATMSVC;
-    return result;
-}
-
-
 static int search(FILE *file,const char *text,struct sockaddr *addr,int length,
   int flags)
 {
@@ -234,16 +115,8 @@ int text2atm(const char *text,struct sockaddr *addr,int length,int flags)
 	result = try_pvc(text,(struct sockaddr_atmpvc *) addr,flags);
 	if (result != TRY_OTHER) return result;
     }
-    if ((flags & T2A_SVC) && length >= sizeof(struct sockaddr_atmsvc)) {
-	result = try_nsap(text,(struct sockaddr_atmsvc *) addr,flags);
-	if (result != TRY_OTHER) return result;
-	result = try_e164(text,(struct sockaddr_atmsvc *) addr,flags);
-	if (result != TRY_OTHER) return result;
-    }
     if (!(flags & T2A_NAME)) return -1;
     result = try_name(text,addr,length,flags & ~T2A_NAME);
-    if (result == TRY_OTHER && !(flags & T2A_LOCAL))
-	result = ans_byname(text,(struct sockaddr_atmsvc *) addr,length,flags);
     if (result != TRY_OTHER) return result;
     return -1;
 }

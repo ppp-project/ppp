@@ -15,7 +15,7 @@ jobs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq update
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
           build-essential autoconf automake pkg-config libtool m4 autoconf-archive \
-          libssl-dev libatm1-dev libpcap-dev libsystemd-dev libpam0g-dev
+          libssl-dev libpcap-dev libsystemd-dev libpam0g-dev
 
     - name: configure
       run: ./autogen.sh ${{ env.configure_flags }}
@@ -42,7 +42,7 @@ jobs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq update
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
           build-essential autoconf automake pkg-config libtool m4 autoconf-archive \
-          libssl-dev libatm1-dev libpcap-dev libsystemd-dev libpam0g-dev
+          libssl-dev libpcap-dev libsystemd-dev libpam0g-dev
 
     - name: configure
       run: ./autogen.sh ${{ env.configure_flags }}
@@ -71,7 +71,7 @@ jobs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq update
         sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
           build-essential autoconf automake pkg-config libtool m4 autoconf-archive \
-          libssl-dev libatm1-dev libpcap-dev libsystemd-dev libpam0g-dev
+          libssl-dev libpcap-dev libsystemd-dev libpam0g-dev
 
     - name: configure
       run: ./autogen.sh ${{ env.configure_flags }}
