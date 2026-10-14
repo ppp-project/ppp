@@ -897,9 +897,9 @@ process_option(struct option *opt, char *cmd, char **argv)
 	v = opt->flags & OPT_VALUE;
 	*(bool *)(opt->addr) = v;
 	if (opt->addr2 && (opt->flags & OPT_A2COPY))
-	    *(bool *)(opt->addr2) = v;
+	    *(u_char *)(opt->addr2) = v;
 	else if (opt->addr2 && (opt->flags & OPT_A2CLR))
-	    *(bool *)(opt->addr2) = 0;
+	    *(u_char *)(opt->addr2) = 0;
 	else if (opt->addr2 && (opt->flags & OPT_A2CLRB))
 	    *(u_char *)(opt->addr2) &= ~v;
 	else if (opt->addr2 && (opt->flags & OPT_A2OR))

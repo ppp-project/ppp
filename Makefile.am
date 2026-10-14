@@ -59,6 +59,7 @@ EXTRA_DIST= \
     testsuite/auth-pap_test.py \
     testsuite/data-transfer_test.py \
     testsuite/link-up_test.py \
+    testsuite/mppe_test.py \
     testsuite/mtu-negotiation_test.py \
     testsuite/ping_test.py \
     testsuite/script-run_test.py
