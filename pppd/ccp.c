@@ -1051,6 +1051,18 @@ ccp_rejci(fsm *f, u_char *p, int len)
     return 1;
 }
 
+#ifdef PPP_WITH_MPPE
+/*
+ * mppe_ci_is_noop - is p an MPPE option with every bit clear?
+ */
+static int
+mppe_ci_is_noop(u_char *p, int len)
+{
+    return len >= CILEN_MPPE && p[0] == CI_MPPE && p[1] == CILEN_MPPE
+	&& !(p[2] | p[3] | p[4] | p[5]);
+}
+#endif
+
 /*
  * ccp_reqci - processed a received configure-request.
  * Returns CONFACK, CONFNAK or CONFREJ and the packet modified
@@ -1067,6 +1079,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 #ifdef PPP_WITH_MPPE
     bool rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
 				/* CI_MPPE, or due to other options?       */
+    bool noop_first = !ao->mppe && mppe_ci_is_noop(p, *lenp);
 #endif
     int warned = 0;
     bool seenci[CI_DEFLATE+1];
@@ -1106,6 +1119,8 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	    switch (type) {
 #ifdef PPP_WITH_MPPE
 	    case CI_MPPE:
+		if (!ao->mppe && mppe_ci_is_noop(p, clen))
+		    break;
 		if (!ao->mppe || clen != CILEN_MPPE) {
 		    newret = CONFREJ;
 		    break;
@@ -1340,6 +1355,12 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	len -= clen;
     }
 
+#ifdef PPP_WITH_MPPE
+    if (noop_first) {
+	memset(ho, 0, sizeof(ccp_options));
+	ho->method = -1;
+    }
+#endif
     if (ret != CONFACK) {
 	if (ret == CONFREJ && *lenp == retp - p0)
 	    all_rejected[f->unit] = 1;
