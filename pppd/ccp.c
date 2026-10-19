@@ -521,6 +521,7 @@ ccp_resetci(fsm *f)
     all_rejected[f->unit] = 0;
 
 #ifdef PPP_WITH_MPPE
+    ccp_allowoptions[f->unit].mppe = 0;
     if (go->mppe) {
 	ccp_options *ao = &ccp_allowoptions[f->unit];
 	int auth_mschap_bits = auth_done[f->unit];
