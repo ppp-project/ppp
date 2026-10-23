@@ -1371,7 +1371,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	    *lenp = retp - p0;
     }
 #ifdef PPP_WITH_MPPE
-    if (ret == CONFREJ && ao->mppe && rej_for_ci_mppe) {
+    if (ccp_gotoptions[f->unit].mppe && rej_for_ci_mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     }
