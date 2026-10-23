@@ -80,6 +80,10 @@ extern int chapms_strip_domain;
 
 eap_state eap_states[NUM_PPP];		/* EAP state; one for each unit */
 
+/* Retransmission buffers */
+static char eap_server_rexmit[PPP_MRU];
+static char eap_client_rexmit[PPP_MRU];
+
 /*
  * Command-line options.
  */
@@ -146,6 +150,7 @@ eap_state_name(enum eap_state_code esc)
 /*
  * eap_init - Initialize state for an EAP user.  This is currently
  * called once by main() during start-up.
+ * Note that unit is always 0.
  */
 static void
 eap_init(int unit)
@@ -158,8 +163,11 @@ eap_init(int unit)
 	esp->es_server.ea_maxrequests = EAP_DEFTRANSMITS;
 	esp->es_server.ea_id = (u_char)(drand48() * 0x100);
 	esp->es_server.ea_typeacked = 0;
+	esp->es_server.ea_rexmit = eap_server_rexmit;
 	esp->es_client.ea_timeout = EAP_DEFREQTIME;
 	esp->es_client.ea_maxrequests = EAP_DEFALLOWREQ;
+	esp->es_client.ea_id = -1;
+	esp->es_client.ea_rexmit = eap_client_rexmit;
 #ifdef PPP_WITH_EAPTLS
 	esp->es_client.ea_using_eaptls = 0;
 #endif /* PPP_WITH_EAPTLS */
@@ -212,6 +220,50 @@ eap_authwithpeer(int unit, char *localname)
 		    esp->es_client.ea_timeout);
 }
 
+void eap_output(eap_state *esp, int code, int id, u_char *data, int datalen, bool can_rexmit)
+{
+	struct eap_auth *eap;
+	u_char *outp = outpacket_buf;
+
+	if (code != EAP_RESPONSE) {
+		eap = &esp->es_server;
+	} else {
+		eap = &esp->es_client;
+		eap->ea_id = id;
+	}
+
+#ifdef PPP_WITH_PEAP
+	if (esp->outer_eap) {
+		/* This is the inner EAP, send it via the tunnel */
+		if (code != EAP_RESPONSE) {
+			/*
+			 * For server side, use outer EAP's next ID since the
+			 * packet will get compressed by leaving off the EAP header.
+			 */
+			eap->ea_id = id = esp->outer_eap->es_server.ea_id;
+		}
+		peap_phase2_send(esp, code, id, data, datalen, true);
+		return;
+	}
+#endif
+	if (datalen > 0 && data != outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN)
+		BCOPY(data, outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN, datalen);
+
+	MAKEHEADER(outp, PPP_EAP);
+	data = outp;
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	PUTSHORT(datalen + EAP_HEADERLEN, outp);
+
+	output(esp->es_unit, outpacket_buf, datalen + EAP_HEADERLEN + PPP_HDRLEN);
+
+	if (can_rexmit) {
+		eap->ea_rexlen = datalen + EAP_HEADERLEN;
+		BCOPY(data, eap->ea_rexmit, datalen + EAP_HEADERLEN);
+	} else
+		eap->ea_rexlen = 0;
+}
+
 /*
  * Format a standard EAP Failure message and send it to the peer.
  * (Server operation)
@@ -219,20 +271,19 @@ eap_authwithpeer(int unit, char *localname)
 static void
 eap_send_failure(eap_state *esp)
 {
-	u_char *outp;
-
-	outp = outpacket_buf;
-    
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_FAILURE, outp);
-	esp->es_server.ea_id++;
-	PUTCHAR(esp->es_server.ea_id, outp);
-	PUTSHORT(EAP_HEADERLEN, outp);
-
-	output(esp->es_unit, outpacket_buf, EAP_HEADERLEN + PPP_HDRLEN);
-
 	esp->es_server.ea_state = eapBadAuth;
+
+#ifdef PPP_WITH_PEAP
+	if (esp->outer_eap) {
+		/* send Result-TLV to peer via inner EAP-TLV-Extensions method */
+		peap_phase2_send_result(esp, EAP_REQUEST, 0, false);
+		return;
+	}
+#endif
+
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
+	eap_output(esp, EAP_FAILURE, esp->es_server.ea_id, NULL, 0, false);
+
 	auth_peer_fail(esp->es_unit, PPP_EAP);
 }
 
@@ -243,18 +294,18 @@ eap_send_failure(eap_state *esp)
 static void
 eap_send_success(eap_state *esp)
 {
-	u_char *outp;
+	esp->es_server.ea_state = eapOpen;
 
-	outp = outpacket_buf;
-    
-	MAKEHEADER(outp, PPP_EAP);
+#ifdef PPP_WITH_PEAP
+	if (esp->outer_eap) {
+		/* send Result-TLV to peer via inner EAP-TLV-Extensions method */
+		peap_phase2_send_result(esp, EAP_REQUEST, 0, true);
+		return;
+	}
+#endif
 
-	PUTCHAR(EAP_SUCCESS, outp);
-	esp->es_server.ea_id++;
-	PUTCHAR(esp->es_server.ea_id, outp);
-	PUTSHORT(EAP_HEADERLEN, outp);
-
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + EAP_HEADERLEN);
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
+	eap_output(esp, EAP_SUCCESS, esp->es_server.ea_id, NULL, 0, false);
 
 	auth_peer_success(esp->es_unit, PPP_EAP, 0,
 	    esp->es_server.ea_peer, esp->es_server.ea_peerlen);
@@ -266,19 +317,15 @@ eap_send_success(eap_state *esp)
  * indicates if there was an error in handling the last query.  It is
  * 0 for success and non-zero for failure.
  */
-static void
+void
 eap_figure_next_state(eap_state *esp, int status)
 {
-#ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
-	int secret_len;
-	char secret[MAXWORDLEN];
-#endif /* PPP_WITH_EAPTLS */
+	int type;
+	enum eap_state_code prev_state;
 
 	esp->es_server.ea_timeout = esp->es_savedtime;
-#ifdef PPP_WITH_EAPTLS
-	esp->es_server.ea_prev_state = esp->es_server.ea_state;
-#endif /* PPP_WITH_EAPTLS */
+	prev_state = esp->es_server.ea_state;
 	switch (esp->es_server.ea_state) {
 	case eapBadAuth:
 		return;
@@ -289,20 +336,38 @@ eap_figure_next_state(eap_state *esp, int status)
 			esp->es_server.ea_state = eapBadAuth;
 			break;
 		}
+#ifdef PPP_WITH_PEAP
+		/* Inner EAP does capabilities exchange after identity */
+		if (esp->outer_eap != NULL) {
+			esp->es_server.ea_state = eapPeap2SendCaps;
+			
+			break;
+		}
+#endif /* PPP_WITH_PEAP */
 #ifdef PPP_WITH_EAPTLS
-		/* Do EAP-TLS if we don't have a CHAP secret for the peer */
-                if (!get_secret(esp->es_unit, esp->es_server.ea_peer,
-                    esp->es_server.ea_name, secret, &secret_len, 1)) {
-
+                if (eap_type == EAPT_TLS || eap_type == EAPT_PEAP) {
 			esp->es_server.ea_state = eapTlsStart;
-			esp->es_server.ea_authtype = EAPT_TLS;
+			esp->es_server.ea_authtype = eap_type;
 			break;
 		}
 #endif /* PPP_WITH_EAPTLS */
 
-		esp->es_server.ea_state = eapMD5Chall;
-		esp->es_server.ea_authtype = EAPT_MD5CHAP;
+		if (eap_type == EAPT_MSCHAPV2) {
+			esp->es_server.ea_state = eapMSCHAPv2Chall;
+			esp->es_server.ea_authtype = EAPT_MSCHAPV2;
+		} else {
+			esp->es_server.ea_state = eapMD5Chall;
+			esp->es_server.ea_authtype = EAPT_MD5CHAP;
+		}
 		break;
+
+#ifdef PPP_WITH_PEAP
+	case eapPeap2SendCaps:
+		/* Inner EAP can only be MS-CHAPv2 for now */
+		esp->es_server.ea_state = eapMSCHAPv2Chall;
+		esp->es_server.ea_authtype = EAPT_MSCHAPV2;
+		break;
+#endif
 
 #ifdef PPP_WITH_EAPTLS
 	case eapTlsStart:
@@ -340,10 +405,9 @@ eap_figure_next_state(eap_state *esp, int status)
 
 		if (ets->frag)
 			esp->es_server.ea_state = eapTlsRecvAck;
-		else if (SSL_is_init_finished(ets->ssl)) {
-			dbglog("SSL init finished in next_state");
+		else if (ets->handshake_done && !esp->es_server.ea_tunnel_active)
 			esp->es_server.ea_state = eapTlsRecvClient;
-		} else
+		else
 			esp->es_server.ea_state = eapTlsRecv;
 		break;
 
@@ -368,6 +432,16 @@ eap_figure_next_state(eap_state *esp, int status)
 
 #ifdef PPP_WITH_CHAPMS
 	case eapMSCHAPv2Chall:
+		if (status != 0)
+			esp->es_server.ea_state = eapMSCHAPv2Failure;
+		else
+			esp->es_server.ea_state = eapMSCHAPv2Success;
+		break;
+	case eapMSCHAPv2Failure:
+		esp->es_server.ea_state = eapBadAuth;
+		break;
+	case eapMSCHAPv2Success:
+		esp->es_server.ea_state = eapOpen;
 #endif
 	case eapMD5Chall:
 		if (status != 0) {
@@ -381,12 +455,11 @@ eap_figure_next_state(eap_state *esp, int status)
 		esp->es_server.ea_state = eapBadAuth;
 		break;
 	}
-	if (esp->es_server.ea_state == eapBadAuth)
+	if (esp->es_server.ea_state == eapBadAuth && prev_state != eapBadAuth)
 		eap_send_failure(esp);
 
-#ifdef PPP_WITH_EAPTLS
-	dbglog("EAP id=0x%2x '%s' -> '%s'", esp->es_server.ea_id, eap_state_name(esp->es_server.ea_prev_state), eap_state_name(esp->es_server.ea_state));
-#endif /* PPP_WITH_EAPTLS */
+	dbglog("EAP id=0x%2x '%s' -> '%s'", esp->es_server.ea_id,
+	       eap_state_name(prev_state), eap_state_name(esp->es_server.ea_state));
 }
 
 #if PPP_WITH_CHAPMS
@@ -417,61 +490,19 @@ eap_chap_verify_response(char *name, char *ourname, int id,
 
 	return ok;
 }
-
-/*
- * Format and send an CHAPV2-Success/Failure EAP Request message.
- */
-static void
-eap_chapms2_send_request(eap_state *esp, u_char id,
-			 u_char opcode, u_char chapid,
-			 char *message, int message_len)
-{
-	u_char *outp;
-	int msglen;
-
-	outp = outpacket_buf;
-
-	MAKEHEADER(outp, PPP_EAP);
-
-	msglen = EAP_HEADERLEN + 5 * sizeof (u_char);
-	msglen += message_len;
-
-	PUTCHAR(EAP_REQUEST, outp);
-	PUTCHAR(id, outp);
-	PUTSHORT(msglen, outp);
-	PUTCHAR(EAPT_MSCHAPV2, outp);
-	PUTCHAR(opcode, outp);
-	PUTCHAR(chapid, outp);
-	/* MS len */
-	PUTSHORT(msglen - 5, outp);
-	BCOPY(message, outp, message_len);
-
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
-
-	if (opcode == CHAP_SUCCESS) {
-		auth_peer_success(esp->es_unit, PPP_EAP, 0,
-				esp->es_server.ea_peer, esp->es_server.ea_peerlen);
-	}
-	else {
-		esp->es_server.ea_state = eapBadAuth;
-		auth_peer_fail(esp->es_unit, PPP_EAP);
-	}
-}
 #endif /* PPP_WITH_CHAPMS */
 
 /*
  * Format an EAP Request message and send it to the peer.  Message
  * type depends on current state.  (Server operation)
  */
-static void
-eap_send_request(eap_state *esp)
+void eap_send_request(eap_state *esp)
 {
-	u_char *outp;
-	u_char *lenloc;
+	u_char *outp, *data;
 	u_char *ptr;
-	int outlen;
 	int challen;
 	char *str;
+	int msglen, opcode;
 
 	/* Handle both initial auth and restart */
 	if (esp->es_server.ea_state < eapIdentify &&
@@ -499,14 +530,7 @@ eap_send_request(eap_state *esp)
 		return;
 	}
 
-	outp = outpacket_buf;
-    
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_REQUEST, outp);
-	PUTCHAR(esp->es_server.ea_id, outp);
-	lenloc = outp;
-	INCPTR(2, outp);
+	outp = data = outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN;
 
 	switch (esp->es_server.ea_state) {
 	case eapIdentify:
@@ -542,10 +566,13 @@ eap_send_request(eap_state *esp)
 		esp->es_server.digest->generate_challenge(esp->es_challenge);
 		challen = esp->es_challenge[0];
 		esp->es_challen = challen;
+		if (esp->outer_eap)
+			esp->es_server.ea_id = (esp->outer_eap->es_server.ea_id + 1) & 0xff;
+		esp->es_chapid = esp->es_server.ea_id;
 
 		PUTCHAR(EAPT_MSCHAPV2, outp);
 		PUTCHAR(CHAP_CHALLENGE, outp);
-		PUTCHAR(esp->es_server.ea_id, outp);
+		PUTCHAR(esp->es_chapid, outp);
 		/* MS len */
 		PUTSHORT(5 + challen +
 				esp->es_server.ea_namelen,
@@ -557,38 +584,61 @@ eap_send_request(eap_state *esp)
 				outp,
 				esp->es_server.ea_namelen);
 		INCPTR(esp->es_server.ea_namelen, outp);
+		/* Set response_msg to something valid in case we don't get a CHAP_RESPONSE */
+		slprintf(esp->es_response_msg, sizeof(esp->es_response_msg),
+			 "E=691 R=0 C=%0.*B V=0", esp->es_challenge[0], esp->es_challenge + 1);
+		break;
+
+	case eapMSCHAPv2Success:
+	case eapMSCHAPv2Failure:
+		msglen = strlen(esp->es_response_msg);
+		if (msglen > 255)
+			msglen = 255;
+		opcode = (esp->es_server.ea_state == eapMSCHAPv2Success?
+			  CHAP_SUCCESS: CHAP_FAILURE);
+
+		PUTCHAR(EAPT_MSCHAPV2, outp);
+		PUTCHAR(opcode, outp);
+		PUTCHAR(esp->es_chapid, outp);
+		PUTSHORT(msglen + 4, outp);
+		BCOPY(esp->es_response_msg, outp, msglen);
+		INCPTR(msglen, outp);
 		break;
 #endif /* PPP_WITH_CHAPMS */
 
 #ifdef PPP_WITH_EAPTLS
 	case eapTlsStart:
-		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(esp->es_server.ea_authtype, outp);
 		PUTCHAR(EAP_TLS_FLAGS_START, outp);
 		eap_figure_next_state(esp, 0);
 		break;
 
 	case eapTlsSend:
 	case eapTlsSendAlert:
-		if (eaptls_send(esp->es_server.ea_session, true, &outp))
+		if (eaptls_send(esp->es_server.ea_session,
+				esp->es_server.ea_authtype, true, &outp))
 			return;
 		eap_figure_next_state(esp, 0);
 		break;
 
 	case eapTlsSendAck:
-		PUTCHAR(EAPT_TLS, outp);
+		PUTCHAR(esp->es_server.ea_authtype, outp);
 		PUTCHAR(0, outp);
 		eap_figure_next_state(esp, 0);
 		break;
 #endif /* PPP_WITH_EAPTLS */
 
+#ifdef PPP_WITH_PEAP
+	case eapPeap2SendCaps:
+		peap_phase2_send_capabilities(esp, EAP_REQUEST, 0);
+		return;
+#endif
+
 	default:
 		return;
 	}
 
-	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
-	PUTSHORT(outlen, lenloc);
-
-	output(esp->es_unit, outpacket_buf, outlen + PPP_HDRLEN);
+	eap_output(esp, EAP_REQUEST, esp->es_server.ea_id, data, outp - data, true);
 
 	esp->es_server.ea_requests++;
 
@@ -633,59 +683,30 @@ eap_authpeer(int unit, char *localname)
 static void
 eap_server_timeout(void *arg)
 {
-#ifdef PPP_WITH_EAPTLS
 	u_char *outp;
-	u_char *lenloc;
-	int outlen;
-#endif /* PPP_WITH_EAPTLS */
-
 	eap_state *esp = (eap_state *) arg;
 
-	if (!eap_server_active(esp))
+	if (!eap_server_active(esp) || esp->es_server.ea_rexlen == 0)
 		return;
 
-#ifdef PPP_WITH_EAPTLS
-	switch(esp->es_server.ea_prev_state) {
-
-	/*
-	 *  In eap-tls the state changes after a request, so we return to
-	 *  previous state ...
-	 */
-	case(eapTlsStart):
-	case(eapTlsSendAck):
-		esp->es_server.ea_state = esp->es_server.ea_prev_state;
-		break;
-
-	/*
-	 *  ... or resend the stored data
-	 */
-	case(eapTlsSend):
-	case(eapTlsSendAlert):
-		outp = outpacket_buf;
-		MAKEHEADER(outp, PPP_EAP);
-		PUTCHAR(EAP_REQUEST, outp);
-		PUTCHAR(esp->es_server.ea_id, outp);
-		lenloc = outp;
-		INCPTR(2, outp);
-
-		eaptls_retransmit(esp->es_server.ea_session, &outp);
-
-		outlen = (outp - outpacket_buf) - PPP_HDRLEN;
-		PUTSHORT(outlen, lenloc);
-		output(esp->es_unit, outpacket_buf, outlen + PPP_HDRLEN);
-		esp->es_server.ea_requests++;
-
-		if (esp->es_server.ea_timeout > 0)
-			TIMEOUT(eap_server_timeout, esp, esp->es_server.ea_timeout);
-
+	esp->es_server.ea_requests++;
+	if (esp->es_server.ea_maxrequests > 0 &&
+	    esp->es_server.ea_requests > esp->es_server.ea_maxrequests) {
+		if (esp->es_server.ea_responses > 0)
+			error("EAP: too many Requests sent");
+		else
+			error("EAP: no response to Requests");
+		eap_send_failure(esp);
 		return;
-	default:
-		break;
 	}
-#endif /* PPP_WITH_EAPTLS */
 
-	/* EAP ID number must not change on timeout. */
-	eap_send_request(esp);
+	outp = outpacket_buf;
+	MAKEHEADER(outp, PPP_EAP);
+	BCOPY(esp->es_server.ea_rexmit, outp, esp->es_server.ea_rexlen);
+	output(esp->es_unit, outpacket_buf, esp->es_server.ea_rexlen + PPP_HDRLEN);
+
+	if (esp->es_server.ea_timeout > 0)
+		TIMEOUT(eap_server_timeout, esp, esp->es_server.ea_timeout);
 }
 
 /*
@@ -704,7 +725,7 @@ eap_rechallenge(void *arg)
 	esp->es_server.ea_requests = 0;
 	esp->es_server.ea_state = eapIdentify;
 	eap_figure_next_state(esp, 0);
-	esp->es_server.ea_id++;
+	esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 	eap_send_request(esp);
 }
 
@@ -791,24 +812,33 @@ static void
 eap_send_response(eap_state *esp, u_char id, u_char typenum,
 		  u_char *str, int lenstr)
 {
-	u_char *outp;
-	int msglen;
+	u_char *outp, *data;
 
-	outp = outpacket_buf;
+	outp = data = outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN;
 
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
-	msglen = EAP_HEADERLEN + sizeof (u_char) + lenstr;
-	PUTSHORT(msglen, outp);
 	PUTCHAR(typenum, outp);
-	if (lenstr > 0) {
+	if (lenstr > 0)
 		BCOPY(str, outp, lenstr);
-	}
 
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	eap_output(esp, EAP_RESPONSE, id, data, 1 + lenstr, true);
+}
+
+/*
+ * Retransmit the last EAP-Response
+ */
+static void
+eap_retransmit_response(eap_state *esp)
+{
+	u_char *outp;
+
+	if (esp->es_client.ea_rexlen == 0) {
+		error("EAP client: nothing to retransmit");
+		return;
+	}
+	outp = outpacket_buf;
+	MAKEHEADER(outp, PPP_EAP);
+	BCOPY(esp->es_client.ea_rexmit, outp, esp->es_client.ea_rexlen);
+	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + esp->es_client.ea_rexlen);
 }
 
 /*
@@ -818,28 +848,20 @@ static void
 eap_chap_response(eap_state *esp, u_char id, u_char *hash,
 		  char *name, int namelen)
 {
-	u_char *outp;
-	int msglen;
+	u_char *outp, *data;
+	int datalen;
 
-	outp = outpacket_buf;
+	outp = data = outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN;
 
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
-	msglen = EAP_HEADERLEN + 2 * sizeof (u_char) + MD5_DIGEST_LENGTH +
-	    namelen;
-	PUTSHORT(msglen, outp);
+	datalen = 2 + MD5_DIGEST_LENGTH + namelen;
 	PUTCHAR(EAPT_MD5CHAP, outp);
 	PUTCHAR(MD5_DIGEST_LENGTH, outp);
 	BCOPY(hash, outp, MD5_DIGEST_LENGTH);
 	INCPTR(MD5_DIGEST_LENGTH, outp);
-	if (namelen > 0) {
+	if (namelen > 0)
 		BCOPY(name, outp, namelen);
-	}
 
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	eap_output(esp, EAP_RESPONSE, id, data, datalen, true);
 }
 
 #ifdef PPP_WITH_EAPTLS
@@ -849,89 +871,41 @@ eap_chap_response(eap_state *esp, u_char id, u_char *hash,
 static void
 eap_tls_response(eap_state *esp, u_char id)
 {
-	u_char *outp;
-	int outlen;
-	u_char *lenloc;
+	u_char *outp, *data;
 
-	outp = outpacket_buf;
+	outp = data = outpacket_buf + PPP_HDRLEN;
 
-	MAKEHEADER(outp, PPP_EAP);
+	if (eaptls_send(esp->es_client.ea_session,
+			esp->es_client.ea_authtype, false, &outp))
+		return;
 
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-
-	lenloc = outp;
-	INCPTR(2, outp);
-
-	/*
-	   If the id in the request is unchanged, we must retransmit
-	   the old data
-	*/
-	if(id == esp->es_client.ea_id)
-		eaptls_retransmit(esp->es_client.ea_session, &outp);
-	else {
-		if (eaptls_send(esp->es_client.ea_session, false, &outp))
-			return;
-	}
-
-	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
-	PUTSHORT(outlen, lenloc);
-
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
-
-	esp->es_client.ea_id = id;
+	eap_output(esp, EAP_RESPONSE, id, data, outp - data, true);
 }
 
 /*
- * Send an EAP-TLS ack
+ * Send an EAP-TLS ack as client
  */
 static void
 eap_tls_sendack(eap_state *esp, u_char id)
 {
-	u_char *outp;
-	int outlen;
-	u_char *lenloc;
+	u_char data[2];
 
-	outp = outpacket_buf;
+	data[0] = esp->es_client.ea_authtype;
+	data[1] = 0;
 
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
-
-	lenloc = outp;
-	INCPTR(2, outp);
-
-	PUTCHAR(EAPT_TLS, outp);
-	PUTCHAR(0, outp);
-
-	outlen = (outp - outpacket_buf) - PPP_HDRLEN;
-	PUTSHORT(outlen, lenloc);
-
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + outlen);
+	eap_output(esp, EAP_RESPONSE, id, data, 2, true);
 }
 #endif /* PPP_WITH_EAPTLS */
 
 static void
 eap_send_nak(eap_state *esp, u_char id, u_char type)
 {
-	u_char *outp;
-	int msglen;
+	u_char data[2];
 
-	outp = outpacket_buf;
+	data[0] = EAPT_NAK;
+	data[1] = type;
 
-	MAKEHEADER(outp, PPP_EAP);
-
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
-	msglen = EAP_HEADERLEN + 2 * sizeof (u_char);
-	PUTSHORT(msglen, outp);
-	PUTCHAR(EAPT_NAK, outp);
-	PUTCHAR(type, outp);
-
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	eap_output(esp, EAP_RESPONSE, id, data, 2, true);
 }
 
 #if PPP_WITH_CHAPMS
@@ -941,63 +915,59 @@ eap_send_nak(eap_state *esp, u_char id, u_char type)
 static void
 eap_chapv2_response(eap_state *esp, u_char id, u_char chapid, u_char *response, char *user, int user_len)
 {
-    u_char *outp;
-    int msglen;
+	u_char *outp, *data;
+	int datalen;
 
-    outp = outpacket_buf;
+	outp = data = outpacket_buf + PPP_HDRLEN + EAP_HEADERLEN;
 
-    MAKEHEADER(outp, PPP_EAP);
+	datalen = 6 + MS_CHAP2_RESPONSE_LEN + user_len;
+	PUTCHAR(EAPT_MSCHAPV2, outp);
+	PUTCHAR(CHAP_RESPONSE, outp);
+	PUTCHAR(chapid, outp);
+	PUTSHORT(datalen - 1, outp);	/* MS-Length */
+	BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN+1); // VLEN + VALUE
+	INCPTR(MS_CHAP2_RESPONSE_LEN+1, outp);
+	BCOPY(user, outp, user_len);
 
-    PUTCHAR(EAP_RESPONSE, outp);
-    PUTCHAR(id, outp);
-    esp->es_client.ea_id = id;
-    msglen = EAP_HEADERLEN + 6 * sizeof (u_char) + MS_CHAP2_RESPONSE_LEN + user_len;
-    PUTSHORT(msglen, outp);
-    PUTCHAR(EAPT_MSCHAPV2, outp);
-    PUTCHAR(CHAP_RESPONSE, outp);
-    PUTCHAR(chapid, outp);
-    PUTCHAR(0, outp);
-    /* len */
-    PUTCHAR(5 + user_len + MS_CHAP2_RESPONSE_LEN, outp);
-    BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN+1); // VLEN + VALUE
-    INCPTR(MS_CHAP2_RESPONSE_LEN+1, outp);
-    BCOPY(user, outp, user_len);
-
-    output(esp->es_unit, outpacket_buf, PPP_HDRLEN + msglen);
+	eap_output(esp, EAP_RESPONSE, id, data, datalen, true);
 }
 #endif
 
 /*
  * eap_request - Receive EAP Request message (client mode).
  */
-static void
+void
 eap_request(eap_state *esp, u_char *inp, int id, int len)
 {
-	u_char typenum;
+	u_char typenum, idbyte;
 	u_char vallen;
 	int secret_len;
 	char secret[MAXWORDLEN];
 	char rhostname[256];
-	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
 	int hashlen = MD5_DIGEST_LENGTH;
-	bool ok;
+	int ret;
 #ifdef PPP_WITH_EAPTLS
 	u_char flags;
 	struct eaptls_session *ets = esp->es_client.ea_session;
 #endif /* PPP_WITH_EAPTLS */
 
 	/*
+	 * If the ID is the same as the previous request,
+	 * we have to retransmit the response without updating
+	 * any other state.
+	 * Inner EAP doesn't do any retransmission.
+	 */
+	if (id == esp->es_client.ea_id && esp->outer_eap == NULL) {
+		eap_retransmit_response(esp);
+		return;
+	}
+
+	/*
 	 * Ignore requests if we're not active
 	 */
 	if (!eap_client_active(esp))
 		return;
-
-	/*
-	 * Note: we update es_client.ea_id *only if* a Response
-	 * message is being generated.  Otherwise, we leave it the
-	 * same for duplicate detection purposes.
-	 */
 
 	esp->es_client.ea_requests++;
 	if (esp->es_client.ea_maxrequests != 0 &&
@@ -1009,6 +979,8 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		auth_withpeer_fail(esp->es_unit, PPP_EAP);
 		return;
 	}
+	esp->es_client.ea_id = id;
+	esp->es_client.ea_rexlen = 0;
 
 	if (len <= 0) {
 		error("EAP: empty Request message discarded");
@@ -1092,24 +1064,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-		ok = false;
-		mdctx = PPP_MD_CTX_new();
-		if (mdctx != NULL) {
-			if (PPP_DigestInit(mdctx, PPP_md5())) {
-				typenum = id;
-				if (PPP_DigestUpdate(mdctx, &typenum, 1)) {
-					if (PPP_DigestUpdate(mdctx, secret, secret_len)) {
-						BZERO(secret, sizeof(secret));
-						if (PPP_DigestUpdate(mdctx, inp, vallen)) {
-							if (PPP_DigestFinal(mdctx, hash, &hashlen))
-								ok = true;
-						}
-					}
-				}
-			}
-			PPP_MD_CTX_free(mdctx);
-		}
-		if (ok) {
+		idbyte = id;
+		ret = PPP_calc_digest(PPP_md5(), hash, &hashlen,
+				      &idbyte, 1,
+				      secret, secret_len,
+				      inp, vallen, NULL);
+		BZERO(secret, sizeof(secret));
+		if (ret) {
 			eap_chap_response(esp, id, hash, esp->es_client.ea_name,
 					  esp->es_client.ea_namelen);
 			esp->es_client.ea_state = eapAuthRecv;
@@ -1121,6 +1082,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 #ifdef PPP_WITH_EAPTLS
 	case EAPT_TLS:
+	case EAPT_PEAP:
 
 		switch(esp->es_client.ea_state) {
 
@@ -1132,7 +1094,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				return;
 			}
 			GETCHAR(flags, inp);
-			if(flags & EAP_TLS_FLAGS_START){
+			if ((flags & EAP_TLS_FLAGS_START) && esp->outer_eap == NULL) {
 
 				esp->es_client.ea_using_eaptls = 1;
 
@@ -1161,6 +1123,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 			break;
 
 		case eapTlsRecvAck:
+			/* XXX should check request has len=1, flags=0 */
 			eap_tls_response(esp, id);
 			esp->es_client.ea_state = (ets->frag ? eapTlsRecvAck : eapTlsRecv);
 			break;
@@ -1171,7 +1134,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				/* Bogus request; wait for something real. */
 				return;
 			}
-			eaptls_receive(ets, inp, len);
+			eaptls_receive(esp, EAP_REQUEST, id, inp, len);
 
 			if(ets->frag) {
 				eap_tls_sendack(esp, id);
@@ -1186,8 +1149,13 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				break;
 			}
 
-			/* Check if TLS handshake is finished */
-			if(eaptls_is_init_finished(ets)) {
+			/*
+			 * For EAP-TLS, check if TLS handshake is finished, the data is all sent,
+			 * and if we're using TLS 1.3, we've received the success byte.
+			 */
+			if (esp->es_client.ea_authtype == EAPT_TLS &&
+			    eaptls_is_init_finished(ets) && BIO_pending(ets->from_ssl) == 0 &&
+			    !(ets->tls_v13 && !ets->sbyte_rcvd)) {
 #ifdef PPP_WITH_MPPE
 				eaptls_gen_mppe_keys(ets, 1);
 #endif
@@ -1282,7 +1250,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		if (!get_secret(esp->es_unit, esp->es_client.ea_name,
 		    rhostname, secret, &secret_len, 0)) {
 		    dbglog("EAP: no CHAP secret for auth to %q", rhostname);
-		    eap_send_nak(esp, id, 0);
+		    eap_send_nak(esp, id, 0);	/* XXX not actually a brilliant idea */
 		    break;
 		}
 		esp->es_client.ea_namelen = strlen(esp->es_client.ea_name);
@@ -1320,6 +1288,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		eap_send_response(esp, id, EAPT_MSCHAPV2, &status, sizeof(status));
 		/* force termination */
 		eap_failure(esp, inp, id, 0);
+		break;
 	    }
 	    default:
 
@@ -1329,36 +1298,6 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 
 	    break;
 #endif /* PPP_WITH_CHAPMS */
-#ifdef PPP_WITH_PEAP
-	case EAPT_PEAP:
-
-		/* Initialize the PEAP context (if not already initialized) */
-		if (!esp->ea_peap) {
-			rhostname[0] = '\0';
-			if (explicit_remote || (remote_name[0] != '\0')) {
-				strlcpy(rhostname, remote_name, sizeof (rhostname));
-			}
-			if (peap_init(&esp->ea_peap, rhostname)) {
-				eap_send_nak(esp, id, EAPT_TLS);
-				break;
-			}
-		}
-
-		/* Process the PEAP packet */
-		if (peap_process(esp, id, inp, len)) {
-			if (esp->es_client.ea_state == eapListen)
-				eap_send_nak(esp, id, EAPT_TLS);
-			else {
-				/* If we've responded to PEAP requests, we can't
-				   ask for something different now, so just fail. */
-				eap_failure(esp, inp, id, 0);
-			}
-			peap_finish(&esp->ea_peap);
-		} else
-			esp->es_client.ea_state = eapAuthRecv;
-
-		break;
-#endif // PPP_WITH_PEAP
 
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
@@ -1376,7 +1315,7 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 /*
  * eap_response - Receive EAP Response message (server mode).
  */
-static void
+void
 eap_response(eap_state *esp, u_char *inp, int id, int len)
 {
 	u_char typenum;
@@ -1384,9 +1323,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	int secret_len;
 	char secret[MAXSECRETLEN];
 	char rhostname[256];
-	PPP_MD_CTX *mdctx;
 	u_char hash[MD5_DIGEST_LENGTH];
 	int hashlen = MD5_DIGEST_LENGTH;
+	int ret;
 
 #ifdef PPP_WITH_EAPTLS
 	struct eaptls_session *ets;
@@ -1394,8 +1333,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #endif /* PPP_WITH_EAPTLS */
 #ifdef PPP_WITH_CHAPMS
 	u_char opcode;
+	int auok, chapid;
         chap_verify_hook_fn *chap_verifier;
-	char response_message[256];
 #endif /* PPP_WITH_CHAPMS */
 
 	/*
@@ -1404,13 +1343,14 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	if (esp->es_server.ea_state <= eapClosed)
 		return;
 
-	if (esp->es_server.ea_id != id) {
+	if (esp->es_server.ea_id != id && esp->outer_eap == NULL) {
 		dbglog("EAP: discarding Response %d; expected ID %d", id,
 		    esp->es_server.ea_id);
 		return;
 	}
 
 	esp->es_server.ea_responses++;
+	esp->es_server.ea_rexlen = 0;
 
 	if (len <= 0) {
 		error("EAP: empty Response message discarded");
@@ -1461,6 +1401,11 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 #ifdef PPP_WITH_EAPTLS
 	case EAPT_TLS:
+	case EAPT_PEAP:
+		if (len <= 0) {
+			warn("Discarding 0-length EAP-TLS/PEAP packet from client");
+			return;
+		}
 		switch(esp->es_server.ea_state) {
 
 		case eapTlsRecv:
@@ -1468,41 +1413,84 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			ets = (struct eaptls_session *) esp->es_server.ea_session;
 
 			eap_figure_next_state(esp,
-				eaptls_receive(esp->es_server.ea_session, inp, len));
+				eaptls_receive(esp, EAP_RESPONSE, id, inp, len));
 
 			if(ets->alert_recv) {
 				eap_send_failure(esp);
 				break;
 			}
+
+			/*
+			 * With TLS v1.3, the server has to send a single 0x00 byte
+			 * through the encrypted channel (i.e. as application data)
+			 * as a success indication once the TLS handshaking is complete.
+			 */
+			if (esp->es_server.ea_state == eapTlsSend && ets->handshake_done &&
+			    esp->es_server.ea_authtype == EAPT_TLS && ets->tls_v13 && !ets->sbyte_sent) {
+				char success = 0;
+				int res = SSL_write(ets->ssl, &success, 1);
+				if (res <= 0)
+					error("EAP-TLS: Failed to send protected success indication (err=%d)",
+					      SSL_get_error(ets->ssl, res));
+				else
+					ets->sbyte_sent = true;
+			}
+#ifdef PPP_WITH_PEAP
+			/*
+			 * PEAP with TLS v1.3 can start sending inner requests at this point
+			 * if handshaking is complete.
+			 */
+			if (esp->es_server.ea_state == eapTlsSend && ets->handshake_done &&
+			    esp->es_server.ea_authtype == EAPT_PEAP && ets->tls_v13 &&
+			    !esp->es_server.ea_tunnel_active) {
+				peap_phase2_start_server(esp);
+				esp->es_server.ea_tunnel_active = true;
+			}
+#endif
+
+			if (esp->es_server.ea_inner_done) {
+				/* PEAP inner auth has finished */
+				if (esp->es_server.ea_inner_fail)
+					eap_send_failure(esp);
+				else
+					eap_send_success(esp);
+			}
 			break;
 
 		case eapTlsRecvAck:
 			if (len > 1)
-				error("EAP-TLS ACK with extra data (%d bytes)", len-1);
+				error("EAP-TLS/PEAP ACK with extra data (%d bytes)", len-1);
 			eap_figure_next_state(esp, 0);
 			break;
 
 		case eapTlsRecvClient:
-			/* Receive authentication response from client */
-			if (len <= 0) {
-				warn("Bogus EAP-TLS packet received from client");
+			/* Receive EAP-TLS authentication response from client */
+			GETCHAR(flags, inp);
+			if (!(len == 1 && flags == 0)) {
+				/* not an ack? */
+				dbglog("expected ack, got len=%d flags=%x", len, flags);
+				if (esp->es_server.ea_authtype == EAPT_TLS) {
+					warn("EAP-TLS Server authentication failed");
+					eap_send_failure(esp);
+				}
 				break;
 			}
-			GETCHAR(flags, inp);
-			if(len == 1 && !flags) {	/* Ack = ok */
+			if (esp->es_server.ea_authtype == EAPT_TLS) {
+				/* EAP-TLS finishes at this point */
 #ifdef PPP_WITH_MPPE
 				eaptls_gen_mppe_keys( esp->es_server.ea_session, 0 );
 #endif
 				eap_send_success(esp);
-				esp->es_server.ea_state = eapOpen;
-			} else {			/* failure */
-				warn("EAP-TLS Server authentication failed");
-				eap_send_failure(esp);
+				eaptls_free_session(esp->es_server.ea_session);
+				esp->es_server.ea_session = NULL;
+			} else if (!esp->es_server.ea_tunnel_active) {
+#ifdef PPP_WITH_PEAP
+				/* PEAP proceeds to phase 2 */
+				peap_phase2_start_server(esp);
+				esp->es_server.ea_tunnel_active = true;
+				esp->es_server.ea_state = eapTlsSend;
+#endif
 			}
-
-			eaptls_free_session(esp->es_server.ea_session);
-			esp->es_server.ea_session = NULL;
-
 			break;
 
 		case eapTlsRecvAlertAck:
@@ -1550,6 +1538,20 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			eap_figure_next_state(esp, 1);
 			break;
 		}
+#ifdef PPP_WITH_PEAP
+		if (esp->es_server.ea_state == eapPeap2SendCaps) {
+			/* peer doesn't want to send its capabilities */
+			eap_figure_next_state(esp, 0);
+			break;
+		}
+
+		if (esp->outer_eap && vallen != EAPT_MSCHAPV2) {
+			/* For now, inner EAP has to be MS-CHAPv2 */
+			error("PEAP/inner: got Nak!");
+			eap_figure_next_state(esp, 1);
+			break;
+		}
+#endif /* PPP_WITH_PEAP */
 
 		switch (vallen) {
 		case EAPT_MD5CHAP:
@@ -1560,8 +1562,9 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 #ifdef PPP_WITH_EAPTLS
 			/* Send EAP-TLS start packet */
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			esp->es_server.ea_state = eapTlsStart;
-			esp->es_server.ea_authtype = EAPT_TLS;
+			esp->es_server.ea_authtype = vallen;
 			break;
 #endif /* PPP_WITH_EAPTLS */
 
@@ -1639,41 +1642,18 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			break;
 		}
 
-		mdctx = PPP_MD_CTX_new();
-		if (mdctx != NULL) {
-
-			if (PPP_DigestInit(mdctx, PPP_md5())) {
-
-				if (PPP_DigestUpdate(mdctx, &esp->es_server.ea_id, 1)) {
-
-					if (PPP_DigestUpdate(mdctx, &secret, secret_len)) {
-
-						BZERO(secret, sizeof(secret));
-						if (PPP_DigestUpdate(mdctx, esp->es_challenge, esp->es_challen)) {
-
-							if (PPP_DigestFinal(mdctx, hash, &hashlen)) {
-
-								if (BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
-									esp->es_server.ea_type = EAPT_MD5CHAP;
-									eap_send_success(esp);
-									eap_figure_next_state(esp, 0);
-
-									if (esp->es_rechallenge != 0) {
-										TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
-									}
-									PPP_MD_CTX_free(mdctx);
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
-
-			PPP_MD_CTX_free(mdctx);
-		}
-
-		eap_send_failure(esp);
+		u_char idbyte = esp->es_server.ea_id;
+		ret = PPP_calc_digest(PPP_md5(), hash, &hashlen,
+				      &idbyte, 1,
+				      &secret, secret_len,
+				      esp->es_challenge, esp->es_challen, NULL);
+		BZERO(secret, sizeof(secret));
+		if (ret && BCMP(hash, inp, MD5_DIGEST_LENGTH) == 0) {
+			eap_send_success(esp);
+			if (esp->es_rechallenge != 0)
+				TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
+		} else
+			eap_send_failure(esp);
 		break;
 
 #ifdef PPP_WITH_CHAPMS
@@ -1688,7 +1668,8 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 		switch (opcode) {
 		case CHAP_RESPONSE:
-			if (esp->es_server.ea_state != eapMSCHAPv2Chall) {
+			if (esp->es_server.ea_state != eapMSCHAPv2Chall &&
+			    esp->es_server.ea_state != eapMSCHAPv2Failure) {
 				error("EAP: unexpected MSCHAPv2-Response");
 				eap_figure_next_state(esp, 1);
 				break;
@@ -1696,14 +1677,20 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 			/* skip MS ID + len */
 			if (len < 4 + MS_CHAP2_RESPONSE_LEN || inp[3] != MS_CHAP2_RESPONSE_LEN) {
-				error("EAP: Invalid/short MSCHAPv2-Response, "
-						"length %d", len);
-				eap_figure_next_state(esp, 1);
-				break;
+				warn("EAP: Ignoring invalid/short MSCHAPv2-Response, "
+				     "length %d", len);
+				return;
 			}
-			INCPTR(3, inp);
+			GETCHAR(chapid, inp);
+			INCPTR(2, inp);
 			GETCHAR(vallen, inp);
 			len -= 4;
+
+			if (chapid != esp->es_chapid) {
+				/* should we discard here? */
+				warn("EAP-MSCHAPv2 Response had wrong MSid (%d != %d)",
+				     chapid, esp->es_chapid);
+			}
 
 			/* Not so likely to happen. */
 			if (len - vallen >= sizeof (rhostname)) {
@@ -1733,45 +1720,38 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 			else
 				chap_verifier = eap_chap_verify_response;
 
-			esp->es_server.ea_id += 1;
-			if ((*chap_verifier)(rhostname,
+			auok = (*chap_verifier)(rhostname,
 						esp->es_server.ea_name,
-						id,
+						esp->es_chapid,
 						esp->es_server.digest,
 						esp->es_challenge,
 						inp - 1,
-						response_message,
-						sizeof(response_message)))
-			{
-				info("EAP: MSCHAPv2 success for peer %q",
-						rhostname);
-				esp->es_server.ea_type = EAPT_MSCHAPV2;
-				eap_chapms2_send_request(esp,
-						esp->es_server.ea_id,
-						CHAP_SUCCESS,
-						esp->es_server.ea_id,
-						response_message,
-						strlen(response_message));
-				eap_figure_next_state(esp, 0);
-				if (esp->es_rechallenge != 0)
-					TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
-			}
-			else {
-				warn("EAP: MSCHAPv2 failure for peer %q",
-						rhostname);
-				eap_chapms2_send_request(esp,
-						esp->es_server.ea_id,
-						CHAP_FAILURE,
-						esp->es_server.ea_id,
-						response_message,
-						strlen(response_message));
-			}
+						esp->es_response_msg,
+						sizeof(esp->es_response_msg));
+			info("EAP: MSCHAPv2 %s for peer %q", (auok? "success": "failure"),
+			     rhostname);
+			eap_figure_next_state(esp, !auok);
 			break;
+
 		case CHAP_SUCCESS:
+			if (esp->es_server.ea_state != eapMSCHAPv2Success) {
+				warn("EAP: Ignoring unexpected MSCHAPv2 Success response");
+				break;
+			}
 			info("EAP: MSCHAPv2 success confirmed");
+			eap_send_success(esp);
+			if (esp->es_rechallenge != 0)
+				TIMEOUT(eap_rechallenge, esp, esp->es_rechallenge);
 			break;
 		case CHAP_FAILURE:
+			if (esp->es_server.ea_state != eapMSCHAPv2Chall &&
+			    esp->es_server.ea_state != eapMSCHAPv2Success &&
+			    esp->es_server.ea_state != eapMSCHAPv2Failure) {
+				warn("EAP: Ignoring unexpected MSCHAPv2 Failure response");
+				break;
+			}
 			info("EAP: MSCHAPv2 failure confirmed");
+			eap_send_failure(esp);
 			break;
 		default:
 			error("EAP: Unhandled MSCHAPv2 opcode %d", opcode);
@@ -1793,7 +1773,7 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 
 	if (esp->es_server.ea_state != eapBadAuth &&
 	    esp->es_server.ea_state != eapOpen) {
-		esp->es_server.ea_id++;
+		esp->es_server.ea_id = (esp->es_server.ea_id + 1) & 0xff;
 		eap_send_request(esp);
 	}
 }
@@ -1814,29 +1794,38 @@ eap_success(eap_state *esp, u_char *inp, int id, int len)
 	}
 
 #ifdef PPP_WITH_EAPTLS
-	if(esp->es_client.ea_using_eaptls && esp->es_client.ea_state !=
-		eapTlsRecvSuccess) {
+	if (esp->es_client.ea_authtype == EAPT_TLS &&
+	    esp->es_client.ea_state != eapTlsRecvSuccess) {
 		dbglog("EAP-TLS unexpected success message in state %s (%d)",
                     eap_state_name(esp->es_client.ea_state),
                     esp->es_client.ea_state);
 		return;
 	}
 #endif /* PPP_WITH_EAPTLS */
-
-	if (esp->es_client.ea_timeout > 0) {
-		UNTIMEOUT(eap_client_timeout, (void *)esp);
+#ifdef PPP_WITH_PEAP
+	if (esp->es_client.ea_authtype == EAPT_PEAP &&
+	    (!esp->es_client.ea_inner_done || esp->es_client.ea_inner_fail)) {
+		dbglog("EAP-PEAP dropping unexpected success message (inner %s)",
+		       esp->es_client.ea_inner_fail? "failed" : "not done");
+		return;
 	}
+#endif /* PPP_WITH_PEAP */
+
+	esp->es_client.ea_state = eapOpen;
 
 	if (len > 0) {
 		/* This is odd.  The spec doesn't allow for this. */
 		PRINTMSG(inp, len);
 	}
 
-#ifdef PPP_WITH_PEAP
-	peap_finish(&esp->ea_peap);
-#endif
+	/* If the inner EAP succeeds (when using PEAP), wait for result handshake */
+	if (esp->outer_eap)
+		return;
 
-	esp->es_client.ea_state = eapOpen;
+	if (esp->es_client.ea_timeout > 0) {
+		UNTIMEOUT(eap_client_timeout, (void *)esp);
+	}
+
 	auth_withpeer_success(esp->es_unit, PPP_EAP, 0);
 }
 
@@ -1871,9 +1860,9 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 
 	error("EAP: peer reports authentication failure");
 
-#ifdef PPP_WITH_PEAP
-	peap_finish(&esp->ea_peap);
-#endif
+	/* If the inner EAP fails (when using PEAP), wait for result handshake */
+	if (esp->outer_eap) 
+		return;
 
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 }
@@ -1952,7 +1941,7 @@ static int
 eap_printpkt(u_char *inp, int inlen,
 	     void (*printer) (void *, char *, ...), void *arg)
 {
-	int code, id, len, rtype, vallen;
+	int code, id, len, rtype, vallen, mslen;
 	u_char *pstart;
 	u_int32_t uval;
 #ifdef PPP_WITH_EAPTLS
@@ -2035,24 +2024,21 @@ eap_printpkt(u_char *inp, int inlen,
 				break;
 			GETCHAR(opcode, inp);
 			len--;
+			if (len < 4)
+				goto truncated;
+			GETCHAR(id, inp);
+			GETSHORT(mslen, inp);
+			len -= 3;
 			switch (opcode) {
 			case CHAP_CHALLENGE:
-				if (len < 4)
-					goto truncated;
-				INCPTR(3, inp);
-				len -= 3;
 				GETCHAR(vallen, inp);
 				len--;
 				if (vallen > len)
 					goto truncated;
+				printer(arg, " Challenge msid=%d mslen=%d chlen=%d <%.*B>",
+					id, mslen, vallen, vallen, inp);
+				inp += vallen;
 				len -= vallen;
-				printer(arg, " Challenge <");
-				for (; vallen > 0; --vallen) {
-					u_char val;
-					GETCHAR(val, inp);
-					printer(arg, "%.2x", val);
-				}
-				printer(arg, ">");
 				if (len > 0) {
 					printer(arg, ", <Name ");
 					print_string((char *)inp, len, printer, arg);
@@ -2064,20 +2050,12 @@ eap_printpkt(u_char *inp, int inlen,
 				}
 				break;
 			case CHAP_SUCCESS:
-				if (len < 3)
-					goto truncated;
-				INCPTR(3, inp);
-				len -= 3;
-				printer(arg, " Success <Message ");
+				printer(arg, " Success msid=%d mslen=%d <Message ", id, mslen);
 				print_string((char *)inp, len, printer, arg);
 				printer(arg, ">");
 				break;
 			case CHAP_FAILURE:
-				if (len < 3)
-					goto truncated;
-				INCPTR(3, inp);
-				len -= 3;
-				printer(arg, " Failure <Message ");
+				printer(arg, " Failure msid=%d mslen=%d <Message ", id, mslen);
 				print_string((char *)inp, len, printer, arg);
 				printer(arg, ">");
 				break;
@@ -2094,6 +2072,7 @@ eap_printpkt(u_char *inp, int inlen,
 
 #ifdef PPP_WITH_EAPTLS
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			if (len < 1)
 				break;
 			GETCHAR(flags, inp);
@@ -2135,6 +2114,7 @@ eap_printpkt(u_char *inp, int inlen,
 
 #ifdef PPP_WITH_EAPTLS
 		case EAPT_TLS:
+		case EAPT_PEAP:
 			if (len < 1)
 				break;
 			GETCHAR(flags, inp);
@@ -2199,20 +2179,16 @@ eap_printpkt(u_char *inp, int inlen,
 			case CHAP_RESPONSE:
 				if (len < 4)
 					goto truncated;
-				INCPTR(3, inp);
-				len -= 3;
+				GETCHAR(id, inp);
+				GETSHORT(mslen, inp);
 				GETCHAR(vallen, inp);
-				len--;
+				len -= 4;
 				if (vallen > len)
 					goto truncated;
+				printer(arg, " Response msid=%d mslen=%d chlen=%d <%.*B>",
+					id, mslen, vallen, vallen, inp);
+				inp += vallen;
 				len -= vallen;
-				printer(arg, " Response <");
-				for (; vallen > 0; --vallen) {
-					u_char val;
-					GETCHAR(val, inp);
-					printer(arg, "%.2x", val);
-				}
-				printer(arg, ">");
 				if (len > 0) {
 					printer(arg, ", <Name ");
 					print_string((char *)inp, len, printer, arg);

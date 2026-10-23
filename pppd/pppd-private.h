@@ -233,6 +233,7 @@ extern char	path_ipv6down[]; /* pathname of ipv6-down script */
 #define TLS_VERIFY_SUBJECT  "subject"
 #define TLS_VERIFY_SUFFIX   "suffix"
 
+extern int  eap_type;
 extern char *crl_dir;
 extern char *crl_file;
 extern char *ca_path;

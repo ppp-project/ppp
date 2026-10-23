@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2011 Rustam Kovhaev. All rights reserved.
  * Copyright (c) 2021 Eivind Næss. All rights reserved.
+ * Copyright (c) 2026 Paul Mackerras. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,11 +41,18 @@
  *
  * Current implementation does not support:
  * a) Fast reconnect
- * b) Inner EAP fragmentation
- * c) Any other auth other than MSCHAPV2
+ * b) Any other auth other than MSCHAPV2
  *
  * For details on the PEAP protocol, look to Microsoft:
  *    https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-peap
+ *
+ * Note that although PEAP can be used in either direction,
+ * using it in both directions at once won't work properly because
+ * of the way the MPPE keys are used in the cryptobinding process.
+ * The same holds if PEAP is used in one direction and MS-CHAPv2
+ * or EAP-MSCHAPv2 in the other.  Note that MS-CHAPv2 does mutual
+ * authentication, and it is the only inner EAP type supported so
+ * far, so there is no real point to using PEAP in both directions.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -55,6 +63,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
 #include <openssl/opensslv.h>
 #include <openssl/ssl.h>
 #include <openssl/hmac.h>
@@ -63,6 +72,7 @@
 
 #include "pppd-private.h"
 #include "eap.h"
+#include "eap-tls.h"
 #include "tls.h"
 #include "chap.h"
 #include "chap_ms.h"
@@ -73,26 +83,6 @@
 #ifdef UNIT_TEST
 #define novm(x)
 #endif
-
-struct peap_state {
-	SSL_CTX *ctx;
-	SSL *ssl;
-	BIO *in_bio;
-	BIO *out_bio;
-
-	int phase;
-	int written, read;
-	u_char *in_buf;
-	u_char *out_buf;
-
-	u_char ipmk[PEAP_TLV_IPMK_LEN];
-	u_char tk[PEAP_TLV_TK_LEN];
-	u_char nonce[PEAP_TLV_NONCE_LEN];
-	struct tls_info *info;
-#ifdef PPP_WITH_CHAPMS
-	struct chap_digest_type *chap;
-#endif
-};
 
 /*
  * K = Key, S = Seed, LEN = output length
@@ -105,7 +95,8 @@ struct peap_state {
  * As shown, PRF+ is computed in iterations. The number of iterations (n)
  * depends on the output length (LEN).
  */
-static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_len, u_char *out_buf, size_t pfr_len)
+static void peap_prfplus(const u_char *seed, size_t seed_len, const u_char *key, size_t key_len,
+			 u_char *out_buf, size_t pfr_len)
 {
 	int pos;
 	u_char *buf, *hash;
@@ -145,70 +136,92 @@ static void peap_prfplus(u_char *seed, size_t seed_len, u_char *key, size_t key_
 	free(buf);
 }
 
-static void generate_cmk(u_char *ipmk, u_char *tempkey, u_char *nonce, u_char *tlv_response_out, int client)
-{
-	const char *label = PEAP_TLV_IPMK_SEED_LABEL;
-	u_char data_tlv[PEAP_TLV_DATA_LEN] = {0};
-	u_char isk[PEAP_TLV_ISK_LEN] = {0};
-	u_char ipmkseed[PEAP_TLV_IPMKSEED_LEN] = {0};
-	u_char cmk[PEAP_TLV_CMK_LEN] = {0};
-	u_char buf[PEAP_TLV_CMK_LEN + PEAP_TLV_IPMK_LEN] = {0};
-	u_char compound_mac[PEAP_TLV_COMP_MAC_LEN] = {0};
-	u_int len;
+/*
+ * Generate cryptobinding TLV structure.
+ * Primarily this involves computing the compound MAC field,
+ * which is a HMAC-SHA1-160 function of a block of data and a key.
+ * The data is the TLV with the compound MAC field set to zero
+ * plus one byte which contains EAPT_PEAP.
+ * The key is computed using the PRF+ algorithm from the first 40
+ * bytes of the tunnel key (obtained from TLS) and the intermediate
+ * PEAP MAC key seed (IPMK seed).  That generates 60 bytes of which
+ * the first 40 are the IPMK and the last 20 are the compound MAC
+ * key (CMK).  The IPMK is used later for generating MPPE keys.
+ * The IPMK seed is the concatenation of the string "Inner Methods
+ * Compound Keys" with an Inner Session Key (ISK) which is basically
+ * the MPPE keys computed by the inner authentication method.
+ */
+#define	PEAP_CB_TK_LEN			60	/* length of tunnel key used in cryptobinding */
+#define	PEAP_CB_ISK_LEN			32	/* length of inner session key ditto */
+#define	PEAP_CB_NONCE_LEN		32	/* length of random nonce */
+#define	PEAP_CB_IPMK_LEN		40	/* length of intermediate PEAP MAC key */
+#define	PEAP_CB_TEMPKEY_LEN		40	/* length of key used to generate IPMK and CMK */
+#define	PEAP_CB_CMK_LEN			20	/* length of compound MAC key */
+#define	PEAP_CB_IPMKSEED_LABEL		"Inner Methods Compound Keys"
+#define	PEAP_CB_IPMKSEED_LEN		59	/* = strlen(IPMKseed) + ISK_LEN */
 
-	/* format outgoing CB TLV response packet */
-	data_tlv[1] = PEAP_TLV_TYPE;
-	data_tlv[3] = PEAP_TLV_LENGTH_FIELD;
-	if (client)
-		data_tlv[7] = PEAP_TLV_SUBTYPE_RESPONSE;
-	else
-		data_tlv[7] = PEAP_TLV_SUBTYPE_REQUEST;
-	BCOPY(nonce, (data_tlv + PEAP_TLV_HEADERLEN), PEAP_TLV_NONCE_LEN);
-	data_tlv[60] = EAPT_PEAP;
+static void generate_cmk(u_char *ipmk, u_char *cmk, const u_char *tempkey, int swap_isk)
+{
+	const char *label = PEAP_CB_IPMKSEED_LABEL;
+	u_char isk[PEAP_CB_ISK_LEN] = {0};
+	u_char ipmkseed[PEAP_CB_IPMKSEED_LEN] = {0};
+	u_char buf[PEAP_CB_CMK_LEN + PEAP_CB_IPMK_LEN] = {0};
 
 #ifdef PPP_WITH_MPPE
-	mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
-	mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+	if (!swap_isk) {
+		mppe_get_send_key(isk, MPPE_MAX_KEY_LEN);
+		mppe_get_recv_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+	} else {
+		mppe_get_recv_key(isk, MPPE_MAX_KEY_LEN);
+		mppe_get_send_key(isk + MPPE_MAX_KEY_LEN, MPPE_MAX_KEY_LEN);
+	}
 #endif
 
 	BCOPY(label, ipmkseed, strlen(label));
-	BCOPY(isk, ipmkseed + strlen(label), PEAP_TLV_ISK_LEN);
-	peap_prfplus(ipmkseed, PEAP_TLV_IPMKSEED_LEN,
-			tempkey, PEAP_TLV_TEMPKEY_LEN, buf, PEAP_TLV_CMK_LEN + PEAP_TLV_IPMK_LEN);
+	BCOPY(isk, ipmkseed + strlen(label), PEAP_CB_ISK_LEN);
+	peap_prfplus(ipmkseed, PEAP_CB_IPMKSEED_LEN,
+			tempkey, PEAP_CB_TEMPKEY_LEN, buf, PEAP_CB_CMK_LEN + PEAP_CB_IPMK_LEN);
 
-	BCOPY(buf, ipmk, PEAP_TLV_IPMK_LEN);
-	BCOPY(buf + PEAP_TLV_IPMK_LEN, cmk, PEAP_TLV_CMK_LEN);
-	if (!HMAC(EVP_sha1(), cmk, PEAP_TLV_CMK_LEN, data_tlv, PEAP_TLV_DATA_LEN, compound_mac, &len))
-		fatal("HMAC() failed");
-	BCOPY(compound_mac, data_tlv + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN, PEAP_TLV_COMP_MAC_LEN);
-	/* do not copy last byte to response packet */
-	BCOPY(data_tlv, tlv_response_out, PEAP_TLV_DATA_LEN - 1);
+	BCOPY(buf, ipmk, PEAP_CB_IPMK_LEN);
+	BCOPY(buf + PEAP_CB_IPMK_LEN, cmk, PEAP_CB_CMK_LEN);
 }
 
-static void verify_compound_mac(struct peap_state *psm, u_char *in_buf)
+static void generate_cb_tlv(u_char *tlv_out, const u_char *cmk, const u_char *nonce,
+			    int subtype)
 {
-	u_char nonce[PEAP_TLV_NONCE_LEN] = {0};
-	u_char out_buf[PEAP_TLV_LEN] = {0};
+	u_char data_tlv[TLV_CB_TLV_LEN + 1] = {0};
+	u_char compound_mac[TLV_CB_COMP_MAC_LEN] = {0};
+	u_int len;
 
-	BCOPY(in_buf, nonce, PEAP_TLV_NONCE_LEN);
-	generate_cmk(psm->ipmk, psm->tk, nonce, out_buf, 0);
-	if (memcmp((in_buf + PEAP_TLV_NONCE_LEN), (out_buf + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN), PEAP_TLV_CMK_LEN))
-			fatal("server's CMK does not match client's CMK, potential MiTM");
+	/* format outgoing CB TLV response packet */
+	data_tlv[1] = TLV_CRYPTOBINDING_TYPE;
+	data_tlv[3] = TLV_CRYPTOBINDING_LEN;
+	data_tlv[TLV_CB_SUBTYPE_OFF] = subtype;
+	BCOPY(nonce, data_tlv + TLV_CB_NONCE_OFF, PEAP_CB_NONCE_LEN);
+	data_tlv[TLV_CB_TLV_LEN] = EAPT_PEAP;
+
+	if (!HMAC(EVP_sha1(), cmk, PEAP_CB_CMK_LEN, data_tlv, TLV_CB_TLV_LEN + 1,
+		  compound_mac, &len))
+		fatal("HMAC() failed");
+	BCOPY(compound_mac, data_tlv + TLV_CB_COMP_MAC_OFF, TLV_CB_COMP_MAC_LEN);
+	BCOPY(data_tlv, tlv_out, TLV_CB_TLV_LEN);
 }
 
 #ifdef PPP_WITH_MPPE
-#define PEAP_MPPE_KEY_LEN 32
+#define PEAP_MPPE_KEY_LEN 		32
+#define	PEAP_CB_CSK_LEN			128
+#define	PEAP_CB_CSK_SEED_LABEL		"Session Key Generating Function"
 
 static void generate_mppe_keys(u_char *ipmk, int client)
 {
-	const char *label = PEAP_TLV_CSK_SEED_LABEL;
-	u_char csk[PEAP_TLV_CSK_LEN] = {0};
+	const char *label = PEAP_CB_CSK_SEED_LABEL;
+	u_char csk[PEAP_CB_CSK_LEN] = {0};
 	size_t len;
 
 	dbglog("PEAP CB: generate mppe keys");
 	len = strlen(label);
 	len++; /* CSK requires NULL byte in seed */
-	peap_prfplus((u_char *)label, len, ipmk, PEAP_TLV_IPMK_LEN, csk, PEAP_TLV_CSK_LEN);
+	peap_prfplus((u_char *)label, len, ipmk, PEAP_CB_IPMK_LEN, csk, PEAP_CB_CSK_LEN);
 
 	/*
 	 * The first 64 bytes of the CSK are split into two MPPE keys, as follows.
@@ -230,435 +243,433 @@ static void generate_mppe_keys(u_char *ipmk, int client)
 
 #ifndef UNIT_TEST
 
-static void peap_ack(eap_state *esp, u_char id)
+/*
+ * Receive an outer TLV.
+ * Microsoft PEAP client/server never exchange
+ * outer TLVs during PEAP authentication
+ * and neither do we.
+ */
+void peap_receive_outer_tlv(eap_state *esp, int code, int id, u_char *inp, int len)
 {
-	u_char *outp;
-
-	outp = outpacket_buf;
-	MAKEHEADER(outp, PPP_EAP);
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
-	PUTSHORT(PEAP_HEADERLEN, outp);
-	PUTCHAR(EAPT_PEAP, outp);
-	PUTCHAR(PEAP_FLAGS_ACK, outp);
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + PEAP_HEADERLEN);
 }
 
-static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
+eap_state peap_inner_eap;
+
+struct peap_state {
+	u_char ipmk[PEAP_CB_IPMK_LEN];
+	u_char cmk[PEAP_CB_CMK_LEN];
+};
+
+static struct peap_state server_peap, client_peap;
+
+bool cryptobinding_reqd = true;
+
+/* Phase 2 is starting. code is from the outer PEAP packet. */
+void peap_phase2_start_server(eap_state *esp)
 {
-	struct peap_state *psm = esp->ea_peap;
-	u_char *outp;
-	int peap_len;
+	eap_state *eip = &peap_inner_eap;
 
-	outp = outpacket_buf;
-	MAKEHEADER(outp, PPP_EAP);
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
+	eip->outer_eap = esp;
+	eip->es_server.ea_id = (u_char)(drand48() * 0x100);
+	/* timeouts are left at zero; the outer PEAP makes a reliable transport */
+#ifdef PPP_WITH_CHAPMS
+	eip->es_server.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+#endif
+	eip->es_server.ea_state = eapPending;
+	eip->es_server.ea_session = esp->es_server.ea_session;
+	eip->es_server.ea_name = esp->es_server.ea_name;
+	eip->es_server.ea_namelen = esp->es_server.ea_namelen;
 
-	if (psm->phase == PEAP_PHASE_1)
-		peap_len = PEAP_HEADERLEN + PEAP_FRAGMENT_LENGTH_FIELD + len;
+	eap_send_request(eip);
+}
+
+/* Phase 2 is starting. code is from the outer PEAP packet. */
+void peap_phase2_start_client(eap_state *esp)
+{
+	eap_state *eip = &peap_inner_eap;
+
+	eip->outer_eap = esp;
+	BZERO(&eip->es_client, sizeof(eip->es_client));
+	/* timeouts are left at zero; the outer PEAP makes a reliable transport */
+#ifdef PPP_WITH_CHAPMS
+	eip->es_client.digest = chap_find_digest(CHAP_MICROSOFT_V2);
+#endif
+	eip->es_client.ea_session = esp->es_client.ea_session;
+	eip->es_client.ea_name = esp->es_client.ea_name;
+	eip->es_client.ea_namelen = esp->es_client.ea_namelen;
+	eip->es_client.ea_state = eapListen;
+}
+
+/* received EAP capabilities negotiation method */
+static void peap_receive_cap_neg(eap_state *esp, int code, int id, u_char *inp, int len)
+{
+	int caps;
+
+	GETLONG(caps, inp);
+	switch (code) {
+	case EAP_REQUEST:
+		/* client side */
+		if (esp->es_client.ea_state != eapListen) {
+			warn("PEAP/inner: dropping unexpected capabilities request");
+			return;
+		}
+		peap_phase2_send_capabilities(esp, EAP_RESPONSE, id);
+		break;
+	case EAP_RESPONSE:
+		/* server side */
+		if (esp->es_server.ea_state != eapPeap2SendCaps) {
+			warn("PEAP/inner: dropping unexpected capabilities response");
+			return;
+		}
+		/* Not much we can do if they don't support fragmentation? */
+
+		/* Inner EAP can only be MS-CHAPv2 for now */
+		eap_figure_next_state(esp, 0);
+		eap_send_request(esp);
+		break;
+	}
+}
+
+/* receive EAP TLV extensions method packet */
+static void peap_receive_tlv_ext(eap_state *esp, int code, int id, u_char *inp, int len)
+{
+	int ttype, tlen;
+	int status = -1;
+	int crypto_status = -1;
+	u_char *next_tlv;
+	int is_server = 0;
+	int subtype;
+	eap_state *eop = esp->outer_eap;
+	struct eap_auth *eoa;
+	struct peap_state *psm;
+	u_char result_tlv[TLV_CB_TLV_LEN];
+	u_char cmk[PEAP_CB_CMK_LEN];
+
+	if (code == EAP_RESPONSE) {
+		is_server = 1;
+		eoa = &eop->es_server;
+		if (esp->es_server.ea_state != eapPeap2SentResult) {
+			warn("PEAP-server phase 2 dropping unexpected TLV extensions packet");
+			return;
+		}
+		psm = &server_peap;
+		subtype = TLV_CB_SUBTYPE_RESPONSE;
+	} else {
+		eoa = &eop->es_client;
+		psm = &client_peap;
+		subtype = TLV_CB_SUBTYPE_REQUEST;
+	}
+	while (len >= 4) {
+		GETSHORT(ttype, inp);
+		GETSHORT(tlen, inp);
+		len -= 4;
+		if (len < tlen) {
+			warn("PEAP: truncated TLV 0x%x (len=%d but only %dB left)",
+			     ttype, tlen, len);
+			break;
+		}
+		next_tlv = inp + tlen;
+		len -= tlen;
+		if (ttype == TLV_RESULT_TYPE && tlen == TLV_RESULT_LEN) {
+			GETSHORT(status, inp);
+			/* 1 = success, 2 = failure */
+			if (status != 1 && status != 2)
+				error("PEAP: bad status value %d in result TLV", status);
+		} else if (ttype == TLV_CRYPTOBINDING_TYPE && tlen == TLV_CRYPTOBINDING_LEN) {
+			/* check subtype */
+			if (inp[3] != subtype) {
+				error("PEAP: cryptobinding TLV subtype doesn't match (%d)",
+				      inp[3]);
+			}
+			INCPTR(4, inp);
+			crypto_status = 1;
+
+			/* if server, psm->cmk should be set already */
+			if (!is_server) {
+				u_char tk[PEAP_CB_TK_LEN];
+				eaptls_get_tunnel_key(eoa->ea_session, tk, PEAP_CB_TK_LEN,
+						      EAPT_PEAP);
+				generate_cmk(psm->ipmk, psm->cmk, tk, 0);
+			}
+
+			/* inp is pointing to the peer's nonce */
+			generate_cb_tlv(result_tlv, psm->cmk, inp, subtype);
+			if (memcmp(inp + PEAP_CB_NONCE_LEN, result_tlv + TLV_CB_COMP_MAC_OFF,
+				   TLV_CB_COMP_MAC_LEN) != 0)
+				crypto_status = 2;
+		} else {
+			warn("PEAP: TLV extensions method with unknown TLV 0x%x len %d",
+			     ttype, tlen);
+			if (ttype & 0x8000) {
+				warn("PEAP: dropping packet with unknown mandatory TLV");
+				return;
+			}
+		}
+		inp = next_tlv;
+	}
+	if (len > 0)
+		dbglog("leftover data at end of TLVs, %d bytes: %.*B", len, len, inp);
+
+	if (crypto_status == 2 && !eoa->ea_inner_fail) {
+		if (cryptobinding_reqd) {
+			error("PEAP: Cryptobinding failure");
+			status = 2;
+		} else {
+			warn("PEAP: Cryptobinding failure");
+		}
+	}
+	if (status < 0) {
+		warn("PEAP: TLV extensions method with no Result TLV, ignored");
+		return;
+	}
+
+	eoa->ea_inner_done = true;
+	if (status != 1)
+		eoa->ea_inner_fail = true;
+	if (status == 1 && crypto_status < 0)
+		/* should this be an error? */
+		info("PEAP: No cryptobinding performed");
+	dbglog("PEAP-%s: Inner EAP %s", (is_server? "server": "client"),
+	       (status == 1? "success": "failure"));
+
+#ifdef PPP_WITH_MPPE
+	if (crypto_status == 1)
+		generate_mppe_keys(psm->ipmk, !is_server); /* set mppe keys */
+#endif
+	if (is_server)
+		esp->es_server.ea_state = eoa->ea_inner_fail? eapBadAuth: eapOpen;
 	else
-		peap_len = PEAP_HEADERLEN + len;
+		peap_phase2_send_result(esp, EAP_RESPONSE, id, !eoa->ea_inner_fail);
+}
+
+/*
+ * Receive PEAP phase 2 decrypted data.
+ * code and id are from the outer PEAP packet.
+ * inp[0..len-1] is the decrypted inner packet.
+ */
+void peap_phase2_receive(eap_state *esp, int code, int id, u_char *inp, int len)
+{
+	eap_state *eip = &peap_inner_eap;
+	int type;
+	int iid, ilen, itype, ivend, ivtype;
+	u_char *p;
+	static u_char dbuf[1504];
+	u_char *outp = dbuf;
+
+	if (len < 1) {
+		dbglog("PEAP/inner: dropping short packet (len=%d)", len);
+		return;
+	}
+	type = *inp;
 
 	/*
-	 * XXX Dying here is better (just) than overflowing outpacket_buf[].
-	 * There's not much point trying to continue, since the negotiation
-	 * will stall at this point and never complete.
+	 * The EAP packet could be "compressed", meaning that
+	 * its EAP code, id and len fields are omitted.
+	 * Only EAP TLV Extensions method (type = 33), capabilities
+	 * negotiation method (type = 254, vendor/vtype = 311/34) and
+	 * SoH EAP Extensions method (type = 254, vendor/vtype = 311/33)
+	 * packets are NOT compressed (and they are never compressed).
 	 */
-	if (peap_len > MIN(peer_mru[esp->es_unit], PPP_MRU))
-		fatal("BUG! PEAP Response fragmentation not implemented!");
-
-	PUTSHORT(peap_len, outp);
-	PUTCHAR(EAPT_PEAP, outp);
-
-	if (psm->phase == PEAP_PHASE_1) {
-		PUTCHAR(PEAP_L_FLAG_SET, outp);
-		PUTLONG(len, outp);
-	} else
-		PUTCHAR(PEAP_NO_FLAGS, outp);
-
-	BCOPY(buf, outp, len);
-	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + peap_len);
-}
-
-void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
-		u_char *out_buf, int *out_len)
-{
-	struct peap_state *psm = esp->ea_peap;
-	int used = 0;
-	int typenum;
-	int secret_len;
-	char secret[MAXSECRETLEN + 1];
-	char rhostname[MAXWORDLEN];
-	u_char *outp = out_buf;
-
-	dbglog("PEAP: EAP (in): %.*B", in_len, in_buf);
-
-	if (in_len == (EAP_HEADERLEN + PEAP_CAPABILITIES_LEN) &&
-	    *(in_buf + EAP_HEADERLEN) == PEAP_CAPABILITIES_TYPE) {
-		/* use original packet as template for response */
-		BCOPY(in_buf, outp, EAP_HEADERLEN + PEAP_CAPABILITIES_LEN);
-		PUTCHAR(EAP_RESPONSE, outp);
-		PUTCHAR(id, outp);
-		/* change last byte to 0 to disable fragmentation */
-		*(outp + PEAP_CAPABILITIES_LEN + 1) = 0x00;
-		used = EAP_HEADERLEN + PEAP_CAPABILITIES_LEN;
-		goto done;
-	}
-	if (in_len == PEAP_TLV_LEN &&
-	    *(in_buf + EAP_HEADERLEN + PEAP_TLV_HEADERLEN) == PEAP_TLV_TYPE) {
-		/* PEAP TLV message, do cryptobinding */
-		SSL_export_keying_material(psm->ssl, psm->tk, PEAP_TLV_TK_LEN,
-				PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL), NULL, 0, 0);
-		/* verify server's CMK */
-		verify_compound_mac(psm, in_buf + EAP_HEADERLEN + PEAP_TLV_RESULT_LEN + PEAP_TLV_HEADERLEN);
-		/* generate client's CMK with new nonce */
-		PUTCHAR(EAP_RESPONSE, outp);
-		PUTCHAR(id, outp);
-		PUTSHORT(PEAP_TLV_LEN, outp);
-		BCOPY(in_buf + EAP_HEADERLEN, outp, PEAP_TLV_RESULT_LEN);
-		outp = outp + PEAP_TLV_RESULT_LEN;
-		RAND_bytes(psm->nonce, PEAP_TLV_NONCE_LEN);
-		generate_cmk(psm->ipmk, psm->tk, psm->nonce, outp, 1);
-#ifdef PPP_WITH_MPPE
-		/* set mppe keys */
-		generate_mppe_keys(psm->ipmk, 1);
-#endif
-		used = PEAP_TLV_LEN;
-		goto done;
-	}
-
-	if (in_len < 1) {
-		dbglog("PEAP inner: dropping 0-length message");
-		goto done;
-	}
-	GETCHAR(typenum, in_buf);
-	in_len--;
-
-	switch (typenum) {
-	case EAPT_IDENTITY:
-		/* Respond with our identity to the peer */
-		PUTCHAR(EAPT_IDENTITY, outp);
-		BCOPY(esp->es_client.ea_name, outp,
-				esp->es_client.ea_namelen);
-		used += (esp->es_client.ea_namelen + 1);
-		break;
-
-	case EAPT_TLS:
-		/* Send NAK to EAP_TLS request */
-		PUTCHAR(EAPT_NAK, outp);
-		PUTCHAR(EAPT_MSCHAPV2, outp);
-		used += 2;
-		break;
-
-#if PPP_WITH_CHAPMS
-	case EAPT_MSCHAPV2: {
-
-		// Must have at least 4 more bytes to process CHAP header
-		if (in_len < 4) {
-			error("PEAP: received invalid MSCHAPv2 packet, too short");
-			break;
-		}
-
-		u_char opcode;
-		GETCHAR(opcode, in_buf);
-
-		u_char chap_id;
-		GETCHAR(chap_id, in_buf);
-
-		short mssize;
-		GETSHORT(mssize, in_buf);
-
-		// Validate the CHAP packet (including header)
-		if (in_len != mssize) {
-			error("PEAP: received invalid MSCHAPv2 packet, invalid length");
-			break;
-		}
-		in_len -= 4;
-
-		switch (opcode) {
-		case CHAP_CHALLENGE: {
-
-			u_char *challenge = in_buf;	// VLEN + VALUE
-			u_char vsize;
-
-			if (in_len < 1) {
-				error("PEAP inner: received empty CHAP_CHALLENGE");
-				goto done;
-			}
-			GETCHAR(vsize, in_buf);
-			in_len -= 1;
-
-			if (vsize != MS_CHAP2_PEER_CHAL_LEN || in_len < MS_CHAP2_PEER_CHAL_LEN) {
-				error("PEAP: received invalid MSCHAPv2 packet, invalid value-length: %d", vsize);
-				goto done;
-			}
-
-			INCPTR(MS_CHAP2_PEER_CHAL_LEN, in_buf);
-			in_len -= MS_CHAP2_PEER_CHAL_LEN;
-
-			// Copy the provided remote host name
-			rhostname[0] = '\0';
-			if (in_len > 0) {
-				if (in_len >= sizeof(rhostname)) {
-					dbglog("PEAP: trimming really long peer name down");
-					in_len = sizeof(rhostname) - 1;
+	if (len >= 9 && type == code) {
+		p = inp + 1;
+		GETCHAR(iid, p);
+		GETSHORT(ilen, p);
+		GETCHAR(itype, p);
+		if (ilen <= len && itype == EAPT_EXPANDED && len >= 16 &&
+		    p[0] == 0 && p[1] == 1 && p[2] == 0x37) {
+			/* expanded type, vendor microsoft, uncompressed */
+			INCPTR(3, p);
+			GETLONG(ivtype, p);
+			switch (ivtype) {
+			case EAP_VTYPE_MS_CAPS:
+				peap_receive_cap_neg(eip, code, iid, p, ilen - 12);
+				break;
+			default:
+				error("PEAP phase 2 received unknown MS vendor method 0x%x",
+				      ivtype);
+				/* client can reply with a Nak */
+				if (code == EAP_REQUEST) {
+					u_char nakdata[2] = { EAPT_NAK, EAPT_MSCHAPV2 };
+					peap_phase2_send(eip, EAP_RESPONSE, id, nakdata, 2, true);
 				}
-				BCOPY(in_buf, rhostname, in_len);
-				rhostname[in_len] = '\0';
 			}
-
-			// In case the remote doesn't give us his name, or user explictly specified remotename is config
-			if (explicit_remote || (remote_name[0] != '\0' && in_len == 0))
-				strlcpy(rhostname, remote_name, sizeof(rhostname));
-
-			// Get the scrert for authenticating ourselves with the specified host
-			if (get_secret(esp->es_unit, esp->es_client.ea_name,
-						rhostname, secret, &secret_len, 0)) {
-
-				u_char response[MS_CHAP2_RESPONSE_LEN+1];
-				u_char user_len = esp->es_client.ea_namelen;
-				char *user = esp->es_client.ea_name;
-
-				psm->chap->make_response(response, chap_id, user,
-						challenge, secret, secret_len, NULL);
-
-				PUTCHAR(EAPT_MSCHAPV2, outp);
-				PUTCHAR(CHAP_RESPONSE, outp);
-				PUTCHAR(chap_id, outp);
-				PUTCHAR(0, outp);
-				PUTCHAR(5 + user_len + MS_CHAP2_RESPONSE_LEN, outp);
-				BCOPY(response, outp, MS_CHAP2_RESPONSE_LEN+1);	// VLEN + VALUE
-				INCPTR(MS_CHAP2_RESPONSE_LEN+1, outp);
-				BCOPY(user, outp, user_len);
-				used = 5 + user_len + MS_CHAP2_RESPONSE_LEN + 1;
-
-			} else {
-				dbglog("PEAP: no CHAP secret for auth to %q", rhostname);
-				PUTCHAR(EAPT_NAK, outp);
-				++used;
-			}
-			break;
-		}
-		case CHAP_SUCCESS: {
-
-			u_char status = CHAP_FAILURE;
-			if (psm->chap->check_success(chap_id, in_buf, in_len)) {
-				info("Chap authentication succeeded! %.*v", in_len, in_buf);
-				status = CHAP_SUCCESS;
-			}
-
-			PUTCHAR(EAPT_MSCHAPV2, outp);
-			PUTCHAR(status, outp);
-			used += 2;
-			break;
-		}
-		case CHAP_FAILURE: {
-
-			u_char status = CHAP_FAILURE;
-			psm->chap->handle_failure(in_buf, in_len);
-			PUTCHAR(EAPT_MSCHAPV2, outp);
-			PUTCHAR(status, outp);
-			used += 2;
-			break;
-		}
-		default:
-			break;
-		}
-		break;
-	}	// EAPT_MSCHAPv2
-#endif
-	default:
-
-		/* send compressed EAP NAK for any unknown packet */
-		PUTCHAR(EAPT_NAK, outp);
-		++used;
-	}
-
-done:
-
-	dbglog("PEAP: EAP (out): %.*B", used, psm->out_buf);
-	*out_len = used;
-}
-
-int peap_init(struct peap_state **ctx, const char *rhostname)
-{
-	const SSL_METHOD *method;
-
-	if (!ctx)
-		return -1;
-
-	tls_init();
-
-	struct peap_state *psm = malloc(sizeof(*psm));
-	if (!psm)
-		novm("peap psm struct");
-	psm->in_buf = malloc(TLS_RECORD_MAX_SIZE);
-	if (!psm->in_buf)
-		novm("peap tls buffer");
-	psm->out_buf = malloc(TLS_RECORD_MAX_SIZE);
-	if (!psm->out_buf)
-		novm("peap tls buffer");
-	method = tls_method();
-	if (!method)
-		novm("TLS_method() failed");
-	psm->ctx = SSL_CTX_new(method);
-	if (!psm->ctx)
-		novm("SSL_CTX_new() failed");
-
-	/* Configure the default options */
-	tls_set_opts(psm->ctx);
-
-	/* Configure the max TLS version */
-	tls_set_version(psm->ctx, max_tls_version);
-
-	/* Configure the peer certificate callback */
-	tls_set_verify(psm->ctx, 5);
-
-	/* Configure CA locations */
-	if (tls_set_ca(psm->ctx, ca_path, cacert_file)) {
-		fatal("Could not set CA verify locations");
-	}
-
-	/* Configure CRL check (if any) */
-	if (tls_set_crl(psm->ctx, crl_dir, crl_file)) {
-		fatal("Could not set CRL verify locations");
-	}
-
-	psm->out_bio = BIO_new(BIO_s_mem());
-	psm->in_bio = BIO_new(BIO_s_mem());
-	BIO_set_mem_eof_return(psm->out_bio, -1);
-	BIO_set_mem_eof_return(psm->in_bio, -1);
-	psm->ssl = SSL_new(psm->ctx);
-	SSL_set_bio(psm->ssl, psm->in_bio, psm->out_bio);
-	SSL_set_connect_state(psm->ssl);
-	psm->phase = PEAP_PHASE_1;
-	tls_set_verify_info(psm->ssl, explicit_remote ? rhostname : NULL, NULL, 1, &psm->info);
-	psm->chap = chap_find_digest(CHAP_MICROSOFT_V2);
-	*ctx = psm;
-	return 0;
-}
-
-void peap_finish(struct peap_state **psm) {
-
-	if (psm && *psm) {
-		struct peap_state *tmp = *psm;
-
-		if (tmp->ssl)
-			SSL_free(tmp->ssl);
-
-		if (tmp->ctx)
-			SSL_CTX_free(tmp->ctx);
-
-		if (tmp->info)
-			tls_free_verify_info(&tmp->info);
-
-		// NOTE: BIO and memory is freed as a part of SSL_free()
-
-		free(*psm);
-		*psm = NULL;
-	}
-}
-
-int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
-{
-	int ret;
-	int out_len;
-	int hlen;
-	int flags;
-
-	struct peap_state *psm = esp->ea_peap;
-
-	if (esp->es_client.ea_id == id) {
-		info("PEAP: retransmits are not supported..");
-		return -1;
-	}
-	if (len < 1) {
-		error("PEAP received empty packet, discarding");
-		return 0;
-	}
-	flags = *inp;
-	dbglog("PEAP: flags=%c%c%c%c len=%d",
-	       (flags & PEAP_L_FLAG_SET? 'L': '-'),
-	       (flags & PEAP_M_FLAG_SET? 'M': '-'),
-	       (flags & PEAP_S_FLAG_SET? 'S': '-'),
-	       (flags & PEAP_T_FLAG_SET? 'T': '-'), len);
-	hlen = 1;
-	if (flags & PEAP_L_FLAG_SET) {
-		hlen += PEAP_FRAGMENT_LENGTH_FIELD;
-		if (len < hlen) {
-			error("PEAP received short packet (%d bytes), discarding", len);
-			return 0;
+			return;
+		} else if (ilen <= len && itype == EAPT_TLV_EXT) {
+			/* EAP TLV extensions method, uncompressed */
+			peap_receive_tlv_ext(eip, code, iid, p, ilen - 5);
+			return;
 		}
 	}
-	inp += hlen;
-	len -= hlen;
 
-	if (flags & PEAP_S_FLAG_SET) {
-		if (psm->phase == PEAP_PHASE_2) {
-			warn("PEAP: Discarding spurious PEAP Start packet in phase 2");
-			return 0;
-		}
-		dbglog("PEAP: starting PEAP phase 1");
+	if (!(code == EAP_RESPONSE? eap_server_active(eip): eap_client_active(eip))) {
+		warn("PEAP/inner: dropping packet when not active (state=%d)",
+		     eip->es_server.ea_state);
+		return;
+	}
+
+	/* Packet is a compressed EAP packet here */
+	if (debug) {
+		/* make a PPP header and an EAP header so we can print it */
+		MAKEHEADER(outp, PPP_EAP);
+		PUTCHAR(code, outp);
+		PUTCHAR(id, outp);
+		PUTSHORT(len + EAP_HEADERLEN, outp);
 		if (len > 0)
-			warn("PEAP: Unexpected data in PEAP Start packet (%d bytes)", len);
-	} else if (len > 0) {
-		psm->written = BIO_write(psm->in_bio, inp, len);
+			BCOPY(inp, outp, len);
+		dump_packet("inner recv", dbuf, len + EAP_HEADERLEN + PPP_HDRLEN);
 	}
 
-	if (flags & PEAP_M_FLAG_SET) {
-		peap_ack(esp, id);
-		return 0;
+	switch(code) {
+	case EAP_REQUEST:
+		eap_request(eip, inp, id, len);
+		break;
+	case EAP_RESPONSE:
+		eap_response(eip, inp, id, len);
+		break;
+	default:
+		error("PEAP/inner: received unknown code %d, ignoring", code);
+	}
+}
+
+/*
+ * Send PEAP phase 2 data to SSL.
+ * This is usually data from the generic EAP implementation,
+ * which always gets "compressed" by leaving off the EAP header,
+ * but can also be PEAP-specific packets which are not compressed.
+ */
+void peap_phase2_send(eap_state *esp, int code, int id, u_char *data, int datalen, bool compressed)
+{
+	struct eaptls_session *ets;
+	int res;
+	size_t written;
+	static u_char dbuf[1504];
+	u_char *outp = dbuf;
+	int hlen;
+
+	if (code == EAP_RESPONSE)
+		ets = esp->es_client.ea_session;
+	else
+		ets = esp->es_server.ea_session;
+
+	if (debug) {
+		hlen = PPP_HDRLEN;
+		MAKEHEADER(outp, PPP_EAP);
+		if (compressed) {
+			PUTCHAR(code, outp);
+			PUTCHAR(id, outp);
+			PUTSHORT(datalen + EAP_HEADERLEN, outp);
+			hlen += EAP_HEADERLEN;
+		}
+		if (datalen > 0)
+			BCOPY(data, outp, datalen);
+		dump_packet("inner sent", dbuf, hlen + datalen);
 	}
 
-	if (psm->phase == PEAP_PHASE_1) {
-		if (!(flags & PEAP_S_FLAG_SET))
-			dbglog("PEAP TLS: continue handshake");
-		ret = SSL_do_handshake(psm->ssl);
-		if (ret != 1) {
-			ret = SSL_get_error(psm->ssl, ret);
-			if (ret != SSL_ERROR_WANT_READ && ret != SSL_ERROR_WANT_WRITE) {
-				error("SSL_do_handshake(): %s", ERR_error_string(ret, NULL));
-				return -1;
-			}
-		}
-		if (SSL_is_init_finished(psm->ssl))
-			psm->phase = PEAP_PHASE_2;
-		if (BIO_ctrl_pending(psm->out_bio) == 0) {
-			peap_ack(esp, id);
-			return 0;
-		}
-		psm->read = BIO_read(psm->out_bio, psm->out_buf,
-				     TLS_RECORD_MAX_SIZE);
-		if (psm->read <= 0) {
-			error("PEAP: error reading TLS data to send (phase 1)");
-			return 0;
-		}
-		peap_response(esp, id, psm->out_buf, psm->read);
+	if (datalen <= 0) {
+		error("PEAP/inner: can't send zero-length packet");
+		return;
+	}
+	written = SSL_write(ets->ssl, data, datalen);
+	if (written <= 0) {
+		res = SSL_get_error(ets->ssl, 0);
+		if (res == SSL_ERROR_WANT_READ || res == SSL_ERROR_WANT_WRITE)
+			error("PEAP-%s failed to write all data (len=%d)",
+			      (code == EAP_RESPONSE? "client": "server"), datalen);
+		else
+			error("PEAP-%s write error: %s",
+			      (code == EAP_RESPONSE? "client": "server"),
+			      ERR_error_string(res, NULL));
+	}
+}
+
+/*
+ * Send an EAP Capabilities Negotiation Method packet to the peer
+ */
+void peap_phase2_send_capabilities(eap_state *esp, int code, int id)
+{
+	u_char *outp = outpacket_buf;
+	int len;
+
+	/* Capabilities Negotiation method is never compressed */
+	if (code == EAP_REQUEST)
+		esp->es_server.ea_id = id = (esp->outer_eap->es_server.ea_id + 1) & 0xff;
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	PUTSHORT(16, outp);	/* length */
+	PUTCHAR(EAPT_EXPANDED, outp);
+	PUTCHAR(0, outp);
+	PUTSHORT(EAP_VENDOR_MS, outp);
+	PUTLONG(EAP_VTYPE_MS_CAPS, outp);
+	PUTLONG(1, outp);	/* capabilities = 1, phase 2 fragmentation allowed */
+
+	peap_phase2_send(esp, code, id, outpacket_buf, 16, false);
+}
+
+/*
+ * Send a Result TLV to the peer in a EAP-TLV-Extensions method packet
+ * We also send a Crypto-binding TLV on success.
+ */
+void peap_phase2_send_result(eap_state *esp, int code, int id, bool success)
+{
+	u_char *outp, *lenp;
+	int len;
+	int is_server = 0;
+	int subtype;
+	eap_state *eop = esp->outer_eap;
+	struct eap_auth *eoa;
+	struct peap_state *psm;
+	u_char nonce[PEAP_CB_NONCE_LEN];
+
+	if (code == EAP_REQUEST) {
+		is_server = 1;
+		eoa = &eop->es_server;
+		psm = &server_peap;
+		esp->es_server.ea_id = id = (eoa->ea_id + 1) & 0xff;
+		subtype = TLV_CB_SUBTYPE_REQUEST;
 	} else {
-		psm->read = SSL_read(psm->ssl, psm->in_buf,
-				TLS_RECORD_MAX_SIZE);
-		if (psm->read <= 0) {
-			error("PEAP: error reading tunneled data (phase 2)");
-			return 0;
-		}
-		out_len = TLS_RECORD_MAX_SIZE;
-		peap_do_inner_eap(psm->in_buf, psm->read, esp, id,
-				psm->out_buf, &out_len);
-		if (out_len > 0) {
-			psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
-			psm->read = BIO_read(psm->out_bio, psm->out_buf,
-				TLS_RECORD_MAX_SIZE);
-			if (psm->read <= 0) {
-				error("PEAP: error reading TLS data to send (phase 2)");
-				return 0;
-			}
-			peap_response(esp, id, psm->out_buf, psm->read);
-		}
+		eoa = &eop->es_client;
+		psm = &client_peap;
+		subtype = TLV_CB_SUBTYPE_RESPONSE;
 	}
-	return 0;
+
+	outp = outpacket_buf;
+
+	/* TLV Extensions method is never compressed */
+	PUTCHAR(code, outp);
+	PUTCHAR(id, outp);
+	lenp = outp;
+	INCPTR(2, outp);
+	PUTCHAR(EAPT_TLV_EXT, outp);
+
+	/* Result TLV */
+	PUTSHORT(TLV_RESULT_TYPE, outp);
+	PUTSHORT(2, outp);	/* value length */
+	PUTSHORT(success? 1: 2, outp);
+
+	if (success) {
+		/* Cryptobinding TLV */
+		if (is_server) {
+			u_char tk[PEAP_CB_TK_LEN];
+			eaptls_get_tunnel_key(eoa->ea_session, tk, PEAP_CB_TK_LEN, EAPT_PEAP);
+			generate_cmk(psm->ipmk, psm->cmk, tk, 1);
+		}
+		/* create nonce */
+		RAND_bytes(nonce, PEAP_CB_NONCE_LEN);
+		generate_cb_tlv(outp, psm->cmk, nonce, subtype);
+		INCPTR(60, outp);
+	} else
+		eop->es_server.ea_inner_fail = true;
+
+	/* Fill in length */
+	len = outp - outpacket_buf;
+	PUTSHORT(len, lenp);
+
+	if (is_server) {
+		esp->es_server.ea_state = eapPeap2SentResult;
+		dbglog("inner state -> eapPeap2SentResult");
+	}
+
+	peap_phase2_send(esp, code, id, outpacket_buf, len, false);
 }
 
 #else
@@ -673,14 +684,14 @@ int unsuccess = 0;
  *	see https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-peap/5308642b-90c9-4cc4-beec-fb367325c0f9
  */
 int test_cmk(u_char *ipmk) {
-	u_char nonce[PEAP_TLV_NONCE_LEN] = {
+	u_char nonce[PEAP_CB_NONCE_LEN] = {
 		0x6C, 0x6B, 0xA3, 0x87, 0x84, 0x23, 0x74, 0x57,
 		0xCC, 0xC9, 0x0B, 0x1A, 0x90, 0x8C, 0xBD, 0xF4,
 		0x71, 0x1B, 0x69, 0x99, 0x4D, 0x0C, 0xFE, 0x8D,
 		0x3D, 0xB4, 0x4E, 0xCB, 0xCD, 0xAD, 0x37, 0xE9
 	};
 
-	u_char tmpkey[PEAP_TLV_TEMPKEY_LEN] = {
+	u_char tmpkey[PEAP_CB_TEMPKEY_LEN] = {
 		0x73, 0x8B, 0xB5, 0xF4, 0x62, 0xD5, 0x8E, 0x7E,
 		0xD8, 0x44, 0xE1, 0xF0, 0x0D, 0x0E, 0xBE, 0x50,
 		0xC5, 0x0A, 0x20, 0x50, 0xDE, 0x11, 0x99, 0x77,
@@ -709,13 +720,16 @@ int test_cmk(u_char *ipmk) {
 		0xFC, 0x71, 0x16, 0x3B, 0xDF, 0xF2, 0xFA, 0x95
 	};
 
+	u_char cmk[PEAP_CB_CMK_LEN];
 	u_char response[60] = {};
 
 	// Set the inner MPPE keys (e.g. from CHAPv2)
 	mppe_set_keys(inner_mppe_keys, inner_mppe_keys + 16, 16);
 
 	// Generate and compare the response
-	generate_cmk(ipmk, tmpkey, nonce, response, 1);
+	generate_cmk(ipmk, cmk, tmpkey, 0);
+	generate_cb_tlv(response, cmk, nonce, TLV_CB_SUBTYPE_RESPONSE);
+
 	if (memcmp(expected, response, sizeof(response)) != 0) {
 		dbglog("Failed CMK key generation\n");
 		dbglog("%.*B", sizeof(response), response);
@@ -775,7 +789,7 @@ int test_mppe(u_char *ipmk) {
 
 int main(int argc, char *argv[])
 {
-	 u_char ipmk[PEAP_TLV_IPMK_LEN] = {
+	 u_char ipmk[PEAP_CB_IPMK_LEN] = {
 		0x3A, 0x91, 0x1C, 0x25, 0x54, 0x73, 0xE8, 0x3E,
 		0x9A, 0x0C, 0xC3, 0x33, 0xAE, 0x1F, 0x8A, 0x35,
 		0xCD, 0xC7, 0x41, 0x63, 0xE7, 0xF6, 0x0F, 0x6C,

@@ -55,6 +55,7 @@
 #include "tls.h"
 #include "eap.h"
 #include "eap-tls.h"
+#include "peap.h"
 #include "fsm.h"
 #include "lcp.h"
 #include "chap_ms.h"
@@ -93,51 +94,54 @@ int ssl_new_session_cb(SSL *s, SSL_SESSION *sess);
  */
 void eaptls_gen_mppe_keys(struct eaptls_session *ets, int client)
 {
-    unsigned char  out[4*EAPTLS_MPPE_KEY_LEN];
-    const char    *prf_label;
-    size_t         prf_size;
-    unsigned char  eap_tls13_context[] = { EAPT_TLS };
-    unsigned char *context = NULL;
-    size_t         context_len = 0;
-    unsigned char *p;
+    u_char key[2 * EAPTLS_MPPE_KEY_LEN];
 
     dbglog("EAP-TLS generating MPPE keys");
-    if (ets->tls_v13)
-    {
-        prf_label = "EXPORTER_EAP_TLS_Key_Material";
-        context   = eap_tls13_context;
-        context_len = 1;
-    }
-    else
-    {
-        prf_label = "client EAP encryption";
-    }
+    eaptls_get_tunnel_key(ets, key, sizeof(key), EAPT_TLS);
 
-    dbglog("EAP-TLS PRF label = %s", prf_label);
-    prf_size = strlen(prf_label);
-    if (SSL_export_keying_material(ets->ssl, out, sizeof(out), prf_label, prf_size, 
-                                   context, context_len, ets->tls_v13) != 1)
-    {
-        warn( "EAP-TLS: Failed generating keying material" );
-        return;
-    }   
-
-    /* 
+    /*
      * We now have the master send and receive keys.
      * From these, generate the session send and receive keys.
      * (see RFC3079 / draft-ietf-pppext-mppe-keys-03.txt for details)
      */
     if (client)
-    {
-        mppe_set_keys(out, out + EAPTLS_MPPE_KEY_LEN, EAPTLS_MPPE_KEY_LEN);
-    }
+        mppe_set_keys(key, key + EAPTLS_MPPE_KEY_LEN, EAPTLS_MPPE_KEY_LEN);
     else
-    {
-        mppe_set_keys(out + EAPTLS_MPPE_KEY_LEN, out, EAPTLS_MPPE_KEY_LEN);
-    }
+        mppe_set_keys(key + EAPTLS_MPPE_KEY_LEN, key, EAPTLS_MPPE_KEY_LEN);
 }
-
 #endif /* PPP_WITH_MPPE */
+
+void eaptls_get_tunnel_key(struct eaptls_session *ets, void *buf, size_t buflen, int authtype)
+{
+    unsigned char  out[128];
+    const char    *prf_label;
+    size_t         prf_size;
+    unsigned char  eap_tls13_context = authtype;
+    unsigned char *context = NULL;
+    size_t         context_len = 0;
+    size_t	   len;
+
+    BZERO(buf, buflen);
+
+    if (ets->tls_v13) {
+        prf_label = "EXPORTER_EAP_TLS_Key_Material";
+        context = &eap_tls13_context;
+        context_len = 1;
+	len = sizeof(out);
+    } else {
+        prf_label = "client EAP encryption";
+	len = MIN(buflen, sizeof(out));
+    }
+
+    prf_size = strlen(prf_label);
+    if (SSL_export_keying_material(ets->ssl, out, len, prf_label, prf_size,
+                                   context, context_len, ets->tls_v13) != 1) {
+        warn( "EAP-TLS: Failed generating keying material" );
+        return;
+    }
+
+    BCOPY(out, buf, MIN(buflen, sizeof(out)));
+}
 
 int password_callback (char *buf, int size, int rwflag, void *u)
 {
@@ -260,7 +264,7 @@ static int eaptls_UI_reader(UI *ui, UI_STRING *uis) {
  * for client or server use can be loaded.
  */
 SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
-            char *certfile, char *privkeyfile, char *pkcs12)
+			 char *certfile, char *privkeyfile, char *pkcs12, bool verify)
 {
 #ifdef OPENSSL_ENGINE
     char        *cert_engine_name = NULL;
@@ -597,7 +601,7 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
     tls_set_version(ctx, max_tls_version);
 
     /* Configure the callback */
-    if (tls_set_verify(ctx, 5)) {
+    if (verify && tls_set_verify(ctx, 5)) {
         goto fail;
     }
 
@@ -625,21 +629,55 @@ fail:
 }
 
 /*
+ * Initialize the SSL stack for a PEAP client.
+ */
+SSL_CTX *peap_init_ssl_client(void)
+{
+    SSL_CTX     *ctx;
+
+    tls_init();
+
+    ctx = SSL_CTX_new(tls_method());
+    if (!ctx) {
+        error("EAP-TLS: Cannot initialize SSL CTX context");
+        goto fail;
+    }
+
+    if (tls_set_ca(ctx, ca_path, cacert_file) != 0)
+        goto fail;
+
+    /* Configure the default options */
+    tls_set_opts(ctx);
+
+    /* Configure the maximum SSL version */
+    tls_set_version(ctx, max_tls_version);
+
+    /* Configure the callback */
+    if (tls_set_verify(ctx, 5))
+        goto fail;
+
+    /* Configure CRL check (if any) */
+    if (tls_set_crl(ctx, crl_dir, crl_file))
+        goto fail;
+
+    return ctx;
+
+fail:
+
+    tls_log_sslerr();
+    SSL_CTX_free(ctx);
+    return NULL;
+}
+
+/*
  * Determine the maximum amount of TLS data in a packet
  */
 
 int eaptls_get_mtu(int unit)
 {
-    int mtu;
 
-    /*
-     * 10 bytes is the size of the EAP-TLS header including length field:
-     * code, ID, EAP-length (2 bytes), type, flags, TLS-length (4 bytes).
-     */
-    mtu = peer_mru[unit] - 10;
-
-    dbglog("MTU = %d", mtu);
-    return mtu;
+    dbglog("MTU = %d", peer_mru[unit]);
+    return peer_mru[unit];
 }
 
 
@@ -669,7 +707,6 @@ int eaptls_init_ssl_server(eap_state * esp)
         return 0;
     }
 
-    dbglog( "getting eaptls secret" );
     if (!get_eaptls_secret(esp->es_unit, esp->es_server.ea_peer,
                    esp->es_server.ea_name, clicertfile,
                    servcertfile, cacertfile, capath, pkfile, pkcs12, 1)) {
@@ -680,7 +717,8 @@ int eaptls_init_ssl_server(eap_state * esp)
 
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, pkfile, pkcs12);
+    ets->ctx = eaptls_init_ssl(1, cacertfile, capath, servcertfile, pkfile, pkcs12,
+			       esp->es_server.ea_authtype == EAPT_TLS);
     if (!ets->ctx)
         goto fail;
 
@@ -699,7 +737,8 @@ int eaptls_init_ssl_server(eap_state * esp)
     if (!(ets->ssl = SSL_new(ets->ctx)))
         goto fail;
 
-    if (tls_set_verify_info(ets->ssl, esp->es_server.ea_peer,
+    if (esp->es_server.ea_authtype == EAPT_TLS &&
+	tls_set_verify_info(ets->ssl, esp->es_server.ea_peer,
             clicertfile, 0, &ets->info))
         goto fail;
 
@@ -727,6 +766,7 @@ int eaptls_init_ssl_server(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
+    ets->handshake_done = 0;
     return 1;
 
 fail:
@@ -740,6 +780,7 @@ fail:
 int eaptls_init_ssl_client(eap_state * esp)
 {
     struct eaptls_session *ets;
+    int res;
     char servcertfile[MAXWORDLEN];
     char clicertfile[MAXWORDLEN];
     char cacertfile[MAXWORDLEN];
@@ -752,21 +793,24 @@ int eaptls_init_ssl_client(eap_state * esp)
      */
     esp->es_client.ea_session = malloc(sizeof(struct eaptls_session));
     if (!esp->es_client.ea_session)
-        fatal("Allocation error");
+        novm("EAP TLS session");
     ets = esp->es_client.ea_session;
     ets->mtu = eaptls_get_mtu(esp->es_unit);
 
-    dbglog( "calling get_eaptls_secret" );
-    if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
-                   esp->es_client.ea_peer, clicertfile,
-                   servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
-        error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
-                esp->es_client.ea_name, esp->es_client.ea_peer);
-        return 0;
-    }
+    if (esp->es_client.ea_authtype == EAPT_TLS) {
+	if (!get_eaptls_secret(esp->es_unit, esp->es_client.ea_name,
+			       esp->es_client.ea_peer, clicertfile,
+			       servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
+	    error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
+		   esp->es_client.ea_name, esp->es_client.ea_peer);
+	    return 0;
+	}
 
-    dbglog( "calling eaptls_init_ssl" );
-    ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12);
+	ets->ctx = eaptls_init_ssl(0, cacertfile, capath, clicertfile, pkfile, pkcs12, true);
+    } else {
+	ets->ctx = peap_init_ssl_client();
+	servcertfile[0] = 0;
+    }
     if (!ets->ctx)
         goto fail;
 
@@ -781,7 +825,6 @@ int eaptls_init_ssl_client(eap_state * esp)
     /*
      * Initialize the BIOs we use to read/write to ssl engine 
      */
-    dbglog( "Initializing SSL BIOs" );
     ets->into_ssl = BIO_new(BIO_s_mem());
     ets->from_ssl = BIO_new(BIO_s_mem());
     SSL_set_bio(ets->ssl, ets->into_ssl, ets->from_ssl);
@@ -797,10 +840,21 @@ int eaptls_init_ssl_client(eap_state * esp)
     ets->datalen = 0;
     ets->alert_sent = 0;
     ets->alert_recv = 0;
+    ets->handshake_done = 0;
+
+    /* Advance the TLS handshake process. */
+    res = SSL_do_handshake(ets->ssl);
+    if (res > 0)
+	ets->handshake_done = true;	/* unlikely */
+    else if (res < 0) {
+	res = SSL_get_error(ets->ssl, res);
+	if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
+	    error("EAP: SSL handshake error: %s", ERR_error_string(res, NULL));
+    }
+
     return 1;
 
 fail:
-    dbglog( "eaptls_init_ssl_client: fail" );
     SSL_CTX_free(ets->ctx);
     return 0;
 
@@ -824,16 +878,23 @@ void eaptls_free_session(struct eaptls_session *ets)
 
 int eaptls_is_init_finished(struct eaptls_session *ets)
 {
-    if (ets->ssl && SSL_is_init_finished(ets->ssl)) {
-	/* don't return finished if there is still data to send */
-	if (BIO_pending(ets->from_ssl) > 0) {
-	    dbglog("SSL init finished but data pending");
-	    return 0;
-	}
-        if (ets->tls_v13)
-            return ets->sbyte_rcvd;
-        else
-            return 1;
+    int res;
+
+    if (!ets->ssl)
+	return 0;
+    if (ets->handshake_done)
+	return 1;
+
+    /* Advance the TLS handshake process. */
+    res = SSL_do_handshake(ets->ssl);
+    if (res > 0) {
+	ets->handshake_done = true;
+	return 1;
+    }
+    if (res < 0) {
+	res = SSL_get_error(ets->ssl, res);
+	if (res != SSL_ERROR_WANT_READ && res != SSL_ERROR_WANT_WRITE)
+	    error("EAP: SSL handshake error: %s", ERR_error_string(res, NULL));
     }
 
     return 0;
@@ -843,12 +904,15 @@ int eaptls_is_init_finished(struct eaptls_session *ets)
  * Handle a received packet, reassembling fragmented messages and
  * passing them to the ssl engine
  */
-int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
+int eaptls_receive(eap_state *esp, int code, int id, u_char * inp, int len)
 {
+    struct eap_auth *eap = (code == EAP_REQUEST? &esp->es_client: &esp->es_server);
+    struct eaptls_session *ets = eap->ea_session;
     u_char flags;
     u_int tlslen = 0;
-    u_char dummy[1024];
+    static u_char tdata[PPP_MRU];
     int res;
+    unsigned long err;
 
     if (len < 1) {
         warn("EAP-TLS: received no or invalid data");
@@ -877,12 +941,6 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         len -= 4;
 
         if (!ets->data) {
-
-            if (tlslen > EAP_TLS_MAX_LEN) {
-                error("EAP-TLS: TLS message length > %d, truncated", EAP_TLS_MAX_LEN);
-                tlslen = EAP_TLS_MAX_LEN;
-            }
-
             /*
              * Allocate memory for the whole message
             */
@@ -915,10 +973,17 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         ets->frag = 0;
 
     if (len + ets->datalen > ets->tlslen) {
-        warn("EAP-TLS: received data > TLS message length");
-        free(ets->data);
-        ets->data = NULL;
-        return 1;
+	if (eap->ea_authtype == EAPT_PEAP && !ets->frag && code == EAP_RESPONSE) {
+	    /* Outer TLV on EAP_RESPONSE packet */
+	    peap_receive_outer_tlv(esp, code, id, inp + ets->tlslen - ets->datalen,
+				   len + ets->datalen - ets->tlslen);
+	    len = ets->tlslen - ets->datalen;
+	} else {
+	    warn("EAP-TLS: received data > TLS message length");
+	    free(ets->data);
+	    ets->data = NULL;
+	    return 1;
+	}
     }
 
     BCOPY(inp, ets->data + ets->datalen, len);
@@ -940,24 +1005,58 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
         if (BIO_write(ets->into_ssl, ets->data, ets->datalen) == -1)
             tls_log_sslerr();
 
-	/*
-	 * This serves mainly to advance the TLS handshake process,
-	 * but also gives us the 0x00 byte for the protected success
-	 * indication with TLS 1.3.
-	 */
-        res = SSL_read(ets->ssl, dummy, sizeof(dummy));
-	if (res > 0) {
-	    dbglog("SSL_read in eaptls_receive gave %d bytes: %.*B",
-		   res, MIN(res, 20), dummy);
-	    if (dummy[0] == 0 && !ets->sbyte_rcvd) {
-		dbglog("EAP-TLS received protected success indication");
-		ets->sbyte_rcvd = true;
-	    }
-	}
-
         free(ets->data);
         ets->data = NULL;
         ets->datalen = 0;
+
+	if (!ets->handshake_done) {
+	    res = SSL_do_handshake(ets->ssl);
+	    if (res > 0) {
+		dbglog("TLS handshake done");
+		ets->handshake_done = true;
+	    } else {
+		err = SSL_get_error(ets->ssl, res);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
+		    error("TLS handshake error %lx, %s", err, ERR_error_string(err, NULL));
+		    return 1;
+		}
+	    }
+	}
+
+	if (ets->handshake_done && eap->ea_authtype == EAPT_PEAP &&
+	    code == EAP_REQUEST && !eap->ea_tunnel_active) {
+	    peap_phase2_start_client(esp);
+	    eap->ea_tunnel_active = true;
+	}
+
+	/*
+	 * For EAP-TLS, this gives us the 0x00 byte for the protected
+	 * success indication with TLS 1.3.  For PEAP, this gives
+	 * us the phase 2 PEAP packets sent through the tunnel.
+	 */
+	if (ets->handshake_done) {
+	    res = SSL_read(ets->ssl, tdata, sizeof(tdata));
+	    if (res > 0) {
+		switch (eap->ea_authtype) {
+		case EAPT_TLS:
+		    if (tdata[0] == 0 && !ets->sbyte_rcvd) {
+			dbglog("EAP-TLS received protected success indication");
+			ets->sbyte_rcvd = true;
+		    }
+		    break;
+		case EAPT_PEAP:
+		    peap_phase2_receive(esp, code, id, tdata, res);
+		    ppp_explicit_bzero(tdata, res);
+		    break;
+		}
+	    } else {
+		err = SSL_get_error(ets->ssl, res);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE)
+		    error("EAP: SSL read error: %lx, %s (%m)", err, ERR_error_string(err, NULL));
+	    }
+
+	}
+
     }
 
     return 0;
@@ -969,50 +1068,27 @@ int eaptls_receive(struct eaptls_session *ets, u_char * inp, int len)
  * At each call we control if there is buffered data and send a 
  * packet of mtu bytes.
  */
-int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
+int eaptls_send(struct eaptls_session *ets, int authtype, bool is_server, u_char ** outp)
 {
     bool first = 0;
     int size;
-    u_char dummy[256];
     int res;
+    int flags = 0;
     u_char *start;
 
     start = *outp;
 
     if (!ets->data)
     {
-        if (!ets->alert_sent) {
-	    /* This serves mainly to advance the TLS handshake process. */
-            res = SSL_read(ets->ssl, dummy, sizeof(dummy));
-	    if (res >= 0)
-		dbglog("got %d bytes from SSL_read: %.*B",
-		       res, MIN(res, 20), dummy);
-        }
-
-	/*
-	 * With TLS v1.3, the server has to send a single 0x00 byte
-	 * through the encrypted channel (i.e. as application data)
-	 * as a success indication once the TLS handshaking is complete.
-	 */
-	if (is_server && ets->tls_v13 && !ets->sbyte_sent &&
-	    SSL_is_init_finished(ets->ssl)) {
-	    char success = 0;
-	    dbglog("SSL init finished in eaptls_send, sending success byte");
-	    res = SSL_write(ets->ssl, &success, 1);
-	    if (res <= 0)
-		error("EAP-TLS: Failed to send protected success indication (err=%d)",
-		      SSL_get_error(ets->ssl, res));
-	    else
-		ets->sbyte_sent = true;
-	}
-
         /*
          * Read from ssl 
          */
 	res = BIO_pending(ets->from_ssl);
 	if (res <= 0) {
-            warn("EAP-TLS send: No data available");
-            return 1;
+	    /* This can happen with PEAP; just send an ack */
+	    PUTCHAR(authtype, *outp);
+	    PUTCHAR(0, *outp);
+            return 0;
         }
 
         ets->datalen = res;
@@ -1035,25 +1111,37 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     }
 
     size = ets->datalen - ets->offset;
-    
-    if (size > ets->mtu) {
-        size = ets->mtu;
+
+    /* 2 = type byte and flags byte */
+    ets->frag = 0;
+    if (size + EAP_HEADERLEN + 2 > ets->mtu) {
+	flags = EAP_TLS_FLAGS_MF;
+        size = ets->mtu - EAP_HEADERLEN - 2;
+	if (first) {
+	    size -= 4;	/* account for length field */
+	    flags |= EAP_TLS_FLAGS_LI;
+	}
         ets->frag = 1;
-    } else
-        ets->frag = 0;
+    } else if (first && authtype == EAPT_PEAP && !ets->handshake_done) {
+	/*
+	 * PEAP phase 1 packets seem to need to have the L flag set
+	 * even if they're not fragmented, or at least the first packet
+	 * sent does, presumably so the peer knows there are no outer
+	 * TLVs.  If we don't do this we get cryptobinding failures with
+	 * windows servers.
+	 */
+	flags = EAP_TLS_FLAGS_LI;
+	if (size + EAP_HEADERLEN + 6 > ets->mtu) {
+	    flags = EAP_TLS_FLAGS_MF;
+	    size = ets->mtu - EAP_HEADERLEN - 6;
+	    ets->frag = 1;
+	}
+    }
 
-    PUTCHAR(EAPT_TLS, *outp);
-
-    /*
-     * Set right flags and length if necessary 
-     */
-    if (ets->frag && first) {
-        PUTCHAR(EAP_TLS_FLAGS_LI | EAP_TLS_FLAGS_MF, *outp);
+    PUTCHAR(authtype, *outp);
+    PUTCHAR(flags, *outp);
+    if (flags & EAP_TLS_FLAGS_LI)
         PUTLONG(ets->datalen, *outp);
-    } else if (ets->frag) {
-        PUTCHAR(EAP_TLS_FLAGS_MF, *outp);
-    } else
-        PUTCHAR(0, *outp);
 
     /*
      * Copy the data in outp 
@@ -1061,14 +1149,7 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     BCOPY(ets->data + ets->offset, *outp, size);
     INCPTR(size, *outp);
 
-    /*
-     * Copy the packet into retransmission buffer 
-     */
-    BCOPY(start, &ets->rtx[0], *outp - start);
-    ets->rtx_len = *outp - start;
-
     ets->offset += size;
-
     if (ets->offset >= ets->datalen) {
 
         /*
@@ -1082,15 +1163,6 @@ int eaptls_send(struct eaptls_session *ets, bool is_server, u_char ** outp)
     }
 
     return 0;
-}
-
-/*
- * Get the sent packet from the retransmission buffer
- */
-void eaptls_retransmit(struct eaptls_session *ets, u_char ** outp)
-{
-    BCOPY(ets->rtx, *outp, ets->rtx_len);
-    INCPTR(ets->rtx_len, *outp);
 }
 
 /*

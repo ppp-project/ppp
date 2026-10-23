@@ -247,6 +247,35 @@ int PPP_crypto_deinit()
     return 1;
 }
 
+int PPP_calc_digest(const PPP_MD *type, unsigned char *hash, unsigned int *hashlenp, ...)
+{
+    PPP_MD_CTX *mdctx;
+    va_list args;
+    const void *data;
+    size_t datalen;
+    int ret = 0;
+
+    mdctx = PPP_MD_CTX_new();
+    if (mdctx == NULL)
+	return 0;
+    if (!PPP_DigestInit(mdctx, type))
+	goto out;
+    va_start(args, hashlenp);
+    for (;;) {
+	data = va_arg(args, const void *);
+	if (data == NULL)
+	    break;
+	datalen = va_arg(args, size_t);
+	if (!PPP_DigestUpdate(mdctx, data, datalen))
+	    goto out;
+    }
+    va_end(args);
+    ret = PPP_DigestFinal(mdctx, hash, hashlenp);
+ out:
+    PPP_MD_CTX_free(mdctx);
+    return ret;
+}
+
 #ifdef UNIT_TEST
 
 int debug;
@@ -256,7 +285,6 @@ int unsuccess;
 
 int test_md4()
 {
-    PPP_MD_CTX* ctx = NULL;
     int success = 0;
 
     unsigned char data[84] = {
@@ -280,31 +308,16 @@ int test_md4()
         0xfd, 0x48, 0x6d, 0x87, 0x4a, 0x35, 0x5b, 0xd4
     };
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx) {
-
-        if (PPP_DigestInit(ctx, PPP_md4())) {
-
-            if (PPP_DigestUpdate(ctx, &data, sizeof(data))) {
-
-                hash_len = sizeof(hash);
-                if (PPP_DigestFinal(ctx, hash, &hash_len)) {
-
-                    if (memcmp(hash, result, MD4_DIGEST_LENGTH) == 0) {
-                        success = 1;
-                    }
-                }
-            }
-        }
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = sizeof(hash);
+    if (PPP_calc_digest(PPP_md4(), hash, &hash_len, &data, sizeof(data), NULL) &&
+	memcmp(hash, result, MD4_DIGEST_LENGTH) == 0)
+	success = 1;
 
     return success;
 }
 
 int test_md5()
 {
-    PPP_MD_CTX* ctx = NULL;
     int success = 0;
 
     unsigned char data[84] = {
@@ -328,31 +341,16 @@ int test_md5()
         0x16, 0xe4, 0x53, 0xbe, 0x52, 0xf4, 0xbc, 0x4e
     };
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx) {
-
-        if (PPP_DigestInit(ctx, PPP_md5())) {
-
-            if (PPP_DigestUpdate(ctx, &data, sizeof(data))) {
-
-                hash_len = sizeof(hash);
-                if (PPP_DigestFinal(ctx, hash, &hash_len)) {
-
-                    if (memcmp(hash, result, MD5_DIGEST_LENGTH) == 0) {
-                        success = 1;
-                    }
-                }
-            }
-        }
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = sizeof(hash);
+    if (PPP_calc_digest(PPP_md5(), hash, &hash_len, &data, sizeof(data), NULL) &&
+	memcmp(hash, result, MD5_DIGEST_LENGTH) == 0)
+	success = 1;
 
     return success;
 }
 
 int test_sha()
 {
-    PPP_MD_CTX* ctx = NULL;
     int success = 0;
 
     unsigned char data[84] = {
@@ -377,24 +375,10 @@ int test_sha()
         0x5b, 0xd5, 0x0e, 0x45
     };
 
-    ctx = PPP_MD_CTX_new();
-    if (ctx) {
-
-        if (PPP_DigestInit(ctx, PPP_sha1())) {
-
-            if (PPP_DigestUpdate(ctx, &data, sizeof(data))) {
-
-                hash_len = sizeof(hash);
-                if (PPP_DigestFinal(ctx, hash, &hash_len)) {
-
-                    if (memcmp(hash, result, SHA_DIGEST_LENGTH) == 0) {
-                        success = 1;
-                    }
-                }
-            }
-        }
-        PPP_MD_CTX_free(ctx);
-    }
+    hash_len = sizeof(hash);
+    if (PPP_calc_digest(PPP_sha1(), hash, &hash_len, &data, sizeof(data), NULL) &&
+	memcmp(hash, result, SHA_DIGEST_LENGTH) == 0)
+	success = 1;
 
     return success;
 }

@@ -161,6 +161,11 @@ int PPP_crypto_init();
  */
 int PPP_crypto_deinit();
 
+/*
+ * Do all steps in a digest calculation over several data buffers
+ */
+int PPP_calc_digest(const PPP_MD *type, unsigned char *hash, unsigned int *hashlenp, ...);
+
 #ifdef __cplusplus
 }
 #endif
