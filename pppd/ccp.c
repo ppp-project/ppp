@@ -68,6 +68,7 @@ static char deflate_value[8];
  */
 #ifdef PPP_WITH_MPPE
 bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
+static bool require_mppe;
 #endif
 
 static struct option ccp_option_list[] = {
@@ -111,12 +112,14 @@ static struct option ccp_option_list[] = {
 
 #ifdef PPP_WITH_MPPE
     /* MPPE options are symmetrical ... we only set wantoptions here */
-    { "require-mppe", o_bool, &ccp_wantoptions[0].mppe,
+    { "require-mppe", o_bool, &require_mppe,
       "require MPPE encryption",
-      OPT_PRIO | MPPE_OPT_40 | MPPE_OPT_128 },
-    { "+mppe", o_bool, &ccp_wantoptions[0].mppe,
+      OPT_PRIO | OPT_A2COPY | MPPE_OPT_40 | MPPE_OPT_128,
+      &ccp_wantoptions[0].mppe },
+    { "+mppe", o_bool, &require_mppe,
       "require MPPE encryption",
-      OPT_ALIAS | OPT_PRIO | MPPE_OPT_40 | MPPE_OPT_128 },
+      OPT_ALIAS | OPT_PRIO | OPT_A2COPY | MPPE_OPT_40 | MPPE_OPT_128,
+      &ccp_wantoptions[0].mppe },
     { "nomppe", o_bool, &ccp_wantoptions[0].mppe,
       "don't allow MPPE encryption", OPT_PRIO },
     { "-mppe", o_bool, &ccp_wantoptions[0].mppe,
