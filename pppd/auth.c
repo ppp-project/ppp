@@ -567,7 +567,7 @@ setupapfile(char **argv)
 	strlcpy(user, u, sizeof(user));
 	explicit_user = 1;
     }
-    if (override_value("passwd", option_priority, fname)) {
+    if (override_value("password", option_priority, fname)) {
 	strlcpy(passwd, p, sizeof(passwd));
 	explicit_passwd = 1;
     }
