@@ -120,18 +120,20 @@ static struct option ccp_option_list[] = {
       "require MPPE encryption",
       OPT_ALIAS | OPT_PRIO | OPT_A2COPY | MPPE_OPT_40 | MPPE_OPT_128,
       &ccp_wantoptions[0].mppe },
-    { "nomppe", o_bool, &ccp_wantoptions[0].mppe,
-      "don't allow MPPE encryption", OPT_PRIO },
-    { "-mppe", o_bool, &ccp_wantoptions[0].mppe,
-      "don't allow MPPE encryption", OPT_ALIAS | OPT_PRIO },
+    { "nomppe", o_bool, &require_mppe,
+      "don't allow MPPE encryption", OPT_PRIO | OPT_A2CLR,
+      &ccp_wantoptions[0].mppe },
+    { "-mppe", o_bool, &require_mppe,
+      "don't allow MPPE encryption", OPT_ALIAS | OPT_PRIO | OPT_A2CLR,
+      &ccp_wantoptions[0].mppe },
 
+    { "require-mppe-40", o_bool, &require_mppe,
+      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
+      &ccp_wantoptions[0].mppe },
+    { "+mppe-40", o_bool, &require_mppe,
+      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
+      &ccp_wantoptions[0].mppe },
     /* We use ccp_allowoptions[0].mppe as a junk var ... it is reset later */
-    { "require-mppe-40", o_bool, &ccp_allowoptions[0].mppe,
-      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
-      &ccp_wantoptions[0].mppe },
-    { "+mppe-40", o_bool, &ccp_allowoptions[0].mppe,
-      "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
-      &ccp_wantoptions[0].mppe },
     { "nomppe-40", o_bool, &ccp_allowoptions[0].mppe,
       "don't allow MPPE 40-bit encryption",
       OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_40, &ccp_wantoptions[0].mppe },
@@ -140,10 +142,10 @@ static struct option ccp_option_list[] = {
       OPT_ALIAS | OPT_PRIOSUB | OPT_A2CLRB | MPPE_OPT_40,
       &ccp_wantoptions[0].mppe },
 
-    { "require-mppe-128", o_bool, &ccp_allowoptions[0].mppe,
+    { "require-mppe-128", o_bool, &require_mppe,
       "require MPPE 128-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_128,
       &ccp_wantoptions[0].mppe },
-    { "+mppe-128", o_bool, &ccp_allowoptions[0].mppe,
+    { "+mppe-128", o_bool, &require_mppe,
       "require MPPE 128-bit encryption",
       OPT_ALIAS | OPT_PRIO | OPT_A2OR | MPPE_OPT_128,
       &ccp_wantoptions[0].mppe },
@@ -525,6 +527,11 @@ ccp_resetci(fsm *f)
 
 #ifdef PPP_WITH_MPPE
     ccp_allowoptions[f->unit].mppe = 0;
+    if (require_mppe && !go->mppe) {
+	error("MPPE required, but both 40-bit and 128-bit disabled.");
+	lcp_close(f->unit, "MPPE required but not available");
+	return;
+    }
     if (go->mppe) {
 	ccp_options *ao = &ccp_allowoptions[f->unit];
 	int auth_mschap_bits = auth_done[f->unit];
@@ -1371,7 +1378,7 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	    *lenp = retp - p0;
     }
 #ifdef PPP_WITH_MPPE
-    if (ret == CONFREJ && ao->mppe && rej_for_ci_mppe) {
+    if (ccp_gotoptions[f->unit].mppe && rej_for_ci_mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     }
