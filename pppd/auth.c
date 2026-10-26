@@ -2470,6 +2470,11 @@ have_eaptls_secret_client(char *client, char *server)
     if (f == NULL)
 		return 0;
 
+    if (!ppp_check_access(fileno(f), filename, PPP_FT_SECRET)) {
+	fclose(f);
+	return 0;
+    }
+
     ret =
 	scan_authfile_eaptls(f, client, server, clicertfile, servcertfile,
 			     cacertfile, pkfile, &addrs, NULL, filename);
