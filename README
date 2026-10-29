@@ -67,8 +67,39 @@ use any IP address.  (This only applies where the peer is
 authenticating itself to you, of course.)
 
 
-What's new in ppp-2.5.4
+What's new in ppp-2.5.5
 ***********************
+
+This is a bug-fix and security release, with no new features.
+Changes include:
+
+* Fix bugs where hook scripts such as /etc/ppp/ip-up were not being
+  run.
+
+* Fix bugs causing PPP_SCRIPT_INSTANCE to be set incorrectly for some
+  scripts.
+
+* Fix validation of received frames in the RADIUS plugin, along with
+  some further hardening against incorrect received frames.
+
+* Fix generation of MPPE keys when EAP-TLS is being used with TLS 1.3.
+  This makes it work with Windows clients, but breaks compatibility
+  with earlier versions of pppd (but only in the case where EAP-TLS
+  and MPPE and the 'max-tls-version 1.3' option are all being used).
+
+* Various cases existed in the MPPE code where the link could come up
+  without MPPE encryption despite it being requested via one or more
+  of the 'require-mppe', 'require-mppe-40' or 'require-mppe-128'
+  options.  This is now fixed.  Also, pppd will now accept an MPPE
+  CCP configuration option requesting no encryption from the peer if
+  MPPE is not required (rather than rejecting it).
+
+* Fix a bug where the password from a file specified with the '+ua'
+  option was not being used.
+
+
+What was new in ppp-2.5.4
+*************************
 
 This is primarily a security release, fixing several vulnerabilities
 including CVE-2026-75883 and CVE-2026-85495.  For more details on this
