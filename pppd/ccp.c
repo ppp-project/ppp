@@ -926,6 +926,9 @@ static int
 	} else if (((go->mppe | MPPE_OPT_STATEFUL) & try.mppe) != try.mppe) {
 	    /* Peer must have set options we didn't request (suggest) */
 	    try.mppe = 0;
+	} else if (!(try.mppe & (MPPE_OPT_40 | MPPE_OPT_128))) {
+	    /* Peer left us no strength to use */
+	    try.mppe = 0;
 	}
 
 	if (!try.mppe) {
