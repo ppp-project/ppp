@@ -27,7 +27,7 @@ jobs:
       run: VERBOSE=true make check
 
     - name: distcheck
-      run: make distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
+      run: make V=1 distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
 
   integration_test:
     runs-on: ubuntu-latest
@@ -83,5 +83,5 @@ jobs:
       run: VERBOSE=true make check
 
     - name: distcheck
-      run: make distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
+      run: make V=1 distcheck DISTCHECK_CONFIGURE_FLAGS="${{ env.configure_flags }}"
 
