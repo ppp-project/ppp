@@ -17,5 +17,8 @@ winbind_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 winbind_la_SOURCES = winbind.c
 
 if !SUNOS
-SUBDIRS = pppoe pppoatm pppol2tp radius dhcpv6relay
+SUBDIRS = pppoe pppol2tp radius dhcpv6relay
+if PPP_WITH_ATM
+SUBDIRS += pppoatm
+endif
 endif

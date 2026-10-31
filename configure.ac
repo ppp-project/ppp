@@ -7,7 +7,7 @@ AC_USE_SYSTEM_EXTENSIONS
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 AM_MAINTAINER_MODE([enable])
 
 AC_LANG(C)
@@ -153,6 +153,14 @@ AS_IF([test "x${enable_mslanman}" = "xyes" && test "x${enable_microsoft_extensio
     AC_DEFINE([PPP_WITH_MSLANMAN], 1, [Have Microsoft LAN Manager support]))
 
 #
+# Disable ATM support
+AC_ARG_ENABLE([atm],
+    AS_HELP_STRING([--disable-atm], [Disable PPPoATM]))
+AM_CONDITIONAL(PPP_WITH_ATM, test "x${enable_atm}" != "xno")
+AM_COND_IF([PPP_WITH_ATM],
+    AC_DEFINE(PPP_WITH_ATM, 1, [Have PPPoATM support]))
+
+#
 # Disable IPv6 support
 AC_ARG_ENABLE([ipv6cp],
     AS_HELP_STRING([--disable-ipv6cp], [Disable IPv6 Control Protocol]))
@@ -292,6 +300,10 @@ AM_COND_IF([OPENSSL_HAVE_DES],
     AC_DEFINE([OPENSSL_HAVE_DES], 1, [Use DES included with openssl]))
 
 #
+# With libatm support
+AX_CHECK_ATM
+
+#
 # With libpam support
 AX_CHECK_PAM(AC_DEFINE([PPP_WITH_PAM], 1, [Support for Pluggable Authentication Modules]))
 AM_CONDITIONAL(PPP_WITH_PAM, test "x${with_pam}" = "xyes")
@@ -340,6 +352,7 @@ $PACKAGE_NAME version $PACKAGE_VERSION
     Plugin Dir...........: $PPPD_PLUGIN_DIR
     System CA Path ......: ${SYSTEM_CA_PATH:-not set}
     With OpenSSL.........: ${with_openssl:-yes}
+    With libatm..........: ${with_external_atm:-no}
     With libpam..........: ${with_pam:-no}
     With libpcap.........: ${with_pcap:-no}
     C Compiler...........: $CC $CFLAGS
@@ -352,6 +365,7 @@ Features enabled
     CBCP.................: ${enable_cbcp:-no}
     IPV6CP...............: ${enable_ipv6cp:-yes}
     EAP-TLS..............: ${enable_eaptls:-yes}
+    PPPoATM..............: ${enable_atm:-yes}
     systemd notifications: ${enable_systemd:-no}
 "
 
