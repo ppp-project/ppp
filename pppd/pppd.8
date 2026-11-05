@@ -1223,8 +1223,8 @@ Use this option to run pppd in systemd service units of Type=notify
 (\fBup_sdnotify\fR implies \fBnodetach\fR).
 When \fBup_sdnotify\fR is enabled, pppd will notify systemd once
 it has successfully established the ppp connection (to the point where
-the first network control protocl, usually the IP control protocol,
-has come up). This option is only availble when pppd is compiled with
+the first network control protocol, usually the IP control protocol,
+has come up). This option is only available when pppd is compiled with
 systemd support.
 .TP
 .B usehostname
@@ -1973,7 +1973,6 @@ longer be transmitted on the link. It is executed with the same parameters
 as the ipv6\-up script.
 .IP
 \fIOverride option\fR: ipv6\-down\-script /alternative/path
-.TP
 .TP
 .B /etc/ppp/net\-init
 This script will be executed the moment the ppp unit number is known.  This
