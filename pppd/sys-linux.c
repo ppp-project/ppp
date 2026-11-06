@@ -463,6 +463,23 @@ static int modify_flags(int fd, int clear_bits, int set_bits)
 
 	if (ioctl(fd, PPPIOCGFLAGS, &flags) == -1)
 		goto err;
+
+	/*
+	 * Linux commit b3f9b92a6ec1 ("[PPP]: add PPP MPPE encryption module")
+	 * introduced SC_MUST_COMP flag, which we never use, but accidentally
+	 * aliases the decompression error state (SC_DC_ERROR). PPPIOCGFLAGS
+	 * returns the configuration flags combined with the kernel's transmit
+	 * and receive state, so a read-modify-write can write a SC_DC_ERROR
+	 * back as SC_MUST_COMP. Kernels that honour that bit then drop every
+	 * received packet once the decompressor has reported a fatal error
+	 * (SC_DC_FERROR), without telling us. We never set the bit ourselves,
+	 * so always clear it before writing.
+	 *
+	 * Linux commit 4bca33ba24db ("ppp: remove SC_MUST_COMP") fixed this
+	 * issue. Previous versions require this workaround.
+	 */
+	clear_bits |= SC_DC_ERROR;
+
 	flags = (flags & ~clear_bits) | set_bits;
 	if (ioctl(fd, PPPIOCSFLAGS, &flags) == -1)
 		goto err;
