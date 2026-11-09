@@ -185,15 +185,18 @@ static void generate_cmk(u_char *ipmk, u_char *tempkey, u_char *nonce, u_char *t
 	BCOPY(data_tlv, tlv_response_out, PEAP_TLV_DATA_LEN - 1);
 }
 
-static void verify_compound_mac(struct peap_state *psm, u_char *in_buf)
+static int verify_compound_mac(struct peap_state *psm, u_char *in_buf)
 {
 	u_char nonce[PEAP_TLV_NONCE_LEN] = {0};
 	u_char out_buf[PEAP_TLV_LEN] = {0};
 
 	BCOPY(in_buf, nonce, PEAP_TLV_NONCE_LEN);
 	generate_cmk(psm->ipmk, psm->tk, nonce, out_buf, 0);
-	if (memcmp((in_buf + PEAP_TLV_NONCE_LEN), (out_buf + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN), PEAP_TLV_CMK_LEN))
-			fatal("server's CMK does not match client's CMK, potential MiTM");
+	if (memcmp((in_buf + PEAP_TLV_NONCE_LEN), (out_buf + PEAP_TLV_HEADERLEN + PEAP_TLV_NONCE_LEN), PEAP_TLV_CMK_LEN)) {
+		error("PEAP: server's CMK does not match client's CMK, potential MiTM");
+		return -1;
+	}
+	return 0;
 }
 
 #ifdef PPP_WITH_MPPE
@@ -245,17 +248,11 @@ static void peap_ack(eap_state *esp, u_char id)
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + PEAP_HEADERLEN);
 }
 
-static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
+static int peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 {
 	struct peap_state *psm = esp->ea_peap;
 	u_char *outp;
 	int peap_len;
-
-	outp = outpacket_buf;
-	MAKEHEADER(outp, PPP_EAP);
-	PUTCHAR(EAP_RESPONSE, outp);
-	PUTCHAR(id, outp);
-	esp->es_client.ea_id = id;
 
 	if (psm->phase == PEAP_PHASE_1)
 		peap_len = PEAP_HEADERLEN + PEAP_FRAGMENT_LENGTH_FIELD + len;
@@ -263,12 +260,22 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 		peap_len = PEAP_HEADERLEN + len;
 
 	/*
-	 * XXX Dying here is better (just) than overflowing outpacket_buf[].
-	 * There's not much point trying to continue, since the negotiation
-	 * will stall at this point and never complete.
+	 * Response fragmentation is not implemented, so a response that
+	 * does not fit in the peer's MRU cannot be sent.  Fail the
+	 * authentication instead of dying: the peer chose the MRU.
 	 */
-	if (peap_len > MIN(peer_mru[esp->es_unit], PPP_MRU))
-		fatal("BUG! PEAP Response fragmentation not implemented!");
+	if (peap_len > MIN(peer_mru[esp->es_unit], PPP_MRU)) {
+		error("PEAP: response of %d bytes exceeds the MRU (%d), "
+		      "fragmentation not implemented", peap_len,
+		      MIN(peer_mru[esp->es_unit], PPP_MRU));
+		return -1;
+	}
+
+	outp = outpacket_buf;
+	MAKEHEADER(outp, PPP_EAP);
+	PUTCHAR(EAP_RESPONSE, outp);
+	PUTCHAR(id, outp);
+	esp->es_client.ea_id = id;
 
 	PUTSHORT(peap_len, outp);
 	PUTCHAR(EAPT_PEAP, outp);
@@ -281,6 +288,7 @@ static void peap_response(eap_state *esp, u_char id, u_char *buf, int len)
 
 	BCOPY(buf, outp, len);
 	output(esp->es_unit, outpacket_buf, PPP_HDRLEN + peap_len);
+	return 0;
 }
 
 void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
@@ -313,7 +321,10 @@ void peap_do_inner_eap(u_char *in_buf, int in_len, eap_state *esp, int id,
 		SSL_export_keying_material(psm->ssl, psm->tk, PEAP_TLV_TK_LEN,
 				PEAP_TLV_TK_SEED_LABEL, strlen(PEAP_TLV_TK_SEED_LABEL), NULL, 0, 0);
 		/* verify server's CMK */
-		verify_compound_mac(psm, in_buf + EAP_HEADERLEN + PEAP_TLV_RESULT_LEN + PEAP_TLV_HEADERLEN);
+		if (verify_compound_mac(psm, in_buf + EAP_HEADERLEN + PEAP_TLV_RESULT_LEN + PEAP_TLV_HEADERLEN) < 0) {
+			*out_len = -1;
+			return;
+		}
 		/* generate client's CMK with new nonce */
 		PUTCHAR(EAP_RESPONSE, outp);
 		PUTCHAR(id, outp);
@@ -557,6 +568,8 @@ void peap_finish(struct peap_state **psm) {
 
 		// NOTE: BIO and memory is freed as a part of SSL_free()
 
+		free(tmp->in_buf);
+		free(tmp->out_buf);
 		free(*psm);
 		*psm = NULL;
 	}
@@ -636,7 +649,8 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 			error("PEAP: error reading TLS data to send (phase 1)");
 			return 0;
 		}
-		peap_response(esp, id, psm->out_buf, psm->read);
+		if (peap_response(esp, id, psm->out_buf, psm->read) < 0)
+			return -1;
 	} else {
 		psm->read = SSL_read(psm->ssl, psm->in_buf,
 				TLS_RECORD_MAX_SIZE);
@@ -647,6 +661,8 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 		out_len = TLS_RECORD_MAX_SIZE;
 		peap_do_inner_eap(psm->in_buf, psm->read, esp, id,
 				psm->out_buf, &out_len);
+		if (out_len < 0)
+			return -1;
 		if (out_len > 0) {
 			psm->written = SSL_write(psm->ssl, psm->out_buf, out_len);
 			psm->read = BIO_read(psm->out_bio, psm->out_buf,
@@ -655,7 +671,8 @@ int peap_process(eap_state *esp, u_char id, u_char *inp, int len)
 				error("PEAP: error reading TLS data to send (phase 2)");
 				return 0;
 			}
-			peap_response(esp, id, psm->out_buf, psm->read);
+			if (peap_response(esp, id, psm->out_buf, psm->read) < 0)
+				return -1;
 		}
 	}
 	return 0;
