@@ -207,6 +207,10 @@ void pppoe_printpkt(PPPoEPacket *packet,
     int len = ntohs(packet->length);
     int i, j, tag, tlen, text;
 
+    /* The length field comes from the wire; never read past the payload. */
+    if (len > (int) sizeof(packet->payload))
+	len = sizeof(packet->payload);
+
     switch (ntohs(packet->ethHdr.h_proto)) {
     case ETH_PPPOE_DISCOVERY:
 	printer(arg, "PPPOE Discovery V%dT%d ", PPPOE_VER(packet->vertype),
@@ -246,7 +250,7 @@ void pppoe_printpkt(PPPoEPacket *packet,
     printer(arg, " dst %02x:%02x:%02x:%02x:%02x:%02x ", EH(packet->ethHdr.h_dest));
     printer(arg, " src %02x:%02x:%02x:%02x:%02x:%02x\n", EH(packet->ethHdr.h_source));
     if (pppoe_verbose >= 2)
-	pppoe_printpkt_hex(printer, arg, packet->payload, ntohs(packet->length));
+	pppoe_printpkt_hex(printer, arg, packet->payload, len);
     if (ntohs(packet->ethHdr.h_proto) != ETH_PPPOE_DISCOVERY)
 	return;
 
