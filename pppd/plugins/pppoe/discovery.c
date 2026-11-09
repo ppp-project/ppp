@@ -155,10 +155,12 @@ parsePADOTags(UINT16_t type, UINT16_t len, unsigned char *data,
 	    !strncmp((char *) data, conn->acName, len)) {
 	    pc->acNameOK = 1;
 	}
-	/* save a copy of the AC name if we can */
+	/* save a copy of the AC name if we can (the tag is not NUL-terminated) */
 	conn->actualACname = realloc(conn->actualACname, len + 1);
-	if (conn->actualACname)
-	    strlcpy(conn->actualACname, (char *) data, len + 1);
+	if (conn->actualACname) {
+	    memcpy(conn->actualACname, data, len);
+	    conn->actualACname[len] = '\0';
+	}
 	break;
     case TAG_SERVICE_NAME:
 	pc->seenServiceName = 1;
@@ -426,7 +428,8 @@ waitForPADO(PPPoEConnection *conn, int timeout, int waitWholeTimeoutForPADO)
 
 	conn->error = 0;
 	/* Get the packet */
-	receivePacket(conn->discoverySocket, &packet, &len);
+	if (receivePacket(conn->discoverySocket, &packet, &len) < 0)
+	    continue;
 
 	/* Check length */
 	if (ntohs(packet.length) + HDR_SIZE > len) {
@@ -616,7 +619,8 @@ waitForPADS(PPPoEConnection *conn, int timeout)
 	}
 
 	/* Get the packet */
-	receivePacket(conn->discoverySocket, &packet, &len);
+	if (receivePacket(conn->discoverySocket, &packet, &len) < 0)
+	    continue;
 
 	/* Check length */
 	if (ntohs(packet.length) + HDR_SIZE > len) {
