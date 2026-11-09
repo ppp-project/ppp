@@ -659,14 +659,14 @@ int eaptls_init_ssl_server(eap_state * esp)
     /*
      * Allocate new eaptls session 
      */
-    esp->es_server.ea_session = malloc(sizeof(struct eaptls_session));
+    esp->es_server.ea_session = calloc(1, sizeof(struct eaptls_session));
     if (!esp->es_server.ea_session)
         fatal("Allocation error");
     ets = esp->es_server.ea_session;
 
     if (!esp->es_server.ea_peer) {
         error("EAP-TLS: Error: client name not set (BUG)");
-        return 0;
+        goto fail;
     }
 
     dbglog( "getting eaptls secret" );
@@ -675,7 +675,7 @@ int eaptls_init_ssl_server(eap_state * esp)
                    servcertfile, cacertfile, capath, pkfile, pkcs12, 1)) {
         error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
                 esp->es_server.ea_peer, esp->es_server.ea_name );
-        return 0;
+        goto fail;
     }
 
     ets->mtu = eaptls_get_mtu(esp->es_unit);
@@ -730,7 +730,8 @@ int eaptls_init_ssl_server(eap_state * esp)
     return 1;
 
 fail:
-    SSL_CTX_free(ets->ctx);
+    eaptls_free_session(ets);
+    esp->es_server.ea_session = NULL;
     return 0;
 }
 
@@ -750,7 +751,7 @@ int eaptls_init_ssl_client(eap_state * esp)
     /*
      * Allocate new eaptls session 
      */
-    esp->es_client.ea_session = malloc(sizeof(struct eaptls_session));
+    esp->es_client.ea_session = calloc(1, sizeof(struct eaptls_session));
     if (!esp->es_client.ea_session)
         fatal("Allocation error");
     ets = esp->es_client.ea_session;
@@ -762,7 +763,7 @@ int eaptls_init_ssl_client(eap_state * esp)
                    servcertfile, cacertfile, capath, pkfile, pkcs12, 0)) {
         error( "EAP-TLS: Cannot get secret/password for client \"%s\", server \"%s\"",
                 esp->es_client.ea_name, esp->es_client.ea_peer);
-        return 0;
+        goto fail;
     }
 
     dbglog( "calling eaptls_init_ssl" );
@@ -801,7 +802,8 @@ int eaptls_init_ssl_client(eap_state * esp)
 
 fail:
     dbglog( "eaptls_init_ssl_client: fail" );
-    SSL_CTX_free(ets->ctx);
+    eaptls_free_session(ets);
+    esp->es_client.ea_session = NULL;
     return 0;
 
 }

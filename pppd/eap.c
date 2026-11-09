@@ -1142,6 +1142,12 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 				} else
 					esp->es_client.ea_peer = NULL;
 
+				/* A previous attempt may have left a session behind */
+				if (esp->es_client.ea_session) {
+					eaptls_free_session(esp->es_client.ea_session);
+					esp->es_client.ea_session = NULL;
+				}
+
 				/* Init ssl session */
 				if(!eaptls_init_ssl_client(esp)) {
 					dbglog("cannot init ssl");
