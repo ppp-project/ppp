@@ -1644,6 +1644,11 @@ lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree)
 		    }
 		    break;
 		}
+		if (cilen < CILEN_CHAP) {
+		    /* RFC 1994: a CHAP option carries the algorithm byte */
+		    orc = CONFREJ;
+		    break;
+		}
 		GETCHAR(cichar, p);	/* get digest type */
 		if (!(CHAP_CANDIGEST(ao->chap_mdtype, cichar))) {
 		    /*
