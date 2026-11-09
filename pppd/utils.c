@@ -665,7 +665,7 @@ pr_log(void *arg, char *fmt, ...)
 	/* assumes sizeof(buf) <= sizeof(line) */
 	l = buf + n - p;
 	if (l > 0) {
-		memcpy(line, p, n);
+		memcpy(line, p, l);
 		linep = line + l;
 	}
 }
