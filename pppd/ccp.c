@@ -44,6 +44,7 @@
 #include "chap_ms.h"
 #include "mppe.h"
 #include "lcp.h"	/* lcp_close(), lcp_fsm */
+#include "multilink.h"	/* mp_on() */
 
 
 /*
@@ -349,6 +350,23 @@ setdeflate(char **argv)
 }
 
 /*
+ * ccp_link_terminated - the link has terminated: make sure CCP is down.
+ */
+static void
+ccp_link_terminated(void *arg, int phase)
+{
+    fsm *f = arg;
+
+    if (phase != PHASE_DISCONNECT)
+	return;
+    /* A multilink bundle keeps its CCP, as in link_down() */
+    if (ccp_protent.enabled_flag && !mp_on()) {
+	ccp_lowerdown(f->unit);
+	ccp_close(f->unit, "LCP down");
+    }
+}
+
+/*
  * ccp_init - initialize CCP.
  */
 static void
@@ -360,6 +378,7 @@ ccp_init(int unit)
     f->protocol = PPP_CCP;
     f->callbacks = &ccp_callbacks;
     fsm_init(f);
+    ppp_add_notify(NF_PHASE_CHANGE, ccp_link_terminated, f);
 
     memset(&ccp_wantoptions[unit],  0, sizeof(ccp_options));
     memset(&ccp_gotoptions[unit],   0, sizeof(ccp_options));
