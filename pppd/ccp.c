@@ -44,6 +44,7 @@
 #include "chap_ms.h"
 #include "mppe.h"
 #include "lcp.h"	/* lcp_close(), lcp_fsm */
+#include "multilink.h"	/* mp_on() */
 
 
 /*
@@ -69,6 +70,11 @@ static char deflate_value[8];
 #ifdef PPP_WITH_MPPE
 bool refuse_mppe_stateful = 1;		/* Allow stateful mode? */
 static bool require_mppe;
+static bool prefer_mppe;		/* Go on without MPPE if it fails */
+static bool permit_mppe;		/* Use MPPE only if the peer asks */
+static int setmppe (char **);
+static int setnomppe (char **);
+static char mppe_value[20];
 #endif
 
 static struct option ccp_option_list[] = {
@@ -112,6 +118,11 @@ static struct option ccp_option_list[] = {
 
 #ifdef PPP_WITH_MPPE
     /* MPPE options are symmetrical ... we only set wantoptions here */
+    { "mppe", o_special, (void *)setmppe,
+      "Set MPPE to required, preferred, permitted (each optionally"
+      " followed by ,40 and/or ,128) or disabled",
+      OPT_PRIO | OPT_A2STRVAL | OPT_STATIC, mppe_value },
+
     { "require-mppe", o_bool, &require_mppe,
       "require MPPE encryption",
       OPT_PRIO | OPT_A2COPY | MPPE_OPT_40 | MPPE_OPT_128,
@@ -120,12 +131,10 @@ static struct option ccp_option_list[] = {
       "require MPPE encryption",
       OPT_ALIAS | OPT_PRIO | OPT_A2COPY | MPPE_OPT_40 | MPPE_OPT_128,
       &ccp_wantoptions[0].mppe },
-    { "nomppe", o_bool, &require_mppe,
-      "don't allow MPPE encryption", OPT_PRIO | OPT_A2CLR,
-      &ccp_wantoptions[0].mppe },
-    { "-mppe", o_bool, &require_mppe,
-      "don't allow MPPE encryption", OPT_ALIAS | OPT_PRIO | OPT_A2CLR,
-      &ccp_wantoptions[0].mppe },
+    { "nomppe", o_special_noarg, (void *)setnomppe,
+      "don't allow MPPE encryption", OPT_PRIO },
+    { "-mppe", o_special_noarg, (void *)setnomppe,
+      "don't allow MPPE encryption", OPT_ALIAS | OPT_PRIO },
 
     { "require-mppe-40", o_bool, &require_mppe,
       "require MPPE 40-bit encryption", OPT_PRIO | OPT_A2OR | MPPE_OPT_40,
@@ -220,6 +229,7 @@ static int  ccp_rejci (fsm *, u_char *, int);
 static int  ccp_reqci (fsm *, u_char *, int *, int);
 static void ccp_up (fsm *);
 static void ccp_down (fsm *);
+static void ccp_finished (fsm *);
 static int  ccp_extcode (fsm *, int, int, u_char *, int);
 static void ccp_rack_timeout (void *);
 static char *method_name (ccp_options *, ccp_options *);
@@ -235,7 +245,7 @@ static fsm_callbacks ccp_callbacks = {
     ccp_up,
     ccp_down,
     NULL,
-    NULL,
+    ccp_finished,
     NULL,
     NULL,
     ccp_extcode,
@@ -259,6 +269,28 @@ static int ccp_localstate[NUM_PPP];
 #define RACKTIMEOUT	1	/* second */
 
 static int all_rejected[NUM_PPP];	/* we rejected all peer's options */
+
+#ifdef PPP_WITH_MPPE
+/*
+ * With "mppe preferred", MPPE can be given up until it has come up.
+ * From then on it is required until the call ends.  "mppe permitted"
+ * works the same way once the peer has asked for MPPE.
+ */
+static int mppe_pref[NUM_PPP];
+#define MPPE_SOFT	1	/* MPPE can still be given up */
+#define MPPE_OURS_ACKED	2	/* the peer acked our MPPE request */
+#define MPPE_HIS_ACKED	4	/* we acked the peer's MPPE request */
+#define MPPE_GAVE_UP	8	/* MPPE was given up, don't ask again */
+#define MPPE_WAS_UP	16	/* MPPE has been up on this call */
+#define MPPE_ASKED	32	/* permitted: the peer asked, NCPs are running */
+#define MPPE_HEARD	64	/* permitted: the peer has sent a CCP request */
+
+/* With "mppe permitted": the peer hasn't asked for MPPE yet */
+#define MPPE_WAITING(unit)	(permit_mppe && !require_mppe \
+				 && !(mppe_pref[unit] & (MPPE_SOFT \
+				      | MPPE_GAVE_UP | MPPE_WAS_UP)))
+#define MPPE_MODE		(permit_mppe? "permitted": "preferred")
+#endif
 
 /*
  * Option parsing.
@@ -348,6 +380,98 @@ setdeflate(char **argv)
     return 1;
 }
 
+#ifdef PPP_WITH_MPPE
+static int
+setmppe(char **argv)
+{
+    char *str = *argv;
+    char *mode;
+    bool req = 0, pref = 0, perm = 0;
+    int bits = 0;
+
+    if (strncmp(str, "required", 8) == 0) {
+	mode = "required";
+	req = 1;
+    } else if (strncmp(str, "preferred", 9) == 0) {
+	mode = "preferred";
+	pref = 1;
+    } else if (strncmp(str, "permitted", 9) == 0) {
+	mode = "permitted";
+	perm = 1;
+    } else if (strcmp(str, "disabled") == 0)
+	mode = "disabled";
+    else
+	goto bad;
+    str += strlen(mode);
+    while (*str == ',') {
+	++str;
+	if (strncmp(str, "40", 2) == 0) {
+	    bits |= MPPE_OPT_40;
+	    str += 2;
+	} else if (strncmp(str, "128", 3) == 0) {
+	    bits |= MPPE_OPT_128;
+	    str += 3;
+	} else
+	    goto bad;
+    }
+    if (*str != 0)
+	goto bad;
+    if ((req || pref || perm) && bits == 0)
+	bits = MPPE_OPT_40 | MPPE_OPT_128;
+
+    require_mppe = req;
+    prefer_mppe = pref;
+    permit_mppe = perm;
+    ccp_wantoptions[0].mppe = bits;
+    slprintf(mppe_value, sizeof(mppe_value), "%s%s%s", mode,
+	     (bits & MPPE_OPT_40)? ",40": "", (bits & MPPE_OPT_128)? ",128": "");
+    return 1;
+
+ bad:
+    ppp_option_error("invalid parameter '%s' for mppe option", *argv);
+    return 0;
+}
+
+/*
+ * setnomppe - nomppe turns MPPE off, also after "mppe preferred" or
+ * "mppe permitted".
+ */
+static int
+setnomppe(char **argv)
+{
+    require_mppe = 0;
+    prefer_mppe = 0;
+    permit_mppe = 0;
+    ccp_wantoptions[0].mppe = 0;
+    return 1;
+}
+#endif
+
+/*
+ * ccp_link_terminated - the link has terminated: make sure CCP is down.
+ * The MPPE state and keys go when the call is over, as a multilink
+ * bundle can outlive the link and its CCP may still need the keys.
+ */
+static void
+ccp_link_terminated(void *arg, int phase)
+{
+    fsm *f = arg;
+
+#ifdef PPP_WITH_MPPE
+    if (phase == PHASE_DEAD) {
+	mppe_pref[f->unit] = 0;	/* the next call starts over */
+	mppe_clear_keys();	/* no keys outlive the call */
+    }
+#endif
+    if (phase != PHASE_DISCONNECT)
+	return;
+    /* A multilink bundle keeps its CCP, as in link_down() */
+    if (ccp_protent.enabled_flag && !mp_on()) {
+	ccp_lowerdown(f->unit);
+	ccp_close(f->unit, "LCP down");
+    }
+}
+
 /*
  * ccp_init - initialize CCP.
  */
@@ -360,6 +484,7 @@ ccp_init(int unit)
     f->protocol = PPP_CCP;
     f->callbacks = &ccp_callbacks;
     fsm_init(f);
+    ppp_add_notify(NF_PHASE_CHANGE, ccp_link_terminated, f);
 
     memset(&ccp_wantoptions[unit],  0, sizeof(ccp_options));
     memset(&ccp_gotoptions[unit],   0, sizeof(ccp_options));
@@ -391,16 +516,31 @@ ccp_open(int unit)
 {
     fsm *f = &ccp_fsm[unit];
 
-    if (f->state != OPENED)
+    if (f->state != OPENED) {
 	ccp_flags_set(unit, 1, 0);
+#ifdef PPP_WITH_MPPE
+	if (!mppe_pref[unit] && prefer_mppe && !require_mppe)
+	    mppe_pref[unit] = MPPE_SOFT;
+#endif
+    }
 
     /*
      * Find out which compressors the kernel supports before
      * deciding whether to open in silent mode.
      */
     ccp_resetci(f);
-    if (!ANY_COMPRESS(ccp_gotoptions[unit]))
+    if (!ANY_COMPRESS(ccp_gotoptions[unit])
+#ifdef PPP_WITH_MPPE
+	/*
+	 * With "mppe permitted", wait for the peer's first request: a
+	 * peer that requires MPPE closes the link on a request without it.
+	 */
+	|| (MPPE_WAITING(unit) && !(mppe_pref[unit] & MPPE_HEARD))
+#endif
+	)
 	f->flags |= OPT_SILENT;
+    else
+	f->flags &= ~OPT_SILENT;	/* may be left from an earlier session */
 
     fsm_open(f);
 }
@@ -421,6 +561,10 @@ ccp_close(int unit, char *reason)
 static void
 ccp_lowerup(int unit)
 {
+#ifdef PPP_WITH_MPPE
+    mppe_pref[unit] &= MPPE_WAS_UP;	/* the rest is per LCP session */
+    mppe_clear_keys();		/* this session's authentication sets them */
+#endif
     fsm_lowerup(&ccp_fsm[unit]);
 }
 
@@ -433,6 +577,84 @@ ccp_lowerdown(int unit)
     fsm_lowerdown(&ccp_fsm[unit]);
 }
 
+#ifdef PPP_WITH_MPPE
+/*
+ * mppe_peer_asks - with "mppe permitted": -1 if p is not a valid
+ * configure-request that the fsm negotiates on in its state, 1 if it
+ * asks for an MPPE strength we allow and we have MPPE keys, else 0.
+ */
+static int
+mppe_peer_asks(fsm *f, u_char *p, int len)
+{
+    int plen, bits, allowed;
+
+    if (len < HEADERLEN || p[0] != CONFREQ)
+	return -1;
+    plen = (p[2] << 8) | p[3];
+    if (plen < HEADERLEN || plen > len)
+	return -1;
+    switch (f->state) {
+    case STOPPED:
+    case REQSENT:
+    case ACKRCVD:
+    case ACKSENT:
+    case OPENED:
+	break;
+    default:
+	return -1;
+    }
+    if (!mppe_keys_isset())
+	return 0;
+    p += HEADERLEN;
+    plen -= HEADERLEN;
+
+    /* As in ccp_reqci(), only the first MPPE option counts */
+    while (plen >= 2 && p[1] >= 2 && p[1] <= plen) {
+	if (p[0] == CI_MPPE) {
+	    if (p[1] != CILEN_MPPE)
+		return 0;
+	    MPPE_CI_TO_OPTS(&p[2], bits);
+	    if ((bits & MPPE_OPT_STATEFUL) && refuse_mppe_stateful)
+		return 0;
+	    allowed = ccp_wantoptions[f->unit].mppe;
+	    /* As in ccp_resetci(): no 40-bit after MS-CHAP (LM) */
+	    if (auth_done[f->unit] & (CHAP_MS_WITHPEER | CHAP_MS_PEER))
+		allowed &= ~MPPE_OPT_40;
+	    return (bits & allowed & (MPPE_OPT_40 | MPPE_OPT_128)) != 0;
+	}
+	plen -= p[1];
+	p += p[1];
+    }
+    return 0;
+}
+
+/*
+ * mppe_ask_too - the peer has asked for MPPE: ask for it too, and go
+ * on as with "mppe preferred".  The network protocols are running
+ * already.
+ */
+static void
+mppe_ask_too(fsm *f)
+{
+    notice("Peer asked for MPPE, asking for it too");
+    mppe_pref[f->unit] |= MPPE_SOFT | MPPE_ASKED;
+
+    switch (f->state) {
+    case REQSENT:
+    case ACKRCVD:
+    case ACKSENT:
+	/*
+	 * Our request has no MPPE.  Restart the fsm, so that a new
+	 * request goes out before the reply: from fsm_lowerup(), or in
+	 * the stopped state from fsm_input().
+	 */
+	fsm_lowerdown(f);
+	fsm_lowerup(f);
+	break;
+    }
+}
+#endif
+
 /*
  * ccp_input - process a received CCP packet.
  */
@@ -441,6 +663,18 @@ ccp_input(int unit, u_char *p, int len)
 {
     fsm *f = &ccp_fsm[unit];
     int oldstate;
+
+#ifdef PPP_WITH_MPPE
+    /* Before fsm_input(), which may send our request first */
+    if (MPPE_WAITING(unit)) {
+	int asks = mppe_peer_asks(f, p, len);
+
+	if (asks > 0)
+	    mppe_ask_too(f);
+	else if (asks == 0)
+	    mppe_pref[unit] |= MPPE_HEARD;	/* we may send requests now */
+    }
+#endif
 
     /*
      * Check for a terminate-request so we can print a message.
@@ -495,6 +729,66 @@ ccp_extcode(fsm *f, int code, int id, u_char *p, int len)
     return 1;
 }
 
+#ifdef PPP_WITH_MPPE
+/*
+ * mppe_give_up - go on without the preferred or permitted MPPE.  No
+ * other compression is used in its place.
+ */
+static void
+mppe_give_up(int unit)
+{
+    warn("MPPE %s but not negotiated, data is sent unencrypted", MPPE_MODE);
+    mppe_pref[unit] = MPPE_GAVE_UP;
+    mppe_clear_keys();
+    /* Drop any MPPE state the kernel was given */
+    ccp_flags_set(unit, 0, 0);
+    memset(&ccp_gotoptions[unit], 0, sizeof(ccp_options));
+    ccp_allowoptions[unit].mppe = 0;
+}
+
+/*
+ * mppe_unavailable - MPPE can't be used on this link.  Close the link,
+ * or give MPPE up if it is only preferred or permitted.
+ */
+static void
+mppe_unavailable(fsm *f, char *why)
+{
+    if (mppe_pref[f->unit] & MPPE_SOFT) {
+	warn("MPPE %s, but %s", MPPE_MODE, why);
+	mppe_give_up(f->unit);
+    } else {
+	error("MPPE required, but %s", why);
+	lcp_close(f->unit, "MPPE required but not available");
+    }
+}
+
+/*
+ * mppe_failed - the MPPE negotiation of a preferred or permitted link
+ * has failed.
+ * If the peer's MPPE request was acked, close the link; if not, give
+ * MPPE up and call continue_networks() unless they are running already.
+ */
+static void
+mppe_failed(fsm *f, char *why)
+{
+    int late;
+
+    if (!(mppe_pref[f->unit] & MPPE_SOFT))
+	return;
+    if (mppe_pref[f->unit] & MPPE_HIS_ACKED) {
+	/* We have taken the peer's MPPE, so it can't be given up. */
+	error("MPPE negotiated in one direction only");
+	lcp_close(f->unit, "MPPE negotiated in one direction only");
+	return;
+    }
+    late = mppe_pref[f->unit] & MPPE_ASKED;	/* NCPs are running */
+    warn("MPPE %s but %s", MPPE_MODE, why);
+    mppe_give_up(f->unit);
+    if (!late)
+	continue_networks(f->unit);
+}
+#endif
+
 /*
  * ccp_protrej - peer doesn't talk CCP.
  */
@@ -505,7 +799,9 @@ ccp_protrej(int unit)
     fsm_lowerdown(&ccp_fsm[unit]);
 
 #ifdef PPP_WITH_MPPE
-    if (ccp_gotoptions[unit].mppe) {
+    if (mppe_pref[unit] & MPPE_SOFT)
+	mppe_failed(&ccp_fsm[unit], "peer negotiation failed");
+    else if (ccp_gotoptions[unit].mppe) {
 	error("MPPE required but peer negotiation failed");
 	lcp_close(unit, "MPPE required but peer negotiation failed");
     }
@@ -527,9 +823,16 @@ ccp_resetci(fsm *f)
 
 #ifdef PPP_WITH_MPPE
     ccp_allowoptions[f->unit].mppe = 0;
-    if (require_mppe && !go->mppe) {
-	error("MPPE required, but both 40-bit and 128-bit disabled.");
-	lcp_close(f->unit, "MPPE required but not available");
+    if (mppe_pref[f->unit] == MPPE_GAVE_UP) {
+	/* Preferred MPPE was given up: ask for nothing */
+	memset(go, 0, sizeof(ccp_options));
+	return;
+    }
+    if (MPPE_WAITING(f->unit))
+	go->mppe = 0;		/* only ask for MPPE once the peer has */
+    if ((require_mppe || (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_WAS_UP)))
+	&& !go->mppe) {
+	mppe_unavailable(f, "both 40-bit and 128-bit disabled.");
 	return;
     }
     if (go->mppe) {
@@ -561,8 +864,7 @@ ccp_resetci(fsm *f)
 	    auth_mschap_bits >>= 1;
 	} while (auth_mschap_bits);
 	if (numbits > 1) {
-	    error("MPPE required, but auth done in both directions.");
-	    lcp_close(f->unit, "MPPE required but not available");
+	    mppe_unavailable(f, "auth done in both directions.");
 	    return;
 	}
 
@@ -577,20 +879,18 @@ ccp_resetci(fsm *f)
 	auth_eap_bits &= (EAP_WITHPEER | EAP_PEER );
 
 	if ((numbits == 0) && (auth_eap_bits == 0)) {
-	    error("MPPE required, but MS-CHAP[v2] nor EAP-TLS auth are performed.");
+	    mppe_unavailable(f, "MS-CHAP[v2] nor EAP-TLS auth are performed.");
 #else
 	if (!numbits) {
-	    error("MPPE required, but MS-CHAP[v2] auth not performed.");
+	    mppe_unavailable(f, "MS-CHAP[v2] auth not performed.");
 #endif
-	    lcp_close(f->unit, "MPPE required but not available");
 	    return;
 	}
 
 	/* A plugin (eg radius) may not have obtained key material. */
 	if (!mppe_keys_isset()) {
-	    error("MPPE required, but keys are not available.  "
-		  "Possible plugin problem?");
-	    lcp_close(f->unit, "MPPE required but not available");
+	    mppe_unavailable(f, "keys are not available.  "
+			     "Possible plugin problem?");
 	    return;
 	}
 
@@ -607,18 +907,20 @@ ccp_resetci(fsm *f)
 	/* Last check: can we actually negotiate something? */
 	if (!(go->mppe & (MPPE_OPT_40 | MPPE_OPT_128))) {
 	    /* Could be misconfig, could be 40-bit disabled above. */
-	    error("MPPE required, but both 40-bit and 128-bit disabled.");
-	    lcp_close(f->unit, "MPPE required but not available");
+	    mppe_unavailable(f, "both 40-bit and 128-bit disabled.");
 	    return;
 	}
 
 	/* sync options */
 	ao->mppe = go->mppe;
-	/* MPPE is not compatible with other compression types */
-	ao->bsd_compress = go->bsd_compress = 0;
-	ao->predictor_1  = go->predictor_1  = 0;
-	ao->predictor_2  = go->predictor_2  = 0;
-	ao->deflate      = go->deflate      = 0;
+	/*
+	 * MPPE is not compatible with other compression types; while
+	 * we ask for MPPE, ccp_reqci() doesn't allow them either.
+	 */
+	go->bsd_compress = 0;
+	go->predictor_1  = 0;
+	go->predictor_2  = 0;
+	go->deflate      = 0;
     }
 
     /*
@@ -630,10 +932,8 @@ ccp_resetci(fsm *f)
 	opt_buf[1] = CILEN_MPPE;
 	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
 	/* Key material unimportant here. */
-	if (ccp_test(f->unit, opt_buf, CILEN_MPPE + MPPE_MAX_KEY_LEN, 0) <= 0) {
-	    error("MPPE required, but kernel has no support.");
-	    lcp_close(f->unit, "MPPE required but not available");
-	}
+	if (ccp_test(f->unit, opt_buf, CILEN_MPPE + MPPE_MAX_KEY_LEN, 0) <= 0)
+	    mppe_unavailable(f, "kernel has no support.");
     }
 #endif /* PPP_WITH_MPPE */
     if (go->bsd_compress) {
@@ -833,8 +1133,10 @@ static int
 	p += CILEN_MPPE;
 	len -= CILEN_MPPE;
 	/* XXX Cope with first/fast ack */
-	if (len == 0)
+	if (len == 0) {
+	    mppe_pref[f->unit] |= MPPE_OURS_ACKED;
 	    return 1;
+	}
     }
 #endif
     if (go->deflate) {
@@ -931,7 +1233,7 @@ static int
 	    try.mppe = 0;
 	}
 
-	if (!try.mppe) {
+	if (!try.mppe && !(mppe_pref[f->unit] & MPPE_SOFT)) {
 	    error("MPPE required but peer negotiation failed");
 	    lcp_close(f->unit, "MPPE required but peer negotiation failed");
 	}
@@ -984,6 +1286,10 @@ static int
 
     if (f->state != OPENED)
 	*go = try;
+#ifdef PPP_WITH_MPPE
+    if (!go->mppe)
+	mppe_failed(f, "peer negotiation failed");
+#endif
     return 1;
 }
 
@@ -1002,14 +1308,22 @@ ccp_rejci(fsm *f, u_char *p, int len)
      * Cope with empty configure-rejects by ceasing to send
      * configure-requests.
      */
-    if (len == 0 && all_rejected[f->unit])
+    if (len == 0 && all_rejected[f->unit]) {
+#ifdef PPP_WITH_MPPE
+	mppe_failed(f, "peer refused");
+#endif
 	return -1;
+    }
 
 #ifdef PPP_WITH_MPPE
     if (go->mppe && len >= CILEN_MPPE
 	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
-	error("MPPE required but peer refused");
-	lcp_close(f->unit, "MPPE required but peer refused");
+	if (mppe_pref[f->unit] & MPPE_SOFT)
+	    try.mppe = 0;
+	else {
+	    error("MPPE required but peer refused");
+	    lcp_close(f->unit, "MPPE required but peer refused");
+	}
 	p += CILEN_MPPE;
 	len -= CILEN_MPPE;
     }
@@ -1060,6 +1374,10 @@ ccp_rejci(fsm *f, u_char *p, int len)
 
     if (f->state != OPENED)
 	*go = try;
+#ifdef PPP_WITH_MPPE
+    if (!go->mppe)
+	mppe_failed(f, "peer refused");
+#endif
 
     return 1;
 }
@@ -1093,9 +1411,25 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
     bool rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
 				/* CI_MPPE, or due to other options?       */
     bool noop_first = !ao->mppe && mppe_ci_is_noop(p, *lenp);
+    ccp_options mppe_ao;
 #endif
     int warned = 0;
     bool seenci[CI_DEFLATE+1];
+
+#ifdef PPP_WITH_MPPE
+    /*
+     * While this session asks for MPPE, or has given it up, no other
+     * compression is allowed.
+     */
+    if (ccp_gotoptions[f->unit].mppe || (mppe_pref[f->unit] & MPPE_GAVE_UP)) {
+	mppe_ao = *ao;
+	mppe_ao.bsd_compress = 0;
+	mppe_ao.predictor_1 = 0;
+	mppe_ao.predictor_2 = 0;
+	mppe_ao.deflate = 0;
+	ao = &mppe_ao;
+    }
+#endif
 
     ret = CONFACK;
     retp = p0 = p;
@@ -1381,9 +1715,19 @@ ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak)
 	    *lenp = retp - p0;
     }
 #ifdef PPP_WITH_MPPE
+    if (ret == CONFACK && ho->mppe)
+	mppe_pref[f->unit] |= MPPE_HIS_ACKED;
+    else
+	mppe_pref[f->unit] &= ~MPPE_HIS_ACKED;
     if (ccp_gotoptions[f->unit].mppe && rej_for_ci_mppe) {
-	error("MPPE required but peer negotiation failed");
-	lcp_close(f->unit, "MPPE required but peer negotiation failed");
+	if (!(mppe_pref[f->unit] & MPPE_SOFT)) {
+	    error("MPPE required but peer negotiation failed");
+	    lcp_close(f->unit, "MPPE required but peer negotiation failed");
+	} else if (mppe_pref[f->unit] & MPPE_OURS_ACKED) {
+	    /* The peer took our MPPE but won't use it its own way. */
+	    error("MPPE negotiated in one direction only");
+	    lcp_close(f->unit, "MPPE negotiated in one direction only");
+	}
     }
 #endif
     return ret;
@@ -1463,6 +1807,14 @@ ccp_up(fsm *f)
     ccp_options *ho = &ccp_hisoptions[f->unit];
     char method1[64];
 
+#ifdef PPP_WITH_MPPE
+    if (!go->mppe != !ho->mppe) {
+	go->mppe = 0;		/* no second message from ccp_down() */
+	error("MPPE negotiated in one direction only");
+	lcp_close(f->unit, "MPPE negotiated in one direction only");
+	return;
+    }
+#endif
     ccp_flags_set(f->unit, 1, 1);
     if (ANY_COMPRESS(*go)) {
 	if (ANY_COMPRESS(*ho)) {
@@ -1479,8 +1831,14 @@ ccp_up(fsm *f)
 	notice("%s transmit compression enabled", method_name(ho, NULL));
 #ifdef PPP_WITH_MPPE
     if (go->mppe) {
+	int late = mppe_pref[f->unit] & MPPE_ASKED;	/* NCPs are running */
+
+	/* Preferred or permitted MPPE can't be given up from now on */
+	mppe_pref[f->unit] = (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_WAS_UP))?
+	    MPPE_WAS_UP: 0;
 	mppe_clear_keys();
-	continue_networks(f->unit);		/* Bring up IP et al */
+	if (!late)
+	    continue_networks(f->unit);		/* Bring up IP et al */
     }
 #endif
 }
@@ -1503,6 +1861,24 @@ ccp_down(fsm *f)
 	    error("MPPE disabled");
 	    lcp_close(f->unit, "MPPE disabled");
 	}
+    }
+#endif
+}
+
+/*
+ * ccp_finished - CCP has stopped, e.g. because the peer never answered.
+ */
+static void
+ccp_finished(fsm *f)
+{
+#ifdef PPP_WITH_MPPE
+    if (lcp_fsm[f->unit].state != OPENED)
+	return;
+    if (mppe_pref[f->unit] & MPPE_SOFT)
+	mppe_failed(f, "CCP negotiation failed");
+    else if (ccp_gotoptions[f->unit].mppe) {
+	error("MPPE required but peer negotiation failed");
+	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     }
 #endif
 }
