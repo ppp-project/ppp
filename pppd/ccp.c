@@ -221,6 +221,7 @@ static int  ccp_rejci (fsm *, u_char *, int);
 static int  ccp_reqci (fsm *, u_char *, int *, int);
 static void ccp_up (fsm *);
 static void ccp_down (fsm *);
+static void ccp_finished (fsm *);
 static int  ccp_extcode (fsm *, int, int, u_char *, int);
 static void ccp_rack_timeout (void *);
 static char *method_name (ccp_options *, ccp_options *);
@@ -236,7 +237,7 @@ static fsm_callbacks ccp_callbacks = {
     ccp_up,
     ccp_down,
     NULL,
-    NULL,
+    ccp_finished,
     NULL,
     NULL,
     ccp_extcode,
@@ -1522,6 +1523,22 @@ ccp_down(fsm *f)
 	    error("MPPE disabled");
 	    lcp_close(f->unit, "MPPE disabled");
 	}
+    }
+#endif
+}
+
+/*
+ * ccp_finished - CCP has stopped, e.g. because the peer never answered.
+ */
+static void
+ccp_finished(fsm *f)
+{
+#ifdef PPP_WITH_MPPE
+    if (lcp_fsm[f->unit].state != OPENED)
+	return;
+    if (ccp_gotoptions[f->unit].mppe) {
+	error("MPPE required but peer negotiation failed");
+	lcp_close(f->unit, "MPPE required but peer negotiation failed");
     }
 #endif
 }
