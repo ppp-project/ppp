@@ -402,8 +402,12 @@ chap_handle_response(struct chap_server_state *ss, int id,
 	output(0, outpacket_buf, PPP_HDRLEN + len);
 
 	if (ss->flags & CHALLENGE_VALID) {
+		int done = ss->flags & AUTH_DONE;
+
 		ss->flags &= ~CHALLENGE_VALID;
-		if (!(ss->flags & AUTH_DONE) && !(ss->flags & AUTH_FAILED)) {
+		/* the calls below may take the link down */
+		ss->flags |= AUTH_DONE;
+		if (!done && !(ss->flags & AUTH_FAILED)) {
 		    /*
 		     * Auth is OK, so now we need to check session restrictions
 		     * to ensure everything is OK, but only if we used a
@@ -422,17 +426,16 @@ chap_handle_response(struct chap_server_state *ss, int id,
 		if (ss->flags & AUTH_FAILED) {
 			auth_peer_fail(0, PPP_CHAP);
 		} else {
-			if ((ss->flags & AUTH_DONE) == 0)
-				auth_peer_success(0, PPP_CHAP,
-						  ss->digest->code,
-						  name, strlen(name));
 			if (chap_rechallenge_time) {
 				ss->flags |= TIMEOUT_PENDING;
 				TIMEOUT(chap_server_timeout, ss,
 					chap_rechallenge_time);
 			}
+			if (!done)
+				auth_peer_success(0, PPP_CHAP,
+						  ss->digest->code,
+						  name, strlen(name));
 		}
-		ss->flags |= AUTH_DONE;
 	}
 }
 
