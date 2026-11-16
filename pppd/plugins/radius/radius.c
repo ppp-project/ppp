@@ -755,17 +755,15 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 	return -1;
 
 #ifdef PPP_WITH_MPPE
+    /* Set the encryption policy and allowed encryption types. */
+    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
+
     /*
      * Require both policy and key attributes to indicate a valid key.
      * Note that if the policy value was '0' we don't set the key!
      */
-    if (mppe_enc_policy && mppe_enc_keys) {
-	/* Set/modify allowed encryption types. */
-	if (mppe_enc_types)
-	    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
-	return 0;
-    }
-    mppe_clear_keys();
+    if (!mppe_enc_policy || !mppe_enc_keys)
+	mppe_clear_keys();
 #endif
 
     return 0;

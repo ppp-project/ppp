@@ -274,22 +274,26 @@ static int all_rejected[NUM_PPP];	/* we rejected all peer's options */
 /*
  * With "mppe preferred", MPPE can be given up until it has come up.
  * From then on it is required until the call ends.  "mppe permitted"
- * works the same way once the peer has asked for MPPE.
+ * works the same way once the peer has asked for MPPE.  When the server
+ * requires encryption, mppe_set_enc_types() makes it required for the
+ * whole call.
  */
 static int mppe_pref[NUM_PPP];
 #define MPPE_SOFT	1	/* MPPE can still be given up */
 #define MPPE_OURS_ACKED	2	/* the peer acked our MPPE request */
 #define MPPE_HIS_ACKED	4	/* we acked the peer's MPPE request */
 #define MPPE_GAVE_UP	8	/* MPPE was given up, don't ask again */
-#define MPPE_WAS_UP	16	/* MPPE has been up on this call */
+#define MPPE_HARD	16	/* MPPE is required until the call ends */
 #define MPPE_ASKED	32	/* permitted: the peer asked, NCPs are running */
 #define MPPE_HEARD	64	/* permitted: the peer has sent a CCP request */
 
 /* With "mppe permitted": the peer hasn't asked for MPPE yet */
 #define MPPE_WAITING(unit)	(permit_mppe && !require_mppe \
 				 && !(mppe_pref[unit] & (MPPE_SOFT \
-				      | MPPE_GAVE_UP | MPPE_WAS_UP)))
+				      | MPPE_GAVE_UP | MPPE_HARD)))
 #define MPPE_MODE		(permit_mppe? "permitted": "preferred")
+
+static int mppe_call_off;	/* strengths turned off for this call */
 #endif
 
 /*
@@ -445,6 +449,37 @@ setnomppe(char **argv)
     ccp_wantoptions[0].mppe = 0;
     return 1;
 }
+
+/*
+ * mppe_set_enc_types - apply the MPPE policy and types that a plugin
+ * (eg radius) got from the server, for this call only.  The types can
+ * only turn strengths off, and a policy of "required" makes MPPE required
+ * unless it is disabled.
+ */
+void
+mppe_set_enc_types(int policy, int types)
+{
+    int off = 0;
+
+    if (policy != MPPE_ENC_POL_ENC_ALLOWED &&
+	policy != MPPE_ENC_POL_ENC_REQUIRED)
+	return;
+
+    if (policy == MPPE_ENC_POL_ENC_REQUIRED
+	&& (require_mppe || prefer_mppe || permit_mppe))
+	mppe_pref[0] |= MPPE_HARD;
+
+    switch (types) {
+    case MPPE_ENC_TYPES_RC4_40:
+	off = MPPE_OPT_128;
+	break;
+    case MPPE_ENC_TYPES_RC4_128:
+	off = MPPE_OPT_40;
+	break;
+    }
+    mppe_call_off |= ccp_wantoptions[0].mppe & off;
+    ccp_wantoptions[0].mppe &= ~off;
+}
 #endif
 
 /*
@@ -460,6 +495,8 @@ ccp_link_terminated(void *arg, int phase)
 #ifdef PPP_WITH_MPPE
     if (phase == PHASE_DEAD) {
 	mppe_pref[f->unit] = 0;	/* the next call starts over */
+	ccp_wantoptions[0].mppe |= mppe_call_off;
+	mppe_call_off = 0;
 	mppe_clear_keys();	/* no keys outlive the call */
     }
 #endif
@@ -562,7 +599,7 @@ static void
 ccp_lowerup(int unit)
 {
 #ifdef PPP_WITH_MPPE
-    mppe_pref[unit] &= MPPE_WAS_UP;	/* the rest is per LCP session */
+    mppe_pref[unit] &= MPPE_HARD;	/* the rest is per LCP session */
     mppe_clear_keys();		/* this session's authentication sets them */
 #endif
     fsm_lowerup(&ccp_fsm[unit]);
@@ -830,7 +867,7 @@ ccp_resetci(fsm *f)
     }
     if (MPPE_WAITING(f->unit))
 	go->mppe = 0;		/* only ask for MPPE once the peer has */
-    if ((require_mppe || (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_WAS_UP)))
+    if ((require_mppe || (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_HARD)))
 	&& !go->mppe) {
 	mppe_unavailable(f, "both 40-bit and 128-bit disabled.");
 	return;
@@ -1834,8 +1871,8 @@ ccp_up(fsm *f)
 	int late = mppe_pref[f->unit] & MPPE_ASKED;	/* NCPs are running */
 
 	/* Preferred or permitted MPPE can't be given up from now on */
-	mppe_pref[f->unit] = (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_WAS_UP))?
-	    MPPE_WAS_UP: 0;
+	mppe_pref[f->unit] = (mppe_pref[f->unit] & (MPPE_SOFT | MPPE_HARD))?
+	    MPPE_HARD: 0;
 	mppe_clear_keys();
 	if (!late)
 	    continue_networks(f->unit);		/* Bring up IP et al */

@@ -740,7 +740,11 @@ until MPPE has come up.  Like \fBrequire\-mppe\fR, \fBrequired\fR and
 \fBpreferred\fR disable all other compression types, also after a
 fallback, and so does \fBpermitted\fR once the peer has asked for MPPE,
 until the link is renegotiated or, if MPPE has come up, for the rest
-of the call.  Anyone who can block or alter the CCP negotiation can
+of the call.  When a plugin such as radius gets an encryption policy
+of \fIrequired\fR from its server (RFC\ 2548), \fBpreferred\fR and
+\fBpermitted\fR work as \fBrequired\fR until the call ends; MPPE that
+is \fBdisabled\fR stays off.
+Anyone who can block or alter the CCP negotiation can
 make a \fBpreferred\fR or \fBpermitted\fR link run unencrypted, and
 RFC\ 3078 says a link should be closed when MPPE negotiation fails, so
 use \fBrequired\fR where encryption matters.  This option does not stop
