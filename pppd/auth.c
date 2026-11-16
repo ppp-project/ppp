@@ -994,6 +994,8 @@ start_networks(int unit)
 	if ((protp->protocol == PPP_ECP || protp->protocol == PPP_CCP)
 	    && protp->enabled_flag && protp->open != NULL)
 	    (*protp->open)(0);
+    if (lcp_fsm[unit].state != OPENED)
+	return;			/* CCP or ECP has closed the link */
 
     /*
      * Bring up other network protocols iff encryption is not required.

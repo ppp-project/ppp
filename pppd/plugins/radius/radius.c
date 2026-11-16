@@ -82,6 +82,7 @@ static chap_verify_hook_fn radius_chap_verify;
 
 static void radius_ip_up(void *opaque, int arg);
 static void radius_ip_down(void *opaque, int arg);
+static void radius_phase_change(void *opaque, int phase);
 static void make_username_realm(const char *user);
 static int radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 			    struct chap_digest_type *digest,
@@ -160,6 +161,7 @@ plugin_init(void)
 
     ppp_add_notify(NF_IP_UP, radius_ip_up, NULL);
     ppp_add_notify(NF_IP_DOWN, radius_ip_down, NULL);
+    ppp_add_notify(NF_PHASE_CHANGE, radius_phase_change, NULL);
 
     memset(&rstate, 0, sizeof(rstate));
 
@@ -753,17 +755,15 @@ radius_setparams(VALUE_PAIR *vp, char *msg, REQUEST_INFO *req_info,
 	return -1;
 
 #ifdef PPP_WITH_MPPE
+    /* Set the encryption policy and allowed encryption types. */
+    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
+
     /*
      * Require both policy and key attributes to indicate a valid key.
      * Note that if the policy value was '0' we don't set the key!
      */
-    if (mppe_enc_policy && mppe_enc_keys) {
-	/* Set/modify allowed encryption types. */
-	if (mppe_enc_types)
-	    mppe_set_enc_types(mppe_enc_policy, mppe_enc_types);
-	return 0;
-    }
-    mppe_clear_keys();
+    if (!mppe_enc_policy || !mppe_enc_keys)
+	mppe_clear_keys();
 #endif
 
     return 0;
@@ -1095,8 +1095,7 @@ radius_acct_stop(void)
 	return;
     }
 
-    if (rstate.acct_interim_interval)
-	ppp_untimeout(radius_acct_interim, NULL);
+    ppp_untimeout(radius_acct_interim, NULL);
 
     rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
 		   0, VENDOR_NONE);
@@ -1341,7 +1340,8 @@ radius_acct_interim(void *ignored)
     rc_avpair_free(send);
 
     /* Schedule another one */
-    ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
+    if (rstate.acct_interim_interval)
+	ppp_timeout(radius_acct_interim, NULL, rstate.acct_interim_interval, 0);
 }
 
 /**********************************************************************
@@ -1374,6 +1374,31 @@ static void
 radius_ip_down(void *opaque, int arg)
 {
     radius_acct_stop();
+}
+
+/**********************************************************************
+* %FUNCTION: radius_phase_change
+* %ARGUMENTS:
+*  opaque -- ignored
+*  phase -- the new phase
+* %RETURNS:
+*  Nothing
+* %DESCRIPTION:
+*  Called when the phase changes.  When a new authentication phase
+*  starts, forgets what was kept from the previous reply.
+***********************************************************************/
+static void
+radius_phase_change(void *opaque, int phase)
+{
+    if (phase != PHASE_AUTHENTICATE)
+	return;
+    rstate.done_chap_once = 0;
+    rstate.choose_ip = 0;
+    rstate.any_ip_addr_ok = 0;
+    rstate.class_len = 0;
+    rstate.acct_interim_interval = 0;
+    ppp_script_unsetenv("RADIUS_FILTER_ID");
+    ppp_script_unsetenv("RADIUS_FRAMED_ROUTE");
 }
 
 /**********************************************************************
