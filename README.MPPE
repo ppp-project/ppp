@@ -23,6 +23,14 @@ are disabled and MPPE *must* be negotiated successfully in both directions
 reasonable since, if you want encryption, you want encryption.  That is,
 I am not convinced that optional encryption is useful.
 
+The "mppe preferred" option (see pppd.8) adds a state in between: pppd
+asks for MPPE and uses it when the peer agrees, but brings the link up
+without encryption, and without other compression, when MPPE can't be
+negotiated.  MPPE is still never used in one direction only, and
+require-mppe still works as described above.  "mppe permitted" doesn't
+ask for MPPE, but when the peer asks for it, pppd asks too and goes on
+as with "mppe preferred".
+
 While PPP regards MPPE as a "compressor", it actually expands every frame
 by 4 bytes, the MPPE overhead (encapsulation).
 

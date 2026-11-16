@@ -709,6 +709,43 @@ control, as for the \fIcrtscts\fR option.  This is the opposite of the
 Enables the use of PPP multilink; this is an alias for the `multilink'
 option.  This option is currently only available under Linux.
 .TP
+.B mppe \fIstate\fR[,40][,128]
+Set the use of MPPE (Microsoft Point to Point Encryption), where
+\fIstate\fR is \fBrequired\fR, \fBpreferred\fR, \fBpermitted\fR or
+\fBdisabled\fR.  All but \fBdisabled\fR can be followed by the
+encryption strengths to allow; with none given, both 40-bit and
+128-bit encryption are allowed.
+\fBmppe required\fR sets the same state as \fBrequire\-mppe\fR, and
+\fBmppe disabled\fR the same as \fBnomppe\fR; a \fBrequire\-mppe\-40\fR
+or \fBrequire\-mppe\-128\fR given later adds that strength and makes
+MPPE required.  With
+\fBpreferred\fR, pppd negotiates MPPE as with \fBrequire\-mppe\fR, but
+if MPPE cannot be negotiated, for example because the peer refuses it,
+no strength is left, or the authentication gave no MPPE keys (PAP or
+CHAP\-MD5 instead of MS\-CHAP), pppd logs a warning and brings the link
+up without encryption.  MPPE is never used in one direction only: the
+link is closed if pppd has already accepted the peer's MPPE when its
+own request fails, or if the peer has accepted pppd's MPPE and its own
+request has no MPPE that pppd can use.  Once MPPE has come up it is
+required for the rest of the call, as with \fBrequire\-mppe\fR, also
+if the link is renegotiated: there is no fallback any more.  With
+\fBpermitted\fR, pppd does not ask for MPPE and sends no CCP request
+until the peer has sent one, so other compression is only used when
+the peer starts CCP.  If the peer's request asks for an allowed MPPE
+strength (stateless, unless \fBmppe\-stateful\fR is given) and pppd has
+MPPE keys, pppd asks for MPPE too and goes on as with \fBpreferred\fR;
+otherwise it refuses the peer's MPPE, as with \fBdisabled\fR.  The
+network protocols are not held back, so data can be sent unencrypted
+until MPPE has come up.  Like \fBrequire\-mppe\fR, \fBrequired\fR and
+\fBpreferred\fR disable all other compression types, also after a
+fallback, and so does \fBpermitted\fR once the peer has asked for MPPE,
+until the link is renegotiated or, if MPPE has come up, for the rest
+of the call.  Anyone who can block or alter the CCP negotiation can
+make a \fBpreferred\fR or \fBpermitted\fR link run unencrypted, and
+RFC\ 3078 says a link should be closed when MPPE negotiation fails, so
+use \fBrequired\fR where encryption matters.  This option does not stop
+pppd from authenticating with PAP; use \fBrefuse\-pap\fR for that.
+.TP
 .B mppe\-stateful
 Allow MPPE to use stateful mode.  Stateless mode is still attempted first.
 The default is to disallow stateful mode.  
