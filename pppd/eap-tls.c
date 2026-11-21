@@ -72,10 +72,8 @@ typedef struct pw_cb_data
 } PW_CB_DATA;
 
 #ifdef OPENSSL_ENGINE
-/* The openssl configuration file and engines can be loaded only once */
+/* The openssl configuration file can be loaded only once */
 static CONF   *ssl_config  = NULL;
-static ENGINE *cert_engine = NULL;
-static ENGINE *pkey_engine = NULL;
 #endif
 
 /* TLSv1.3 do we have a session ticket ? */
@@ -265,6 +263,8 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
 #ifdef OPENSSL_ENGINE
     char        *cert_engine_name = NULL;
     char        *pkey_engine_name = NULL;
+    ENGINE      *cert_engine = NULL;
+    ENGINE      *pkey_engine = NULL;
     char        *idx;
 #endif
     SSL_CTX     *ctx;
@@ -606,6 +606,12 @@ SSL_CTX *eaptls_init_ssl(int init_server, char *cacertfile, char *capath,
         goto fail;
     }
 
+#ifdef OPENSSL_ENGINE
+    if (pkey_engine != cert_engine)
+        ENGINE_free(pkey_engine);
+    ENGINE_free(cert_engine);
+#endif
+
     return ctx;
 
 fail:
@@ -618,6 +624,12 @@ fail:
 
     if (chain)
         sk_X509_pop_free(chain, X509_free);
+
+#ifdef OPENSSL_ENGINE
+    if (pkey_engine != cert_engine)
+        ENGINE_free(pkey_engine);
+    ENGINE_free(cert_engine);
+#endif
 
     tls_log_sslerr();
     SSL_CTX_free(ctx);
