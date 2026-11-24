@@ -155,6 +155,8 @@ static int conversation (int num_msg,
                 break;
             default:
                 /* Must be an error of some sort... */
+                while (replies-- > 0)
+                    free(reply[replies].resp);
                 free (reply);
                 return PAM_CONV_ERR;
         }
