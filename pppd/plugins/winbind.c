@@ -263,8 +263,8 @@ unsigned int run_ntlm_auth(const char *username,
 
 	char buffer[1024];
 
-	FILE *pipe_in;
-	FILE *pipe_out;
+	FILE *pipe_in = NULL;
+	FILE *pipe_out = NULL;
 	
 	int i;
 	char *challenge_hex;
@@ -283,8 +283,21 @@ unsigned int run_ntlm_auth(const char *username,
 
         if (pipe(child_in) == -1) {
                 error("pipe creation failed for child IN!");
+		close(child_out[0]);
+		close(child_out[1]);
 		return NOT_AUTHENTICATED;
         }
+
+	pipe_in = fdopen(child_in[1], "w");
+	if (pipe_in == NULL) {
+		error("fdopen failed for child IN: %m");
+		goto errclose;
+	}
+	pipe_out = fdopen(child_out[0], "r");
+	if (pipe_out == NULL) {
+		error("fdopen failed for child OUT: %m");
+		goto errclose;
+	}
 
         forkret = ppp_safe_fork(child_in[0], child_out[1], 2);
         if (forkret == -1) {
@@ -292,7 +305,7 @@ unsigned int run_ntlm_auth(const char *username,
 			*error_string = strdup("fork failed!");
 		}
 
-                return NOT_AUTHENTICATED;
+		goto errclose;
         }
 
 	if (forkret == 0) {
@@ -319,12 +332,6 @@ unsigned int run_ntlm_auth(const char *username,
         /* parent */
 	close(child_out[1]);
 	close(child_in[0]);
-
-	/* Need to write the User's info onto the pipe */
-
-	pipe_in = fdopen(child_in[1], "w");
-
-	pipe_out = fdopen(child_out[0], "r");
 
 	/* look for session key coming back */
 
@@ -457,6 +464,19 @@ unsigned int run_ntlm_auth(const char *username,
 		return NOT_AUTHENTICATED;
 	}
 	return authenticated;
+
+errclose:
+	if (pipe_in != NULL)
+		fclose(pipe_in);
+	else
+		close(child_in[1]);
+	if (pipe_out != NULL)
+		fclose(pipe_out);
+	else
+		close(child_out[0]);
+	close(child_in[0]);
+	close(child_out[1]);
+	return NOT_AUTHENTICATED;
 }
 
 /**********************************************************************
